@@ -11,6 +11,7 @@ import CookieBanner from '@/components/CookieBanner'
 import ServiceWorkerRegistration from '@/components/ServiceWorkerRegistration'
 import CommandPalette from '@/components/CommandPalette'
 import InstallPrompt from '@/components/InstallPrompt'
+import { PostHogProvider } from '@/components/PostHogProvider'
 
 import { APP_URL } from '@/lib/env'
 
@@ -60,6 +61,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="manifest" href="/manifest.json" />
       </head>
       <body className="min-h-screen flex flex-col bg-white">
+        <PostHogProvider>
         <AuthProvider>
           <Navbar />
           <VerifyEmailBanner />
@@ -71,6 +73,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <CookieBanner />
           <Toaster position="top-right" richColors closeButton />
         </AuthProvider>
+        </PostHogProvider>
         <InstallPrompt />
         <ServiceWorkerRegistration />
       </body>
