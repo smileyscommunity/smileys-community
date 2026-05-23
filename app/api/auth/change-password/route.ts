@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
-import { getSession } from '@/lib/session'
+import { getSession, createSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
 
 export async function POST(req: NextRequest) {
@@ -32,7 +32,13 @@ export async function POST(req: NextRequest) {
     }
 
     const hashed = await bcrypt.hash(newPassword, 10)
-    await prisma.user.update({ where: { id: session.id }, data: { password: hashed } })
+    // Bump tokenVersion to evict all other sessions; re-issue cookie for this device.
+    const updated = await prisma.user.update({
+      where: { id: session.id },
+      data:  { password: hashed, tokenVersion: { increment: 1 } },
+      select: { tokenVersion: true },
+    })
+    await createSession({ ...session, tokenVersion: updated.tokenVersion })
 
     return NextResponse.json({ ok: true })
   } catch (e) {

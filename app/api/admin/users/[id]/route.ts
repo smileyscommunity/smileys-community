@@ -153,6 +153,15 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       select: { role: true, status: true, name: true, email: true, phone: true, suspendedUntil: true },
     })
 
+    // role is read from the JWT body (not refreshed from DB by getSession), so a
+    // demoted admin would keep session.role === 'admin' until their next login
+    // without this. Bumping tokenVersion forces them through getSession's revocation
+    // path on their next request.
+    if ((allowed.role !== undefined && allowed.role !== before?.role) ||
+        (allowed.status !== undefined && allowed.status !== before?.status)) {
+      allowed.tokenVersion = { increment: 1 }
+    }
+
     const user = await prisma.user.update({ where: { id }, data: allowed })
 
     // Auto-add to blacklist on ban so they can't re-apply

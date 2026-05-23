@@ -21,7 +21,11 @@ export async function POST(req: NextRequest) {
 
     const hashed = await bcrypt.hash(password, 10)
 
-    await prisma.user.update({ where: { id: record.userId }, data: { password: hashed, emailVerified: true } })
+    // Bump tokenVersion to evict any sessions held by an attacker who knows the old password.
+    await prisma.user.update({
+      where: { id: record.userId },
+      data:  { password: hashed, emailVerified: true, tokenVersion: { increment: 1 } },
+    })
     await prisma.passwordResetToken.update({ where: { token }, data: { used: true } })
 
     return NextResponse.json({ ok: true })

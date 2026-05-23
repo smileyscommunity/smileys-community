@@ -32,7 +32,12 @@ export async function POST(req: NextRequest) {
     const existing = await prisma.user.findUnique({ where: { email: newEmail } })
     if (existing) return NextResponse.json({ error: 'Email already in use' }, { status: 409 })
 
-    await prisma.user.update({ where: { id: session.id }, data: { email: newEmail, emailVerified: false } })
+    // Bump tokenVersion so an attacker holding a stolen JWT can't keep using the account.
+    const updated = await prisma.user.update({
+      where: { id: session.id },
+      data:  { email: newEmail, emailVerified: false, tokenVersion: { increment: 1 } },
+      select: { tokenVersion: true },
+    })
 
     // Send verification to new email
     await prisma.emailVerificationToken.deleteMany({ where: { userId: session.id } })
@@ -41,8 +46,8 @@ export async function POST(req: NextRequest) {
     await prisma.emailVerificationToken.create({ data: { userId: session.id, token, expiresAt } })
     sendVerificationEmail(newEmail, session.name, token).catch(console.error)
 
-    // Update session with new email
-    await createSession({ ...session, email: newEmail, emailVerified: false })
+    // Re-issue session for this device with new email + new tokenVersion
+    await createSession({ ...session, email: newEmail, emailVerified: false, tokenVersion: updated.tokenVersion })
 
     return NextResponse.json({ ok: true })
   } catch (e) {
