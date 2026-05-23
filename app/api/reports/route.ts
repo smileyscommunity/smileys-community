@@ -20,8 +20,11 @@ export async function POST(req: NextRequest) {
     if (details && details.length > 2000) {
       return NextResponse.json({ error: 'Details too long' }, { status: 400 })
     }
-    // Only accept relative upload paths for screenshots
-    const safeScreenshot = (typeof screenshot === 'string' && screenshot.startsWith('/uploads/'))
+    // Only accept relative upload paths produced by /api/upload (same regex as profilePhoto).
+    // The previous check looked for /uploads/ which never matched the real format,
+    // so every screenshot was silently dropped.
+    const safeScreenshot = (typeof screenshot === 'string' &&
+      /^\/app\/api\/files\/[a-zA-Z0-9\-]+\/[a-zA-Z0-9\-]+\.(jpg|jpeg|png|webp|gif)$/.test(screenshot))
       ? screenshot : null
     const VALID_REASONS = ['harassment', 'spam', 'inappropriate', 'fake', 'other']
     if (!VALID_REASONS.includes(reason)) {

@@ -49,6 +49,10 @@ export async function POST(req: NextRequest) {
       color:            '#9ca3af',
       status:           'banned',     // prevents login
       referralCode:     null,
+      // Status: banned is what currently evicts the session in getSession(),
+      // but bump tokenVersion too so revocation is consistent with the other
+      // identity-change paths (password reset, role change, etc.).
+      tokenVersion:     { increment: 1 },
     },
   })
 
