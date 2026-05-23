@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import posthog from 'posthog-js'
 import type { ReactNode } from 'react'
 import type { AppUser } from '@/lib/auth'
 
@@ -45,6 +46,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function logout() {
     await fetch('/app/api/auth/logout', { method: 'POST' })
+    // Clear the cached distinctId so subsequent events on this browser don't
+    // attribute to the previous user (or get merged into their profile when a
+    // different person logs in).
+    posthog.reset()
     setUser(GUEST)
     setIsLoggedIn(false)
     router.push('/login')

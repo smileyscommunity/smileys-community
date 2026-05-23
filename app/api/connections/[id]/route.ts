@@ -32,13 +32,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       `You're now connected with ${session.name}.`,
       '/members',
     )
-    const posthog = getPostHogClient()
-    posthog.capture({
+    getPostHogClient()?.capture({
       distinctId: session.id,
       event: 'connection_accepted',
       properties: { requester_id: connection.requesterId, connection_id: id },
     })
-    await posthog.shutdown()
     return NextResponse.json({ connection: updated })
   }
 

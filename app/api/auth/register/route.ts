@@ -139,11 +139,11 @@ export async function POST(req: NextRequest) {
     await createSession({ id: user.id, name: user.name, email: user.email, role: user.role, color: user.color })
 
     const posthog = getPostHogClient()
-    posthog.identify({
+    posthog?.identify({
       distinctId: user.id,
       properties: { name: user.name, email: user.email, role: user.role, neighborhood: user.neighborhood },
     })
-    posthog.capture({
+    posthog?.capture({
       distinctId: user.id,
       event: 'member_registered',
       properties: {
@@ -154,7 +154,6 @@ export async function POST(req: NextRequest) {
         clubs_enrolled: (application?.assignedClubs?.length ?? 0) + (Array.isArray(clubIds) ? clubIds.length : 0),
       },
     })
-    await posthog.shutdown()
 
     return NextResponse.json({
       id: user.id, name: user.name, email: user.email, role: user.role, color, initials,

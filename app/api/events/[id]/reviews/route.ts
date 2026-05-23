@@ -62,13 +62,11 @@ export async function POST(req: NextRequest, { params }: Params) {
       include: { user: { select: { id: true, name: true, color: true } } },
     })
 
-    const posthog = getPostHogClient()
-    posthog.capture({
+    getPostHogClient()?.capture({
       distinctId: session.id,
       event: 'event_review_submitted',
       properties: { event_id: eventId, rating, has_text: !!(text?.trim()) },
     })
-    await posthog.shutdown()
 
     return NextResponse.json(review)
   } catch (e) {

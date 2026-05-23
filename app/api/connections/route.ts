@@ -80,13 +80,11 @@ export async function POST(req: NextRequest) {
     '/members',
   )
 
-  const posthog = getPostHogClient()
-  posthog.capture({
+  getPostHogClient()?.capture({
     distinctId: session.id,
     event: 'connection_request_sent',
     properties: { receiver_id: receiverId, has_note: !!(note?.trim()) },
   })
-  await posthog.shutdown()
 
   return NextResponse.json({ connection })
 }
