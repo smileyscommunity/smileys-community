@@ -42,7 +42,11 @@ export function useRSVP(eventId: string) {
         body: JSON.stringify({ stealth }),
       })
       const data = await res.json()
-      if (!res.ok) { toast.error(data.error ?? 'Could not join'); return }
+      if (!res.ok) {
+        posthog.capture('event_rsvp_failed', { event_id: eventId, status_code: res.status, reason: data.error })
+        toast.error(data.error ?? 'Could not join')
+        return
+      }
       
       if (data.status === 'waitlisted') {
         setStatus('waitlisted')
@@ -73,7 +77,11 @@ export function useRSVP(eventId: string) {
     setLoading(true)
     try {
       const res = await apiFetch(`/app/api/events/${eventId}/rsvp`, { method: 'DELETE' })
-      if (!res.ok) { toast.error('Could not cancel'); return }
+      if (!res.ok) {
+        posthog.capture('event_rsvp_cancel_failed', { event_id: eventId, status_code: res.status, previous_status: status })
+        toast.error('Could not cancel')
+        return
+      }
 
       posthog.capture('event_rsvp_cancelled', { event_id: eventId, previous_status: status })
       setStatus('idle')

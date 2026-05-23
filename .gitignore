@@ -35,3 +35,6 @@ next-env.d.ts
 /public/uploads/*
 !/public/uploads/.gitkeep
 .env.local
+
+# Claude Code project-local state (settings, agent-installed skills)
+.claude/

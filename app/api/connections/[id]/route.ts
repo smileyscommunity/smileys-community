@@ -41,6 +41,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   // decline — delete the record
   await prisma.memberConnection.delete({ where: { id } })
+  trackServer(session, 'connection_declined', {
+    requester_id: connection.requesterId,
+    connection_id: id,
+  })
   return NextResponse.json({ ok: true })
 }
 
@@ -58,5 +62,13 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   }
 
   await prisma.memberConnection.delete({ where: { id } })
+  // One event covers withdraw (requester deletes own pending request),
+  // decline-via-DELETE (receiver deletes pending request), and unfriend
+  // (either party deletes an accepted connection). Properties differentiate.
+  trackServer(session, 'connection_removed', {
+    connection_id: id,
+    was_pending:   connection.status === 'pending',
+    by_requester:  connection.requesterId === session.id,
+  })
   return NextResponse.json({ ok: true })
 }
