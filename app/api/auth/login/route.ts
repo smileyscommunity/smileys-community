@@ -37,7 +37,8 @@ export async function POST(req: NextRequest) {
       select: { id: true, name: true, email: true, role: true, color: true, bio: true,
                 neighborhood: true, instagram: true, emailVerified: true, partnerId: true,
                 password: true, status: true, suspendedUntil: true, suspensionNote: true,
-                totpEnabled: true, failedLoginCount: true, loginLockedUntil: true, knownIps: true } })
+                totpEnabled: true, failedLoginCount: true, loginLockedUntil: true, knownIps: true,
+                tokenVersion: true } })
     if (!user || !user.password) {
       // Burn equivalent CPU time so attackers can't distinguish "no such user"
       // from "wrong password" by measuring response latency.
@@ -128,7 +129,7 @@ export async function POST(req: NextRequest) {
     }
 
     await Promise.all([
-      createSession({ id: user.id, name: user.name, email: user.email, role: user.role, color: user.color, partnerId: user.partnerId || undefined }),
+      createSession({ id: user.id, name: user.name, email: user.email, role: user.role, color: user.color, partnerId: user.partnerId || undefined, tokenVersion: user.tokenVersion }),
       prisma.user.update({ where: { id: user.id }, data: { lastActive: new Date() } }),
     ])
 

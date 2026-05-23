@@ -47,6 +47,7 @@ model User {
   partnerId      String?
   totpSecret     String?
   totpEnabled    Boolean   @default(false)
+  tokenVersion   Int       @default(0)
   emailMarketing Boolean   @default(true)
 
   joinedEvents            EventAttendee[]

@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     where: { id: userId },
     select: { id: true, name: true, email: true, role: true, color: true, bio: true,
               neighborhood: true, instagram: true, emailVerified: true, partnerId: true,
-              totpSecret: true, totpEnabled: true },
+              totpSecret: true, totpEnabled: true, tokenVersion: true },
   })
   if (!user?.totpEnabled || !user.totpSecret) {
     return NextResponse.json({ error: 'Session expired — please log in again' }, { status: 401 })
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
 
   await Promise.all([
     createSession({ id: user.id, name: user.name, email: user.email, role: user.role,
-                    color: user.color, partnerId: user.partnerId || undefined }),
+                    color: user.color, partnerId: user.partnerId || undefined, tokenVersion: user.tokenVersion }),
     prisma.user.update({ where: { id: user.id }, data: { lastActive: new Date() } }),
   ])
 
