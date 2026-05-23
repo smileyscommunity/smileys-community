@@ -34,13 +34,35 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'This account is not permitted to register.' }, { status: 403 })
     }
 
-    const existing = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } })
+    const normalizedEmail = email.toLowerCase().trim()
+    const existing = await prisma.user.findUnique({
+      where:  { email: normalizedEmail },
+      select: { id: true, emailVerified: true },
+    })
     if (existing) {
-      return NextResponse.json({ error: 'Email already in use' }, { status: 409 })
+      if (existing.emailVerified) {
+        return NextResponse.json({ error: 'Email already in use' }, { status: 409 })
+      }
+      // The previous registration never verified the email, so we can't tell whether
+      // it was the real applicant or a squatter who guessed an approved email. The
+      // squatter can't log in (verification gate blocks them), but their row would
+      // otherwise block the real applicant from claiming the slot. Wipe the
+      // incomplete row so the real applicant can register fresh.
+      const oldMemberships = await prisma.clubMembership.findMany({
+        where: { userId: existing.id, status: 'approved' },
+        select: { clubId: true },
+      })
+      await prisma.$transaction([
+        ...oldMemberships.map(m =>
+          prisma.club.update({ where: { id: m.clubId }, data: { memberCount: { decrement: 1 } } })
+        ),
+        // Cascade-deletes ClubMembership, EmailVerificationToken, etc. via onDelete: Cascade.
+        prisma.user.delete({ where: { id: existing.id } }),
+      ])
     }
 
     const application = await prisma.memberApplication.findFirst({
-      where: { email: email.toLowerCase().trim(), status: 'approved' },
+      where: { email: normalizedEmail, status: 'approved' },
     })
 
     if (!application) {
@@ -57,7 +79,7 @@ export async function POST(req: NextRequest) {
     const user = await prisma.user.create({
       data: {
         name:         name.trim(),
-        email:        email.toLowerCase().trim(),
+        email:        normalizedEmail,
         password:     hashed,
         color,
         role:         'member',
