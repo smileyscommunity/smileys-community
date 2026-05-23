@@ -95,8 +95,11 @@ export async function POST(req: NextRequest) {
     if (!name?.trim() || !email?.trim() || !message?.trim()) {
       return NextResponse.json({ error: 'Name, email and message are required' }, { status: 400 })
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || /[\r\n]/.test(email)) {
       return NextResponse.json({ error: 'Invalid email address' }, { status: 400 })
+    }
+    if (/[\r\n]/.test(name)) {
+      return NextResponse.json({ error: 'Invalid name' }, { status: 400 })
     }
     if (message.trim().length < 10) {
       return NextResponse.json({ error: 'Message is too short' }, { status: 400 })
