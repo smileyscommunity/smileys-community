@@ -26,7 +26,11 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (!attended) return NextResponse.json({ error: 'You must have attended this event' }, { status: 403 })
 
   const { url, caption } = await req.json()
-  if (!url || typeof url !== 'string') return NextResponse.json({ error: 'Invalid url' }, { status: 400 })
+  // Must be a path produced by our own upload route — same regex as profilePhoto in auth/me.
+  if (typeof url !== 'string' ||
+      !/^\/app\/api\/files\/[a-zA-Z0-9\-]+\/[a-zA-Z0-9\-]+\.(jpg|jpeg|png|webp|gif)$/.test(url)) {
+    return NextResponse.json({ error: 'Invalid url' }, { status: 400 })
+  }
 
   const photo = await prisma.eventPhoto.create({
     data: { eventId: id, userId: session.id, url, caption: caption ?? null },
