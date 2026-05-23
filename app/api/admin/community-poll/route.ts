@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { isAdmin, isAdminOrModerator } from '@/lib/access'
 
 export async function GET() {
   const session = await getSession()
-  if (!session || (session.role !== 'admin' && session.role !== 'moderator')) {
+  if (!session || !isAdminOrModerator(session)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   const polls = await prisma.communityPoll.findMany({
@@ -19,7 +20,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const session = await getSession()
-  if (!session || (session.role !== 'admin' && session.role !== 'moderator')) {
+  if (!session || !isAdminOrModerator(session)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -59,7 +60,7 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   const session = await getSession()
-  if (!session || session.role !== 'admin') {
+  if (!session || !isAdmin(session)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   const { pollId } = await req.json()
@@ -70,7 +71,7 @@ export async function DELETE(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   const session = await getSession()
-  if (!session || (session.role !== 'admin' && session.role !== 'moderator')) {
+  if (!session || !isAdminOrModerator(session)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   const { pollId, active } = await req.json()

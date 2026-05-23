@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { isAdminOrModerator } from '@/lib/access'
 
 export async function GET() {
   const session = await getSession()
-  if (!session || (session.role !== 'admin' && session.role !== 'moderator')) {
+  if (!session || !isAdminOrModerator(session)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   const items = await prisma.testimonial.findMany({ orderBy: [{ order: 'asc' }, { createdAt: 'desc' }] })
@@ -13,7 +14,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const session = await getSession()
-  if (!session || (session.role !== 'admin' && session.role !== 'moderator')) {
+  if (!session || !isAdminOrModerator(session)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   const { memberName, role, quote, category, photo } = await req.json()
@@ -43,7 +44,7 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   const session = await getSession()
-  if (!session || (session.role !== 'admin' && session.role !== 'moderator')) {
+  if (!session || !isAdminOrModerator(session)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   const { ids } = await req.json() // reorder: array of ids in new order

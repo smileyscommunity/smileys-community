@@ -35,9 +35,15 @@ export async function GET() {
       await deleteSession()
       return NextResponse.json({ error: 'suspended' }, { status: 403 })
     }
-    // Re-issue JWT if role or partnerId changed so routes use the fresh data
-    if (user && (user.role !== session.role || user.partnerId !== session.partnerId)) {
-      await createSession({ ...session, role: user.role, partnerId: user.partnerId || undefined })
+    // Role changes are a privilege boundary — force re-login rather than silently
+    // upgrading the JWT (defends against DB-side role tampering and stolen tokens).
+    if (user && user.role !== session.role) {
+      await deleteSession()
+      return NextResponse.json({ error: 'role_changed' }, { status: 401 })
+    }
+    // partnerId is not a privilege boundary — safe to auto-update.
+    if (user && user.partnerId !== session.partnerId) {
+      await createSession({ ...session, partnerId: user.partnerId || undefined })
     }
     if (!user) { await deleteSession(); return NextResponse.json(null) }
     const isClubHost = clubHostCount > 0

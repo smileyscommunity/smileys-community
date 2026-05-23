@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { loadContent } from '@/lib/content'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 3600
 
 export const metadata = {
   title: 'About Us — Smileys Community',

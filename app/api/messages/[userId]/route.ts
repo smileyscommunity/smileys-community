@@ -58,7 +58,8 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (!text?.trim()) return NextResponse.json({ error: 'Message cannot be empty' }, { status: 400 })
     if (text.trim().length > 2000) return NextResponse.json({ error: 'Message too long (max 2000 chars)' }, { status: 400 })
 
-    const privileged = isAdminOrModerator(session) || await isClubHost(session.id)
+    const isModeration = isAdminOrModerator(session)
+    const privileged = isModeration || await isClubHost(session.id)
     if (!privileged) {
       const connection = await prisma.memberConnection.findFirst({
         where: {
@@ -70,6 +71,21 @@ export async function POST(req: NextRequest, { params }: Params) {
         },
       })
       if (!connection) return NextResponse.json({ error: 'You can only message connected members' }, { status: 403 })
+    }
+
+    // Personal blocks override connection/club-host privileges. Only admins/moderators
+    // bypass — they need to contact any user for moderation.
+    if (!isModeration) {
+      const block = await prisma.memberBlock.findFirst({
+        where: {
+          OR: [
+            { blockerId: session.id, blockedId: toId },
+            { blockerId: toId, blockedId: session.id },
+          ],
+        },
+        select: { id: true },
+      })
+      if (block) return NextResponse.json({ error: 'You cannot message this user' }, { status: 403 })
     }
 
     const recipient = await prisma.user.findUnique({ where: { id: toId }, select: { id: true, name: true } })

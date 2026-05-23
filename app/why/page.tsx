@@ -14,7 +14,7 @@ export const metadata = {
   },
 }
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 600
 
 const CAT_PILL: Record<string, string> = {
   general:  'bg-gray-100 text-gray-600',

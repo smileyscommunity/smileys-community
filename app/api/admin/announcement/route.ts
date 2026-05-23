@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
+import { isAdminOrModerator } from '@/lib/access'
 import { readFileSync, writeFileSync, renameSync } from 'fs'
 import { join } from 'path'
 
@@ -16,7 +17,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const session = await getSession()
-  if (!session || (session.role !== 'admin' && session.role !== 'moderator')) {
+  if (!session || !isAdminOrModerator(session)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   const { text, link, active } = await req.json()

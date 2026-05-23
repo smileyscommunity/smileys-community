@@ -2,7 +2,7 @@ import Link from 'next/link'
 import AdvertiseFormClient from './AdvertiseFormClient'
 import { loadContent } from '@/lib/content'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 3600
 
 export const metadata = {
   title: 'Advertise with Smileys — Reach Istanbul\'s Most Engaged Internationals',

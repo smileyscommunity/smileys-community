@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
+import { isAdminOrModerator } from '@/lib/access'
 import { readFileSync, writeFileSync, mkdirSync } from 'fs'
 import { join } from 'path'
 
@@ -59,7 +60,7 @@ const VALID_TYPES: BannerType[] = ['sponsored', 'promo', 'strip']
 
 export async function POST(req: NextRequest) {
   const session = await getSession()
-  if (!session || (session.role !== 'admin' && session.role !== 'moderator')) {
+  if (!session || !isAdminOrModerator(session)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

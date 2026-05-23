@@ -11,6 +11,11 @@ import { SignJWT } from 'jose'
 if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET environment variable is not set')
 const SECRET = new TextEncoder().encode(process.env.JWT_SECRET)
 
+// Cost-10 bcrypt hash used to equalize response time on non-existent emails,
+// preventing user enumeration via timing analysis. The plaintext isn't a secret —
+// it's never compared against real user passwords.
+const TIMING_GUARD_HASH = '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy'
+
 export async function POST(req: NextRequest) {
   try {
     // 5 attempts per 15 minutes per IP
@@ -34,6 +39,9 @@ export async function POST(req: NextRequest) {
                 password: true, status: true, suspendedUntil: true, suspensionNote: true,
                 totpEnabled: true, failedLoginCount: true, loginLockedUntil: true, knownIps: true } })
     if (!user || !user.password) {
+      // Burn equivalent CPU time so attackers can't distinguish "no such user"
+      // from "wrong password" by measuring response latency.
+      await bcrypt.compare(password, TIMING_GUARD_HASH)
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
     }
 

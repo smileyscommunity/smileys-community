@@ -54,7 +54,7 @@ const WAYS = [
 
 import { loadContent } from '@/lib/content'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 3600
 
 const STATS_FALLBACK = [
   { value: '40+',  label: 'Active hosts' },

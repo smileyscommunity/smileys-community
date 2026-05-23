@@ -70,32 +70,39 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    // Auto-enroll in clubs assigned during application review
-    if (application?.assignedClubs?.length) {
-      await Promise.all(application.assignedClubs.map(clubId =>
-        prisma.$transaction([
+    const enrollInClub = async (clubId: string, label: string) => {
+      try {
+        await prisma.$transaction([
           prisma.clubMembership.upsert({
             where:  { userId_clubId: { userId: user.id, clubId } },
             create: { userId: user.id, clubId, role: 'member', status: 'approved' },
             update: {},
           }),
           prisma.club.update({ where: { id: clubId }, data: { memberCount: { increment: 1 } } }),
-        ]).catch(e => console.error(`Club enrollment failed for ${clubId}:`, e))
-      ))
+        ])
+        return { clubId, ok: true as const }
+      } catch (e) {
+        console.error(`[register] ${label} failed for user=${user.id} club=${clubId}:`, e)
+        return { clubId, ok: false as const }
+      }
+    }
+
+    const failedClubs: string[] = []
+
+    // Auto-enroll in clubs assigned during application review
+    if (application?.assignedClubs?.length) {
+      const results = await Promise.all(
+        application.assignedClubs.map(clubId => enrollInClub(clubId, 'assigned-club enrollment')),
+      )
+      failedClubs.push(...results.filter(r => !r.ok).map(r => r.clubId))
     }
 
     // Auto-join clubs selected during onboarding
     if (Array.isArray(clubIds) && clubIds.length > 0) {
-      await Promise.all(clubIds.map((clubId: string) =>
-        prisma.$transaction([
-          prisma.clubMembership.upsert({
-            where:  { userId_clubId: { userId: user.id, clubId } },
-            create: { userId: user.id, clubId, role: 'member', status: 'approved' },
-            update: {},
-          }),
-          prisma.club.update({ where: { id: clubId }, data: { memberCount: { increment: 1 } } }),
-        ]).catch(e => console.error(`Club join failed for ${clubId}:`, e))
-      ))
+      const results = await Promise.all(
+        clubIds.map((clubId: string) => enrollInClub(clubId, 'onboarding club join')),
+      )
+      failedClubs.push(...results.filter(r => !r.ok).map(r => r.clubId))
     }
 
     // Create verification token
@@ -108,7 +115,10 @@ export async function POST(req: NextRequest) {
 
     await createSession({ id: user.id, name: user.name, email: user.email, role: user.role, color: user.color })
 
-    return NextResponse.json({ id: user.id, name: user.name, email: user.email, role: user.role, color, initials })
+    return NextResponse.json({
+      id: user.id, name: user.name, email: user.email, role: user.role, color, initials,
+      ...(failedClubs.length ? { failedClubs } : {}),
+    })
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

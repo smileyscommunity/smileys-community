@@ -7,20 +7,20 @@ datasource db {
 }
 
 model User {
-  id             String    @id @default(cuid())
-  name           String
-  email          String    @unique
-  password       String?
-  role           String    @default("member")
-  color          String    @default("#f59e0b")
-  bio            String?
-  neighborhood   String?
+  id                String   @id @default(cuid())
+  name              String
+  email             String   @unique
+  password          String?
+  role              String   @default("member")
+  color             String   @default("#f59e0b")
+  bio               String?
+  neighborhood      String?
   instagram         String?
   linkedin          String?
   lookingFor        String[]
   profileVisibility String   @default("everyone") // everyone | connections
-  emailVerified  Boolean   @default(false)
-  joinedAt       DateTime  @default(now())
+  emailVerified     Boolean  @default(false)
+  joinedAt          DateTime @default(now())
 
   phone          String?
   gender         String?
@@ -45,55 +45,55 @@ model User {
   referralCode   String?   @unique
   referralCount  Int       @default(0)
   partnerId      String?
-  totpSecret      String?
-  totpEnabled     Boolean   @default(false)
-  emailMarketing  Boolean   @default(true)
+  totpSecret     String?
+  totpEnabled    Boolean   @default(false)
+  emailMarketing Boolean   @default(true)
 
-  joinedEvents         EventAttendee[]
-  clubMemberships      ClubMembership[]
-  reviews              Review[]
-  payments             Payment[]
-  eventPhotos          EventPhoto[]
-  eventMessages        EventMessage[]
-  notifications        Notification[]
-  notifPrefs           NotificationPreference?
-  reviewedApplications MemberApplication[]
-  reportsMade          Report[]            @relation("ReportsMade")
-  reportsReceived      Report[]            @relation("ReportsReceived")
-  sentMessages         DirectMessage[]     @relation("SentMessages")
-  receivedMessages     DirectMessage[]     @relation("ReceivedMessages")
+  joinedEvents            EventAttendee[]
+  clubMemberships         ClubMembership[]
+  reviews                 Review[]
+  payments                Payment[]
+  eventPhotos             EventPhoto[]
+  eventMessages           EventMessage[]
+  notifications           Notification[]
+  notifPrefs              NotificationPreference?
+  reviewedApplications    MemberApplication[]
+  reportsMade             Report[]                @relation("ReportsMade")
+  reportsReceived         Report[]                @relation("ReportsReceived")
+  sentMessages            DirectMessage[]         @relation("SentMessages")
+  receivedMessages        DirectMessage[]         @relation("ReceivedMessages")
   clubPosts               ClubPost[]
   clubPostLikes           ClubPostLike[]
   clubPostReplies         ClubPostReply[]
   neighborhoodPosts       NeighborhoodPost[]
   neighborhoodPostLikes   NeighborhoodPostLike[]
   neighborhoodPostReplies NeighborhoodPostReply[]
-  clubPollVotes        ClubPollVote[]
-  clubPhotos           ClubPhoto[]
-  clubSpotlights       Club[]              @relation("ClubSpotlight")
-  communityPollVotes   CommunityPollVote[]
-  connectionsRequested MemberConnection[]  @relation("ConnectionRequester")
-  connectionsReceived  MemberConnection[]  @relation("ConnectionReceiver")
-  posts                Post[]
-  adminNotes           AdminNote[]
-  cohostedEvents       EventCoHost[]
-  pushSubscriptions    PushSubscription[]
-  listings             Listing[]
-  savedListings        SavedListing[]
-  listingAlerts        String[]
-  checkedInCount       Int                 @default(0)
-  partner              Partner?            @relation(fields: [partnerId], references: [id])
+  clubPollVotes           ClubPollVote[]
+  clubPhotos              ClubPhoto[]
+  clubSpotlights          Club[]                  @relation("ClubSpotlight")
+  communityPollVotes      CommunityPollVote[]
+  connectionsRequested    MemberConnection[]      @relation("ConnectionRequester")
+  connectionsReceived     MemberConnection[]      @relation("ConnectionReceiver")
+  posts                   Post[]
+  adminNotes              AdminNote[]
+  cohostedEvents          EventCoHost[]
+  pushSubscriptions       PushSubscription[]
+  listings                Listing[]
+  savedListings           SavedListing[]
+  listingAlerts           String[]
+  checkedInCount          Int                     @default(0)
+  partner                 Partner?                @relation(fields: [partnerId], references: [id])
 
   // Security
-  failedLoginCount     Int                 @default(0)
-  loginLockedUntil     DateTime?
-  knownIps             String[]
+  failedLoginCount Int       @default(0)
+  loginLockedUntil DateTime?
+  knownIps         String[]
 
   // Privacy & blocking
-  profileViews         ProfileView[]       @relation("ViewedProfile")
-  profileViewsMade     ProfileView[]       @relation("ProfileViewer")
-  blocksGiven          MemberBlock[]       @relation("BlockGiver")
-  blocksReceived       MemberBlock[]       @relation("BlockReceiver")
+  profileViews     ProfileView[] @relation("ViewedProfile")
+  profileViewsMade ProfileView[] @relation("ProfileViewer")
+  blocksGiven      MemberBlock[] @relation("BlockGiver")
+  blocksReceived   MemberBlock[] @relation("BlockReceiver")
 
   @@map("users")
 }
@@ -105,7 +105,7 @@ model ProfileView {
   createdAt DateTime @default(now())
 
   viewer User @relation("ProfileViewer", fields: [viewerId], references: [id], onDelete: Cascade)
-  viewed User @relation("ViewedProfile",  fields: [viewedId],  references: [id], onDelete: Cascade)
+  viewed User @relation("ViewedProfile", fields: [viewedId], references: [id], onDelete: Cascade)
 
   @@unique([viewerId, viewedId])
   @@index([viewedId, createdAt])
@@ -118,7 +118,7 @@ model MemberBlock {
   blockedId String
   createdAt DateTime @default(now())
 
-  blocker User @relation("BlockGiver",    fields: [blockerId], references: [id], onDelete: Cascade)
+  blocker User @relation("BlockGiver", fields: [blockerId], references: [id], onDelete: Cascade)
   blocked User @relation("BlockReceiver", fields: [blockedId], references: [id], onDelete: Cascade)
 
   @@unique([blockerId, blockedId])
@@ -127,46 +127,46 @@ model MemberBlock {
 }
 
 model Partner {
-  id          String   @id @default(cuid())
-  name        String
-  category    String   // e.g. "Cafe", "Restaurant", "Studio"
-  discount    String   // e.g. "10% off everything"
-  address     String
+  id           String   @id @default(cuid())
+  name         String
+  category     String // e.g. "Cafe", "Restaurant", "Studio"
+  discount     String // e.g. "10% off everything"
+  address      String
   neighborhood String
-  lat         Float?
-  lng         Float?
-  logo        String?
-  coverImage  String?
-  website     String?
-  instagram   String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @default(now()) @updatedAt
-  users       User[]
+  lat          Float?
+  lng          Float?
+  logo         String?
+  coverImage   String?
+  website      String?
+  instagram    String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @updatedAt
+  users        User[]
 
   @@map("partners")
 }
 
 model Report {
-  id           String    @id @default(cuid())
-  reporterId   String
-  reportedId   String
-  eventId      String?
-  reason       String
-  details      String?
-  screenshot   String?
-  status         String    @default("pending")
-  reviewNote     String?
-  reviewedBy     String?
-  reviewedAt     DateTime?
-  escalated      Boolean   @default(false)
-  escalatedNote  String?
-  escalatedBy    String?
-  escalatedAt    DateTime?
-  createdAt      DateTime  @default(now())
+  id            String    @id @default(cuid())
+  reporterId    String
+  reportedId    String
+  eventId       String?
+  reason        String
+  details       String?
+  screenshot    String?
+  status        String    @default("pending")
+  reviewNote    String?
+  reviewedBy    String?
+  reviewedAt    DateTime?
+  escalated     Boolean   @default(false)
+  escalatedNote String?
+  escalatedBy   String?
+  escalatedAt   DateTime?
+  createdAt     DateTime  @default(now())
 
-  reporter User  @relation("ReportsMade",     fields: [reporterId], references: [id], onDelete: Cascade)
-  reported User  @relation("ReportsReceived", fields: [reportedId], references: [id], onDelete: Cascade)
+  reporter User @relation("ReportsMade", fields: [reporterId], references: [id], onDelete: Cascade)
+  reported User @relation("ReportsReceived", fields: [reportedId], references: [id], onDelete: Cascade)
 
   @@index([reportedId])
   @@index([status])
@@ -203,26 +203,26 @@ model ClubMembership {
 }
 
 model Club {
-  id          String   @id @default(cuid())
+  id          String @id @default(cuid())
   name        String
-  slug        String   @unique
+  slug        String @unique
   description String
   category    String
   emoji       String
   color       String
   bgColor     String
-  memberCount Int      @default(0)
+  memberCount Int    @default(0)
 
   whatsappUrl        String?
   instagramUrl       String?
   rules              String?
-  isPrivate          Boolean  @default(false)
+  isPrivate          Boolean   @default(false)
   coverImage         String?
-  coverImagePosition Int     @default(50)
+  coverImagePosition Int       @default(50)
   location           String?
   foundedAt          DateTime?
-  isActive           Boolean  @default(true)
-  createdAt          DateTime @default(now())
+  isActive           Boolean   @default(true)
+  createdAt          DateTime  @default(now())
   spotlightUserId    String?
   spotlightNote      String?
   spotlightUpdatedAt DateTime?
@@ -232,28 +232,28 @@ model Club {
   posts         ClubPost[]
   resources     ClubResource[]
   photos        ClubPhoto[]
-  spotlightUser User?           @relation("ClubSpotlight", fields: [spotlightUserId], references: [id], onDelete: SetNull)
+  spotlightUser User?            @relation("ClubSpotlight", fields: [spotlightUserId], references: [id], onDelete: SetNull)
 
   @@map("clubs")
 }
 
 model Event {
-  id           String   @id @default(cuid())
-  title        String
-  description  String
-  date         String
-  time         String
-  location     String
-  neighborhood String
-  emoji        String   @default("🎉")
-  price        Int      @default(0)
-  memberPrice  Int?
-  totalSpots   Int
-  spotsLeft    Int
-  limitedSpots Boolean  @default(false)
-  isPremium    Boolean  @default(false)
-  membersOnly  Boolean  @default(false)
-  vibes        String[]
+  id                   String    @id @default(cuid())
+  title                String
+  description          String
+  date                 String
+  time                 String
+  location             String
+  neighborhood         String
+  emoji                String    @default("🎉")
+  price                Int       @default(0)
+  memberPrice          Int?
+  totalSpots           Int
+  spotsLeft            Int
+  limitedSpots         Boolean   @default(false)
+  isPremium            Boolean   @default(false)
+  membersOnly          Boolean   @default(false)
+  vibes                String[]
   whatsappUrl          String?
   status               String    @default("published")
   address              String?
@@ -292,13 +292,12 @@ model Event {
   messages  EventMessage[]
   tags      EventTag[]
   cohosts   EventCoHost[]
+  photos    EventPhoto[]
 
   @@index([date])
   @@index([clubId])
   @@index([status])
   @@index([hostId])
-  photos    EventPhoto[]
-
   @@map("events")
 }
 
@@ -366,13 +365,13 @@ model EventTag {
 }
 
 model EventAttendee {
-  id          String   @id @default(cuid())
-  userId      String
-  eventId     String
-  status      String   @default("approved")
-  checkedIn   Boolean  @default(false)
-  stealth     Boolean  @default(false)
-  joinedAt    DateTime @default(now())
+  id        String   @id @default(cuid())
+  userId    String
+  eventId   String
+  status    String   @default("approved")
+  checkedIn Boolean  @default(false)
+  stealth   Boolean  @default(false)
+  joinedAt  DateTime @default(now())
 
   user  User  @relation(fields: [userId], references: [id])
   event Event @relation(fields: [eventId], references: [id])
@@ -422,56 +421,62 @@ model Payment {
 }
 
 model MemberApplication {
-  id          String   @id @default(cuid())
-  firstName   String   @default("")
-  lastName    String   @default("")
-  fullName    String
-  email       String
-  phone       String?
-  birthdate   String?
-  gender      String?
-  country      String?
-  city         String?
-  neighborhood String?
-  instagram   String?
-  linkedin    String?
-  profession    String?
-  timeInCity    String?
-  reasonHere    String?
-  whyJoin       String?
-  enjoyWith     String?
-  goodCommunity String?
-  interests             String[]
-  socialStyles          String[]
-  contribution          String?
-  groupBehavior         String?
-  removedFromCommunity  String?
-  toxicBehavior         String?
-  profilePhoto          String?
-  assignedClubs         String[]
-  suggestion            String?
-  suggestedBy           String?
-  bio                   String?
-  source                String?
-  referredBy            String?
-  status         String   @default("pending")
-  reviewedBy     String?
-  reviewNote     String?
-  createdAt      DateTime @default(now())
-  reviewedAt     DateTime?
-  escalated      Boolean  @default(false)
-  escalatedNote  String?
-  escalatedBy    String?
-  escalatedAt    DateTime?
-  ipAddress      String?
-  userAgent      String?
-  fingerprint    String?
-  timezone       String?
-  timezoneMismatch Boolean @default(false)
-  disposableEmail  Boolean @default(false)
+  id                   String    @id @default(cuid())
+  firstName            String    @default("")
+  lastName             String    @default("")
+  fullName             String
+  email                String
+  phone                String?
+  birthdate            String?
+  gender               String?
+  country              String?
+  city                 String?
+  neighborhood         String?
+  instagram            String?
+  linkedin             String?
+  profession           String?
+  timeInCity           String?
+  reasonHere           String?
+  whyJoin              String?
+  enjoyWith            String?
+  goodCommunity        String?
+  interests            String[]
+  socialStyles         String[]
+  contribution         String?
+  groupBehavior        String?
+  removedFromCommunity String?
+  toxicBehavior        String?
+  profilePhoto         String?
+  assignedClubs        String[]
+  suggestion           String?
+  suggestedBy          String?
+  bio                  String?
+  source               String?
+  referredBy           String?
+  status               String    @default("pending")
+  reviewedBy           String?
+  reviewNote           String?
+  createdAt            DateTime  @default(now())
+  reviewedAt           DateTime?
+  escalated            Boolean   @default(false)
+  escalatedNote        String?
+  escalatedBy          String?
+  escalatedAt          DateTime?
+  ipAddress            String?
+  userAgent            String?
+  fingerprint          String?
+  timezone             String?
+  timezoneMismatch     Boolean   @default(false)
+  disposableEmail      Boolean   @default(false)
 
   reviewer User? @relation(fields: [reviewedBy], references: [id])
 
+  @@index([email])
+  @@index([phone])
+  @@index([instagram])
+  @@index([status])
+  @@index([fingerprint, createdAt])
+  @@index([ipAddress, createdAt])
   @@map("member_applications")
 }
 
@@ -605,21 +610,21 @@ model AuditLog {
 }
 
 model ClubPost {
-  id        String         @id @default(cuid())
+  id        String    @id @default(cuid())
   clubId    String
   userId    String
   content   String
-  type      String         @default("post")
-  isPinned  Boolean        @default(false)
+  type      String    @default("post")
+  isPinned  Boolean   @default(false)
   pinnedAt  DateTime?
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
-  club      Club           @relation(fields: [clubId], references: [id], onDelete: Cascade)
-  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  likes     ClubPostLike[]
-  replies   ClubPostReply[]
-  poll      ClubPoll?
+  club    Club            @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  likes   ClubPostLike[]
+  replies ClubPostReply[]
+  poll    ClubPoll?
 
   @@index([clubId, isPinned(sort: Desc), createdAt(sort: Desc)])
   @@map("club_posts")
@@ -631,8 +636,8 @@ model ClubPostLike {
   emoji     String   @default("❤️")
   createdAt DateTime @default(now())
 
-  post      ClubPost @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post ClubPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([postId, userId])
   @@map("club_post_likes")
@@ -645,44 +650,44 @@ model ClubPostReply {
   content   String
   createdAt DateTime @default(now())
 
-  post      ClubPost @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post ClubPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([postId, createdAt])
   @@map("club_post_replies")
 }
 
 model ClubPoll {
-  id       String           @id @default(cuid())
-  postId   String           @unique
+  id       String @id @default(cuid())
+  postId   String @unique
   question String
 
-  post     ClubPost         @relation(fields: [postId], references: [id], onDelete: Cascade)
-  options  ClubPollOption[]
-  votes    ClubPollVote[]
+  post    ClubPost         @relation(fields: [postId], references: [id], onDelete: Cascade)
+  options ClubPollOption[]
+  votes   ClubPollVote[]
 
   @@map("club_polls")
 }
 
 model ClubPollOption {
-  id     String         @id @default(cuid())
+  id     String @id @default(cuid())
   pollId String
   text   String
-  order  Int            @default(0)
+  order  Int    @default(0)
 
-  poll   ClubPoll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
-  votes  ClubPollVote[]
+  poll  ClubPoll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  votes ClubPollVote[]
 
   @@index([pollId])
   @@map("club_poll_options")
 }
 
 model ClubPollVote {
-  id        String         @id @default(cuid())
+  id        String   @id @default(cuid())
   userId    String
   pollId    String
   optionId  String
-  createdAt DateTime       @default(now())
+  createdAt DateTime @default(now())
 
   user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   poll   ClubPoll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
@@ -722,11 +727,11 @@ model ClubPhoto {
 }
 
 model CommunityPoll {
-  id        String              @id @default(cuid())
+  id        String                @id @default(cuid())
   question  String
-  active    Boolean             @default(true)
-  createdAt DateTime            @default(now())
-  updatedAt DateTime            @updatedAt
+  active    Boolean               @default(true)
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
   options   CommunityPollOption[]
 
   @@map("community_polls")
@@ -813,7 +818,7 @@ model MemberConnection {
   updatedAt   DateTime @updatedAt
 
   requester User @relation("ConnectionRequester", fields: [requesterId], references: [id], onDelete: Cascade)
-  receiver  User @relation("ConnectionReceiver",  fields: [receiverId],  references: [id], onDelete: Cascade)
+  receiver  User @relation("ConnectionReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
 
   @@unique([requesterId, receiverId])
   @@index([receiverId])
@@ -857,8 +862,8 @@ model DirectMessage {
   isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
 
-  from User @relation("SentMessages",     fields: [fromId], references: [id], onDelete: Cascade)
-  to   User @relation("ReceivedMessages", fields: [toId],   references: [id], onDelete: Cascade)
+  from User @relation("SentMessages", fields: [fromId], references: [id], onDelete: Cascade)
+  to   User @relation("ReceivedMessages", fields: [toId], references: [id], onDelete: Cascade)
 
   @@index([fromId, toId])
   @@index([toId, isRead])
@@ -867,19 +872,19 @@ model DirectMessage {
 }
 
 model NeighborhoodPost {
-  id           String                   @id @default(cuid())
+  id           String    @id @default(cuid())
   neighborhood String
   userId       String
   content      String
   imageUrl     String?
-  isPinned     Boolean                  @default(false)
+  isPinned     Boolean   @default(false)
   pinnedAt     DateTime?
-  createdAt    DateTime                 @default(now())
-  updatedAt    DateTime                 @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
-  user         User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  likes        NeighborhoodPostLike[]
-  replies      NeighborhoodPostReply[]
+  user    User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  likes   NeighborhoodPostLike[]
+  replies NeighborhoodPostReply[]
 
   @@index([neighborhood, isPinned(sort: Desc), createdAt(sort: Desc)])
   @@map("neighborhood_posts")
@@ -891,22 +896,22 @@ model NeighborhoodPostLike {
   emoji     String   @default("❤️")
   createdAt DateTime @default(now())
 
-  post      NeighborhoodPost @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post NeighborhoodPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([postId, userId])
   @@map("neighborhood_post_likes")
 }
 
 model NeighborhoodPostReply {
-  id        String           @id @default(cuid())
+  id        String   @id @default(cuid())
   postId    String
   userId    String
   content   String
-  createdAt DateTime         @default(now())
+  createdAt DateTime @default(now())
 
-  post      NeighborhoodPost @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post NeighborhoodPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([postId, createdAt])
   @@map("neighborhood_post_replies")
@@ -915,12 +920,12 @@ model NeighborhoodPostReply {
 model Listing {
   id          String   @id @default(cuid())
   userId      String
-  category    String   // ROOMS | JOBS | BUY_SELL
+  category    String // ROOMS | JOBS | BUY_SELL
   title       String
   description String
   price       String?
   photo       String?
-  contact     String?  // WhatsApp link or number
+  contact     String? // WhatsApp link or number
   status      String   @default("active") // active | filled | expired | deleted
   expiresAt   DateTime
   createdAt   DateTime @default(now())
