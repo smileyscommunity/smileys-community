@@ -1,8 +1,9 @@
 import { Resend } from 'resend'
 import { unsubscribeUrl } from '@/lib/unsubscribe'
+import { APP_URL as ENV_APP_URL } from '@/lib/env'
 
 const FROM    = process.env.EMAIL_FROM ?? 'Smileys Community <info@smileyscommunity.com>'
-const APP_URL = process.env.APP_URL    ?? 'http://178.105.37.133:3000/app'
+const APP_URL = ENV_APP_URL
 
 function getResend() {
   const key = process.env.RESEND_API_KEY
