@@ -1,3 +1,5 @@
+const { withSentryConfig } = require('@sentry/nextjs')
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   basePath: '/app',
@@ -30,7 +32,7 @@ const nextConfig = {
               "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com",
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob: https://images.unsplash.com https://smileyscommunity.com https://*.tile.openstreetmap.org https://unpkg.com",
-              "connect-src 'self' https://challenges.cloudflare.com https://*.tile.openstreetmap.org",
+              "connect-src 'self' https://challenges.cloudflare.com https://*.tile.openstreetmap.org https://*.ingest.sentry.io https://*.ingest.us.sentry.io",
               "font-src 'self' data:",
               "frame-src https://challenges.cloudflare.com",
               "object-src 'none'",
@@ -44,4 +46,12 @@ const nextConfig = {
   },
 }
 
-module.exports = nextConfig
+module.exports = withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  silent: true,
+  widenClientFileUpload: true,
+  hideSourceMaps: true,
+  disableLogger: true,
+  automaticVercelMonitors: false,
+})

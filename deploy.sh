@@ -11,6 +11,9 @@ npm audit --audit-level=high --legacy-peer-deps || { echo "✗ npm audit found h
 echo "→ Building locally..."
 npm run build
 
+echo "→ Stopping server..."
+ssh "$SERVER" "pm2 stop smileys || true"
+
 echo "→ Syncing files..."
 rsync -av --checksum --delete \
   --exclude='.env' \
@@ -29,7 +32,7 @@ rsync -av --checksum --delete \
   --exclude='data/content.json' \
   "$LOCAL/" "$SERVER:$REMOTE/" || { CODE=$?; [ "$CODE" = "23" ] || [ "$CODE" = "24" ] || exit $CODE; }
 
-echo "→ Restarting..."
-ssh "$SERVER" "cd $REMOTE && rm -rf .next && npm install --legacy-peer-deps && npx prisma generate --schema=./prisma/schema.prisma && npx prisma db push --schema=./prisma/schema.prisma && npm run build && pm2 restart smileys"
+echo "→ Starting server..."
+ssh "$SERVER" "cd $REMOTE && npm install --legacy-peer-deps && npx prisma generate --schema=./prisma/schema.prisma && npx prisma db push --schema=./prisma/schema.prisma && pm2 start smileys"
 
 echo "✓ Done"
