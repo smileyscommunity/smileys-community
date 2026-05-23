@@ -21,17 +21,14 @@ const nextConfig = {
       {
         source: '/ingest/static/:path*',
         destination: 'https://eu-assets.i.posthog.com/static/:path*',
-        basePath: false,
       },
       {
         source: '/ingest/array/:path*',
         destination: 'https://eu-assets.i.posthog.com/array/:path*',
-        basePath: false,
       },
       {
         source: '/ingest/:path*',
         destination: 'https://eu.i.posthog.com/:path*',
-        basePath: false,
       },
     ]
   },
