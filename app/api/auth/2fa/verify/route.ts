@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     where: { id: userId },
     select: { id: true, name: true, email: true, role: true, color: true, bio: true,
               neighborhood: true, instagram: true, emailVerified: true, partnerId: true,
-              totpSecret: true, totpEnabled: true, tokenVersion: true },
+              totpSecret: true, totpEnabled: true, tokenVersion: true, lastUsedTotpStep: true },
   })
   if (!user?.totpEnabled || !user.totpSecret) {
     return NextResponse.json({ error: 'Session expired — please log in again' }, { status: 401 })
@@ -41,6 +41,12 @@ export async function POST(req: NextRequest) {
   const result = verifySync({ token: String(code), secret: user.totpSecret, strategy: 'totp' } as any)
   if (!(result as any).valid) {
     return NextResponse.json({ error: 'Invalid code — check your authenticator app' }, { status: 400 })
+  }
+
+  // Block replay of the same code within its 30s validity window.
+  const currentStep = Math.floor(Date.now() / 30000)
+  if (user.lastUsedTotpStep !== null && currentStep <= user.lastUsedTotpStep) {
+    return NextResponse.json({ error: 'This code was already used — wait for the next one.' }, { status: 400 })
   }
 
   const isClubHost = await prisma.clubMembership.count({
@@ -52,7 +58,7 @@ export async function POST(req: NextRequest) {
   await Promise.all([
     createSession({ id: user.id, name: user.name, email: user.email, role: user.role,
                     color: user.color, partnerId: user.partnerId || undefined, tokenVersion: user.tokenVersion }),
-    prisma.user.update({ where: { id: user.id }, data: { lastActive: new Date() } }),
+    prisma.user.update({ where: { id: user.id }, data: { lastActive: new Date(), lastUsedTotpStep: currentStep } }),
   ])
 
   const res = NextResponse.json({

@@ -47,6 +47,9 @@ model User {
   partnerId      String?
   totpSecret     String?
   totpEnabled    Boolean   @default(false)
+  // Highest TOTP step (Date.now()/30000) accepted for this user; codes at <= this
+  // step are rejected to block replay within the 30s validity window.
+  lastUsedTotpStep Int?
   tokenVersion   Int       @default(0)
   emailMarketing Boolean   @default(true)
 
