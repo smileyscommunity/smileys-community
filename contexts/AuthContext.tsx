@@ -1,21 +1,62 @@
 'use client'
 
-import { createContext, useContext, useState } from 'react'
+import { createContext, useContext, useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import type { ReactNode } from 'react'
-import { mockUsers } from '@/lib/auth'
 import type { AppUser } from '@/lib/auth'
 
 interface AuthContextType {
   user: AppUser
   setUser: (user: AppUser) => void
+  logout: () => Promise<void>
+  isLoading: boolean
+  isLoggedIn: boolean
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
 
+const GUEST: AppUser = {
+  id:       'guest',
+  name:     'Guest',
+  initials: 'G',
+  color:    '#d1d5db',
+  role:     'member',
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AppUser>(mockUsers[0])
+  const router = useRouter()
+  const [user,      setUser]      = useState<AppUser>(GUEST)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+
+  useEffect(() => {
+    fetch('/app/api/auth/me')
+      .then(res => res.json())
+      .then(data => {
+        if (data?.id) {
+          const initials = data.name.trim().split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
+          setUser({ ...data, initials, joinedEvents: [] })
+          setIsLoggedIn(true)
+        }
+      })
+      .catch(() => {})
+      .finally(() => setIsLoading(false))
+  }, [])
+
+  async function logout() {
+    await fetch('/app/api/auth/logout', { method: 'POST' })
+    setUser(GUEST)
+    setIsLoggedIn(false)
+    router.push('/login')
+  }
+
+  function login(u: AppUser) {
+    setUser(u)
+    setIsLoggedIn(true)
+  }
+
   return (
-    <AuthContext.Provider value={{ user, setUser }}>
+    <AuthContext.Provider value={{ user, setUser: login, logout, isLoading, isLoggedIn }}>
       {children}
     </AuthContext.Provider>
   )

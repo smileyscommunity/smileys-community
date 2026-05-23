@@ -1,0 +1,46 @@
+{
+  "tagline": "The gateway to Sabiha Gökçen Airport and Istanbul's far Asian shore — a growing district with a marina and ferry connections to the Princes' Islands.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Viaport Marina Kafeler",
+          "description": "A waterfront marina complex with cafés and restaurants. The most pleasant part of Pendik to spend time in.",
+          "address": "Viaport Marina, Pendik",
+          "badge": "Smileys Pick"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Pendik Sahil Restoranları",
+          "description": "Waterfront restaurants along the Pendik coast with Princes' Islands views. Good fresh fish at honest prices.",
+          "address": "Pendik Sahili, Pendik",
+          "badge": "Must Visit"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Ferry to Princes' Islands",
+          "description": "Pendik has ferry connections to the Princes' Islands — useful for eastern Asian side residents who want to avoid going back to the city centre.",
+          "address": "Pendik İskelesi, Pendik"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Pendik is on the M4 metro line — the last stop before Sabiha Gökçen Airport (one more stop).",
+    "Primarily a transit point for the airport rather than a destination in itself.",
+    "The marina area (Viaport) is the most developed leisure destination in the district.",
+    "Much more affordable housing than central Asian side areas — popular with airport staff."
+  ]
+}

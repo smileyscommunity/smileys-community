@@ -1,0 +1,116 @@
+{
+  "tagline": "Lively and local — Beşiktaş has the energy of a real Istanbul neighbourhood with the convenience of being at the city's centre.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Kakaoshop",
+          "description": "Specialty coffee and excellent pastries in a small, stylish space. One of the best coffee stops near the ferry terminal.",
+          "address": "Sinanpaşa Mah., Beşiktaş",
+          "badge": "Smileys Pick"
+        },
+        {
+          "name": "MOC Coffee Roasters",
+          "description": "A serious specialty coffee roaster with a bright, airy space. Great single-origin filter options and knowledgeable baristas.",
+          "address": "Beşiktaş Cad., Beşiktaş",
+          "tip": "Try whatever they're featuring as a filter that week — consistently excellent."
+        },
+        {
+          "name": "Café Kef",
+          "description": "A relaxed neighbourhood café popular with locals and students. Good for a slower morning with a book.",
+          "address": "Ortabahçe Cad., Beşiktaş"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Beşiktaş Fish Market",
+          "description": "A covered market filled with fishmongers, meyhane-style restaurants, and food stalls. Order fresh fish at the counter and eat at the tables inside.",
+          "address": "Balık Pazarı, Beşiktaş",
+          "badge": "Must Visit",
+          "tip": "Lunch is the best time — freshest fish and a lively local crowd. Dinner is also great for rakı and meze."
+        },
+        {
+          "name": "Bebek Badem Ezmesi",
+          "description": "The best marzipan and Turkish delight in the city. A beloved institution that ships across Turkey.",
+          "address": "Beşiktaş Cad., Beşiktaş"
+        },
+        {
+          "name": "Tarihi Karadeniz Pide",
+          "description": "A no-frills Black Sea pide restaurant that's been here for decades. The butter pide and egg-cheese combo are outstanding.",
+          "address": "Sinanpaşa Mah., Beşiktaş",
+          "tip": "Cash only. Order the classic butter pide or kuşbaşılı. Don't leave without trying the ayran."
+        },
+        {
+          "name": "Ortaköy Kumpir",
+          "description": "A short walk from Beşiktaş, Ortaköy's kumpir street is a must. Loaded baked potatoes with dozens of toppings — a classic Istanbul street food experience.",
+          "address": "Ortaköy Meydanı, Ortaköy",
+          "badge": "Street Food Icon"
+        }
+      ]
+    },
+    {
+      "category": "Bars & Nightlife",
+      "emoji": "🍻",
+      "items": [
+        {
+          "name": "Çarşı Area Bars",
+          "description": "The neighbourhood around Beşiktaş's Çarşı stadium has a dense cluster of bars and meyhanes. Very lively on match days — electric atmosphere.",
+          "address": "Çarşı, Beşiktaş",
+          "badge": "Smileys Pick",
+          "tip": "If there's a Beşiktaş match, expect the neighbourhood to be buzzing. Join it — the energy is incredible."
+        },
+        {
+          "name": "Arjantin Caddesi",
+          "description": "A tree-lined street with a string of upscale bars and restaurants. More relaxed than Çarşı but still lively on weekends.",
+          "address": "Arjantin Cad., Beşiktaş"
+        },
+        {
+          "name": "Reina Area (Kuruçeşme)",
+          "description": "The waterfront clubs and bars between Beşiktaş and Ortaköy. More upscale, great views of the Bosphorus at night.",
+          "address": "Kuruçeşme, Beşiktaş"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Beşiktaş Bazaar (Çarşı)",
+          "description": "A traditional neighbourhood bazaar with everything from spices and produce to clothing and hardware. Saturdays are best.",
+          "address": "Beşiktaş Çarşısı, Beşiktaş",
+          "tip": "The cheese and olive sellers in the covered section are excellent — stock up."
+        },
+        {
+          "name": "Barbaros Park & Ferry Views",
+          "description": "A pleasant park overlooking the ferry terminal with Bosphorus views. Great for a morning walk or an evening sit-down.",
+          "address": "Barbaros Bulvarı, Beşiktaş"
+        },
+        {
+          "name": "Ortaköy Mosque & Bosphorus Walk",
+          "description": "A 20-minute walk along the waterfront from Beşiktaş brings you to the iconic Ortaköy Mosque — one of the most photogenic spots in Istanbul.",
+          "address": "Ortaköy Camii, Ortaköy",
+          "badge": "Hidden Gem"
+        },
+        {
+          "name": "Yıldız Park",
+          "description": "A large, forested park above Beşiktaş with walking paths, small lakes, and Ottoman-era pavilions. Surprisingly peaceful.",
+          "address": "Yıldız Parkı, Beşiktaş",
+          "tip": "Free to enter. The tea houses inside are a great place to rest mid-walk."
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Beşiktaş ferry terminal connects to Kadiköy, Eminönü, and Üsküdar — one of the best transport hubs in the city.",
+    "The neighbourhood is very walkable. Ortaköy and Arnavutköy are both easy 20-minute walks along the water.",
+    "Avoid driving on Beşiktaş match days — the area around the stadium gets very congested.",
+    "The morning market around the bazaar is best on Saturdays — go early (before 10am) for the best produce."
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "tagline": "Nişantaşı's quieter, more refined neighbour — boutique shopping, excellent patisseries, and the kind of neighbourhood luxury that doesn't need to advertise.",
+  "places": [
+    {
+      "category": "Coffee & Patisserie",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Patisserie de Pera / Elit",
+          "description": "Classic Istanbul patisseries in the Teşvikiye area serving exceptional pastries, cakes, and Turkish coffee. Old-school elegance.",
+          "address": "Teşvikiye, Şişli",
+          "badge": "Smileys Pick"
+        },
+        {
+          "name": "Teşvikiye Cafés (Abdi İpekçi Cad.)",
+          "description": "The luxury strip of Abdi İpekçi Caddesi has excellent café options with an upscale crowd — great for people-watching.",
+          "address": "Abdi İpekçi Cad., Nişantaşı"
+        }
+      ]
+    },
+    {
+      "category": "Shopping",
+      "emoji": "🛍️",
+      "items": [
+        {
+          "name": "Abdi İpekçi Caddesi",
+          "description": "Istanbul's luxury shopping street — Chanel, Gucci, Hermès, and all major international luxury brands. Turkey's Bond Street.",
+          "address": "Abdi İpekçi Cad., Nişantaşı",
+          "badge": "Landmark"
+        },
+        {
+          "name": "Teşvikiye Boutiques",
+          "description": "The smaller streets off Abdi İpekçi have excellent Turkish designers and independent boutiques — often more interesting than the main strip.",
+          "address": "Teşvikiye, Şişli",
+          "badge": "Hidden Gem"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Teşvikiye Camii",
+          "description": "A beautiful 19th-century Ottoman baroque mosque — small, elegant, and often uncrowded. A peaceful counterpoint to the luxury shopping around it.",
+          "address": "Teşvikiye Cad., Şişli"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Teşvikiye is the transition between Şişli (commercial) and Nişantaşı (luxury). Walk between them freely.",
+    "Osmanbey metro stop (M2) is the most convenient access point.",
+    "Better for boutique shopping than Nişantaşı proper — fewer tourists, same quality.",
+    "The side streets hide excellent lunch spots popular with local business people."
+  ]
+}

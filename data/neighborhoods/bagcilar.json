@@ -1,0 +1,23 @@
+{
+  "tagline": "A dense, working-class European side district — a major metro junction and one of Istanbul's most intensely urban residential areas.",
+  "places": [
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Bağcılar Çarşı Lokantalari",
+          "description": "Honest, inexpensive lokanta restaurants catering to local workers and residents. Very good value Turkish food.",
+          "address": "Bağcılar, İstanbul",
+          "badge": "Hidden Gem"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Bağcılar is on the M1A metro line — well connected to the city centre and airport.",
+    "A transit and residential hub rather than a leisure destination.",
+    "Very affordable for both food and housing.",
+    "The Bağcılar metro station is one of Istanbul's busiest — a fascinating transit spectacle in itself."
+  ]
+}

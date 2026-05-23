@@ -6,21 +6,68 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "postinstall": "prisma generate",
+    "seed": "tsx --env-file=.env prisma/seed.ts"
   },
   "dependencies": {
-    "lucide-react": "^1.8.0",
-    "next": "15.5.15",
+    "@fingerprintjs/fingerprintjs": "^5.2.0",
+    "@hookform/resolvers": "^5.4.0",
+    "@prisma/adapter-pg": "^7.8.0",
+    "@prisma/client": "^7.8.0",
+    "@tiptap/extension-color": "^3.23.6",
+    "@tiptap/extension-text-style": "^3.23.6",
+    "@tiptap/extension-underline": "^3.23.6",
+    "@tiptap/pm": "^3.23.6",
+    "@tiptap/react": "^3.23.6",
+    "@tiptap/starter-kit": "^3.23.6",
+    "@types/nodemailer": "^8.0.0",
+    "@types/pg": "^8.20.0",
+    "@types/qrcode": "^1.5.6",
+    "bcryptjs": "^3.0.3",
+    "cmdk": "^1.1.1",
+    "disposable-email-domains": "^1.0.62",
+    "dom-to-image-more": "^3.7.2",
+    "framer-motion": "^12.40.0",
+    "html2canvas": "^1.4.1",
+    "jose": "^6.2.3",
+    "leaflet": "^1.9.4",
+    "lucide-react": "^1.16.0",
+    "next": "^15.5.18",
+    "nodemailer": "^8.0.7",
+    "openai": "^6.39.0",
+    "otplib": "^13.4.0",
+    "pg": "^8.21.0",
+    "prisma": "^7.8.0",
+    "qrcode": "^1.5.4",
     "react": "^18",
-    "react-dom": "^18"
+    "react-dom": "^18",
+    "react-hook-form": "^7.76.0",
+    "resend": "^6.12.3",
+    "sanitize-html": "^2.17.4",
+    "sonner": "^2.0.7",
+    "web-push": "^3.6.7",
+    "zod": "^4.4.3"
+  },
+  "overrides": {
+    "@hono/node-server": "1.19.14",
+    "next": {
+      "postcss": "8.5.14"
+    }
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/leaflet": "^1.9.21",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "@types/sanitize-html": "^2.16.1",
+    "@types/web-push": "^3.6.4",
     "autoprefixer": "^10",
-    "postcss": "^8",
+    "dotenv": "^17.4.2",
+    "postcss": "^8.5.15",
     "tailwindcss": "^3",
+    "tsx": "^4.22.3",
     "typescript": "^5"
   }
 }

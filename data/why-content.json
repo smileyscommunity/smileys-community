@@ -1,0 +1,11 @@
+{
+  "week": [
+    { "day": "Monday",    "short": "MON", "emoji": "🎬", "event": "Movie Night",                         "desc": "A carefully picked film, good company, and conversations that continue long after the credits roll." },
+    { "day": "Tuesday",   "short": "TUE", "emoji": "🇫🇷", "event": "French Meetup",                       "desc": "Practice your French, meet fellow language lovers, or start from zero — bonne ambiance garantie." },
+    { "day": "Wednesday", "short": "WED", "emoji": "🎉", "event": "Let's Get Social",                    "desc": "The signature midweek gathering. New faces, familiar faces, spontaneous conversations, and the kind of evenings that never feel forced." },
+    { "day": "Thursday",  "short": "THU", "emoji": "🇹🇷", "event": "Turkish Language & Culture",         "desc": "Learn the language, understand the culture, and experience the city through locals and fellow learners." },
+    { "day": "Friday",    "short": "FRI", "emoji": "🎮", "event": "Game Night & Club Night",              "desc": "Board games, social games, laughter, and late-night energy. Friday nights belong to Smileys." },
+    { "day": "Saturday",  "short": "SAT", "emoji": "📸", "event": "Photowalk & Picnic",                  "desc": "Discover hidden corners of the city, capture moments together, then slow down with a relaxed picnic outdoors." },
+    { "day": "Sunday",    "short": "SUN", "emoji": "🥞", "event": "Brunch, Meditation, Hiking & Sailing","desc": "Slow mornings, long brunch tables, trails in nature, breathwork sessions, island hikes, or a day out on the sea. The perfect reset before a new week begins." }
+  ]
+}

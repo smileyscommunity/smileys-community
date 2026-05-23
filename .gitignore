@@ -14,7 +14,8 @@ node_modules/
 .DS_Store
 *.pem
 .env
-.env*.local
+.env.*
+!.env.example
 
 # debug
 npm-debug.log*
@@ -27,3 +28,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/lib/generated/prisma
+
+# uploaded files
+/public/uploads/*
+!/public/uploads/.gitkeep

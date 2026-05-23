@@ -1,0 +1,87 @@
+{
+  "tagline": "The historic heart of Istanbul — Ottoman mosques, Byzantine walls, the Grand Bazaar, and neighbourhoods that have barely changed in centuries.",
+  "places": [
+    {
+      "category": "Coffee & Tea",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Vefa Bozacısı",
+          "description": "A legendary Istanbul institution since 1876 — famous for boza (a fermented wheat drink) but also excellent Turkish coffee. The interior is unchanged for over a century.",
+          "address": "Katip Çelebi Cad. No:104/1, Vefa",
+          "badge": "Smileys Pick",
+          "tip": "Try the boza with a sprinkle of cinnamon and roasted chickpeas. It tastes like nothing else in the world."
+        },
+        {
+          "name": "Grand Bazaar Café",
+          "description": "Several traditional tea houses inside the Grand Bazaar where traders and shoppers rest. Order çay and watch the world go by.",
+          "address": "Kapalıçarşı, Fatih"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Dönerci Şahin Usta",
+          "description": "A no-frills döner spot near the Grand Bazaar beloved by traders and locals for decades. Thin-sliced lamb on fresh bread.",
+          "address": "Kapalıçarşı çevresi, Fatih",
+          "badge": "Must Try"
+        },
+        {
+          "name": "Tarihi Sultanahmet Köftecisi",
+          "description": "One of Istanbul's most famous köfte restaurants, operating since 1920. Simple, perfect, unpretentious.",
+          "address": "Divan Yolu Cad. No:12, Sultanahmet",
+          "badge": "Landmark",
+          "tip": "Order the köfte with white beans and bread. Ignore anything else on the menu — this is a one-dish institution."
+        },
+        {
+          "name": "Fatih Çarşamba Pazarı (Wednesday Market)",
+          "description": "One of Istanbul's largest and most atmospheric weekly markets. Vegetables, spices, olives, cheeses — a proper sensory experience.",
+          "address": "Fevzi Paşa Cad., Fatih",
+          "tip": "Wednesday mornings only. Bring a bag and go early — it gets very crowded by midday."
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Süleymaniye Mosque",
+          "description": "Sinan's masterpiece and one of the most beautiful buildings in the world. The courtyard offers panoramic views of the Golden Horn. Far less crowded than the Blue Mosque.",
+          "address": "Süleymaniye, Fatih",
+          "badge": "Must Visit",
+          "tip": "Visit at prayer time to hear the call to prayer echo through the courtyard — an unforgettable experience. Dress modestly."
+        },
+        {
+          "name": "Grand Bazaar (Kapalıçarşı)",
+          "description": "The world's oldest and largest covered market. 4,000 shops across 61 covered streets. Disorienting, magnificent, and unlike anywhere else.",
+          "address": "Kapalıçarşı, Fatih",
+          "badge": "Landmark",
+          "tip": "Go to browse, not necessarily to buy. Prices are high in tourist areas — for real purchases, head to the surrounding streets."
+        },
+        {
+          "name": "Theodosian Walls",
+          "description": "The Byzantine city walls that protected Constantinople for over a thousand years. Largely intact and strikingly undervisited. Walk a section of the top.",
+          "address": "Topkapı, Fatih",
+          "badge": "Hidden Gem",
+          "tip": "The section between Edirnekapı and Yedikule gates is the most photogenic. Best in the morning light."
+        },
+        {
+          "name": "Chora Church (Kariye Müzesi)",
+          "description": "Byzantine mosaics and frescoes arguably more spectacular than Hagia Sophia — and far less visited. A genuine wonder.",
+          "address": "Kariye Camii Sok., Fatih",
+          "badge": "Smileys Pick"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Fatih is one of the few areas of Istanbul where you can feel genuinely far from the tourist trail — especially north of the Grand Bazaar.",
+    "The neighbourhood is conservative — dress modestly and be respectful around mosques.",
+    "Tram T1 runs through the heart of Fatih (Sultanahmet stop) — the easiest way to arrive.",
+    "Explore the streets between the Grand Bazaar and Süleymaniye for the most authentic trading atmosphere in the city."
+  ]
+}

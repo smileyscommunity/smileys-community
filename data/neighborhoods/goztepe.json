@@ -1,0 +1,47 @@
+{
+  "tagline": "A calm, tree-lined Asian side neighbourhood — good local cafés, a beloved city park, and a residential character that attracts families and long-term residents.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Göztepe Parkı Çay Bahçesi",
+          "description": "A beautiful tea garden inside Göztepe Park with a pond, trees, and a peaceful atmosphere. One of the Asian side's most pleasant park cafés.",
+          "address": "Göztepe Parkı, Kadıköy",
+          "badge": "Smileys Pick"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Göztepe Lokantalari",
+          "description": "A cluster of good lokanta restaurants in the Göztepe neighbourhood. Traditional Turkish home cooking at local prices.",
+          "address": "Göztepe, Kadıköy",
+          "badge": "Hidden Gem"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Göztepe Parkı",
+          "description": "A well-maintained neighbourhood park with walking paths, a pond, rose gardens, and a tea garden. Popular with families and joggers.",
+          "address": "Göztepe Parkı, Kadıköy",
+          "badge": "Smileys Pick"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Göztepe is on the M4 metro line — direct to Kadıköy and the airport.",
+    "A genuinely residential neighbourhood. Come for the park and local feel, not nightlife.",
+    "Erenköy (south) and Kozyatağı (east) have similar characters.",
+    "Property prices are lower than Moda or Kadıköy — popular with expat families for the longer term."
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "tagline": "The key transit junction between the Bosphorus ferry system and the tram and funicular — not a destination in itself, but one of Istanbul's most important crossroads.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Kabataş İskelesi Çay Bahçesi",
+          "description": "A tea garden by the ferry terminal with Bosphorus views. A pleasant 10-minute break between ferry and tram connections.",
+          "address": "Kabataş İskelesi, Beşiktaş",
+          "badge": "Smileys Pick"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Kabataş Ferry Terminal",
+          "description": "Ferries depart from here to the Princes' Islands, Üsküdar, Kadıköy, and Bosphorus villages. The view from the quayside is always excellent.",
+          "address": "Kabataş İskelesi, Beşiktaş"
+        },
+        {
+          "name": "Dolmabahçe Palace",
+          "description": "The lavish 19th-century Ottoman palace is a 5-minute walk north along the Bosphorus. One of Istanbul's most spectacular buildings.",
+          "address": "Dolmabahçe Cad., Beşiktaş",
+          "badge": "Must Visit",
+          "tip": "Book timed entry tickets online to avoid the queue. The Clock Tower and the Ceremonial Hall are the highlights."
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Kabataş is a major transit junction — tram T1, funicular F1 to Taksim, and Bosphorus ferries all connect here.",
+    "Not a neighbourhood to spend time in — use it as the transit point it was designed to be.",
+    "The walk north along the Bosphorus to Beşiktaş (15 min) or south to Fındıklı (10 min) is pleasant.",
+    "Dolmabahçe Palace is the main reason to exit here — combine the palace visit with onward transport."
+  ]
+}

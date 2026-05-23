@@ -1,0 +1,61 @@
+{
+  "tagline": "A forested Bosphorus village famous for tulips, Ottoman gardens, and one of Istanbul's most beautiful parks — best visited in spring.",
+  "places": [
+    {
+      "category": "Coffee & Tea",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Emirgan Parkı Çay Köşkleri",
+          "description": "Three restored Ottoman pavilions inside Emirgan Park serve tea and coffee with views of the Bosphorus and gardens. Genuinely beautiful.",
+          "address": "Emirgan Parkı, Sarıyer",
+          "badge": "Smileys Pick",
+          "tip": "The yellow pavilion (Sarı Köşk) has the best terrace view. Go in autumn for the foliage — spectacular and far less crowded than tulip season."
+        },
+        {
+          "name": "Emirgan İskelesi Cafés",
+          "description": "Small cafés by the ferry landing with Bosphorus views. A pleasant spot to wait for or watch the ferries.",
+          "address": "Emirgan İskelesi, Sarıyer"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Emirgan Sütis",
+          "description": "A beloved local dairy café famous for its clotted cream (kaymak) breakfasts and traditional Turkish sweets. A neighbourhood institution.",
+          "address": "Emirgan, Sarıyer",
+          "badge": "Must Try",
+          "tip": "The kaymak and honey breakfast is extraordinary. Go on a weekday morning to avoid the weekend queues."
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Emirgan Parkı",
+          "description": "One of Istanbul's most beautiful Ottoman parks, famous for its tulip festival in April but gorgeous year-round. Three restored pavilions, forested hillsides, Bosphorus views.",
+          "address": "Emirgan Parkı, Sarıyer",
+          "badge": "Must Visit",
+          "tip": "April tulip festival is spectacular but extremely crowded. Visit in October for golden foliage and peaceful paths."
+        },
+        {
+          "name": "Sakıp Sabancı Museum",
+          "description": "One of Istanbul's finest private art museums in a stunning Bosphorus villa. Rotating international exhibitions of consistently high quality.",
+          "address": "Sakıp Sabancı Cad. No:42, Emirgan",
+          "badge": "Smileys Pick"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Emirgan is best reached by bus from Beşiktaş or taxi from Sarıyer metro.",
+    "The tulip festival in April is Istanbul's most colourful annual event — but go very early or on a weekday.",
+    "Autumn is the best-kept secret: golden leaves, empty paths, and the same beautiful setting.",
+    "Walk south along the Bosphorus road to İstinye (about 20 minutes) for a pleasant combined visit."
+  ]
+}

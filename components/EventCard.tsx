@@ -1,197 +1,262 @@
+'use client'
+
+import { useState } from 'react'
 import Link from 'next/link'
-import { Event, eventAttendees, formatShortDate, vibeConfig, hosts } from '@/lib/data'
+import Image from 'next/image'
+import { useRouter } from 'next/navigation'
+import { motion, AnimatePresence } from 'framer-motion'
+import { toast } from 'sonner'
+import type { Event } from '@/lib/data'
+import { formatShortDate, formatTime, vibeConfig, resolveImageUrl, BLUR_PLACEHOLDER } from '@/lib/data'
+import { getUrgency, getBarColor, buildSocialLabel } from '@/lib/utils/event'
+import { neighborhoodToSlug } from '@/lib/neighborhoods'
+import AvatarStack from '@/components/AvatarStack'
+import EventBadges from '@/components/EventBadges'
+
+import { useRSVP } from '@/hooks/useRSVP'
+
+function Tip({ text, children }: { text: string; children: React.ReactNode }) {
+  return (
+    <span className="group/tip relative inline-flex">
+      {children}
+      <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50
+        invisible opacity-0 group-hover/tip:visible group-hover/tip:opacity-100 transition-opacity duration-150">
+        <span className="block bg-gray-900 text-white text-xs font-medium leading-tight px-2.5 py-1.5 rounded-lg whitespace-nowrap shadow-lg">
+          {text}
+        </span>
+        <span className="block w-2 h-2 bg-gray-900 rotate-45 mx-auto -mt-1" />
+      </span>
+    </span>
+  )
+}
 
 interface EventCardProps {
-  event: Event
-  linkPrefix?: string
+  event:        Event
+  linkPrefix?:  string
+  initialStatus?: 'joined' | 'pending' | null
 }
 
-function getUrgency(spotsLeft: number, totalSpots: number, limitedSpots: boolean, fillPercent: number) {
-  if (limitedSpots && spotsLeft <= 2)
-    return { label: `🔥 Only ${spotsLeft} left`, bg: 'bg-red-500', text: 'text-white', pulse: true }
-  if (limitedSpots && spotsLeft <= 5)
-    return { label: `⚡ ${spotsLeft} spots left`, bg: 'bg-orange-500', text: 'text-white', pulse: true }
-  if (fillPercent >= 75)
-    return { label: 'Almost full', bg: 'bg-orange-100', text: 'text-orange-700', pulse: false }
-  if (limitedSpots)
-    return { label: 'Limited spots', bg: 'bg-gray-100', text: 'text-gray-600', pulse: false }
-  return null
-}
+export default function EventCard({ event, linkPrefix = '/events', initialStatus }: EventCardProps) {
+  const href        = `${linkPrefix}/${event.id}`
+  const router      = useRouter()
+  const goingCount  = event.totalSpots - event.spotsLeft
 
-function getBarColor(fillPercent: number) {
-  if (fillPercent >= 85) return '#ef4444' // red
-  if (fillPercent >= 65) return '#f97316' // orange
-  if (fillPercent >= 40) return '#f59e0b' // amber
-  return '#34d399'                         // green
-}
+  function goToNeighborhood(e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    router.push(`/neighborhoods/${neighborhoodToSlug(event.neighborhood)}`)
+  }
+  const fillPercent = event.totalSpots > 0 ? (goingCount / event.totalSpots) * 100 : 0
+  const urgency     = getUrgency(event.spotsLeft, event.totalSpots, event.limitedSpots, fillPercent)
+  const barColor    = getBarColor(fillPercent)
 
-export default function EventCard({ event, linkPrefix = '/events' }: EventCardProps) {
-  const href = `${linkPrefix}/${event.id}`
-  const host = hosts[event.hostId]
-  const attendees = eventAttendees[event.id] ?? []
-  const friends = attendees.filter((a) => a.isFriend)
-  const goingCount = event.totalSpots - event.spotsLeft
-  const stackedAvatars = attendees.slice(0, 4)
-  const fillPercent = (goingCount / event.totalSpots) * 100
-  const urgency = getUrgency(event.spotsLeft, event.totalSpots, event.limitedSpots, fillPercent)
-  const barColor = getBarColor(fillPercent)
+  const { status, loading, join } = useRSVP(event.id)
+
+  async function handleJoin(e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (status !== 'idle' && status !== 'error') return
+    await join()
+  }
 
   return (
+    <motion.div
+      initial={{ opacity: 0, y: 24 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+    >
     <Link href={href} className="group block">
       <div className="card group-hover:-translate-y-1 transition-transform duration-300">
-        {/* Image area */}
-        <div className={`relative h-44 flex items-center justify-center overflow-hidden ${
-          event.isPremium
-            ? 'bg-gradient-to-br from-amber-200 via-yellow-100 to-orange-100'
-            : 'bg-gradient-to-br from-amber-100 to-orange-100'
-        }`}>
-          <span className="text-6xl select-none">{event.emoji}</span>
 
-          {/* Members-only overlay stripe */}
+        {/* Image area */}
+        <div className="relative h-52 overflow-hidden">
+          {event.coverImage ? (
+            <>
+              <Image
+                src={resolveImageUrl(event.coverImage)}
+                alt={event.title}
+                fill
+                className="object-cover group-hover:scale-[1.03] transition-transform duration-500"
+                sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
+                placeholder="blur"
+                blurDataURL={BLUR_PLACEHOLDER}
+                style={{ objectPosition: `center ${event.coverImagePosition ?? 50}%` }}
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent pointer-events-none" />
+            </>
+          ) : (
+            <div className={`w-full h-full flex items-center justify-center ${
+              event.isPremium
+                ? 'bg-gradient-to-br from-amber-200 via-yellow-100 to-orange-100'
+                : 'bg-gradient-to-br from-amber-100 to-orange-100'
+            }`}>
+              <span className="text-6xl select-none">{event.emoji}</span>
+            </div>
+          )}
+
           {event.membersOnly && (
             <div className="absolute inset-0 bg-gradient-to-t from-violet-900/40 to-transparent pointer-events-none" />
           )}
 
-          {/* Top-left badge stack */}
-          <div className="absolute top-3 left-3 flex flex-col gap-1.5">
-            {event.membersOnly && (
-              <span className="badge bg-violet-600 text-white gap-1 shadow-sm">
-                🔒 Members only
-              </span>
-            )}
-            {event.isPremium && !event.membersOnly && (
-              <span className="badge bg-gray-900 text-amber-400 gap-1 shadow-sm">
-                ♛ Premium
-              </span>
-            )}
-            {urgency ? (
-              <span className={`badge ${urgency.bg} ${urgency.text} flex items-center gap-1.5`}>
-                {urgency.pulse && (
-                  <span className="relative flex h-1.5 w-1.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
-                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-white" />
-                  </span>
-                )}
-                {urgency.label}
-              </span>
-            ) : event.price === 0 ? (
-              <span className="badge bg-green-100 text-green-700">Free</span>
-            ) : null}
-          </div>
+          <EventBadges event={event} urgency={urgency} className="absolute top-3 left-3" />
 
-          <span className="absolute top-3 right-3 badge bg-white/90 text-gray-700 shadow-sm">
+          <span
+            onClick={goToNeighborhood}
+            className="absolute top-3 right-3 badge bg-white/90 text-gray-700 shadow-sm cursor-pointer hover:bg-amber-50 hover:text-amber-600 transition-colors"
+          >
             {event.neighborhood}
           </span>
+
+          {/* Date + Featured overlay at bottom of image */}
+          <div className="absolute bottom-0 left-0 right-0 px-3 pb-2.5 flex items-end justify-between">
+            <div className="flex items-center gap-1.5 bg-black/60 backdrop-blur-sm text-white text-[11px] font-bold px-2.5 py-1 rounded-full">
+              <svg className="w-3 h-3 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              {formatShortDate(event.date)} · {formatTime(event.time)}
+            </div>
+            {event.featured && (
+              <div className="flex items-center gap-1 bg-amber-500 text-white text-[11px] font-bold px-2.5 py-1 rounded-full shadow-md">
+                ★ Featured
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Content */}
-        <div className="p-5">
-          <div className="flex items-center gap-2 text-xs text-amber-600 font-semibold mb-2">
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            {formatShortDate(event.date)} · {event.time}
-          </div>
-
-          <h3 className="font-bold text-gray-900 text-base leading-snug mb-2 group-hover:text-amber-600 transition-colors">
+        <div className="p-4">
+          <h3 className="font-bold text-gray-900 text-base leading-snug mb-2 group-hover:text-amber-600 transition-colors line-clamp-2">
             {event.title}
           </h3>
 
-          {/* Vibe tags */}
-          <div className="flex flex-wrap gap-1.5 mb-3">
-            {event.vibes.map((vibe) => {
-              const cfg = vibeConfig[vibe]
-              return (
-                <span key={vibe} className={`badge ${cfg.bg} ${cfg.text} gap-1`}>
-                  {cfg.emoji} {vibe}
-                </span>
-              )
-            })}
+          <div className="flex items-center gap-3 mb-3 text-xs text-gray-500">
+            <span
+              onClick={goToNeighborhood}
+              className="flex items-center gap-1 cursor-pointer hover:text-amber-600 transition-colors truncate"
+            >
+              <svg className="w-3 h-3 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <span className="truncate">{event.neighborhood}</span>
+            </span>
+            {event.hostName && (
+              <span className="flex items-center gap-1 shrink-0">
+                <div
+                  className="w-4 h-4 rounded-full overflow-hidden flex items-center justify-center text-white text-[8px] font-bold shrink-0"
+                  style={{ backgroundColor: event.hostColor ?? '#f59e0b' }}
+                >
+                  {event.hostPhoto
+                    ? <img src={resolveImageUrl(event.hostPhoto)} alt={event.hostName} className="w-full h-full object-cover" />
+                    : event.hostName.trim().split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+                  }
+                </div>
+                <span className="truncate">{event.hostName.split(' ')[0]}</span>
+              </span>
+            )}
           </div>
 
-          <p className="text-sm text-gray-500 line-clamp-2 leading-relaxed mb-4">
-            {event.description}
-          </p>
+          {event.vibes.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {event.vibes.slice(0, 3).map((vibe) => {
+                const cfg = vibeConfig[vibe]
+                return cfg ? (
+                  <Tip key={vibe} text={cfg.description}>
+                    <span className={`badge shrink-0 ${cfg.bg} ${cfg.text} gap-1`}>
+                      {cfg.emoji} {vibe}
+                    </span>
+                  </Tip>
+                ) : null
+              })}
+            </div>
+          )}
 
-          {/* Participant count + progress */}
-          <div className="mb-3">
-            <div className="flex items-center justify-between mb-1.5">
-              <div className="flex items-center gap-2">
-                <div className="flex -space-x-2">
-                  {stackedAvatars.map((a) => (
-                    <div
-                      key={a.id}
-                      className="w-6 h-6 rounded-full ring-2 ring-white flex items-center justify-center text-white text-[9px] font-bold shrink-0"
-                      style={{ backgroundColor: a.color }}
-                      title={a.name}
-                    >
-                      {a.initials}
-                    </div>
-                  ))}
-                </div>
-                <span className="text-xs font-semibold text-gray-700">
-                  {goingCount} / {event.totalSpots} going
+          {/* Social proof + spots */}
+          <div className="flex items-center gap-2 mb-3 min-h-[20px]">
+            {goingCount > 0 ? (
+              <>
+                {event.attendeePreviews && event.attendeePreviews.length > 0 && (
+                  <AvatarStack people={event.attendeePreviews} total={goingCount} max={3} size="sm" />
+                )}
+                <span className="text-xs text-gray-500 flex-1 truncate">
+                  {buildSocialLabel(event.attendeePreviews, goingCount)}
                 </span>
-                {friends.length > 0 && (
-                  <span className="text-xs text-amber-600 font-semibold">
-                    · {friends.length} friend{friends.length > 1 ? 's' : ''}
-                  </span>
+              </>
+            ) : (
+              <span className="text-xs text-gray-400">Be the first to join</span>
+            )}
+            {event.limitedSpots && event.spotsLeft <= 5 && event.spotsLeft > 0 && !urgency && (
+              <span className="text-[11px] font-semibold text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full shrink-0">
+                {event.spotsLeft} left
+              </span>
+            )}
+          </div>
+
+          {/* Spots bar */}
+          {event.limitedSpots && (
+            <div className="mb-3">
+              <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-full rounded-full transition-all duration-500"
+                  style={{ width: `${fillPercent}%`, backgroundColor: barColor }} />
+              </div>
+            </div>
+          )}
+
+          {/* Price + Join */}
+          <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+            {event.price === 0 ? (
+              <span className="text-sm font-bold text-green-600">Free</span>
+            ) : event.memberPrice ? (
+              <div>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-xs text-violet-600 font-semibold">Members</span>
+                  <span className="text-sm font-bold text-violet-700">₺{event.memberPrice}</span>
+                </div>
+                {!event.membersOnly && (
+                  <div className="text-xs text-gray-400">Guests ₺{event.price}</div>
                 )}
               </div>
-              <span className="text-xs font-semibold" style={{ color: barColor }}>
-                {Math.round(fillPercent)}%
-              </span>
-            </div>
-
-            {/* Progress bar — color reflects urgency */}
-            <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all duration-500"
-                style={{ width: `${fillPercent}%`, backgroundColor: barColor }}
-              />
-            </div>
-          </div>
-
-          {/* Bottom row: host + pricing */}
-          <div className="flex items-center justify-between pt-3 mt-1 border-t border-gray-100">
-            {host && (
-              <div className="flex items-center gap-2 min-w-0">
-                <div
-                  className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0"
-                  style={{ backgroundColor: host.color }}
-                >
-                  {host.initials}
-                </div>
-                <div className="min-w-0">
-                  <span className="text-[10px] text-gray-400 block leading-none mb-0.5">Hosted by</span>
-                  <span className="text-xs font-semibold text-gray-700 truncate block">{host.name}</span>
-                </div>
-              </div>
+            ) : (
+              <span className="text-sm font-bold text-gray-900">₺{event.price}</span>
             )}
 
-            {/* Pricing */}
-            <div className="text-right shrink-0">
-              {event.price === 0 ? (
-                <span className="text-sm font-bold text-green-600">Free</span>
-              ) : event.memberPrice ? (
-                <div>
-                  <div className="flex items-baseline gap-1.5 justify-end">
-                    <span className="text-[10px] text-violet-600 font-semibold">Members</span>
-                    <span className="text-sm font-bold text-violet-700">₺{event.memberPrice}</span>
-                  </div>
-                  {!event.membersOnly && (
-                    <div className="text-[10px] text-gray-400 text-right">
-                      Guests <span className="line-through">₺{event.price}</span>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <span className="text-sm font-bold text-gray-900">₺{event.price}</span>
-              )}
-            </div>
+            <motion.button
+              onClick={handleJoin}
+              disabled={status !== 'idle'}
+              whileTap={status === 'idle' ? { scale: 0.93 } : {}}
+              className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:cursor-default overflow-hidden ${
+                status === 'joined'  ? 'bg-green-100 text-green-700' :
+                status === 'pending' ? 'bg-amber-100 text-amber-700' :
+                status === 'loading' ? 'bg-gray-100 text-gray-400'   :
+                status === 'error'   ? 'bg-red-100 text-red-600'     :
+                event.spotsLeft === 0 && event.limitedSpots
+                  ? 'bg-gray-100 text-gray-500'
+                  : 'bg-amber-500 hover:bg-amber-600 text-white'
+              }`}
+            >
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.span
+                  key={status}
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 8 }}
+                  transition={{ duration: 0.14 }}
+                  className="block"
+                >
+                  {status === 'joined'  ? '✓ Joined'    :
+                   status === 'pending' ? '⏳ Pending'   :
+                   status === 'loading' ? '…'            :
+                   status === 'error'   ? 'Error'        :
+                   event.spotsLeft === 0 && event.limitedSpots ? 'Full'   :
+                   event.approvalRequired                      ? 'Request' :
+                   'Join'}
+                </motion.span>
+              </AnimatePresence>
+            </motion.button>
           </div>
         </div>
       </div>
     </Link>
+    </motion.div>
   )
 }

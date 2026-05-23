@@ -1,0 +1,78 @@
+{
+  "tagline": "The northern end of the European shore — where the city gives way to forest, fishing villages, and some of Istanbul's finest seafood.",
+  "places": [
+    {
+      "category": "Coffee & Breakfast",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Sarıyer İskelesi Café",
+          "description": "A simple café by the ferry landing with views of the Bosphorus and the fishing boats. Classic Turkish breakfast done well.",
+          "address": "Sarıyer İskelesi, Sarıyer",
+          "badge": "Smileys Pick"
+        },
+        {
+          "name": "Büyükdere Sahil Cafés",
+          "description": "A string of waterfront cafés along the Büyükdere coast, perfect for a relaxed morning with sea views.",
+          "address": "Büyükdere Sahili, Sarıyer"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Sarıyer Börekçisi",
+          "description": "Famous throughout Istanbul for their freshly baked börek (flaky pastry with cheese, spinach, or meat). A must-stop.",
+          "address": "Sarıyer Cad., Sarıyer",
+          "badge": "Must Try",
+          "tip": "The cheese and spinach börek is the classic. Eat it hot straight from the oven."
+        },
+        {
+          "name": "Yosun Restaurant",
+          "description": "Excellent fish restaurant in Sarıyer with Bosphorus views. Much less touristy than central Istanbul options at comparable quality.",
+          "address": "Sarıyer Sahili, Sarıyer"
+        },
+        {
+          "name": "Rumelikavağı Balık Restoranları",
+          "description": "The fishing village of Rumelikavağı at the mouth of the Bosphorus has a row of outstanding fish restaurants. A proper day trip destination.",
+          "address": "Rumelikavağı, Sarıyer",
+          "badge": "Hidden Gem",
+          "tip": "Take the Bosphorus ferry from Eminönü all the way to the last stop. The journey is half the experience."
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Belgrad Forest",
+          "description": "A vast forest north of the city with hiking trails, picnic areas, and Ottoman-era water reservoirs. A true escape from urban life.",
+          "address": "Belgrad Ormanı, Sarıyer",
+          "badge": "Smileys Pick",
+          "tip": "Best visited on weekdays to avoid weekend crowds. The reservoir walk is the most scenic route."
+        },
+        {
+          "name": "Sakıp Sabancı Museum",
+          "description": "One of Istanbul's finest private art museums, set in a stunning villa on the Bosphorus with changing international exhibitions.",
+          "address": "Sakıp Sabancı Cad. No:42, Emirgan",
+          "badge": "Must Visit"
+        },
+        {
+          "name": "Emirgan Park",
+          "description": "A beautiful Ottoman park famous for its tulips in April, but lovely year-round. Great café kiosks and Bosphorus views.",
+          "address": "Emirgan Parkı, Sarıyer",
+          "tip": "The tulip festival in April is spectacular but extremely crowded. Autumn is equally beautiful and far quieter."
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Sarıyer is the end of the metro M2 line — the easiest part of Istanbul to reach by public transport from the city centre.",
+    "The Bosphorus ferry from Eminönü to Rumelikavağı is one of Istanbul's great experiences. Take it at least once.",
+    "Belgrad Forest is best reached by taxi from Sarıyer metro (about 15 min). Not walkable from the station.",
+    "The neighbourhood feels genuinely local — far fewer tourists than central areas."
+  ]
+}

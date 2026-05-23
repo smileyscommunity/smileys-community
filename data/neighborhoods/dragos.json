@@ -1,0 +1,37 @@
+{
+  "tagline": "A dramatic rocky headland with panoramic views of the Sea of Marmara and the Princes' Islands — one of Istanbul's most scenic but undervisited viewpoints.",
+  "places": [
+    {
+      "category": "Coffee & Tea",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Dragos Çay Bahçesi",
+          "description": "A tea garden perched on the rocky Dragos headland with extraordinary 180-degree views of the Sea of Marmara and the Princes' Islands.",
+          "address": "Dragos, Kartal",
+          "badge": "Smileys Pick",
+          "tip": "Sunset here is one of Istanbul's best views. The islands turn orange in the evening light. Arrive 30 minutes before to get a spot."
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Dragos Burnu (Headland) View",
+          "description": "The rocky promontory at the very end of Dragos gives a spectacular panorama of the Marmara Sea, all five Princes' Islands, and the Asian shore stretching in both directions.",
+          "address": "Dragos Burnu, Kartal",
+          "badge": "Must Do",
+          "tip": "Best on clear winter days when visibility can extend to the Marmara islands and beyond. Summer haze reduces the view."
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Dragos is best reached by taxi from Kartal metro. No direct public transport to the headland.",
+    "Primarily worth visiting for the view — there's not much else in the immediate area.",
+    "Combine with Kartal waterfront (a short drive away) for a fuller visit to this part of the city.",
+    "Clear autumn and winter days give the best visibility — go early morning for clean air."
+  ]
+}

@@ -1,0 +1,69 @@
+{
+  "tagline": "A relaxed Asian side waterfront district with a great coastal park, weekend markets, and a more tranquil pace than neighbouring Kartal or Kadıköy.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Sahil Café Maltepe",
+          "description": "Waterfront café along the Maltepe coastline with views of the Princes' Islands. Relaxed and unhurried — perfect for a long morning coffee.",
+          "address": "Maltepe Sahili, Maltepe",
+          "badge": "Smileys Pick"
+        },
+        {
+          "name": "Bağlarbaşı Kahveleri",
+          "description": "A cluster of neighbourhood cafés around Bağlarbaşı Square. Very local crowd, good Turkish tea and coffee at honest prices.",
+          "address": "Bağlarbaşı, Maltepe"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Maltepe Sahil Restoranları",
+          "description": "A line of seafood and traditional restaurants along the waterfront promenade. Fresh fish and mezes with Princes' Islands views.",
+          "address": "Maltepe Sahili, Maltepe",
+          "badge": "Must Visit"
+        },
+        {
+          "name": "Bağlarbaşı Lokantalari",
+          "description": "Honest, home-style Turkish cooking in the Bağlarbaşı neighbourhood. Rotating daily menus of traditional dishes at very local prices.",
+          "address": "Bağlarbaşı Meydanı, Maltepe"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Maltepe Sahil Parkı",
+          "description": "One of Istanbul's longest and best-maintained waterfront parks. Cycling paths, green space, and beautiful Princes' Islands views on clear days.",
+          "address": "Maltepe Sahili, Maltepe",
+          "badge": "Smileys Pick",
+          "tip": "The park is busiest on weekend mornings with joggers and cyclists. Weekday evenings are magical and peaceful."
+        },
+        {
+          "name": "Weekend Flea Market",
+          "description": "A popular weekend market along the Maltepe coast selling antiques, secondhand goods, and local produce. Great for browsing.",
+          "address": "Maltepe Sahili, Maltepe",
+          "tip": "Saturday mornings are the best time. Arrive before 10am for the best finds before the crowds."
+        },
+        {
+          "name": "Maltepe Park AVM",
+          "description": "A well-stocked shopping centre with cinema and dining. Good for a rainy day or practical errands.",
+          "address": "Maltepe, İstanbul"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Maltepe is on the M4 metro line — direct connection to Kadıköy and Sabiha Gökçen Airport.",
+    "The coastal park is one of the longest green waterfronts in Istanbul — worth cycling end to end.",
+    "Much more residential and tranquil than Kadıköy. A good base if you want Asian side living without the Kadıköy buzz.",
+    "Ferry connections to the Princes' Islands are also possible from Maltepe İskelesi."
+  ]
+}

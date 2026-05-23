@@ -1,0 +1,110 @@
+{
+  "tagline": "Istanbul's most expat-friendly neighbourhood — bohemian, hilly, and full of the city's best brunch spots.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Cihangir Café",
+          "description": "The neighbourhood's most iconic café. Mismatched furniture, good espresso, and a crowd of locals and expats who've been coming for years.",
+          "address": "Akarsu Yokuşu No:22, Cihangir",
+          "badge": "Smileys Pick",
+          "tip": "Go on a weekday morning for the best atmosphere. Saturdays get packed."
+        },
+        {
+          "name": "Coffee Manifesto",
+          "description": "One of the best specialty coffee roasters in Istanbul. Clean, minimalist space with excellent single-origin filter coffee.",
+          "address": "Sıraselviler Cad. No:41, Cihangir"
+        },
+        {
+          "name": "Smyrna Café & Brunch",
+          "description": "An Aegean-inspired café with a great brunch menu and a quiet terrace overlooking Cihangir Park.",
+          "address": "Akarsu Yokuşu No:29, Cihangir",
+          "tip": "Their menemen (Turkish scrambled eggs) is outstanding."
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Jash",
+          "description": "The best brunch spot in Cihangir — possibly the city. Armenian-inspired menu, fresh ingredients, long communal tables.",
+          "address": "Şehit Muhtar Mah., Cihangir",
+          "badge": "Must Visit",
+          "tip": "Queue starts at 10am on weekends. They don't take reservations — arrive early or be prepared to wait."
+        },
+        {
+          "name": "Datli Maya",
+          "description": "A beloved bakery and organic café run by a Turkish-American couple. Incredible sourdough, pastries, and healthy lunch options.",
+          "address": "Turnacıbaşı Cad. No:59, Cihangir"
+        },
+        {
+          "name": "Zübeyir Ocakbaşı",
+          "description": "Legendary charcoal grill restaurant. The Adana kebap and lamb chops are among the best in Istanbul. Lively, atmospheric setting.",
+          "address": "Bekar Sokak No:28, Beyoğlu",
+          "tip": "Dinner only. Book ahead on weekends — it fills up fast."
+        },
+        {
+          "name": "Karaköy Lokantası",
+          "description": "Modern Turkish cuisine at its best. Fresh, seasonal menus and a calm atmosphere. Perfect for a proper sit-down lunch.",
+          "address": "Kemankeş Cad. No:37A, Karaköy"
+        }
+      ]
+    },
+    {
+      "category": "Bars & Evenings",
+      "emoji": "🍷",
+      "items": [
+        {
+          "name": "Leb-i Derya Richmond",
+          "description": "Rooftop bar with some of the best views of the Bosphorus in the city. Great cocktails and a crowd that knows how to enjoy them.",
+          "address": "İstiklal Cad. (Richmond Hotel), Beyoğlu",
+          "badge": "Smileys Pick",
+          "tip": "Book ahead for the terrace on weekends. The view at dusk is spectacular."
+        },
+        {
+          "name": "Hayal Kahvesi Cihangir",
+          "description": "A Cihangir institution. Intimate bar with live music most nights — jazz, blues, Turkish rock. Very local crowd.",
+          "address": "Akarsu Yokuşu No:19, Cihangir"
+        },
+        {
+          "name": "Peyote",
+          "description": "Small, eclectic bar with a strong alternative music programme. Good craft beers, friendly staff, neighbourhood feel.",
+          "address": "Kameriye Sokak No:4, Beyoğlu"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Cihangir Park",
+          "description": "The neighbourhood's living room. A small hilltop park where locals sit, chat, and watch the Bosphorus. Perfect in the evening.",
+          "address": "Cihangir Parkı, Cihangir"
+        },
+        {
+          "name": "Vintage & Antique Shops",
+          "description": "Cihangir is packed with small antique and vintage shops along Faik Paşa Yokuşu and Akarsu Yokuşu. Budget a few hours.",
+          "address": "Faik Paşa Yokuşu, Cihangir",
+          "badge": "Hidden Gem",
+          "tip": "Prices are negotiable if you're polite about it. Go on weekday afternoons when it's quieter."
+        },
+        {
+          "name": "Walk to Galata Tower",
+          "description": "A 10-minute downhill walk through atmospheric streets takes you to Galata Tower and Karaköy. One of the best urban walks in Istanbul.",
+          "address": "Galata Kulesi, Beyoğlu"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Cihangir is hilly — comfortable shoes are essential. Many of the best spots are on steep side streets.",
+    "Many Smileys members live here, making it a great neighbourhood for spontaneous meet-ups.",
+    "The 10-minute walk downhill to Karaköy is one of the best in Istanbul — take it over a taxi.",
+    "Most cafés have wi-fi and tolerate working from them for hours. It's that kind of neighbourhood."
+  ]
+}

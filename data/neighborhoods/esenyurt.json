@@ -1,0 +1,24 @@
+{
+  "tagline": "One of Istanbul's most populous outer districts — a dense, diverse, and affordable suburban community with a large international population.",
+  "places": [
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Esenyurt Çarşı Restoranları",
+          "description": "A diverse range of restaurants reflecting the district's international community — Arabic, African, Central Asian, and Turkish cuisine all represented.",
+          "address": "Esenyurt, İstanbul",
+          "badge": "Hidden Gem",
+          "tip": "The international food scene here is genuinely diverse and very affordable. Worth exploring if you live on the western European side."
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Esenyurt is on the M3 metro line — about 40-45 minutes from the city centre.",
+    "One of Istanbul's most diverse neighbourhoods with large Arab, African, and Central Asian communities.",
+    "Very affordable housing — popular with newcomers to Istanbul.",
+    "Not a tourism destination but an interesting window into Istanbul's multicultural reality."
+  ]
+}

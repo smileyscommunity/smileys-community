@@ -1,190 +1,280 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { events, clubs, hosts } from '@/lib/data'
-import { mockUsers } from '@/lib/auth'
-import StatCard    from '@/components/admin/StatCard'
-import EventsTable from '@/components/admin/EventsTable'
-import HostCard    from '@/components/admin/HostCard'
+import { useAuth } from '@/contexts/AuthContext'
+import { resolveImageUrl } from '@/lib/data'
 
-const today          = new Date().toISOString().split('T')[0]
-const totalMembers   = mockUsers.filter((u) => u.role === 'member').length
-const totalHosts     = mockUsers.filter((u) => u.role === 'host').length
-const upcomingEvents = events.filter((e) => e.date >= today)
-const totalAttendees = events.reduce((sum, e) => sum + (e.totalSpots - e.spotsLeft), 0)
+interface Stats {
+  totalAccounts: number; members: number; hosts: number
+  events: number; upcoming: number; rsvps: number
+  newMembersThisMonth: number
+  revenueCollected: number; revenuePending: number; pendingPayments: number
+  pendingApplications: number; pendingReports: number
+  trends: { members: number; rsvps: number; revenue: number }
+}
 
-const topHosts = Object.values(hosts)
-  .map((h) => {
-    const hostEvents = events.filter((e) => e.hostId === h.id)
-    const attendees  = hostEvents.reduce((s, e) => s + (e.totalSpots - e.spotsLeft), 0)
-    const totalSpots = hostEvents.reduce((s, e) => s + e.totalSpots, 0)
-    const rate       = totalSpots > 0 ? Math.round((attendees / totalSpots) * 100) : 0
-    return { host: h, eventCount: hostEvents.length, rate }
-  })
-  .sort((a, b) => b.rate - a.rate)
+interface AuditEntry {
+  id: string; adminName: string; action: string
+  description: string | null; createdAt: string; meta: any
+}
 
-// Week bounds
-const todayDate    = new Date(today)
-const dayOfWeek    = todayDate.getDay() === 0 ? 7 : todayDate.getDay()
-const weekStart    = new Date(todayDate); weekStart.setDate(todayDate.getDate() - dayOfWeek + 1)
-const weekEnd      = new Date(weekStart);  weekEnd.setDate(weekStart.getDate() + 6)
-const weekStartStr = weekStart.toISOString().split('T')[0]
-const weekEndStr   = weekEnd.toISOString().split('T')[0]
+interface AdminEvent {
+  id: string; title: string; date: string; emoji: string
+  totalSpots: number; _count: { attendees: number }
+  host: { name: string; color: string; profilePhoto: string | null } | null
+}
 
-const clubGrowth: Record<string, number> = { '1': 12, '2': 8, '3': 18, '4': 25, '5': 5 }
+const ACTION_COLOR: Record<string, string> = {
+  'application.approve': 'bg-green-500/15 text-green-400',
+  'application.reject':  'bg-red-500/15 text-red-400',
+  'user.ban':            'bg-red-500/15 text-red-400',
+  'user.remove':         'bg-red-500/15 text-red-400',
+  'user.warn':           'bg-orange-500/15 text-orange-400',
+  'user.role_change':    'bg-violet-500/15 text-violet-400',
+  'payment.status':      'bg-blue-500/15 text-blue-400',
+}
 
-const clubsPerf = clubs.map((club) => {
-  const clubEvents = events.filter((e) => e.clubId === club.id)
-  const weekEvents = clubEvents.filter((e) => e.date >= weekStartStr && e.date <= weekEndStr).length
-  const growth     = clubGrowth[club.id] ?? 0
-  return { club, members: club.memberCount, weekEvents, growth }
-}).sort((a, b) => b.members - a.members)
+function timeAgo(date: string) {
+  const s = Math.floor((Date.now() - new Date(date).getTime()) / 1000)
+  if (s < 60)   return `${s}s ago`
+  if (s < 3600) return `${Math.floor(s/60)}m ago`
+  if (s < 86400)return `${Math.floor(s/3600)}h ago`
+  return `${Math.floor(s/86400)}d ago`
+}
 
-// Alerts
-const lowCapacityEvents = events.filter((e) => e.date >= today && (e.totalSpots - e.spotsLeft) / e.totalSpots < 0.4)
-const topGrowthClub     = clubs.map((c) => ({ club: c, growth: clubGrowth[c.id] ?? 0 })).sort((a, b) => b.growth - a.growth)[0]
-const inactiveHostCount = 5
-
-const alerts = [
-  lowCapacityEvents.length > 0 && {
-    icon: '⚠️',
-    text: `${lowCapacityEvents.length} event${lowCapacityEvents.length !== 1 ? 's' : ''} below 40% capacity`,
-    color: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
-  },
-  topGrowthClub && {
-    icon: '🔥',
-    text: `${topGrowthClub.club.name} +${topGrowthClub.growth}% growth this week`,
-    color: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
-  },
-  inactiveHostCount > 0 && {
-    icon: '😴',
-    text: `${inactiveHostCount} hosts inactive for 30+ days`,
-    color: 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20',
-  },
-].filter(Boolean) as { icon: string; text: string; color: string }[]
-
-const activityFeed = [
-  { id: 1, icon: '👤', text: 'Ayşe Kaya joined the community',         time: '2m ago'  },
-  { id: 2, icon: '📅', text: 'Sunset Sailing — 1 new registration',    time: '8m ago'  },
-  { id: 3, icon: '💬', text: 'Language Exchange — 3 new spots filled',  time: '15m ago' },
-  { id: 4, icon: '💳', text: 'Payment received from Carlos Mendez',     time: '22m ago' },
-  { id: 5, icon: '⭐', text: 'Flow by Smileys published a new event',  time: '1h ago'  },
-  { id: 6, icon: '👤', text: 'James Reed joined Smileys Sailing Club',  time: '1h ago'  },
-  { id: 7, icon: '💳', text: 'Payment received from Zeynep Arslan',     time: '2h ago'  },
-  { id: 8, icon: '📅', text: 'Rooftop DJ Night — 5 spots left',         time: '3h ago'  },
-]
+function Trend({ v }: { v?: number }) {
+  if (!v) return null
+  const pos = v > 0
+  return (
+    <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-md ${pos ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
+      {pos ? '↑' : '↓'} {Math.abs(v)}%
+    </span>
+  )
+}
 
 export default function AdminPage() {
-  return (
-    <div className="p-6 space-y-6">
+  const { user } = useAuth()
+  const [stats,  setStats]  = useState<Stats | null>(null)
+  const [audit,  setAudit]  = useState<AuditEntry[]>([])
+  const [events, setEvents] = useState<AdminEvent[]>([])
 
-      {/* Alerts */}
+  useEffect(() => {
+    const today = new Date().toISOString().split('T')[0]
+    Promise.all([
+      fetch('/app/api/admin/stats',        { credentials: 'include' }).then(r => r.ok ? r.json() : null),
+      fetch('/app/api/admin/audit?take=8', { credentials: 'include' }).then(r => r.ok ? r.json() : []),
+      fetch('/app/api/admin/events?status=published', { credentials: 'include' }).then(r => r.ok ? r.json() : []),
+    ]).then(([s, a, e]) => {
+      if (s) setStats(s)
+      setAudit(Array.isArray(a) ? a : [])
+      const evts = Array.isArray(e) ? e.filter((ev: AdminEvent) => ev.date >= today).slice(0, 6) : []
+      setEvents(evts)
+    })
+  }, [])
+
+  const hour = new Date().getHours()
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+  const firstName = user?.name?.split(' ')[0] ?? 'Admin'
+
+  const alerts = stats ? [
+    stats.pendingApplications > 0 && {
+      icon: '👤', label: `${stats.pendingApplications} application${stats.pendingApplications !== 1 ? 's' : ''} pending`,
+      href: '/admin/applications', color: 'border-amber-500/30 bg-amber-500/5 text-amber-400',
+    },
+    stats.pendingPayments > 0 && {
+      icon: '💳', label: `${stats.pendingPayments} payment${stats.pendingPayments !== 1 ? 's' : ''} · ₺${stats.revenuePending.toLocaleString()}`,
+      href: '/admin/payments', color: 'border-violet-500/30 bg-violet-500/5 text-violet-400',
+    },
+    stats.pendingReports > 0 && {
+      icon: '🚨', label: `${stats.pendingReports} report${stats.pendingReports !== 1 ? 's' : ''} to review`,
+      href: '/admin/moderation', color: 'border-red-500/30 bg-red-500/5 text-red-400',
+    },
+  ].filter(Boolean) as { icon: string; label: string; href: string; color: string }[] : []
+
+  return (
+    <div className="p-4 sm:p-6 space-y-6 text-white">
+
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs text-zinc-500 font-medium">{greeting}</p>
+          <h1 className="text-xl font-extrabold text-white tracking-tight">{firstName} 👋</h1>
+        </div>
+        <Link href="/admin/events/new"
+          className="flex items-center gap-1.5 px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl transition-colors shadow-lg shadow-amber-500/20">
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+          New Event
+        </Link>
+      </div>
+
+      {/* ── Alerts ── */}
       {alerts.length > 0 && (
-        <div className="flex flex-col sm:flex-row gap-2">
-          {alerts.map((alert, i) => (
-            <div key={i} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium flex-1 ${alert.color}`}>
-              <span>{alert.icon}</span>
-              <span>{alert.text}</span>
-            </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {alerts.map((a, i) => (
+            <Link key={i} href={a.href}
+              className={`flex items-center gap-2.5 px-4 py-3 rounded-2xl border text-sm font-semibold hover:opacity-80 transition-opacity ${a.color}`}>
+              <span className="text-base shrink-0">{a.icon}</span>
+              <span>{a.label}</span>
+              <svg className="w-3.5 h-3.5 ml-auto opacity-60 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </Link>
           ))}
         </div>
       )}
 
-      {/* Stats */}
-      <div className="grid grid-cols-4 gap-4">
-        <StatCard title="Members"   value={totalMembers.toLocaleString()}   change="+12%"  data={[8, 14, 22, 31, 47, 56, totalMembers]} />
-        <StatCard title="Events"    value={events.length.toString()}        change={`+${upcomingEvents.length} upcoming`} data={[2, 3, 3, 4, 4, 5, events.length]} />
-        <StatCard title="Hosts"     value={totalHosts.toString()}           change="+2 this month" data={[3, 4, 4, 5, 5, 6, totalHosts]} />
-        <StatCard title="Attendees" value={totalAttendees.toLocaleString()} change="+18%"  data={[120, 180, 210, 260, 310, 380, totalAttendees]} />
+      {/* ── Key stats ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {[
+          {
+            label: 'Members', value: stats?.members ?? '…',
+            sub: `+${stats?.newMembersThisMonth ?? 0} this month`,
+            trend: stats?.trends.members,
+            icon: '👥', iconBg: 'bg-blue-500/10 text-blue-400',
+            href: '/admin/users',
+          },
+          {
+            label: 'Upcoming', value: stats?.upcoming ?? '…',
+            sub: `${stats?.events ?? 0} total events`,
+            icon: '🗓️', iconBg: 'bg-amber-500/10 text-amber-400',
+            href: '/admin/events',
+          },
+          {
+            label: 'RSVPs', value: stats?.rsvps ?? '…',
+            sub: 'All-time attendances',
+            trend: stats?.trends.rsvps,
+            icon: '🎟️', iconBg: 'bg-green-500/10 text-green-400',
+            href: '/admin/participants',
+          },
+          {
+            label: 'Revenue', value: stats ? `₺${stats.revenueCollected.toLocaleString()}` : '…',
+            sub: stats?.revenuePending ? `₺${stats.revenuePending.toLocaleString()} pending` : 'No pending',
+            trend: stats?.trends.revenue,
+            icon: '💰', iconBg: 'bg-violet-500/10 text-violet-400',
+            href: '/admin/payments',
+          },
+        ].map(card => (
+          <Link key={card.label} href={card.href}
+            className="bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-2xl p-4 transition-colors group">
+            <div className="flex items-start justify-between mb-3">
+              <span className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg ${card.iconBg}`}>
+                {card.icon}
+              </span>
+              {'trend' in card && <Trend v={card.trend} />}
+            </div>
+            <div className="text-2xl font-extrabold text-white group-hover:text-amber-400 transition-colors">{card.value}</div>
+            <div className="text-xs text-zinc-500 mt-0.5 font-medium">{card.label}</div>
+            <div className="text-[11px] text-zinc-600 mt-1">{card.sub}</div>
+          </Link>
+        ))}
       </div>
 
-      {/* Quick Actions */}
-      <div className="flex gap-3">
-        <Link href="/admin/events/new" className="bg-white text-black px-4 py-2 rounded-xl text-sm font-semibold hover:bg-zinc-100 transition-colors">
-          + Create Event
-        </Link>
-        <Link href="/admin/hosts"    className="bg-zinc-800 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-zinc-700 transition-colors">Add Host</Link>
-        <Link href="/admin/clubs"    className="bg-zinc-800 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-zinc-700 transition-colors">Create Club</Link>
-        <Link href="/admin/payments" className="bg-zinc-800 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-zinc-700 transition-colors">💳 Payments</Link>
-        <Link href="/admin/reports"  className="bg-zinc-800 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-zinc-700 transition-colors">📊 Reports</Link>
-      </div>
+      {/* ── Main grid: Events + Audit ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
 
-      {/* Main Grid */}
-      <div className="grid grid-cols-3 gap-6">
-        <div className="col-span-2 bg-zinc-900 p-5 rounded-2xl">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-semibold">Upcoming Events</h2>
-            <Link href="/admin/events" className="text-xs text-amber-400 hover:underline font-medium">View all →</Link>
-          </div>
-          <EventsTable />
-        </div>
-
-        <div className="bg-zinc-900 p-5 rounded-2xl">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-semibold">Top Hosts</h2>
-            <Link href="/admin/hosts" className="text-xs text-amber-400 hover:underline font-medium">Manage →</Link>
-          </div>
-          <div className="space-y-2">
-            {topHosts.map(({ host, eventCount, rate }) => (
-              <HostCard key={host.id} name={host.name} events={eventCount} rate={rate} />
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Bottom Grid */}
-      <div className="grid grid-cols-3 gap-6">
-
-        {/* Clubs Performance */}
-        <div className="col-span-2 bg-zinc-900 rounded-2xl overflow-hidden">
+        {/* Upcoming events */}
+        <div className="lg:col-span-3 bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
-            <h2 className="text-base font-semibold">Clubs Performance</h2>
-            <Link href="/admin/clubs" className="text-xs text-amber-400 hover:underline font-medium">Manage →</Link>
+            <div>
+              <h2 className="text-sm font-bold text-white">Upcoming Events</h2>
+              <p className="text-xs text-zinc-500 mt-0.5">{events.length} next up</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Link href="/admin/events/new"
+                className="text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1.5 rounded-lg font-semibold transition-colors">
+                + New
+              </Link>
+              <Link href="/admin/events" className="text-xs text-amber-400 hover:text-amber-300 font-semibold">
+                All →
+              </Link>
+            </div>
           </div>
-          <div className="grid grid-cols-12 gap-3 px-5 py-2.5 text-[11px] font-bold text-zinc-600 uppercase tracking-wider border-b border-zinc-800">
-            <div className="col-span-4">Club</div>
-            <div className="col-span-2 text-center">Members</div>
-            <div className="col-span-3 text-center">This Week</div>
-            <div className="col-span-3 text-center">Growth</div>
-          </div>
-          <div className="divide-y divide-zinc-800">
-            {clubsPerf.map(({ club, members, weekEvents, growth }) => (
-              <div key={club.id} className="grid grid-cols-12 gap-3 px-5 py-3.5 items-center hover:bg-zinc-800/50 transition-colors">
-                <div className="col-span-4 flex items-center gap-3 min-w-0">
-                  <div className={`w-8 h-8 rounded-lg ${club.bgColor} flex items-center justify-center text-lg shrink-0`}>{club.emoji}</div>
-                  <div className="min-w-0">
-                    <div className="text-sm font-semibold text-white truncate">{club.name}</div>
-                    <div className="text-xs text-zinc-500">{club.category}</div>
-                  </div>
-                </div>
-                <div className="col-span-2 text-center text-sm font-semibold text-zinc-300">{members.toLocaleString()}</div>
-                <div className="col-span-3 text-center text-sm font-semibold text-zinc-300">{weekEvents}</div>
-                <div className="col-span-3 text-center">
-                  <span className={`text-sm font-bold ${growth >= 15 ? 'text-green-400' : growth >= 5 ? 'text-amber-400' : 'text-zinc-500'}`}>
-                    +{growth}%
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
+
+          {events.length === 0 ? (
+            <div className="px-5 py-12 text-center text-zinc-500 text-sm">No upcoming events.</div>
+          ) : (
+            <div className="divide-y divide-zinc-800/60">
+              {events.map(e => {
+                const pct = e.totalSpots > 0 ? Math.round((e._count.attendees / e.totalSpots) * 100) : 0
+                const barColor = pct >= 90 ? 'bg-red-500' : pct >= 60 ? 'bg-amber-500' : 'bg-emerald-500'
+                return (
+                  <Link key={e.id} href={`/admin/events/${e.id}/edit`}
+                    className="flex items-center gap-3 px-5 py-3.5 hover:bg-zinc-800/40 transition-colors group">
+                    <div className="w-9 h-9 rounded-xl bg-zinc-800 flex items-center justify-center text-lg shrink-0 group-hover:bg-zinc-700 transition-colors">
+                      {e.emoji}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-zinc-200 group-hover:text-white truncate transition-colors">{e.title}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <div className="flex-1 h-1 bg-zinc-800 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="text-[11px] text-zinc-500 shrink-0 font-medium">{e._count.attendees}/{e.totalSpots}</span>
+                      </div>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="text-xs text-zinc-400 font-medium">
+                        {new Date(e.date + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                      </p>
+                      {e.host && (
+                        <div className="flex items-center justify-end gap-1 mt-1">
+                          <div className="w-4 h-4 rounded-full overflow-hidden flex items-center justify-center text-white text-[8px] font-bold shrink-0"
+                            style={{ backgroundColor: e.host.color }}>
+                            {e.host.profilePhoto
+                              ? <img src={resolveImageUrl(e.host.profilePhoto)} alt={e.host.name} className="w-full h-full object-cover" />
+                              : e.host.name.slice(0, 2).toUpperCase()}
+                          </div>
+                          <span className="text-[11px] text-zinc-500">{e.host.name.split(' ')[0]}</span>
+                        </div>
+                      )}
+                    </div>
+                  </Link>
+                )
+              })}
+            </div>
+          )}
         </div>
 
-        {/* Activity Feed */}
-        <div className="bg-zinc-900 rounded-2xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-zinc-800">
-            <h2 className="text-base font-semibold">Activity Feed</h2>
+        {/* Audit log */}
+        <div className="lg:col-span-2 bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
+            <div>
+              <h2 className="text-sm font-bold text-white">Recent Activity</h2>
+              <p className="text-xs text-zinc-500 mt-0.5">Latest admin actions</p>
+            </div>
+            <Link href="/admin/audit" className="text-xs text-amber-400 hover:text-amber-300 font-semibold">
+              Full log →
+            </Link>
           </div>
-          <div className="divide-y divide-zinc-800">
-            {activityFeed.map((item) => (
-              <div key={item.id} className="flex items-start gap-3 px-5 py-3 hover:bg-zinc-800/50 transition-colors">
-                <span className="text-base shrink-0 mt-0.5">{item.icon}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-zinc-300 leading-snug">{item.text}</p>
-                  <p className="text-[10px] text-zinc-600 mt-0.5">{item.time}</p>
-                </div>
-              </div>
-            ))}
-          </div>
+
+          {audit.length === 0 ? (
+            <div className="px-5 py-12 text-center text-zinc-500 text-sm">No actions logged yet.</div>
+          ) : (
+            <div className="divide-y divide-zinc-800/60">
+              {audit.map(entry => {
+                const colorCls = ACTION_COLOR[entry.action] ?? 'bg-zinc-700 text-zinc-400'
+                const label = entry.action.replace('.', ' ').replace(/_/g, ' ')
+                const targetName = entry.meta?.name || entry.meta?.title
+                return (
+                  <div key={entry.id} className="px-5 py-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-bold text-zinc-300 truncate">{entry.adminName}</span>
+                      <span className={`text-[9px] font-black uppercase tracking-tight px-1.5 py-0.5 rounded-md shrink-0 ${colorCls}`}>
+                        {label}
+                      </span>
+                      <span className="text-[10px] text-zinc-600 ml-auto shrink-0">{timeAgo(entry.createdAt)}</span>
+                    </div>
+                    {targetName && (
+                      <p className="text-xs text-zinc-500 truncate">{targetName}</p>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
 
       </div>

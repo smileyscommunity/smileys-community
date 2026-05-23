@@ -1,0 +1,55 @@
+{
+  "tagline": "The Asian side's scenic sports peninsula — the famous football club's ground, a beautiful park, yacht harbour, and stunning Marmara views.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Fenerbahçe Parkı Çay Bahçesi",
+          "description": "Tea gardens inside the beautiful Fenerbahçe Park with sea views on all sides. One of the Asian side's most pleasant spots for a relaxed morning.",
+          "address": "Fenerbahçe Parkı, Kadıköy",
+          "badge": "Smileys Pick"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Kalamış Marina Restoranları",
+          "description": "A cluster of good restaurants and cafés around the Kalamış yacht marina. Waterfront dining with views of boats and the Marmara.",
+          "address": "Kalamış Yat Limanı, Kadıköy",
+          "badge": "Must Visit"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Fenerbahçe Parkı",
+          "description": "A beautiful forested peninsula park stretching into the Sea of Marmara. Cycling, jogging, and sea views in every direction. One of Istanbul's best urban parks.",
+          "address": "Fenerbahçe Parkı, Kadıköy",
+          "badge": "Must Do",
+          "tip": "Rent a bicycle at the park entrance and cycle the full perimeter — takes about 45 minutes and the views are excellent."
+        },
+        {
+          "name": "Fenerbahçe Şükrü Saracoğlu Stadyumu",
+          "description": "The iconic home ground of Fenerbahçe SK — one of Turkey's greatest football clubs. Stadium tours available on non-match days.",
+          "address": "Kadıköy, İstanbul",
+          "badge": "Landmark",
+          "tip": "Match day atmosphere is electric. Buy tickets online well in advance — popular games sell out fast."
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Fenerbahçe is easily reached from Kadıköy by bus or dolmuş (about 15-20 minutes).",
+    "The park and marina area are far more pleasant than the commercial Kadıköy centre — a good escape.",
+    "On match days, the entire Kadıköy district buzzes with Fenerbahçe supporters. Worth experiencing even as a neutral.",
+    "Combine Fenerbahçe Park with a walk to Caddebostan along the Marmara coast."
+  ]
+}

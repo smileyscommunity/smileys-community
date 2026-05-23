@@ -1,0 +1,69 @@
+{
+  "tagline": "A dense, working-class district at the crossroads of old Istanbul — international food, the city's best offal restaurants, and non-stop street life.",
+  "places": [
+    {
+      "category": "Coffee & Breakfast",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Laleli Kahvaltı Salonları",
+          "description": "Traditional Turkish breakfast houses around Laleli and Aksaray, catering to traders and early risers. Simple, filling, and very inexpensive.",
+          "address": "Laleli, Fatih",
+          "badge": "Smileys Pick"
+        },
+        {
+          "name": "Uluslararası Kahveler (Aksaray)",
+          "description": "The international community in Aksaray has brought excellent Central Asian and Middle Eastern tea houses. A different Istanbul entirely.",
+          "address": "Aksaray, Fatih"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "İşkembeci Restoranları",
+          "description": "Aksaray is famous for its tripe and offal restaurants — a true local Istanbul institution. Open late into the night.",
+          "address": "Aksaray Meydanı, Fatih",
+          "badge": "Must Try",
+          "tip": "İşkembe çorbası (tripe soup) at midnight is a classic Istanbul experience. An acquired taste, but the real deal."
+        },
+        {
+          "name": "Laleli Tekstil Bölgesi Lokantalari",
+          "description": "The streets around Laleli's textile market are packed with no-frills lokanta restaurants serving traders. Rotating menus, huge portions, tiny prices.",
+          "address": "Laleli, Fatih"
+        },
+        {
+          "name": "Uygur ve Orta Asya Mutfağı",
+          "description": "Aksaray has a significant Uyghur and Central Asian community — hand-pulled noodles, laghman, and Central Asian bread unlike anywhere else in Istanbul.",
+          "address": "Aksaray, Fatih",
+          "badge": "Hidden Gem",
+          "tip": "Ask locals which Uyghur restaurant is currently best — the scene changes. Look for hand-pulled noodles (laghman) on the menu."
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Laleli Çarşısı",
+          "description": "The wholesale textile and fashion market of Istanbul. Huge quantities of clothing, fabrics, and leather goods at trade prices. The atmosphere is chaotic and fascinating.",
+          "address": "Laleli, Fatih"
+        },
+        {
+          "name": "Aksaray Meydanı",
+          "description": "A busy, non-touristy central square that functions as one of the major transit hubs of the city. Observing everyday Istanbul life at full intensity.",
+          "address": "Aksaray, Fatih"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Aksaray is a major metro junction — M1A and M2 lines meet here, making it one of the most connected points in Istanbul.",
+    "This is one of the most ethnically diverse neighbourhoods in Istanbul — Arabic, Uyghur, African, and many more communities coexist.",
+    "Not a tourist destination, but a fascinating window into how Istanbul actually functions. Go curious, not cautious.",
+    "The area around Laleli is known for wholesale shopping — many traders from Russia, Central Asia, and the Middle East come specifically for this."
+  ]
+}

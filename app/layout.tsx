@@ -1,30 +1,78 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import './globals.css'
+import { Toaster } from 'sonner'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
-import PersistentCTA from '@/components/PersistentCTA'
+import VerifyEmailBanner from '@/components/VerifyEmailBanner'
+import PendingApprovalBanner from '@/components/PendingApprovalBanner'
 import { AuthProvider } from '@/contexts/AuthContext'
+import BottomNav from '@/components/BottomNav'
+import CookieBanner from '@/components/CookieBanner'
+import ServiceWorkerRegistration from '@/components/ServiceWorkerRegistration'
+import CommandPalette from '@/components/CommandPalette'
+import InstallPrompt from '@/components/InstallPrompt'
+
+import { APP_URL } from '@/lib/env'
+
+const siteUrl = APP_URL
+const defaultImage = `${siteUrl}/api/og`
 
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: 'Smileys Community — The Social Life Platform of Istanbul',
-  description:
-    `Join Istanbul's most vibrant social community. Discover events, join clubs, and meet amazing people.`,
+  description: `Join Istanbul's most vibrant social community. Discover events, join clubs, and meet amazing people.`,
+  appleWebApp: {
+    capable: true,
+    title: 'Smileys',
+    statusBarStyle: 'default',
+  },
+  openGraph: {
+    title: 'Smileys Community — Istanbul',
+    description: `Join Istanbul's most vibrant social community. Discover events, join clubs, and meet amazing people.`,
+    url: siteUrl,
+    siteName: 'Smileys Community',
+    images: [{ url: defaultImage, width: 1200, height: 630, alt: 'Smileys Community' }],
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Smileys Community — Istanbul',
+    description: `Join Istanbul's most vibrant social community. Discover events, join clubs, and meet amazing people.`,
+    images: [defaultImage],
+  },
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: '#f59e0b',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <head>
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link rel="manifest" href="/manifest.json" />
       </head>
-      <body className="min-h-screen flex flex-col bg-white pb-[72px]">
+      <body className="min-h-screen flex flex-col bg-white">
         <AuthProvider>
           <Navbar />
+          <VerifyEmailBanner />
+          <PendingApprovalBanner />
           <main className="flex-1">{children}</main>
+          <BottomNav />
           <Footer />
-          <PersistentCTA />
+          <CommandPalette />
+          <CookieBanner />
+          <Toaster position="top-right" richColors closeButton />
         </AuthProvider>
+        <InstallPrompt />
+        <ServiceWorkerRegistration />
       </body>
     </html>
   )

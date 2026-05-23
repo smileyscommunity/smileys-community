@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@700;800;900&display=swap');
 
 @layer base {
   * {
@@ -13,11 +13,44 @@
     scroll-behavior: smooth;
   }
 
+  html, body {
+    overflow-x: hidden;
+  }
+
   body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     @apply text-gray-900 bg-white;
+  }
+
+  h1, h2 {
+    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  }
+}
+
+/* Safe area padding for notch / home-indicator devices */
+.safe-area-pb {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Hide scrollbars on overflow-x scroll containers */
+.scrollbar-hide,
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar,
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* Prevent iOS auto-zoom on input focus (triggered when font-size < 16px) */
+@media (hover: none) and (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+  select,
+  textarea {
+    font-size: 16px;
   }
 }
 
@@ -26,12 +59,25 @@
     @apply inline-flex items-center justify-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl transition-all duration-200 shadow-sm hover:shadow-md active:scale-95;
   }
 
+  .btn-primary--lg {
+    @apply inline-flex items-center justify-center gap-2 px-8 py-4 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl transition-all duration-200 shadow-sm hover:shadow-md active:scale-95 text-base;
+  }
+
+  /* Use on amber/dark backgrounds */
+  .btn-white {
+    @apply inline-flex items-center justify-center gap-2 px-8 py-4 bg-white hover:bg-amber-50 text-amber-600 font-bold rounded-xl transition-all duration-200 shadow-lg active:scale-95 text-base;
+  }
+
   .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 px-6 py-3 bg-white hover:bg-gray-50 text-gray-900 font-semibold rounded-xl border border-gray-200 transition-all duration-200 shadow-sm hover:shadow-md active:scale-95;
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 bg-white hover:bg-gray-50 text-gray-900 font-semibold rounded-xl border border-gray-200 hover:border-amber-300 transition-all duration-200 shadow-sm hover:shadow-md active:scale-95;
   }
 
   .btn-ghost {
     @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 text-gray-700 hover:text-gray-900 hover:bg-gray-100 font-medium rounded-xl transition-all duration-150;
+  }
+
+  .btn-outline-white {
+    @apply inline-flex items-center justify-center gap-2 px-8 py-4 border border-white/40 hover:bg-white/10 text-white font-semibold rounded-xl transition-all duration-200 active:scale-95 text-base;
   }
 
   .card {
@@ -39,14 +85,92 @@
   }
 
   .section-title {
-    @apply text-3xl md:text-4xl font-bold tracking-tight text-gray-900;
+    @apply text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900;
   }
 
   .section-subtitle {
     @apply text-lg text-gray-500 mt-3 leading-relaxed;
   }
 
-  .badge {
-    @apply inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold;
+  .section-subtitle--accent {
+    @apply text-base font-semibold text-amber-600 mt-2;
   }
+
+  .step-label {
+    @apply text-xs font-bold text-amber-500 tracking-widest uppercase;
+  }
+
+  .label {
+    @apply text-xs font-semibold text-gray-500 uppercase tracking-wide;
+  }
+
+  /* ── Unified input system ─────────────────────────────────────────────── */
+  .input {
+    @apply w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-900 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 transition-colors;
+  }
+  .input-error {
+    @apply border-red-300 focus:ring-red-300;
+  }
+  /* textarea: add resize-none when needed */
+  /* select: add appearance-none + bg-white */
+
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold;
+  }
+
+  /* TipTap editor content */
+  .tiptap p { margin-bottom: 0.5rem; }
+  .tiptap p:last-child { margin-bottom: 0; }
+  .tiptap ul { list-style-type: disc; padding-left: 1.25rem; margin-bottom: 0.5rem; }
+  .tiptap ol { list-style-type: decimal; padding-left: 1.25rem; margin-bottom: 0.5rem; }
+  .tiptap li { margin-bottom: 0.25rem; }
+
+  .rich-content p { margin-bottom: 0.5rem; }
+  .rich-content p:last-child { margin-bottom: 0; }
+  .rich-content strong { font-weight: 700; }
+  .rich-content em { font-style: italic; }
+  .rich-content u { text-decoration: underline; }
+  .rich-content ul { list-style-type: disc; padding-left: 1.25rem; margin-bottom: 0.5rem; }
+  .rich-content ol { list-style-type: decimal; padding-left: 1.25rem; margin-bottom: 0.5rem; }
+  .rich-content li { margin-bottom: 0.25rem; }
+  .rich-content a { color: #d97706; text-decoration: underline; }
+  .rich-content a:hover { color: #b45309; }
+}
+
+/* Leaflet map — override Tailwind preflight resets that break tile rendering */
+.leaflet-container img {
+  max-width: none !important;
+  display: inline !important;
+}
+.leaflet-container {
+  font-family: inherit;
+}
+
+@keyframes ticker {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.animate-ticker {
+  animation: ticker 30s linear infinite;
+}
+
+.animate-ticker:hover {
+  animation-play-state: paused;
+}
+
+/* Dark-theme date picker — makes the calendar icon visible on zinc backgrounds */
+.admin-date-input::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.6;
+  cursor: pointer;
+}
+.admin-date-input::-webkit-datetime-edit {
+  color: white;
+}
+.admin-date-input::-webkit-datetime-edit-fields-wrapper {
+  padding: 0;
+}
+.admin-date-input::-webkit-inner-spin-button {
+  display: none;
 }

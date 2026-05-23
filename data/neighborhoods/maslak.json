@@ -1,0 +1,47 @@
+{
+  "tagline": "Istanbul's northern business district — corporate towers, tech companies, and a growing leisure scene anchored by Sapphire Tower and the surrounding malls.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Sapphire Tower Cafés",
+          "description": "Multiple café options in and around the Sapphire Tower complex. The observation deck café has extraordinary city views.",
+          "address": "Sapphire Tower, Maslak, Sarıyer",
+          "badge": "Smileys Pick",
+          "tip": "The Sapphire observation deck (Istanbul Sapphire) gives the best 360° view of Istanbul on a clear day. Worth the entrance fee."
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Kanyon ve Maslak AVM Restoranları",
+          "description": "Multiple restaurants in the Maslak shopping centres catering to business lunches and after-work dining.",
+          "address": "Maslak, Sarıyer"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "İstanbul Sapphire (Observation Deck)",
+          "description": "The observation deck of Istanbul's tallest building — panoramic views of both continents, the Bosphorus, and on clear days, the Black Sea and Marmara simultaneously.",
+          "address": "Sapphire Tower, Maslak",
+          "badge": "Must Visit"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Maslak is the last stop on the M2 metro line — direct to Taksim and the city centre.",
+    "Primarily a corporate area. Better for business than leisure.",
+    "The Sapphire observation deck is the main tourist attraction — worth a visit for the views.",
+    "The forest areas of Belgrad Ormanı are accessible from Maslak by taxi (about 20 min)."
+  ]
+}

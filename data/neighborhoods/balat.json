@@ -1,0 +1,91 @@
+{
+  "tagline": "One of Istanbul's most atmospheric and colourful neighbourhoods — centuries of Greek, Jewish, and Armenian history, rainbow-painted stairs, and a rapidly growing café scene.",
+  "places": [
+    {
+      "category": "Coffee & Cafés",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Forno Balat",
+          "description": "A charming bakery-café in a beautifully restored building. Excellent sourdough, pastries, and specialty coffee. One of Balat's best.",
+          "address": "Vodina Cad., Balat",
+          "badge": "Smileys Pick",
+          "tip": "Come early for the freshest pastries. The outdoor tables on the cobblestone street are the perfect spot."
+        },
+        {
+          "name": "Balat Café",
+          "description": "One of the neighbourhood's original cafés, in a restored Greek house with a lovely courtyard. A relaxed, local feel.",
+          "address": "Balat, Fatih",
+          "tip": "The courtyard fills up fast on weekends — arrive before noon."
+        },
+        {
+          "name": "Ottoman Coffee Balat",
+          "description": "Traditional Turkish coffee in a historic setting. Small, atmospheric, and a world away from specialty coffee trends.",
+          "address": "Vodina Cad., Balat"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Tarihi Balat Köftecisi",
+          "description": "A legendary köfte (meatball) restaurant that's been here for generations. Simple, perfect, incredibly cheap.",
+          "address": "Balat, Fatih",
+          "badge": "Must Try",
+          "tip": "Cash only. Order the köfte with bread and ayran. Don't overthink it."
+        },
+        {
+          "name": "Agora Meyhanesi",
+          "description": "A wonderfully atmospheric Greek meyhane in a historic building. Excellent mezes, good fish, and great rakı. Beloved by locals.",
+          "address": "Ayvansaray Cad., Balat",
+          "badge": "Hidden Gem",
+          "tip": "Book ahead for dinner — it's popular with people who know Balat well."
+        },
+        {
+          "name": "Pops Cookies",
+          "description": "A beloved small cookie and sweet shop that's become a Balat institution. The cookies are excellent and the shop is photogenic.",
+          "address": "Vodina Cad., Balat"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Colourful Stairs of Balat",
+          "description": "The famous rainbow-painted staircase that's become one of Istanbul's most photographed spots. Best visited in the morning for fewer crowds.",
+          "address": "Yıldırım Cad., Balat",
+          "badge": "Iconic",
+          "tip": "Go early morning (before 9am) for empty stairs and better light for photos. By 11am on weekends it's packed."
+        },
+        {
+          "name": "Chora Church (Kariye Camii)",
+          "description": "A stunning 4th-century Byzantine church famous for its extraordinary Byzantine mosaics and frescoes. A UNESCO World Heritage site.",
+          "address": "Kariye Camii Sokak, Edirnekapı",
+          "badge": "Must Visit",
+          "tip": "Currently operating as a mosque — dress modestly and visit outside prayer times. The mosaics are extraordinary."
+        },
+        {
+          "name": "Balat Antika Pazarı",
+          "description": "A small but excellent antiques and secondhand market. Great for vintage finds, old maps, and Ottoman-era objects.",
+          "address": "Balat, Fatih",
+          "badge": "Hidden Gem"
+        },
+        {
+          "name": "Greek Orthodox Patriarchate",
+          "description": "The historic seat of the Ecumenical Patriarchate of Constantinople. A beautiful and historically significant complex open to visitors.",
+          "address": "Sadrazam Ali Paşa Cad., Fener"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Balat is best explored on foot — wear comfortable shoes as the streets are hilly and cobblestoned.",
+    "The neighbourhood is about a 30-minute walk from Eminönü, or take a taxi/bus to Balat directly.",
+    "Weekday mornings are dramatically more peaceful than weekend afternoons, which can get very crowded.",
+    "Balat and Fener are adjacent neighbourhoods that make a natural combined walking route — plan 3-4 hours to do both properly."
+  ]
+}

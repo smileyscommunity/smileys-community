@@ -1,0 +1,46 @@
+{
+  "tagline": "A well-connected, modern Asian side hub — the main crossroads for the Üsküdar metro and a growing commercial and dining scene.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Altunizade Çay ve Kahve",
+          "description": "Several good café options around the Altunizade metro station and the surrounding streets. Practical and reliable.",
+          "address": "Altunizade, Üsküdar",
+          "badge": "Smileys Pick"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Altunizade Restoranları",
+          "description": "A growing restaurant strip on the main commercial streets. Mix of Turkish and international cuisines at reasonable prices.",
+          "address": "Altunizade, Üsküdar",
+          "badge": "Must Visit"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Bağlarbaşı Kültür Merkezi",
+          "description": "A cultural centre with regular concerts, theatre performances, and exhibitions. Worth checking the programme.",
+          "address": "Bağlarbaşı, Üsküdar"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Altunizade is on the M5 metro line — excellent connections to Üsküdar, Kadıköy, and across the Marmaray.",
+    "Primarily a transit and residential hub. The surrounding area is more interesting than the centre itself.",
+    "Bağlarbaşı (just south) has a more developed café and restaurant scene.",
+    "Good base for Asian side living with excellent transport connections."
+  ]
+}

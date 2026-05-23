@@ -1,0 +1,54 @@
+{
+  "tagline": "A quiet, dignified Asian shore village directly below the Bosphorus Bridge — a summer palace, fresh fish restaurants, and local life at its most unhurried.",
+  "places": [
+    {
+      "category": "Coffee & Tea",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Beylerbeyi İskelesi Çay Bahçesi",
+          "description": "A tea garden right at the waterfront with views of the Bosphorus Bridge looming above and boats passing below. Genuinely atmospheric.",
+          "address": "Beylerbeyi İskelesi, Üsküdar",
+          "badge": "Smileys Pick"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Beylerbeyi Balık Restoranları",
+          "description": "Several excellent fish restaurants on the waterfront. The Bosphorus Bridge looms overhead while you eat — one of Istanbul's most dramatic dining backdrops.",
+          "address": "Beylerbeyi Sahili, Üsküdar",
+          "badge": "Must Visit",
+          "tip": "Go at dinner when the bridge lights up — spectacular. The sea bass and turbot are consistently fresh."
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Beylerbeyi Sarayı",
+          "description": "A stunning 19th-century Ottoman summer palace on the Asian Bosphorus shore. Lavish interiors and beautiful gardens.",
+          "address": "Çayıbaşı Cad. No:2, Beylerbeyi",
+          "badge": "Must Visit"
+        },
+        {
+          "name": "Bosphorus Bridge View",
+          "description": "The waterfront directly below the Bosphorus Bridge offers one of Istanbul's most dramatic views. Walk along the shore for the best angles.",
+          "address": "Beylerbeyi Sahili, Üsküdar",
+          "badge": "Smileys Pick"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Beylerbeyi is best reached by bus from Üsküdar or by ferry (seasonal service).",
+    "A very local, residential village — no tourist infrastructure to speak of. That's the point.",
+    "Combine with Çengelköy (further up the Asian Bosphorus) for a pleasant half-day.",
+    "The market streets above the waterfront are worth exploring for local shopping and food."
+  ]
+}

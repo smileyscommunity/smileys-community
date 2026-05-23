@@ -1,0 +1,54 @@
+{
+  "tagline": "A quiet, leafy village on the Asian Bosphorus shore — old wooden houses, a famous cucumber market, and a completely unhurried pace of life.",
+  "places": [
+    {
+      "category": "Coffee & Tea",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Çengelköy İskelesi Çay Bahçesi",
+          "description": "Tea garden right at the waterfront with Bosphorus views. The classic village landing experience.",
+          "address": "Çengelköy İskelesi, Üsküdar",
+          "badge": "Smileys Pick"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Çengelköy Balık Restoranları",
+          "description": "Simple, excellent fish restaurants on the waterfront. Very local crowd — this is a real working Bosphorus village, not a tourist destination.",
+          "address": "Çengelköy Sahili, Üsküdar",
+          "badge": "Must Visit"
+        },
+        {
+          "name": "Çengelköy Salatalık (Cucumbers)",
+          "description": "Çengelköy is famous throughout Istanbul for its cucumbers, sold from small carts and stalls around the village. An only-in-Istanbul curiosity.",
+          "address": "Çengelköy Çarşısı, Üsküdar",
+          "badge": "Hidden Gem",
+          "tip": "Buy them from a street vendor, add salt, and eat walking. This is Istanbul village life."
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Çengelköy Village Walk",
+          "description": "Wander the old village streets of Çengelköy past wooden houses, a small market, and the historic mosque. Unchanged for decades.",
+          "address": "Çengelköy, Üsküdar",
+          "badge": "Smileys Pick"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Çengelköy is reached by bus from Üsküdar or by seasonal Bosphorus ferry service.",
+    "One of the most authentically preserved Bosphorus villages on the Asian side.",
+    "Combine with Beylerbeyi (south) and Vaniköy for a full upper Asian Bosphorus day.",
+    "The waterfront road north toward Kandilli is one of the most beautiful drives/walks in Istanbul."
+  ]
+}

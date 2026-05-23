@@ -1,0 +1,73 @@
+{
+  "tagline": "Istanbul's most liveable European district — clean, modern, walkable, with a beautiful seafront, excellent transport links, and a strong local community.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Özgür Kahve",
+          "description": "A beloved neighbourhood café that's been a Bakırköy institution for years. Good Turkish coffee and a loyal local crowd.",
+          "address": "Bakırköy, İstanbul",
+          "badge": "Smileys Pick"
+        },
+        {
+          "name": "Sahil Café (Florya)",
+          "description": "Beachfront café in nearby Florya with sea views. Perfect for a morning coffee with a completely different Istanbul perspective.",
+          "address": "Florya Sahili, Bakırköy"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Bakırköy Balık Hali",
+          "description": "The neighbourhood fish market with fresh catches daily and excellent adjacent restaurants. Very local, very good.",
+          "address": "Bakırköy Balık Hali, Bakırköy",
+          "badge": "Must Visit",
+          "tip": "Buy fresh fish from the market and have the adjacent restaurants cook it for a small fee — a classic Istanbul experience."
+        },
+        {
+          "name": "Cumhuriyet Meydanı Restoranları",
+          "description": "The restaurants around Bakırköy's main square offer a range of good Turkish cuisine at reasonable prices. Very local crowd.",
+          "address": "Cumhuriyet Meydanı, Bakırköy"
+        },
+        {
+          "name": "Florya Sosyal Tesisleri",
+          "description": "The seaside facilities complex in Florya with restaurants and cafés right on the Sea of Marmara. Excellent for a long lunch.",
+          "address": "Florya, Bakırköy"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Sahil (Atatürk Ormanı Coastline)",
+          "description": "A beautiful, long seafront promenade along the Sea of Marmara. Perfect for cycling, running, or evening walks. Very well maintained.",
+          "address": "Bakırköy Sahili, Bakırköy",
+          "badge": "Smileys Pick"
+        },
+        {
+          "name": "Özgürlük Parkı",
+          "description": "A large central park in Bakırköy with walking paths, cafés, and a small lake. One of the best urban parks on the European side.",
+          "address": "Özgürlük Parkı, Bakırköy"
+        },
+        {
+          "name": "Bakırköy Shopping (İstanbul Marmara)",
+          "description": "Multiple shopping centres and a good pedestrianised commercial street in the town centre.",
+          "address": "Bakırköy Çarşısı, Bakırköy"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Bakırköy is on the metro M1A line — direct to the airport and well connected to the rest of the city.",
+    "The coastal walk between Bakırköy and Florya is one of the city's most underrated urban experiences.",
+    "It's a genuinely residential neighbourhood — good for understanding how most Istanbulites actually live.",
+    "Far fewer tourists than central areas. Prices for food and services are noticeably lower."
+  ]
+}

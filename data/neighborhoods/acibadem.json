@@ -1,0 +1,35 @@
+{
+  "tagline": "A calm, hospital-adjacent Asian side neighbourhood — well-served by amenities, home to a large expat medical community, and conveniently located.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Acıbadem Caddesi Kafeler",
+          "description": "Several cafés along the main avenue catering to the local professional and medical community. Practical and pleasant.",
+          "address": "Acıbadem Cad., Üsküdar",
+          "badge": "Smileys Pick"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Acıbadem Restoranları",
+          "description": "A good range of restaurants on the main avenue and side streets. Very local crowd, good prices.",
+          "address": "Acıbadem, Üsküdar",
+          "badge": "Must Visit"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Acıbadem is well-served by bus from Üsküdar and Kadıköy.",
+    "Home to Acıbadem Hospital — many medical professionals live in the area.",
+    "A practical residential neighbourhood without strong tourist interest.",
+    "Üsküdar (15 min by bus) is the best nearby area for sightseeing and dining."
+  ]
+}

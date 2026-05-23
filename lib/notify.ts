@@ -1,0 +1,88 @@
+import { prisma } from './prisma'
+import { sendPushToUser } from './push'
+
+// Which preference field gates each type. null = always send (transactional).
+const PREF_KEY: Record<string, 'newEvents' | 'reminders' | 'eventUpdates' | 'joinedEvents' | 'wallPosts' | 'wallReplies' | null> = {
+  new_event:         'newEvents',
+  reminder_24h:      'reminders',
+  reminder_2h:       'reminders',
+  event_updated:     'eventUpdates',
+  attendee_joined:   'joinedEvents',
+  review_request:    'reminders',
+  // transactional — always deliver:
+  rsvp:               null,
+  rsvp_pending:       null,
+  waitlist:           null,
+  waitlist_promoted:  null,
+  club_approved:      null,
+  club_rejected:      null,
+  host_assigned:      null,
+  application:        null,
+  report:             null,
+  event_cancelled:    null,
+  warning:            null,
+  system_alert:       null,
+  announcement:       null,
+  connection_request: null,
+  connection_accepted:null,
+  host_message:       null,
+  message:            null,
+  club_wall_post:     'wallPosts',
+  club_post_reply:    'wallReplies',
+  club_mention:       null,
+}
+
+function istanbulHour(): number {
+  return (new Date().getUTCHours() + 3) % 24
+}
+
+function inQuietWindow(from: number, to: number): boolean {
+  const h = istanbulHour()
+  return from > to ? (h >= from || h < to) : (h >= from && h < to)
+}
+
+export async function createNotification(
+  userId: string,
+  type: string,
+  title: string,
+  body: string,
+  link?: string,
+) {
+  try {
+    const prefKey = PREF_KEY[type]
+
+    if (prefKey !== undefined && prefKey !== null) {
+      const prefs = await prisma.notificationPreference.findUnique({ where: { userId } })
+      if (prefs) {
+        if (!prefs[prefKey]) return
+        if (prefs.quietHours && inQuietWindow(prefs.quietFrom, prefs.quietTo)) return
+      }
+    }
+
+    // Bundle attendee_joined within 1 hour into a single notification
+    if (type === 'attendee_joined' && link) {
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000)
+      const existing = await prisma.notification.findFirst({
+        where: { userId, type: 'attendee_joined', link, isRead: false, createdAt: { gte: oneHourAgo } },
+        orderBy: { createdAt: 'desc' },
+      })
+      if (existing) {
+        const match = existing.title.match(/^(\d+) people/)
+        const count = match ? parseInt(match[1]) + 1 : 2
+        const eventName = existing.body.match(/"(.+)"$/)?.[1] ?? 'your event'
+        await prisma.notification.update({
+          where: { id: existing.id },
+          data: { title: `${count} people joined your event`, body: `${count} people have joined "${eventName}"` },
+        })
+        return
+      }
+    }
+
+    await prisma.notification.create({ data: { userId, type, title, body, link } })
+
+    // Fire push notification (non-blocking, best-effort)
+    sendPushToUser(userId, { title, body, link }).catch(() => {})
+  } catch (e) {
+    console.error('Failed to create notification:', e)
+  }
+}

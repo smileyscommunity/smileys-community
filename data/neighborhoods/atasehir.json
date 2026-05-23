@@ -1,0 +1,61 @@
+{
+  "tagline": "Istanbul's planned modern business and residential district on the Asian side — towers, tech companies, and a growing lifestyle scene.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Emaar Square Mall Cafés",
+          "description": "The premium Emaar Square shopping complex has multiple specialty coffee shops and café chains. The most reliable coffee stop in the area.",
+          "address": "Emaar Square, Ataşehir",
+          "badge": "Smileys Pick"
+        },
+        {
+          "name": "Nef Levent Ofis Kafeler",
+          "description": "The business district streets around Ataşehir have a growing number of specialty coffee shops catering to the tech and finance crowd.",
+          "address": "Ataşehir, İstanbul"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Emaar Square Food Hall",
+          "description": "A wide range of restaurants across all cuisines and price points inside the Emaar complex. Reliable for any group.",
+          "address": "Emaar Square, Ataşehir"
+        },
+        {
+          "name": "Ataşehir Bulvarı Restoranları",
+          "description": "The main boulevard has a growing restaurant scene with everything from traditional Turkish to international options.",
+          "address": "Ataşehir Bulvarı, Ataşehir"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Emaar Square Mall",
+          "description": "One of Istanbul's premium shopping destinations with international and Turkish brands, cinema, and a good selection of dining.",
+          "address": "Emaar Square, Ataşehir",
+          "badge": "Landmark"
+        },
+        {
+          "name": "Viaport Marina",
+          "description": "A lifestyle and marina complex nearby with restaurants and waterfront walks. Good for a weekend outing.",
+          "address": "Pendik/Kurtköy, near Ataşehir"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Ataşehir is on the M4 metro line — well connected to Kadıköy and Sabiha Gökçen Airport.",
+    "Primarily a business and residential area — better for working meetings than tourism or exploration.",
+    "Most expats in Ataşehir are here for work with tech companies or finance firms. A practical, modern area.",
+    "For more character and social life, Kadıköy (one metro zone away) is a much better option."
+  ]
+}

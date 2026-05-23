@@ -1,180 +1,541 @@
-import Link from 'next/link'
-import { notFound } from 'next/navigation'
-import { events, getEventById, eventAttendees, formatDate } from '@/lib/data'
+'use client'
 
-export function generateStaticParams() {
-  return events.map((e) => ({ id: e.id }))
+import { useState, useEffect, use } from 'react'
+import Link from 'next/link'
+import { toast } from 'sonner'
+import { formatDate } from '@/lib/data'
+import type { Event } from '@/lib/data'
+import UserAvatar from '@/components/UserAvatar'
+
+interface AttendeeUser { id: string; name: string; color: string; email: string; profilePhoto?: string | null; gender?: string | null; nationality?: string | null; phone?: string | null }
+interface Attendee    { userId: string; status: string; checkedIn: boolean; joinedAt: string; isStaff?: boolean; user: AttendeeUser }
+interface WaitlistEntry { id: string; userId: string; createdAt: string; user: AttendeeUser }
+
+function Row({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-3 px-4 py-3 hover:bg-zinc-800/40 transition-colors">
+      {children}
+    </div>
+  )
 }
 
-const mockCheckedIn = ['a1', 'a2', 'b1', 'c1', 'c2', 'd1', 'd2', 'e1']
+function SectionHeader({ title, count, color, badge, children }: {
+  title: string; count: number; color: string; badge?: string; children?: React.ReactNode
+}) {
+  return (
+    <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800 bg-zinc-900/80">
+      <div className="flex items-center gap-2">
+        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${color}`}>{count}</span>
+        <span className="font-bold text-white text-sm">{title}</span>
+        {badge && <span className="text-xs text-zinc-500">{badge}</span>}
+      </div>
+      {children}
+    </div>
+  )
+}
 
-export default async function ParticipantsPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
-  const event = getEventById(id)
-  if (!event) notFound()
+export default function ParticipantsPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
+  const [event,     setEvent]     = useState<Event | null>(null)
+  const [attendees, setAttendees] = useState<Attendee[]>([])
+  const [waitlist,  setWaitlist]  = useState<WaitlistEntry[]>([])
+  const [loading,   setLoading]   = useState(true)
+  const [toggling,  setToggling]  = useState<string | null>(null)
+  const [busy,      setBusy]      = useState<string | null>(null)
+  const [addSearch, setAddSearch] = useState('')
+  const [allUsers,  setAllUsers]  = useState<AttendeeUser[]>([])
+  const [waModal,   setWaModal]   = useState(false)
+  const [waMessage, setWaMessage] = useState('')
+  const [copied,    setCopied]    = useState<'numbers' | 'message' | null>(null)
 
-  const attendees = eventAttendees[event.id] ?? []
-  const goingCount = event.totalSpots - event.spotsLeft
-  const checkedInCount = attendees.filter((a) => mockCheckedIn.includes(a.id)).length
-  const friendsCount = attendees.filter((a) => a.isFriend).length
+  useEffect(() => {
+    Promise.all([
+      fetch(`/app/api/events/${id}`, { credentials: 'include' }).then(r => r.json()),
+      fetch(`/app/api/admin/events/${id}/participants`, { credentials: 'include' }).then(r => r.json()),
+      fetch('/app/api/admin/users', { credentials: 'include' }).then(r => r.json()),
+    ]).then(([ev, data, users]) => {
+      setEvent(ev)
+      setAttendees(Array.isArray(data.attendees) ? data.attendees : [])
+      setWaitlist(Array.isArray(data.waitlist)   ? data.waitlist  : [])
+      setAllUsers(Array.isArray(users) ? users : [])
+    }).finally(() => setLoading(false))
+  }, [id])
+
+  async function approveAttendee(userId: string) {
+    setBusy(userId)
+    const res = await fetch(`/app/api/admin/events/${id}/participants`, {
+      method: 'PATCH', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, action: 'approve' }),
+    })
+    if (res.ok) { setAttendees(prev => prev.map(a => a.userId === userId ? { ...a, status: 'approved' } : a)); toast.success('Approved ✓') }
+    setBusy(null)
+  }
+
+  async function rejectAttendee(userId: string) {
+    if (!confirm('Reject and remove this request?')) return
+    setBusy(userId)
+    const res = await fetch(`/app/api/admin/events/${id}/participants`, {
+      method: 'PATCH', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, action: 'reject' }),
+    })
+    if (res.ok) { setAttendees(prev => prev.filter(a => a.userId !== userId)); toast('Rejected') }
+    setBusy(null)
+  }
+
+  async function removeAttendee(userId: string) {
+    if (!confirm('Remove this attendee?')) return
+    setBusy(userId)
+    const res = await fetch(`/app/api/admin/events/${id}/participants`, {
+      method: 'DELETE', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, type: 'attendee' }),
+    })
+    if (res.ok) { setAttendees(prev => prev.filter(a => a.userId !== userId)); toast('Removed') }
+    setBusy(null)
+  }
+
+  async function toggleCheckin(userId: string, current: boolean) {
+    setToggling(userId)
+    const res = await fetch(`/app/api/events/${id}/checkin`, {
+      method: 'PATCH', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, checkedIn: !current }),
+    })
+    if (res.ok) setAttendees(prev => prev.map(a => a.userId === userId ? { ...a, checkedIn: !current } : a))
+    setToggling(null)
+  }
+
+  async function removeWaitlist(userId: string) {
+    setBusy(userId)
+    const res = await fetch(`/app/api/admin/events/${id}/participants`, {
+      method: 'DELETE', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, type: 'waitlist' }),
+    })
+    if (res.ok) { setWaitlist(prev => prev.filter(w => w.userId !== userId)); toast('Removed from waitlist') }
+    setBusy(null)
+  }
+
+  async function addParticipant(user: AttendeeUser) {
+    setBusy(user.id)
+    const res = await fetch(`/app/api/admin/events/${id}/participants`, {
+      method: 'PUT', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: user.id }),
+    })
+    if (res.ok) {
+      setAttendees(prev => [...prev, { userId: user.id, status: 'approved', checkedIn: false, joinedAt: new Date().toISOString(), user }])
+      toast.success(`${user.name} added ✓`)
+      setAddSearch('')
+    } else {
+      const err = await res.json()
+      toast.error(err.error ?? 'Could not add participant')
+    }
+    setBusy(null)
+  }
+
+  async function promote(entry: WaitlistEntry) {
+    setBusy(entry.userId)
+    const res = await fetch(`/app/api/admin/events/${id}/participants`, {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: entry.userId }),
+    })
+    if (res.ok) {
+      setWaitlist(prev => prev.filter(w => w.userId !== entry.userId))
+      setAttendees(prev => [...prev, { userId: entry.userId, status: 'approved', checkedIn: false, joinedAt: new Date().toISOString(), user: entry.user }])
+      toast.success(`${entry.user.name} promoted ✓`)
+    }
+    setBusy(null)
+  }
+
+  if (loading) return <div className="p-8 text-center text-zinc-500 text-sm">Loading…</div>
+  if (!event)  return <div className="p-8 text-center text-zinc-500 text-sm">Event not found</div>
+
+  const approved         = attendees.filter(a => a.status === 'approved')
+  const pending          = attendees.filter(a => a.status === 'pending')
+  const checkedInCount   = approved.filter(a => a.checkedIn).length
+  const nonStaff         = approved.filter(a => !a.isStaff)
+  const goingCount       = nonStaff.length
+  const fillPct          = Math.min((goingCount / event.totalSpots) * 100, 100)
+  const checkinPct       = Math.min((checkedInCount / event.totalSpots) * 100, 100)
+  const turkishMaleQuota = (event as any).turkishMaleQuota as number | null
+  const turkishMaleCount = turkishMaleQuota
+    ? nonStaff.filter(a => a.user.gender === 'male' && a.user.nationality === 'Turkey').length
+    : 0
+  const femaleCount = nonStaff.filter(a => a.user.gender === 'female').length
+  const maleCount   = nonStaff.filter(a => a.user.gender === 'male').length
+  const maleQuota   = (event as any).maleQuota as number | null ?? Math.floor(event.totalSpots / 2)
+
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 space-y-5 max-w-3xl">
+
       {/* Header */}
-      <div className="flex items-center gap-3 mb-8">
-        <Link href="/admin/events" className="text-gray-400 hover:text-gray-600 transition-colors">
+      <div className="flex items-center gap-3">
+        <Link href="/admin/events" className="text-zinc-500 hover:text-zinc-300 transition-colors">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
         </Link>
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-2xl">{event.emoji}</span>
-            <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Participants</h1>
+            <span className="text-xl">{event.emoji}</span>
+            <h1 className="text-xl font-extrabold text-white truncate">{event.title}</h1>
           </div>
-          <p className="text-sm text-gray-500 mt-0.5">{event.title} · {formatDate(event.date)}</p>
+          <p className="text-xs text-zinc-500 mt-0.5">{formatDate(event.date)}</p>
         </div>
-        <Link href={`/admin/events/${event.id}/edit`} className="btn-secondary text-sm">
-          Edit event
+        <Link href={`/admin/events/${id}/edit`}
+          className="shrink-0 text-xs px-3 py-2 rounded-lg border border-zinc-700 text-zinc-300 hover:border-zinc-500 hover:text-white transition-colors">
+          Edit
         </Link>
       </div>
 
-      {/* Stats row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      {/* Stats */}
+      <div className={`grid gap-2 ${turkishMaleQuota ? 'grid-cols-5' : 'grid-cols-4'}`}>
         {[
-          { label: 'Registered',  value: goingCount,                    color: 'text-gray-900',   sub: `of ${event.totalSpots} spots` },
-          { label: 'Checked in',  value: checkedInCount,                color: 'text-green-600',  sub: `${Math.round((checkedInCount / Math.max(goingCount, 1)) * 100)}% arrival rate` },
-          { label: 'Spots left',  value: event.spotsLeft,               color: event.spotsLeft <= 5 ? 'text-red-600' : 'text-gray-900', sub: event.limitedSpots ? 'limited' : 'open' },
-          { label: 'Friends',     value: friendsCount,                  color: 'text-amber-600',  sub: 'in network' },
-        ].map((s) => (
-          <div key={s.label} className="bg-white rounded-2xl shadow-card p-5">
-            <div className={`text-3xl font-extrabold ${s.color}`}>{s.value}</div>
-            <div className="text-sm font-semibold text-gray-700 mt-0.5">{s.label}</div>
-            <div className="text-xs text-gray-400 mt-0.5">{s.sub}</div>
+          { label: 'Going',      value: goingCount,         color: 'text-white',        sub: `/ ${event.totalSpots}` },
+          { label: 'Checked in', value: checkedInCount,     color: 'text-green-400',    sub: `${Math.round((checkedInCount / Math.max(goingCount,1))*100)}%` },
+          { label: 'Pending',    value: pending.length,     color: pending.length  > 0 ? 'text-amber-400'  : 'text-zinc-600', sub: 'needs action' },
+          { label: 'Waitlist',   value: waitlist.length,    color: waitlist.length > 0 ? 'text-violet-400' : 'text-zinc-600', sub: 'in queue' },
+          ...(turkishMaleQuota ? [{
+            label: '🇹🇷 TR male',
+            value: turkishMaleCount,
+            color: turkishMaleCount >= turkishMaleQuota ? 'text-red-400' : 'text-blue-400',
+            sub: `/ ${turkishMaleQuota} max`,
+          }] : []),
+        ].map(s => (
+          <div key={s.label} className="bg-zinc-900 rounded-xl border border-zinc-800 p-3 text-center">
+            <div className={`text-2xl font-extrabold ${s.color}`}>{s.value}</div>
+            <div className="text-xs font-semibold text-zinc-400 mt-0.5">{s.label}</div>
+            <div className="text-xs text-zinc-600">{s.sub}</div>
           </div>
         ))}
       </div>
 
       {/* Capacity bar */}
-      <div className="bg-white rounded-2xl shadow-card p-6 mb-6">
-        <div className="flex justify-between text-sm mb-2">
-          <span className="font-semibold text-gray-700">Capacity</span>
-          <span className="text-gray-500">{goingCount} / {event.totalSpots} registered</span>
+      <div className="bg-zinc-900 rounded-xl border border-zinc-800 px-4 py-3 space-y-1.5">
+        <div className="flex justify-between text-xs text-zinc-500 mb-1">
+          <span>Capacity</span>
+          <span>{goingCount} / {event.totalSpots}{event.spotsLeft === 0 && <span className="ml-2 text-red-400 font-bold">FULL</span>}</span>
         </div>
-        <div className="h-3 bg-gray-100 rounded-full overflow-hidden mb-2">
-          <div
-            className="h-full rounded-full bg-amber-400 transition-all"
-            style={{ width: `${(goingCount / event.totalSpots) * 100}%` }}
-          />
+        <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+          <div className="h-full rounded-full bg-amber-400 transition-all" style={{ width: `${fillPct}%` }} />
         </div>
-        <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
-          <div
-            className="h-full rounded-full bg-green-400 transition-all"
-            style={{ width: `${(checkedInCount / event.totalSpots) * 100}%` }}
-          />
+        <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+          <div className="h-full rounded-full bg-green-400 transition-all" style={{ width: `${checkinPct}%` }} />
         </div>
-        <div className="flex gap-4 mt-2 text-xs text-gray-500">
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />Registered</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-400 inline-block" />Checked in</span>
+        {turkishMaleQuota && (
+          <>
+            <div className="flex justify-between text-xs text-zinc-500 pt-1">
+              <span>🇹🇷 Turkish male quota</span>
+              <span className={turkishMaleCount >= turkishMaleQuota ? 'text-red-400 font-bold' : ''}>
+                {turkishMaleCount} / {turkishMaleQuota}{turkishMaleCount >= turkishMaleQuota && ' — FULL'}
+              </span>
+            </div>
+            <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+              <div className="h-full rounded-full bg-blue-500 transition-all"
+                style={{ width: `${Math.min(100, (turkishMaleCount / turkishMaleQuota) * 100)}%` }} />
+            </div>
+          </>
+        )}
+        <div className="flex gap-4 text-xs text-zinc-600 pt-0.5">
+          <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />Registered</span>
+          <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />Checked in</span>
         </div>
       </div>
 
-      {/* Participants table */}
-      <div className="bg-white rounded-2xl shadow-card overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h2 className="font-bold text-gray-900">Attendee list</h2>
-          <div className="flex gap-2">
-            <button className="text-xs px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors font-medium">
-              Export CSV
-            </button>
-            <button className="text-xs px-3 py-1.5 rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors font-medium">
-              Send message
-            </button>
+      {/* Gender balance */}
+      {(event as any).genderBalance && (
+        <div className="bg-zinc-900 rounded-xl border border-zinc-800 px-4 py-3 space-y-2">
+          <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Gender balance</p>
+          <div>
+            <div className="flex justify-between text-xs text-zinc-400 mb-1">
+              <span>♀ Female</span>
+              <span className="font-semibold text-pink-400">{femaleCount} going</span>
+            </div>
+            <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+              <div className="h-full bg-pink-500 rounded-full transition-all"
+                style={{ width: `${Math.min(100, event.totalSpots > 0 ? (femaleCount / event.totalSpots) * 100 : 0)}%` }} />
+            </div>
+          </div>
+          <div>
+            <div className="flex justify-between text-xs text-zinc-400 mb-1">
+              <span>♂ Male</span>
+              <span className={`font-semibold ${maleCount >= maleQuota ? 'text-red-400' : 'text-blue-400'}`}>
+                {maleCount} / {maleQuota} max
+              </span>
+            </div>
+            <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+              <div className="h-full bg-blue-500 rounded-full transition-all"
+                style={{ width: `${Math.min(100, maleQuota > 0 ? (maleCount / maleQuota) * 100 : 0)}%` }} />
+            </div>
+            {maleCount >= maleQuota && (
+              <p className="text-xs text-red-400 mt-1">Male spots full</p>
+            )}
           </div>
         </div>
+      )}
 
-        {/* Table head */}
-        <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-          <div className="col-span-4">Name</div>
-          <div className="col-span-3">Bio</div>
-          <div className="col-span-2">Type</div>
-          <div className="col-span-2">Status</div>
-          <div className="col-span-1 text-right">Actions</div>
+      {/* ── ADD PARTICIPANT ── */}
+      <div className="bg-zinc-900 rounded-2xl border border-zinc-800">
+        <div className="px-4 py-3 border-b border-zinc-800 flex items-center justify-between">
+          <div>
+            <span className="font-bold text-white text-sm">Add participant directly</span>
+            <p className="text-xs text-zinc-500 mt-0.5">Bypass RSVP — add any member as approved</p>
+          </div>
         </div>
+        <div className="p-4">
+          <div className="relative">
+            <input
+              value={addSearch}
+              onChange={e => setAddSearch(e.target.value)}
+              placeholder="Search member by name…"
+              className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500"
+            />
+            {addSearch.trim().length > 1 && (() => {
+              const alreadyIn = new Set(attendees.map(a => a.userId))
+              const results = allUsers
+                .filter(u => u.name.toLowerCase().includes(addSearch.toLowerCase()) && !alreadyIn.has(u.id))
+                .slice(0, 6)
+              if (!results.length) return (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded-xl p-3 text-xs text-zinc-500 z-10">
+                  No members found
+                </div>
+              )
+              return (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded-xl overflow-hidden z-10 shadow-xl">
+                  {results.map(u => (
+                    <button key={u.id} onClick={() => addParticipant(u)} disabled={busy === u.id}
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-zinc-700 transition-colors text-left disabled:opacity-40">
+                      <UserAvatar user={u} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-white truncate">{u.name}</p>
+                        <p className="text-xs text-zinc-500 truncate">{u.email}</p>
+                      </div>
+                      <span className="text-xs text-amber-400 font-semibold shrink-0">Add →</span>
+                    </button>
+                  ))}
+                </div>
+              )
+            })()}
+          </div>
+        </div>
+      </div>
 
-        <div className="divide-y divide-gray-50">
-          {attendees.length === 0 && (
-            <div className="px-6 py-10 text-center text-gray-400 text-sm">No attendees yet.</div>
-          )}
-          {attendees.map((a) => {
-            const checkedIn = mockCheckedIn.includes(a.id)
-            return (
-              <div key={a.id} className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-gray-50 transition-colors">
-                {/* Name */}
-                <div className="col-span-4 flex items-center gap-3">
-                  <div
-                    className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-                    style={{ backgroundColor: a.color }}
+      {/* ── PENDING ── */}
+      {(pending.length > 0 || pending.length > 0) && (
+        <div className="bg-zinc-900 rounded-2xl border border-amber-500/30 overflow-hidden">
+          <SectionHeader title="Pending approval" count={pending.length} color="bg-amber-500/20 text-amber-400">
+            {pending.length > 0 && (
+              <button onClick={() => pending.forEach(a => approveAttendee(a.userId))}
+                className="text-xs px-3 py-2 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 font-semibold transition-colors">
+                Approve all
+              </button>
+            )}
+          </SectionHeader>
+          {pending.length === 0
+            ? <div className="px-4 py-6 text-center text-zinc-600 text-xs">'No pending requests'</div>
+            : <div className="divide-y divide-zinc-800">
+                {pending.map(a => (
+                  <Row key={a.userId}>
+                    <UserAvatar user={a.user} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-white truncate">{a.user.name}</p>
+                      <p className="text-xs text-zinc-500 truncate">{a.user.email}</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button onClick={() => approveAttendee(a.userId)} disabled={busy === a.userId}
+                        className="text-xs px-3 py-2 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 font-semibold transition-colors disabled:opacity-40">
+                        ✓ Approve
+                      </button>
+                      <button onClick={() => rejectAttendee(a.userId)} disabled={busy === a.userId}
+                        className="text-xs px-3 py-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 font-semibold transition-colors disabled:opacity-40">
+                        ✕ Reject
+                      </button>
+                    </div>
+                  </Row>
+                ))}
+              </div>
+          }
+        </div>
+      )}
+
+      {/* WhatsApp broadcast modal */}
+      {waModal && (() => {
+        const withPhone = approved.filter(a => !a.isStaff && a.user.phone)
+        const numbers   = withPhone.map(a => a.user.phone!.replace(/\D/g, '').replace(/^0/, '90')).join('\n')
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4" onClick={() => { setWaModal(false); setCopied(null) }}>
+            <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-5 w-full max-w-sm shadow-2xl space-y-4" onClick={e => e.stopPropagation()}>
+              <div>
+                <p className="text-white font-bold text-sm">WhatsApp broadcast</p>
+                <p className="text-zinc-400 text-xs mt-0.5">{withPhone.length} of {nonStaff.length} attendees have a phone number</p>
+              </div>
+
+              {/* Step 1 — message */}
+              <div>
+                <p className="text-xs font-semibold text-zinc-400 mb-1.5">1. Write your message</p>
+                <textarea
+                  value={waMessage}
+                  onChange={e => setWaMessage(e.target.value)}
+                  rows={3}
+                  placeholder={`Hi! Quick reminder about ${event?.title}…`}
+                  autoFocus
+                  className="w-full px-3 py-2.5 bg-zinc-800 border border-zinc-700 rounded-xl text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-green-500/50 resize-none"
+                />
+                {waMessage.trim() && (
+                  <button
+                    onClick={() => { navigator.clipboard.writeText(waMessage.trim()); setCopied('message') }}
+                    className={`mt-1.5 w-full py-1.5 text-xs font-semibold rounded-xl transition-colors ${copied === 'message' ? 'bg-green-500/20 text-green-400' : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300'}`}
                   >
-                    {a.initials}
+                    {copied === 'message' ? '✓ Message copied' : 'Copy message'}
+                  </button>
+                )}
+              </div>
+
+              {/* Step 2 — copy numbers */}
+              <div>
+                <p className="text-xs font-semibold text-zinc-400 mb-1.5">2. Copy phone numbers</p>
+                <button
+                  onClick={() => { navigator.clipboard.writeText(numbers); setCopied('numbers') }}
+                  className={`w-full py-2.5 text-sm font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 ${copied === 'numbers' ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-green-600 hover:bg-green-700 text-white'}`}
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                  {copied === 'numbers' ? `✓ ${withPhone.length} numbers copied` : `Copy ${withPhone.length} numbers`}
+                </button>
+              </div>
+
+              {/* Step 3 — instructions */}
+              <div className="bg-zinc-800/60 rounded-xl px-3 py-2.5 space-y-1">
+                <p className="text-xs font-semibold text-zinc-400">3. Send in WhatsApp</p>
+                <p className="text-xs text-zinc-500 leading-relaxed">Open WhatsApp → New Broadcast → add the copied numbers → paste your message → send.</p>
+              </div>
+
+              <button onClick={() => { setWaModal(false); setCopied(null) }} className="w-full text-center text-xs text-zinc-500 hover:text-zinc-300 transition-colors py-1">
+                Close
+              </button>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* ── APPROVED ── */}
+      <div className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
+        <SectionHeader
+          title="Approved"
+          count={approved.length}
+          color="bg-green-500/20 text-green-400"
+          badge={checkedInCount > 0 ? `· ${checkedInCount} checked in` : undefined}
+        >
+          <div className="flex items-center gap-2">
+            {approved.length > 0 && (
+              <button
+                onClick={() => setWaModal(true)}
+                className="flex items-center gap-1.5 text-xs px-2.5 py-2 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 font-semibold transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                WhatsApp
+              </button>
+            )}
+            {approved.length > 0 && (
+              <button
+                onClick={() => {
+                  const headers = ['Name', 'Email', 'Status', 'Checked In']
+                  const rows = approved.map(a => [a.user.name, a.user.email, a.status, a.checkedIn ? 'Yes' : 'No'])
+                  const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
+                  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([csv], { type: 'text/csv' })), download: `${event?.title ?? 'event'}-attendees.csv` })
+                  a.click()
+                }}
+                className="flex items-center gap-1.5 text-xs px-2.5 py-2 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-300 font-semibold transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                CSV
+              </button>
+            )}
+          </div>
+        </SectionHeader>
+        {approved.length === 0
+          ? <div className="px-4 py-6 text-center text-zinc-600 text-xs">'No approved attendees yet'</div>
+          : <div className="divide-y divide-zinc-800">
+              {approved.map(a => (
+                <Row key={a.userId}>
+                  <UserAvatar user={a.user} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-white truncate">{a.user.name}</p>
+                    <p className="text-xs text-zinc-500 truncate">{a.user.email}</p>
                   </div>
-                  <div>
-                    <div className="font-semibold text-sm text-gray-900">{a.name}</div>
-                  </div>
-                </div>
-
-                {/* Bio */}
-                <div className="col-span-3 text-xs text-gray-500 truncate">{a.bio}</div>
-
-                {/* Type */}
-                <div className="col-span-2">
-                  {a.isFriend ? (
-                    <span className="badge bg-amber-100 text-amber-700 text-[10px]">Friend</span>
-                  ) : (
-                    <span className="badge bg-gray-100 text-gray-500 text-[10px]">Community</span>
-                  )}
-                </div>
-
-                {/* Check-in status */}
-                <div className="col-span-2">
-                  {checkedIn ? (
-                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-100 px-2.5 py-1 rounded-full">
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="flex items-center gap-2 shrink-0">
+                    {a.checkedIn
+                      ? <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-green-500/15 text-green-400">✓ In</span>
+                      : <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-zinc-700/60 text-zinc-500">Not yet</span>
+                    }
+                    <button onClick={() => toggleCheckin(a.userId, a.checkedIn)} disabled={toggling === a.userId}
+                      title={a.checkedIn ? 'Undo check-in' : 'Check in'}
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors disabled:opacity-40 ${a.checkedIn ? 'bg-green-500 text-white' : 'bg-zinc-700 text-zinc-400 hover:bg-zinc-600'}`}>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                       </svg>
-                      Checked in
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full">
-                      <span className="w-1.5 h-1.5 rounded-full bg-gray-400 inline-block" />
-                      Registered
-                    </span>
-                  )}
-                </div>
-
-                {/* Actions */}
-                <div className="col-span-1 flex justify-end">
-                  <button
-                    className="text-xs px-2.5 py-1.5 rounded-lg text-red-500 hover:bg-red-50 transition-colors font-medium"
-                    title="Remove participant"
-                  >
-                    Remove
-                  </button>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-
-        {/* Unfilled spots */}
-        {event.spotsLeft > 0 && (
-          <div className="px-6 py-4 border-t border-dashed border-gray-200 bg-gray-50">
-            <p className="text-xs text-gray-400 text-center">
-              {event.spotsLeft} open spot{event.spotsLeft > 1 ? 's' : ''} remaining
-            </p>
-          </div>
-        )}
+                    </button>
+                    <button onClick={() => removeAttendee(a.userId)} disabled={busy === a.userId}
+                      title="Remove attendee"
+                      className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-600 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-40">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                </Row>
+              ))}
+            </div>
+        }
       </div>
+
+      {/* ── WAITLIST ── */}
+      <div className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
+        <SectionHeader title="Waitlist" count={waitlist.length} color="bg-violet-500/20 text-violet-400">
+          {waitlist.length > 0 && event.spotsLeft > 0 && (
+            <button onClick={() => waitlist.slice(0, event.spotsLeft).forEach(promote)}
+              className="text-xs px-3 py-2 rounded-lg bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 font-semibold transition-colors">
+              Promote {Math.min(waitlist.length, event.spotsLeft)}
+            </button>
+          )}
+        </SectionHeader>
+        {waitlist.length === 0
+          ? <div className="px-4 py-6 text-center text-zinc-600 text-xs">'Waitlist is empty'</div>
+          : <div className="divide-y divide-zinc-800">
+              {waitlist.map((w, i) => (
+                <Row key={w.userId}>
+                  <span className="text-xs font-bold text-zinc-600 w-5 text-center shrink-0">#{i + 1}</span>
+                  <UserAvatar user={w.user} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-white truncate">{w.user.name}</p>
+                    <p className="text-xs text-zinc-500 truncate">{w.user.email}</p>
+                  </div>
+                  <p className="text-xs text-zinc-600 shrink-0">
+                    {new Date(w.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                  </p>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button onClick={() => promote(w)} disabled={busy === w.userId}
+                      className="text-xs px-3 py-2 rounded-lg bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 font-semibold transition-colors disabled:opacity-40">
+                      ↑ Promote
+                    </button>
+                    <button onClick={() => removeWaitlist(w.userId)} disabled={busy === w.userId}
+                      className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-600 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-40">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                </Row>
+              ))}
+            </div>
+        }
+      </div>
+
+
     </div>
   )
 }

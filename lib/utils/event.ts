@@ -1,0 +1,30 @@
+export function getUrgency(spotsLeft: number, totalSpots: number, limitedSpots: boolean, fillPercent: number) {
+  if (limitedSpots && spotsLeft <= 2)
+    return { label: `🔥 Only ${spotsLeft} left`, bg: 'bg-red-500', text: 'text-white', pulse: true }
+  if (limitedSpots && spotsLeft <= 5)
+    return { label: `⚡ ${spotsLeft} spots left`, bg: 'bg-orange-500', text: 'text-white', pulse: true }
+  if (fillPercent >= 75)
+    return { label: 'Almost full', bg: 'bg-orange-100', text: 'text-orange-700', pulse: false }
+  return null
+}
+
+export function getBarColor(fillPercent: number) {
+  if (fillPercent >= 85) return '#ef4444'
+  if (fillPercent >= 65) return '#f97316'
+  if (fillPercent >= 40) return '#f59e0b'
+  return '#34d399'
+}
+
+export function buildSocialLabel(
+  previews: { name: string }[] | undefined,
+  total: number,
+): string {
+  if (!previews || previews.length === 0) return `${total} going`
+  const first = previews[0].name.split(' ')[0]
+  if (total === 1) return `${first} is going`
+  const second = previews[1]?.name.split(' ')[0]
+  if (total === 2 && second) return `${first} and ${second} are going`
+  const rest = total - (second ? 2 : 1)
+  if (second) return `${first}, ${second} and ${rest} other${rest !== 1 ? 's' : ''} are going`
+  return `${first} and ${rest} other${rest !== 1 ? 's' : ''} are going`
+}

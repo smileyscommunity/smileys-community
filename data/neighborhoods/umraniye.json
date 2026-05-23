@@ -1,0 +1,35 @@
+{
+  "tagline": "A large, fast-growing Asian side district becoming a tech and business hub — less characterful but increasingly well-connected and affordable.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Meydan AVM Kafeler",
+          "description": "The large Meydan shopping centre has multiple café options. The most convenient commercial hub in Ümraniye.",
+          "address": "Meydan AVM, Ümraniye",
+          "badge": "Smileys Pick"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Ümraniye Çarşı Restoranları",
+          "description": "A wide range of restaurants in the central market area. Very local, good value, and a genuine cross-section of Turkish cuisine.",
+          "address": "Ümraniye Çarşısı, Ümraniye",
+          "badge": "Must Visit"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Ümraniye is on the M7 metro line — well connected to the city centre.",
+    "A growing tech and business district. Companies like Google Turkey are based here.",
+    "More affordable than the Kadıköy and Üsküdar areas with improving transport links.",
+    "Not a tourism destination but increasingly popular for long-term residential living."
+  ]
+}

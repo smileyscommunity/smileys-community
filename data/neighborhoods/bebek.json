@@ -1,0 +1,84 @@
+{
+  "tagline": "Istanbul's most coveted Bosphorus address — upscale, leafy, and home to the city's best coffee culture alongside stunning waterfront dining.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Starbucks Bebek",
+          "description": "Yes, a Starbucks — but the Bebek branch is genuinely one of the most beautiful coffee spots in the city. Right on the Bosphorus with an incredible terrace.",
+          "address": "Cevdetpaşa Cad. No:13, Bebek",
+          "badge": "Smileys Pick",
+          "tip": "Go for the view, not the coffee. The terrace at sunset is breathtaking. Arrive 30 min before to secure a waterfront seat."
+        },
+        {
+          "name": "Bebek Kahve",
+          "description": "A neighbourhood institution. Traditional Turkish coffee and tea in a relaxed setting. The place locals actually go.",
+          "address": "Bebek Sahili, Beşiktaş",
+          "tip": "Order Turkish tea (çay) and sit outside. This is the Bebek experience at its most authentic."
+        },
+        {
+          "name": "Kronotrop Bebek",
+          "description": "Excellent specialty coffee in a bright, airy space. Good for working from or a slow morning.",
+          "address": "Cevdetpaşa Cad., Bebek"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Bebek Balıkçısı",
+          "description": "One of Istanbul's most respected fish restaurants. Exceptional quality, beautiful Bosphorus setting, and service to match.",
+          "address": "Cevdetpaşa Cad. No:26, Bebek",
+          "badge": "Must Visit",
+          "tip": "Book a week ahead for weekends. The whole turbot is the dish to order when in season."
+        },
+        {
+          "name": "Bebek Burger",
+          "description": "A beloved local burger joint that Bebek residents have been devoted to for years. Simple, excellent, unfussy.",
+          "address": "Cevdetpaşa Cad., Bebek",
+          "tip": "Queue at lunchtime is normal and moves fast. The classic cheeseburger is the order."
+        },
+        {
+          "name": "Lucca Bebek",
+          "description": "A popular café-restaurant with outdoor seating and a reliable all-day menu. Good for weekend brunch with a view.",
+          "address": "Cevdetpaşa Cad. No:51B, Bebek"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Bebek Park & Promenade",
+          "description": "A beautiful waterfront park and walking path along the Bosphorus. One of the city's most pleasant morning walk spots.",
+          "address": "Bebek Sahili, Beşiktaş",
+          "badge": "Smileys Pick"
+        },
+        {
+          "name": "Boğaziçi University Campus",
+          "description": "One of Turkey's most beautiful university campuses, set on a hillside above Bebek with stunning Bosphorus views. Open to visitors.",
+          "address": "Boğaziçi Üniversitesi, Bebek",
+          "badge": "Hidden Gem",
+          "tip": "Walk up through the campus for views that most visitors never see. Free to enter."
+        },
+        {
+          "name": "Rumeli Hisarı (Fortress)",
+          "description": "A 15th-century Ottoman fortress overlooking the narrowest point of the Bosphorus — just north of Bebek. Excellent views.",
+          "address": "Rumeli Hisarı, Sarıyer",
+          "tip": "Open most days. The walk from Bebek along the waterfront takes about 20 minutes."
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Bebek is best reached by bus from Beşiktaş (25E) or by taxi. No metro access.",
+    "The waterfront fills up fast on weekend afternoons. Weekday mornings are dramatically more peaceful.",
+    "The walk from Bebek to Arnavutköy (south) or Rumeli Hisarı (north) are both excellent and worth doing.",
+    "Parking is extremely limited. Don't try to drive on weekends."
+  ]
+}

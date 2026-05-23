@@ -1,0 +1,42 @@
+{
+  "tagline": "A small, creative waterfront quarter between Kabataş and Karaköy — home to İstanbul Modern, waterfront parks, and one of the city's most scenic coastal walks.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "İstanbul Modern Café",
+          "description": "The café inside Turkey's premier modern art museum with stunning Bosphorus terrace views. Excellent for a cultured afternoon break.",
+          "address": "Meclis-i Mebusan Cad., Fındıklı",
+          "badge": "Smileys Pick"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "İstanbul Modern",
+          "description": "Turkey's foremost modern and contemporary art museum in a spectacular waterfront building. World-class rotating exhibitions and a permanent collection.",
+          "address": "Meclis-i Mebusan Cad., Fındıklı",
+          "badge": "Must Visit",
+          "tip": "Check the current exhibitions before visiting — the programme is consistently strong. The museum shop is excellent for design-oriented gifts."
+        },
+        {
+          "name": "Fındıklı Sahil Yürüyüşü",
+          "description": "A beautiful coastal walk along the Bosphorus from Fındıklı to Kabataş or Karaköy. The waterfront park is well maintained and rarely crowded.",
+          "address": "Fındıklı Sahili, Beyoğlu",
+          "badge": "Smileys Pick"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Fındıklı is on the T1 tram line — one stop from Kabataş and two from Karaköy.",
+    "İstanbul Modern is the main reason to come — it's one of Istanbul's finest cultural institutions.",
+    "The coastal park here is far less crowded than Karaköy's waterfront. Good for an evening walk.",
+    "Best combined with Karaköy (10-min walk) for a full afternoon of art, coffee, and waterfront views."
+  ]
+}

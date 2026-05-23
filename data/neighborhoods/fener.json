@@ -1,0 +1,61 @@
+{
+  "tagline": "Byzantine churches, colourful Greek Orthodox heritage, and cobblestone streets — Fener and neighbouring Balat form Istanbul's most atmospheric historic quarter.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Fener-Balat Sokak Kafeler",
+          "description": "A string of independent cafés on the colourful streets between Fener and Balat. Photogenic, creative, and increasingly popular.",
+          "address": "Fener Cad., Fatih",
+          "badge": "Smileys Pick"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Balat Meyhane ve Lokantalari",
+          "description": "The area has several excellent meyhane and lokanta restaurants serving traditional food in historic surroundings.",
+          "address": "Fener-Balat, Fatih",
+          "badge": "Must Visit"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Fener Rum Erkek Lisesi",
+          "description": "The dramatic red-brick Greek Orthodox school on the hill above Fener — a striking landmark and symbol of Istanbul's multilingual past.",
+          "address": "Fener, Fatih",
+          "badge": "Smileys Pick"
+        },
+        {
+          "name": "Ekümenik Patrikane (Ecumenical Patriarchate)",
+          "description": "The spiritual centre of the Eastern Orthodox Church worldwide, tucked into a Fener courtyard. One of Istanbul's most significant but least-visited sites.",
+          "address": "Sadrazam Ali Paşa Cad., Fener",
+          "badge": "Must Visit",
+          "tip": "Visitors are welcome outside service times. Dress modestly. The interior is simple and deeply moving."
+        },
+        {
+          "name": "Fener-Balat Street Walk",
+          "description": "The most photographed streets in Istanbul — painted houses, steep cobblestone alleys, and views down to the Golden Horn. Walk at golden hour.",
+          "address": "Fener-Balat, Fatih",
+          "badge": "Must Do",
+          "tip": "Come on a weekday morning. Weekend afternoons bring Instagram crowds that fill the narrow streets."
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Fener and Balat are best explored together — they're adjacent and complement each other perfectly.",
+    "The area is becoming increasingly touristic but remains genuinely special. Go on a weekday.",
+    "Most accessible by taxi from Eminönü or Taksim. No direct metro — dolmuş from Eminönü runs frequently.",
+    "The Golden Horn waterfront below Fener has pleasant walking paths and is much less crowded than the streets above."
+  ]
+}

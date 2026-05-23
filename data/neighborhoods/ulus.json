@@ -1,0 +1,49 @@
+{
+  "tagline": "Istanbul's most exclusive hilltop address — forest villas, the city's finest Bosphorus-view restaurants, and a serenity that money can barely buy.",
+  "places": [
+    {
+      "category": "Coffee & Tea",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Ulus Parkı Çay Bahçesi",
+          "description": "A stunning hilltop tea garden with arguably the best panoramic Bosphorus view in the city. The setting is incomparable.",
+          "address": "Ulus Parkı, Beşiktaş",
+          "badge": "Smileys Pick",
+          "tip": "Go on a clear autumn or winter day — fewer people and the Bosphorus views stretch impossibly far in both directions."
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Ulus 29",
+          "description": "Istanbul's most legendary special-occasion restaurant. Set in a stunning villa with jaw-dropping Bosphorus views. Turkish cuisine at its finest.",
+          "address": "Ahmet Adnan Saygun Cad., Ulus",
+          "badge": "Smileys Pick",
+          "tip": "Book at least two weeks in advance. Request a terrace table — the indoor dining room is beautiful but the view outside is what you're there for."
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Ulus Parkı",
+          "description": "A beautifully maintained hilltop park with sweeping Bosphorus views. Morning walks here feel entirely removed from the city below.",
+          "address": "Ulus Parkı, Beşiktaş",
+          "badge": "Must Do"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Ulus is accessible only by taxi from Levent metro or Etiler. No public transport.",
+    "One of Istanbul's most exclusive residential areas — primarily villas and embassies.",
+    "The park and restaurant are the two reasons to visit. Both are exceptional.",
+    "Combine with Etiler (downhill) for a fuller afternoon in this part of the city."
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "tagline": "One of Islam's most sacred sites outside Arabia — the Eyüp Sultan Mosque, Pierre Loti Hill, and the Golden Horn waterfront in a deeply spiritual setting.",
+  "places": [
+    {
+      "category": "Coffee & Tea",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Pierre Loti Çay Bahçesi",
+          "description": "A legendary hilltop tea garden above Eyüpsultan with sweeping Golden Horn views. Reached by cable car from the cemetery. One of Istanbul's most atmospheric spots.",
+          "address": "Gümüşsuyu Cad., Eyüpsultan",
+          "badge": "Smileys Pick",
+          "tip": "Take the teleferik (cable car) up and walk back down through the Ottoman cemetery. The views from the top are extraordinary."
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Eyüpsultan Çarşısı",
+          "description": "The bazaar streets around the mosque have traditional food stalls and lokanta restaurants serving simple, honest Turkish food.",
+          "address": "Eyüp Sultan Meydanı, Eyüpsultan"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Eyüp Sultan Camii",
+          "description": "One of the holiest mosques in Istanbul — built over the tomb of Eyüp el-Ensari, a companion of the Prophet. A place of genuine pilgrimage and reverence.",
+          "address": "Eyüp Sultan Meydanı, Eyüpsultan",
+          "badge": "Must Visit",
+          "tip": "Dress very modestly — this is an active place of worship, not a tourist attraction. Visit with respect and quiet."
+        },
+        {
+          "name": "Pierre Loti Tepesi",
+          "description": "The hill above Eyüpsultan named after the French novelist who frequented the café here. Golden Horn panorama and historic Ottoman cemetery.",
+          "address": "Pierre Loti Tepesi, Eyüpsultan",
+          "badge": "Smileys Pick"
+        },
+        {
+          "name": "Eyüpsultan Türbesi ve Tarihi Mezarlık",
+          "description": "The historic Ottoman cemetery surrounding the mosque is one of the most atmospheric in Istanbul — centuries of marble tombstones among cypress trees.",
+          "address": "Eyüpsultan, Fatih"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Eyüpsultan is reached by bus from Taksim or Eminönü, or by the Golden Horn ferry (Haliç İskelesi).",
+    "Dress conservatively — this is one of Istanbul's most religiously significant neighbourhoods.",
+    "Combine with Fener and Balat (20 minutes by bus) for a full day on the Golden Horn.",
+    "The cable car (teleferik) to Pierre Loti runs from the edge of the cemetery — short and scenic."
+  ]
+}

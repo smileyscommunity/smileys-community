@@ -1,0 +1,47 @@
+{
+  "tagline": "A quiet, green Asian side residential neighbourhood — tree-lined streets, good local amenities, and a relaxed pace that suits long-term Istanbul living.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Bağdat Caddesi Cafés (Erenköy)",
+          "description": "The Erenköy stretch of Bağdat Avenue has excellent independent cafés. Less crowded than Caddebostan and more local.",
+          "address": "Bağdat Cad., Erenköy, Kadıköy",
+          "badge": "Smileys Pick"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Erenköy Restoranları",
+          "description": "A good range of local restaurants in the Erenköy and Göztepe area serving traditional Turkish food at very reasonable prices.",
+          "address": "Erenköy, Kadıköy",
+          "badge": "Must Visit"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Bağdat Caddesi Walk",
+          "description": "The Erenköy section of Bağdat Caddesi is the most local and least touristy stretch of Istanbul's grand Asian avenue. Worth walking slowly.",
+          "address": "Bağdat Cad., Erenköy",
+          "badge": "Smileys Pick"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Erenköy is on the M4 metro line — easy connections to Kadıköy and Sabiha Gökçen Airport.",
+    "A good residential area for families and long-term residents. Less 'scene-y' than Moda or Kadıköy.",
+    "Göztepe (just north) and Kozyatağı (south) have similar characters — they effectively form one neighbourhood.",
+    "Housing is noticeably more affordable than Kadıköy or Moda."
+  ]
+}

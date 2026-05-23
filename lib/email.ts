@@ -1,0 +1,531 @@
+import { Resend } from 'resend'
+import { unsubscribeUrl } from '@/lib/unsubscribe'
+
+const FROM    = process.env.EMAIL_FROM ?? 'Smileys Community <info@smileyscommunity.com>'
+const APP_URL = process.env.APP_URL    ?? 'http://178.105.37.133:3000/app'
+
+function getResend() {
+  const key = process.env.RESEND_API_KEY
+  if (!key) throw new Error('RESEND_API_KEY is not set')
+  return new Resend(key)
+}
+
+export async function sendVerificationEmail(email: string, name: string, token: string) {
+  const url = `${APP_URL}/verify-email?token=${token}`
+  await getResend().emails.send({
+    from: FROM, to: email,
+    subject: 'Verify your Smileys account',
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <div style="text-align:center;margin-bottom:32px">
+          <span style="font-size:40px">😊</span>
+          <h1 style="font-size:24px;font-weight:800;color:#111;margin:8px 0 4px">Welcome to Smileys, ${name}!</h1>
+          <p style="color:#6b7280;font-size:14px;margin:0">Please verify your email to get started</p>
+        </div>
+        <a href="${url}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:24px">
+          Verify my email
+        </a>
+        <p style="color:#9ca3af;font-size:12px;text-align:center">
+          This link expires in 24 hours. If you didn't create an account, ignore this email.
+        </p>
+        <hr style="border:none;border-top:1px solid #f3f4f6;margin:24px 0"/>
+        <p style="color:#d1d5db;font-size:11px;text-align:center">Or copy this link: ${url}</p>
+      </div>
+    `,
+  })
+}
+
+export async function sendPasswordResetEmail(email: string, name: string, token: string) {
+  const url = `${APP_URL}/reset-password?token=${token}`
+  await getResend().emails.send({
+    from: FROM, to: email,
+    subject: 'Reset your Smileys password',
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <div style="text-align:center;margin-bottom:32px">
+          <span style="font-size:40px">😊</span>
+          <h1 style="font-size:24px;font-weight:800;color:#111;margin:8px 0 4px">Reset your password</h1>
+          <p style="color:#6b7280;font-size:14px;margin:0">Hi ${name}, click below to set a new password</p>
+        </div>
+        <a href="${url}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:24px">
+          Reset my password
+        </a>
+        <p style="color:#9ca3af;font-size:12px;text-align:center">
+          This link expires in 1 hour. If you didn't request this, ignore this email.
+        </p>
+      </div>
+    `,
+  })
+}
+
+export async function sendApplicationReceivedEmail(email: string, name: string) {
+  await getResend().emails.send({
+    from: FROM, to: email,
+    subject: 'We received your application 😊',
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <div style="text-align:center;margin-bottom:32px">
+          <span style="font-size:40px">😊</span>
+          <h1 style="font-size:24px;font-weight:800;color:#111;margin:8px 0 4px">Thanks for applying, ${name}!</h1>
+          <p style="color:#6b7280;font-size:14px;margin:0">Your application has been received</p>
+        </div>
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:20px 24px;margin-bottom:24px">
+          <p style="color:#92400e;font-size:14px;margin:0;line-height:1.6">
+            Our team personally reviews every application to keep Smileys a high-quality community.
+            We'll get back to you within <strong>2–3 days</strong>.
+          </p>
+        </div>
+        <p style="color:#9ca3af;font-size:12px;text-align:center">
+          Questions? Reply to this email or reach us at info@smileyscommunity.com
+        </p>
+      </div>
+    `,
+  })
+}
+
+export async function sendAdminNewApplicationEmail(applicantName: string, applicantEmail: string) {
+  const adminEmail = process.env.ADMIN_EMAIL ?? 'info@smileyscommunity.com'
+  await getResend().emails.send({
+    from: FROM, to: adminEmail,
+    subject: `New application: ${applicantName}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <h2 style="font-size:18px;font-weight:700;color:#111;margin:0 0 16px">New membership application</h2>
+        <p style="color:#374151;font-size:14px;margin:0 0 8px"><strong>Name:</strong> ${applicantName}</p>
+        <p style="color:#374151;font-size:14px;margin:0 0 24px"><strong>Email:</strong> ${applicantEmail}</p>
+        <a href="${APP_URL}/admin/applications" style="display:inline-block;background:#111;color:#fff;font-weight:600;font-size:14px;padding:12px 24px;border-radius:10px;text-decoration:none">
+          Review application →
+        </a>
+      </div>
+    `,
+  })
+}
+
+export async function sendApplicationRejectedEmail(email: string, name: string, message?: string) {
+  const body = message?.trim()
+    ? message.trim()
+    : 'After careful review, we don\'t think it\'s the right fit at this time. You\'re welcome to reapply in the future.'
+  await getResend().emails.send({
+    from: FROM, to: email,
+    subject: 'Your Smileys application',
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <div style="text-align:center;margin-bottom:32px">
+          <span style="font-size:40px">😊</span>
+          <h1 style="font-size:24px;font-weight:800;color:#111;margin:8px 0 4px">Hi ${name},</h1>
+          <p style="color:#6b7280;font-size:14px;margin:0">An update on your Smileys application</p>
+        </div>
+        <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:20px 24px;margin-bottom:24px">
+          <p style="color:#374151;font-size:14px;margin:0;line-height:1.6">${body}</p>
+        </div>
+        <p style="color:#9ca3af;font-size:12px;text-align:center">
+          Questions? Reach us at info@smileyscommunity.com
+        </p>
+      </div>
+    `,
+  })
+}
+
+export async function sendRequestMoreInfoEmail(email: string, name: string, message: string) {
+  await getResend().emails.send({
+    from: FROM, to: email,
+    subject: 'We\'d love to know more — Smileys',
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <div style="text-align:center;margin-bottom:32px">
+          <span style="font-size:40px">😊</span>
+          <h1 style="font-size:24px;font-weight:800;color:#111;margin:8px 0 4px">Hi ${name}!</h1>
+          <p style="color:#6b7280;font-size:14px;margin:0">We're reviewing your application</p>
+        </div>
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:20px 24px;margin-bottom:24px">
+          <p style="color:#92400e;font-size:14px;margin:0;line-height:1.6">${message}</p>
+        </div>
+        <p style="color:#9ca3af;font-size:12px;text-align:center">
+          Reply to this email or reach us at info@smileyscommunity.com
+        </p>
+      </div>
+    `,
+  })
+}
+
+export async function sendActivationEmail(email: string, name: string, token: string, welcomeMessage?: string) {
+  const url        = `${APP_URL}/activate?token=${token}`
+  const firstName  = name.split(' ')[0]
+  const personalNote = welcomeMessage
+    ? `<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:16px 20px;margin-bottom:24px">
+        <p style="color:#92400e;font-size:14px;margin:0;line-height:1.6">${welcomeMessage.replace(/\n/g, '<br>')}</p>
+       </div>`
+    : ''
+  await getResend().emails.send({
+    from: FROM, to: email,
+    subject: `You're in, ${firstName}! Activate your Smileys account`,
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <div style="text-align:center;margin-bottom:28px">
+          <span style="font-size:40px">😊</span>
+          <h1 style="font-size:24px;font-weight:800;color:#111;margin:8px 0 4px">Welcome to Smileys, ${firstName}!</h1>
+          <p style="color:#6b7280;font-size:14px;margin:0">Your application has been approved.</p>
+        </div>
+        ${personalNote}
+        <a href="${url}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:24px">
+          Set your password &amp; join →
+        </a>
+        <p style="color:#9ca3af;font-size:12px;text-align:center">
+          This link expires in 7 days. Istanbul's most curated community is waiting for you.
+        </p>
+      </div>
+    `,
+  })
+}
+
+export async function sendEventApprovedEmail(email: string, name: string, eventTitle: string, eventDate: string, eventNeighborhood: string, eventId: string) {
+  const url = `${APP_URL}/events/${eventId}`
+  await getResend().emails.send({
+    from: FROM, to: email,
+    subject: `You're in for "${eventTitle}" 🎉`,
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <div style="text-align:center;margin-bottom:32px">
+          <span style="font-size:40px">🎉</span>
+          <h1 style="font-size:24px;font-weight:800;color:#111;margin:8px 0 4px">You're approved, ${name}!</h1>
+          <p style="color:#6b7280;font-size:14px;margin:0">Your spot for <strong>${eventTitle}</strong> is confirmed.</p>
+        </div>
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:16px 20px;margin-bottom:24px">
+          <p style="color:#92400e;font-size:14px;margin:0"><strong>📅</strong> ${eventDate}</p>
+          <p style="color:#92400e;font-size:14px;margin:6px 0 0"><strong>📍</strong> ${eventNeighborhood} — exact location revealed in the app</p>
+        </div>
+        <a href="${url}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:24px">
+          View event details →
+        </a>
+      </div>
+    `,
+  })
+}
+
+export async function sendEventRejectedEmail(email: string, name: string, eventTitle: string) {
+  await getResend().emails.send({
+    from: FROM, to: email,
+    subject: `Update on your request for "${eventTitle}"`,
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <div style="text-align:center;margin-bottom:32px">
+          <span style="font-size:40px">😊</span>
+          <h1 style="font-size:24px;font-weight:800;color:#111;margin:8px 0 4px">Hi ${name},</h1>
+          <p style="color:#6b7280;font-size:14px;margin:0">An update on your request</p>
+        </div>
+        <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:16px 20px;margin-bottom:24px">
+          <p style="color:#374151;font-size:14px;margin:0;line-height:1.6">
+            Unfortunately we couldn't approve your request for <strong>${eventTitle}</strong> this time — it may be full or the event criteria didn't match.
+            Keep an eye on upcoming events and apply again!
+          </p>
+        </div>
+        <a href="${APP_URL}/events" style="display:block;text-align:center;background:#111;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none">
+          Browse other events →
+        </a>
+      </div>
+    `,
+  })
+}
+
+export async function sendRsvpConfirmationEmail(email: string, name: string, eventTitle: string, eventDate: string, eventLocation: string, eventId: string) {
+  const url = `${APP_URL}/events/${eventId}`
+  const firstName = name.split(' ')[0]
+  await getResend().emails.send({
+    from: FROM, to: email,
+    subject: `You're going to "${eventTitle}" 🎉`,
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <div style="text-align:center;margin-bottom:28px">
+          <span style="font-size:40px">🎉</span>
+          <h1 style="font-size:24px;font-weight:800;color:#111;margin:8px 0 4px">You're in, ${firstName}!</h1>
+          <p style="color:#6b7280;font-size:14px;margin:0">Your spot for <strong>${eventTitle}</strong> is confirmed.</p>
+        </div>
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:16px 20px;margin-bottom:24px">
+          <p style="color:#92400e;font-size:14px;margin:0"><strong>📅</strong> ${eventDate}</p>
+          <p style="color:#92400e;font-size:14px;margin:6px 0 0"><strong>📍</strong> ${eventLocation}</p>
+        </div>
+        <a href="${url}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:16px">
+          View event →
+        </a>
+        <p style="color:#9ca3af;font-size:12px;text-align:center">See you there. If your plans change, please cancel your spot so others can join.</p>
+      </div>
+    `,
+  })
+}
+
+export async function sendReviewRequestEmail(email: string, name: string, eventTitle: string, eventEmoji: string) {
+  const url = `${APP_URL}/reviews`
+  const firstName = name.split(' ')[0]
+  await getResend().emails.send({
+    from: FROM, to: email,
+    subject: `How was "${eventTitle}"? Share your review`,
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <div style="text-align:center;margin-bottom:28px">
+          <span style="font-size:48px">${eventEmoji}</span>
+          <h1 style="font-size:22px;font-weight:800;color:#111;margin:12px 0 4px">How was it, ${firstName}?</h1>
+          <p style="color:#6b7280;font-size:14px;margin:0">You attended <strong>${eventTitle}</strong> — we'd love to hear what you thought.</p>
+        </div>
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:16px 20px;margin-bottom:24px">
+          <p style="color:#92400e;font-size:14px;margin:0;line-height:1.6">
+            Your honest review helps hosts improve and helps members decide which events to join.
+            It takes less than a minute!
+          </p>
+        </div>
+        <a href="${url}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:16px">
+          Leave a review →
+        </a>
+        <p style="color:#9ca3af;font-size:12px;text-align:center">
+          You can also edit or delete your reviews any time from the Reviews page.
+        </p>
+      </div>
+    `,
+  })
+}
+
+export async function sendWaitlistPromotedEmail(email: string, name: string, eventTitle: string, eventDate: string, eventId: string) {
+  const url = `${APP_URL}/events/${eventId}`
+  const firstName = name.split(' ')[0]
+  await getResend().emails.send({
+    from: FROM, to: email,
+    subject: `A spot just opened — you're in for "${eventTitle}"`,
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <div style="text-align:center;margin-bottom:28px">
+          <span style="font-size:40px">🙌</span>
+          <h1 style="font-size:24px;font-weight:800;color:#111;margin:8px 0 4px">Good news, ${firstName}!</h1>
+          <p style="color:#6b7280;font-size:14px;margin:0">A spot opened up — you've been moved off the waitlist for <strong>${eventTitle}</strong>.</p>
+        </div>
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:16px 20px;margin-bottom:24px">
+          <p style="color:#92400e;font-size:14px;margin:0"><strong>📅</strong> ${eventDate}</p>
+        </div>
+        <a href="${url}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:16px">
+          View event →
+        </a>
+        <p style="color:#9ca3af;font-size:12px;text-align:center">Your spot is confirmed. If plans change, please cancel so the next person can join.</p>
+      </div>
+    `,
+  })
+}
+
+export async function sendEventCancelledEmail(email: string, name: string, eventTitle: string, eventDate: string) {
+  const firstName = name.split(' ')[0]
+  await getResend().emails.send({
+    from: FROM, to: email,
+    subject: `"${eventTitle}" has been cancelled`,
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <div style="text-align:center;margin-bottom:28px">
+          <span style="font-size:40px">😔</span>
+          <h1 style="font-size:24px;font-weight:800;color:#111;margin:8px 0 4px">Hi ${firstName},</h1>
+          <p style="color:#6b7280;font-size:14px;margin:0">Unfortunately <strong>${eventTitle}</strong> (${eventDate}) has been cancelled.</p>
+        </div>
+        <p style="color:#374151;font-size:14px;text-align:center;margin-bottom:24px">We're sorry for the inconvenience. Keep an eye out for upcoming events.</p>
+        <a href="${APP_URL}/events" style="display:block;text-align:center;background:#111;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none">
+          Browse upcoming events →
+        </a>
+      </div>
+    `,
+  })
+}
+
+export async function sendRefundEmail(email: string, name: string, eventTitle: string, amount: number, currency: string, note?: string) {
+  const firstName = name.split(' ')[0]
+  const noteHtml = note
+    ? `<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:16px 20px;margin-bottom:24px">
+        <p style="color:#374151;font-size:14px;margin:0;line-height:1.6">${note}</p>
+       </div>`
+    : ''
+  await getResend().emails.send({
+    from: FROM, to: email,
+    subject: `Your refund for "${eventTitle}"`,
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <div style="text-align:center;margin-bottom:28px">
+          <span style="font-size:40px">💳</span>
+          <h1 style="font-size:24px;font-weight:800;color:#111;margin:8px 0 4px">Refund confirmed, ${firstName}</h1>
+          <p style="color:#6b7280;font-size:14px;margin:0">A refund of <strong>${currency} ${amount.toLocaleString()}</strong> for <strong>${eventTitle}</strong> has been processed.</p>
+        </div>
+        ${noteHtml}
+        <p style="color:#9ca3af;font-size:12px;text-align:center">Questions? Reply to this email or reach us at info@smileyscommunity.com</p>
+      </div>
+    `,
+  })
+}
+
+export async function sendApplicationApprovedEmail(email: string, name: string) {
+  await getResend().emails.send({
+    from: FROM, to: email,
+    subject: 'You\'re in! Welcome to Smileys 🎉',
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <div style="text-align:center;margin-bottom:32px">
+          <span style="font-size:40px">😊</span>
+          <h1 style="font-size:24px;font-weight:800;color:#111;margin:8px 0 4px">Welcome to Smileys, ${name}!</h1>
+          <p style="color:#6b7280;font-size:14px;margin:0">Your application has been approved</p>
+        </div>
+        <a href="${APP_URL}/onboarding?email=${encodeURIComponent(email)}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:24px">
+          Create your account →
+        </a>
+        <p style="color:#9ca3af;font-size:12px;text-align:center">
+          Istanbul's most curated social community is waiting for you.
+        </p>
+      </div>
+    `,
+  })
+}
+
+export async function sendNewDeviceLoginEmail(email: string, name: string, ip: string, time: string) {
+  const firstName = name.split(' ')[0]
+  await getResend().emails.send({
+    from: FROM, to: email,
+    subject: 'New login to your Smileys account',
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <div style="text-align:center;margin-bottom:28px">
+          <span style="font-size:40px">🔐</span>
+          <h1 style="font-size:22px;font-weight:800;color:#111;margin:8px 0 4px">New login detected</h1>
+          <p style="color:#6b7280;font-size:14px;margin:0">Hi ${firstName}, your Smileys account was just accessed from a new location.</p>
+        </div>
+        <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:12px;padding:16px 20px;margin-bottom:24px">
+          <p style="color:#92400e;font-size:14px;margin:0 0 4px"><strong>🌐 IP address:</strong> ${ip}</p>
+          <p style="color:#92400e;font-size:14px;margin:0"><strong>🕐 Time:</strong> ${time}</p>
+        </div>
+        <p style="color:#374151;font-size:14px;line-height:1.6">If this was you, no action is needed. If you did not log in, your account may be compromised — change your password immediately.</p>
+        <a href="${APP_URL}/settings" style="display:block;text-align:center;background:#ef4444;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-top:20px">
+          Secure my account →
+        </a>
+        <p style="color:#9ca3af;font-size:12px;text-align:center;margin-top:16px">Smileys Community · Istanbul</p>
+      </div>
+    `,
+  })
+}
+
+export async function sendAccountLockedEmail(email: string, name: string) {
+  const firstName = name.split(' ')[0]
+  await getResend().emails.send({
+    from: FROM, to: email,
+    subject: 'Your Smileys account has been temporarily locked',
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <div style="text-align:center;margin-bottom:28px">
+          <span style="font-size:40px">🔒</span>
+          <h1 style="font-size:22px;font-weight:800;color:#111;margin:8px 0 4px">Account locked</h1>
+          <p style="color:#6b7280;font-size:14px;margin:0">Hi ${firstName}, your account has been locked after 10 failed login attempts.</p>
+        </div>
+        <div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:12px;padding:16px 20px;margin-bottom:24px">
+          <p style="color:#991b1b;font-size:14px;margin:0">Your account will unlock automatically in <strong>1 hour</strong>. If you forgot your password, use the link below.</p>
+        </div>
+        <a href="${APP_URL}/forgot-password" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:12px">
+          Reset my password →
+        </a>
+        <p style="color:#9ca3af;font-size:12px;text-align:center">If you didn't attempt to log in, someone is trying to access your account. Contact us at info@smileyscommunity.com</p>
+      </div>
+    `,
+  })
+}
+
+export async function sendListingExpiryEmail(email: string, name: string, listingTitle: string, daysLeft: number) {
+  const url       = `${APP_URL}/listings`
+  const firstName = name.split(' ')[0]
+  await getResend().emails.send({
+    from: FROM, to: email,
+    subject: `Your listing "${listingTitle}" expires in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <div style="text-align:center;margin-bottom:28px">
+          <span style="font-size:40px">📋</span>
+          <h1 style="font-size:22px;font-weight:800;color:#111;margin:8px 0 4px">Hey ${firstName}, your listing is expiring soon</h1>
+          <p style="color:#6b7280;font-size:14px;margin:0">
+            <strong>${listingTitle}</strong> will be removed from the Community Board in <strong>${daysLeft} day${daysLeft !== 1 ? 's' : ''}</strong>.
+          </p>
+        </div>
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:16px 20px;margin-bottom:24px">
+          <p style="color:#92400e;font-size:14px;margin:0">Renew it now to keep your listing visible to ${4000}+ Smileys members.</p>
+        </div>
+        <a href="${url}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:16px">
+          Renew listing →
+        </a>
+        <p style="color:#9ca3af;font-size:12px;text-align:center">If the listing is no longer relevant, you can let it expire — no action needed.</p>
+      </div>
+    `,
+  })
+}
+
+export async function sendBroadcastEmail(
+  userId: string,
+  email: string,
+  name: string,
+  title: string,
+  message: string,
+) {
+  const unsub     = unsubscribeUrl(userId)
+  const firstName = name.split(' ')[0]
+  const bodyHtml  = message
+    .split(/\n\n+/)
+    .map(p => `<p style="margin:0 0 16px;color:#374151;font-size:14px;line-height:1.6">${p.replace(/\n/g, '<br>')}</p>`)
+    .join('')
+
+  await getResend().emails.send({
+    from:    FROM,
+    to:      email,
+    subject: title,
+    html: `
+      <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto;background:#fff;border-radius:16px;padding:40px 32px;border:1px solid #e5e7eb">
+        <div style="margin-bottom:28px">
+          <span style="font-size:32px">😊</span>
+          <p style="color:#6b7280;font-size:13px;margin:4px 0 0">Smileys Community · Istanbul</p>
+        </div>
+        <h2 style="font-size:20px;font-weight:800;color:#111827;margin:0 0 20px">${title}</h2>
+        <p style="margin:0 0 16px;color:#374151;font-size:14px">Hi ${firstName},</p>
+        ${bodyHtml}
+        <div style="margin-top:28px;padding-top:20px;border-top:1px solid #f3f4f6">
+          <a href="https://smileyscommunity.com/app/events"
+            style="display:inline-block;background:#f59e0b;color:#fff;font-weight:700;font-size:14px;padding:12px 24px;border-radius:10px;text-decoration:none">
+            Browse upcoming events →
+          </a>
+        </div>
+        <p style="color:#9ca3af;font-size:11px;margin-top:28px;line-height:1.5">
+          You're receiving this because you're a member of Smileys Community.<br>
+          <a href="${unsub}" style="color:#9ca3af">Unsubscribe from newsletters</a>
+        </p>
+      </div>
+    `,
+  })
+}
+
+export async function sendListingAlertEmail(
+  to: string,
+  name: string,
+  categoryLabel: string,
+  listing: { title: string; description: string },
+) {
+  const url = `${APP_URL}/listings`
+  const unsub = `${APP_URL}/settings`
+  const excerpt = listing.description.length > 120 ? listing.description.slice(0, 120) + '…' : listing.description
+  await getResend().emails.send({
+    from: FROM, to,
+    subject: `New ${categoryLabel} listing: ${listing.title}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#fff">
+        <div style="text-align:center;margin-bottom:28px">
+          <span style="font-size:36px">😊</span>
+          <p style="color:#6b7280;font-size:12px;margin:4px 0 0;letter-spacing:0.08em;text-transform:uppercase">Smileys Community Board</p>
+        </div>
+        <p style="margin:0 0 12px;color:#374151;font-size:14px">Hey ${name},</p>
+        <p style="margin:0 0 20px;color:#374151;font-size:14px">A new <strong>${categoryLabel}</strong> listing was just posted:</p>
+        <div style="background:#f9fafb;border-radius:12px;padding:16px 20px;margin-bottom:24px;border-left:3px solid #f59e0b">
+          <p style="font-size:15px;font-weight:700;color:#111827;margin:0 0 6px">${listing.title}</p>
+          <p style="font-size:13px;color:#6b7280;margin:0;line-height:1.5">${excerpt}</p>
+        </div>
+        <a href="${url}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:14px;padding:13px 24px;border-radius:10px;text-decoration:none;margin-bottom:24px">
+          View on Community Board →
+        </a>
+        <p style="color:#9ca3af;font-size:11px;text-align:center;line-height:1.6">
+          You're getting this because you subscribed to ${categoryLabel} alerts.<br>
+          <a href="${unsub}" style="color:#9ca3af">Manage your alerts</a>
+        </p>
+      </div>
+    `,
+  })
+}

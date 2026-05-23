@@ -1,0 +1,58 @@
+{
+  "tagline": "An Asian side district with ferry connections to the Princes' Islands, a lively waterfront, and a well-established local café and dining scene.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Bostancı İskelesi Cafés",
+          "description": "Cafés and tea houses around the busy Bostancı ferry terminal. Watch the Princes' Islands ferries depart while having coffee.",
+          "address": "Bostancı İskelesi, Kadıköy",
+          "badge": "Smileys Pick"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Bostancı Sahil Restoranları",
+          "description": "A strip of fish and seafood restaurants along the Bostancı waterfront with Marmara and island views. Consistent quality.",
+          "address": "Bostancı Sahili, Kadıköy",
+          "badge": "Must Visit"
+        },
+        {
+          "name": "Bostancı Çarşı Lokantalari",
+          "description": "The market area has a good range of lokanta restaurants with rotating daily menus. Very local and very good value.",
+          "address": "Bostancı Çarşısı, Kadıköy"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Ferry to Princes' Islands",
+          "description": "Bostancı has frequent ferry service to the Princes' Islands (Büyükada, Heybeliada) — closer than Kabataş and often less crowded.",
+          "address": "Bostancı İskelesi, Kadıköy",
+          "badge": "Must Do",
+          "tip": "The Bostancı ferries to the islands are often faster and less crowded than the Kabataş route. A good alternative for Asian side residents."
+        },
+        {
+          "name": "Bostancı Sahili Promenadı",
+          "description": "A pleasant waterfront promenade connecting to Caddebostan. Good for evening walks with island views.",
+          "address": "Bostancı Sahili, Kadıköy"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Bostancı is on the M4 metro line — well connected to Kadıköy and the rest of the Asian side.",
+    "The Princes' Islands ferries from Bostancı are a great alternative to the more crowded European side ferries.",
+    "More developed and livelier than neighbouring Maltepe and Kartal.",
+    "Good for families living on the Asian side who want easy island access."
+  ]
+}

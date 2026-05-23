@@ -1,0 +1,66 @@
+{
+  "tagline": "Istanbul's most exciting up-and-coming neighbourhood — a former brewery district reinvented as a hub for craft beer, independent restaurants, and creative studios.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Brew Lab / Independent Cafés",
+          "description": "A cluster of specialty coffee shops has emerged around the Bomontiada arts complex. Quality rivals Karaköy at lower prices.",
+          "address": "Bomontiada, Birahane Sok., Şişli",
+          "badge": "Smileys Pick"
+        },
+        {
+          "name": "Bomontiada Terrace",
+          "description": "The outdoor terrace of the Bomontiada cultural complex is excellent for a coffee or beer in the afternoon — creative crowd, relaxed atmosphere.",
+          "address": "Bomontiada, Şişli"
+        }
+      ]
+    },
+    {
+      "category": "Food & Drinks",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Bomontiada Restaurants",
+          "description": "The Bomontiada complex (built inside the historic Bomonti Brewery) has excellent independent restaurants and bars in a beautifully restored industrial setting.",
+          "address": "Birahane Sok. No:1, Bomonti, Şişli",
+          "badge": "Must Visit",
+          "tip": "Go on a weekday evening — the weekend crowds can make it hard to get a table without booking."
+        },
+        {
+          "name": "Bomonti Bira (Craft Beer)",
+          "description": "Craft beer culture started here — Bomonti neighbourhood has Istanbul's best selection of craft beer bars and taprooms.",
+          "address": "Bomonti, Şişli",
+          "badge": "Smileys Pick"
+        },
+        {
+          "name": "Çukurcuma to Bomonti Walk Restaurants",
+          "description": "The uphill streets between Cihangir and Bomonti have excellent independent restaurants that haven't been discovered by tourists yet.",
+          "address": "Bomonti, Şişli",
+          "badge": "Hidden Gem"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Bomontiada Arts Complex",
+          "description": "A beautifully restored brewery turned cultural venue with live music, cinema, exhibitions, restaurants, and the best outdoor terrace in the area.",
+          "address": "Birahane Sok. No:1, Bomonti, Şişli",
+          "badge": "Smileys Pick",
+          "tip": "Check the Bomontiada events calendar — live concerts here are excellent and much more intimate than larger venues."
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Bomonti is walkable from Şişli metro (about 15 min) or a short taxi from Taksim.",
+    "The neighbourhood is rapidly gentrifying — prices are still reasonable compared to Karaköy but rising fast.",
+    "Bomontiada is the social anchor of the area. Start there and explore the surrounding streets.",
+    "Good for a weekday evening out — less crowded than Beyoğlu with a more interesting local crowd."
+  ]
+}

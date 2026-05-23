@@ -1,0 +1,15 @@
+User-agent: *
+Allow: /app/
+Disallow: /app/admin/
+Disallow: /app/api/
+Disallow: /app/host/
+Disallow: /app/login
+Disallow: /app/dashboard
+Disallow: /app/profile
+Disallow: /app/messages/
+Disallow: /app/notifications
+Disallow: /app/my-events
+Disallow: /app/card
+Disallow: /app/settings/
+
+Sitemap: https://smileyscommunity.com/app/sitemap.xml

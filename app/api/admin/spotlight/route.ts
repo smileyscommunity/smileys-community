@@ -1,0 +1,33 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { getSession } from '@/lib/session'
+import { readFileSync, writeFileSync } from 'fs'
+import { join } from 'path'
+
+const filePath = join(process.cwd(), 'data', 'member-spotlight.json')
+
+function read() {
+  try { return JSON.parse(readFileSync(filePath, 'utf-8')) } catch { return { userId: null, funFact: '', topSpots: ['', '', ''] } }
+}
+
+export async function GET() {
+  const data = read()
+  if (!data.userId) return NextResponse.json(null)
+  const user = await prisma.user.findUnique({
+    where:  { id: data.userId },
+    select: { id: true, name: true, color: true, profilePhoto: true, neighborhood: true, bio: true },
+  })
+  if (!user) return NextResponse.json(null)
+  return NextResponse.json({ user, funFact: data.funFact, topSpots: data.topSpots, updatedAt: data.updatedAt })
+}
+
+export async function POST(req: NextRequest) {
+  const session = await getSession()
+  if (!session || (session.role !== 'admin' && session.role !== 'moderator')) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+  const { userId, funFact, topSpots } = await req.json()
+  if (!userId) return NextResponse.json({ error: 'userId required' }, { status: 400 })
+  writeFileSync(filePath, JSON.stringify({ userId, funFact: funFact ?? '', topSpots: topSpots ?? ['', '', ''], updatedAt: new Date().toISOString() }, null, 2))
+  return NextResponse.json({ ok: true })
+}

@@ -1,0 +1,81 @@
+{
+  "tagline": "The historic heart of three empires — Hagia Sophia, the Blue Mosque, Topkapı Palace, and the Grand Bazaar all within walking distance.",
+  "places": [
+    {
+      "category": "Coffee & Tea",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Çorlulu Ali Paşa Medresesi",
+          "description": "A beautifully preserved Ottoman courtyard off the Grand Bazaar turned into a shaded tea garden. One of the great hidden spots in historic Istanbul.",
+          "address": "Yeniçeriler Cad., Beyazıt",
+          "badge": "Smileys Pick",
+          "tip": "Duck through the small gate on Yeniçeriler Caddesi — most tourists walk straight past it. Order nargileh (water pipe) and çay and settle in."
+        },
+        {
+          "name": "Tarihi Sultanahmet Köftecisi Çay Bahçesi",
+          "description": "The tea garden adjacent to the famous köfte restaurant, with views of the old city. Good for resting between sights.",
+          "address": "Divan Yolu Cad., Sultanahmet"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Tarihi Sultanahmet Köftecisi",
+          "description": "Istanbul's most legendary köfte restaurant, open since 1920. One dish, done perfectly. A genuine institution.",
+          "address": "Divan Yolu Cad. No:12, Sultanahmet",
+          "badge": "Must Visit",
+          "tip": "Order the köfte with white beans (piyaz) and bread. Sit, eat, leave. This is not a restaurant for lingering — and that's the point."
+        },
+        {
+          "name": "Balıkçı Sabahattin",
+          "description": "One of Istanbul's most atmospheric fish restaurants, set in a historic Ottoman house near the city walls. Exceptional mezes.",
+          "address": "Cankurtaran Mah., Sultanahmet",
+          "badge": "Smileys Pick",
+          "tip": "Book ahead and go for lunch — quieter than dinner and the same quality. The mezes are as good as the main course."
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Hagia Sophia",
+          "description": "The greatest building in Istanbul — perhaps in the world. 1,500 years of history in a single structure. Free to enter as a mosque.",
+          "address": "Ayasofya Meydanı, Sultanahmet",
+          "badge": "Must Do",
+          "tip": "Go at opening time (9am) or in the last hour before closing. The midday crowds are genuinely overwhelming. Dress modestly."
+        },
+        {
+          "name": "Topkapı Palace",
+          "description": "The nerve centre of the Ottoman Empire for 400 years. The Treasury and the Harem are the unmissable sections.",
+          "address": "Babıhümayun Cad., Sultanahmet",
+          "badge": "Must Visit",
+          "tip": "Buy the combined museum pass — it covers Topkapı, Hagia Sophia, and the Archaeology Museum. Book Harem entry separately online."
+        },
+        {
+          "name": "Basilica Cistern",
+          "description": "A vast underground Byzantine cistern built in 532 AD — columns rising from still water in eerie, lit silence. Genuinely spectacular.",
+          "address": "Alemdar Cad. No:13, Sultanahmet",
+          "badge": "Smileys Pick"
+        },
+        {
+          "name": "Blue Mosque (Sultan Ahmed Camii)",
+          "description": "The iconic six-minaret mosque facing Hagia Sophia across the hippodrome. Free to enter outside prayer times.",
+          "address": "Sultan Ahmet Mahallesi, Sultanahmet",
+          "tip": "Closed to non-worshippers during prayer times (5 times daily). The interior is beautiful but often crowded — Hagia Sophia is more impressive."
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Sultanahmet is walkable from Eminönü and 10 minutes by tram (T1 line) from Karaköy.",
+    "The area is almost entirely tourist-facing — prices for food and services are significantly higher than elsewhere in Istanbul.",
+    "The best time to visit the major monuments is early morning (before 10am) or late afternoon (after 4pm).",
+    "Combine Sultanahmet with a walk down to Cankurtaran and the sea walls for a much quieter Istanbul experience."
+  ]
+}

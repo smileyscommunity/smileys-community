@@ -1,179 +1,109 @@
 'use client'
 
-import { useState } from 'react'
-import { hosts, events } from '@/lib/data'
-import type { Host, Event } from '@/lib/data'
+import { useState, useEffect } from 'react'
+import Link from 'next/link'
+import { getInitials } from '@/lib/data'
 
-function HostDetailCard({
-  host, hostedEvents, status, onToggle, onEdit,
-}: {
-  host: Host; hostedEvents: Event[]; status: 'active' | 'disabled'
-  onToggle: () => void; onEdit: () => void
-}) {
-  const totalAttendees = hostedEvents.reduce((s, e) => s + (e.totalSpots - e.spotsLeft), 0)
-  const totalSpots     = hostedEvents.reduce((s, e) => s + e.totalSpots, 0)
-  const rate           = totalSpots > 0 ? Math.round((totalAttendees / totalSpots) * 100) : 0
-  const isDisabled     = status === 'disabled'
-
-  return (
-    <div className={`bg-zinc-900 rounded-2xl overflow-hidden flex flex-col transition-opacity ${isDisabled ? 'opacity-50' : ''}`}>
-      <div className="p-5 flex items-start gap-4">
-        <div
-          className="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-base font-bold shrink-0"
-          style={{ backgroundColor: host.color }}
-        >
-          {host.initials}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="font-bold text-white text-sm truncate">{host.name}</h3>
-            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
-              isDisabled ? 'bg-zinc-800 text-zinc-500' : 'bg-green-900 text-green-400'
-            }`}>
-              {isDisabled ? 'Disabled' : 'Active'}
-            </span>
-          </div>
-          <p className="text-xs text-zinc-500 mt-0.5 truncate">{host.role}</p>
-          <p className="text-xs text-zinc-400 leading-relaxed mt-2 line-clamp-2">{host.bio}</p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-3 divide-x divide-zinc-800 border-t border-zinc-800">
-        <div className="px-4 py-3 text-center">
-          <div className="text-base font-extrabold text-white">{hostedEvents.length}</div>
-          <div className="text-[10px] text-zinc-500 mt-0.5">Events</div>
-        </div>
-        <div className="px-4 py-3 text-center">
-          <div className="text-base font-extrabold text-white">{totalAttendees}</div>
-          <div className="text-[10px] text-zinc-500 mt-0.5">Attendees</div>
-        </div>
-        <div className="px-4 py-3 text-center">
-          <div className={`text-base font-extrabold ${rate >= 80 ? 'text-green-400' : rate >= 50 ? 'text-amber-400' : 'text-zinc-500'}`}>
-            {rate}%
-          </div>
-          <div className="text-[10px] text-zinc-500 mt-0.5">Fill Rate</div>
-        </div>
-      </div>
-
-      {hostedEvents.length > 0 && (
-        <div className="px-5 py-3 flex flex-wrap gap-1.5 border-t border-zinc-800">
-          {hostedEvents.map((e) => (
-            <span key={e.id} className="inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-lg bg-zinc-800 text-zinc-400 font-medium">
-              {e.emoji} {e.title}
-            </span>
-          ))}
-        </div>
-      )}
-
-      <div className="mt-auto px-5 py-3 border-t border-zinc-800 flex gap-2">
-        <button
-          onClick={onEdit}
-          className="flex-1 text-xs py-2 rounded-xl border border-zinc-700 text-zinc-400 hover:bg-zinc-800 transition-colors font-semibold"
-        >
-          Edit
-        </button>
-        <button
-          onClick={onToggle}
-          className={`flex-1 text-xs py-2 rounded-xl font-semibold transition-colors ${
-            isDisabled ? 'bg-green-900 text-green-400 hover:bg-green-800' : 'bg-red-900/50 text-red-400 hover:bg-red-900'
-          }`}
-        >
-          {isDisabled ? 'Enable' : 'Disable'}
-        </button>
-      </div>
-    </div>
-  )
+interface HostEntry {
+  userId: string
+  user: { id: string; name: string; email: string; color: string }
+  clubs: { id: string; name: string; emoji: string }[]
+  eventCount: number
+  totalAttendees: number
 }
 
 export default function AdminHostsPage() {
-  const hostList = Object.values(hosts)
+  const [hosts, setHosts] = useState<HostEntry[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const [statuses, setStatuses] = useState<Record<string, 'active' | 'disabled'>>(
-    Object.fromEntries(hostList.map((h) => [h.id, 'active']))
-  )
-  const [showAdd, setShowAdd] = useState(false)
-  const [newName, setNewName] = useState('')
-  const [toast,   setToast]   = useState('')
+  useEffect(() => {
+    Promise.all([
+      fetch('/app/api/admin/clubs', { credentials: 'include' }).then(r => r.json()),
+      fetch('/app/api/admin/events', { credentials: 'include' }).then(r => r.json()),
+    ]).then(async ([clubs, events]) => {
+      if (!Array.isArray(clubs)) { setLoading(false); return }
+      const eventsArr: any[] = Array.isArray(events) ? events : []
 
-  function showToast(msg: string) {
-    setToast(msg)
-    setTimeout(() => setToast(''), 2500)
-  }
+      const byUser = new Map<string, HostEntry>()
+      await Promise.all(clubs.map(async (club: any) => {
+        const members = await fetch(`/app/api/admin/clubs/${club.id}/memberships`, { credentials: 'include' }).then(r => r.json())
+        if (!Array.isArray(members)) return
+        members
+          .filter((m: any) => m.role === 'host' && m.status === 'approved')
+          .forEach((m: any) => {
+            if (!byUser.has(m.userId)) {
+              byUser.set(m.userId, { userId: m.userId, user: m.user, clubs: [], eventCount: 0, totalAttendees: 0 })
+            }
+            byUser.get(m.userId)!.clubs.push({ id: club.id, name: club.name, emoji: club.emoji })
+          })
+      }))
 
-  function toggleStatus(id: string) {
-    const host = hostList.find((h) => h.id === id)!
-    setStatuses((prev) => {
-      const next = { ...prev, [id]: prev[id] === 'active' ? 'disabled' : 'active' }
-      showToast(next[id] === 'active' ? `${host.name} re-enabled ✓` : `${host.name} disabled`)
-      return next
+      // Overlay event stats
+      eventsArr.forEach((e: any) => {
+        if (e.hostId && byUser.has(e.hostId)) {
+          const h = byUser.get(e.hostId)!
+          h.eventCount++
+          h.totalAttendees += e._count?.attendees ?? 0
+        }
+      })
+
+      setHosts(Array.from(byUser.values()).sort((a, b) => b.eventCount - a.eventCount))
+      setLoading(false)
     })
-  }
-
-  function handleAddHost() {
-    if (newName.trim()) {
-      showToast(`Host "${newName.trim()}" added (UI only)`)
-      setNewName('')
-      setShowAdd(false)
-    }
-  }
-
-  const activeCount = Object.values(statuses).filter((s) => s === 'active').length
+  }, [])
 
   return (
-    <div className="p-6 space-y-5">
-      {toast && (
-        <div className="fixed top-6 right-6 z-50 bg-white text-black text-sm font-medium px-4 py-2.5 rounded-xl shadow-lg">
-          {toast}
-        </div>
-      )}
-
+    <div className="p-4 sm:p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-extrabold text-white tracking-tight">Hosts</h1>
-          <p className="text-sm text-zinc-500 mt-0.5">{hostList.length} hosts · {activeCount} active</p>
+          <h1 className="text-white text-2xl font-extrabold tracking-tight">Club Hosts</h1>
+          <p className="text-sm text-zinc-500 mt-0.5">{hosts.length} host{hosts.length !== 1 ? 's' : ''}</p>
         </div>
-        <button
-          onClick={() => setShowAdd(!showAdd)}
-          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white text-black text-xs font-bold transition-colors hover:bg-zinc-100"
-        >
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-          </svg>
-          Add host
-        </button>
+        <Link href="/admin/clubs" className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-colors">
+          Manage in Clubs →
+        </Link>
       </div>
 
-      {showAdd && (
-        <div className="bg-zinc-900 rounded-2xl p-5 flex items-end gap-3 border border-zinc-800">
-          <div className="flex-1">
-            <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Host name</label>
-            <input
-              type="text"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="e.g. Yoga with Zeynep"
-              className="w-full px-4 py-2.5 rounded-xl border border-zinc-700 bg-zinc-800 text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/20 placeholder:text-zinc-600"
-              onKeyDown={(e) => e.key === 'Enter' && handleAddHost()}
-              autoFocus
-            />
-          </div>
-          <button onClick={handleAddHost} className="bg-white text-black text-sm font-semibold px-4 py-2.5 rounded-xl hover:bg-zinc-100 transition-colors shrink-0">Add</button>
-          <button onClick={() => setShowAdd(false)} className="bg-zinc-800 text-zinc-400 text-sm font-medium px-4 py-2.5 rounded-xl hover:bg-zinc-700 transition-colors shrink-0">Cancel</button>
+      {loading ? (
+        <p className="text-zinc-500 text-sm">Loading…</p>
+      ) : hosts.length === 0 ? (
+        <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-10 text-center">
+          <div className="text-3xl mb-2">👤</div>
+          <p className="text-zinc-400 text-sm">No club hosts yet.</p>
+          <p className="text-zinc-500 text-xs mt-1">Go to a club's members panel and set someone's role to Host.</p>
+          <Link href="/admin/clubs" className="inline-block mt-4 text-xs bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-xl font-semibold transition-colors">Go to Clubs</Link>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {hosts.map(host => (
+            <div key={host.userId} className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5 flex items-start gap-4">
+              <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0 mt-0.5"
+                style={{ backgroundColor: host.user.color }}>
+                {getInitials(host.user.name)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-bold text-white text-sm truncate">{host.user.name}</div>
+                <div className="text-xs text-zinc-500 truncate">{host.user.email}</div>
+                <div className="flex items-center gap-3 my-1.5">
+                  <span className="text-xs text-zinc-400">🗓 <strong className="text-white">{host.eventCount}</strong> events</span>
+                  <span className="text-xs text-zinc-400">👥 <strong className="text-white">{host.totalAttendees}</strong> attendees</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {host.clubs.map(club => (
+                    <span key={club.id} className="inline-flex items-center gap-1 px-2 py-0.5 bg-zinc-800 rounded-lg text-xs text-amber-400 font-medium border border-zinc-700">
+                      {club.emoji} {club.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <Link href={`/admin/users/${host.userId}`}
+                className="text-xs px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 transition-colors font-semibold shrink-0">
+                View
+              </Link>
+            </div>
+          ))}
         </div>
       )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {hostList.map((host) => (
-          <HostDetailCard
-            key={host.id}
-            host={host}
-            hostedEvents={events.filter((e) => e.hostId === host.id)}
-            status={statuses[host.id]}
-            onToggle={() => toggleStatus(host.id)}
-            onEdit={() => showToast('Edit host — coming soon')}
-          />
-        ))}
-      </div>
     </div>
   )
 }

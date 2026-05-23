@@ -1,0 +1,47 @@
+{
+  "tagline": "A busy European side transit and business hub — the junction of the M2 metro and TEM highway, surrounded by offices and growing commercial activity.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Zorlu Center Cafés",
+          "description": "The premium Zorlu Center retail and cultural complex has excellent café options in a modern architectural setting.",
+          "address": "Zorlu Center, Beşiktaş/Zincirlikuyu",
+          "badge": "Smileys Pick"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Zorlu Center Restaurants",
+          "description": "A curated selection of quality restaurants in the Zorlu Center complex. Istanbul's best upscale mall dining.",
+          "address": "Zorlu Center, Zincirlikuyu",
+          "badge": "Must Visit"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Zorlu Center (PSM Performing Arts)",
+          "description": "Istanbul's premier performing arts venue with world-class concerts, theatre, and dance. Check the programme — Istanbul's answer to Lincoln Center.",
+          "address": "Zorlu Center, Beşiktaş",
+          "badge": "Smileys Pick"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Gayrettepe is on the M2 metro line — excellent connections to the city centre.",
+    "Primarily a transit and business district. Zorlu Center is the main cultural and retail draw.",
+    "Zincirlikuyu metro (nearby) also connects to the E-5 highway buses for other districts.",
+    "Better for a concert or business meeting than a leisure day — head to Nişantaşı or Bomonti for that."
+  ]
+}

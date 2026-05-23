@@ -1,0 +1,41 @@
+{
+  "tagline": "A forested northern suburb popular with affluent Istanbul families — large villas, equestrian centres, and a complete retreat from urban life.",
+  "places": [
+    {
+      "category": "Coffee & Breakfast",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Zekeriyaköy Kahvaltı Bahçeleri",
+          "description": "Garden breakfast spots and cafés in this leafy village popular on weekend mornings with families from across Istanbul.",
+          "address": "Zekeriyaköy, Sarıyer",
+          "badge": "Smileys Pick",
+          "tip": "Weekend brunch here is a popular Istanbul ritual. Book ahead for garden restaurants on Sundays."
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Ormanlı Yürüyüş Parkurları",
+          "description": "Walking trails through the Belgrad Forest and surrounding woodland. Good for a proper forest escape near the city.",
+          "address": "Zekeriyaköy, Sarıyer",
+          "badge": "Smileys Pick"
+        },
+        {
+          "name": "Atlı Spor Kulüpleri",
+          "description": "Several equestrian clubs in the area offering riding lessons and facilities. Popular with families in the area.",
+          "address": "Zekeriyaköy, Sarıyer"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Zekeriyaköy is only accessible by car or taxi from Sarıyer metro. No direct public transport.",
+    "Best for weekend brunch or a forest walk — not a practical daily location without a car.",
+    "Housing is large villas rather than apartments. Very family-oriented and affluent.",
+    "Belgrad Forest (Istanbul's main forest park) is accessible from here by car."
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "tagline": "A breezy, upscale Asian side waterfront — beach clubs, Bağdat Avenue, and a relaxed affluent local scene.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Suadiye Sahil Cafés",
+          "description": "Waterfront cafés along the Suadiye coast with Marmara views. Popular with the local professional crowd on weekday mornings.",
+          "address": "Suadiye Sahili, Kadıköy",
+          "badge": "Smileys Pick"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Bağdat Caddesi Restoranları",
+          "description": "Suadiye's stretch of Bağdat Avenue has excellent independent restaurants — slightly less crowded than the Caddebostan section.",
+          "address": "Bağdat Cad., Suadiye, Kadıköy",
+          "badge": "Must Visit"
+        },
+        {
+          "name": "Sahil Balık Restoranları",
+          "description": "Waterfront fish restaurants with sea views and fresh Marmara catch. Good quality at honest prices.",
+          "address": "Suadiye Sahili, Kadıköy"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Suadiye Plajı",
+          "description": "A pleasant public beach popular with local families and young Istanbulites in summer. Clean and well-maintained.",
+          "address": "Suadiye Sahili, Kadıköy",
+          "tip": "Weekday mornings are much more relaxed. Summer weekends get busy from about 11am onwards."
+        },
+        {
+          "name": "Bağdat Caddesi Walk",
+          "description": "Istanbul's grand Asian side boulevard — tree-lined, bustling with cafés and boutiques. Walk the Suadiye section for a more residential feel than Caddebostan.",
+          "address": "Bağdat Cad., Kadıköy"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Suadiye is on the metro (M4 line, Bostancı stop nearby) and easily reached from Kadıköy by bus or dolmuş.",
+    "More upscale and residential than neighbouring Caddebostan. Quieter and less touristy.",
+    "Bağdat Caddesi runs the full length — it's best explored on foot or by bicycle.",
+    "The waterfront promenade connects Fenerbahçe, Caddebostan, Suadiye, and Bostancı in one long walk."
+  ]
+}

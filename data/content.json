@@ -1,0 +1,101 @@
+{
+  "stats": [
+    { "value": "4,000+", "label": "Members" },
+    { "value": "500+",   "label": "Events hosted" },
+    { "value": "70+",    "label": "Active clubs" },
+    { "value": "Weekly", "label": "Curated events" }
+  ],
+  "home": {
+    "headline": "Find your people in Istanbul.",
+    "subtitle": "From social dinners to sailing trips and neighbourhood clubs, Smileys brings people together through curated experiences and lasting friendships."
+  },
+  "about": {
+    "headline": "Istanbul's curated social community",
+    "subtitle": "We bring together curious, open-minded people through handpicked events, interest-based clubs, and a community that actually feels like one.",
+    "story_p1": "Smileys started from a frustration most people moving to Istanbul share: the city is magnificent, full of energy and culture — but breaking into it socially is surprisingly hard. Existing expat groups felt impersonal. Dating apps weren't the answer. And showing up to a random \"networking event\" felt like the opposite of fun.",
+    "story_p2": "We built Smileys to fix that. Not another app where you swipe through strangers, but a real community where every face you see at an event has been thoughtfully welcomed. Where the host knows your name. Where the guest list is balanced, the venue is handpicked, and the atmosphere is warm from the moment you walk in.",
+    "story_p3": "Istanbul deserves a social scene that matches its character — vibrant, layered, and genuinely welcoming. That's what we're building, one event at a time."
+  },
+  "why": {
+    "headline": "Istanbul can feel crowded — and still lonely.",
+    "tagline": "A curated real-life social ecosystem for globally minded people in Istanbul.",
+    "subtitle": "Thousands of people arrive here every month looking for connection, friendship, and a circle they actually belong to. But most platforms feel random, transactional, or exhausting.",
+    "closing": "Smileys was built to change that."
+  },
+  "get_involved": {
+    "headline": "Help build the community you want to be part of",
+    "subtitle": "Smileys is shaped by its members. The best events, the most active clubs, the warmest atmosphere — they all start with someone deciding to show up and contribute."
+  },
+  "advertise": {
+    "headline": "Reach Istanbul's most engaged internationals",
+    "subtitle": "Smileys is a curated community of expats and global professionals actively building their life in Istanbul. Advertise where trust is already built in."
+  },
+  "week": [
+    { "day": "Monday",    "short": "MON", "emoji": "🎬", "event": "Movie Night",                         "desc": "A carefully picked film, good company, and conversations that continue long after the credits roll." },
+    { "day": "Tuesday",   "short": "TUE", "emoji": "🇫🇷", "event": "French Meetup",                       "desc": "Practice your French, meet fellow language lovers, or start from zero — bonne ambiance garantie." },
+    { "day": "Wednesday", "short": "WED", "emoji": "🎉", "event": "Let's Get Social",                    "desc": "The signature midweek gathering. New faces, familiar faces, spontaneous conversations, and the kind of evenings that never feel forced." },
+    { "day": "Thursday",  "short": "THU", "emoji": "🇹🇷", "event": "Turkish Language & Culture",         "desc": "Learn the language, understand the culture, and experience the city through locals and fellow learners." },
+    { "day": "Friday",    "short": "FRI", "emoji": "🎮", "event": "Game Night & Club Night",              "desc": "Board games, social games, laughter, and late-night energy. Friday nights belong to Smileys." },
+    { "day": "Saturday",  "short": "SAT", "emoji": "📸", "event": "Photowalk & Picnic",                  "desc": "Discover hidden corners of the city, capture moments together, then slow down with a relaxed picnic outdoors." },
+    { "day": "Sunday",    "short": "SUN", "emoji": "🥞", "event": "Brunch, Meditation, Hiking & Sailing","desc": "Slow mornings, long brunch tables, trails in nature, breathwork sessions, island hikes, or a day out on the sea. The perfect reset before a new week begins." }
+  ],
+  "faq": [
+    {
+      "id": "getting-started", "icon": "🚀", "title": "Getting Started",
+      "items": [
+        { "q": "What is Smileys Community?", "a": "Smileys is an application-based social community in Istanbul. We bring together expats, locals, and globally-minded people through curated events, interest-based clubs, and genuine connections — across neighbourhoods on both sides of the city." },
+        { "q": "Who can join?", "a": "Anyone living in or frequently visiting Istanbul who is open-minded, social, and looking to build real connections. We welcome all nationalities, backgrounds, and lifestyles. The one requirement is that you apply and are approved by our team." },
+        { "q": "Is Smileys free to join?", "a": "Applying is completely free. Some events have a ticket price to cover venue or activity costs, but membership itself has no monthly fee." },
+        { "q": "How long does approval take?", "a": "Most applications are reviewed within 2–5 business days. You will receive an email once a decision has been made. During busy periods it may take a little longer." }
+      ]
+    },
+    {
+      "id": "applications", "icon": "📋", "title": "Applications",
+      "items": [
+        { "q": "How do I apply?", "a": "Fill in the application form at smileyscommunity.com/apply. It takes about 5 minutes. Tell us about yourself, why you are in Istanbul, and what you are looking for in a community." },
+        { "q": "What happens after I apply?", "a": "Our team personally reviews every application. If approved, you will receive a welcome email with a link to activate your account. If we need more information, we may reach out before making a decision." },
+        { "q": "Why was my application declined?", "a": "We review each application holistically. Common reasons include incomplete answers, a profile that does not seem like a good fit for the current community dynamic, or capacity limits. We do not share specific reasons to protect the integrity of the process." },
+        { "q": "Can I reapply after being declined?", "a": "Yes. You are welcome to reapply after 3 months. If your circumstances have changed or you would like to provide more context, a stronger application will always be considered." },
+        { "q": "My account was suspended. How do I appeal?", "a": "Submit an appeal at smileyscommunity.com/appeal. Explain your situation and our team will review it. Appeals are typically resolved within 5 business days." }
+      ]
+    },
+    {
+      "id": "events", "icon": "🎉", "title": "Events",
+      "items": [
+        { "q": "How do I RSVP to an event?", "a": "Browse upcoming events at smileyscommunity.com/events and click Join on any event that interests you. If the event requires approval, your request will be reviewed by the host." },
+        { "q": "What does \"approval required\" mean?", "a": "Some events are curated and require your request to be manually approved before your spot is confirmed. You will receive a notification once the host reviews your request. Your spot is only confirmed when you see \"Approved\" status." },
+        { "q": "What is the waitlist?", "a": "When an event is full, you will automatically be added to the waitlist. If a spot opens up because someone cancels, the first person on the waitlist is automatically promoted and notified." },
+        { "q": "How do I cancel my RSVP?", "a": "Go to the event page and click Cancel. Please cancel as early as possible so your spot can go to someone on the waitlist. Repeated last-minute cancellations may affect your standing." },
+        { "q": "Are events gender-balanced?", "a": "Many Smileys events use gender balancing to create a comfortable social dynamic. When spots for one gender are full, additional applicants are added to the waitlist while spots for the other gender may still be available." },
+        { "q": "Can I bring a guest?", "a": "Smileys events are for members only unless the event listing specifically states that guests are welcome. This keeps the community feel intact and ensures every attendee has been vetted." },
+        { "q": "Do I need to pay to attend events?", "a": "Some events are free, others have a ticket price to cover the venue, food, or activity. The price is always shown clearly on the event page before you RSVP." }
+      ]
+    },
+    {
+      "id": "clubs", "icon": "🏛️", "title": "Clubs",
+      "items": [
+        { "q": "What are clubs?", "a": "Clubs are ongoing interest groups within Smileys — think hiking, photography, dining, language exchange, and more. Each club has its own wall for discussion, a host who organises activities, and a dedicated group of members." },
+        { "q": "How do I join a club?", "a": "Browse clubs at smileyscommunity.com/clubs and click Join. Some clubs are open, others require host approval." },
+        { "q": "Can I start my own club?", "a": "Yes. If you have a passion or hobby you would like to build a group around, reach out to us via the Contact page. We will review the idea and set you up as a host if it is a good fit for the community." },
+        { "q": "What can I post on a club wall?", "a": "Club walls are for sharing updates, organising meetups, asking questions, and keeping the conversation going between events. Polls, pinned announcements, and reactions are all supported." }
+      ]
+    },
+    {
+      "id": "account", "icon": "👤", "title": "Account & Profile",
+      "items": [
+        { "q": "How do I update my profile?", "a": "Go to smileyscommunity.com/profile to update your photo, bio, neighbourhood, interests, and contact details." },
+        { "q": "How do I change my password?", "a": "Go to your Profile page and scroll to the Change password section. You will need to enter your current password to set a new one." },
+        { "q": "How do I change my email address?", "a": "Go to your Profile page, find the Email address section, enter your new email and confirm with your current password. A verification email will be sent to the new address." },
+        { "q": "I forgot my password. What do I do?", "a": "Go to smileyscommunity.com/forgot-password and enter your email. We will send you a reset link valid for 24 hours." },
+        { "q": "How do I delete my account?", "a": "Please contact us via the Contact page with your request. Account deletion is permanent and removes all your data, event history, and club memberships." }
+      ]
+    },
+    {
+      "id": "safety", "icon": "🛡️", "title": "Community & Safety",
+      "items": [
+        { "q": "What are the community guidelines?", "a": "Smileys is built on respect, inclusivity, and genuine connection. We do not tolerate harassment, discrimination, spamming, or any behaviour that makes others feel unsafe or unwelcome. Violation of these principles can result in removal from the community." },
+        { "q": "How do I report a member?", "a": "You can report a member from their profile page. Select the reason, add any relevant context, and our moderation team will review it promptly. All reports are confidential." }
+      ]
+    }
+  ]
+}

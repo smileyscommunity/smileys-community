@@ -1,0 +1,104 @@
+{
+  "tagline": "Istanbul's cultural and entertainment backbone — İstiklal Caddesi, rooftop bars, live music venues, galleries, and the city's best nightlife.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Kıraathane İstanbul",
+          "description": "A beautifully restored historic reading room turned café and cultural space. Stunning interior, excellent coffee, rotating art exhibitions.",
+          "address": "Şahkulu Mah., Beyoğlu",
+          "badge": "Smileys Pick"
+        },
+        {
+          "name": "Kahve Dünyası (İstiklal)",
+          "description": "A Turkish coffee chain done right. The İstiklal branch is conveniently placed for a mid-walk stop.",
+          "address": "İstiklal Cad., Beyoğlu"
+        },
+        {
+          "name": "Gramofon Café",
+          "description": "A cosy café near Tünel with live music on weekends and an eclectic crowd of artists and regulars.",
+          "address": "Tünel Meydanı, Beyoğlu"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Asri Turşucu",
+          "description": "A legendary pickle and meze shop that's been here for over a century. The turşu suyu (pickle juice) is an acquired taste that locals swear by.",
+          "address": "İstiklal Cad. No:67, Beyoğlu",
+          "badge": "Since 1913"
+        },
+        {
+          "name": "Boncuk Restaurant",
+          "description": "A long-standing Armenian-influenced meyhane in Çiçek Pasajı area. Excellent mezes, warm atmosphere, very local crowd.",
+          "address": "Nevizade Sokak, Beyoğlu",
+          "tip": "Nevizade Sokak (off İstiklal) is worth visiting for the street atmosphere alone — lined with meyhanes."
+        },
+        {
+          "name": "Zübeyir Ocakbaşı",
+          "description": "One of the city's best charcoal grill restaurants. The Adana kebap and lamb ribs are outstanding. Book ahead.",
+          "address": "Bekar Sokak No:28, Beyoğlu",
+          "badge": "Must Visit",
+          "tip": "Dinner only. The open charcoal grill is a great experience — ask to sit near it."
+        }
+      ]
+    },
+    {
+      "category": "Bars & Nightlife",
+      "emoji": "🎵",
+      "items": [
+        {
+          "name": "360 İstanbul",
+          "description": "Rooftop bar and restaurant with a 360° panoramic view of Istanbul. Spectacular at night. Book well ahead.",
+          "address": "İstiklal Cad. No:163, Beyoğlu",
+          "badge": "Smileys Pick",
+          "tip": "The view from the rooftop at night is genuinely one of the best in the city. Worth the reservation effort."
+        },
+        {
+          "name": "Nevizade Sokak",
+          "description": "A pedestrian alley off İstiklal packed with meyhanes, live music bars, and tables spilling onto the street. The heart of Beyoğlu nightlife.",
+          "address": "Nevizade Sokak, Beyoğlu"
+        },
+        {
+          "name": "Salon İKSV",
+          "description": "Istanbul's premier live music and performance venue. Excellent programming — international and Turkish artists.",
+          "address": "Sadi Konuralp Cad. No:5, Şişhane"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "İstiklal Caddesi",
+          "description": "Istanbul's most famous pedestrian boulevard. 1.4km of shops, cafés, galleries, churches, and street life. The nostalgic red tram runs its length.",
+          "address": "İstiklal Cad., Beyoğlu",
+          "tip": "Weekday mornings are far more pleasant than weekend afternoons. The side streets off İstiklal are where the real Beyoğlu lives."
+        },
+        {
+          "name": "Pera Museum",
+          "description": "An outstanding private museum with excellent Turkish and international art. The Orientalist painting collection is world-class.",
+          "address": "Meşrutiyet Cad. No:65, Beyoğlu",
+          "badge": "Must Visit"
+        },
+        {
+          "name": "Çiçek Pasajı",
+          "description": "A 19th-century covered flower market turned bar-restaurant arcade. Atmospheric, lively, and touristy in the best way.",
+          "address": "İstiklal Cad., Beyoğlu"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "İstiklal Caddesi is pedestrian-only. The Tünel funicular connects the bottom (Karaköy) to the top in 90 seconds.",
+    "The side streets off İstiklal — Nevizade, Bekar, Balo — are where the best restaurants and bars hide.",
+    "Avoid the main drag on Saturday evenings unless you like large crowds. The parallel streets are always less busy.",
+    "The F2 nostalgic tram on İstiklal is slow but charming — great for photos, not great if you're in a hurry."
+  ]
+}

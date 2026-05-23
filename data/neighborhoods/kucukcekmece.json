@@ -1,0 +1,34 @@
+{
+  "tagline": "A lakeside suburban district between the airport and the city centre — more affordable than central Istanbul with a growing residential community.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Küçükçekmece Gölü Sahil Kafeler",
+          "description": "Cafés along the lake shore with views of the water. A pleasant enough local scene.",
+          "address": "Küçükçekmece, İstanbul",
+          "badge": "Smileys Pick"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Küçükçekmece Gölü",
+          "description": "A large lake near the airport with walking paths and waterfront cafés. Popular with local residents.",
+          "address": "Küçükçekmece, İstanbul"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Küçükçekmece is on the M1A metro line — about 30 minutes from the city centre.",
+    "Primarily residential and functional. The lake is the main point of interest.",
+    "More affordable housing than areas closer to the centre.",
+    "Good transport connections to the airport and western Istanbul."
+  ]
+}

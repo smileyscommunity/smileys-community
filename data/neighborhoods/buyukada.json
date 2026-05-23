@@ -1,0 +1,73 @@
+{
+  "tagline": "The largest of the Princes' Islands — no cars, horse-drawn carriages, Victorian mansions, and the most beautiful escape from Istanbul.",
+  "places": [
+    {
+      "category": "Coffee & Breakfast",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Yücetepe Kır Gazinosu",
+          "description": "A historic garden café near the top of the island with views across the Sea of Marmara. Worth the uphill walk or carriage ride.",
+          "address": "Büyükada, Adalar",
+          "badge": "Smileys Pick",
+          "tip": "Order the island breakfast and take your time. There is genuinely no rush on Büyükada."
+        },
+        {
+          "name": "İskele Meydanı Kafeler",
+          "description": "Cafés and tea houses right at the ferry landing with views of arriving boats and the island's Victorian mansions. Perfect for the first coffee of the day.",
+          "address": "Büyükada İskelesi, Adalar"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Büyükada Balık Restoranları",
+          "description": "Several excellent fish restaurants near the harbour serving fresh Marmara catch. The setting — sea air, no cars, the sound of horse carriages — is unlike anywhere else.",
+          "address": "Büyükada Limanı, Adalar",
+          "badge": "Must Visit"
+        },
+        {
+          "name": "Ada Pastaneleri",
+          "description": "The island has wonderful traditional pastry shops selling island-style börek, gözleme, and sweets. Perfect for a picnic on the hills.",
+          "address": "Büyükada Çarşısı, Adalar",
+          "tip": "Buy your picnic supplies at the bazaar near the ferry landing before heading up the hills."
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Cycling the Island",
+          "description": "Rent a bicycle at the ferry landing and cycle the perimeter road — one of the great simple pleasures of Istanbul. No cars anywhere.",
+          "address": "Büyükada İskelesi, Adalar",
+          "badge": "Must Do",
+          "tip": "The full perimeter takes about 90 minutes at a relaxed pace. The south coast has the best views."
+        },
+        {
+          "name": "Aya Yorgi Kilisesi",
+          "description": "A Greek Orthodox monastery at the top of the island's highest hill with extraordinary views. A peaceful pilgrimage for any faith.",
+          "address": "Yücetepe, Büyükada",
+          "badge": "Smileys Pick",
+          "tip": "Walk up or take a horse carriage. Many visitors tie a string along the path up — a traditional wish-making custom."
+        },
+        {
+          "name": "Victorian Mansion Walk",
+          "description": "The streets above the ferry landing are lined with ornate 19th-century wooden mansions — Istanbul's finest collection. Just walk and look.",
+          "address": "Büyükada Çarşısı, Adalar",
+          "badge": "Hidden Gem"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Ferry from Kabataş (45 min) or Bostancı (30 min). Fast ferries also run from Kadıköy. Check İDO and Şehir Hatları for timetables.",
+    "There are NO cars on the island — only horse carriages, bicycles, and your own feet. Plan accordingly.",
+    "Go on a weekday in spring or autumn. Summer weekends are extremely crowded and the ferry queues can be long.",
+    "Bring cash — many small vendors, carriage drivers, and restaurants don't accept cards."
+  ]
+}

@@ -1,0 +1,340 @@
+'use client'
+
+import { toast } from 'sonner'
+
+import { useState, useEffect } from 'react'
+import Link from 'next/link'
+import { formatShortDate } from '@/lib/data'
+import UserAvatar from '@/components/UserAvatar'
+
+interface User {
+  id: string; name: string; color: string; email: string; profilePhoto?: string | null
+}
+interface EventRef {
+  id: string; title: string; date: string; emoji: string
+}
+interface Attendee {
+  userId: string; eventId: string; status: string; checkedIn: boolean; joinedAt: string
+  user: User; event: EventRef
+}
+interface WaitlistEntry {
+  id: string; userId: string; eventId: string; createdAt: string
+  user: User; event: EventRef
+}
+
+export default function AdminParticipantsPage() {
+  const [attendees,   setAttendees]   = useState<Attendee[]>([])
+  const [waitlist,    setWaitlist]    = useState<WaitlistEntry[]>([])
+  const [loading,     setLoading]     = useState(true)
+  const [tab,         setTab]         = useState<'pending' | 'approved' | 'waitlist'>('pending')
+  const [selected,    setSelected]    = useState<Set<string>>(new Set())
+  const [bulkSaving,  setBulkSaving]  = useState(false)
+
+  useEffect(() => { load() }, [])
+
+  async function load() {
+    setLoading(true)
+    const res = await fetch('/app/api/admin/participants', { credentials: 'include' })
+    if (res.ok) {
+      const data = await res.json()
+      setAttendees(Array.isArray(data.attendees) ? data.attendees : [])
+      setWaitlist(Array.isArray(data.waitlist) ? data.waitlist : [])
+    }
+    setLoading(false)
+  }
+
+  async function approve(userId: string, eventId: string) {
+    const res = await fetch(`/app/api/admin/events/${eventId}/participants`, {
+      method: 'PATCH', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, action: 'approve' }),
+    })
+    if (res.ok) {
+      setAttendees(prev => prev.map(a =>
+        a.userId === userId && a.eventId === eventId ? { ...a, status: 'approved' } : a
+      ))
+      toast.success('Approved ✓')
+    }
+  }
+
+  async function reject(userId: string, eventId: string) {
+    if (!confirm('Reject this request?')) return
+    const res = await fetch(`/app/api/admin/events/${eventId}/participants`, {
+      method: 'PATCH', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, action: 'reject' }),
+    })
+    if (res.ok) {
+      setAttendees(prev => prev.filter(a => !(a.userId === userId && a.eventId === eventId)))
+      toast('Rejected')
+    }
+  }
+
+  async function remove(userId: string, eventId: string) {
+    if (!confirm('Remove this attendee from the event?')) return
+    const res = await fetch(`/app/api/admin/events/${eventId}/participants`, {
+      method: 'DELETE', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, type: 'attendee' }),
+    })
+    if (res.ok) {
+      setAttendees(prev => prev.filter(a => !(a.userId === userId && a.eventId === eventId)))
+      toast('Removed')
+    }
+  }
+
+  async function promoteWaitlist(entry: WaitlistEntry) {
+    const res = await fetch(`/app/api/admin/events/${entry.eventId}/participants`, {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: entry.userId }),
+    })
+    if (res.ok) {
+      setWaitlist(prev => prev.filter(w => !(w.userId === entry.userId && w.eventId === entry.eventId)))
+      const newAttendee: Attendee = {
+        userId: entry.userId, eventId: entry.eventId, status: 'approved',
+        checkedIn: false, joinedAt: new Date().toISOString(),
+        user: entry.user, event: entry.event,
+      }
+      setAttendees(prev => [...prev, newAttendee])
+      toast.success(`${entry.user.name} approved ✓`)
+    }
+  }
+
+  function rowKey(a: { userId: string; eventId: string }) { return `${a.userId}-${a.eventId}` }
+
+  function toggleSelect(key: string) {
+    setSelected(prev => { const s = new Set(prev); s.has(key) ? s.delete(key) : s.add(key); return s })
+  }
+
+  async function bulkApprove() {
+    setBulkSaving(true)
+    const targets = pending.filter(a => selected.has(rowKey(a)))
+    await Promise.all(targets.map(a =>
+      fetch(`/app/api/admin/events/${a.eventId}/participants`, {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: a.userId, action: 'approve' }),
+      })
+    ))
+    const keys = new Set(targets.map(rowKey))
+    setAttendees(prev => prev.map(a => keys.has(rowKey(a)) ? { ...a, status: 'approved' } : a))
+    setSelected(new Set())
+    setBulkSaving(false)
+    toast.success(`${targets.length} approved ✓`)
+  }
+
+  async function bulkReject() {
+    setBulkSaving(true)
+    const targets = pending.filter(a => selected.has(rowKey(a)))
+    await Promise.all(targets.map(a =>
+      fetch(`/app/api/admin/events/${a.eventId}/participants`, {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: a.userId, action: 'reject' }),
+      })
+    ))
+    const keys = new Set(targets.map(rowKey))
+    setAttendees(prev => prev.filter(a => !keys.has(rowKey(a))))
+    setSelected(new Set())
+    setBulkSaving(false)
+    toast(`${targets.length} rejected`)
+  }
+
+  const pending  = attendees.filter(a => a.status === 'pending')
+  const approved = attendees.filter(a => a.status === 'approved')
+
+  return (
+    <div className="p-4 sm:p-6 space-y-6">
+
+      <div>
+        <h1 className="text-2xl font-extrabold text-white tracking-tight">Participants</h1>
+        <p className="text-sm text-zinc-400 mt-0.5">All event join requests across every event</p>
+      </div>
+
+      {loading ? (
+        <div className="text-zinc-500 text-sm text-center py-16">Loading…</div>
+      ) : (
+        <>
+          {/* Stats */}
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: 'Pending',  value: pending.length,  color: pending.length > 0 ? 'text-amber-400' : 'text-white' },
+              { label: 'Approved', value: approved.length, color: 'text-green-400' },
+              { label: 'Waitlist', value: waitlist.length, color: waitlist.length > 0 ? 'text-violet-400' : 'text-white' },
+            ].map(s => (
+              <div key={s.label} className="bg-zinc-900 rounded-xl border border-zinc-800 p-4 text-center">
+                <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
+                <div className="text-xs text-zinc-500 mt-0.5">{s.label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Tabs */}
+          <div className="flex gap-1 bg-zinc-800 rounded-xl p-1 w-fit">
+            {([
+              { key: 'pending',  label: `Pending (${pending.length})` },
+              { key: 'approved', label: `Approved (${approved.length})` },
+              { key: 'waitlist', label: `Waitlist (${waitlist.length})` },
+            ] as const).map(t => (
+              <button key={t.key} onClick={() => setTab(t.key)}
+                className={`px-4 py-2 rounded-lg text-xs font-semibold transition-colors ${tab === t.key ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-white'}`}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Pending */}
+          {tab === 'pending' && (
+            <>
+              {/* Bulk bar */}
+              {pending.length > 0 && (
+                <div className="flex items-center gap-3 px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-xl">
+                  <input
+                    type="checkbox"
+                    checked={selected.size === pending.length && pending.length > 0}
+                    onChange={() => setSelected(selected.size === pending.length ? new Set() : new Set(pending.map(rowKey)))}
+                    className="w-4 h-4 rounded accent-amber-500 shrink-0"
+                  />
+                  <span className="text-sm text-zinc-400">
+                    {selected.size > 0 ? <span className="font-semibold text-white">{selected.size} selected</span> : `Select all ${pending.length}`}
+                  </span>
+                  {selected.size > 0 && (
+                    <div className="flex gap-2 ml-auto">
+                      <button onClick={bulkApprove} disabled={bulkSaving}
+                        className="px-4 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-bold rounded-lg disabled:opacity-50">
+                        {bulkSaving ? '…' : `✅ Approve ${selected.size}`}
+                      </button>
+                      <button onClick={bulkReject} disabled={bulkSaving}
+                        className="px-4 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold rounded-lg disabled:opacity-50">
+                        {bulkSaving ? '…' : `❌ Reject ${selected.size}`}
+                      </button>
+                      <button onClick={() => setSelected(new Set())} className="px-3 py-1.5 text-xs text-zinc-400 hover:text-white">Cancel</button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
+                {pending.length === 0 ? (
+                  <div className="py-16 text-center">
+                    <div className="text-4xl mb-3">✅</div>
+                    <p className="text-zinc-400 font-medium">No pending requests</p>
+                    <p className="text-zinc-600 text-sm mt-1">All caught up!</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-zinc-800">
+                    {pending.map(a => {
+                      const key = rowKey(a)
+                      return (
+                        <div key={key} className={`flex items-center gap-4 px-5 py-4 transition-colors ${selected.has(key) ? 'bg-amber-500/5' : 'hover:bg-zinc-800/40'}`}>
+                          <input type="checkbox" checked={selected.has(key)} onChange={() => toggleSelect(key)}
+                            className="w-4 h-4 rounded accent-amber-500 shrink-0" />
+                          <UserAvatar user={a.user} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-white truncate">{a.user.name}</p>
+                            <p className="text-xs text-zinc-500 truncate">{a.user.email}</p>
+                          </div>
+                          <div className="hidden sm:block min-w-0 flex-1">
+                            <Link href={`/admin/events/${a.eventId}/participants`}
+                              className="text-sm text-zinc-300 hover:text-amber-400 transition-colors truncate flex items-center gap-1.5">
+                              <span>{a.event.emoji}</span>
+                              <span className="truncate">{a.event.title}</span>
+                            </Link>
+                            <p className="text-xs text-zinc-600 mt-0.5">{formatShortDate(a.event.date)}</p>
+                          </div>
+                          <div className="flex gap-2 shrink-0">
+                            <button onClick={() => approve(a.userId, a.eventId)}
+                              className="px-3 py-2 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 text-xs font-semibold transition-colors">
+                              Approve
+                            </button>
+                            <button onClick={() => reject(a.userId, a.eventId)}
+                              className="px-3 py-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 text-xs font-semibold transition-colors">
+                              Reject
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* Approved */}
+          {tab === 'approved' && (
+            <div className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
+              {approved.length === 0 ? (
+                <div className="py-14 text-center text-zinc-500 text-sm">No approved attendees yet.</div>
+              ) : (
+                <div className="divide-y divide-zinc-800">
+                  {approved.map(a => (
+                    <div key={`${a.userId}-${a.eventId}`} className="flex items-center gap-4 px-5 py-4 hover:bg-zinc-800/40 transition-colors">
+                      <UserAvatar user={a.user} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-white truncate">{a.user.name}</p>
+                        <p className="text-xs text-zinc-500 truncate">{a.user.email}</p>
+                      </div>
+                      <div className="hidden sm:block min-w-0 flex-1">
+                        <Link href={`/admin/events/${a.eventId}/participants`}
+                          className="text-sm text-zinc-300 hover:text-amber-400 transition-colors truncate flex items-center gap-1.5">
+                          <span>{a.event.emoji}</span>
+                          <span className="truncate">{a.event.title}</span>
+                        </Link>
+                        <p className="text-xs text-zinc-600 mt-0.5">{formatShortDate(a.event.date)}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {a.checkedIn && (
+                          <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-green-500/10 text-green-400">Checked in</span>
+                        )}
+                        <button onClick={() => remove(a.userId, a.eventId)}
+                          className="px-3 py-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 text-xs font-semibold transition-colors">
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Waitlist */}
+          {tab === 'waitlist' && (
+            <div className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
+              {waitlist.length === 0 ? (
+                <div className="py-14 text-center text-zinc-500 text-sm">No one on the waitlist.</div>
+              ) : (
+                <div className="divide-y divide-zinc-800">
+                  {waitlist.map((w, i) => (
+                    <div key={`${w.userId}-${w.eventId}`} className="flex items-center gap-4 px-5 py-4 hover:bg-zinc-800/40 transition-colors">
+                      <span className="text-xs font-bold text-zinc-600 w-5 text-center shrink-0">{i + 1}</span>
+                      <UserAvatar user={w.user} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-white truncate">{w.user.name}</p>
+                        <p className="text-xs text-zinc-500 truncate">{w.user.email}</p>
+                      </div>
+                      <div className="hidden sm:block min-w-0 flex-1">
+                        <Link href={`/admin/events/${w.eventId}/participants`}
+                          className="text-sm text-zinc-300 hover:text-amber-400 transition-colors truncate flex items-center gap-1.5">
+                          <span>{w.event.emoji}</span>
+                          <span className="truncate">{w.event.title}</span>
+                        </Link>
+                        <p className="text-xs text-zinc-600 mt-0.5">{formatShortDate(w.event.date)}</p>
+                      </div>
+                      <button onClick={() => promoteWaitlist(w)}
+                        className="px-3 py-2 rounded-lg bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 text-xs font-semibold transition-colors shrink-0">
+                        Approve
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}

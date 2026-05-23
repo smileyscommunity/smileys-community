@@ -1,0 +1,40 @@
+{
+  "tagline": "A traditional European side district famous for its leather and textile industries — functional rather than scenic, but home to excellent fabric markets.",
+  "places": [
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Zeytinburnu Lokantalari",
+          "description": "Honest, working-class lokanta restaurants serving traditional Turkish food at very low prices. Popular with factory and market workers.",
+          "address": "Zeytinburnu, İstanbul",
+          "badge": "Hidden Gem"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Zeytinburnu Deri Piyasası",
+          "description": "A large leather goods market with wholesale and retail leather products. One of Istanbul's main leather trade centres.",
+          "address": "Zeytinburnu, İstanbul"
+        },
+        {
+          "name": "Yedikule Hisarları",
+          "description": "The Fortress of the Seven Towers — a Byzantine-Ottoman fortification at the end of the Theodosian Walls. Worth visiting for history enthusiasts.",
+          "address": "Yedikule, Zeytinburnu",
+          "badge": "Smileys Pick"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Zeytinburnu is on the T1 tram line — easily accessible from the city centre.",
+    "Come for the leather market or Yedikule fortress, not for dining or cafés.",
+    "The Theodosian city walls run through this area — walk a section for a perspective on Byzantine Istanbul.",
+    "Bakırköy (two tram stops west) is a much better area for leisure and dining."
+  ]
+}

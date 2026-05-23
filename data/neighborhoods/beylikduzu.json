@@ -1,0 +1,61 @@
+{
+  "tagline": "A fast-growing modern district on the far European shore — affordable, family-oriented, and further from the centre than it might seem.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Migros AVM Kafeler",
+          "description": "The Migros mall complex has multiple café options — the most reliable stop for coffee in the area.",
+          "address": "Beylikdüzü, İstanbul"
+        },
+        {
+          "name": "Sahil Cafés (Büyükçekmece)",
+          "description": "The nearby Büyükçekmece lake and coastline have pleasant waterfront cafés popular with local families on weekends.",
+          "address": "Büyükçekmece, İstanbul",
+          "badge": "Smileys Pick"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Beylikdüzü Sahil Restoranları",
+          "description": "Restaurants along the Sea of Marmara coast in Beylikdüzü. Very local crowd, good value, and sea views.",
+          "address": "Beylikdüzü Sahili, İstanbul"
+        },
+        {
+          "name": "Büyükçekmece Balık Restoranları",
+          "description": "A cluster of fish restaurants by the Büyükçekmece lake and bridge area. Fresh fish at very reasonable prices.",
+          "address": "Büyükçekmece, İstanbul",
+          "badge": "Hidden Gem"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Sahil Parkı",
+          "description": "A long coastal park along the Marmara Sea with walking paths and sea views. Popular with local families for weekend walks.",
+          "address": "Beylikdüzü Sahili, İstanbul"
+        },
+        {
+          "name": "Büyükçekmece Gölü",
+          "description": "A large saltwater lake near Beylikdüzü, surrounded by park areas and restaurants. A peaceful escape further from the city.",
+          "address": "Büyükçekmece, İstanbul"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Beylikdüzü is on the M3 metro line — but the journey to the city centre takes 45-60 minutes. Plan your time accordingly.",
+    "Primarily a residential suburb popular with families. Not a destination in itself but a comfortable and affordable place to live.",
+    "Much more affordable housing than central Istanbul — popular with families priced out of Bakırköy or Şişli.",
+    "The coastal area and Büyükçekmece lake are the main reasons to venture this far west."
+  ]
+}

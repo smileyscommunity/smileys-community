@@ -1,0 +1,34 @@
+{
+  "tagline": "A rapidly transforming European side district — formerly industrial, now a growing mix of tech offices, creative spaces, and new residential development.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Kağıthane Vadisi Kafeler",
+          "description": "A growing café scene in the valley area popular with the district's tech and creative workers.",
+          "address": "Kağıthane, İstanbul",
+          "badge": "Smileys Pick"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Kağıthane Vadisi",
+          "description": "A valley park being developed as a green corridor through the district. A pleasant walking area amid the urban development.",
+          "address": "Kağıthane, İstanbul"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Kağıthane is on the M7 metro line — good connection to Kabataş and the city centre.",
+    "The district is transforming fast — tech companies and creative agencies are relocating here for affordable office space.",
+    "Better for working or living than visiting — not a leisure destination yet.",
+    "The valley park development will eventually make this a more liveable neighbourhood."
+  ]
+}

@@ -1,199 +1,193 @@
 'use client'
 
-import { useState } from 'react'
-import { events, clubs, hosts, eventAttendees } from '@/lib/data'
-import { mockUsers } from '@/lib/auth'
+import { useState, useEffect } from 'react'
 
-const members = mockUsers.filter((u) => u.role === 'member')
+interface MonthPoint { label: string; count?: number; amount?: number }
+interface RankedEvent {
+  id: string; title: string; emoji: string; date: string
+  totalSpots: number; attended: number; fillPct: number; revenue: number
+}
+interface ClubStat {
+  id: string; name: string; emoji: string; bgColor: string
+  members: number; pastEvents: number; avgFill: number; revenue: number
+}
+interface ReportData {
+  summary: { totalMembers: number; totalPastEvents: number; avgFillRate: number; totalRevenue: number }
+  membersByMonth: MonthPoint[]
+  revenueByMonth: MonthPoint[]
+  rankedEvents: RankedEvent[]
+  clubStats: ClubStat[]
+}
 
-// Revenue per event (mock)
-const revenueByEvent = [
-  { id: '1', revenue: 1500 },
-  { id: '2', revenue: 1200 },
-  { id: '3', revenue: 0    },
-  { id: '4', revenue: 3750 },
-  { id: '5', revenue: 1440 },
-]
-
-// Monthly member growth (mock)
-const memberGrowth = [
-  { month: 'Nov', count: 8  },
-  { month: 'Dec', count: 14 },
-  { month: 'Jan', count: 22 },
-  { month: 'Feb', count: 31 },
-  { month: 'Mar', count: 47 },
-  { month: 'Apr', count: 56 },
-]
-
-// Attendance per event
-const attendanceData = events.map((e) => ({
-  id: e.id,
-  title: e.title,
-  emoji: e.emoji,
-  going: e.totalSpots - e.spotsLeft,
-  total: e.totalSpots,
-  pct: Math.round(((e.totalSpots - e.spotsLeft) / e.totalSpots) * 100),
-}))
-
-// Revenue per club
-const revenueByClub = clubs.map((club) => {
-  const clubEvents = events.filter((e) => e.clubId === club.id)
-  const total = clubEvents.reduce((sum, e) => {
-    const rv = revenueByEvent.find((r) => r.id === e.id)
-    return sum + (rv?.revenue ?? 0)
-  }, 0)
-  return { club, total }
-}).sort((a, b) => b.total - a.total)
-
-const maxRevenue = Math.max(...revenueByClub.map((r) => r.total), 1)
-const maxGrowth  = Math.max(...memberGrowth.map((m) => m.count), 1)
-
-// Vibe popularity
-const vibeCounts: Record<string, number> = {}
-events.forEach((e) => {
-  e.vibes.forEach((v) => { vibeCounts[v] = (vibeCounts[v] ?? 0) + (e.totalSpots - e.spotsLeft) })
-})
-const vibeData = Object.entries(vibeCounts).sort((a, b) => b[1] - a[1])
-const maxVibe  = Math.max(...vibeData.map(([, c]) => c), 1)
-
-const totalRevenue = revenueByEvent.reduce((s, r) => s + r.revenue, 0)
+function BarChart({ points, valueKey, color, prefix = '', suffix = '' }: {
+  points: MonthPoint[]
+  valueKey: 'count' | 'amount'
+  color: string
+  prefix?: string
+  suffix?: string
+}) {
+  const values = points.map(p => p[valueKey] ?? 0)
+  const max = Math.max(...values, 1)
+  return (
+    <div className="flex items-end gap-1.5 h-24">
+      {points.map((p, i) => {
+        const val = p[valueKey] ?? 0
+        const pct = (val / max) * 100
+        return (
+          <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative">
+            <div className="absolute -top-6 left-1/2 -translate-x-1/2 hidden group-hover:block text-xs text-white bg-zinc-700 px-1.5 py-0.5 rounded whitespace-nowrap z-10">
+              {prefix}{valueKey === 'amount' ? val.toLocaleString() : val}{suffix}
+            </div>
+            <div className="w-full rounded-t" style={{ height: `${Math.max(pct, 2)}%`, backgroundColor: color, opacity: val === 0 ? 0.2 : 1 }} />
+            <span className="text-[9px] text-zinc-600">{p.label}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 export default function AdminReportsPage() {
-  const [period, setPeriod] = useState<'month' | 'quarter' | 'all'>('month')
+  const [data,    setData]    = useState<ReportData | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch('/app/api/admin/reports', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setData(d))
+      .finally(() => setLoading(false))
+  }, [])
+
+  if (loading) return <div className="p-8 text-zinc-400 text-sm">Loading…</div>
+  if (!data)   return <div className="p-8 text-zinc-400 text-sm">Failed to load.</div>
+
+  const { summary, membersByMonth, revenueByMonth, rankedEvents, clubStats } = data
+  const maxClubRevenue = Math.max(...clubStats.map(c => c.revenue), 1)
 
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Reports</h1>
-          <p className="text-sm text-gray-500 mt-1">Community performance overview</p>
-        </div>
-        <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
-          {(['month', 'quarter', 'all'] as const).map((p) => (
-            <button
-              key={p}
-              onClick={() => setPeriod(p)}
-              className={`px-4 py-1.5 rounded-lg text-xs font-semibold capitalize transition-colors ${
-                period === p ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              {p === 'all' ? 'All time' : `This ${p}`}
-            </button>
-          ))}
-        </div>
+    <div className="p-4 sm:p-6 space-y-6">
+      <div>
+        <h1 className="text-2xl font-extrabold text-white tracking-tight">Analytics</h1>
+        <p className="text-sm text-zinc-500 mt-0.5">Historical performance — all time</p>
       </div>
 
-      {/* Top stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      {/* Summary */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Total Revenue',    value: `₺${totalRevenue.toLocaleString()}`, sub: '↑ 18% vs last month', color: 'text-green-600' },
-          { label: 'Total Attendees',  value: attendanceData.reduce((s, a) => s + a.going, 0), sub: 'Across all events', color: 'text-blue-600' },
-          { label: 'Avg. Fill Rate',   value: `${Math.round(attendanceData.reduce((s, a) => s + a.pct, 0) / attendanceData.length)}%`, sub: 'Event capacity used', color: 'text-amber-600' },
-          { label: 'Member Growth',    value: `+${memberGrowth[memberGrowth.length - 1].count - memberGrowth[memberGrowth.length - 2].count}`, sub: 'New members this month', color: 'text-violet-600' },
-        ].map((s) => (
-          <div key={s.label} className="bg-white rounded-2xl shadow-card p-5">
-            <div className={`text-3xl font-extrabold ${s.color}`}>{s.value}</div>
-            <div className="text-sm font-semibold text-gray-700 mt-0.5">{s.label}</div>
-            <div className="text-xs text-gray-400 mt-0.5">{s.sub}</div>
+          { label: 'Total Members',    value: summary.totalMembers,                          color: 'text-blue-400'   },
+          { label: 'Events Run',       value: summary.totalPastEvents,                       color: 'text-amber-400'  },
+          { label: 'Avg Fill Rate',    value: `${summary.avgFillRate}%`,                     color: summary.avgFillRate >= 70 ? 'text-green-400' : 'text-amber-400' },
+          { label: 'Revenue Earned',   value: `₺${summary.totalRevenue.toLocaleString()}`,   color: 'text-violet-400' },
+        ].map(s => (
+          <div key={s.label} className="bg-zinc-900 rounded-xl p-4 border border-zinc-800">
+            <div className={`text-2xl font-extrabold ${s.color}`}>{s.value}</div>
+            <div className="text-xs text-zinc-500 mt-0.5">{s.label}</div>
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-
-        {/* Member growth chart */}
-        <div className="bg-white rounded-2xl shadow-card p-6">
-          <h2 className="font-bold text-gray-900 mb-5">Member Growth</h2>
-          <div className="flex items-end gap-2 h-36">
-            {memberGrowth.map((m, i) => (
-              <div key={m.month} className="flex-1 flex flex-col items-center gap-1">
-                <span className="text-xs font-semibold text-gray-700">{m.count}</span>
-                <div
-                  className={`w-full rounded-t-lg transition-all ${
-                    i === memberGrowth.length - 1 ? 'bg-amber-500' : 'bg-amber-200'
-                  }`}
-                  style={{ height: `${(m.count / maxGrowth) * 100}px` }}
-                />
-                <span className="text-[10px] text-gray-400">{m.month}</span>
-              </div>
-            ))}
+      {/* Trend charts */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5">
+          <h2 className="text-sm font-bold text-white mb-5">New Members — last 6 months</h2>
+          <BarChart points={membersByMonth} valueKey="count" color="#60a5fa" suffix=" members" />
+          <div className="flex justify-between mt-3 text-xs text-zinc-600">
+            <span>Total: {membersByMonth.reduce((s, m) => s + (m.count ?? 0), 0)} new members</span>
+            <span>Peak: {Math.max(...membersByMonth.map(m => m.count ?? 0))}/mo</span>
           </div>
         </div>
 
-        {/* Revenue by club */}
-        <div className="bg-white rounded-2xl shadow-card p-6">
-          <h2 className="font-bold text-gray-900 mb-5">Revenue by Club</h2>
-          <div className="space-y-3">
-            {revenueByClub.map(({ club, total }) => (
-              <div key={club.id}>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-medium text-gray-700 flex items-center gap-1.5">
-                    <span>{club.emoji}</span> {club.name}
-                  </span>
-                  <span className="text-xs font-bold text-gray-900">
-                    {total > 0 ? `₺${total.toLocaleString()}` : <span className="text-gray-400 font-normal">Free</span>}
-                  </span>
-                </div>
-                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-amber-400 rounded-full transition-all duration-500"
-                    style={{ width: `${(total / maxRevenue) * 100}%` }}
-                  />
-                </div>
-              </div>
-            ))}
+        <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5">
+          <h2 className="text-sm font-bold text-white mb-5">Revenue — last 6 months</h2>
+          <BarChart points={revenueByMonth} valueKey="amount" color="#a78bfa" prefix="₺" />
+          <div className="flex justify-between mt-3 text-xs text-zinc-600">
+            <span>Total: ₺{revenueByMonth.reduce((s, m) => s + (m.amount ?? 0), 0).toLocaleString()}</span>
+            <span>Peak: ₺{Math.max(...revenueByMonth.map(m => m.amount ?? 0)).toLocaleString()}/mo</span>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-        {/* Event attendance */}
-        <div className="bg-white rounded-2xl shadow-card p-6">
-          <h2 className="font-bold text-gray-900 mb-5">Event Attendance</h2>
+      {/* Top events */}
+      <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-6">
+        <h2 className="text-sm font-bold text-white mb-5">Top Past Events by Fill Rate</h2>
+        {rankedEvents.length === 0 ? (
+          <p className="text-zinc-500 text-sm">No past events yet.</p>
+        ) : (
           <div className="space-y-3">
-            {attendanceData.map((a) => (
-              <div key={a.id}>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-medium text-gray-700 flex items-center gap-1.5">
-                    <span>{a.emoji}</span>
-                    <span className="truncate max-w-[160px]">{a.title}</span>
-                  </span>
-                  <span className="text-xs text-gray-500 shrink-0 ml-2">{a.going}/{a.total}</span>
-                </div>
-                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-500 ${
-                      a.pct >= 80 ? 'bg-red-400' : a.pct >= 50 ? 'bg-amber-400' : 'bg-green-400'
-                    }`}
-                    style={{ width: `${a.pct}%` }}
-                  />
+            {rankedEvents.map((e, i) => (
+              <div key={e.id} className="flex items-center gap-4">
+                <span className="text-xs font-bold text-zinc-600 w-5 text-right shrink-0">#{i + 1}</span>
+                <span className="text-base shrink-0">{e.emoji}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-medium text-zinc-200 truncate">{e.title}</span>
+                    <div className="flex items-center gap-3 shrink-0 ml-3">
+                      {e.revenue > 0 && <span className="text-xs text-violet-400 font-semibold">₺{e.revenue.toLocaleString()}</span>}
+                      <span className="text-xs text-zinc-400">{e.attended}/{e.totalSpots}</span>
+                      <span className={`text-xs font-bold w-9 text-right ${e.fillPct >= 90 ? 'text-green-400' : e.fillPct >= 60 ? 'text-amber-400' : 'text-zinc-500'}`}>{e.fillPct}%</span>
+                    </div>
+                  </div>
+                  <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full ${e.fillPct >= 90 ? 'bg-green-500' : e.fillPct >= 60 ? 'bg-amber-500' : 'bg-zinc-600'}`}
+                      style={{ width: `${e.fillPct}%` }} />
+                  </div>
+                  <div className="text-xs text-zinc-600 mt-0.5">
+                    {new Date(e.date + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </div>
                 </div>
               </div>
             ))}
           </div>
-        </div>
+        )}
+      </div>
 
-        {/* Vibe popularity */}
-        <div className="bg-white rounded-2xl shadow-card p-6">
-          <h2 className="font-bold text-gray-900 mb-5">Vibe Popularity</h2>
-          <div className="space-y-3">
-            {vibeData.map(([vibe, count]) => (
-              <div key={vibe}>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-medium text-gray-700">{vibe}</span>
-                  <span className="text-xs text-gray-500">{count} attendees</span>
-                </div>
-                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-violet-400 rounded-full transition-all duration-500"
-                    style={{ width: `${(count / maxVibe) * 100}%` }}
-                  />
-                </div>
-              </div>
-            ))}
+      {/* Club leaderboard */}
+      <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-6">
+        <h2 className="text-sm font-bold text-white mb-5">Club Performance</h2>
+        {clubStats.length === 0 ? (
+          <p className="text-zinc-500 text-sm">No clubs yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-xs text-zinc-500 uppercase tracking-wider border-b border-zinc-800">
+                  <th className="text-left pb-3 pr-4">Club</th>
+                  <th className="text-center pb-3 px-3 hidden sm:table-cell">Members</th>
+                  <th className="text-center pb-3 px-3 hidden sm:table-cell">Events run</th>
+                  <th className="text-center pb-3 px-3">Avg fill</th>
+                  <th className="text-right pb-3 pl-3">Revenue</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-800">
+                {clubStats.map(c => (
+                  <tr key={c.id} className="hover:bg-zinc-800/40 transition-colors">
+                    <td className="py-3 pr-4">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-lg ${c.bgColor ?? 'bg-zinc-800'} flex items-center justify-center text-base shrink-0`}>{c.emoji}</div>
+                        <div>
+                          <div className="font-medium text-zinc-200">{c.name}</div>
+                          <div className="h-1 w-20 bg-zinc-800 rounded-full overflow-hidden mt-1">
+                            <div className="h-full bg-amber-500 rounded-full" style={{ width: `${(c.revenue / maxClubRevenue) * 100}%` }} />
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3 text-center text-zinc-400 hidden sm:table-cell">{c.members}</td>
+                    <td className="py-3 text-center text-zinc-400 hidden sm:table-cell">{c.pastEvents}</td>
+                    <td className="py-3 text-center">
+                      <span className={`font-semibold ${c.avgFill >= 70 ? 'text-green-400' : c.avgFill >= 40 ? 'text-amber-400' : 'text-zinc-500'}`}>
+                        {c.pastEvents > 0 ? `${c.avgFill}%` : '—'}
+                      </span>
+                    </td>
+                    <td className="py-3 text-right font-semibold text-zinc-200">
+                      {c.revenue > 0 ? `₺${c.revenue.toLocaleString()}` : <span className="text-zinc-600 font-normal">—</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </div>
+        )}
       </div>
     </div>
   )

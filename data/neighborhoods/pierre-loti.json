@@ -1,0 +1,48 @@
+{
+  "tagline": "A legendary hilltop café and Ottoman cemetery above Eyüpsultan — named after the French novelist who came here to write, with the most atmospheric Golden Horn views in Istanbul.",
+  "places": [
+    {
+      "category": "Coffee & Tea",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Pierre Loti Kahvesi",
+          "description": "The hilltop café that has operated on this spot since Pierre Loti himself wrote here in the 1870s. Turkish coffee and tea with unbeatable Golden Horn views.",
+          "address": "Gümüşsuyu Cad., Eyüpsultan",
+          "badge": "Smileys Pick",
+          "tip": "Come at dusk when the Golden Horn turns golden below and the minarets glow. Take the cable car (teleferik) up and walk back down through the Ottoman cemetery."
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Pierre Loti Tepesi",
+          "description": "The hilltop above Eyüpsultan with panoramic views of the Golden Horn waterway, Eyüp's minarets, and the hills beyond. One of Istanbul's most romantic viewpoints.",
+          "address": "Pierre Loti Tepesi, Eyüpsultan",
+          "badge": "Must Do"
+        },
+        {
+          "name": "Teleferik (Cable Car)",
+          "description": "A short cable car ride from the edge of the Eyüpsultan cemetery to the Pierre Loti hilltop. The ride itself offers excellent views.",
+          "address": "Eyüpsultan Teleferik İstasyonu",
+          "tip": "The cable car runs until late evening. Rides are cheap and the queues are usually minimal outside weekends."
+        },
+        {
+          "name": "Tarihi Mezarlık",
+          "description": "The ancient Ottoman cemetery surrounding the cable car route is hauntingly beautiful — centuries-old turbaned marble tombstones among cypress trees.",
+          "address": "Eyüpsultan, Fatih",
+          "badge": "Hidden Gem"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Pierre Loti is accessed via the Eyüpsultan teleferik (cable car) or a 30-minute walk uphill through the cemetery.",
+    "Best visited at sunset or golden hour — the views over the Golden Horn are extraordinary in that light.",
+    "Combine with Eyüpsultan Mosque (below) and Fener-Balat (a short bus ride away) for a full Golden Horn day.",
+    "A very non-touristy area — you'll mostly see local families and pilgrims here."
+  ]
+}

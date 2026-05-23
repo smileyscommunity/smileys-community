@@ -1,0 +1,63 @@
+{
+  "tagline": "A rapidly developing Asian side district with ferry connections to the Princes' Islands and a growing food and café scene.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "İskele Café Kartal",
+          "description": "Right at the ferry terminal with views of the Sea of Marmara and the Princes' Islands on clear days. Simple and pleasant.",
+          "address": "Kartal İskelesi, Kartal",
+          "badge": "Smileys Pick"
+        },
+        {
+          "name": "Ritim İstanbul AVM Cafés",
+          "description": "Multiple café options inside the modern Ritim shopping mall — a reliable stop for coffee and a break.",
+          "address": "Ritim İstanbul, Kartal"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Kartal Sahil Balık Restoranları",
+          "description": "A cluster of fish restaurants along the Kartal waterfront. Fresh, local seafood with views of the Princes' Islands.",
+          "address": "Kartal Sahili, Kartal",
+          "badge": "Must Visit"
+        },
+        {
+          "name": "Merkez Restoranları",
+          "description": "The streets around Kartal's centre have a good range of local Turkish restaurants — pide, köfte, and traditional dishes at very reasonable prices.",
+          "address": "Kartal Merkez, Kartal"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Ferry to Princes' Islands",
+          "description": "Kartal's main draw — a frequent ferry service to the Princes' Islands (Buyukada, Heybeliada). One of Istanbul's best day trips.",
+          "address": "Kartal İskelesi, Kartal",
+          "badge": "Must Do",
+          "tip": "Ferries run frequently, especially on weekends. Go on a weekday to avoid the crowds on the islands."
+        },
+        {
+          "name": "Kartal Sahili",
+          "description": "A pleasant waterfront promenade with views of the islands and mountains on clear days. Good for an evening walk.",
+          "address": "Kartal Sahili, Kartal"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Kartal is at the end of the M4 metro line — direct connection to Kadiköy and Sabiha Gökçen Airport.",
+    "The main reason to come is the ferry to the Princes' Islands — one of Istanbul's greatest day trips.",
+    "The waterfront is pleasant but the neighbourhood itself is primarily residential and commercial.",
+    "Maltepe (the next stop west on the metro) has a more developed waterfront and café scene."
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "tagline": "The smallest and closest of the inhabited Princes' Islands — a quick escape with a village feel, beautiful walks, and far fewer visitors than Büyükada.",
+  "places": [
+    {
+      "category": "Coffee & Tea",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "İskele Çay Bahçesi",
+          "description": "The small café at the landing with island views. Very simple, very pleasant. The right pace for Kınalıada.",
+          "address": "Kınalıada İskelesi, Adalar",
+          "badge": "Smileys Pick"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Ada Restoranları",
+          "description": "A handful of small restaurants in the village serving simple fish and grills. Unpretentious and inexpensive.",
+          "address": "Kınalıada Çarşısı, Adalar"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Çam Tepe (Pine Hill) Walk",
+          "description": "A walk to the island's pine-forested hilltop with good Marmara views. Short but satisfying.",
+          "address": "Kınalıada, Adalar",
+          "badge": "Smileys Pick",
+          "tip": "The walk takes about 30 minutes. Go early in the day before the ferry crowds arrive."
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Kınalıada is the first Princes' Island stop from Kabataş or Bostancı — about 25-30 minutes.",
+    "Much quieter and less visited than Büyükada. Good for a half-day trip.",
+    "The island is small enough to walk around in 90 minutes. No bicycles needed.",
+    "No cars allowed — a truly peaceful escape from the city."
+  ]
+}

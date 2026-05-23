@@ -1,0 +1,83 @@
+{
+  "tagline": "A jewel on the Bosphorus — the iconic mosque, the bridge view, the best kumpir in Istanbul, and a buzzing waterfront that comes alive on weekends.",
+  "places": [
+    {
+      "category": "Street Food",
+      "emoji": "🥔",
+      "items": [
+        {
+          "name": "Ortaköy Kumpir",
+          "description": "Ortaköy's claim to fame — massive baked potatoes loaded with butter, cheese, and your choice of 30+ toppings. An Istanbul institution.",
+          "address": "Ortaköy Meydanı, Beşiktaş",
+          "badge": "Must Try",
+          "tip": "The stalls are all similar in quality. Pick by queue length — a queue is a good sign. Budget ₺80-120."
+        },
+        {
+          "name": "Midye Dolma Stands",
+          "description": "Stuffed mussels with spiced rice — a classic Istanbul street snack sold everywhere along the waterfront.",
+          "address": "Ortaköy Sahili, Beşiktaş",
+          "tip": "Only eat from stands with fresh mussels on display and high turnover. Squeeze lemon on each one."
+        },
+        {
+          "name": "Waffle Stalls",
+          "description": "Ortaköy is famous for its street waffles loaded with Nutella, fruit, and whipped cream. A weekend guilty pleasure.",
+          "address": "Ortaköy Meydanı, Beşiktaş"
+        }
+      ]
+    },
+    {
+      "category": "Food & Drinks",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Banyan Restaurant",
+          "description": "Excellent Asian fusion restaurant with an outstanding Bosphorus view from its terrace. One of the best views in the city.",
+          "address": "Muallim Naci Cad. No:65, Ortaköy",
+          "badge": "Smileys Pick",
+          "tip": "Book the terrace well ahead on weekends. Sunset is the golden hour."
+        },
+        {
+          "name": "House Café Ortaköy",
+          "description": "A popular brunch spot with Bosphorus views and a reliable all-day menu. Gets busy but the view earns it.",
+          "address": "Salhane Sokak No:1, Ortaköy"
+        },
+        {
+          "name": "Vogue Restaurant",
+          "description": "A long-standing Beşiktaş restaurant with a legendary rooftop terrace view of the Bosphorus and Ortaköy Mosque.",
+          "address": "BJK Plaza, Beşiktaş"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Ortaköy Mosque",
+          "description": "One of Istanbul's most photogenic landmarks — a Baroque Ottoman mosque perched right on the Bosphorus with the bridge behind it.",
+          "address": "Ortaköy Camii, Beşiktaş",
+          "badge": "Iconic",
+          "tip": "The best photo angle is from the waterfront to the left of the mosque, facing the bridge. Golden hour is magic."
+        },
+        {
+          "name": "Ortaköy Antika Pazarı",
+          "description": "A weekend antiques and crafts market in the square. Good for jewellery, ceramics, handmade goods, and vintage finds.",
+          "address": "Ortaköy Meydanı, Beşiktaş",
+          "badge": "Hidden Gem",
+          "tip": "Saturday mornings are best — more vendors and better selection. Prices are negotiable."
+        },
+        {
+          "name": "Bosphorus Waterfront Walk",
+          "description": "Walk along the water from Ortaköy toward Arnavutköy for one of Istanbul's best Bosphorus promenade experiences.",
+          "address": "Ortaköy–Arnavutköy Sahili"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Ortaköy gets extremely crowded on weekend afternoons and evenings. Come on weekday mornings for a calmer experience.",
+    "The 15-minute walk from Beşiktaş along the waterfront is one of the best urban walks in Istanbul.",
+    "Parking is nearly impossible on weekends. Take a taxi or ferry from Eminönü/Beşiktaş.",
+    "The mosque is open to visitors outside prayer times — remove shoes and dress modestly."
+  ]
+}

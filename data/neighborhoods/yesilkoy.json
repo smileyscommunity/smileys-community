@@ -1,0 +1,47 @@
+{
+  "tagline": "A historic seaside village near the airport — elegant old houses, a quiet marina, and a surprisingly calm seaside promenade far from the city's intensity.",
+  "places": [
+    {
+      "category": "Coffee & Breakfast",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Yeşilköy İskelesi Cafés",
+          "description": "Cafés near the old ferry landing with sea views. A beautifully unhurried atmosphere for a morning coffee.",
+          "address": "Yeşilköy İskelesi, Bakırköy",
+          "badge": "Smileys Pick"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Yeşilköy Balık Restoranları",
+          "description": "Fish restaurants near the marina with Marmara views. Very local crowd — no tourists. Excellent value.",
+          "address": "Yeşilköy Sahili, Bakırköy",
+          "badge": "Hidden Gem"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Yeşilköy Tarihi Sahil Yürüyüşü",
+          "description": "A walk through the historic village streets with beautifully preserved 19th-century summer houses and along the seafront promenade.",
+          "address": "Yeşilköy, Bakırköy",
+          "badge": "Smileys Pick"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Yeşilköy is on the M1A metro line (Yeşilköy stop) — easy access from the city centre and airport.",
+    "One of Istanbul's least-visited historic villages. Almost no tourists.",
+    "Combine with Florya (just north) for a pleasant coastal half-day.",
+    "The old Greek and Armenian summer houses are well preserved — worth walking slowly."
+  ]
+}

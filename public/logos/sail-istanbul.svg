@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <!-- Background circle -->
+  <circle cx="100" cy="100" r="100" fill="#0c2d4e"/>
+
+  <!-- Water / waves -->
+  <path d="M20 140 Q50 130 80 140 Q110 150 140 140 Q170 130 180 140 L180 170 Q150 160 120 170 Q90 180 60 170 Q35 162 20 170 Z" fill="#1a5276" opacity="0.8"/>
+  <path d="M10 155 Q40 145 70 155 Q100 165 130 155 Q160 145 190 155 L190 180 Q160 170 130 180 Q100 190 70 180 Q40 170 10 180 Z" fill="#1f618d" opacity="0.6"/>
+
+  <!-- Boat hull -->
+  <path d="M65 140 Q100 148 135 140 L128 155 Q100 162 72 155 Z" fill="#c8a84b"/>
+  <rect x="98" y="70" width="4" height="70" rx="2" fill="#e8d5a0"/>
+
+  <!-- Main sail -->
+  <path d="M102 75 L102 132 L145 115 Z" fill="white" opacity="0.95"/>
+  <path d="M102 75 L102 110 L130 100 Z" fill="#e8f4f8" opacity="0.6"/>
+
+  <!-- Foresail -->
+  <path d="M98 80 L98 128 L68 112 Z" fill="white" opacity="0.85"/>
+
+  <!-- Crescent moon (Istanbul motif) -->
+  <path d="M84 42 A14 14 0 1 1 84 70 A10 10 0 1 0 84 42 Z" fill="#c8a84b"/>
+
+  <!-- Star (Istanbul motif) -->
+  <polygon points="96,46 97.5,51 102.5,51 98.5,54 100,59 96,56 92,59 93.5,54 89.5,51 94.5,51" fill="#c8a84b"/>
+
+  <!-- Brand text -->
+  <text x="100" y="178" font-family="Georgia, serif" font-size="11" font-weight="bold" fill="#c8a84b" text-anchor="middle" letter-spacing="3">SAIL</text>
+  <text x="100" y="191" font-family="Georgia, serif" font-size="9" fill="#8fb8d4" text-anchor="middle" letter-spacing="4">ISTANBUL</text>
+</svg>

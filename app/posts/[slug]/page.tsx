@@ -1,0 +1,205 @@
+import { notFound } from 'next/navigation'
+import Link from 'next/link'
+import type { Metadata } from 'next'
+import { prisma } from '@/lib/prisma'
+import { resolveImageUrl } from '@/lib/data'
+import { APP_URL, SITE_URL } from '@/lib/env'
+import { sanitize } from '@/lib/sanitize'
+
+export const dynamic = 'force-dynamic'
+
+const categoryColors: Record<string, string> = {
+  'Community':     'bg-amber-100 text-amber-700',
+  'Club Stories':  'bg-violet-100 text-violet-700',
+  'Events':        'bg-blue-100 text-blue-700',
+  'Istanbul Guide':'bg-green-100 text-green-700',
+  'Tips':          'bg-pink-100 text-pink-700',
+}
+
+function formatDate(d: Date | string | null) {
+  if (!d) return ''
+  return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+}
+
+function renderBody(text: string) {
+  return text.split('\n\n').map((block, i) => {
+    const trimmed = block.trim()
+    if (!trimmed) return null
+
+    if (trimmed.startsWith('## ')) {
+      return (
+        <h2 key={i} className="text-2xl font-extrabold text-gray-900 mt-10 mb-4">
+          {trimmed.slice(3)}
+        </h2>
+      )
+    }
+
+    if (trimmed.startsWith('### ')) {
+      return (
+        <h3 key={i} className="text-xl font-bold text-gray-800 mt-8 mb-3">
+          {trimmed.slice(4)}
+        </h3>
+      )
+    }
+
+    if (trimmed.split('\n').every(l => l.startsWith('- '))) {
+      const items = trimmed.split('\n').map(l => l.slice(2))
+      return (
+        <ul key={i} className="list-disc list-inside space-y-2 text-gray-600 leading-relaxed my-5 ml-2">
+          {items.map((item, j) => (
+            <li key={j} dangerouslySetInnerHTML={{ __html: sanitize(item.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')) }} />
+          ))}
+        </ul>
+      )
+    }
+
+    const html = trimmed
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\n/g, '<br />')
+    return (
+      <p key={i} className="text-gray-600 leading-relaxed my-5 text-[17px]"
+        dangerouslySetInnerHTML={{ __html: sanitize(html) }} />
+    )
+  })
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params
+  const post = await prisma.post.findUnique({ where: { slug }, include: { author: { select: { name: true } } } })
+  if (!post) return {}
+  return {
+    title: `${post.title} — Smileys Community`,
+    description: post.excerpt ?? post.body.slice(0, 155),
+    openGraph: {
+      title: post.title,
+      description: post.excerpt ?? post.body.slice(0, 155),
+      url: `${APP_URL}/posts/${slug}`,
+      siteName: 'Smileys Community',
+      type: 'article',
+      images: post.coverImage
+        ? [{ url: `${SITE_URL}${resolveImageUrl(post.coverImage)}`, secureUrl: `${SITE_URL}${resolveImageUrl(post.coverImage)}`, width: 1200, height: 630, alt: post.title }]
+        : [{ url: `${APP_URL}/api/og`, secureUrl: `${APP_URL}/api/og`, width: 1200, height: 630 }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: post.title,
+      description: post.excerpt ?? post.body.slice(0, 155),
+    },
+  }
+}
+
+export default async function PostPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params
+  const post = await prisma.post.findUnique({
+    where: { slug, status: 'published' },
+    include: { author: { select: { name: true, color: true, profilePhoto: true } } },
+  })
+  if (!post) notFound()
+
+  const related = await prisma.post.findMany({
+    where: { status: 'published', category: post.category, slug: { not: slug } },
+    orderBy: { publishedAt: 'desc' },
+    take: 3,
+    select: { title: true, slug: true, excerpt: true, coverImage: true, publishedAt: true },
+  })
+
+  return (
+    <main className="min-h-screen bg-warm">
+      {/* Back */}
+      <div className="bg-white border-b border-gray-100">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center gap-3">
+          <Link href="/posts" className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-amber-600 transition-colors font-medium">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            All articles
+          </Link>
+        </div>
+      </div>
+
+      {/* Cover image */}
+      {post.coverImage && (
+        <div className="relative w-full h-64 sm:h-96 overflow-hidden">
+          <img
+            src={resolveImageUrl(post.coverImage)}
+            alt={post.title}
+            className="w-full h-full object-cover"
+          />
+        </div>
+      )}
+
+      {/* Article */}
+      <article className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        {/* Meta */}
+        <div className="flex items-center gap-2 mb-4">
+          <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${categoryColors[post.category] ?? 'bg-gray-100 text-gray-600'}`}>
+            {post.category}
+          </span>
+        </div>
+
+        <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 tracking-tight leading-tight mb-4">
+          {post.title}
+        </h1>
+
+        {post.excerpt && (
+          <p className="text-lg text-gray-500 leading-relaxed mb-6 border-l-4 border-amber-400 pl-4">
+            {post.excerpt}
+          </p>
+        )}
+
+        {/* Author */}
+        <div className="flex items-center gap-3 mb-10 pb-8 border-b border-gray-100">
+          <div
+            className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 overflow-hidden"
+            style={{ backgroundColor: post.author.color ?? '#f59e0b' }}
+          >
+            {post.author.profilePhoto
+              ? <img src={resolveImageUrl(post.author.profilePhoto)} alt={post.author.name} className="w-full h-full object-cover" />
+              : post.author.name[0].toUpperCase()}
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-gray-900">{post.author.name}</p>
+            <p className="text-xs text-gray-400">{formatDate(post.publishedAt)}</p>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="prose-like">
+          {renderBody(post.body)}
+        </div>
+
+        {/* CTA */}
+        <div className="mt-16 p-8 bg-amber-500 rounded-2xl text-center">
+          <p className="text-white font-extrabold text-xl mb-2">Ready to experience this?</p>
+          <p className="text-amber-100 text-sm mb-5">Join Smileys and become part of Istanbul's most vibrant social community.</p>
+          <div className="flex items-center justify-center gap-3 flex-wrap">
+            <Link href="/apply" className="px-6 py-2.5 rounded-xl bg-white text-amber-600 font-bold text-sm hover:bg-amber-50 transition-colors">
+              Apply to join
+            </Link>
+            <Link href="/events" className="px-6 py-2.5 rounded-xl border border-amber-400/50 text-white font-semibold text-sm hover:bg-amber-600 transition-colors">
+              Browse events
+            </Link>
+          </div>
+        </div>
+      </article>
+
+      {/* Related articles */}
+      {related.length > 0 && (
+        <section className="bg-white border-t border-gray-100">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
+            <h2 className="text-xl font-extrabold text-gray-900 mb-6">More from {post.category}</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+              {related.map(r => (
+                <Link key={r.slug} href={`/posts/${r.slug}`} className="group block bg-gray-50 hover:bg-amber-50 rounded-2xl p-5 border border-gray-100 hover:border-amber-200 transition-all">
+                  <h3 className="font-bold text-gray-900 group-hover:text-amber-600 transition-colors text-sm leading-snug mb-2">{r.title}</h3>
+                  {r.excerpt && <p className="text-xs text-gray-500 line-clamp-2">{r.excerpt}</p>}
+                  <p className="text-xs text-gray-400 mt-3">{formatDate(r.publishedAt)}</p>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+    </main>
+  )
+}

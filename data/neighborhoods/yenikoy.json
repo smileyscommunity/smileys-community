@@ -1,0 +1,59 @@
+{
+  "tagline": "A perfectly preserved Bosphorus village with waterfront cafés, wooden yalıs (mansions), and a charm that feels entirely separate from the rest of Istanbul.",
+  "places": [
+    {
+      "category": "Coffee & Breakfast",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Yeniköy İskelesi Cafés",
+          "description": "Cafés right at the waterfront and ferry landing with views of the Asian shore. A classic Bosphorus village café experience.",
+          "address": "Yeniköy İskelesi, Sarıyer",
+          "badge": "Smileys Pick",
+          "tip": "The waterfront fills up fast on Sunday mornings. Arrive early and stay long — there's nothing to rush for in Yeniköy."
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Yeniköy Balık Restoranları",
+          "description": "Several fish restaurants on the waterfront serving fresh Bosphorus catch. Excellent quality in an unbeatable setting.",
+          "address": "Yeniköy Sahili, Sarıyer",
+          "badge": "Must Visit"
+        },
+        {
+          "name": "Yeniköy Pastanesi",
+          "description": "A historic local pastry shop that has served the village for decades. Simple, good, and completely unpretentious.",
+          "address": "Yeniköy Çarşısı, Sarıyer"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Yeniköy Waterfront Walk",
+          "description": "A beautiful promenade under plane trees along the Bosphorus. Walk north to Tarabya or south toward İstinye for a longer route.",
+          "address": "Yeniköy Sahili, Sarıyer",
+          "badge": "Must Do"
+        },
+        {
+          "name": "Yalı Architecture",
+          "description": "Yeniköy has some of the finest surviving wooden Bosphorus mansions (yalıs) in Istanbul. Walk the shore road to admire them.",
+          "address": "Yeniköy, Sarıyer",
+          "badge": "Hidden Gem"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Yeniköy is best reached by the Bosphorus bus route from Beşiktaş, or by ferry from Eminönü (Bosphorus line).",
+    "Combine with İstinye (south) and Tarabya (north) for a full Bosphorus village day.",
+    "The village is best on weekday mornings — genuinely peaceful and local-feeling.",
+    "One of the few upper Bosphorus villages where daily life continues largely unchanged."
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "tagline": "The second-largest Princes' Island — forested hills, naval history, a magical seminary, and a gentler pace than Büyükada.",
+  "places": [
+    {
+      "category": "Coffee & Tea",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "İskele Kafesi",
+          "description": "The café at the ferry landing with views of arriving boats and the harbour. The perfect start to an island day.",
+          "address": "Heybeliada İskelesi, Adalar",
+          "badge": "Smileys Pick"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Merit Halki Palace Restoranı",
+          "description": "The restaurant of the historic Heybeliada Palace hotel, with a garden terrace and sea views. Good quality in a beautiful setting.",
+          "address": "Refah Şehitleri Cad., Heybeliada",
+          "badge": "Must Visit"
+        },
+        {
+          "name": "Ada Balık Restoranları",
+          "description": "Simple fish restaurants near the harbour serving fresh catch. Quieter and less touristy than Büyükada equivalents.",
+          "address": "Heybeliada Çarşısı, Adalar"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Heybeliada Deniz Harp Okulu",
+          "description": "The Turkish Naval Academy occupies a dramatic hilltop on the island. The exterior and surroundings are worth exploring.",
+          "address": "Heybeliada, Adalar"
+        },
+        {
+          "name": "Aya Triada Manastırı (Halki Seminary)",
+          "description": "A beautiful Greek Orthodox seminary on the island's highest hill — closed for decades but historically significant. The hilltop walk is stunning.",
+          "address": "Heybeliada, Adalar",
+          "badge": "Smileys Pick",
+          "tip": "The walk up through pine forest takes about 40 minutes. Go in the morning for the best views and cool air."
+        },
+        {
+          "name": "Island Cycling",
+          "description": "Rent a bicycle at the landing and explore the island's pine-forested roads. Smaller than Büyükada but more varied terrain.",
+          "address": "Heybeliada İskelesi, Adalar",
+          "tip": "The south hill circuit is the best route — takes about 90 minutes at a relaxed pace."
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Ferry from Kabataş or Bostancı — Heybeliada is the third stop after Kınalıada and Burgazada.",
+    "Much quieter than Büyükada even on summer weekends. A more relaxed island experience.",
+    "No cars allowed. Bicycles and horse carriages only.",
+    "The island's pine forest is genuinely beautiful. Bring good walking shoes."
+  ]
+}

@@ -1,0 +1,261 @@
+import { Suspense } from 'react'
+import { notFound } from 'next/navigation'
+import Link from 'next/link'
+import Image from 'next/image'
+import { readFileSync } from 'fs'
+import { join } from 'path'
+import { slugToNeighborhood, getNeighborhoodMeta } from '@/lib/neighborhoods'
+import { APP_URL } from '@/lib/env'
+import MapSection from '@/components/MapSection'
+import SocialShare from '@/components/SocialShare'
+import { getSession } from '@/lib/session'
+import type { Metadata } from 'next'
+import HeroStats from './HeroStats'
+import NeighborhoodSections from './NeighborhoodSections'
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params
+  const name = slugToNeighborhood(slug)
+  if (!name) return {}
+  const meta  = getNeighborhoodMeta(name)
+  const title = `${meta.emoji} ${name} — Social Events in Istanbul · Smileys Community`
+  const desc  = `Discover upcoming social events in ${name}, Istanbul. ${meta.vibe}. Join Smileys Community — Istanbul's expat & digital nomad social platform.`
+  const url   = `${APP_URL}/neighborhoods/${slug}`
+  return {
+    title,
+    description: desc,
+    alternates: { canonical: url },
+    openGraph: { title, description: desc, url, siteName: 'Smileys Community', type: 'website' },
+    twitter: { card: 'summary', title, description: desc },
+  }
+}
+
+const SIDE_GRADIENTS: Record<string, string> = {
+  Central:  'from-amber-600 via-orange-500 to-yellow-500',
+  European: 'from-blue-700 via-indigo-600 to-violet-600',
+  Asian:    'from-emerald-600 via-teal-500 to-cyan-500',
+  Coastal:  'from-sky-600 via-blue-500 to-indigo-500',
+  Islands:  'from-purple-600 via-pink-500 to-rose-500',
+  Emerging: 'from-gray-700 via-slate-600 to-gray-500',
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function loadNeighborhoodGuide(slug: string): any | null {
+  try {
+    const file = join(process.cwd(), 'data', 'neighborhoods', `${slug}.json`)
+    return JSON.parse(readFileSync(file, 'utf8'))
+  } catch { return null }
+}
+
+// Skeleton shown while NeighborhoodSections streams in
+function ContentSkeleton() {
+  return (
+    <div className="space-y-14 animate-pulse">
+      {/* Wall skeleton */}
+      <div className="bg-white border border-gray-100 rounded-2xl h-48 shadow-sm" />
+      {/* Members skeleton */}
+      <div>
+        <div className="h-3 bg-gray-100 rounded w-28 mb-5" />
+        <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+          <div className="flex flex-wrap gap-4">
+            {[...Array(8)].map((_, i) => (
+              <div key={i} className="flex flex-col items-center gap-1.5">
+                <div className="w-12 h-12 rounded-full bg-gray-200" />
+                <div className="h-2 bg-gray-100 rounded w-10" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      {/* Events skeleton */}
+      <div>
+        <div className="h-3 bg-gray-100 rounded w-32 mb-6" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="h-40 bg-gray-200" />
+              <div className="p-4 space-y-2">
+                <div className="h-2.5 bg-gray-100 rounded w-1/3" />
+                <div className="h-3 bg-gray-200 rounded w-3/4" />
+                <div className="h-3 bg-gray-100 rounded w-1/2" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export const dynamic = 'force-dynamic'
+
+export default async function NeighborhoodPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params
+  const name = slugToNeighborhood(slug)
+  if (!name) notFound()
+
+  // All sync — no DB, renders immediately
+  const meta  = getNeighborhoodMeta(name)
+  const guide = loadNeighborhoodGuide(slug)
+  const session = await getSession() // fast JWT decode, no DB
+
+  const isYourNeighborhood = session?.neighborhood === name
+  const hasNoNeighborhood  = session && !session.neighborhood
+  const isStaff = session?.role === 'admin' || session?.role === 'moderator'
+
+  const sideLabel: Record<string, string> = {
+    Central:  'Central Istanbul',
+    European: 'European Side',
+    Asian:    'Asian Side',
+    Coastal:  'Coastal Istanbul',
+    Emerging: 'Emerging District',
+    Islands:  "Prince's Islands",
+  }
+
+  return (
+    <main>
+      {/* ── Hero — renders immediately, no DB ── */}
+      <section className="relative overflow-hidden">
+        {guide?.image ? (
+          <div className="absolute inset-0">
+            <Image src={guide.image} alt={name} fill className="object-cover" sizes="100vw" priority
+              style={{ objectPosition: `center ${guide.imagePosition ?? 50}%` }} />
+            <div className="absolute inset-0 bg-black/50" />
+          </div>
+        ) : (
+          <div className={`absolute inset-0 bg-gradient-to-br ${SIDE_GRADIENTS[meta.side] ?? 'from-amber-500 to-orange-500'}`}>
+            <div className="absolute inset-0 flex items-center justify-center opacity-10 text-[160px] select-none pointer-events-none">
+              {meta.emoji}
+            </div>
+          </div>
+        )}
+
+        <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+          <Link href="/neighborhoods" className="inline-flex items-center gap-1.5 text-sm text-white/70 hover:text-white transition-colors mb-8">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            All neighborhoods
+          </Link>
+
+          <div className="flex items-center gap-3 mb-2">
+            <h1 className="text-4xl sm:text-5xl font-extrabold text-white tracking-tight drop-shadow-sm">
+              {meta.emoji} {name}
+            </h1>
+            {isYourNeighborhood && (
+              <span className="text-xs font-bold bg-white/20 text-white px-2.5 py-1 rounded-full backdrop-blur-sm shrink-0">Your area</span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 mt-2 flex-wrap">
+            <p className="text-white/75 text-sm font-medium">{meta.vibe} · {sideLabel[meta.side]}</p>
+            <span className="text-xs font-semibold bg-white/15 backdrop-blur-sm text-white px-2 py-0.5 rounded-full">
+              {meta.cost === 1 ? '💰 Affordable' : meta.cost === 2 ? '💰💰 Mid-range' : '💰💰💰 Pricey'}
+            </span>
+          </div>
+
+          {guide?.tagline && (
+            <p className="text-white/60 mt-3 text-sm max-w-xl leading-relaxed">{guide.tagline}</p>
+          )}
+
+          {/* Season / Transport / Language pills */}
+          {(guide?.season || guide?.transport?.length || guide?.languages?.length) && (
+            <div className="mt-3 flex items-center gap-2 flex-wrap">
+              {guide?.season && (
+                <span className="text-xs font-semibold bg-white/15 backdrop-blur-sm text-white px-2.5 py-1 rounded-full">{guide.season}</span>
+              )}
+              {guide?.transport?.map((t: string) => (
+                <span key={t} className="text-xs font-semibold bg-white/15 backdrop-blur-sm text-white px-2.5 py-1 rounded-full">{t}</span>
+              ))}
+              {guide?.languages?.map((l: string) => (
+                <span key={l} className="text-xs font-semibold bg-white/15 backdrop-blur-sm text-white px-2.5 py-1 rounded-full">{l}</span>
+              ))}
+            </div>
+          )}
+
+          {/* Stats + group link + host button — streamed in */}
+          <Suspense fallback={<div className="mt-5 h-14" />}>
+            <HeroStats
+              name={name}
+              groupLink={guide?.groupLink}
+              groupLabel={guide?.groupLabel}
+              userId={session?.id}
+              isYourNeighborhood={isYourNeighborhood}
+            />
+          </Suspense>
+        </div>
+      </section>
+
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-14 space-y-14">
+
+        {/* "Live here?" nudge — immediate, session-only */}
+        {hasNoNeighborhood && (
+          <div className="flex items-center justify-between gap-4 bg-blue-50 border border-blue-100 rounded-2xl px-5 py-4">
+            <div className="flex items-center gap-3">
+              <span className="text-xl">🏡</span>
+              <p className="text-sm text-blue-800 font-medium">
+                Do you live in {name}? Set it as your neighbourhood so locals can find you.
+              </p>
+            </div>
+            <Link href="/profile"
+              className="shrink-0 px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-xl hover:bg-blue-700 transition-colors">
+              Update profile
+            </Link>
+          </div>
+        )}
+
+        {/* Map — immediate, no DB */}
+        <div className="rounded-2xl overflow-hidden border border-gray-100 shadow-sm">
+          <div className="relative h-36 sm:h-48 w-full bg-gray-100">
+            <MapSection lat={meta.lat} lon={meta.lon} name={name} />
+          </div>
+          <div className="bg-white px-4 py-3 flex items-center justify-between">
+            <span className="text-xs text-gray-500 font-medium">📍 {name}, Istanbul</span>
+            <a href={`https://www.google.com/maps/search/${encodeURIComponent(name + ' Istanbul Turkey')}`}
+              target="_blank" rel="noopener noreferrer"
+              className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
+              Open in Maps →
+            </a>
+          </div>
+        </div>
+
+        {/* Wall + all content — streams in as DB resolves */}
+        <Suspense fallback={<ContentSkeleton />}>
+          <NeighborhoodSections
+            name={name}
+            slug={slug}
+            meta={meta}
+            guide={guide}
+            myId={session?.id ?? null}
+            isStaff={isStaff}
+            hasNoNeighborhood={!!hasNoNeighborhood}
+            sideLabel={sideLabel}
+          />
+        </Suspense>
+
+        {/* Share */}
+        <SocialShare
+          title={`${meta.emoji} ${name} — Smileys Community Istanbul`}
+          url={`${APP_URL}/neighborhoods/${slug}`}
+          cacheKey={slug.slice(0, 6)}
+        />
+      </div>
+
+      {/* CTA */}
+      <section className="border-t border-gray-100 bg-gray-900">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-14 text-center">
+          <h2 className="text-2xl font-extrabold text-white mb-3">Want to join these events?</h2>
+          <p className="text-gray-400 mb-7 text-sm">Smileys is an application-based community. Apply once, attend everything.</p>
+          <div className="flex items-center justify-center gap-3 flex-wrap">
+            <Link href="/apply" className="px-6 py-3 rounded-2xl bg-amber-500 text-white font-bold text-sm hover:bg-amber-600 transition-colors shadow-sm">
+              Apply to join
+            </Link>
+            <Link href="/neighborhoods" className="px-6 py-3 rounded-2xl border border-white/10 text-gray-300 font-semibold text-sm hover:bg-white/5 transition-colors">
+              More neighborhoods
+            </Link>
+          </div>
+        </div>
+      </section>
+    </main>
+  )
+}

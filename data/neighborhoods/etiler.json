@@ -1,0 +1,65 @@
+{
+  "tagline": "Old money meets new energy — one of Istanbul's most affluent and leafy addresses, with excellent dining and a sophisticated local crowd.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Akmerkez AVM Cafés",
+          "description": "The upscale Akmerkez shopping centre has multiple good café options. A reliable stop in the area.",
+          "address": "Nispetiye Cad., Etiler"
+        },
+        {
+          "name": "Ulus Parkı Çay Bahçesi",
+          "description": "A beautiful tea garden in Ulus Park with panoramic views of the Bosphorus. One of Istanbul's most scenic spots for a slow morning.",
+          "address": "Ulus Parkı, Etiler",
+          "badge": "Smileys Pick",
+          "tip": "Go on a clear weekday morning. The Bosphorus view from the park terrace is spectacular."
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Nişantaşı Sokak Restoranları",
+          "description": "The streets of Etiler have a cluster of upscale restaurants catering to wealthy Istanbul residents. Quality is consistently high.",
+          "address": "Nispetiye Cad., Etiler",
+          "badge": "Must Visit"
+        },
+        {
+          "name": "Ulus 29 Restaurant",
+          "description": "A legendary Istanbul restaurant set in a villa above the Bosphorus with stunning views. One of the city's most spectacular dining settings.",
+          "address": "Adnan Saygun Cad., Ulus",
+          "badge": "Smileys Pick",
+          "tip": "Book well ahead — this is one of Istanbul's most in-demand tables. Go for a special occasion."
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Ulus Parkı",
+          "description": "A beautiful hilltop park with sweeping Bosphorus views. Popular with dog walkers and joggers in the morning. Very upscale, very calm.",
+          "address": "Ulus Parkı, Etiler",
+          "badge": "Smileys Pick"
+        },
+        {
+          "name": "Akmerkez Shopping",
+          "description": "One of Istanbul's original luxury malls — still a reliable destination for premium brands and good food options.",
+          "address": "Nispetiye Cad., Etiler"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Etiler is best reached by taxi from Levent (M2 metro). No direct metro access.",
+    "One of Istanbul's wealthiest residential areas — prices for food and services reflect this.",
+    "The Ulus area (above Etiler) is even more exclusive, with some of the city's finest villas and Bosphorus-view restaurants.",
+    "Bebek is a pleasant downhill walk from Etiler — combine both in an afternoon."
+  ]
+}

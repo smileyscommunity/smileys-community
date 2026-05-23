@@ -1,0 +1,62 @@
+{
+  "tagline": "Istanbul's ancient port and trading heart — the Spice Bazaar, Galata Bridge, ferry terminals, and the irresistible smell of simit and grilled mackerel.",
+  "places": [
+    {
+      "category": "Food & Street Eats",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Balık Ekmek (Galata Bridge)",
+          "description": "Grilled mackerel sandwiches sold from boats moored under Galata Bridge. A true Istanbul street food ritual.",
+          "address": "Galata Köprüsü, Eminönü",
+          "badge": "Must Try",
+          "tip": "Get your sandwich and eat it standing at the water's edge watching the ferries. This is the quintessential Istanbul snack."
+        },
+        {
+          "name": "Mısır Çarşısı (Spice Bazaar) — surrounding streets",
+          "description": "The shops and stalls outside the Spice Bazaar sell nuts, dried fruits, cheeses, and pickles at far better prices than inside. The real market experience.",
+          "address": "Tahmis Cad., Eminönü",
+          "badge": "Smileys Pick",
+          "tip": "The basement of the Spice Bazaar has excellent Turkish delight and spices at honest prices. The street stalls outside are where locals actually shop."
+        },
+        {
+          "name": "Hamdi Restaurant",
+          "description": "A multi-storey restaurant above Eminönü with spectacular Golden Horn views. Reliable kebabs and mezes in an unbeatable location.",
+          "address": "Tahmis Cad. No:17, Eminönü",
+          "tip": "Ask specifically for a window table with a view when booking. The food is good, the view is the reason to come."
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Mısır Çarşısı (Egyptian Spice Bazaar)",
+          "description": "One of Istanbul's oldest covered markets, built in 1660. Spices, Turkish delight, dried herbs, and teas in a stunning Ottoman interior.",
+          "address": "Mısır Çarşısı, Eminönü",
+          "badge": "Must Visit",
+          "tip": "Browse rather than buy inside — prices are high for tourists. The streets outside the market are where the real deals are."
+        },
+        {
+          "name": "Galata Bridge Walk",
+          "description": "Walk across Galata Bridge at any time of day — fishermen line the top railings, restaurants line the lower level, and ferries and ships pass below.",
+          "address": "Galata Köprüsü, Eminönü"
+        },
+        {
+          "name": "Ferry Departures (Eminönü İskelesi)",
+          "description": "The main ferry hub of Istanbul — boats depart to Üsküdar, Kadıköy, Bosphorus villages, and the Princes' Islands. The ferry terminal itself is worth watching.",
+          "address": "Eminönü İskelesi, Eminönü",
+          "badge": "Smileys Pick",
+          "tip": "The Bosphorus cruise boat (full Bosphorus ferry to Anadolu Kavağı) departs twice daily from pier 3. One of Istanbul's best experiences."
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Eminönü is best reached by tram (T1 line, Eminönü stop) or on foot from Karaköy across Galata Bridge.",
+    "The area is extremely busy during daytime — it's the main transit junction of the old city. Early morning is dramatic and uncrowded.",
+    "Everything in the Spice Bazaar costs more than elsewhere — negotiate or shop outside.",
+    "The side streets between Eminönü and Fatih are full of specialist traders selling spices, textiles, and hardware. Worth exploring."
+  ]
+}

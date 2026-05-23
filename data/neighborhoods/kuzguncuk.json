@@ -1,0 +1,61 @@
+{
+  "tagline": "The most charming village on the Asian shore — wooden Ottoman houses, a synagogue, church, and mosque on the same street, and the best Sunday morning walk in Istanbul.",
+  "places": [
+    {
+      "category": "Coffee & Breakfast",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "İçerenköy Kahvaltı / Kuzguncuk Cafés",
+          "description": "The main street (İcadiye Caddesi) has excellent independent cafés serving Turkish breakfast. On Sunday mornings this is one of Istanbul's loveliest scenes.",
+          "address": "İcadiye Cad., Kuzguncuk",
+          "badge": "Smileys Pick",
+          "tip": "Sunday morning breakfast here, then a walk along the waterfront to Üsküdar — this is an ideal half-day on the Asian side."
+        },
+        {
+          "name": "Kuzguncuk Bostanı",
+          "description": "A community garden with a small café operating in the warmer months. Beautifully local and completely off the tourist trail.",
+          "address": "Kuzguncuk, Üsküdar",
+          "badge": "Hidden Gem"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Meyhane Kuzguncuk",
+          "description": "Several excellent meyhane (traditional tavern-restaurants) on and around İcadiye Caddesi. Mezes, fish, and raki in garden settings.",
+          "address": "İcadiye Cad., Kuzguncuk",
+          "badge": "Smileys Pick",
+          "tip": "Go for a long lunch rather than dinner — the garden settings are better in daylight."
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "İcadiye Caddesi Walk",
+          "description": "A stroll down the main street past wooden mansions, the historic synagogue, the Greek church, and the mosque — all peacefully coexisting on the same road.",
+          "address": "İcadiye Cad., Kuzguncuk",
+          "badge": "Must Do"
+        },
+        {
+          "name": "Kuzguncuk to Üsküdar Waterfront",
+          "description": "A beautiful 20-minute walk south along the Bosphorus from Kuzguncuk to the Üsküdar ferry landing. One of Istanbul's finest waterfront walks.",
+          "address": "Kuzguncuk Sahili, Üsküdar",
+          "badge": "Smileys Pick"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Kuzguncuk is a 20-minute walk north from Üsküdar ferry landing, or take a dolmuş from Üsküdar.",
+    "Sunday morning is the best time — the village is calm, cafés are full, and the atmosphere is magical.",
+    "Almost no tourists visit. This is one of the most authentic neighbourhood experiences left in Istanbul.",
+    "Combine with Üsküdar for a full Asian side day — walk the waterfront between the two."
+  ]
+}

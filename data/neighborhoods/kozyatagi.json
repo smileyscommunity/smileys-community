@@ -1,0 +1,35 @@
+{
+  "tagline": "A growing Asian side business and lifestyle hub — the Kozyatağı metro station connects a mix of tech offices, malls, and a comfortable residential scene.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Capacity AVM Cafés",
+          "description": "Multiple café options in the Capacity shopping centre near Kozyatağı metro. Convenient and reliable.",
+          "address": "Kozyatağı, Kadıköy",
+          "badge": "Smileys Pick"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Kozyatağı Restoranları",
+          "description": "A growing restaurant scene around the metro station with a mix of local and international options.",
+          "address": "Kozyatağı, Kadıköy",
+          "badge": "Must Visit"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Kozyatağı is on the M4 metro line — good connections to Kadıköy, Ataşehir, and the airport.",
+    "A practical residential and business area. Better connected than it is characterful.",
+    "Housing is more affordable than Göztepe or Caddebostan with similar metro access.",
+    "The Capacity shopping centre is the main commercial hub of the area."
+  ]
+}

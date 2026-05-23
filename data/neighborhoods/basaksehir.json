@@ -1,0 +1,35 @@
+{
+  "tagline": "Istanbul's planned satellite city in the northwest — a modern, family-oriented district with wide avenues, parks, and good metro connections.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Başakşehir Olivium AVM Kafeler",
+          "description": "Shopping centre cafés in the main commercial hub of Başakşehir. Practical and well-stocked.",
+          "address": "Başakşehir, İstanbul",
+          "badge": "Smileys Pick"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Başakşehir Şehir Parkı",
+          "description": "A large urban park — one of Istanbul's newer green spaces with walking paths, sports facilities, and family areas.",
+          "address": "Başakşehir, İstanbul",
+          "badge": "Smileys Pick"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Başakşehir is on the M3 metro line — about 45-50 minutes from the city centre.",
+    "A planned residential district — clean, modern, and family-oriented but lacking the character of older Istanbul neighbourhoods.",
+    "Popular with Turkish families seeking affordable modern housing with good schools.",
+    "Istanbul Başakşehir FC stadium is in the area — worth visiting on a match day."
+  ]
+}

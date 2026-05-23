@@ -1,0 +1,84 @@
+{
+  "tagline": "Istanbul's commercial and shopping heartland — Nişantaşı's neighbour, home to major malls, business districts, and some excellent neighbourhood dining.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Kahve Dünyası (Şişli)",
+          "description": "A reliable Turkish coffee chain with multiple branches around Şişli. Good for a quick stop between errands.",
+          "address": "Şişli, İstanbul"
+        },
+        {
+          "name": "Costa Coffee (Cevahir Mall)",
+          "description": "Conveniently placed inside Cevahir for a break between shopping. Better-than-average mall coffee.",
+          "address": "Büyükdere Cad., Şişli"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Şişli Döner Tarihi",
+          "description": "One of Şişli's most beloved döner spots. Thin-sliced lamb döner on fresh bread — a proper Istanbul lunch.",
+          "address": "Şişli Meydanı, Şişli",
+          "badge": "Must Try",
+          "tip": "Go at 12:30 when the döner is at its peak. Cash preferred."
+        },
+        {
+          "name": "Akın's Çorba",
+          "description": "Outstanding soup kitchen with a rotating daily menu of traditional Turkish soups. Popular with office workers for lunch.",
+          "address": "Şişli, İstanbul"
+        },
+        {
+          "name": "Cevahir Mall Food Court",
+          "description": "One of Europe's largest malls with a wide variety of dining options across all price points.",
+          "address": "Büyükdere Cad. No:22, Şişli"
+        }
+      ]
+    },
+    {
+      "category": "Shopping",
+      "emoji": "🛍️",
+      "items": [
+        {
+          "name": "Cevahir AVM",
+          "description": "One of Europe's largest shopping malls with over 300 stores, cinemas, and restaurants. Everything under one roof.",
+          "address": "Büyükdere Cad. No:22, Şişli",
+          "badge": "Landmark"
+        },
+        {
+          "name": "Şişli-Nişantaşı Border Streets",
+          "description": "The streets between Şişli and Nişantaşı have a mix of mid-range fashion, homeware, and local shops at better prices than the luxury Abdi İpekçi strip.",
+          "address": "Halaskargazi Cad., Şişli",
+          "badge": "Hidden Gem"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Şişli Meydanı",
+          "description": "The central square and transport hub of Şişli. Busy, functional, and a good orientation point for the area.",
+          "address": "Şişli Meydanı, Şişli"
+        },
+        {
+          "name": "Walk to Nişantaşı",
+          "description": "A 10-minute walk south from Şişli brings you to the upscale Nişantaşı shopping and dining district — a good combination.",
+          "address": "Teşvikiye, Nişantaşı"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Şişli metro stop (M2) is the main access point — very well connected to the rest of the city.",
+    "For dining and cafés, nearby Nişantaşı or Cihangir are better destinations. Şişli excels for shopping and transport.",
+    "Mecidiyeköy (just east) is the main business hub — good for business meetings and services.",
+    "The area between Şişli and Osmanbey has some excellent local eateries that office workers know but tourists rarely find."
+  ]
+}

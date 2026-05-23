@@ -1,0 +1,73 @@
+{
+  "tagline": "Where the Asian shore meets the Black Sea — forest villages, Ottoman summer palaces, and some of Istanbul's most scenic and untouched coastline.",
+  "places": [
+    {
+      "category": "Coffee & Tea",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Anadolu Kavağı Çay Bahçeleri",
+          "description": "Tea gardens in the fishing village of Anadolu Kavağı at the very mouth of the Bosphorus. An extraordinary setting at the end of the ferry line.",
+          "address": "Anadolu Kavağı, Beykoz",
+          "badge": "Smileys Pick",
+          "tip": "Take the full Bosphorus ferry from Eminönü — the journey is as spectacular as the destination."
+        },
+        {
+          "name": "Polonezköy Café",
+          "description": "The Polish village of Polonezköy in the Beykoz forests has charming garden cafés serving breakfast and tea in a completely different Istanbul atmosphere.",
+          "address": "Polonezköy, Beykoz"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Anadolu Kavağı Balık Restoranları",
+          "description": "A row of fish restaurants in the village where the Bosphorus meets the Black Sea. Some of Istanbul's most memorable fish meals with extraordinary views.",
+          "address": "Anadolu Kavağı, Beykoz",
+          "badge": "Must Visit",
+          "tip": "Order the grilled Black Sea fish — species you won't find elsewhere in the city. The village is the journey's reward."
+        },
+        {
+          "name": "Polonezköy Restoranları",
+          "description": "Forest restaurants in the historic Polish village serving traditional Turkish and European cuisine in garden settings. A unique lunch destination.",
+          "address": "Polonezköy, Beykoz"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Yoros Kalesi",
+          "description": "A ruined Genoese-Byzantine castle on the hill above Anadolu Kavağı with what may be the greatest panoramic view in all of Istanbul — both continents visible.",
+          "address": "Anadolu Kavağı, Beykoz",
+          "badge": "Must Do",
+          "tip": "The climb from the village takes 25-30 minutes. Go in the morning before the ferry day-trippers arrive."
+        },
+        {
+          "name": "Polonezköy Nature Park",
+          "description": "A forested national park around the historic Polish village. Excellent walking trails, picnic areas, and complete escape from the city.",
+          "address": "Polonezköy, Beykoz",
+          "badge": "Hidden Gem"
+        },
+        {
+          "name": "Bosphorus Ferry (Eminönü–Anadolu Kavağı)",
+          "description": "The full Bosphorus round trip — arguably the greatest urban boat journey in the world, stopping at both shores all the way to the Black Sea entrance.",
+          "address": "Eminönü İskelesi",
+          "badge": "Smileys Pick",
+          "tip": "The ferry runs twice daily (morning and midday departures). Buy your return ticket on arrival — the last ferry fills up fast."
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Beykoz is far from the metro — best reached by ferry (Anadolu Kavağı line from Eminönü) or by bus from Üsküdar.",
+    "The Bosphorus ferry to Anadolu Kavağı is one of Istanbul's unmissable experiences — take the full trip at least once.",
+    "Polonezköy is best visited on weekdays; it gets crowded with Istanbul families on weekends.",
+    "Mobile signal can be unreliable in the forest areas — download maps offline before visiting."
+  ]
+}

@@ -1,0 +1,88 @@
+{
+  "tagline": "Historic, charming, and increasingly creative — Galata is the neighbourhood at the foot of its famous tower, where art studios, small cafés, and antique shops fill Ottoman-era buildings.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Galata Konak Café",
+          "description": "A beautifully restored historic building with a serene courtyard café. The perfect rest stop after climbing to the tower.",
+          "address": "Galata Kulesi Sokak, Galata",
+          "badge": "Smileys Pick"
+        },
+        {
+          "name": "Coffee Manifesto (Galata)",
+          "description": "One of Istanbul's best specialty roasters. Clean minimal space with excellent single-origin coffees and expert baristas.",
+          "address": "Bankalar Cad., Galata",
+          "tip": "The filter bar is the highlight — ask the barista what they recommend that day."
+        },
+        {
+          "name": "Lucca Galata",
+          "description": "A relaxed café-bar with a lively atmosphere. Good for breakfast through to evening drinks.",
+          "address": "Serdar-ı Ekrem Cad., Galata"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Karaköy Güllüoğlu",
+          "description": "The world's best baklava is a 3-minute walk from Galata Tower. Get a mixed box and eat it on the steps.",
+          "address": "Kemankeş Cad. No:16, Karaköy",
+          "badge": "Must Visit"
+        },
+        {
+          "name": "Lokanta Maya",
+          "description": "Modern Turkish cuisine from chef Didem Şenol. Seasonal, market-driven menu. One of the city's most respected restaurants.",
+          "address": "Kemankeş Cad. No:35A, Karaköy"
+        },
+        {
+          "name": "Galata Sarap Evi",
+          "description": "A small, wine-focused meyhane with excellent Turkish wines and simple but well-executed mezes.",
+          "address": "Galata area",
+          "tip": "Ask the staff for natural wine recommendations — they know their list well."
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Galata Tower",
+          "description": "The 9th-century Genoese tower that defines Istanbul's European skyline. The view from the top is breathtaking — especially at dusk.",
+          "address": "Galata Kulesi Meydanı, Galata",
+          "badge": "Must Visit",
+          "tip": "Book tickets online to skip the queue. Go at sunset for the best light — arrive 30 min before."
+        },
+        {
+          "name": "Serdar-ı Ekrem Caddesi",
+          "description": "Galata's most charming street — a cobblestone hill lined with design shops, studios, and small galleries. Perfect for an hour of wandering.",
+          "address": "Serdar-ı Ekrem Cad., Galata",
+          "badge": "Smileys Pick"
+        },
+        {
+          "name": "Jewish Museum of Turkey",
+          "description": "A small but fascinating museum documenting 500 years of Sephardic Jewish life in Istanbul. Often overlooked, always worthwhile.",
+          "address": "Büyük Hendek Cad. No:39, Galata",
+          "badge": "Hidden Gem"
+        },
+        {
+          "name": "Galata Mevlevi Lodge",
+          "description": "A 15th-century Sufi lodge and museum with regular Whirling Dervish ceremonies. A profound cultural experience.",
+          "address": "Galip Dede Cad. No:15, Galata",
+          "tip": "Ceremonies happen on certain days — check the schedule in advance and book early."
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Galata is extremely hilly. The funicular (Tünel) connects Karaköy at the bottom to Tünel Square at the top in 90 seconds.",
+    "The neighbourhood is compact — everything worth seeing is within a 10-minute walk of the tower.",
+    "Mornings are the best time to explore before the tourist crowds arrive at the tower.",
+    "The music shops on Galip Dede Caddesi are a Galata institution — great for instrument browsing even if you're not buying."
+  ]
+}

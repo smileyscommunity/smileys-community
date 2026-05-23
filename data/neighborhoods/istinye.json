@@ -1,0 +1,58 @@
+{
+  "tagline": "A sheltered Bosphorus bay turned luxury marina — upscale shopping, waterfront dining, and one of Istanbul's most scenic natural harbours.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "İstinye Park AVM Cafés",
+          "description": "The premium İstinye Park shopping centre has excellent café options in a beautiful open-air design. One of Istanbul's best malls.",
+          "address": "İstinye Park, İstinye, Sarıyer",
+          "badge": "Smileys Pick"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "İstinye Koyu Balık Restoranları",
+          "description": "Fish restaurants around the İstinye bay marina with boats moored outside. A beautiful and authentic waterfront dining experience.",
+          "address": "İstinye Körfezi, Sarıyer",
+          "badge": "Must Visit"
+        },
+        {
+          "name": "İstinye Park Restaurants",
+          "description": "A wide range of quality restaurants within the İstinye Park complex — reliable for business lunches or a quality meal in the area.",
+          "address": "İstinye Park AVM, Sarıyer"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "İstinye Koyu (Bay) Walk",
+          "description": "A sheltered, boat-filled natural bay with a beautiful fish market at the waterfront. Walk around the perimeter for excellent views.",
+          "address": "İstinye Körfezi, Sarıyer",
+          "badge": "Smileys Pick"
+        },
+        {
+          "name": "İstinye Park Shopping",
+          "description": "One of Istanbul's most beautiful open-air premium malls with international luxury brands and excellent restaurant options.",
+          "address": "İstinye Park AVM, Sarıyer",
+          "badge": "Landmark"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "İstinye is best reached by bus from Beşiktaş (25D route) or taxi from Sarıyer metro.",
+    "The bay area and fish market are early morning at their most atmospheric. Worth a 9am visit.",
+    "İstinye Park is one of the genuinely nicer shopping malls in Istanbul — worth a dedicated visit.",
+    "Walk south along the Bosphorus to Yeniköy for a pleasant combined half-day."
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "tagline": "Istanbul's financial and corporate centre — gleaming towers, international HQs, and the best-connected business address on the European side.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Starbucks / Kahve Dünyası (Levent AVM)",
+          "description": "Multiple reliable café chains in and around Kanyon and Metrocity shopping centres. Practical for business meetings.",
+          "address": "Kanyon AVM, Levent"
+        },
+        {
+          "name": "Nişantaşı & Etiler Cafés (10-min taxi)",
+          "description": "For a proper café experience, Nişantaşı and Etiler are a short taxi ride from Levent and vastly better for working or relaxed meetings.",
+          "address": "Nişantaşı, Şişli",
+          "badge": "Smileys Pick"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Kanyon AVM Restaurants",
+          "description": "The striking Kanyon shopping centre has a good range of restaurants across price points. The outdoor amphitheatre seating is excellent in good weather.",
+          "address": "Kanyon AVM, Büyükdere Cad., Levent",
+          "badge": "Smileys Pick"
+        },
+        {
+          "name": "Levent İş Merkezi Lokantalari",
+          "description": "The side streets around the business district have solid lunch options catering to office workers. Reliable and fast.",
+          "address": "Levent, İstanbul"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Kanyon Shopping Centre",
+          "description": "One of Istanbul's architecturally striking malls — an open-air canyon design with premium retail and dining across multiple levels.",
+          "address": "Büyükdere Cad. No:185, Levent",
+          "badge": "Landmark"
+        },
+        {
+          "name": "İstanbul Modern (temporary — now Karaköy)",
+          "description": "Turkey's leading contemporary art museum relocated to Karaköy. Worth combining a Levent visit with a trip there.",
+          "address": "Karaköy (current location)"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Levent is on the M2 metro line — direct to Şişli, Taksim, and the city centre.",
+    "Primarily a business district — better for meetings than leisure. Kanyon is the exception.",
+    "For nightlife and dining, nearby Etiler and Nişantaşı are significantly better options.",
+    "The financial towers (İş Kuleleri) are an orientation landmark for the whole northern European side."
+  ]
+}

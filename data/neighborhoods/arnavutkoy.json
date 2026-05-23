@@ -1,0 +1,76 @@
+{
+  "tagline": "One of the Bosphorus's most beautiful villages — Ottoman wooden mansions, boutique restaurants, and an unhurried pace that feels far from the city's chaos.",
+  "places": [
+    {
+      "category": "Coffee & Breakfast",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Arnavutköy İskelesi Café",
+          "description": "Right on the ferry landing with classic Bosphorus views. Simple Turkish breakfast, tea, and coffee in a timeless setting.",
+          "address": "Arnavutköy İskelesi, Beşiktaş",
+          "badge": "Smileys Pick",
+          "tip": "The weekend breakfast spread is excellent. Come early for a window table."
+        },
+        {
+          "name": "Kışlık Café",
+          "description": "A neighbourhood café tucked into one of Arnavutköy's charming side streets. Good coffee, low-key atmosphere, local regulars.",
+          "address": "Arnavutköy, Beşiktaş"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Poseidon Restaurant",
+          "description": "One of Istanbul's most celebrated fish restaurants, right on the Bosphorus. Exceptional fresh fish and a stunning view. Book well ahead.",
+          "address": "Cevdetpaşa Cad. No:58, Bebek",
+          "badge": "Must Visit",
+          "tip": "Request a table on the waterfront deck. The whole sea bass is outstanding."
+        },
+        {
+          "name": "Tarihi Arnavutköy Balıkçısı",
+          "description": "A simple, beloved fish restaurant in the heart of the village. No frills, great fish, very local crowd.",
+          "address": "Arnavutköy Cad., Beşiktaş",
+          "tip": "Ask for the catch of the day — it changes daily and is always the best choice."
+        },
+        {
+          "name": "Sunset Grill & Bar",
+          "description": "Upscale international restaurant with panoramic Bosphorus views. More of a special occasion restaurant — worth it for the setting.",
+          "address": "Adnan Saygun Cad., Ülker Parkı, Ulus"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Bosphorus Waterfront Walk",
+          "description": "A beautiful coastal walk along the Bosphorus between Arnavutköy and Bebek. Ottoman yalıs (waterfront mansions) line the route.",
+          "address": "Arnavutköy–Bebek Sahili",
+          "badge": "Smileys Pick"
+        },
+        {
+          "name": "Yıldız Parkı (Upper)",
+          "description": "The forested park above the neighbourhood has walking paths, Ottoman pavilions, and sweeping views of the Bosphorus.",
+          "address": "Yıldız Parkı, Beşiktaş"
+        },
+        {
+          "name": "Antique & Art Shops",
+          "description": "Arnavutköy's main street has a string of small antique shops and art galleries. Great for browsing on a slow afternoon.",
+          "address": "Arnavutköy Cad., Beşiktaş",
+          "badge": "Hidden Gem"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Arnavutköy is best reached by bus from Beşiktaş (25E or 22 lines) or a pleasant 25-min waterfront walk.",
+    "The neighbourhood is very small — everything worth seeing is within a 10-minute walk.",
+    "Avoid driving on weekends — parking is essentially impossible along the main street.",
+    "The best time to visit is a weekday morning when it genuinely feels like a Bosphorus village."
+  ]
+}

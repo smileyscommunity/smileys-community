@@ -1,0 +1,120 @@
+{
+  "tagline": "Istanbul's design and coffee district — Karaköy blends Ottoman port history with galleries, baklavas, and the city's best specialty coffee scene.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Kronotrop",
+          "description": "One of Turkey's original specialty coffee pioneers. The Karaköy branch is a benchmark — excellent espresso, careful sourcing, great atmosphere.",
+          "address": "Kemankeş Cad. No:3, Karaköy",
+          "badge": "Smileys Pick"
+        },
+        {
+          "name": "Petra Roasting Co.",
+          "description": "A favourite among Istanbul's coffee community. Small space, serious roasting operation, and consistently excellent cups.",
+          "address": "Kemankeş Cad., Karaköy",
+          "tip": "The filter coffee changes regularly based on what they've just roasted. Always worth asking."
+        },
+        {
+          "name": "Karaköy Güllüoğlu",
+          "description": "Not a café — but a morning cup of Turkish tea with fresh baklava at this legendary shop is an Istanbul ritual you shouldn't miss.",
+          "address": "Kemankeş Cad. No:16, Karaköy",
+          "badge": "Since 1949",
+          "tip": "Go in the morning when the baklava is fresh. The fıstıklı (pistachio) is the classic choice."
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Karaköy Lokantası",
+          "description": "Modern Turkish cuisine done with precision. Seasonal menus, beautiful presentation, and a calm atmosphere for a proper lunch.",
+          "address": "Kemankeş Cad. No:37A, Karaköy",
+          "badge": "Must Visit"
+        },
+        {
+          "name": "Karaköy Güllüoğlu",
+          "description": "The original and best baklava shop in Istanbul — possibly the world. Fresh baklava made daily with Antep pistachios.",
+          "address": "Kemankeş Cad. No:16, Karaköy",
+          "tip": "Order by weight at the counter. A 200g assorted box makes a perfect gift."
+        },
+        {
+          "name": "Tarihi Karaköy Balık Ekmek",
+          "description": "A simple stall near the docks serving the city's best balık ekmek (fish sandwich). Fresh mackerel, onion, parsley, bread.",
+          "address": "Karaköy İskelesi yanı, Karaköy",
+          "badge": "Street Food Icon",
+          "tip": "Best at lunchtime when the fish is freshest. ₺60-80 and worth every lira."
+        },
+        {
+          "name": "Şehzade Cağ Kebabı",
+          "description": "Horizontal rotisserie kebab from Erzurum — a completely different style from the standard döner. Exceptional quality.",
+          "address": "Hoca Tahsin Sok., Karaköy",
+          "tip": "Order the full portion with lavash bread. It's filling — one portion is enough for most people."
+        }
+      ]
+    },
+    {
+      "category": "Bars & Rooftops",
+      "emoji": "🍸",
+      "items": [
+        {
+          "name": "Vault Karaköy",
+          "description": "Rooftop bar in a converted bank vault. Excellent cocktails, great views of the Golden Horn and Galata Tower at night.",
+          "address": "Bankalar Cad., Karaköy",
+          "badge": "Smileys Pick",
+          "tip": "Book ahead for the rooftop — it fills fast in the evenings."
+        },
+        {
+          "name": "Karaköy Rooms Bar",
+          "description": "A boutique hotel bar with an excellent cocktail programme and a cool, design-forward atmosphere. Good for a quiet drink.",
+          "address": "Kemankeş Cad. No:6, Karaköy"
+        },
+        {
+          "name": "Unter",
+          "description": "A Karaköy favourite — a small, atmospheric bar known for its cocktails and vinyl collection. Very local crowd.",
+          "address": "Kemankeş Cad. No:55, Karaköy"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Istanbul Modern",
+          "description": "Turkey's leading contemporary art museum, recently reopened in a stunning new waterfront building. World-class collection and great temporary exhibitions.",
+          "address": "Meclis-i Mebusan Cad., Karaköy",
+          "badge": "Must Visit",
+          "tip": "Free on Thursdays. The restaurant inside has one of the best views in Istanbul."
+        },
+        {
+          "name": "Galata Tower",
+          "description": "The 9th-century tower that defines Istanbul's skyline. The view from the top is excellent — especially at dusk. A short uphill walk from Karaköy.",
+          "address": "Galata Kulesi Meydanı, Karaköy",
+          "tip": "Buy tickets online to skip the queue. Go at sunset for the best light."
+        },
+        {
+          "name": "Karaköy Design Shops",
+          "description": "Karaköy has a cluster of excellent independent design, homeware, and clothing shops along Kemankeş Caddesi and its side streets.",
+          "address": "Kemankeş Cad., Karaköy",
+          "badge": "Hidden Gem"
+        },
+        {
+          "name": "Galata Bridge Walk",
+          "description": "Walk across Galata Bridge from Karaköy to Eminönü for ferry views, fishermen, and one of the great urban crossings in the world.",
+          "address": "Galata Köprüsü, Karaköy"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Karaköy is tiny and very walkable. Most of the best spots are within a 5-minute walk of each other on Kemankeş Caddesi.",
+    "The ferry to Kadiköy leaves from Karaköy İskelesi — a 20-minute, ₺15 crossing that's far better than driving.",
+    "Karaköy gets extremely busy on weekends. Weekday mornings are the sweet spot for exploring the coffee and design scene.",
+    "The uphill walk from Karaköy to Galata Tower takes 10 minutes but there's a funicular (tünel) if your legs aren't up for it."
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "tagline": "A 15th-century Ottoman fortress at the narrowest point of the Bosphorus — dramatic views, a charming village below, and one of Istanbul's most romantic spots.",
+  "places": [
+    {
+      "category": "Coffee & Tea",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Hisarüstü Çay Bahçeleri",
+          "description": "Tea gardens on the hillside above the fortress with extraordinary Bosphorus views. A hidden gem that locals treasure.",
+          "address": "Hisarüstü, Beşiktaş",
+          "badge": "Smileys Pick",
+          "tip": "The gardens above the fortress are not signposted — walk up the steep road behind the main entrance and keep going until you find them."
+        },
+        {
+          "name": "Rumeli Hisarı Village Cafés",
+          "description": "A small cluster of cafés in the village below the fortress, popular with Boğaziçi University students and locals.",
+          "address": "Rumeli Hisarı, Beşiktaş"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Köfeci Ramiz",
+          "description": "A classic neighbourhood köfte restaurant near the fortress that has been feeding locals for decades. Simple and excellent.",
+          "address": "Rumeli Hisarı, Beşiktaş",
+          "badge": "Hidden Gem"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Rumeli Hisarı Kalesi",
+          "description": "The great Ottoman fortress built by Mehmed II in 1452 to control the Bosphorus before the conquest of Constantinople. Walk the towers and walls.",
+          "address": "Rumeli Hisarı Cad., Beşiktaş",
+          "badge": "Must Visit",
+          "tip": "Climb to the top tower for the best Bosphorus view in Istanbul — the narrowest crossing point visible below."
+        },
+        {
+          "name": "Bebek to Rumeli Hisarı Coastal Walk",
+          "description": "A 20-minute waterfront walk north from Bebek to the fortress. One of Istanbul's most scenic short walks.",
+          "address": "Bebek Sahili to Rumeli Hisarı",
+          "badge": "Smileys Pick"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Best reached by bus from Beşiktaş along the Bosphorus coastal road (25E or 22 series buses).",
+    "Combine with Bebek (20-min walk south) — start in Bebek, walk to the fortress, take the bus back.",
+    "The fortress hosts occasional summer concerts in its courtyard — check the events calendar.",
+    "The Boğaziçi University campus is just above the village and worth exploring for its Bosphorus views."
+  ]
+}

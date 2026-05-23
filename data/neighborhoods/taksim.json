@@ -1,0 +1,74 @@
+{
+  "tagline": "Istanbul's central crossroads — loud, energetic, and the transport hub the whole city revolves around. Better for passing through than staying, but essential to understand.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Mandabatmaz",
+          "description": "A tiny, legendary Turkish coffee institution hidden on a side alley off İstiklal. The thick, unfiltered coffee is made the old way. Worth the search.",
+          "address": "Olivya Geçidi No:1, Beyoğlu",
+          "badge": "Smileys Pick",
+          "tip": "No sign outside — look for the alley just off İstiklal. One of the city's best kept (open) secrets."
+        },
+        {
+          "name": "Gezi Park Café",
+          "description": "Simple café inside Gezi Park, one of the few green spaces around Taksim. A calm retreat from the square's chaos.",
+          "address": "Gezi Parkı, Taksim"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Tarihi Karadeniz Pide (Taksim)",
+          "description": "No-frills Black Sea pide restaurant that's been serving the same excellent food for decades. Cash only, incredibly good value.",
+          "address": "Taksim area, Beyoğlu",
+          "tip": "Order the egg and butter pide. Don't expect atmosphere — it's about the food."
+        },
+        {
+          "name": "Cumhuriyet Meyhanesi",
+          "description": "A classic meyhane near Taksim Square. Traditional mezes, rakı, live fasıl music on weekends. A proper Istanbul night out.",
+          "address": "İstiklal Cad. area, Beyoğlu"
+        },
+        {
+          "name": "Çiçek Pasajı Restaurants",
+          "description": "The 19th-century flower market arcade lined with traditional meyhane-style restaurants. Atmospheric and unpretentious.",
+          "address": "İstiklal Cad., Beyoğlu",
+          "badge": "Iconic"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Taksim Square",
+          "description": "Istanbul's symbolic heart. The massive Republic Monument, Atatürk Cultural Centre, and the start of İstiklal Caddesi all converge here.",
+          "address": "Taksim Meydanı, Beyoğlu"
+        },
+        {
+          "name": "Gezi Park",
+          "description": "The only significant green space in central Taksim. A welcome refuge with trees, paths, and views toward the Bosphorus.",
+          "address": "Gezi Parkı, Taksim",
+          "badge": "Hidden Gem"
+        },
+        {
+          "name": "Atatürk Cultural Centre (AKM)",
+          "description": "The restored art centre on Taksim Square hosts major opera, ballet, and cultural events. Check the programme.",
+          "address": "Taksim Meydanı, Beyoğlu"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Taksim is the city's main transport hub — metro (M2), buses, and taxis all converge here. Easy to reach, sometimes hard to leave.",
+    "The square itself is mostly concrete. The good stuff is on İstiklal and the streets running off it.",
+    "Mandabatmaz Turkish coffee is a 2-minute walk from the square and one of the best experiences in the area.",
+    "Avoid Taksim on national holidays and weekends if you dislike very large crowds."
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "tagline": "A coastal suburb with a beautiful saltwater lake and long beachfront — popular with Istanbul families seeking an affordable seaside lifestyle on the far western shore.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Büyükçekmece Gölü Sahil Kafeler",
+          "description": "Waterfront cafés around the Büyükçekmece lake with views of the bridge and the lagoon. Peaceful and very local.",
+          "address": "Büyükçekmece, İstanbul",
+          "badge": "Smileys Pick"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Büyükçekmece Balık Restoranları",
+          "description": "Fresh fish restaurants by the lake and coast. Very good value compared to city-centre equivalents.",
+          "address": "Büyükçekmece, İstanbul",
+          "badge": "Must Visit"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Büyükçekmece Gölü",
+          "description": "A large saltwater lake with a scenic road bridge and waterfront parks. Popular with local families for weekend walks.",
+          "address": "Büyükçekmece, İstanbul",
+          "badge": "Smileys Pick"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Büyükçekmece is on the M3 metro line (end of the line extension) or accessible by bus from Beylikdüzü.",
+    "Far from the city centre — factor in 60+ minutes travel time.",
+    "A weekend destination rather than a daily base, unless you work nearby.",
+    "The lake and coastal park are the main reasons to make the journey."
+  ]
+}

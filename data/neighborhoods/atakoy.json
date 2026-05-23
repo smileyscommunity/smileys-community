@@ -1,0 +1,57 @@
+{
+  "tagline": "A well-planned European side coastal district with marinas, a seaside promenade, shopping, and easy airport access.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Galleria AVM Cafés",
+          "description": "Multiple café options inside the Galleria shopping centre on the seafront. Reliable and convenient.",
+          "address": "Galleria AVM, Ataköy"
+        },
+        {
+          "name": "Sahil Cafés",
+          "description": "Waterfront cafés along the Ataköy marina with Sea of Marmara views. Good for a relaxed afternoon.",
+          "address": "Ataköy Sahili, Bakırköy",
+          "badge": "Smileys Pick"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Ataköy Marina Restoranları",
+          "description": "Restaurants around the Ataköy marina with sea views. A pleasant waterfront dining option on the European side.",
+          "address": "Ataköy Marina, Bakırköy",
+          "badge": "Must Visit"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Ataköy Marina",
+          "description": "One of Istanbul's main marinas with yachts, restaurants, and a pleasant waterfront to walk.",
+          "address": "Ataköy Marina, Bakırköy",
+          "badge": "Smileys Pick"
+        },
+        {
+          "name": "Sahil Promenadı",
+          "description": "A long coastal walkway connecting Ataköy to neighbouring Bakırköy. Good for cycling or evening walks with sea views.",
+          "address": "Ataköy Sahili, Bakırköy"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Ataköy is on the M1A metro line — direct to the airport and well connected to the city centre.",
+    "Primarily residential and practical rather than a destination in itself. The marina is the main draw.",
+    "Adjacent to Bakırköy, which has a better café and restaurant scene.",
+    "Good base if you need easy airport access while staying near the sea."
+  ]
+}

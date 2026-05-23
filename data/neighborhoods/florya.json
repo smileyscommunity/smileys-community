@@ -1,0 +1,54 @@
+{
+  "tagline": "Istanbul's oldest beach resort area — historic seafront facilities, family beach clubs, and a long coastal promenade on the Sea of Marmara.",
+  "places": [
+    {
+      "category": "Coffee & Tea",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Florya Sosyal Tesisleri Café",
+          "description": "The historic Florya Social Facilities complex right on the sea — a beloved Istanbul institution with a seafront terrace.",
+          "address": "Florya Sahili, Bakırköy",
+          "badge": "Smileys Pick",
+          "tip": "The wooden pavilions over the sea are from the 1930s Atatürk era. Order tea and sit by the water."
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Florya Sahil Restoranları",
+          "description": "Restaurants along the Florya seafront with Marmara views. Family-friendly, local, and good value.",
+          "address": "Florya Sahili, Bakırköy",
+          "badge": "Must Visit"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Florya Sahili",
+          "description": "A long seaside promenade with beach clubs, walking paths, and one of Istanbul's best coastal parks. Popular with families.",
+          "address": "Florya Sahili, Bakırköy",
+          "badge": "Smileys Pick"
+        },
+        {
+          "name": "Atatürk'ün Florya Köşkü",
+          "description": "The wooden sea villa used by Atatürk as a summer retreat — now a museum set on stilts over the sea. A fascinating piece of Turkish history.",
+          "address": "Florya Sahili, Bakırköy",
+          "badge": "Must Visit"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Florya is on the M1A metro line (Florya stop) — about 30 minutes from the city centre.",
+    "The beach area is free but beach clubs charge entry. The coastal walk is always accessible.",
+    "Best visited in spring or autumn — summer heat and crowds can be intense.",
+    "Combine with Yeşilköy (east) for a pleasant coastal day."
+  ]
+}

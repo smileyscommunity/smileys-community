@@ -1,0 +1,64 @@
+{
+  "tagline": "The Asian side's most social waterfront — a beautiful beach club strip, great café scene, and one of Istanbul's most active outdoor communities.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Mado Caddebostan",
+          "description": "A beloved Istanbul institution with a prime waterfront terrace. Great for ice cream, coffee, and watching the Sea of Marmara.",
+          "address": "Caddebostan Sahili, Kadıköy",
+          "badge": "Smileys Pick"
+        },
+        {
+          "name": "Sahil Kahveleri",
+          "description": "A stretch of independent cafés along the Caddebostan waterfront promenade. Relaxed, local, and great for a long afternoon.",
+          "address": "Caddebostan Sahili, Kadıköy"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Caddebostan Balık Restoranları",
+          "description": "Several excellent fish restaurants along the waterfront with Princes' Islands views. Great quality at Asian side prices.",
+          "address": "Caddebostan Sahili, Kadıköy",
+          "badge": "Must Visit"
+        },
+        {
+          "name": "Bağdat Caddesi Restoranları",
+          "description": "The famous Bağdat Avenue (Istanbul's Champs-Élysées) runs through Caddebostan with a wide range of restaurants and cafés at all price points.",
+          "address": "Bağdat Cad., Kadıköy"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Caddebostan Sahili & Beach Clubs",
+          "description": "A long, well-maintained waterfront with public beaches, beach clubs, and a promenade. The centre of social life on the Asian shore in summer.",
+          "address": "Caddebostan Sahili, Kadıköy",
+          "badge": "Must Do",
+          "tip": "The beach clubs get packed on summer weekends. Arrive before 10am or go on a weekday for a relaxed experience."
+        },
+        {
+          "name": "Bağdat Caddesi Shopping",
+          "description": "A long, tree-lined boulevard packed with fashion boutiques, cafés, and restaurants. The Asian side's answer to İstiklal — more relaxed and less touristy.",
+          "address": "Bağdat Cad., Kadıköy",
+          "badge": "Smileys Pick"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Caddebostan is accessible by metro (M4 Göztepe stop, then a short walk or dolmuş to the coast).",
+    "Bağdat Caddesi is one of Istanbul's best shopping streets — less touristy and more local than İstiklal.",
+    "The beach area is free and open to all. Beach clubs charge entry but include sun loungers and service.",
+    "The promenade connects to Suadiye and Fenerbahçe — worth walking the whole stretch."
+  ]
+}

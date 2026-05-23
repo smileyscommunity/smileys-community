@@ -1,0 +1,70 @@
+{
+  "tagline": "The quietest of the inhabited Princes' Islands — rugged, unhurried, with pine forests reaching the sea and an authentic village life that Büyükada no longer has.",
+  "places": [
+    {
+      "category": "Coffee & Tea",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "İskele Kafesi",
+          "description": "The simple café right at the ferry landing. Order çay, watch the boat leave, and feel the island pace immediately take hold.",
+          "address": "Burgazada İskelesi, Adalar",
+          "badge": "Smileys Pick"
+        },
+        {
+          "name": "Çarşı Çay Bahçeleri",
+          "description": "Small tea gardens in the village centre near the church. Very local, very quiet. This is what Büyükada used to feel like.",
+          "address": "Burgazada Çarşısı, Adalar"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Kalpazankaya Restaurant",
+          "description": "A legendary fish restaurant on the rocks at the water's edge — one of the most special dining spots in the entire Istanbul area. Tables literally hang over the sea.",
+          "address": "Kalpazankaya, Burgazada",
+          "badge": "Must Visit",
+          "tip": "Book ahead even on weekdays. Walk or take a water taxi from the ferry landing — it's not accessible by land vehicle."
+        },
+        {
+          "name": "Ada Lokantalari",
+          "description": "Simple, honest meyhane and lokanta restaurants in the village serving fish mezes and grilled seafood. Very local crowd.",
+          "address": "Burgazada Çarşısı, Adalar"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Hristos Tepesi (Christ Hill) Walk",
+          "description": "A scenic walk through pine forest to the hilltop chapel with views across all the Princes' Islands and the Istanbul skyline.",
+          "address": "Burgazada, Adalar",
+          "badge": "Smileys Pick",
+          "tip": "The walk up takes about 40 minutes. Bring water — there's nothing on the way up."
+        },
+        {
+          "name": "Sait Faik Müzesi",
+          "description": "The home-museum of Sait Faik Abasıyanık, one of Turkey's greatest short story writers, who lived here. Small, intimate, and very moving.",
+          "address": "Burgaz Çarşı Cad., Burgazada",
+          "badge": "Hidden Gem"
+        },
+        {
+          "name": "Island Perimeter Walk",
+          "description": "Unlike Büyükada, Burgazada is small enough to walk around entirely on foot in 2-3 hours. Pine forests, rocky coves, and almost no other tourists.",
+          "address": "Burgazada, Adalar"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Ferry from Kabataş or Bostancı — Burgazada is the second stop after Kınalıada. Total journey about 60-75 minutes.",
+    "Far fewer visitors than Büyükada — weekends are busy but never overwhelming. Weekdays are practically deserted.",
+    "There are no cars and no bicycles for rent. You walk everywhere. Bring comfortable shoes.",
+    "The island has one small market and a few restaurants. Don't rely on ATMs — bring enough cash."
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "tagline": "An exclusive Bosphorus bay where foreign embassies have summer residences — serene, beautiful, and one of the most scenic spots on the upper European shore.",
+  "places": [
+    {
+      "category": "Coffee & Tea",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Tarabya İskelesi Çay Bahçesi",
+          "description": "A pleasant tea garden by the Tarabya ferry landing with views across the bay. Locals stop here for tea between errands — proper neighbourhood feeling.",
+          "address": "Tarabya İskelesi, Sarıyer",
+          "badge": "Smileys Pick"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Tarabya Balık Restoranları",
+          "description": "A row of excellent fish restaurants around the Tarabya bay and marina. One of the most scenic dining settings on the Bosphorus.",
+          "address": "Tarabya Körfezi, Sarıyer",
+          "badge": "Must Visit",
+          "tip": "Reserve a waterfront table in advance. The bay views at sunset are exceptional — arrive early to see the light change."
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Tarabya Koyu (Bay)",
+          "description": "A sheltered, perfectly curved bay with moored yachts, a tree-lined waterfront, and an almost Mediterranean atmosphere. Walk the full perimeter.",
+          "address": "Tarabya, Sarıyer",
+          "badge": "Smileys Pick"
+        },
+        {
+          "name": "Embassy Summer Residences Walk",
+          "description": "The hills above Tarabya are lined with the historic summer residences of foreign embassies — grand 19th-century villas in leafy gardens. A fascinating architectural walk.",
+          "address": "Tarabya Bayırı, Sarıyer",
+          "badge": "Hidden Gem"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Tarabya is on the Bosphorus bus route from Beşiktaş or Sarıyer metro — about 40 minutes from the city centre.",
+    "A quieter and more exclusive alternative to the busier Bosphorus villages further south.",
+    "Best combined with Yeniköy (just south) for a pleasant coastal afternoon.",
+    "Avoid driving on summer weekends — the coastal road backs up significantly."
+  ]
+}

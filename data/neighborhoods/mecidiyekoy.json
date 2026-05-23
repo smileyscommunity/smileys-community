@@ -1,0 +1,39 @@
+{
+  "tagline": "Istanbul's most connected transit hub — the M2 metro and TEM highway junction, surrounded by business towers and a dense commercial district.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Mecidiyeköy AVM Kafeler",
+          "description": "Multiple café chains in and around the shopping centres near the metro. Practical and accessible.",
+          "address": "Mecidiyeköy, Şişli"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Trump Towers ve Çevresi Restoranları",
+          "description": "The Trump Towers complex and surrounding streets have a range of restaurants across price points. Practical for business lunches.",
+          "address": "Mecidiyeköy, Şişli"
+        },
+        {
+          "name": "Mecidiyeköy Yan Sokak Lokantalari",
+          "description": "The side streets off the main boulevard have honest lokanta restaurants popular with office workers. Great value.",
+          "address": "Mecidiyeköy, Şişli",
+          "badge": "Hidden Gem"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Mecidiyeköy is one of Istanbul's major metro junctions (M2 line) and bus hub.",
+    "Primarily a commercial and transit district — not a leisure destination.",
+    "The side streets away from the main road have surprisingly good local food at low prices.",
+    "Şişli (one metro stop south) has more character; Levent (north) has the business towers."
+  ]
+}

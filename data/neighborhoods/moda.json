@@ -1,0 +1,81 @@
+{
+  "tagline": "Kadıköy's quieter, more charming neighbour — waterfront promenades, independent bookshops, and some of the city's finest pastries.",
+  "places": [
+    {
+      "category": "Coffee & Patisseries",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Moda İskele Café",
+          "description": "Right on the waterfront with sweeping Bosphorus views. The perfect place for a morning coffee watching the ferries pass.",
+          "address": "Moda Sahili, Kadıköy",
+          "badge": "Smileys Pick",
+          "tip": "Come at sunrise or sunset — the light on the water is extraordinary."
+        },
+        {
+          "name": "Vanilla Kasımpaşa Pastanesi",
+          "description": "A beloved local pastry shop with exceptional cakes, pastries, and Turkish sweets. Entirely unpretentious and delicious.",
+          "address": "Moda Cad., Kadıköy"
+        },
+        {
+          "name": "Espressolab Moda",
+          "description": "One of Istanbul's best specialty coffee chains, with a calm Moda branch perfect for working or reading.",
+          "address": "Moda Cad., Kadıköy"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Moda'da Balık",
+          "description": "Excellent fresh fish restaurant loved by locals. Simple mezes, perfectly grilled fish, and good rakı. Book ahead.",
+          "address": "Moda Cad., Kadıköy",
+          "badge": "Must Visit",
+          "tip": "Ask for the catch of the day rather than ordering from the menu — always better and fresher."
+        },
+        {
+          "name": "Kalamış Sahili Restoranları",
+          "description": "A cluster of waterfront restaurants in nearby Kalamış with Bosphorus views. Good for a long, relaxed dinner.",
+          "address": "Kalamış Sahili, Kadıköy"
+        },
+        {
+          "name": "Çorbacı Abi",
+          "description": "The best soup spot in Moda. Open until late — a neighbourhood institution for lentil soup and bread at any hour.",
+          "address": "Moda, Kadıköy",
+          "tip": "The mercimek çorbası (red lentil soup) with a squeeze of lemon is a must after a long evening."
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Moda Promenade Walk",
+          "description": "A beautiful seafront promenade stretching along the Moda coastline. Perfect for morning runs, evening strolls, and watching the Bosphorus traffic.",
+          "address": "Moda Sahili, Kadıköy",
+          "badge": "Smileys Pick"
+        },
+        {
+          "name": "Secondhand Bookshops",
+          "description": "Moda has an impressive cluster of independent secondhand bookshops. A slow browse on a weekend afternoon is one of the neighbourhood's great pleasures.",
+          "address": "Moda Cad., Kadıköy",
+          "badge": "Hidden Gem"
+        },
+        {
+          "name": "Moda Park",
+          "description": "A leafy park beloved by locals, dog walkers, and picnickers. Great on weekends when the neighbourhood comes alive.",
+          "address": "Moda Parkı, Kadıköy"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Moda is a 15-minute walk from Kadıköy main square or a short dolmuş ride.",
+    "The waterfront is best in the morning before the weekend crowds arrive.",
+    "Moda's bookshops are all secondhand — bring cash and set aside time to browse properly.",
+    "The neighbourhood has a very local, residential feel compared to central Kadıköy. That's the point."
+  ]
+}

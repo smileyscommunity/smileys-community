@@ -1,0 +1,35 @@
+{
+  "tagline": "A quiet, residential Asian side neighbourhood between Göztepe and Erenköy — peaceful streets, good local services, and an authentic non-touristy Istanbul experience.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Feneryolu Mahalle Kafeler",
+          "description": "Small neighbourhood cafés serving the local community. Very local, very quiet, and a genuine slice of everyday Asian side Istanbul.",
+          "address": "Feneryolu, Kadıköy",
+          "badge": "Smileys Pick"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Feneryolu Lokantalari",
+          "description": "Honest lokanta restaurants serving the neighbourhood. Traditional Turkish home cooking at prices that haven't been inflated by tourism.",
+          "address": "Feneryolu, Kadıköy",
+          "badge": "Hidden Gem"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Feneryolu is a quiet residential neighbourhood — not a destination but a comfortable place to live.",
+    "Good transport connections to Kadıköy and the wider Asian side.",
+    "Property is more affordable than neighbouring Moda or Kadıköy centre.",
+    "Göztepe Park (nearby) is the best outdoor amenity in the immediate area."
+  ]
+}

@@ -1,0 +1,90 @@
+{
+  "tagline": "The spiritual and historic heart of Asian Istanbul — ferry landings, Ottoman mosques, tea gardens, and one of the city's most beloved waterfront promenades.",
+  "places": [
+    {
+      "category": "Coffee & Tea",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Çamlıca Çay Bahçesi",
+          "description": "A sprawling tea garden on the slopes of Büyük Çamlıca hill with panoramic views of the entire Bosphorus and Istanbul. One of the city's great viewpoints.",
+          "address": "Büyük Çamlıca, Üsküdar",
+          "badge": "Smileys Pick",
+          "tip": "Go on a clear day for views spanning both continents. Sunset is spectacular but busy — weekday afternoons are more peaceful."
+        },
+        {
+          "name": "İskele Çay Bahçeleri",
+          "description": "Traditional tea gardens right by the Üsküdar ferry landing. Watching ferries cross the Bosphorus over a glass of çay is a perfect Istanbul moment.",
+          "address": "Üsküdar İskelesi, Üsküdar"
+        },
+        {
+          "name": "Kuzguncuk Kahveleri",
+          "description": "The charming neighbourhood of Kuzguncuk (just north of Üsküdar) has excellent independent cafés on its picturesque main street.",
+          "address": "Kuzguncuk, Üsküdar",
+          "badge": "Hidden Gem"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Kanaat Lokantası",
+          "description": "A historic Istanbul lokanta open since 1933. Traditional home-style Turkish cooking in a timeless setting. One of the best of its kind in the city.",
+          "address": "Selmani Pak Cad. No:9, Üsküdar",
+          "badge": "Must Visit",
+          "tip": "Arrive at noon when the daily dishes are freshest. The braised lamb and stuffed vegetables are outstanding."
+        },
+        {
+          "name": "Üsküdar Balık Restoranları",
+          "description": "Several excellent fish restaurants near the Üsküdar waterfront. Better value than European side equivalents with the same quality.",
+          "address": "Üsküdar Sahili, Üsküdar"
+        },
+        {
+          "name": "Kuzguncuk Kasabı (Butcher Meyhane)",
+          "description": "The Kuzguncuk neighbourhood has a cluster of excellent meyhane (tavern-restaurants) popular with locals. Mezes and grilled meat in a relaxed garden setting.",
+          "address": "Kuzguncuk, Üsküdar",
+          "badge": "Smileys Pick"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Üsküdar Waterfront Promenade",
+          "description": "A beautiful long waterfront walk with unmatched views of the Bosphorus, Topkapı Palace, and the old city skyline. One of Istanbul's finest urban walks.",
+          "address": "Üsküdar Sahili, Üsküdar",
+          "badge": "Must Do",
+          "tip": "Walk north toward Kuzguncuk at dusk for the best light on the European shore skyline. About 30 minutes each way."
+        },
+        {
+          "name": "Büyük Çamlıca Mosque",
+          "description": "Istanbul's newest and largest mosque, visible from across the city. The interior is vast and the hilltop location offers extraordinary views.",
+          "address": "Büyük Çamlıca, Üsküdar"
+        },
+        {
+          "name": "Kuzguncuk",
+          "description": "A remarkably preserved historic neighbourhood with wooden Ottoman houses, colourful façades, a Greek church, synagogue, and mosque on the same street.",
+          "address": "Kuzguncuk, Üsküdar",
+          "badge": "Hidden Gem",
+          "tip": "Walk up the main street (İcadiye Cad.) on a Sunday morning. The neighbourhood is quiet, beautiful, and feels like it belongs to another era."
+        },
+        {
+          "name": "Maiden's Tower (Kız Kulesi)",
+          "description": "The iconic tower in the Bosphorus — a short boat ride from Üsküdar. Newly restored with a café and restaurant inside.",
+          "address": "Kız Kulesi, Üsküdar",
+          "tip": "Book the restaurant for dinner to avoid the entrance queue. The exterior is best photographed from Üsküdar waterfront at golden hour."
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Üsküdar is reached by ferry from Eminönü (15 min) or Beşiktaş (10 min) — the ferry journey itself is part of the experience.",
+    "Also accessible by metro (Üsküdar station on the M5 line) and Marmaray rail under the Bosphorus.",
+    "Kuzguncuk is a 20-minute walk north along the waterfront from the ferry landing — highly recommended.",
+    "One of the most authentic and least-touristed major neighbourhoods in Istanbul. Deeply local in character."
+  ]
+}

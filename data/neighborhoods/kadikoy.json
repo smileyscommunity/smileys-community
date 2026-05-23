@@ -1,0 +1,112 @@
+{
+  "headline": "Kadıköy",
+  "tagline": "The soul of the Asian side — art, food, and the best street energy in Istanbul.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Fazıl Bey'in Türk Kahvesi",
+          "description": "Istanbul's most iconic Turkish coffee shop. Tiny, no-frills, and perfect. The dark roast is mandatory.",
+          "address": "Muvakkithane Cad. No:1, Kadıköy",
+          "tip": "Queue outside is normal — it moves fast. Get the dark roast (koyu).",
+          "badge": "Smileys Pick"
+        },
+        {
+          "name": "Kronotrop Coffee Bar",
+          "description": "Specialty coffee pioneers in Istanbul. The Kadıköy branch is the best spot to work from in the morning.",
+          "address": "Moda Cad. No:5, Kadıköy"
+        },
+        {
+          "name": "Moda Sahne Café",
+          "description": "Seafront café with stunning Bosphorus views. Come for sunset coffee.",
+          "address": "Moda Sahili, Kadıköy",
+          "tip": "Arrive 30 min before sunset to get a window seat."
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Çiya Sofrası",
+          "description": "A legendary Anatolian kitchen serving rare regional dishes from across Turkey. A must for any food lover.",
+          "address": "Güneşlibahçe Sok. No:43, Kadıköy",
+          "badge": "Must Visit",
+          "tip": "Arrive at noon when the daily specials are freshest. Always changing menu."
+        },
+        {
+          "name": "Borsam Taş Fırın",
+          "description": "The best lahmacun in the city. Thin, crispy, loaded with herbs. Queue is worth it.",
+          "address": "Muvakkithane Cad. No:21, Kadıköy",
+          "tip": "Get there at 12:30 on weekdays — shorter queue, fresher batches."
+        },
+        {
+          "name": "Baylan Pastanesi",
+          "description": "A Kadıköy institution since 1923. Their copa (chocolate sundae) is iconic and unchanged for decades.",
+          "address": "Moda Cad. No:19, Kadıköy",
+          "badge": "Since 1923"
+        },
+        {
+          "name": "Balıkçı Kahraman",
+          "description": "No-frills fish restaurant loved by locals. Fresh catch of the day, excellent meze, very reasonable prices.",
+          "address": "Damgacı Sok. No:7, Kadıköy"
+        }
+      ]
+    },
+    {
+      "category": "Bars & Nightlife",
+      "emoji": "🍻",
+      "items": [
+        {
+          "name": "Kadife Sokak (Barlar Sokağı)",
+          "description": "The bar street of Kadıköy. A dense strip of meyhanes, live music venues, and cocktail bars. Start here on any night out.",
+          "address": "Kadife Sokak, Kadıköy",
+          "badge": "Smileys Pick",
+          "tip": "Weekdays are mellower and more local. Weekends get packed after 11pm."
+        },
+        {
+          "name": "Karga Bar",
+          "description": "Kadıköy's most beloved alternative bar. Art on the walls, great music, mixed crowd. A classic.",
+          "address": "Kadife Sok. No:16, Kadıköy"
+        },
+        {
+          "name": "Arkaoda",
+          "description": "Rooftop bar with an exceptional view of Kadıköy. Live music on weekends. Great for a sundowner.",
+          "address": "Moda Cad. No:28, Kadıköy"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Kadıköy Produce Market",
+          "description": "One of the best outdoor markets in Istanbul. Perfect for fresh produce, olives, cheese, and spices. Saturdays are best.",
+          "address": "Güneşlibahçe Sokak area, Kadıköy",
+          "tip": "Go on Saturday morning. Bring a bag — you will buy more than you plan to."
+        },
+        {
+          "name": "Moda Park & Promenade",
+          "description": "A quiet waterfront park with beautiful Bosphorus views, perfect for morning runs or evening walks.",
+          "address": "Moda Sahili, Kadıköy"
+        },
+        {
+          "name": "Yeldeğirmeni Street Art",
+          "description": "The Yeldeğirmeni neighbourhood just behind Kadıköy is covered in incredible street art. Great for a walking tour.",
+          "address": "Yeldeğirmeni, Kadıköy",
+          "badge": "Hidden Gem"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Take the ferry from Eminönü or Beşiktaş — it's scenic and fast.",
+    "The market area and Kadife Sokak are best explored on foot. Park outside and walk.",
+    "Most restaurants don't take reservations. Arrive early (12pm or 7pm) to avoid queues.",
+    "Kadıköy has some of the city's best secondhand bookshops along Söğütlüçeşme Cad."
+  ]
+}

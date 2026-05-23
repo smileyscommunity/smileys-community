@@ -1,0 +1,100 @@
+{
+  "tagline": "Istanbul's upmarket shopping and dining district — wide leafy boulevards, international brands, exceptional restaurants, and a distinctly refined atmosphere.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Loft Coffee Nişantaşı",
+          "description": "One of the neighbourhood's best specialty coffee spots. Calm, well-designed space with excellent espresso and filter options.",
+          "address": "Teşvikiye Cad., Nişantaşı",
+          "badge": "Smileys Pick"
+        },
+        {
+          "name": "Starbucks Reserve (Nişantaşı)",
+          "description": "The Nişantaşı Reserve location is genuinely impressive — a beautiful space with rare coffee offerings. Different from a standard Starbucks.",
+          "address": "Abdi İpekçi Cad., Nişantaşı"
+        },
+        {
+          "name": "Baylan Nişantaşı",
+          "description": "The Nişantaşı branch of the legendary 1923 patisserie. Excellent pastries and their famous copa (chocolate sundae).",
+          "address": "Teşvikiye Cad., Nişantaşı"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Jash Nişantaşı",
+          "description": "The Nişantaşı outpost of the beloved Armenian-inspired brunch restaurant. Consistently excellent and very popular.",
+          "address": "Teşvikiye Mah., Nişantaşı",
+          "badge": "Must Visit",
+          "tip": "Book ahead for weekends. Brunch runs until mid-afternoon."
+        },
+        {
+          "name": "Balkon Restaurant",
+          "description": "Modern Turkish cuisine with a beautiful terrace overlooking Nişantaşı. Excellent seasonal menus and wine list.",
+          "address": "Teşvikiye Cad., Nişantaşı"
+        },
+        {
+          "name": "Mado (Nişantaşı)",
+          "description": "A classic Turkish ice cream and dessert café. The dondurma (traditional Turkish ice cream) is excellent.",
+          "address": "Abdi İpekçi Cad., Nişantaşı"
+        },
+        {
+          "name": "Spago Nişantaşı",
+          "description": "Upscale Italian dining in the heart of Nişantaşı. Good for a business lunch or a special occasion dinner.",
+          "address": "Teşvikiye Cad., Nişantaşı"
+        }
+      ]
+    },
+    {
+      "category": "Shopping",
+      "emoji": "🛍️",
+      "items": [
+        {
+          "name": "Abdi İpekçi Caddesi",
+          "description": "Istanbul's most prestigious shopping street. International luxury brands (Chanel, Prada, Hermès) alongside upmarket Turkish designers.",
+          "address": "Abdi İpekçi Cad., Nişantaşı",
+          "badge": "Smileys Pick"
+        },
+        {
+          "name": "Nişantaşı City's",
+          "description": "A mid-range shopping mall that's far more pleasant than typical Istanbul malls — open-air sections and good restaurant options.",
+          "address": "Teşvikiye Cad., Nişantaşı"
+        },
+        {
+          "name": "Turkish Designer Boutiques",
+          "description": "The side streets around Teşvikiye Cad. hide excellent Turkish fashion designers. Worth exploring for unique, high-quality pieces.",
+          "address": "Teşvikiye Mah., Nişantaşı",
+          "badge": "Hidden Gem"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Teşvikiye Parkı",
+          "description": "A pleasant, tree-lined park in the centre of the neighbourhood. Great for a coffee break between shopping.",
+          "address": "Teşvikiye, Nişantaşı"
+        },
+        {
+          "name": "Gallery Walk",
+          "description": "Nişantaşı has a strong gallery scene. The area around Teşvikiye has several contemporary art galleries worth dropping into.",
+          "address": "Teşvikiye Mah., Nişantaşı"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Nişantaşı is best reached from the Osmanbey metro stop (M2 line) — a 5-minute walk to the main area.",
+    "The neighbourhood is very walkable and flat — unusual for Istanbul. Good shoes still help.",
+    "Parking is a nightmare. Always use metro or taxi.",
+    "Lunch on weekdays is excellent value in Nişantaşı — many upscale restaurants offer lunch menus at much lower prices."
+  ]
+}

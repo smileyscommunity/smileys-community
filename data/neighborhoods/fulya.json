@@ -1,0 +1,46 @@
+{
+  "tagline": "A leafy, up-and-coming residential area between Şişli and Beşiktaş — creative businesses, independent cafés, and a local scene that hasn't been discovered yet.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Fulya Sokak Cafés",
+          "description": "Several independent specialty coffee shops have opened on Fulya's quieter streets. A growing specialty coffee scene away from the tourist zones.",
+          "address": "Fulya, Şişli",
+          "badge": "Smileys Pick"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Fulya ve Kuştepe Restoranları",
+          "description": "A mix of Turkish and international restaurants catering to the local professional and creative crowd. Good quality at reasonable prices.",
+          "address": "Fulya, Şişli",
+          "badge": "Hidden Gem"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Bomonti ve Fulya Arası Yürüyüş",
+          "description": "The streets between Fulya and Bomonti are worth exploring on foot — emerging creative studios, small galleries, and the best neighbourhood walking in the area.",
+          "address": "Fulya, Şişli"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Fulya is between Şişli and Beşiktaş metro stops — walkable from both.",
+    "One of Istanbul's quieter residential areas that is rapidly attracting creative businesses.",
+    "Best explored on foot — the streets don't lend themselves to a specific route.",
+    "Good value compared to Cihangir or Nişantaşı for the same neighbourhood feel."
+  ]
+}

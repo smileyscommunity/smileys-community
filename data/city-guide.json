@@ -1,0 +1,334 @@
+{
+  "categories": [
+    {
+      "icon": "🚇",
+      "label": "Getting Around",
+      "color": "blue",
+      "resources": [
+        {
+          "title": "Istanbulkart",
+          "description": "The must-have reloadable transit card. Works on metro, tram, bus, ferry and funicular. Tap-to-pay everywhere.",
+          "href": "",
+          "badge": "Essential",
+          "badgeColor": "",
+          "tip": "Buy at any metro station kiosk for ₺70 (card deposit). Reload at machines or the app. Saves ~35% vs cash fares."
+        },
+        {
+          "title": "Metro & Tram",
+          "description": "M2 connects Taksim to the airport (Gayrettepe). T1 tram runs Kabataş–Eminönü–Bağcılar. M4 links Kadıköy to Sabiha Gökçen airport.",
+          "href": "https://www.metro.istanbul/en",
+          "badge": "Admin Pick",
+          "badgeColor": "violet",
+          "tip": "Service runs 06:00–midnight. During rush hour (08–10, 17–19) expect full carriages on M2."
+        },
+        {
+          "title": "Ferry (Şehir Hatları)",
+          "description": "Scenic and cheap Bosphorus crossings. Key routes: Eminönü ↔ Kadıköy, Beşiktaş ↔ Kadıköy, Kabataş ↔ Üsküdar.",
+          "href": "https://sehirhatlari.istanbul/en",
+          "badge": "Admin Pick",
+          "badgeColor": "violet",
+          "tip": "Ferries run every 15–30 min during daytime. The upper deck is worth it for the views. Istanbulkart accepted."
+        },
+        {
+          "title": "Taxi & Rideshare",
+          "description": "Yellow taxis (taksi) are abundant. Apps: BiTaksi (official taxi app) and Uber both work in Istanbul.",
+          "href": "https://www.bitaksi.com",
+          "badge": "",
+          "badgeColor": "",
+          "tip": "Always confirm the meter is running. Uber is often slightly cheaper and avoids negotiation. Typical city ride: ₺150–400."
+        },
+        {
+          "title": "Dolmuş",
+          "description": "Shared minibuses running fixed routes. Cash only, extremely cheap. Tell the driver your stop and pay when you get off.",
+          "href": "",
+          "badge": "",
+          "badgeColor": "",
+          "tip": "No apps for dolmuş — learn the route from locals. Great for short trips where metro doesn't reach."
+        },
+        {
+          "title": "Funicular & Cable Car",
+          "description": "F1 funicular (Kabataş ↔ Taksim), F2 (Taksim ↔ İstiklal). Teleferik cable cars in Eyüp and Maçka park.",
+          "href": "",
+          "badge": "",
+          "badgeColor": "",
+          "tip": "Istanbulkart works. F2 is the famous nostalgic tram on İstiklal Caddesi — lovely but slow."
+        }
+      ]
+    },
+    {
+      "icon": "📱",
+      "label": "Essential Apps",
+      "color": "green",
+      "resources": [
+        {
+          "title": "Google Maps",
+          "description": "Best overall navigation. Accurately routes metro, tram, ferry, and bus with real-time departures.",
+          "href": "https://maps.google.com",
+          "badge": "Essential",
+          "badgeColor": "",
+          "tip": "Download the Istanbul offline map before you arrive. Works great in tunnels once cached."
+        },
+        {
+          "title": "Moovit",
+          "description": "Transit-focused directions with live departures and step-by-step guidance for Istanbul's full public transport network.",
+          "href": "https://moovitapp.com",
+          "badge": "",
+          "badgeColor": "",
+          "tip": ""
+        },
+        {
+          "title": "BiTaksi",
+          "description": "Official Istanbul taxi app. Connects you to licensed yellow taxis with upfront pricing and driver tracking.",
+          "href": "https://www.bitaksi.com",
+          "badge": "Admin Pick",
+          "badgeColor": "violet",
+          "tip": ""
+        },
+        {
+          "title": "Getir & Yemeksepeti",
+          "description": "Getir for ultra-fast grocery/convenience delivery (10–30 min). Yemeksepeti for restaurant food delivery.",
+          "href": "https://getir.com",
+          "badge": "",
+          "badgeColor": "",
+          "tip": "Getir is genuinely 10 minutes. Both apps have English interfaces and work with foreign cards."
+        },
+        {
+          "title": "Istanbul Kart App",
+          "description": "Check your Istanbulkart balance, view trip history, and reload your card without finding a kiosk.",
+          "href": "https://istanbulkart.istanbul",
+          "badge": "",
+          "badgeColor": "",
+          "tip": ""
+        },
+        {
+          "title": "Trendyol",
+          "description": "Turkey's largest e-commerce app. Same-day delivery for most items in Istanbul. Also has Trendyol Go for food.",
+          "href": "https://www.trendyol.com",
+          "badge": "",
+          "badgeColor": "",
+          "tip": "Significantly cheaper than Amazon equivalent for electronics, home goods, and clothing."
+        }
+      ]
+    },
+    {
+      "icon": "🏠",
+      "label": "Housing",
+      "color": "orange",
+      "resources": [
+        {
+          "title": "Sahibinden.com",
+          "description": "Turkey's main real estate platform. Listings for both long-term rentals and sales across all neighbourhoods. The default starting point.",
+          "href": "https://www.sahibinden.com/en",
+          "badge": "Essential",
+          "badgeColor": "",
+          "tip": "Filter by 'Kiralık' (for rent) and your target neighbourhood. Many listings are agent-only — expect a 1-month commission fee."
+        },
+        {
+          "title": "Typical Rental Costs",
+          "description": "1-bed in Cihangir/Beyoğlu: ₺25,000–55,000/mo. Kadıköy/Moda: ₺20,000–45,000/mo. Beşiktaş/Nişantaşı: ₺40,000–80,000/mo. Emerging areas (Eyüp, Bağcılar): ₺12,000–22,000/mo.",
+          "href": "",
+          "badge": "2025 Est.",
+          "badgeColor": "blue",
+          "tip": "Prices rise fast. Fully-furnished flats list at a premium (20–40% above bare). Negotiate hard — most landlords expect it."
+        },
+        {
+          "title": "Facebook Groups",
+          "description": "Best source for direct-from-landlord listings and expat sublets: search 'Istanbul Expats Housing', 'Istanbul Apartments for Rent', 'Expats in Istanbul'.",
+          "href": "https://www.facebook.com/groups/istanbulexpatshousing",
+          "badge": "Admin Pick",
+          "badgeColor": "violet",
+          "tip": "Post your requirements in the group — many members rent rooms or sublet short-term. Faster than agent listings."
+        },
+        {
+          "title": "What to Expect",
+          "description": "Standard lease is 12 months. Deposit is typically 1–2 months rent. Utilities (elektrik, su, doğalgaz) are billed separately. Many buildings have an aidat (building maintenance fee).",
+          "href": "",
+          "badge": "",
+          "badgeColor": "",
+          "tip": "Ask for the contract in English or get a translation. Always confirm if bills are included (eşyalı = furnished, faturalar dahil = bills included)."
+        },
+        {
+          "title": "Traps to Avoid",
+          "description": "Fake listings reusing photos from other properties. Agents asking for fees upfront before showing. Landlords who won't provide a formal contract (kira sözleşmesi).",
+          "href": "",
+          "badge": "Read This",
+          "badgeColor": "rose",
+          "tip": "Always verify the landlord owns the property (ask for tapu — title deed). Meet in person before paying anything. Use bank transfer, not cash, for the deposit."
+        },
+        {
+          "title": "Short-Term on Arrival",
+          "description": "For your first weeks: Airbnb and Booking.com have strong Istanbul supply. Monthly Airbnb is often 30–40% cheaper than the nightly rate — always ask the host.",
+          "href": "https://www.airbnb.com",
+          "badge": "",
+          "badgeColor": "",
+          "tip": "Neighbourhoods with high Airbnb supply: Taksim, Sultanahmet, Karaköy, Kadıköy. Avoid tourist-trap rates in Sultanahmet for long stays."
+        }
+      ]
+    },
+    {
+      "icon": "🍽️",
+      "label": "Food & Drink",
+      "color": "amber",
+      "resources": [
+        {
+          "title": "Turkish Breakfast (Kahvaltı)",
+          "description": "A weekend ritual. Spread of cheeses, olives, tomatoes, cucumbers, eggs, honey, clotted cream, and börek. Normally served until early afternoon.",
+          "href": "",
+          "badge": "Must Try",
+          "badgeColor": "green",
+          "tip": "Best areas: Kadıköy, Cihangir, Van (the city known for its kahvaltı culture). Budget ₺200–400pp at a sit-down place."
+        },
+        {
+          "title": "Street Food Essentials",
+          "description": "Simit (sesame bread ring, ₺10–15), balık ekmek (fish sandwich on Eminönü waterfront, ₺100), kestane (roasted chestnuts in winter), midye (stuffed mussels).",
+          "href": "",
+          "badge": "Must Try",
+          "badgeColor": "green",
+          "tip": "Midye — squeeze lemon on each mussel and pay per piece at the end. A great street snack at ₺10–15 each."
+        },
+        {
+          "title": "Markets",
+          "description": "Kadıköy Çarşı: best everyday food market on the Asian side. Mısır Çarşısı (Spice Bazaar, Eminönü): spices, Turkish delight, dried fruit. Kapalıçarşı (Grand Bazaar): souvenirs and textiles.",
+          "href": "",
+          "badge": "",
+          "badgeColor": "",
+          "tip": "For fresh produce at local prices, use the neighbourhood pazar (street market) — each area has one on a different day of the week."
+        },
+        {
+          "title": "Alcohol & Rakı Culture",
+          "description": "Turkey produces good wine (especially Thrace and Cappadocia regions) and Efes beer. Rakı is the national spirit — anise-flavoured, diluted with water. Meyhane restaurants are the traditional setting.",
+          "href": "",
+          "badge": "",
+          "badgeColor": "",
+          "tip": "Alcohol is only sold in licensed shops and restaurants. Supermarkets cannot sell alcohol between midnight and 06:00. Prices are high due to taxes — budget ₺200–400 for a beer in a bar."
+        },
+        {
+          "title": "Coffee Culture",
+          "description": "Istanbul has an excellent specialty coffee scene alongside traditional Turkish coffee (türk kahvesi). Neighborhoods like Karaköy, Cihangir, and Nişantaşı have dense café clusters.",
+          "href": "",
+          "badge": "Admin Pick",
+          "badgeColor": "violet",
+          "tip": "Turkish coffee is unfiltered — don't drink the last sip. Ordering 'az şekerli' (little sugar) or 'şekersiz' (no sugar) is respected."
+        },
+        {
+          "title": "Delivery Apps",
+          "description": "Yemeksepeti (restaurant delivery), Getir Yemek (fast food + grocery), Trendyol Yemek (restaurant + market). All work with foreign cards and have English interfaces.",
+          "href": "https://www.yemeksepeti.com",
+          "badge": "",
+          "badgeColor": "",
+          "tip": "Delivery is fast (20–40 min average) and relatively cheap. Tipping delivery drivers is not culturally expected but appreciated."
+        }
+      ]
+    },
+    {
+      "icon": "💼",
+      "label": "Co-working & Remote Work",
+      "color": "teal",
+      "resources": [
+        {
+          "title": "Kolektif House",
+          "description": "Istanbul's premium co-working network. Multiple locations: Maslak, Ataşehir, Bağcılar, Beşiktaş. High-speed fibre, meeting rooms, good community events.",
+          "href": "https://kolektifhouse.co",
+          "badge": "Admin Pick",
+          "badgeColor": "violet",
+          "tip": "Day passes available from ~₺600. Monthly memberships from ~₺4,000. Book meeting rooms via the app."
+        },
+        {
+          "title": "Workinton",
+          "description": "Good value co-working with many Istanbul locations. More casual atmosphere than Kolektif. Strong on amenities (printing, lockers, phone booths).",
+          "href": "https://workinton.com",
+          "badge": "",
+          "badgeColor": "",
+          "tip": "Monthly plans from ~₺3,000. Offer short-term packages ideal for visitors staying a few weeks."
+        },
+        {
+          "title": "Café Working Culture",
+          "description": "Istanbul cafés are generally very laptop-friendly. No pressure to leave, outlets at most tables, decent Wi-Fi. Kadıköy, Cihangir, Karaköy, and Nişantaşı have the densest options.",
+          "href": "",
+          "badge": "",
+          "badgeColor": "",
+          "tip": "Order every 1.5–2 hours and you're welcome to stay all day. Specialty coffee spots often have faster Wi-Fi than chains."
+        },
+        {
+          "title": "Internet & Connectivity",
+          "description": "Istanbul has excellent fibre internet infrastructure. Most apartments and cafés offer 100–500 Mbps. Get a local SIM for 4G/5G backup (Turkcell is most reliable).",
+          "href": "",
+          "badge": "",
+          "badgeColor": "",
+          "tip": "Some services are throttled or blocked (Discord, certain VoIP). Set up a VPN before arriving — downloading from Turkey can be slow."
+        },
+        {
+          "title": "Work & Visa Considerations",
+          "description": "Most expats work remotely on tourist visas. Turkish residence permits (ikamet) are required after 90 days. Freelancers can explore the 'digital nomad' visa option introduced in 2023.",
+          "href": "https://www.goc.gov.tr/ikamet-izni",
+          "badge": "Legal Info",
+          "badgeColor": "blue",
+          "tip": "Stay on top of your 90/180-day Schengen-style limit. Many expats do 'visa runs' to a nearby country. Always consult a local immigration lawyer for complex situations."
+        },
+        {
+          "title": "Time Zone & Working with Europe",
+          "description": "Istanbul is UTC+3. 1 hour ahead of most of Europe, 8 hours ahead of US East Coast. Works well for European clients with morning Istanbul time = late night Europe.",
+          "href": "",
+          "badge": "",
+          "badgeColor": "",
+          "tip": "Turkish public holidays differ from European ones. Check the calendar at the start of each month to avoid surprises."
+        }
+      ]
+    },
+    {
+      "icon": "🛠️",
+      "label": "Practical Info",
+      "color": "rose",
+      "resources": [
+        {
+          "title": "SIM Card",
+          "description": "Buy a Turkcell tourist SIM at the airport or any Turkcell store. 30-day unlimited data plans from ~₺500.",
+          "href": "",
+          "badge": "Do First",
+          "badgeColor": "rose",
+          "tip": "Foreign phones must be registered within 120 days or they'll be blocked on Turkish networks. Ask the store about IMEI registration."
+        },
+        {
+          "title": "Currency & ATMs",
+          "description": "Turkish Lira (TRY). Use ATMs from major banks: Garanti, İş Bankası, Yapı Kredi. Avoid airport exchange booths.",
+          "href": "",
+          "badge": "",
+          "badgeColor": "",
+          "tip": "Many restaurants and shops prefer cash. Always carry some TRY. Revolut and Wise work great here for card payments with interbank rates."
+        },
+        {
+          "title": "Healthcare",
+          "description": "Private hospitals are excellent and used by expats: Acıbadem, Memorial, American Hospital. English-speaking doctors available.",
+          "href": "https://www.acibadem.com.tr/en",
+          "badge": "",
+          "badgeColor": "",
+          "tip": "Emergency: 112. Visits without insurance typically ₺800–2,000 for consultations. Keep your receipts for insurance reimbursement."
+        },
+        {
+          "title": "Emergency Numbers",
+          "description": "112 — Ambulance & Fire\n155 — Police\n156 — Gendarmerie\n158 — Coast Guard",
+          "href": "",
+          "badge": "Save These",
+          "badgeColor": "rose",
+          "tip": ""
+        },
+        {
+          "title": "VPN",
+          "description": "Some platforms are throttled or intermittently blocked in Turkey (Discord, some social media). A reliable VPN is recommended.",
+          "href": "",
+          "badge": "",
+          "badgeColor": "",
+          "tip": "Mullvad and ProtonVPN work well. Set up before you arrive — download speeds from Turkey can make VPN setup slow."
+        },
+        {
+          "title": "Language Tips",
+          "description": "Turkish is phonetic — pronunciation is consistent once you learn it. Most younger locals in expat areas speak English.",
+          "href": "",
+          "badge": "",
+          "badgeColor": "",
+          "tip": "'Teşekkürler' (teh-shek-kür-ler) = Thank you. 'Merhaba' = Hello. Learning a few words goes a long way with locals."
+        }
+      ]
+    }
+  ]
+}
