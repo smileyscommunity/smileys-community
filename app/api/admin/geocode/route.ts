@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
+import { isAdmin } from '@/lib/access'
 
 const COORD_PATTERNS = [
   /@(-?\d+\.\d+),(-?\d+\.\d+)/,
@@ -7,6 +8,29 @@ const COORD_PATTERNS = [
   /ll=(-?\d+\.\d+),(-?\d+\.\d+)/,
   /!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/,
 ]
+
+const ALLOWED_HOSTS = ['maps.google.com', 'www.google.com', 'maps.app.goo.gl', 'goo.gl', 'maps.apple.com']
+
+// Manually follow redirects (up to 5 hops) and re-check each hop's host against the
+// allowlist. Prevents shortener URLs from redirecting fetch into internal services
+// like http://localhost:6379 (SSRF).
+async function safeFollowRedirects(startUrl: string): Promise<string | null> {
+  let current = startUrl
+  for (let hop = 0; hop < 5; hop++) {
+    let host: string
+    try { host = new URL(current).hostname } catch { return null }
+    if (!ALLOWED_HOSTS.includes(host)) return null
+    const res = await fetch(current, { redirect: 'manual', signal: AbortSignal.timeout(4000) })
+    if (res.status >= 300 && res.status < 400) {
+      const loc = res.headers.get('location')
+      if (!loc) return current
+      current = new URL(loc, current).toString()
+      continue
+    }
+    return current
+  }
+  return null
+}
 
 async function geocodeQuery(q: string): Promise<{ lat: string; lon: string } | null> {
   try {
@@ -36,20 +60,14 @@ async function geocodeQuery(q: string): Promise<{ lat: string; lon: string } | n
 
 export async function GET(req: NextRequest) {
   const session = await getSession()
-  if (!session) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!session || !isAdmin(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   // URL resolution mode — follow redirect then extract coords
   const url = req.nextUrl.searchParams.get('url')?.trim()
   if (url) {
-    // Allowlist: only Google/Apple Maps domains
-    const ALLOWED_HOSTS = ['maps.google.com', 'www.google.com', 'maps.app.goo.gl', 'goo.gl', 'maps.apple.com']
-    let urlHost: string
-    try { urlHost = new URL(url).hostname } catch { return NextResponse.json([]) }
-    if (!ALLOWED_HOSTS.includes(urlHost)) return NextResponse.json([])
-
     try {
-      const response = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(6000) })
-      const resolved = response.url
+      const resolved = await safeFollowRedirects(url)
+      if (!resolved) return NextResponse.json([])
 
       // Try to extract coordinates directly from resolved URL
       for (const re of COORD_PATTERNS) {
