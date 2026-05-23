@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import { resolveImageUrl } from '@/lib/data'
 
-export const revalidate = 300
+export const dynamic = 'force-dynamic'
 
 export const metadata = {
   title: 'Articles & Stories — Smileys Community',
@@ -32,7 +32,7 @@ export default async function PostsPage() {
     where: { status: 'published' },
     orderBy: { publishedAt: 'desc' },
     include: { author: { select: { name: true } } },
-  })
+  }).catch(() => [] as never[])
 
   const featured = posts[0] ?? null
   const rest = posts.slice(1)
