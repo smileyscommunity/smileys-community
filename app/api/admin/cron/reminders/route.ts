@@ -1,6 +1,8 @@
 import { isAdmin } from '@/lib/access'
 import { NextRequest, NextResponse } from 'next/server'
 import { timingSafeEqual } from 'crypto'
+import { readdirSync, statSync, unlinkSync } from 'fs'
+import { join } from 'path'
 import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notify'
 import { sendReviewRequestEmail, sendListingExpiryEmail } from '@/lib/email'
@@ -182,5 +184,31 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ ok: true, sent24h, sent2h, sentReviews, archivedCount, sentConnections, checkedEvents: upcomingEvents.length + pastEvents.length, expiringListings: expiringListings.length })
+  // Orphan-photo janitor for /api/apply/upload — that endpoint has no auth and
+  // accepts anonymous uploads at 5/hour/IP, so old files accumulate. Delete any
+  // file >30 days old that no MemberApplication still references.
+  let purgedPhotos = 0
+  try {
+    const dir = join(process.cwd(), 'public', 'uploads', 'applications')
+    const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000
+    const files = readdirSync(dir)
+    const referenced = new Set(
+      (await prisma.memberApplication.findMany({
+        where: { profilePhoto: { startsWith: '/app/api/files/applications/' } },
+        select: { profilePhoto: true },
+      })).map(a => a.profilePhoto!.split('/').pop()!)
+    )
+    for (const name of files) {
+      if (referenced.has(name)) continue
+      const path = join(dir, name)
+      try {
+        if (statSync(path).mtimeMs < cutoff) {
+          unlinkSync(path)
+          purgedPhotos++
+        }
+      } catch {}
+    }
+  } catch {}
+
+  return NextResponse.json({ ok: true, sent24h, sent2h, sentReviews, archivedCount, sentConnections, checkedEvents: upcomingEvents.length + pastEvents.length, expiringListings: expiringListings.length, purgedPhotos })
 }
