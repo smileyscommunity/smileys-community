@@ -1,5 +1,6 @@
 import { isAdmin } from '@/lib/access'
 import { NextRequest, NextResponse } from 'next/server'
+import { timingSafeEqual } from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notify'
 import { sendReviewRequestEmail, sendListingExpiryEmail } from '@/lib/email'
@@ -14,8 +15,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const headerSecret = req.headers.get('x-cron-secret')
-  if (headerSecret !== cronSecret) {
+  const headerSecret = req.headers.get('x-cron-secret') ?? ''
+  const a = Buffer.from(headerSecret)
+  const b = Buffer.from(cronSecret)
+  const secretOk = a.length === b.length && timingSafeEqual(a, b)
+  if (!secretOk) {
     const session = await getSession()
     if (!session || !isAdmin(session)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })

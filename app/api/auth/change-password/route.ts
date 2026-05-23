@@ -33,9 +33,15 @@ export async function POST(req: NextRequest) {
 
     const hashed = await bcrypt.hash(newPassword, 10)
     // Bump tokenVersion to evict all other sessions; re-issue cookie for this device.
+    // Also reset lockout state so a legit user mid-attack isn't locked out by stale counters.
     const updated = await prisma.user.update({
       where: { id: session.id },
-      data:  { password: hashed, tokenVersion: { increment: 1 } },
+      data:  {
+        password: hashed,
+        tokenVersion: { increment: 1 },
+        failedLoginCount: 0,
+        loginLockedUntil: null,
+      },
       select: { tokenVersion: true },
     })
     await createSession({ ...session, tokenVersion: updated.tokenVersion })

@@ -22,9 +22,16 @@ export async function POST(req: NextRequest) {
     const hashed = await bcrypt.hash(password, 10)
 
     // Bump tokenVersion to evict any sessions held by an attacker who knows the old password.
+    // Clear lockout state so a legit user resetting during a brute-force can log back in.
     await prisma.user.update({
       where: { id: record.userId },
-      data:  { password: hashed, emailVerified: true, tokenVersion: { increment: 1 } },
+      data:  {
+        password: hashed,
+        emailVerified: true,
+        tokenVersion: { increment: 1 },
+        failedLoginCount: 0,
+        loginLockedUntil: null,
+      },
     })
     await prisma.passwordResetToken.update({ where: { token }, data: { used: true } })
 
