@@ -813,6 +813,9 @@ model MemberConnection {
   id          String   @id @default(cuid())
   requesterId String
   receiverId  String
+  // Sorted pair of user IDs — "smaller|larger" — enforces uniqueness across the
+  // unordered pair so concurrent A->B and B->A inserts can't both succeed.
+  pairKey     String   @unique
   status      String   @default("pending")
   note        String?
   createdAt   DateTime @default(now())

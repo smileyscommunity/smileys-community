@@ -45,23 +45,31 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 })
   }
 
-  // Check for existing connection in either direction
-  const existing = await prisma.memberConnection.findFirst({
-    where: {
-      OR: [
-        { requesterId: session.id, receiverId },
-        { requesterId: receiverId, receiverId: session.id },
-      ],
-    },
-  })
+  // Unordered pair key — guards against the A->B / B->A race at the DB level.
+  const pairKey = session.id < receiverId
+    ? `${session.id}|${receiverId}`
+    : `${receiverId}|${session.id}`
+
+  // Fast path: return existing connection without attempting insert.
+  const existing = await prisma.memberConnection.findUnique({ where: { pairKey } })
   if (existing) {
     return NextResponse.json({ connection: existing })
   }
 
-  const connection = await prisma.memberConnection.create({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    data: { requesterId: session.id, receiverId, note: note?.trim() || null } as any,
-  })
+  let connection
+  try {
+    connection = await prisma.memberConnection.create({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      data: { requesterId: session.id, receiverId, pairKey, note: note?.trim() || null } as any,
+    })
+  } catch (e: unknown) {
+    // P2002 = unique-constraint violation — concurrent request won the race.
+    if (typeof e === 'object' && e !== null && 'code' in e && (e as { code: string }).code === 'P2002') {
+      const winner = await prisma.memberConnection.findUnique({ where: { pairKey } })
+      if (winner) return NextResponse.json({ connection: winner })
+    }
+    throw e
+  }
 
   await createNotification(
     receiverId,
