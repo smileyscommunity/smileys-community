@@ -4,6 +4,7 @@ set -e
 SERVER="${SMILEYS_DEPLOY_SERVER:-root@178.105.37.133}"
 REMOTE="/root/smileys-community"
 LOCAL="/Users/nate/smileys-community"
+SENTRY_RELEASE=$(git rev-parse --short HEAD)
 
 # Safety check: rsync --delete will wipe the remote if LOCAL is empty/missing.
 # Verify the working copy has the expected anchor files before we trust it.
@@ -24,8 +25,8 @@ fi
 echo "→ Checking for vulnerabilities..."
 npm audit --audit-level=high --legacy-peer-deps || { echo "✗ npm audit found high/critical vulnerabilities — fix before deploying"; exit 1; }
 
-echo "→ Building locally..."
-npm run build
+echo "→ Building locally (release: $SENTRY_RELEASE)..."
+SENTRY_RELEASE="$SENTRY_RELEASE" npm run build
 
 echo "→ Stopping server..."
 ssh "$SERVER" "pm2 stop smileys || true"
@@ -49,6 +50,6 @@ rsync -av --delete \
   "$LOCAL/" "$SERVER:$REMOTE/" || { CODE=$?; [ "$CODE" = "23" ] || [ "$CODE" = "24" ] || exit $CODE; }
 
 echo "→ Starting server..."
-ssh "$SERVER" "cd $REMOTE && npm install --legacy-peer-deps && npx prisma generate --schema=./prisma/schema.prisma && npx prisma db push --schema=./prisma/schema.prisma && pm2 start smileys"
+ssh "$SERVER" "cd $REMOTE && npm install --legacy-peer-deps && npx prisma generate --schema=./prisma/schema.prisma && npx prisma db push --schema=./prisma/schema.prisma && pm2 start smileys --max-memory-restart 512M && pm2 save"
 
-echo "✓ Done"
+echo "✓ Done (release: $SENTRY_RELEASE)"
