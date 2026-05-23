@@ -9,7 +9,7 @@ Sentry.init({
   integrations: [Sentry.replayIntegration()],
 })
 
-posthog.init(process.env.NEXT_PUBLIC_POSTHOG_TOKEN!, {
+posthog.init(process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN!, {
   api_host: '/ingest',
   ui_host: 'https://eu.posthog.com',
   defaults: '2026-01-30',
