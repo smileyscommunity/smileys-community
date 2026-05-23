@@ -6,7 +6,7 @@ import { createSession } from '@/lib/session'
 import { sendVerificationEmail } from '@/lib/email'
 import { rateLimit, getIp } from '@/lib/rateLimit'
 import { verifyTurnstile } from '@/lib/turnstile'
-import { getPostHogClient } from '@/lib/posthog-server'
+import { getPostHogClient, trackServer } from '@/lib/posthog-server'
 
 const COLORS = ['#f472b6','#60a5fa','#fbbf24','#f87171','#fb923c','#e879f9','#34d399','#a78bfa','#22d3ee','#4ade80']
 
@@ -138,21 +138,19 @@ export async function POST(req: NextRequest) {
 
     await createSession({ id: user.id, name: user.name, email: user.email, role: user.role, color: user.color })
 
-    const posthog = getPostHogClient()
-    posthog?.identify({
+    // Identify with just enough for cohort splits; name/email/phone stay in our DB
+    // (we can join on distinctId when we need them) — keeps PostHog person profiles
+    // PII-light for GDPR.
+    getPostHogClient()?.identify({
       distinctId: user.id,
-      properties: { name: user.name, email: user.email, role: user.role, neighborhood: user.neighborhood },
+      properties: { role: user.role, neighborhood: user.neighborhood },
     })
-    posthog?.capture({
-      distinctId: user.id,
-      event: 'member_registered',
-      properties: {
-        interests:     user.interests,
-        languages:     user.languages,
-        neighborhood:  user.neighborhood,
-        nationality:   user.nationality,
-        clubs_enrolled: (application?.assignedClubs?.length ?? 0) + (Array.isArray(clubIds) ? clubIds.length : 0),
-      },
+    trackServer({ id: user.id, role: user.role }, 'member_registered', {
+      interests:      user.interests,
+      languages:      user.languages,
+      neighborhood:   user.neighborhood,
+      nationality:    user.nationality,
+      clubs_enrolled: (application?.assignedClubs?.length ?? 0) + (Array.isArray(clubIds) ? clubIds.length : 0),
     })
 
     return NextResponse.json({

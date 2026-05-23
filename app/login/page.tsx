@@ -109,17 +109,25 @@ export default function LoginPage() {
       emailVerified: data.emailVerified,
     })
 
-    posthog.identify(data.id, {
-      name:          data.name,
-      email:         data.email,
-      role:          data.role,
-      neighborhood:  data.neighborhood,
-      is_club_host:  data.isClubHost,
-    })
-    posthog.capture('user_signed_in', {
-      role:        data.role,
-      is_club_host: data.isClubHost,
-    })
+    // Staff dogfooding shouldn't pollute member funnels — opt them out entirely
+    // (skips identify + autocaptures + the user_signed_in event below).
+    if (data.role === 'admin' || data.role === 'moderator') {
+      posthog.opt_out_capturing()
+    } else {
+      // Re-enable in case the previous session on this browser was staff.
+      posthog.opt_in_capturing()
+      // Keep person properties PII-light; we already store name/email/etc. in our DB
+      // and can join on distinctId when we need them.
+      posthog.identify(data.id, {
+        role:         data.role,
+        neighborhood: data.neighborhood,
+        is_club_host: data.isClubHost,
+      })
+      posthog.capture('user_signed_in', {
+        role:         data.role,
+        is_club_host: data.isClubHost,
+      })
+    }
 
     if (data.role === 'admin') router.push('/admin')
     else if (data.isClubHost) router.push('/host')

@@ -47,9 +47,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function logout() {
     await fetch('/app/api/auth/logout', { method: 'POST' })
     // Clear the cached distinctId so subsequent events on this browser don't
-    // attribute to the previous user (or get merged into their profile when a
-    // different person logs in).
+    // attribute to the previous user. Also opt back in — if the prior session
+    // was staff we opted out at login, and reset() doesn't undo that.
     posthog.reset()
+    posthog.opt_in_capturing()
     setUser(GUEST)
     setIsLoggedIn(false)
     router.push('/login')

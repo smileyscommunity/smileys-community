@@ -16,3 +16,14 @@ export function getPostHogClient(): PostHog | null {
   cached = new PostHog(key, { host: process.env.NEXT_PUBLIC_POSTHOG_HOST })
   return cached
 }
+
+// Skip admin/moderator actions so staff dogfooding doesn't pollute member
+// funnels. Also no-ops if PostHog isn't configured.
+export function trackServer(
+  user: { id: string; role: string },
+  event: string,
+  properties: Record<string, unknown> = {},
+) {
+  if (user.role !== 'member') return
+  getPostHogClient()?.capture({ distinctId: user.id, event, properties })
+}

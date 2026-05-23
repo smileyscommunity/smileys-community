@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { todayIstanbul } from '@/lib/data'
-import { getPostHogClient } from '@/lib/posthog-server'
+import { trackServer } from '@/lib/posthog-server'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -62,10 +62,10 @@ export async function POST(req: NextRequest, { params }: Params) {
       include: { user: { select: { id: true, name: true, color: true } } },
     })
 
-    getPostHogClient()?.capture({
-      distinctId: session.id,
-      event: 'event_review_submitted',
-      properties: { event_id: eventId, rating, has_text: !!(text?.trim()) },
+    trackServer(session, 'event_review_submitted', {
+      event_id: eventId,
+      rating,
+      has_text: !!(text?.trim()),
     })
 
     return NextResponse.json(review)
