@@ -150,44 +150,32 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ ok: true, status: 'pending' })
     }
 
-    // Gender quota check (before claiming a spot)
-    if (event.genderBalance && userRecord?.gender === 'male') {
-      const maleQuota = event.maleQuota ?? Math.floor(event.totalSpots / 2)
-      const maleCount = await prisma.eventAttendee.count({
-        where: { eventId, status: 'approved', user: { gender: 'male' } },
-      })
-      if (maleCount >= maleQuota) {
-        await prisma.waitlistEntry.create({ data: { userId: session.id, eventId } })
-        const position = await prisma.waitlistEntry.count({ where: { eventId } })
-        createNotification(session.id, 'waitlist', 'Added to waitlist 📋',
-          `Male spots for "${event.title}" are full — you're #${position} on the waitlist.`,
-          `/events/${eventId}`)
-        return NextResponse.json({ ok: true, status: 'waitlisted', position })
-      }
-    }
+    // Quota and spot checks all happen in one transaction with a row-level lock on
+    // the event, so concurrent RSVPs serialize and can't both pass a quota at the
+    // boundary (e.g. two males both claiming the last male slot).
+    const outcome = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM events WHERE id = ${eventId} FOR UPDATE`
 
-    // Turkish male quota check (direct RSVP path)
-    if (event.turkishMaleQuota && userRecord?.gender === 'male' && userRecord?.nationality === 'Turkey') {
-      const turkishMaleCount = await prisma.eventAttendee.count({
-        where: { eventId, status: 'approved', user: { gender: 'male', nationality: 'Turkey' } },
-      })
-      if (turkishMaleCount >= event.turkishMaleQuota) {
-        await prisma.waitlistEntry.create({ data: { userId: session.id, eventId } })
-        const position = await prisma.waitlistEntry.count({ where: { eventId } })
-        createNotification(session.id, 'waitlist', 'Added to waitlist 📋',
-          `Turkish male spots for "${event.title}" are full — you're #${position} on the waitlist.`,
-          `/events/${eventId}`)
-        return NextResponse.json({ ok: true, status: 'waitlisted', position })
+      if (event.genderBalance && userRecord?.gender === 'male') {
+        const maleQuota = event.maleQuota ?? Math.floor(event.totalSpots / 2)
+        const maleCount = await tx.eventAttendee.count({
+          where: { eventId, status: 'approved', user: { gender: 'male' } },
+        })
+        if (maleCount >= maleQuota) return { kind: 'gender_full' as const }
       }
-    }
 
-    // Atomically claim a spot + create attendee + create payment in one transaction
-    const joined = await prisma.$transaction(async (tx) => {
+      if (event.turkishMaleQuota && userRecord?.gender === 'male' && userRecord?.nationality === 'Turkey') {
+        const turkishMaleCount = await tx.eventAttendee.count({
+          where: { eventId, status: 'approved', user: { gender: 'male', nationality: 'Turkey' } },
+        })
+        if (turkishMaleCount >= event.turkishMaleQuota) return { kind: 'turkish_full' as const }
+      }
+
       const claimed = await tx.event.updateMany({
         where: { id: eventId, spotsLeft: { gt: 0 } },
         data:  { spotsLeft: { decrement: 1 } },
       })
-      if (claimed.count === 0) return null
+      if (claimed.count === 0) return { kind: 'full' as const }
 
       await tx.eventAttendee.create({ data: { userId: session.id, eventId, status: 'approved' } })
 
@@ -196,15 +184,18 @@ export async function POST(req: NextRequest, { params }: Params) {
           data: { userId: session.id, eventId, amount: event.price, currency: event.currency ?? 'TRY', status: 'pending' },
         })
       }
-      return true
+      return { kind: 'approved' as const }
     })
 
-    if (!joined) {
-      // No spot available — add to waitlist
+    if (outcome.kind !== 'approved') {
       await prisma.waitlistEntry.create({ data: { userId: session.id, eventId } })
       const position = await prisma.waitlistEntry.count({ where: { eventId } })
+      const reason =
+        outcome.kind === 'gender_full'  ? `Male spots for "${event.title}" are full` :
+        outcome.kind === 'turkish_full' ? `Turkish male spots for "${event.title}" are full` :
+                                          `"${event.title}" is full`
       createNotification(session.id, 'waitlist', 'Added to waitlist 📋',
-        `"${event.title}" is full — you're #${position} on the waitlist.`,
+        `${reason} — you're #${position} on the waitlist.`,
         `/events/${eventId}`)
       return NextResponse.json({ ok: true, status: 'waitlisted', position })
     }
