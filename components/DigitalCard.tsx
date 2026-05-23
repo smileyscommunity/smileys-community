@@ -28,172 +28,77 @@ export default function DigitalCard({ user }: Props) {
 
   return (
     <div ref={cardRef} className="w-full max-w-sm mx-auto select-none">
-      <div className="relative rounded-3xl overflow-hidden shadow-2xl" style={{ background: `linear-gradient(150deg, ${c}22 0%, #0f172a 45%, #0f172a 100%)` }}>
+      <div
+        className="relative rounded-3xl bg-white overflow-hidden"
+        style={{ boxShadow: '0 1px 2px rgba(15,23,42,0.04), 0 12px 32px -8px rgba(15,23,42,0.08)' }}
+      >
+        {/* Thin color stripe — the only chromatic accent */}
+        <div className="h-1.5" style={{ backgroundColor: c }} />
 
-        {/* Decorative circle pattern (community feel) */}
-        <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ opacity: 0.04 }} aria-hidden>
-          <circle cx="85%" cy="15%" r="120" fill="none" stroke="white" strokeWidth="1" />
-          <circle cx="85%" cy="15%" r="80" fill="none" stroke="white" strokeWidth="1" />
-          <circle cx="85%" cy="15%" r="40" fill="none" stroke="white" strokeWidth="1" />
-          <circle cx="15%" cy="90%" r="100" fill="none" stroke="white" strokeWidth="1" />
-          <circle cx="15%" cy="90%" r="60" fill="none" stroke="white" strokeWidth="1" />
-        </svg>
-
-        {/* Diagonal shine */}
-        <div className="absolute inset-0 pointer-events-none" style={{
-          background: 'linear-gradient(125deg, rgba(255,255,255,0.07) 0%, transparent 40%, rgba(255,255,255,0.03) 60%, transparent 100%)',
-        }} />
-
-        {/* ── Photo / avatar section ── */}
-        <div className="relative" style={{ height: '168px' }}>
-          {photo ? (
-            <img src={photo} alt={user.name} className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center" style={{
-              background: `linear-gradient(135deg, ${c}33 0%, ${c}55 50%, #0c1118 100%)`,
-            }}>
-              <span style={{
-                fontFamily: '"Plus Jakarta Sans", Inter, sans-serif',
-                fontSize: '56px',
-                fontWeight: 900,
-                color: c,
-                opacity: 0.4,
-                letterSpacing: '-2px',
-              }}>{initials}</span>
-            </div>
-          )}
-
-          {/* Gradient fade into card body */}
-          <div className="absolute inset-0" style={{
-            background: `linear-gradient(to bottom, rgba(12,17,24,0.1) 0%, rgba(12,17,24,0.0) 40%, rgba(12,17,24,0.85) 100%)`,
-          }} />
-
-          {/* Color glow at bottom */}
-          <div className="absolute bottom-0 left-0 right-0" style={{
-            height: '80px',
-            background: `radial-gradient(ellipse 70% 60% at 50% 100%, ${c}30 0%, transparent 70%)`,
-          }} />
-
-          {/* Logo row */}
-          <div className="absolute top-4 left-5 right-5 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg flex items-center justify-center text-sm" style={{
-                backgroundColor: 'rgba(255,255,255,0.15)',
-                backdropFilter: 'blur(8px)',
-                border: '1px solid rgba(255,255,255,0.2)',
-              }}>😊</div>
-              <span style={{
-                fontFamily: '"Plus Jakarta Sans", Inter, sans-serif',
-                fontSize: '12px',
-                fontWeight: 700,
-                color: 'rgba(255,255,255,0.9)',
-                letterSpacing: '0.05em',
-              }}>Smileys</span>
-            </div>
-            <div style={{
-              fontSize: '9px',
-              fontWeight: 700,
-              color: 'rgba(255,255,255,0.6)',
-              letterSpacing: '0.15em',
-              textTransform: 'uppercase',
-              backgroundColor: 'rgba(255,255,255,0.1)',
-              backdropFilter: 'blur(8px)',
-              border: '1px solid rgba(255,255,255,0.15)',
-              padding: '3px 8px',
-              borderRadius: '20px',
-            }}>
-              {user.membershipType ?? 'Member'}
-            </div>
+        {/* Header */}
+        <div className="px-6 pt-5 pb-1 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-lg leading-none">😊</span>
+            <span className="text-[11px] font-bold tracking-[0.18em] text-gray-500 uppercase">Smileys</span>
           </div>
-        </div>
-
-        {/* ── Identity section ── */}
-        <div className="px-6 pt-4 pb-5">
-          <p style={{
-            fontFamily: '"Plus Jakarta Sans", Inter, sans-serif',
-            fontSize: '22px',
-            fontWeight: 800,
-            color: '#ffffff',
-            lineHeight: 1.2,
-            letterSpacing: '-0.3px',
-            marginBottom: '4px',
-          }}>{user.name}</p>
-
-          {user.neighborhood && (
-            <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', marginBottom: '2px' }}>
-              📍 {user.neighborhood}
-            </p>
-          )}
           {joinYear && (
-            <p style={{
-              fontSize: '10px',
-              color: c + '90',
-              letterSpacing: '0.12em',
-              textTransform: 'uppercase',
-              marginTop: '6px',
-            }}>
-              Member since {joinYear}
-            </p>
+            <span className="text-[10px] font-semibold tracking-[0.15em] text-gray-400 uppercase">
+              Member · {joinYear}
+            </span>
           )}
         </div>
 
-        {/* Separator */}
-        <div className="mx-6" style={{ height: '1px', background: `linear-gradient(90deg, ${c}30, rgba(255,255,255,0.08), transparent)` }} />
-
-        {/* ── QR + ID section ── */}
-        <div className="px-6 py-5 flex items-end gap-5">
-          <div className="flex-1 min-w-0">
-            {user.interests && user.interests.length > 0 && (
-              <div className="flex flex-wrap gap-1 mb-4">
-                {user.interests.slice(0, 3).map(i => (
-                  <span key={i} style={{
-                    fontSize: '10px',
-                    color: 'rgba(255,255,255,0.5)',
-                    border: '1px solid rgba(255,255,255,0.12)',
-                    padding: '2px 8px',
-                    borderRadius: '20px',
-                    textTransform: 'capitalize',
-                  }}>{i}</span>
-                ))}
-              </div>
+        {/* Avatar / photo — centered, generous spacing */}
+        <div className="px-6 pt-6 pb-4 flex flex-col items-center">
+          <div
+            className="w-28 h-28 rounded-full overflow-hidden flex items-center justify-center"
+            style={{
+              backgroundColor: c + '14',
+              border: `2px solid ${c}22`,
+            }}
+          >
+            {photo ? (
+              <img src={photo} alt={user.name} className="w-full h-full object-cover" />
+            ) : (
+              <span
+                className="font-extrabold"
+                style={{ color: c, fontSize: '36px', letterSpacing: '-1px' }}
+              >
+                {initials}
+              </span>
             )}
-            <p style={{ fontSize: '9px', color: 'rgba(255,255,255,0.25)', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '4px' }}>
+          </div>
+
+          <h2 className="mt-5 text-[22px] font-extrabold text-gray-900 tracking-tight text-center leading-tight">
+            {user.name}
+          </h2>
+          {user.neighborhood && (
+            <p className="mt-1 text-[13px] text-gray-400">{user.neighborhood}</p>
+          )}
+        </div>
+
+        {/* Soft divider */}
+        <div className="mx-6 h-px bg-gray-100" />
+
+        {/* QR + ID — clean horizontal split */}
+        <div className="px-6 py-5 flex items-center gap-5">
+          <div className="shrink-0 rounded-2xl bg-white p-2.5" style={{ border: `1px solid ${c}22` }}>
+            <QRCode value={qrValue} size={84} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] font-semibold tracking-[0.18em] text-gray-400 uppercase mb-1.5">
               Member ID
             </p>
-            <p style={{
-              fontFamily: '"Courier New", monospace',
-              fontSize: '13px',
-              fontWeight: 700,
-              letterSpacing: '0.22em',
-              color: c + 'cc',
-            }}>{memberId}</p>
-          </div>
-
-          <div className="shrink-0 text-center">
-            <div style={{
-              background: 'rgba(255,255,255,0.95)',
-              borderRadius: '16px',
-              padding: '10px',
-              boxShadow: `0 0 20px ${c}25`,
-            }}>
-              <QRCode value={qrValue} size={88} />
-            </div>
-            <p style={{ fontSize: '9px', color: 'rgba(255,255,255,0.2)', letterSpacing: '0.12em', textTransform: 'uppercase', marginTop: '6px' }}>
-              Scan to verify
+            <p
+              className="font-mono text-[15px] font-bold text-gray-800 tracking-[0.15em] mb-3"
+            >
+              {memberId}
+            </p>
+            <p className="text-[11px] text-gray-400 leading-snug">
+              Scan at events for instant check-in.
             </p>
           </div>
         </div>
-
-        {/* ── Footer ── */}
-        <div className="px-6 py-3 flex items-center justify-between" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-          <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.2)', letterSpacing: '0.04em' }}>
-            smileyscommunity.com
-          </p>
-          <p style={{ fontSize: '10px', fontWeight: 600, color: c + '99', letterSpacing: '0.08em' }}>
-            ✦ Member
-          </p>
-        </div>
-
       </div>
     </div>
   )
