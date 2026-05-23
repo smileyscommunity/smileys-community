@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 import { apiFetch } from '@/lib/api'
 import { useAuth } from '@/contexts/AuthContext'
+import posthog from 'posthog-js'
 
 export type RSVPStatus = 'idle' | 'joined' | 'pending' | 'waitlisted' | 'loading' | 'error'
 
@@ -46,14 +47,17 @@ export function useRSVP(eventId: string) {
       if (data.status === 'waitlisted') {
         setStatus('waitlisted')
         setPosition(data.position)
+        posthog.capture('event_waitlist_joined', { event_id: eventId, waitlist_position: data.position, stealth })
         toast(`Added to waitlist — position #${data.position}`)
         navigator.vibrate?.([40, 60, 40])
       } else if (data.status === 'pending') {
         setStatus('pending')
+        posthog.capture('event_rsvp_joined', { event_id: eventId, status: 'pending', stealth })
         toast('Request submitted — awaiting approval')
         navigator.vibrate?.(40)
       } else {
         setStatus('joined')
+        posthog.capture('event_rsvp_joined', { event_id: eventId, status: 'approved', stealth })
         toast.success("You're in! 🎉")
         navigator.vibrate?.([50, 30, 80])
         router.refresh()
@@ -70,7 +74,8 @@ export function useRSVP(eventId: string) {
     try {
       const res = await apiFetch(`/app/api/events/${eventId}/rsvp`, { method: 'DELETE' })
       if (!res.ok) { toast.error('Could not cancel'); return }
-      
+
+      posthog.capture('event_rsvp_cancelled', { event_id: eventId, previous_status: status })
       setStatus('idle')
       setPosition(null)
       toast('Registration cancelled')

@@ -6,6 +6,7 @@ import { createSession } from '@/lib/session'
 import { sendVerificationEmail } from '@/lib/email'
 import { rateLimit, getIp } from '@/lib/rateLimit'
 import { verifyTurnstile } from '@/lib/turnstile'
+import { getPostHogClient } from '@/lib/posthog-server'
 
 const COLORS = ['#f472b6','#60a5fa','#fbbf24','#f87171','#fb923c','#e879f9','#34d399','#a78bfa','#22d3ee','#4ade80']
 
@@ -136,6 +137,24 @@ export async function POST(req: NextRequest) {
     sendVerificationEmail(user.email, user.name, token).catch(console.error)
 
     await createSession({ id: user.id, name: user.name, email: user.email, role: user.role, color: user.color })
+
+    const posthog = getPostHogClient()
+    posthog.identify({
+      distinctId: user.id,
+      properties: { name: user.name, email: user.email, role: user.role, neighborhood: user.neighborhood },
+    })
+    posthog.capture({
+      distinctId: user.id,
+      event: 'member_registered',
+      properties: {
+        interests:     user.interests,
+        languages:     user.languages,
+        neighborhood:  user.neighborhood,
+        nationality:   user.nationality,
+        clubs_enrolled: (application?.assignedClubs?.length ?? 0) + (Array.isArray(clubIds) ? clubIds.length : 0),
+      },
+    })
+    await posthog.shutdown()
 
     return NextResponse.json({
       id: user.id, name: user.name, email: user.email, role: user.role, color, initials,

@@ -39,6 +39,8 @@
     "openai": "^6.39.0",
     "otplib": "^13.4.0",
     "pg": "^8.21.0",
+    "posthog-js": "^1.376.0",
+    "posthog-node": "^5.35.1",
     "prisma": "^7.8.0",
     "qrcode": "^1.5.4",
     "react": "^18",

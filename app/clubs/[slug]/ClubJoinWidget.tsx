@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import posthog from 'posthog-js'
 
 interface Props {
   club: { id: string; name: string; slug: string; isPrivate: boolean }
@@ -21,6 +22,13 @@ export default function ClubJoinWidget({ club, initialStatus, isLoggedIn }: Prop
     if (res.ok) {
       const data = await res.json()
       setStatus(data.status)
+      posthog.capture('club_joined', {
+        club_id:    club.id,
+        club_name:  club.name,
+        club_slug:  club.slug,
+        is_private: club.isPrivate,
+        status:     data.status,
+      })
     }
     setLoading(false)
   }
@@ -30,7 +38,15 @@ export default function ClubJoinWidget({ club, initialStatus, isLoggedIn }: Prop
     const res = await fetch(`/app/api/clubs/${club.slug}/membership`, {
       method: 'DELETE', credentials: 'include',
     })
-    if (res.ok) setStatus(null)
+    if (res.ok) {
+      posthog.capture('club_left', {
+        club_id:        club.id,
+        club_name:      club.name,
+        club_slug:      club.slug,
+        previous_status: status,
+      })
+      setStatus(null)
+    }
     setLoading(false)
   }
 

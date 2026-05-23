@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { createNotification } from '@/lib/notify'
+import { getPostHogClient } from '@/lib/posthog-server'
 
 // PATCH /api/connections/[id] — accept or decline
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -31,6 +32,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       `You're now connected with ${session.name}.`,
       '/members',
     )
+    const posthog = getPostHogClient()
+    posthog.capture({
+      distinctId: session.id,
+      event: 'connection_accepted',
+      properties: { requester_id: connection.requesterId, connection_id: id },
+    })
+    await posthog.shutdown()
     return NextResponse.json({ connection: updated })
   }
 

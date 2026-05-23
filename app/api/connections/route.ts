@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { createNotification } from '@/lib/notify'
 import { rateLimit } from '@/lib/rateLimit'
+import { getPostHogClient } from '@/lib/posthog-server'
 
 // GET /api/connections — returns my connections and pending requests
 export async function GET() {
@@ -78,6 +79,14 @@ export async function POST(req: NextRequest) {
     `${session.name} sent you a connection request.`,
     '/members',
   )
+
+  const posthog = getPostHogClient()
+  posthog.capture({
+    distinctId: session.id,
+    event: 'connection_request_sent',
+    properties: { receiver_id: receiverId, has_note: !!(note?.trim()) },
+  })
+  await posthog.shutdown()
 
   return NextResponse.json({ connection })
 }

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import Turnstile from '@/components/Turnstile'
 import { useAuth } from '@/contexts/AuthContext'
+import posthog from 'posthog-js'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -106,6 +107,18 @@ export default function LoginPage() {
       instagram:     data.instagram,
       isClubHost:    data.isClubHost,
       emailVerified: data.emailVerified,
+    })
+
+    posthog.identify(data.id, {
+      name:          data.name,
+      email:         data.email,
+      role:          data.role,
+      neighborhood:  data.neighborhood,
+      is_club_host:  data.isClubHost,
+    })
+    posthog.capture('user_signed_in', {
+      role:        data.role,
+      is_club_host: data.isClubHost,
     })
 
     if (data.role === 'admin') router.push('/admin')

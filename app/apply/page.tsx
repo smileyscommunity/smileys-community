@@ -9,6 +9,7 @@ import { resolveImageUrl } from '@/lib/data'
 import { COUNTRIES } from '@/lib/countries'
 import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
 import FingerprintJS from '@fingerprintjs/fingerprintjs'
+import posthog from 'posthog-js'
 
 const step0Schema = z.object({
   firstName:    z.string().min(1, 'First name is required'),
@@ -162,6 +163,10 @@ function ApplyForm() {
   function next() {
     if (!validateStep()) return
     setSubmitError('')
+    posthog.capture('application_step_completed', {
+      step_index: step,
+      step_name:  STEPS[step],
+    })
     setStep(s => s + 1)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -194,6 +199,13 @@ function ApplyForm() {
       })
       const data = await res.json()
       if (!res.ok) { showError(data.error ?? 'Failed to submit'); return }
+      posthog.capture('application_submitted', {
+        source:      form.source,
+        interests:   interests,
+        has_referral: !!refCode,
+        neighborhood: form.neighborhood,
+        country:     form.country,
+      })
       setSubmitted(true)
     } catch {
       showError('Something went wrong. Please try again.')

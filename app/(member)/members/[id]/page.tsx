@@ -7,6 +7,7 @@ import { countryFlag } from '@/lib/countries'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from 'sonner'
 import { SkeletonCard, SkeletonCircle, SkeletonLine } from '@/components/Skeleton'
+import posthog from 'posthog-js'
 
 interface HostClub {
   id: string
@@ -146,6 +147,7 @@ export default function MemberProfilePage({ params }: { params: Promise<{ id: st
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ reportedId: member!.id, reason: reportReason, details: reportNote }),
     })
+    posthog.capture('member_reported', { reported_member_id: member!.id, reason: reportReason })
     setReportSent(true)
   }
 
