@@ -52,7 +52,15 @@ export default function ForgotPasswordPage() {
                 </svg>
                 Check your email
               </div>
-              <p className="text-sm text-gray-500">We sent a reset link to <strong>{email}</strong>. It expires in 1 hour.</p>
+              <p className="text-sm text-gray-500">
+                If an account exists for <strong className="text-gray-800 break-all">{email}</strong>, we sent a reset link. Check your inbox (and spam folder). The link expires in 1 hour.
+              </p>
+              <button
+                onClick={() => { setSent(false); setError('') }}
+                className="block w-full text-sm text-gray-500 hover:text-gray-700"
+              >
+                Wrong email? <span className="text-amber-600 font-semibold">Try again</span>
+              </button>
               <Link href="/login" className="block text-sm text-amber-600 font-semibold hover:underline">
                 Back to sign in
               </Link>
