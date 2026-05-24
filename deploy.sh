@@ -26,6 +26,7 @@ echo "→ Checking for vulnerabilities..."
 npm audit --audit-level=high --legacy-peer-deps || { echo "✗ npm audit found high/critical vulnerabilities — fix before deploying"; exit 1; }
 
 echo "→ Building locally (release: $SENTRY_RELEASE)..."
+rm -rf "$LOCAL/.next"
 SENTRY_RELEASE="$SENTRY_RELEASE" npm run build
 
 echo "→ Stopping server..."

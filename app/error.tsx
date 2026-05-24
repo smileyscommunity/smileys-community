@@ -1,10 +1,11 @@
 'use client'
 
 import { useEffect } from 'react'
+import * as Sentry from '@sentry/nextjs'
 
 export default function Error({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
-    console.error(error)
+    Sentry.captureException(error)
     // Stale chunk after a deploy — hard reload to pick up new bundles
     if (error?.message?.includes('Cannot find module') || error?.message?.includes('ChunkLoadError') || error?.message?.includes('Loading chunk')) {
       window.location.reload()

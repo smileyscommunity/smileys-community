@@ -18,6 +18,7 @@ export async function GET(_: NextRequest, { params }: Params) {
     })
     return NextResponse.json(reviews)
   } catch (e) {
+    console.error('[reviews GET]', e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }
@@ -105,6 +106,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     })
     return NextResponse.json(updated)
   } catch (e) {
+    console.error('[reviews PATCH]', e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }
@@ -124,6 +126,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     await prisma.review.delete({ where: { id: review.id } })
     return NextResponse.json({ ok: true })
   } catch (e) {
+    console.error('[reviews DELETE]', e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }

@@ -49,6 +49,7 @@ export async function GET(_: NextRequest, { params }: Params) {
 
     return NextResponse.json(mapped)
   } catch (e) {
+    console.error('[checkin GET]', e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }
@@ -85,6 +86,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     return NextResponse.json(updated)
   } catch (e) {
+    console.error('[checkin PATCH]', e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }

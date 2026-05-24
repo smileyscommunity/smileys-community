@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import Turnstile from '@/components/Turnstile'
 import { useAuth } from '@/contexts/AuthContext'
+import type { AppUser } from '@/lib/auth'
 import posthog from 'posthog-js'
 
 export default function LoginPage() {
@@ -95,7 +96,7 @@ export default function LoginPage() {
     }
   }
 
-  function finishLogin(data: any) {
+  function finishLogin(data: AppUser & { requires2FA?: boolean }) {
     setUser({
       id:            data.id,
       name:          data.name,
