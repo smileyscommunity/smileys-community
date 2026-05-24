@@ -15,8 +15,3 @@ export function setCached<T>(key: string, data: T, ttlMs: number): void {
   store.set(key, { data, expiresAt: Date.now() + ttlMs })
 }
 
-export function bustAnalyticsCache(): void {
-  for (const key of store.keys()) {
-    if (key.startsWith('analytics:')) store.delete(key)
-  }
-}

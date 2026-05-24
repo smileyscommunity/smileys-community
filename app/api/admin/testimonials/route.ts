@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
 
+import { ALLOWED_CATEGORIES } from './constants'
+
 export async function GET() {
   const session = await getSession()
   if (!session || !isAdminOrModerator(session)) {
@@ -25,7 +27,6 @@ export async function POST(req: NextRequest) {
   if (quote.trim().length > 3000)     return NextResponse.json({ error: 'Quote too long (max 3000 chars)' }, { status: 400 })
   if (role?.trim().length > 200)      return NextResponse.json({ error: 'Role too long' }, { status: 400 })
 
-  const ALLOWED_CATEGORIES = ['general', 'friends', 'expat', 'business', 'travel']
   const cleanCategory = ALLOWED_CATEGORIES.includes(category) ? category : 'general'
 
   const maxOrder = await prisma.testimonial.aggregate({ _max: { order: true } })

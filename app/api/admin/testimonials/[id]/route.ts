@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
-
-const ALLOWED_CATEGORIES = ['general', 'friends', 'expat', 'business', 'travel']
+import { ALLOWED_CATEGORIES } from '../constants'
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()

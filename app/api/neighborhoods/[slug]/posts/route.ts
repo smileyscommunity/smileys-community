@@ -3,26 +3,9 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
 import { slugToNeighborhood } from '@/lib/neighborhoods'
+import { buildReactions, buildAuthor } from '@/lib/posts'
 
 type Params = { params: Promise<{ slug: string }> }
-
-const REACTIONS = ['❤️', '👍', '🔥', '😂']
-
-function buildReactions(likes: { userId: string; emoji: string }[], myId?: string) {
-  const counts: Record<string, number> = {}
-  let myEmoji: string | null = null
-  for (const l of likes) {
-    counts[l.emoji] = (counts[l.emoji] ?? 0) + 1
-    if (l.userId === myId) myEmoji = l.emoji
-  }
-  return REACTIONS
-    .map(e => ({ emoji: e, count: counts[e] ?? 0, reactedByMe: myEmoji === e }))
-    .filter(r => r.count > 0)
-}
-
-function buildAuthor(u: { id: string; name: string; color: string; profilePhoto: string | null; role: string }) {
-  return { id: u.id, name: u.name, color: u.color, photo: u.profilePhoto, role: u.role }
-}
 
 export async function GET(req: NextRequest, { params }: Params) {
   const session = await getSession()
@@ -57,7 +40,7 @@ export async function GET(req: NextRequest, { params }: Params) {
     isPinned:    p.isPinned,
     createdAt:   p.createdAt,
     author:      buildAuthor(p.user),
-    reactions:   buildReactions(p.likes, session.id),
+    reactions:   buildReactions(p.likes, session.id).reactions,
     replyCount:  p._count.replies,
     replies:     p.replies.map(r => ({
       id: r.id, content: r.content, createdAt: r.createdAt, author: buildAuthor(r.user),

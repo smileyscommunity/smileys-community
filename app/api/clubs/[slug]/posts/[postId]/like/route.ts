@@ -2,25 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
+import { REACTION_EMOJIS, buildReactions } from '@/lib/posts'
 
 type Params = { params: Promise<{ slug: string; postId: string }> }
-
-const ALLOWED_EMOJIS = ['❤️', '👍', '🔥', '😂']
-
-function buildReactions(likes: { userId: string; emoji: string }[], sessionId: string) {
-  const counts: Record<string, number> = {}
-  let myEmoji: string | null = null
-  for (const l of likes) {
-    counts[l.emoji] = (counts[l.emoji] ?? 0) + 1
-    if (l.userId === sessionId) myEmoji = l.emoji
-  }
-  return {
-    myReaction: myEmoji,
-    reactions:  ALLOWED_EMOJIS
-      .map(e => ({ emoji: e, count: counts[e] ?? 0, reactedByMe: myEmoji === e }))
-      .filter(r => r.count > 0),
-  }
-}
 
 export async function POST(req: NextRequest, { params }: Params) {
   const session = await getSession()
@@ -32,7 +16,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const { slug, postId } = await params
   const body = await req.json().catch(() => ({}))
-  const emoji: string = ALLOWED_EMOJIS.includes(body.emoji) ? body.emoji : '❤️'
+  const emoji: string = REACTION_EMOJIS.includes(body.emoji) ? body.emoji : '❤️'
 
   // Verify club membership (or admin)
   if (session.role !== 'admin') {

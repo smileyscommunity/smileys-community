@@ -4,22 +4,9 @@ import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
 import { rateLimit } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
+import { buildReactions } from '@/lib/posts'
 
 type Params = { params: Promise<{ slug: string }> }
-
-const REACTION_EMOJIS = ['❤️', '👍', '🔥', '😂']
-
-function buildReactions(likes: { userId: string; emoji: string }[], sessionId?: string) {
-  const counts: Record<string, number> = {}
-  let myEmoji: string | null = null
-  for (const l of likes) {
-    counts[l.emoji] = (counts[l.emoji] ?? 0) + 1
-    if (l.userId === sessionId) myEmoji = l.emoji
-  }
-  return REACTION_EMOJIS
-    .map(e => ({ emoji: e, count: counts[e] ?? 0, reactedByMe: myEmoji === e }))
-    .filter(r => r.count > 0)
-}
 
 function buildPoll(
   poll: {
@@ -110,7 +97,7 @@ export async function GET(req: NextRequest, { params }: Params) {
     createdAt: p.createdAt,
     isPinned:  p.isPinned,
     author:    buildAuthor(p.user),
-    reactions: buildReactions(p.likes, session?.id),
+    reactions: buildReactions(p.likes, session?.id).reactions,
     poll:      buildPoll(p.poll, session?.id),
     replies:   p.replies.map(r => ({
       id: r.id, content: r.content, createdAt: r.createdAt, author: buildAuthor(r.user),
