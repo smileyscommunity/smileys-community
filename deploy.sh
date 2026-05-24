@@ -29,6 +29,12 @@ echo "→ Building locally (release: $SENTRY_RELEASE)..."
 rm -rf "$LOCAL/.next"
 SENTRY_RELEASE="$SENTRY_RELEASE" npm run build
 
+# Pre-deploy smoke: start the built server locally and hit the key paths so a
+# broken build (missing chunks, runtime errors, etc.) is caught before we stop
+# prod. Exits non-zero on failure, which set -e propagates.
+echo "→ Running smoke test..."
+"$LOCAL/scripts/smoke.sh" "$LOCAL"
+
 echo "→ Stopping server..."
 ssh "$SERVER" "pm2 stop smileys || true"
 
@@ -36,6 +42,7 @@ echo "→ Syncing files..."
 rsync -av --delete \
   --exclude='.env' \
   --exclude='.env.local' \
+  --exclude='.next/cache/' \
   --exclude='.env.production' \
   --exclude='node_modules' \
   --exclude='.git' \
