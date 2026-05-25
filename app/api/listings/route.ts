@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { sendListingAlertEmail } from '@/lib/email'
+import { sendPushToUser } from '@/lib/push'
 
 const PAGE_SIZE = 20
 
@@ -88,15 +89,20 @@ export async function POST(req: NextRequest) {
     },
   })
 
-  // Fire alert emails in background — don't await
+  // Fire alert emails + push in background — don't await
   const categoryLabel = CAT_LABELS[category] ?? category
   prisma.user.findMany({
     where: { listingAlerts: { has: category }, id: { not: session.id } },
-    select: { email: true, name: true },
+    select: { id: true, email: true, name: true },
   }).then(alertees => {
     for (const u of alertees) {
       sendListingAlertEmail(u.email, u.name, categoryLabel, { title: listing.title, description: listing.description })
         .catch(() => {})
+      sendPushToUser(u.id, {
+        title: `New ${categoryLabel.toLowerCase()} listing`,
+        body:  listing.title,
+        link:  `/listings/${listing.id}`,
+      }).catch(() => {})
     }
   }).catch(() => {})
 
