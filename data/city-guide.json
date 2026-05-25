@@ -329,6 +329,226 @@
           "tip": "'Teşekkürler' (teh-shek-kür-ler) = Thank you. 'Merhaba' = Hello. Learning a few words goes a long way with locals."
         }
       ]
+    },
+    {
+      "icon": "🛂",
+      "label": "Visa & Residence",
+      "color": "amber",
+      "resources": [
+        {
+          "title": "Tourist Visa (e-Visa)",
+          "description": "Most nationalities can enter Turkey visa-free for up to 90 days within 180. Some (US, UK, India) need an e-visa — apply online before arrival, takes minutes.",
+          "href": "https://www.evisa.gov.tr/en/",
+          "badge": "Start here",
+          "badgeColor": "green",
+          "tip": "Always check the official .gov.tr site — many lookalike sites charge extra fees for the same form."
+        },
+        {
+          "title": "Residence Permit (İkamet)",
+          "description": "Required if you stay longer than 90 days. Short-term (1–2 years) is the common track. Apply via e-ikamet within your visa-free window — appointments fill up fast.",
+          "href": "https://e-ikamet.goc.gov.tr/",
+          "badge": "Essential",
+          "badgeColor": "",
+          "tip": "Book the appointment the day you decide to stay. Wait times in Istanbul can be 8+ weeks. Bring originals of everything."
+        },
+        {
+          "title": "Required Documents",
+          "description": "Passport (6+ months validity), biometric photo, address registration (yerleşim belgesi), private health insurance (one year), proof of accommodation, financial means proof.",
+          "href": "",
+          "badge": "",
+          "badgeColor": "",
+          "tip": "Bank statements showing ~USD 6,000/year are typical. Notarised rental contract or a hotel reservation both work for address proof."
+        },
+        {
+          "title": "Private Health Insurance",
+          "description": "A 1-year policy from a Turkish insurer (around ₺3,000–8,000/year) is mandatory for the permit. Foreign policies usually rejected. Major providers: AXA, Anadolu Sigorta, Allianz.",
+          "href": "",
+          "badge": "",
+          "badgeColor": "",
+          "tip": "Buy through a broker (acente) — same policy, often cheaper than going direct, and they help with the paperwork in English."
+        },
+        {
+          "title": "Renewal & Conversion",
+          "description": "Apply for renewal 60 days before expiry. After 8 years of continuous residence you can apply for long-term residence or citizenship through investment / marriage / time-based tracks.",
+          "href": "",
+          "badge": "",
+          "badgeColor": "",
+          "tip": "Don’t leave Turkey for more than 120 days/year on a short-term permit — breaks continuity for long-term eligibility."
+        },
+        {
+          "title": "Work Permit",
+          "description": "Employer-sponsored only — you cannot apply solo. The employer files through the Ministry of Labour. Independent earners (freelance, remote for foreign companies) operate in a grey area.",
+          "href": "https://www.csgb.gov.tr/en/",
+          "badge": "",
+          "badgeColor": "",
+          "tip": "If you’re remote-working for a foreign employer on a residence permit, get tax advice early — the rules are tightening."
+        }
+      ]
+    },
+    {
+      "icon": "🩺",
+      "label": "Healthcare",
+      "color": "rose",
+      "resources": [
+        {
+          "title": "Private Hospitals (Expat Standard)",
+          "description": "Acıbadem, Memorial, American Hospital, Florence Nightingale, Liv Hospital. International standards, English-speaking staff, modern facilities. Walk-ins accepted at most.",
+          "href": "",
+          "badge": "Admin Pick",
+          "badgeColor": "violet",
+          "tip": "Acıbadem and American Hospital have the deepest expat experience. Cash prices for a GP visit run ₺2,000–4,000 without insurance."
+        },
+        {
+          "title": "Public Healthcare (SGK)",
+          "description": "Universal coverage tied to residency and contributions. As a foreign resident you can voluntarily enrol after 1 year of continuous residence permit — about ₺2,500/month.",
+          "href": "https://www.sgk.gov.tr/",
+          "badge": "",
+          "badgeColor": "",
+          "tip": "Public hospitals are heavily subsidised but Turkish-only and crowded. Most expats keep private insurance instead."
+        },
+        {
+          "title": "Pharmacies (Eczane)",
+          "description": "On every corner, marked with a red E. Pharmacists are highly trained and can dispense many things over-the-counter that need a prescription elsewhere (antibiotics, etc.).",
+          "href": "",
+          "badge": "",
+          "badgeColor": "",
+          "tip": "Look for the green/red “Nöbetçi” sign for the 24-hour pharmacy in your district. Each neighbourhood rotates duty nightly."
+        },
+        {
+          "title": "Dental Care",
+          "description": "Excellent and significantly cheaper than Western Europe or the US. Cleanings ₺1,000–2,000; implants and cosmetic work also widely available. Many clinics cater to medical tourists.",
+          "href": "",
+          "badge": "",
+          "badgeColor": "",
+          "tip": "Ask members for clinic recommendations — quality varies widely. Avoid the Sultanahmet “dental tourism” strip unless you know the dentist personally."
+        },
+        {
+          "title": "Mental Health & Therapy",
+          "description": "English-speaking therapists are available, mostly in Beşiktaş, Şişli, and Kadıköy. Sessions ₺1,500–3,000. Online platforms (Tovuti, Hiwell) connect you to Turkish-licensed therapists.",
+          "href": "",
+          "badge": "",
+          "badgeColor": "",
+          "tip": "BetterHelp and other foreign platforms work too if you prefer a non-Turkish therapist — same cost as anywhere."
+        },
+        {
+          "title": "Emergency: 112",
+          "description": "Single number for ambulance, fire, police, all emergencies. Operators usually speak some English. Private hospitals will dispatch their own ambulance if you call them directly.",
+          "href": "",
+          "badge": "Essential",
+          "badgeColor": "",
+          "tip": "For non-emergencies, Uber to the private hospital is faster and cheaper than waiting for a public ambulance."
+        }
+      ]
+    },
+    {
+      "icon": "🏦",
+      "label": "Banking & Money",
+      "color": "green",
+      "resources": [
+        {
+          "title": "Opening a Turkish Bank Account",
+          "description": "Requires your residence permit + tax number (vergi numarası). Major banks for expats: Garanti BBVA, İş Bankası, Yapı Kredi, DenizBank. Account usually opens same-day.",
+          "href": "",
+          "badge": "Essential",
+          "badgeColor": "",
+          "tip": "Garanti has the best English app and is the most foreigner-friendly. Bring originals: passport, permit, tax number, proof of address."
+        },
+        {
+          "title": "Tax Number (Vergi Numarası)",
+          "description": "Free, 10 minutes at any tax office (vergi dairesi). Required for almost everything: bank account, phone contract, utilities, property purchase.",
+          "href": "",
+          "badge": "Do this first",
+          "badgeColor": "green",
+          "tip": "Get this BEFORE your bank/residence permit appointment. The Beyoğlu tax office is the most foreigner-friendly in central Istanbul."
+        },
+        {
+          "title": "Using Foreign Cards",
+          "description": "Visa/Mastercard work everywhere. Withdraw from major bank ATMs (Garanti, İş, Yapı Kredi) to avoid sketchy fees. Watch for “dynamic currency conversion” — always choose Lira.",
+          "href": "",
+          "badge": "",
+          "badgeColor": "",
+          "tip": "Wise and Revolut both have good Lira rates and no hidden FX margin — easier than transferring to a Turkish account for small amounts."
+        },
+        {
+          "title": "Currency & Exchange",
+          "description": "Lira (TRY) is volatile — check the rate the day you exchange. Döviz büfeleri (exchange booths) in Sirkeci, Kapalıçarşı, and Aksaray have the best rates. Avoid airport and hotel desks.",
+          "href": "",
+          "badge": "",
+          "badgeColor": "",
+          "tip": "Big amounts? Negotiate — anything over ~USD 5,000 usually gets you a slightly better rate at the booth."
+        },
+        {
+          "title": "Papara & Digital Wallets",
+          "description": "Papara is the local digital wallet — useful for splitting bills and small online payments where international cards bounce. Free to open with a Turkish ID/permit.",
+          "href": "https://www.papara.com/",
+          "badge": "",
+          "badgeColor": "",
+          "tip": "Many small local sites only accept Papara or Turkish bank cards. Worth having even if you have a regular account."
+        },
+        {
+          "title": "Taxes for Foreign Income",
+          "description": "After 6 months of residence in Turkey you’re considered a tax resident. Worldwide income theoretically taxable. Most expats with remote foreign jobs use a tax accountant (mali müşavir).",
+          "href": "",
+          "badge": "",
+          "badgeColor": "",
+          "tip": "Ask members for a recommended mali müşavir who handles expats — fees ₺2,000–5,000/year, well worth avoiding mistakes."
+        }
+      ]
+    },
+    {
+      "icon": "📶",
+      "label": "Mobile & Internet",
+      "color": "teal",
+      "resources": [
+        {
+          "title": "SIM Cards (Tourist vs Resident)",
+          "description": "Tourist SIM at the airport: ₺1,800–2,500 for 20 GB, valid 30 days. Resident plan (after permit + tax number): ₺200–500/month for unlimited. Turkcell, Vodafone, Türk Telekom are the big three.",
+          "href": "",
+          "badge": "Essential",
+          "badgeColor": "",
+          "tip": "Phones brought from abroad get IMEI-blocked after 120 days unless registered with customs (₺20,000+ fee). Plan for a local handset or eSIM if staying long."
+        },
+        {
+          "title": "Best Carrier for Expats",
+          "description": "Turkcell has the widest coverage and best English app. Vodafone is often cheapest for data-heavy plans. Türk Telekom for fibre + mobile bundles if you have a fixed address.",
+          "href": "",
+          "badge": "Admin Pick",
+          "badgeColor": "violet",
+          "tip": "Switch carriers any time — number portability works the same day. Use it to negotiate when your contract renews."
+        },
+        {
+          "title": "Home Internet (Fibre)",
+          "description": "Türk Telekom, TurkNet, Superonline, and Vodafone Net all offer fibre. 100 Mbps starts around ₺400/month; 1 Gbps in covered areas around ₺900. Installation 3–10 days.",
+          "href": "",
+          "badge": "",
+          "badgeColor": "",
+          "tip": "Check Türk Telekom’s coverage map before signing — fibre is everywhere central but spotty in newer outskirts."
+        },
+        {
+          "title": "eSIM Options",
+          "description": "iPhones (XS+) and most modern Androids support eSIM. Airalo, Holafly, and Turkcell’s own eSIM cover Turkey without changing your physical SIM — useful while you sort out residency.",
+          "href": "https://www.airalo.com/turkey-esim",
+          "badge": "",
+          "badgeColor": "",
+          "tip": "Airalo is cheapest for short stays (~USD 9 for 5 GB). Skip if you’re staying 30+ days — local SIM wins on price."
+        },
+        {
+          "title": "VPN Notice",
+          "description": "Some sites and apps are intermittently throttled (Discord voice, certain Telegram channels, the .com Wikipedia at times). Most expats run a paid VPN as default.",
+          "href": "",
+          "badge": "",
+          "badgeColor": "",
+          "tip": "NordVPN, Mullvad, ProtonVPN all work reliably. Free VPNs are unreliable here — pick a paid one."
+        },
+        {
+          "title": "Wi-Fi Etiquette",
+          "description": "Cafes, malls, and metro stations have free public Wi-Fi — usually requires SMS verification to a Turkish number. Many cafes share the password verbally if you ask.",
+          "href": "",
+          "badge": "",
+          "badgeColor": "",
+          "tip": "Avoid banking on public Wi-Fi without a VPN. Mobile data is so cheap in Turkey it’s often easier to just tether."
+        }
+      ]
     }
   ]
 }

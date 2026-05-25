@@ -4,6 +4,7 @@ import { readFileSync } from 'fs'
 import { join } from 'path'
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
+import { getSession } from '@/lib/session'
 import { neighborhoodToSlug, getNeighborhoodMeta } from '@/lib/neighborhoods'
 import TransitLinks, { categoryId, type Category } from '@/components/TransitLinks'
 
@@ -61,6 +62,9 @@ function loadGuide(): Category[] {
 
 export default async function GuidePage() {
   const today = new Date().toISOString().split('T')[0]
+  // Public route — guide is readable by non-members so it can pull in prospects
+  // from Google. We branch the CTA at the bottom of the page on this.
+  const session = await getSession()
 
   const [eventCounts, memberCounts] = await Promise.all([
     prisma.event.groupBy({
@@ -255,14 +259,31 @@ export default async function GuidePage() {
           </div>
         )}
 
-        {/* CTA */}
-        <div className="mt-14 bg-gray-50 border border-gray-100 rounded-2xl p-6 text-center">
-          <div className="text-2xl mb-2">💬</div>
-          <p className="text-base font-bold text-gray-900 mb-1">Have a tip to share?</p>
-          <p className="text-sm text-gray-500 max-w-xs mx-auto">
-            Send your recommendations to the Smileys team and we'll add the best ones here.
-          </p>
-        </div>
+        {/* CTA — different copy for members vs visitors */}
+        {session ? (
+          <div className="mt-14 bg-gray-50 border border-gray-100 rounded-2xl p-6 text-center">
+            <div className="text-2xl mb-2">💬</div>
+            <p className="text-base font-bold text-gray-900 mb-1">Have a tip to share?</p>
+            <p className="text-sm text-gray-500 max-w-xs mx-auto">
+              Send your recommendations to the Smileys team and we'll add the best ones here.
+            </p>
+          </div>
+        ) : (
+          <div className="mt-14 bg-gradient-to-br from-amber-500 to-orange-500 rounded-2xl p-8 text-center text-white shadow-lg">
+            <div className="text-3xl mb-3">😊</div>
+            <p className="text-xl font-extrabold mb-2">Living in Istanbul?</p>
+            <p className="text-sm text-amber-50 max-w-md mx-auto mb-5 leading-relaxed">
+              Smileys is a curated community of locals and expats hosting events across Istanbul every week. Apply to join — it&apos;s free.
+            </p>
+            <Link href="/apply"
+              className="inline-block px-6 py-3 bg-white text-amber-600 font-bold rounded-xl hover:bg-amber-50 transition-colors text-sm">
+              Apply to join →
+            </Link>
+            <p className="text-xs text-amber-100 mt-4">
+              Already a member? <Link href="/login" className="font-semibold underline">Sign in</Link>
+            </p>
+          </div>
+        )}
 
       </div>
     </div>
