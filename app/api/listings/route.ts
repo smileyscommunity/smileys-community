@@ -13,8 +13,10 @@ const CAT_LABELS: Record<string, string> = {
 }
 
 export async function GET(req: NextRequest) {
+  // Public read — anonymous browsing is the whole point (SEO + "what's in the
+  // marketplace" pull for prospects). Session-only features (?saved=true,
+  // savedIds) just no-op for anonymous users.
   const session = await getSession()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { searchParams } = new URL(req.url)
   const category     = searchParams.get('category') || undefined
@@ -23,11 +25,19 @@ export async function GET(req: NextRequest) {
   const q            = searchParams.get('q')?.trim() || undefined
   const offset       = parseInt(searchParams.get('offset') || '0', 10)
 
+  // ?saved=true requires a logged-in user; for anonymous, force the filter to
+  // match nothing instead of querying without it (which would return everything).
+  const savedFilter = saved
+    ? session
+      ? { savedBy: { some: { userId: session.id } } }
+      : { id: '__never__' }
+    : {}
+
   const where = {
     status: 'active',
     ...(category ? { category } : {}),
     ...(neighborhood ? { neighborhood } : {}),
-    ...(saved ? { savedBy: { some: { userId: session.id } } } : {}),
+    ...savedFilter,
     ...(q ? { OR: [
       { title:       { contains: q, mode: 'insensitive' as const } },
       { description: { contains: q, mode: 'insensitive' as const } },
@@ -46,7 +56,7 @@ export async function GET(req: NextRequest) {
   ])
 
   const listingIds = listings.map(l => l.id)
-  const savedRows = listingIds.length > 0
+  const savedRows = session && listingIds.length > 0
     ? await prisma.savedListing.findMany({
         where: { userId: session.id, listingId: { in: listingIds } },
         select: { listingId: true },

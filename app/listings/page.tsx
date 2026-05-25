@@ -91,7 +91,12 @@ function ListingModal({ listing, currentUserId, isSaved, onToggleSave, onClose, 
   onRenew: (id: string) => void
 }) {
   const [copied, setCopied] = useState(false)
+  const [reportOpen, setReportOpen] = useState(false)
+  const [reportReason, setReportReason] = useState('')
+  const [reportDetails, setReportDetails] = useState('')
+  const [reportSubmitting, setReportSubmitting] = useState(false)
   const isOwner  = listing.user.id === currentUserId
+  const isGuest  = !currentUserId || currentUserId === 'guest'
   const photo    = resolveImageUrl(listing.photo)
   const avatar   = resolveImageUrl(listing.user.profilePhoto)
   const cat      = CAT_META[listing.category]
@@ -102,6 +107,28 @@ function ListingModal({ listing, currentUserId, isSaved, onToggleSave, onClose, 
     const ok = await copyShare(listing.id)
     if (ok) { setCopied(true); setTimeout(() => setCopied(false), 2000) }
     else toast.success('Link copied!')
+  }
+
+  async function handleSubmitReport() {
+    if (!reportReason) { toast.error('Pick a reason'); return }
+    setReportSubmitting(true)
+    try {
+      const res = await fetch(`/app/api/listings/${listing.id}/report`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ reason: reportReason, details: reportDetails || undefined }),
+      })
+      const data = await res.json()
+      if (!res.ok) { toast.error(data.error ?? 'Could not submit report'); return }
+      toast.success('Reported — thanks. Moderators will review.')
+      setReportOpen(false)
+      setReportReason('')
+      setReportDetails('')
+    } catch {
+      toast.error('Network error')
+    } finally {
+      setReportSubmitting(false)
+    }
   }
 
   const waHref = listing.contact
@@ -198,6 +225,39 @@ function ListingModal({ listing, currentUserId, isSaved, onToggleSave, onClose, 
                 : <button onClick={() => { onMarkFilled(listing.id); onClose() }} className="flex-1 text-sm font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-xl transition-colors">Mark as done</button>
               }
               <button onClick={() => { onDelete(listing.id); onClose() }} className="text-sm font-semibold text-red-500 hover:text-red-600 hover:bg-red-50 px-4 py-2.5 rounded-xl transition-colors">Delete</button>
+            </div>
+          )}
+          {/* Flag — hidden for the owner (can't report self) and for guests
+              (we don't want anonymous spam-flags; sign-up gate filters that). */}
+          {!isOwner && !isGuest && !reportOpen && (
+            <button onClick={() => setReportOpen(true)}
+              className="text-xs text-gray-400 hover:text-red-500 transition-colors self-center mt-1">
+              ⚑ Report listing
+            </button>
+          )}
+          {reportOpen && (
+            <div className="bg-red-50 border border-red-100 rounded-xl p-3 space-y-2">
+              <p className="text-xs font-semibold text-red-700">Why are you flagging this?</p>
+              <select value={reportReason} onChange={e => setReportReason(e.target.value)}
+                className="w-full bg-white border border-red-200 rounded-lg px-3 py-2 text-sm">
+                <option value="">Pick a reason…</option>
+                <option value="spam">Spam</option>
+                <option value="scam">Scam or suspicious</option>
+                <option value="inappropriate">Inappropriate / offensive</option>
+                <option value="duplicate">Duplicate of another listing</option>
+                <option value="other">Other</option>
+              </select>
+              <textarea value={reportDetails} onChange={e => setReportDetails(e.target.value)}
+                placeholder="Details (optional)" rows={2} maxLength={500}
+                className="w-full bg-white border border-red-200 rounded-lg px-3 py-2 text-xs resize-none" />
+              <div className="flex gap-2 justify-end">
+                <button onClick={() => setReportOpen(false)} disabled={reportSubmitting}
+                  className="text-xs px-3 py-1.5 text-gray-600 hover:text-gray-900">Cancel</button>
+                <button onClick={handleSubmitReport} disabled={reportSubmitting || !reportReason}
+                  className="text-xs px-4 py-1.5 bg-red-500 hover:bg-red-600 disabled:opacity-40 text-white font-bold rounded-lg transition-colors">
+                  {reportSubmitting ? 'Sending…' : 'Submit report'}
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -310,7 +370,7 @@ function ListingCard({ listing, onClick, isSaved, onToggleSave }: {
 }
 
 function ListingsInner() {
-  const { user } = useAuth()
+  const { user, isLoggedIn } = useAuth()
   const searchParams = useSearchParams()
   const [category, setCategory] = useState('ALL')
   const [neighborhood, setNeighborhood] = useState('')
@@ -345,13 +405,14 @@ function ListingsInner() {
     return () => document.removeEventListener('mousedown', close)
   }, [showAlertMenu])
 
-  // Load alert preferences once
+  // Load alert preferences once — only meaningful for logged-in members.
   useEffect(() => {
+    if (!isLoggedIn) return
     fetch('/app/api/me/listing-alerts', { credentials: 'include' })
       .then(r => r.json())
       .then(d => setAlertCategories(d.listingAlerts ?? []))
       .catch(() => {})
-  }, [])
+  }, [isLoggedIn])
 
   const fetchListings = useCallback(async (cat: string, nbhd: string, q: string, offset: number, append = false) => {
     const params = new URLSearchParams({ offset: String(offset) })
@@ -499,15 +560,17 @@ function ListingsInner() {
                 Rooms, jobs, services & more — posted by Smileys members for Smileys members.
               </p>
             </div>
-            <Link
-              href="/listings/new"
-              className="hidden sm:flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors shrink-0 shadow-sm"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Post a listing
-            </Link>
+            {isLoggedIn && (
+              <Link
+                href="/listings/new"
+                className="hidden sm:flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors shrink-0 shadow-sm"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Post a listing
+              </Link>
+            )}
           </div>
 
           {/* Search bar */}
@@ -530,7 +593,7 @@ function ListingsInner() {
           {/* Category pills + alerts bell */}
           <div className="flex items-center gap-2">
             <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 flex-1 min-w-0">
-              {CATEGORIES.map(cat => {
+              {CATEGORIES.filter(cat => isLoggedIn || cat.id !== 'SAVED').map(cat => {
                 const isActive = category === cat.id
                 return (
                   <button
@@ -569,8 +632,8 @@ function ListingsInner() {
               {ISTANBUL_NEIGHBORHOODS.map(n => <option key={n} value={n}>{n}</option>)}
             </select>
 
-            {/* Alert bell */}
-            <div className="relative shrink-0" ref={alertMenuRef}>
+            {/* Alert bell — members only */}
+            {isLoggedIn && <div className="relative shrink-0" ref={alertMenuRef}>
               <button
                 onClick={() => setShowAlertMenu(v => !v)}
                 className={`relative flex items-center justify-center w-9 h-9 rounded-full border transition-all ${
@@ -617,7 +680,7 @@ function ListingsInner() {
                   <p className="text-[10px] text-gray-400 mt-3 leading-relaxed">You'll get one email per new listing that matches.</p>
                 </div>
               )}
-            </div>
+            </div>}
           </div>
         </div>
       </div>
@@ -625,8 +688,28 @@ function ListingsInner() {
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
-        {/* Mobile post button */}
-        <div className="sm:hidden mb-6">
+        {/* Visitor CTA — only shown when not logged in. Members-can-only-post
+            is the value-prop, not "you can browse" (they're already doing that). */}
+        {!isLoggedIn && (
+          <div className="mb-6 bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl p-5 sm:p-6 text-white shadow-md flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <div className="text-3xl">😊</div>
+            <div className="flex-1 min-w-0">
+              <p className="text-lg font-extrabold mb-0.5">Join Smileys to contact listers + post your own</p>
+              <p className="text-sm text-amber-50">Free, curated community of locals and expats across Istanbul.</p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Link href="/apply" className="px-4 py-2.5 bg-white text-amber-600 font-bold rounded-xl hover:bg-amber-50 transition-colors text-sm whitespace-nowrap">
+                Apply to join
+              </Link>
+              <Link href="/login" className="px-4 py-2.5 text-white font-semibold border border-white/40 rounded-xl hover:bg-white/10 transition-colors text-sm whitespace-nowrap">
+                Sign in
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* Mobile post button — members only; anonymous see the CTA above */}
+        {isLoggedIn && <div className="sm:hidden mb-6">
           <Link
             href="/listings/new"
             className="flex items-center justify-center gap-2 w-full py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors shadow-sm"
@@ -636,7 +719,7 @@ function ListingsInner() {
             </svg>
             Post a listing
           </Link>
-        </div>
+        </div>}
 
         {/* Active filter label */}
         {!loading && listings.length > 0 && (
@@ -685,15 +768,21 @@ function ListingsInner() {
             </p>
             {category !== 'SAVED' && !debouncedSearch && (
               <div className="flex items-center justify-center gap-3 flex-wrap">
-                <Link
-                  href="/listings/new"
-                  className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold px-6 py-3 rounded-xl transition-colors shadow-sm"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  Post a listing
-                </Link>
+                {isLoggedIn ? (
+                  <Link
+                    href="/listings/new"
+                    className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold px-6 py-3 rounded-xl transition-colors shadow-sm"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Post a listing
+                  </Link>
+                ) : (
+                  <Link href="/apply" className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold px-6 py-3 rounded-xl transition-colors shadow-sm">
+                    Apply to join
+                  </Link>
+                )}
                 {category !== 'ALL' && (
                   <button
                     onClick={() => setCategory('ALL')}

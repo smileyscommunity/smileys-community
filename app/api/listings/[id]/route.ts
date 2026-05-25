@@ -4,9 +4,8 @@ import { getSession } from '@/lib/session'
 import { isAdmin } from '@/lib/access'
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
+  // Public read — paired with the public /listings browse page so Google can
+  // crawl individual listings.
   const { id } = await params
   const listing = await prisma.listing.findUnique({
     where: { id, status: 'active' },

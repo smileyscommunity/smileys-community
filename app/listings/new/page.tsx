@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useAuth } from '@/contexts/AuthContext'
 import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
 
 const CATEGORIES = [
@@ -15,6 +16,15 @@ const CATEGORIES = [
 
 export default function NewListingPage() {
   const router = useRouter()
+  // Posting is members-only — anonymous visitors get bounced to login. The page
+  // itself lives outside the (member) route group so the rest of /listings/* can
+  // be public; this manual gate replaces the group's auth-redirect for just this
+  // page.
+  const { isLoggedIn, isLoading } = useAuth()
+  useEffect(() => {
+    if (!isLoading && !isLoggedIn) router.replace('/login?next=/listings/new')
+  }, [isLoading, isLoggedIn, router])
+
   const [category, setCategory]     = useState('')
   const [title, setTitle]           = useState('')
   const [description, setDesc]      = useState('')

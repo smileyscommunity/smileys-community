@@ -156,6 +156,7 @@ model Report {
   reporterId    String
   reportedId    String
   eventId       String?
+  listingId     String?   // Marketplace flag — reportedId is the listing owner; this points to the post.
   reason        String
   details       String?
   screenshot    String?
@@ -174,6 +175,7 @@ model Report {
 
   @@index([reportedId])
   @@index([status])
+  @@index([listingId])
   @@map("reports")
 }
 
