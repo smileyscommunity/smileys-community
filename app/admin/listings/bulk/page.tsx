@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
 
 // Bulk-add tool for seeding the marketplace. The user (admin) pastes 10-20 listings
 // in a labelled-block format, previews the parsed result, then creates them in one
@@ -20,15 +21,17 @@ const CATEGORIES = [
 ]
 
 interface ParsedItem {
-  title:       string
-  description: string
-  price?:      string
-  contact?:    string
+  title:         string
+  description:   string
+  price?:        string
+  contact?:      string
+  neighborhood?: string
 }
 
 const PLACEHOLDER = `Beautiful 1+1 flat in Moda — walking distance to ferry
 Price: 25000 TL/month
 Contact: +90 555 123 4567 (WhatsApp)
+Neighborhood: Moda
 Furnished, top floor, big balcony with sea view. Available May 1.
 Building has elevator. Cats welcome, no dogs.
 
@@ -37,13 +40,14 @@ Building has elevator. Cats welcome, no dogs.
 Shared room near Boğaziçi University
 Price: 9000 TL/month
 Contact: housing@example.com
+Neighborhood: Bebek
 Quiet international house, 4 roommates total. Private bedroom, shared kitchen.
 Bills included. 6-month minimum.`
 
 // Parse the textarea into structured listings. Convention:
 //   - Listings separated by --- on its own line
 //   - First non-blank line = title
-//   - Lines like "Price: ..." or "Contact: ..." extracted to those fields
+//   - Lines like "Price: ..." / "Contact: ..." / "Neighborhood: ..." extracted to those fields
 //   - Everything else joined as description
 function parse(raw: string): ParsedItem[] {
   const blocks = raw.split(/^---\s*$/m).map(b => b.trim()).filter(Boolean)
@@ -52,21 +56,25 @@ function parse(raw: string): ParsedItem[] {
     let title: string | undefined
     let price: string | undefined
     let contact: string | undefined
+    let neighborhood: string | undefined
     const descLines: string[] = []
     for (const line of lines) {
       if (!line) continue
       const priceMatch = /^Price\s*[:\-]\s*(.+)$/i.exec(line)
       const contactMatch = /^Contact\s*[:\-]\s*(.+)$/i.exec(line)
+      const nbhdMatch = /^Neighbou?rhood\s*[:\-]\s*(.+)$/i.exec(line)
       if (priceMatch) { price = priceMatch[1].trim(); continue }
       if (contactMatch) { contact = contactMatch[1].trim(); continue }
+      if (nbhdMatch) { neighborhood = nbhdMatch[1].trim(); continue }
       if (!title) { title = line; continue }
       descLines.push(line)
     }
     return {
-      title:       title ?? '',
-      description: descLines.join('\n').trim(),
+      title:        title ?? '',
+      description:  descLines.join('\n').trim(),
       price,
       contact,
+      neighborhood,
     }
   })
 }
@@ -75,6 +83,7 @@ export default function BulkAddListingsPage() {
   const router = useRouter()
   const [category, setCategory]               = useState('ROOMS')
   const [attributedUserId, setAttributedUserId] = useState('')
+  const [defaultNeighborhood, setDefaultNeighborhood] = useState('')
   const [raw, setRaw]                         = useState('')
   const [submitting, setSubmitting]           = useState(false)
 
@@ -94,7 +103,8 @@ export default function BulkAddListingsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           category,
-          attributedUserId: attributedUserId.trim() || undefined,
+          attributedUserId:    attributedUserId.trim() || undefined,
+          defaultNeighborhood: defaultNeighborhood || undefined,
           items: validItems,
         }),
       })
@@ -127,7 +137,7 @@ export default function BulkAddListingsPage() {
           <code className="text-zinc-300 bg-zinc-800 px-1 rounded">Contact:</code> optional, everything else is description.
         </p>
 
-        <div className="grid grid-cols-2 gap-3 mb-4">
+        <div className="grid grid-cols-3 gap-3 mb-4">
           <div>
             <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Category</label>
             <select value={category} onChange={e => setCategory(e.target.value)}
@@ -137,10 +147,20 @@ export default function BulkAddListingsPage() {
           </div>
           <div>
             <label className="block text-xs font-semibold text-zinc-400 mb-1.5">
+              Default neighborhood <span className="text-zinc-500 font-normal">(per-item override via "Neighborhood:" line)</span>
+            </label>
+            <select value={defaultNeighborhood} onChange={e => setDefaultNeighborhood(e.target.value)}
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm">
+              <option value="">— none —</option>
+              {ISTANBUL_NEIGHBORHOODS.map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-zinc-400 mb-1.5">
               Post as user ID <span className="text-zinc-500 font-normal">(default: you)</span>
             </label>
             <input value={attributedUserId} onChange={e => setAttributedUserId(e.target.value)}
-              placeholder="Paste user ID for cleaner attribution"
+              placeholder="Paste user ID"
               className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm font-mono" />
           </div>
         </div>
@@ -174,7 +194,15 @@ export default function BulkAddListingsPage() {
                     ) : (
                       <p className="text-xs text-red-400">(missing description)</p>
                     )}
-                    {item.contact && <p className="text-xs text-zinc-500 mt-1.5 font-mono">📞 {item.contact}</p>}
+                    <div className="flex items-center gap-3 mt-1.5">
+                      {item.contact && <p className="text-xs text-zinc-500 font-mono">📞 {item.contact}</p>}
+                      {(item.neighborhood || defaultNeighborhood) && (
+                        <p className="text-xs text-amber-400">
+                          📍 {item.neighborhood || defaultNeighborhood}
+                          {!item.neighborhood && defaultNeighborhood && <span className="text-zinc-500"> (default)</span>}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 )
               })}

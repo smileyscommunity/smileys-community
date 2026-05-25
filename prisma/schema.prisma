@@ -925,23 +925,25 @@ model NeighborhoodPostReply {
 }
 
 model Listing {
-  id          String   @id @default(cuid())
-  userId      String
-  category    String // ROOMS | JOBS | BUY_SELL
-  title       String
-  description String
-  price       String?
-  photo       String?
-  contact     String? // WhatsApp link or number
-  status      String   @default("active") // active | filled | expired | deleted
-  expiresAt   DateTime
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default(cuid())
+  userId       String
+  category     String // ROOMS | JOBS | BUY_SELL
+  title        String
+  description  String
+  price        String?
+  photo        String?
+  contact      String? // WhatsApp link or number
+  neighborhood String? // One of lib/neighborhoods ISTANBUL_NEIGHBORHOODS, validated server-side
+  status       String   @default("active") // active | filled | expired | deleted
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   user    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   savedBy SavedListing[]
 
   @@index([category, status, createdAt])
+  @@index([neighborhood, status])
   @@index([userId])
   @@map("listings")
 }

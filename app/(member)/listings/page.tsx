@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { useSearchParams } from 'next/navigation'
-import { resolveImageUrl } from '@/lib/data'
+import { resolveImageUrl, ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
 import { toast } from 'sonner'
 
 const CATEGORIES = [
@@ -48,6 +48,7 @@ interface Listing {
   price: string | null
   photo: string | null
   contact: string | null
+  neighborhood: string | null
   status: string
   expiresAt: string
   createdAt: string
@@ -158,6 +159,9 @@ function ListingModal({ listing, currentUserId, isSaved, onToggleSave, onClose, 
         <div className="overflow-y-auto flex-1 p-5 space-y-4">
           <div className="flex items-center gap-2 flex-wrap">
             {cat && <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${cat.badge}`}>{cat.label}</span>}
+            {listing.neighborhood && (
+              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700">📍 {listing.neighborhood}</span>
+            )}
             {listing.price && <span className="text-sm font-bold text-gray-900 bg-gray-100 px-2.5 py-1 rounded-full">{listing.price}</span>}
             <span className="text-xs text-gray-400 ml-auto">{timeAgo(listing.createdAt)}</span>
           </div>
@@ -260,6 +264,11 @@ function ListingCard({ listing, onClick, isSaved, onToggleSave }: {
       <div className="p-4 flex flex-col gap-2.5">
         <h3 className="font-bold text-gray-900 text-sm leading-snug line-clamp-2 group-hover:text-amber-600 transition-colors">{listing.title}</h3>
         <p className="text-xs text-gray-500 leading-relaxed line-clamp-2">{listing.description}</p>
+        {listing.neighborhood && (
+          <p className="text-[11px] font-semibold text-amber-700 bg-amber-50 self-start px-2 py-0.5 rounded-full">
+            📍 {listing.neighborhood}
+          </p>
+        )}
 
         <div className="flex items-center gap-2 pt-2 border-t border-gray-50">
           {avatar ? (
@@ -304,6 +313,7 @@ function ListingsInner() {
   const { user } = useAuth()
   const searchParams = useSearchParams()
   const [category, setCategory] = useState('ALL')
+  const [neighborhood, setNeighborhood] = useState('')
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [listings, setListings] = useState<Listing[]>([])
@@ -343,13 +353,14 @@ function ListingsInner() {
       .catch(() => {})
   }, [])
 
-  const fetchListings = useCallback(async (cat: string, q: string, offset: number, append = false) => {
+  const fetchListings = useCallback(async (cat: string, nbhd: string, q: string, offset: number, append = false) => {
     const params = new URLSearchParams({ offset: String(offset) })
     if (cat === 'SAVED') {
       params.set('saved', 'true')
     } else if (cat !== 'ALL') {
       params.set('category', cat)
     }
+    if (nbhd) params.set('neighborhood', nbhd)
     if (q) params.set('q', q)
     const res  = await fetch(`/app/api/listings?${params}`, { credentials: 'include' })
     const data = await res.json()
@@ -365,8 +376,8 @@ function ListingsInner() {
 
   useEffect(() => {
     setLoading(true)
-    fetchListings(category, debouncedSearch, 0).finally(() => setLoading(false))
-  }, [category, debouncedSearch, fetchListings])
+    fetchListings(category, neighborhood, debouncedSearch, 0).finally(() => setLoading(false))
+  }, [category, neighborhood, debouncedSearch, fetchListings])
 
   // Auto-open listing from ?l= legacy share link
   const deepLinkId = searchParams.get('l')
@@ -380,7 +391,7 @@ function ListingsInner() {
 
   async function loadMore() {
     setLoadingMore(true)
-    await fetchListings(category, debouncedSearch, listings.length, true)
+    await fetchListings(category, neighborhood, debouncedSearch, listings.length, true)
     setLoadingMore(false)
   }
 
@@ -542,6 +553,21 @@ function ListingsInner() {
                 )
               })}
             </div>
+
+            {/* Neighborhood filter */}
+            <select
+              value={neighborhood}
+              onChange={e => setNeighborhood(e.target.value)}
+              className={`shrink-0 text-xs font-semibold px-3 py-2 rounded-full border whitespace-nowrap transition-colors ${
+                neighborhood
+                  ? 'bg-amber-50 border-amber-300 text-amber-700'
+                  : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+              }`}
+              title="Filter by neighborhood"
+            >
+              <option value="">📍 All areas</option>
+              {ISTANBUL_NEIGHBORHOODS.map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
 
             {/* Alert bell */}
             <div className="relative shrink-0" ref={alertMenuRef}>

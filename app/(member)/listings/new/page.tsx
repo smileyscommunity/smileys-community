@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
 
 const CATEGORIES = [
   { id: 'ROOMS',    label: 'Room / Flat',        emoji: '🏠' },
@@ -19,6 +20,7 @@ export default function NewListingPage() {
   const [description, setDesc]      = useState('')
   const [price, setPrice]           = useState('')
   const [contact, setContact]       = useState('')
+  const [neighborhood, setNeighborhood] = useState('')
   const [photo, setPhoto]           = useState('')
   const [uploading, setUploading]   = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -49,7 +51,7 @@ export default function NewListingPage() {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ category, title, description, price: price || null, contact: contact || null, photo: photo || null }),
+      body: JSON.stringify({ category, title, description, price: price || null, contact: contact || null, photo: photo || null, neighborhood: neighborhood || null }),
     })
     if (res.ok) {
       router.push('/listings')
@@ -145,6 +147,22 @@ export default function NewListingPage() {
               placeholder="e.g. €500/mo · €120 · Free · Negotiable"
               className="input"
             />
+          </div>
+
+          {/* Neighborhood */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+              Neighborhood {category === 'ROOMS' ? <span className="text-gray-500 font-normal">(recommended)</span> : <span className="text-gray-400 font-normal">(optional)</span>}
+            </label>
+            <select
+              value={neighborhood}
+              onChange={e => setNeighborhood(e.target.value)}
+              className="input bg-white"
+            >
+              <option value="">— Pick one —</option>
+              {ISTANBUL_NEIGHBORHOODS.map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+            <p className="text-xs text-gray-400 mt-1">Lets people filter listings by area.</p>
           </div>
 
           {/* WhatsApp contact */}

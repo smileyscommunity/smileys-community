@@ -139,6 +139,11 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
                   {cat.label}
                 </span>
               )}
+              {listing.neighborhood && (
+                <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700">
+                  📍 {listing.neighborhood}
+                </span>
+              )}
               {listing.price && (
                 <span className="text-sm font-bold text-gray-900 bg-gray-100 px-2.5 py-1 rounded-full">
                   {listing.price}

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { sendListingAlertEmail } from '@/lib/email'
 import { sendPushToUser } from '@/lib/push'
+import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
 
 const PAGE_SIZE = 20
 
@@ -16,14 +17,16 @@ export async function GET(req: NextRequest) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { searchParams } = new URL(req.url)
-  const category = searchParams.get('category') || undefined
-  const saved    = searchParams.get('saved') === 'true'
-  const q        = searchParams.get('q')?.trim() || undefined
-  const offset   = parseInt(searchParams.get('offset') || '0', 10)
+  const category     = searchParams.get('category') || undefined
+  const neighborhood = searchParams.get('neighborhood') || undefined
+  const saved        = searchParams.get('saved') === 'true'
+  const q            = searchParams.get('q')?.trim() || undefined
+  const offset       = parseInt(searchParams.get('offset') || '0', 10)
 
   const where = {
     status: 'active',
     ...(category ? { category } : {}),
+    ...(neighborhood ? { neighborhood } : {}),
     ...(saved ? { savedBy: { some: { userId: session.id } } } : {}),
     ...(q ? { OR: [
       { title:       { contains: q, mode: 'insensitive' as const } },
@@ -58,7 +61,7 @@ export async function POST(req: NextRequest) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { category, title, description, price, photo, contact } = await req.json()
+  const { category, title, description, price, photo, contact, neighborhood } = await req.json()
 
   const VALID_CATEGORIES = ['ROOMS', 'JOBS', 'BUY_SELL', 'SERVICES', 'FREE', 'RECO']
   if (!category || !VALID_CATEGORIES.includes(category)) {
@@ -72,6 +75,11 @@ export async function POST(req: NextRequest) {
 
   const safePhoto = typeof photo === 'string' && /^\/app\/api\/files\/[a-zA-Z0-9\-]+\/[a-zA-Z0-9\-]+\.(jpg|jpeg|png|webp|gif)$/.test(photo) ? photo : null
   const safeContact = typeof contact === 'string' && contact.length <= 200 ? contact : null
+  // Validate against the canonical neighborhood list so we don't store typos that
+  // would never match the filter dropdown on the browse page.
+  const safeNeighborhood = typeof neighborhood === 'string'
+    && (ISTANBUL_NEIGHBORHOODS as readonly string[]).includes(neighborhood)
+    ? neighborhood : null
 
   const expiresAt = new Date()
   expiresAt.setDate(expiresAt.getDate() + 30)
@@ -85,6 +93,7 @@ export async function POST(req: NextRequest) {
       price: price?.trim() || null,
       photo: safePhoto,
       contact: safeContact,
+      neighborhood: safeNeighborhood,
       expiresAt,
     },
   })
