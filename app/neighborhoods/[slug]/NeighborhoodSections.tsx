@@ -35,6 +35,7 @@ export default async function NeighborhoodSections({
   const [
     upcomingRaw, pastCount, locals, hostCounts,
     totalLocals, allEventCounts, communityPhotos, wallPostCount,
+    activeListings,
   ] = await Promise.all([
     prisma.event.findMany({
       where:   { neighborhood: name, date: { gte: today } },
@@ -77,6 +78,19 @@ export default async function NeighborhoodSections({
       select:  { id: true, url: true, caption: true, event: { select: { id: true, title: true } } },
     }),
     myId ? prisma.neighborhoodPost.count({ where: { neighborhood: name } }) : Promise.resolve(null),
+    // Active marketplace listings tagged to this neighborhood — lets housing
+    // posts surface where people look for them ("flats in Moda" arrives on the
+    // Moda page and sees them, no extra step).
+    prisma.listing.findMany({
+      where:   { neighborhood: name, status: 'active' },
+      orderBy: { createdAt: 'desc' },
+      take:    6,
+      select:  {
+        id: true, category: true, title: true, price: true, photo: true,
+        createdAt: true,
+        user: { select: { id: true, name: true, color: true, profilePhoto: true } },
+      },
+    }),
   ])
 
   const hosts = hostCounts.length > 0
@@ -420,6 +434,51 @@ export default async function NeighborhoodSections({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
             </Link>
+          </div>
+        </div>
+      )}
+
+      {/* Marketplace — surfaces housing / classifieds tagged to this neighborhood.
+          Silent when empty; we don't want a "0 listings" hole on quiet neighborhoods. */}
+      {activeListings.length > 0 && (
+        <div className="pt-6 border-t border-gray-100">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xs font-bold text-gray-500 uppercase tracking-widest">Marketplace in {name}</h2>
+            <Link href={`/listings?neighborhood=${encodeURIComponent(name)}`}
+              className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
+              See all →
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {activeListings.map(l => {
+              const emoji =
+                l.category === 'ROOMS'    ? '🏠' :
+                l.category === 'JOBS'     ? '💼' :
+                l.category === 'SERVICES' ? '🛠️' :
+                l.category === 'BUY_SELL' ? '🛍️' :
+                l.category === 'FREE'     ? '🎁' : '⭐'
+              return (
+                <Link key={l.id} href={`/listings?l=${l.id}`} className="group block">
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all h-full">
+                    {l.photo ? (
+                      <div className="relative h-32 bg-gray-100">
+                        <img src={resolveImageUrl(l.photo)} alt={l.title} className="absolute inset-0 w-full h-full object-cover" />
+                      </div>
+                    ) : (
+                      <div className="h-24 flex items-center justify-center bg-gradient-to-br from-amber-50 to-orange-50">
+                        <span className="text-4xl opacity-70">{emoji}</span>
+                      </div>
+                    )}
+                    <div className="p-3">
+                      <h3 className="font-semibold text-gray-900 text-sm leading-snug line-clamp-2 group-hover:text-amber-600 transition-colors">
+                        {l.title}
+                      </h3>
+                      {l.price && <p className="text-xs font-bold text-gray-700 mt-1.5">{l.price}</p>}
+                    </div>
+                  </div>
+                </Link>
+              )
+            })}
           </div>
         </div>
       )}
