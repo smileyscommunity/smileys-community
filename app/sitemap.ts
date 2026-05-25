@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic'
 const BASE = 'https://smileyscommunity.com/app'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [events, clubs, posts] = await Promise.all([
+  const [events, clubs, posts, listings] = await Promise.all([
     prisma.event.findMany({
       where: { status: 'published' },
       select: { id: true, updatedAt: true },
@@ -23,11 +23,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       select: { slug: true, publishedAt: true },
       take: 100,
     }),
+    // Marketplace listings are public — let Google crawl them so search hits
+    // like "flats in Moda" can land on the listing.
+    prisma.listing.findMany({
+      where:   { status: 'active' },
+      select:  { id: true, updatedAt: true },
+      orderBy: { createdAt: 'desc' },
+      take:    500,
+    }),
   ])
 
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: `${BASE}/`,              priority: 1.0, changeFrequency: 'daily'   },
     { url: `${BASE}/events`,        priority: 0.9, changeFrequency: 'daily'   },
+    { url: `${BASE}/listings`,      priority: 0.8, changeFrequency: 'daily'   },
+    { url: `${BASE}/guide`,         priority: 0.8, changeFrequency: 'weekly'  },
     { url: `${BASE}/clubs`,         priority: 0.8, changeFrequency: 'weekly'  },
     { url: `${BASE}/apply`,         priority: 0.8, changeFrequency: 'monthly' },
     { url: `${BASE}/about`,         priority: 0.7, changeFrequency: 'monthly' },
@@ -58,11 +68,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     changeFrequency: 'monthly',
   }))
 
+  const listingRoutes: MetadataRoute.Sitemap = listings.map(l => ({
+    url:          `${BASE}/listings/${l.id}`,
+    lastModified: l.updatedAt,
+    priority:     0.6,
+    changeFrequency: 'weekly',
+  }))
+
   const neighborhoodRoutes: MetadataRoute.Sitemap = Object.keys(NEIGHBORHOOD_META).map(name => ({
     url:             `${BASE}/neighborhoods/${neighborhoodToSlug(name)}`,
     priority:        0.7,
     changeFrequency: 'weekly' as const,
   }))
 
-  return [...staticRoutes, ...neighborhoodRoutes, ...eventRoutes, ...clubRoutes, ...postRoutes]
+  return [...staticRoutes, ...neighborhoodRoutes, ...eventRoutes, ...clubRoutes, ...postRoutes, ...listingRoutes]
 }
