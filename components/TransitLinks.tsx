@@ -16,6 +16,10 @@ interface Category {
   icon: string
   label: string
   color: string
+  // ISO date — surfaced as "Updated Mon YYYY" so members can tell whether
+  // visa/banking/tax info is current. Optional; categories without it just
+  // don't show a stamp.
+  updatedAt?: string
   resources: Resource[]
 }
 
@@ -87,6 +91,11 @@ export default function TransitLinks({ categories }: { categories: Category[] })
               {cat.icon}
             </span>
             <h2 className="text-xs font-bold text-gray-500 uppercase tracking-widest flex-1">{cat.label}</h2>
+            {cat.updatedAt && (
+              <span className="text-xs font-medium text-gray-400 shrink-0">
+                Updated {new Date(cat.updatedAt).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}
+              </span>
+            )}
             <span className="text-xs font-medium text-gray-400 shrink-0">
               {cat.resources.length} {cat.resources.length === 1 ? 'item' : 'items'}
             </span>

@@ -383,7 +383,8 @@
           "badgeColor": "",
           "tip": "If you’re remote-working for a foreign employer on a residence permit, get tax advice early — the rules are tightening."
         }
-      ]
+      ],
+      "updatedAt": "2026-05-26"
     },
     {
       "icon": "🩺",
@@ -438,7 +439,8 @@
           "badgeColor": "",
           "tip": "For non-emergencies, Uber to the private hospital is faster and cheaper than waiting for a public ambulance."
         }
-      ]
+      ],
+      "updatedAt": "2026-05-26"
     },
     {
       "icon": "🏦",
@@ -493,7 +495,8 @@
           "badgeColor": "",
           "tip": "Ask members for a recommended mali müşavir who handles expats — fees ₺2,000–5,000/year, well worth avoiding mistakes."
         }
-      ]
+      ],
+      "updatedAt": "2026-05-26"
     },
     {
       "icon": "📶",
@@ -548,7 +551,8 @@
           "badgeColor": "",
           "tip": "Avoid banking on public Wi-Fi without a VPN. Mobile data is so cheap in Turkey it’s often easier to just tether."
         }
-      ]
+      ],
+      "updatedAt": "2026-05-26"
     }
   ]
 }

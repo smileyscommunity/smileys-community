@@ -46,6 +46,7 @@ function loadGuide(): Category[] {
       icon:      cat.icon,
       label:     cat.label,
       color:     COLOR_MAP[cat.color] ?? COLOR_MAP.blue,
+      updatedAt: cat.updatedAt,
       resources: (cat.resources ?? []).map((r: any) => ({
         title:       r.title,
         description: r.description,
@@ -261,13 +262,14 @@ export default async function GuidePage() {
 
         {/* CTA — different copy for members vs visitors */}
         {session ? (
-          <div className="mt-14 bg-gray-50 border border-gray-100 rounded-2xl p-6 text-center">
+          <a href="mailto:info@smileyscommunity.com?subject=City%20guide%20tip"
+            className="mt-14 block bg-gray-50 hover:bg-amber-50 border border-gray-100 hover:border-amber-200 rounded-2xl p-6 text-center transition-colors">
             <div className="text-2xl mb-2">💬</div>
             <p className="text-base font-bold text-gray-900 mb-1">Have a tip to share?</p>
             <p className="text-sm text-gray-500 max-w-xs mx-auto">
-              Send your recommendations to the Smileys team and we'll add the best ones here.
+              Email your recommendations and we&apos;ll add the best ones here.
             </p>
-          </div>
+          </a>
         ) : (
           <div className="mt-14 bg-gradient-to-br from-amber-500 to-orange-500 rounded-2xl p-8 text-center text-white shadow-lg">
             <div className="text-3xl mb-3">😊</div>
