@@ -120,6 +120,7 @@ export default function Footer() {
                 { href: '/posts',         label: 'Articles'        },
                 { href: '/neighborhoods', label: 'Neighborhoods'   },
                 { href: '/guide',         label: 'Istanbul Guide 🗺️' },
+                { href: '/visiting',      label: 'Visiting? 👋'     },
                 { href: '/perks',         label: 'Member Perks 🎁' },
               ].map(l => (
                 <li key={l.href}>

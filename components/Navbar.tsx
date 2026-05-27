@@ -67,8 +67,11 @@ const navLinks = [
   { label: 'Clubs',         href: '/clubs',          public: true  },
   { label: 'Members',       href: '/members',        public: true  },
   { label: 'Neighborhoods', href: '/neighborhoods',  public: true  },
-  { label: 'Board',         href: '/listings',       public: false },
-  { label: 'Guide',         href: '/guide',          public: false },
+  // Board and Guide are public pages now; surface them to prospects too —
+  // each page already has its own sign-up CTA for non-members.
+  { label: 'Board',         href: '/listings',       public: true  },
+  { label: 'Guide',         href: '/guide',          public: true  },
+  { label: 'Visiting?',     href: '/visiting',       public: true  },
 ]
 
 const pageTitles: [string, string][] = [

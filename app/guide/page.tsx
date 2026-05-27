@@ -208,6 +208,20 @@ export default async function GuidePage() {
           </div>
         )}
 
+        {/* Cross-link to /visiting — newcomers reading "how to live in Istanbul"
+            are the same audience that should know they can post their visit dates. */}
+        <Link href="/visiting"
+          className="block mb-10 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-2xl px-5 py-4 transition-colors group">
+          <div className="flex items-center gap-4">
+            <div className="text-2xl shrink-0">👋</div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-amber-900">Visiting Istanbul first?</p>
+              <p className="text-xs text-amber-700 mt-0.5">Tell members your dates — locals will reach out before you arrive.</p>
+            </div>
+            <span className="text-sm font-bold text-amber-600 shrink-0 group-hover:translate-x-0.5 transition-transform">→</span>
+          </div>
+        </Link>
+
         <TransitLinks categories={categories} />
 
         {/* Neighborhoods */}
