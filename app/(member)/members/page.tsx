@@ -42,6 +42,16 @@ const SOCIAL_STYLE_MAP: Record<string, string> = {
   up_for_anything:  '🎭 Up for Anything',
 }
 
+interface HangoutSummary {
+  id:           string
+  title:        string
+  location:     string
+  neighborhood: string | null
+  startsAt:     string
+  endsAt:       string
+  user: { id: string; name: string; color: string; profilePhoto: string | null }
+}
+
 interface Member {
   id: string
   name: string
@@ -469,7 +479,7 @@ function MemberModal({ m, onClose, currentUserId, currentUserRole, myClubIds, my
   )
 }
 
-function MemberCard({ m, onClick, connectionStatus }: { m: Member; onClick: () => void; connectionStatus?: string }) {
+function MemberCard({ m, onClick, connectionStatus, hangingOut }: { m: Member; onClick: () => void; connectionStatus?: string; hangingOut?: boolean }) {
   const flag    = countryFlag(m.nationality)
   const photo   = resolveImageUrl(m.profilePhoto)
   const isOnline = m.lastActive
@@ -492,7 +502,14 @@ function MemberCard({ m, onClick, connectionStatus }: { m: Member; onClick: () =
           </div>
         )}
 
-        <div className="absolute top-2 right-2">
+        <div className="absolute top-2 right-2 flex items-center gap-1">
+          {hangingOut && (
+            <span title="Has an active hangout — see /hangouts"
+              className="flex items-center gap-1 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">
+              <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+              Hangout
+            </span>
+          )}
           {connectionStatus === 'accepted' && (
             <span className="flex items-center gap-0.5 bg-green-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">
               <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -602,6 +619,10 @@ function MembersPageInner() {
   const [myClubIds,    setMyClubIds]    = useState<string[]>([])
   const [myEventIds,   setMyEventIds]   = useState<string[]>([])
   const [connections,  setConnections]  = useState<ConnectionRecord[]>([])
+  // Active hangouts — drives the strip at the top and the "Hanging out" badge
+  // on member cards, bridging /members and /hangouts so the live signal isn't
+  // siloed in a separate page.
+  const [hangouts, setHangouts] = useState<HangoutSummary[]>([])
   const [hero, setHero] = useState({ badge: 'People', headline: 'Members', subtitle: 'Connect with the Smileys community.' })
 
   const handleConnectionChange = useCallback((updated: ConnectionRecord | null, removed?: string) => {
@@ -628,7 +649,8 @@ function MembersPageInner() {
       fetch('/app/api/clubs/memberships', { credentials: 'include' }).then(r => r.json()),
       fetch('/app/api/events/attending',  { credentials: 'include' }).then(r => r.json()),
       fetch('/app/api/connections',       { credentials: 'include' }).then(r => r.json()),
-    ]).then(([membersData, clubsData, eventsData, connData]) => {
+      fetch('/app/api/hangouts',          { credentials: 'include' }).then(r => r.json()),
+    ]).then(([membersData, clubsData, eventsData, connData, hangoutsData]) => {
       setMembers(Array.isArray(membersData?.members) ? membersData.members : [])
       setTotal(membersData?.total ?? 0)
       setHostTotal(membersData?.hostTotal ?? 0)
@@ -639,6 +661,7 @@ function MembersPageInner() {
       const sentList   = Array.isArray(connData?.sent)     ? connData.sent     : []
       const rcvList    = Array.isArray(connData?.received) ? connData.received : []
       setConnections([...sentList, ...rcvList])
+      setHangouts(Array.isArray(hangoutsData?.hangouts) ? hangoutsData.hangouts : [])
       setLoading(false)
     }).catch(() => setLoading(false))
   }, [])
@@ -672,6 +695,7 @@ function MembersPageInner() {
   const adminCount = adminTotal
 
   const activeMembers = filteredMembers ?? members
+  const hangoutHostIds = new Set(hangouts.map(h => h.user.id))
 
   const visible = activeMembers
     .filter(m => {
@@ -755,6 +779,27 @@ function MembersPageInner() {
           </div>
 
           <AdBannerStrip page="members" />
+
+          {/* Active hangouts strip — bridges the gap between "Open to coffee"
+              (settings opt-in) and actually showing up. Surfaces the live
+              signal where members already browse. */}
+          {hangouts.length > 0 && (
+            <Link href="/hangouts" className="block mb-4 group">
+              <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-center gap-3 hover:from-amber-100 hover:to-orange-100 transition-colors">
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
+                  <span className="text-xs font-bold text-amber-800 uppercase tracking-wider">Live</span>
+                </div>
+                <p className="text-sm text-amber-900 flex-1 truncate">
+                  <strong>{hangouts.length}</strong> hangout{hangouts.length !== 1 ? 's' : ''} happening now
+                  {hangouts[0]?.neighborhood && (
+                    <span className="text-amber-700 font-normal"> · starting in {hangouts[0].neighborhood}</span>
+                  )}
+                </p>
+                <span className="text-xs font-bold text-amber-600 shrink-0 group-hover:translate-x-0.5 transition-transform">See all →</span>
+              </div>
+            </Link>
+          )}
 
           {/* Role + open-to filter pills */}
           <div className="flex gap-2 pb-4 overflow-x-auto scrollbar-hide">
@@ -918,7 +963,7 @@ function MembersPageInner() {
           <>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
               {visible.map(m => (
-                <MemberCard key={m.id} m={m} onClick={() => setSelected(m)} connectionStatus={getConnectionStatus(m.id)} />
+                <MemberCard key={m.id} m={m} onClick={() => setSelected(m)} connectionStatus={getConnectionStatus(m.id)} hangingOut={hangoutHostIds.has(m.id)} />
               ))}
             </div>
             {hasMore && !search && roleFilter === 'All' && (
