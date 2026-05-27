@@ -73,10 +73,11 @@ const primaryLinks = [
 // Adding new content sections in the future drops in here instead of bloating
 // the top row.
 const discoverLinks = [
-  { label: 'Neighborhoods', href: '/neighborhoods', emoji: '🏘️', public: true },
-  { label: 'Board',         href: '/listings',      emoji: '🛍️', public: true },
-  { label: 'Guide',         href: '/guide',         emoji: '🗺️', public: true },
-  { label: 'Visiting?',     href: '/visiting',      emoji: '👋', public: true },
+  { label: 'Hangouts',      href: '/hangouts',      emoji: '☕', public: false },
+  { label: 'Neighborhoods', href: '/neighborhoods', emoji: '🏘️', public: true  },
+  { label: 'Board',         href: '/listings',      emoji: '🛍️', public: true  },
+  { label: 'Guide',         href: '/guide',         emoji: '🗺️', public: true  },
+  { label: 'Visiting?',     href: '/visiting',      emoji: '👋', public: true  },
 ]
 
 const pageTitles: [string, string][] = [

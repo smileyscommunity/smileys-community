@@ -80,6 +80,7 @@ model User {
   neighborhoodPostLikes   NeighborhoodPostLike[]
   neighborhoodPostReplies NeighborhoodPostReply[]
   visitorAnnouncements    VisitorAnnouncement[]
+  hangouts                Hangout[]
   clubPollVotes           ClubPollVote[]
   clubPhotos              ClubPhoto[]
   clubSpotlights          Club[]                  @relation("ClubSpotlight")
@@ -956,6 +957,28 @@ model Listing {
   @@index([neighborhood, status])
   @@index([userId])
   @@map("listings")
+}
+
+// Spontaneous "I'm at X right now, anyone wanna join?" meetups. Lighter than
+// Events — no RSVP, no quota, no approval. Auto-expires after the window so
+// the page stays current. Members-only (real-time, contact-required).
+model Hangout {
+  id           String   @id @default(cuid())
+  userId       String   // host
+  title        String   // "Coffee at Moda İskele"
+  description  String?  // optional vibe note
+  location     String   // free-text venue name / address — Maps link in description if useful
+  neighborhood String?  // canonical Istanbul neighborhood (for filter + push targeting)
+  startsAt     DateTime
+  endsAt       DateTime
+  status       String   @default("active") // active | expired | cancelled
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, endsAt])
+  @@index([neighborhood, status])
+  @@map("hangouts")
 }
 
 // "I'm visiting Istanbul" announcements — anonymous-friendly so non-members
