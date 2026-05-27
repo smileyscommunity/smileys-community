@@ -62,16 +62,21 @@ const roleBadge: Record<string, string> = {
   member:    'bg-gray-100 text-gray-600',
 }
 
-const navLinks = [
-  { label: 'Events',        href: '/events',        public: true  },
-  { label: 'Clubs',         href: '/clubs',          public: true  },
-  { label: 'Members',       href: '/members',        public: true  },
-  { label: 'Neighborhoods', href: '/neighborhoods',  public: true  },
-  // Board and Guide are public pages now; surface them to prospects too —
-  // each page already has its own sign-up CTA for non-members.
-  { label: 'Board',         href: '/listings',       public: true  },
-  { label: 'Guide',         href: '/guide',          public: true  },
-  { label: 'Visiting?',     href: '/visiting',       public: true  },
+// Primary nav — the three things people do most. Stay flat in the bar.
+const primaryLinks = [
+  { label: 'Events',  href: '/events',  public: true },
+  { label: 'Clubs',   href: '/clubs',   public: true },
+  { label: 'Members', href: '/members', public: true },
+]
+
+// Everything else lives under a "Discover ▾" dropdown so the bar stays calm.
+// Adding new content sections in the future drops in here instead of bloating
+// the top row.
+const discoverLinks = [
+  { label: 'Neighborhoods', href: '/neighborhoods', emoji: '🏘️', public: true },
+  { label: 'Board',         href: '/listings',      emoji: '🛍️', public: true },
+  { label: 'Guide',         href: '/guide',         emoji: '🗺️', public: true },
+  { label: 'Visiting?',     href: '/visiting',      emoji: '👋', public: true },
 ]
 
 const pageTitles: [string, string][] = [
@@ -104,7 +109,9 @@ export default function Navbar() {
   const pathname  = usePathname()
   const { user, logout, isLoggedIn } = useAuth()
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [discoverOpen, setDiscoverOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const discoverRef = useRef<HTMLDivElement>(null)
   const pendingConnections = usePendingConnections()
   const pageTitle = getPageTitle(pathname)
 
@@ -113,10 +120,17 @@ export default function Navbar() {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setDropdownOpen(false)
       }
+      if (discoverRef.current && !discoverRef.current.contains(e.target as Node)) {
+        setDiscoverOpen(false)
+      }
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
+
+  // Close the Discover menu on any route change so it doesn't linger after
+  // clicking an item.
+  useEffect(() => { setDiscoverOpen(false) }, [pathname])
 
   const isActive = (href: string) =>
     href === '/' ? pathname === '/' : pathname.startsWith(href)
@@ -140,7 +154,7 @@ export default function Navbar() {
 
           {/* Desktop nav */}
           <nav className="hidden md:flex items-center gap-1">
-            {navLinks.filter(link => isLoggedIn || link.public).map((link) => (
+            {primaryLinks.filter(link => isLoggedIn || link.public).map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
@@ -156,6 +170,50 @@ export default function Navbar() {
                 )}
               </Link>
             ))}
+
+            {/* Discover ▾ — groups everything that isn't Events/Clubs/Members
+                so the bar stays calm as new content sections get added. */}
+            <div className="relative" ref={discoverRef}>
+              {(() => {
+                const visible = discoverLinks.filter(link => isLoggedIn || link.public)
+                const anyActive = visible.some(link => isActive(link.href))
+                return (
+                  <>
+                    <button
+                      onClick={() => setDiscoverOpen(v => !v)}
+                      className={`flex items-center gap-1 px-4 py-2 rounded-lg text-sm transition-colors ${
+                        anyActive ? activeClass : inactiveClass
+                      }`}
+                    >
+                      Discover
+                      <svg className={`w-3 h-3 transition-transform ${discoverOpen ? 'rotate-180' : ''}`}
+                        fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    {discoverOpen && (
+                      <div className="absolute top-full left-0 mt-1 w-56 bg-white rounded-xl border border-gray-100 shadow-lg overflow-hidden py-1 z-50">
+                        {visible.map(link => (
+                          <Link
+                            key={link.href}
+                            href={link.href}
+                            className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
+                              isActive(link.href)
+                                ? 'bg-amber-50 text-amber-700 font-semibold'
+                                : 'text-gray-700 hover:bg-gray-50'
+                            }`}
+                          >
+                            <span className="text-base">{link.emoji}</span>
+                            <span>{link.label}</span>
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )
+              })()}
+            </div>
+
             {user.role === 'admin' && (
               <Link
                 href="/admin"
