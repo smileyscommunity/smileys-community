@@ -231,28 +231,50 @@ export default function SettingsPage() {
   }
 
   async function savePref(key: string, value: boolean | number) {
+    const previous = prefs
     const updated = { ...prefs, [key]: value }
     setPrefs(updated as typeof prefs)
     setPrefsSaving(true)
-    await fetch('/app/api/notifications/preferences', {
-      method: 'PUT', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updated),
-    }).catch(() => {})
-    setPrefsSaving(false)
-    setPrefsOk(true)
-    setTimeout(() => setPrefsOk(false), 2000)
+    try {
+      const res = await fetch('/app/api/notifications/preferences', {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated),
+      })
+      if (res.ok) {
+        toast.success('Saved')
+        setPrefsOk(true)
+        setTimeout(() => setPrefsOk(false), 2000)
+      } else {
+        setPrefs(previous)
+        toast.error('Could not save — try again')
+      }
+    } catch {
+      setPrefs(previous)
+      toast.error('Network error')
+    } finally {
+      setPrefsSaving(false)
+    }
   }
 
-  async function saveEmailMarketing(value: boolean) {
+  async function saveEmailMarketingWithToast(value: boolean) {
+    const prev = emailMarketing
     setEmailMarketing(value)
     setEmailSaving(true)
-    await fetch('/app/api/auth/me', {
-      method: 'PATCH', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ emailMarketing: value }),
-    }).catch(() => {})
-    setEmailSaving(false)
+    try {
+      const res = await fetch('/app/api/auth/me', {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emailMarketing: value }),
+      })
+      if (res.ok) toast.success('Saved')
+      else { setEmailMarketing(prev); toast.error('Could not save — try again') }
+    } catch {
+      setEmailMarketing(prev)
+      toast.error('Network error')
+    } finally {
+      setEmailSaving(false)
+    }
   }
 
   return (
@@ -353,7 +375,7 @@ export default function SettingsPage() {
             label="Broadcast emails"
             description="Announcements, newsletters, and community updates"
             checked={emailMarketing}
-            onChange={saveEmailMarketing}
+            onChange={saveEmailMarketingWithToast}
           />
           {emailSaving && <p className="text-xs text-gray-400 mt-2">Saving…</p>}
         </Section>
