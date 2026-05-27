@@ -23,13 +23,20 @@ const PREF_KEY: Record<string, 'newEvents' | 'reminders' | 'eventUpdates' | 'joi
   warning:            null,
   system_alert:       null,
   announcement:       null,
-  connection_request: null,
-  connection_accepted:null,
+  connection_request:    null,
+  connection_accepted:   null,
+  connection_suggestion: null,
+  profile_view:          null,
   host_message:       null,
   message:            null,
   club_wall_post:     'wallPosts',
   club_post_reply:    'wallReplies',
   club_mention:       null,
+  // Hangout + visitor types — all transactional (high-signal, user-initiated).
+  hangout_join:       null,
+  hangout_message:    null,
+  visitor_announced:  null,
+  listing_new:        null,
 }
 
 function istanbulHour(): number {

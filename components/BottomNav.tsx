@@ -49,7 +49,7 @@ export default function BottomNav() {
   const unreadNotifications   = useUnreadNotifications(isLoggedIn)
 
   const isInApp = pathname.startsWith('/admin') || pathname.startsWith('/host') || pathname.startsWith('/partner') ||
-    ['/events', '/clubs', '/members', '/perks', '/dashboard', '/profile', '/my-events', '/notifications', '/pending', '/reviews', '/listings', '/messages', '/neighborhoods', '/invite', '/guide'].some(r => pathname === r || pathname.startsWith(r + '/'))
+    ['/events', '/clubs', '/members', '/perks', '/dashboard', '/profile', '/my-events', '/notifications', '/pending', '/reviews', '/listings', '/messages', '/neighborhoods', '/invite', '/guide', '/hangouts', '/visiting'].some(r => pathname === r || pathname.startsWith(r + '/'))
   if (!isLoggedIn || !isInApp) return null
 
   const photo = resolveImageUrl(user.profilePhoto)
@@ -100,13 +100,16 @@ export default function BottomNav() {
       })
     }
 
-    // Regular members (no role portal, not a host) get Board
+    // Regular members (no role portal, not a host) get Hangouts as the 4th
+    // tab — it's the most time-sensitive new feature (live, expiring windows).
+    // Board, Visiting, Guide reachable via the desktop Discover dropdown +
+    // the Profile-tab side menu.
     if (tabs.length === 0) {
       tabs.push({
-        href: '/listings', label: 'Board',
+        href: '/hangouts', label: 'Hangouts',
         icon: (active: boolean) => (
           <svg className={`w-6 h-6 ${active ? 'text-amber-500' : 'text-gray-400'}`} fill={active ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={active ? 0 : 1.8} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={active ? 0 : 1.8} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.24 17 6.657c1.79 2.79.53 4.34 0 5.343-1 2-1.5 4 0 6.657z" />
           </svg>
         ),
       })

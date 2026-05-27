@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { sendListingAlertEmail } from '@/lib/email'
-import { sendPushToUser } from '@/lib/push'
+import { createNotification } from '@/lib/notify'
 import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
 
 const PAGE_SIZE = 20
@@ -117,11 +117,13 @@ export async function POST(req: NextRequest) {
     for (const u of alertees) {
       sendListingAlertEmail(u.email, u.name, categoryLabel, { title: listing.title, description: listing.description })
         .catch(() => {})
-      sendPushToUser(u.id, {
-        title: `New ${categoryLabel.toLowerCase()} listing`,
-        body:  listing.title,
-        link:  `/listings/${listing.id}`,
-      }).catch(() => {})
+      createNotification(
+        u.id,
+        'listing_new',
+        `New ${categoryLabel.toLowerCase()} listing`,
+        listing.title,
+        `/listings/${listing.id}`,
+      ).catch(() => {})
     }
   }).catch(() => {})
 

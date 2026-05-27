@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit, getIp } from '@/lib/rateLimit'
 import { verifyTurnstile } from '@/lib/turnstile'
-import { sendPushToUser } from '@/lib/push'
+import { createNotification } from '@/lib/notify'
 import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
 
 // "I'm visiting Istanbul" announcements. Anonymous posting allowed to capture
@@ -103,11 +103,13 @@ export async function POST(req: NextRequest) {
       }).then(locals => {
         for (const u of locals) {
           if (u.id === session?.id) continue
-          sendPushToUser(u.id, {
-            title: `👋 Visitor coming to ${safeNeighborhood}`,
-            body:  `${created.name.split(' ')[0]} from ${created.fromCity ?? 'abroad'} — ${created.startsOn} to ${created.endsOn}`,
-            link:  `/visiting`,
-          }).catch(() => {})
+          createNotification(
+            u.id,
+            'visitor_announced',
+            `👋 Visitor coming to ${safeNeighborhood}`,
+            `${created.name.split(' ')[0]} from ${created.fromCity ?? 'abroad'} — ${created.startsOn} to ${created.endsOn}`,
+            `/visiting`,
+          ).catch(() => {})
         }
       }).catch(() => {})
     }

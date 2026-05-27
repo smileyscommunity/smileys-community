@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
-import { sendPushToUser } from '@/lib/push'
+import { createNotification } from '@/lib/notify'
 
 // Comment thread on a hangout — coordination chat ("running 10min late",
 // "we're at the back table"). Host + everyone who tapped "I'm in" gets a
@@ -51,8 +51,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     include: { user: { select: { id: true, name: true, color: true, profilePhoto: true } } },
   })
 
-  // Push host + everyone who joined, minus the sender. Single query for the
-  // recipient set.
+  // Notify host + everyone who joined, minus the sender. createNotification
+  // writes an inbox row AND fires the push.
   prisma.hangoutJoin.findMany({
     where:  { hangoutId, userId: { not: session.id } },
     select: { userId: true },
@@ -60,11 +60,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const recipientIds = new Set(joins.map(j => j.userId))
     if (hangout.userId !== session.id) recipientIds.add(hangout.userId)
     for (const uid of recipientIds) {
-      sendPushToUser(uid, {
-        title: `💬 ${session.name} in "${hangout.title}"`,
-        body:  body.trim().slice(0, 120),
-        link:  '/hangouts',
-      }).catch(() => {})
+      createNotification(
+        uid,
+        'hangout_message',
+        `💬 ${session.name} in "${hangout.title}"`,
+        body.trim().slice(0, 120),
+        '/hangouts',
+      ).catch(() => {})
     }
   }).catch(() => {})
 

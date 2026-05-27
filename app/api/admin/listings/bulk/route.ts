@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
 import { sendListingAlertEmail } from '@/lib/email'
-import { sendPushToUser } from '@/lib/push'
+import { createNotification } from '@/lib/notify'
 import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
 
 const VALID_CATEGORIES = ['ROOMS', 'JOBS', 'BUY_SELL', 'SERVICES', 'FREE', 'RECO']
@@ -95,11 +95,13 @@ export async function POST(req: NextRequest) {
           title: `${result.count} new ${categoryLabel.toLowerCase()} listings`,
           description: cleaned.slice(0, 5).map(c => `• ${c.title}`).join('\n'),
         }).catch(() => {})
-        sendPushToUser(u.id, {
-          title: `${result.count} new ${categoryLabel.toLowerCase()} listings`,
-          body:  cleaned[0]?.title ?? 'Check the marketplace',
-          link:  '/listings',
-        }).catch(() => {})
+        createNotification(
+          u.id,
+          'listing_new',
+          `${result.count} new ${categoryLabel.toLowerCase()} listings`,
+          cleaned[0]?.title ?? 'Check the marketplace',
+          '/listings',
+        ).catch(() => {})
       }
     }).catch(() => {})
 

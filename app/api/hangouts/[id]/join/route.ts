@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { sendPushToUser } from '@/lib/push'
+import { createNotification } from '@/lib/notify'
 
 // Toggle "I'm in" for a hangout. Single endpoint, idempotent: present →
 // remove, absent → create. Host doesn't need to join their own hangout
@@ -33,12 +33,15 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
   await prisma.hangoutJoin.create({ data: { hangoutId, userId: session.id } })
 
-  // Ping the host that someone's coming — high-signal moment.
-  sendPushToUser(hangout.userId, {
-    title: '👋 Someone joined your hangout',
-    body:  `${session.name} is in for "${hangout.title}"`,
-    link:  '/hangouts',
-  }).catch(() => {})
+  // Ping the host — createNotification gives them an inbox row AND a push
+  // (so they catch up if they missed the notification).
+  createNotification(
+    hangout.userId,
+    'hangout_join',
+    '👋 Someone joined your hangout',
+    `${session.name} is in for "${hangout.title}"`,
+    '/hangouts',
+  ).catch(() => {})
 
   return NextResponse.json({ joined: true })
 }
