@@ -35,7 +35,7 @@ export default async function NeighborhoodSections({
   const [
     upcomingRaw, pastCount, locals, hostCounts,
     totalLocals, allEventCounts, communityPhotos, wallPostCount,
-    activeListings,
+    activeListings, upcomingVisitors,
   ] = await Promise.all([
     prisma.event.findMany({
       where:   { neighborhood: name, date: { gte: today } },
@@ -89,6 +89,17 @@ export default async function NeighborhoodSections({
         id: true, category: true, title: true, price: true, photo: true,
         createdAt: true,
         user: { select: { id: true, name: true, color: true, profilePhoto: true } },
+      },
+    }),
+    // Visitors with active trips ending today or later, tagged to this
+    // neighborhood. Local members get the "someone's coming to your area"
+    // signal alongside events + listings.
+    prisma.visitorAnnouncement.findMany({
+      where:   { neighborhood: name, status: 'active', endsOn: { gte: today } },
+      orderBy: { startsOn: 'asc' },
+      take:    3,
+      select:  {
+        id: true, name: true, fromCity: true, startsOn: true, endsOn: true, intro: true,
       },
     }),
   ])
@@ -475,6 +486,46 @@ export default async function NeighborhoodSections({
                       </h3>
                       {l.price && <p className="text-xs font-bold text-gray-700 mt-1.5">{l.price}</p>}
                     </div>
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Visitors heading to this neighborhood — silent when empty so quiet
+          areas don't broadcast "0 visitors". Three slots, link to /visiting
+          for the full list. */}
+      {upcomingVisitors.length > 0 && (
+        <div className="pt-6 border-t border-gray-100">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xs font-bold text-gray-500 uppercase tracking-widest">Visitors heading to {name}</h2>
+            <Link href={`/visiting?neighborhood=${encodeURIComponent(name)}`}
+              className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
+              See all →
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {upcomingVisitors.map(v => {
+              const s = new Date(v.startsOn + 'T00:00:00')
+              const e = new Date(v.endsOn + 'T00:00:00')
+              const sameMonth = s.getMonth() === e.getMonth() && s.getFullYear() === e.getFullYear()
+              const fmtRange = sameMonth
+                ? `${s.toLocaleDateString('en-GB', { day: 'numeric' })}–${e.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`
+                : `${s.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – ${e.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`
+              return (
+                <Link key={v.id} href="/visiting" className="group block">
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hover:shadow-md hover:-translate-y-0.5 transition-all h-full">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-2xl">👋</span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-gray-900 truncate">{v.name}</p>
+                        {v.fromCity && <p className="text-xs text-gray-500 truncate">from {v.fromCity}</p>}
+                      </div>
+                    </div>
+                    <p className="text-xs font-semibold text-amber-700 mb-2">{fmtRange}</p>
+                    <p className="text-xs text-gray-600 line-clamp-3 leading-relaxed">{v.intro}</p>
                   </div>
                 </Link>
               )
