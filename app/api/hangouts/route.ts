@@ -24,10 +24,34 @@ export async function GET(req: NextRequest) {
     },
     orderBy: { startsAt: 'asc' },
     take: 100,
-    include: { user: { select: { id: true, name: true, color: true, profilePhoto: true } } },
+    include: {
+      user:  { select: { id: true, name: true, color: true, profilePhoto: true } },
+      joins: {
+        select: { userId: true, user: { select: { id: true, name: true, color: true, profilePhoto: true } } },
+        orderBy: { createdAt: 'asc' },
+      },
+      _count: { select: { messages: true } },
+    },
   })
 
-  return NextResponse.json({ hangouts })
+  // Shape into something the client can render directly — joinedByMe is a
+  // boolean instead of forcing the client to scan the joins array.
+  const shaped = hangouts.map(h => ({
+    id:           h.id,
+    title:        h.title,
+    description:  h.description,
+    location:     h.location,
+    neighborhood: h.neighborhood,
+    startsAt:     h.startsAt,
+    endsAt:       h.endsAt,
+    status:       h.status,
+    user:         h.user,
+    joiners:      h.joins.map(j => j.user),
+    joinedByMe:   h.joins.some(j => j.userId === session.id),
+    messageCount: h._count.messages,
+  }))
+
+  return NextResponse.json({ hangouts: shaped })
 }
 
 export async function POST(req: NextRequest) {

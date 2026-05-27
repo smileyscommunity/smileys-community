@@ -10,6 +10,10 @@ import { toast } from 'sonner'
 // Spontaneous hangouts — members only (real-time, contact-required). Auto-
 // expires server-side via the cron when endsAt is past.
 
+interface JoinerSummary {
+  id: string; name: string; color: string; profilePhoto: string | null
+}
+
 interface Hangout {
   id:           string
   title:        string
@@ -19,7 +23,17 @@ interface Hangout {
   startsAt:     string
   endsAt:       string
   status:       string
-  user: { id: string; name: string; color: string; profilePhoto: string | null }
+  user:         JoinerSummary
+  joiners:      JoinerSummary[]
+  joinedByMe:   boolean
+  messageCount: number
+}
+
+interface HangoutMessage {
+  id:        string
+  body:      string
+  createdAt: string
+  user:      JoinerSummary
 }
 
 function formatWindow(startsAt: string, endsAt: string) {
@@ -209,37 +223,177 @@ export default function HangoutsPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            {hangouts.map(h => {
-              const isOwner = h.user.id === user.id
-              const avatar  = resolveImageUrl(h.user.profilePhoto)
-              return (
-                <div key={h.id} className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
-                  <div className="flex items-start gap-3">
-                    {avatar
-                      ? <img src={avatar} alt={h.user.name} className="w-10 h-10 rounded-full object-cover shrink-0" />
-                      : <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0"
-                          style={{ backgroundColor: h.user.color }}>{h.user.name[0]}</div>}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-gray-900 leading-snug">{h.title}</p>
-                      <p className="text-xs text-amber-700 font-semibold mt-0.5">{formatWindow(h.startsAt, h.endsAt)}</p>
-                      <p className="text-xs text-gray-600 mt-1.5">📍 {h.location}{h.neighborhood && <span className="text-gray-400"> · {h.neighborhood}</span>}</p>
-                      {h.description && (
-                        <p className="text-xs text-gray-500 mt-2 whitespace-pre-wrap">{h.description}</p>
-                      )}
-                      <p className="text-[11px] text-gray-400 mt-2">Posted by {isOwner ? 'you' : h.user.name}</p>
-                    </div>
-                    {isOwner && (
-                      <button onClick={() => handleCancel(h.id)}
-                        className="text-xs text-gray-400 hover:text-red-500 shrink-0">Cancel</button>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
+            {hangouts.map(h => (
+              <HangoutCard
+                key={h.id}
+                h={h}
+                currentUserId={user.id}
+                onCancel={handleCancel}
+                onMutated={updated => {
+                  setHangouts(prev => prev.map(p => p.id === updated.id ? updated : p))
+                }}
+              />
+            ))}
           </div>
         )}
 
       </div>
+    </div>
+  )
+}
+
+function HangoutCard({ h, currentUserId, onCancel, onMutated }: {
+  h: Hangout
+  currentUserId: string
+  onCancel: (id: string) => void
+  onMutated: (h: Hangout) => void
+}) {
+  const isOwner = h.user.id === currentUserId
+  const avatar  = resolveImageUrl(h.user.profilePhoto)
+  const [threadOpen, setThreadOpen]     = useState(false)
+  const [messages,   setMessages]       = useState<HangoutMessage[]>([])
+  const [draft,      setDraft]          = useState('')
+  const [sending,    setSending]        = useState(false)
+  const [joining,    setJoining]        = useState(false)
+  const [loadingMsg, setLoadingMsg]     = useState(false)
+
+  // Lazy-load messages the first time the thread is opened.
+  useEffect(() => {
+    if (!threadOpen || messages.length > 0) return
+    setLoadingMsg(true)
+    fetch(`/app/api/hangouts/${h.id}/messages`, { credentials: 'include' })
+      .then(r => r.json())
+      .then(d => setMessages(Array.isArray(d.messages) ? d.messages : []))
+      .catch(() => {})
+      .finally(() => setLoadingMsg(false))
+  }, [threadOpen, h.id, messages.length])
+
+  async function toggleJoin() {
+    if (isOwner) return
+    setJoining(true)
+    try {
+      const res = await fetch(`/app/api/hangouts/${h.id}/join`, { method: 'POST', credentials: 'include' })
+      const data = await res.json()
+      if (!res.ok) { toast.error(data.error ?? 'Could not update'); return }
+      // Update locally — count + avatar strip + my-join flip
+      const me: JoinerSummary = { id: currentUserId, name: '', color: '#f59e0b', profilePhoto: null }
+      onMutated({
+        ...h,
+        joinedByMe: data.joined,
+        joiners: data.joined
+          ? [...h.joiners, me]
+          : h.joiners.filter(j => j.id !== currentUserId),
+      })
+    } finally { setJoining(false) }
+  }
+
+  async function sendMessage(e: React.FormEvent) {
+    e.preventDefault()
+    if (!draft.trim()) return
+    setSending(true)
+    try {
+      const res = await fetch(`/app/api/hangouts/${h.id}/messages`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ body: draft }),
+      })
+      const data = await res.json()
+      if (!res.ok) { toast.error(data.error ?? 'Could not send'); return }
+      setMessages(prev => [...prev, data.message])
+      setDraft('')
+      onMutated({ ...h, messageCount: h.messageCount + 1 })
+    } finally { setSending(false) }
+  }
+
+  return (
+    <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
+      <div className="flex items-start gap-3">
+        {avatar
+          ? <img src={avatar} alt={h.user.name} className="w-10 h-10 rounded-full object-cover shrink-0" />
+          : <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0"
+              style={{ backgroundColor: h.user.color }}>{h.user.name[0]}</div>}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold text-gray-900 leading-snug">{h.title}</p>
+          <p className="text-xs text-amber-700 font-semibold mt-0.5">{formatWindow(h.startsAt, h.endsAt)}</p>
+          <p className="text-xs text-gray-600 mt-1.5">📍 {h.location}{h.neighborhood && <span className="text-gray-400"> · {h.neighborhood}</span>}</p>
+          {h.description && (
+            <p className="text-xs text-gray-500 mt-2 whitespace-pre-wrap">{h.description}</p>
+          )}
+          <p className="text-[11px] text-gray-400 mt-2">Posted by {isOwner ? 'you' : h.user.name}</p>
+        </div>
+        {isOwner && (
+          <button onClick={() => onCancel(h.id)}
+            className="text-xs text-gray-400 hover:text-red-500 shrink-0">Cancel</button>
+        )}
+      </div>
+
+      {/* Going + chat actions row */}
+      <div className="flex items-center gap-3 mt-4 pt-3 border-t border-gray-100">
+        {/* Avatar strip — counts host as implicitly in */}
+        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+          <div className="flex -space-x-1.5">
+            {[h.user, ...h.joiners.filter(j => j.id !== h.user.id)].slice(0, 4).map(j => (
+              j.profilePhoto
+                ? <img key={j.id} src={resolveImageUrl(j.profilePhoto)} alt="" className="w-6 h-6 rounded-full border-2 border-white object-cover" />
+                : <div key={j.id} className="w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-white text-[9px] font-bold"
+                    style={{ backgroundColor: j.color }}>{j.name[0] ?? '?'}</div>
+            ))}
+          </div>
+          <span className="text-xs text-gray-500 truncate">
+            {h.joiners.length === 0
+              ? 'No one in yet'
+              : `${h.joiners.length + 1} going`}
+          </span>
+        </div>
+
+        {!isOwner && (
+          <button onClick={toggleJoin} disabled={joining}
+            className={`text-xs font-bold px-3 py-1.5 rounded-full transition-colors shrink-0 ${
+              h.joinedByMe
+                ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                : 'bg-amber-500 text-white hover:bg-amber-600'
+            }`}>
+            {h.joinedByMe ? 'You’re in ✓' : "I’m in"}
+          </button>
+        )}
+
+        <button onClick={() => setThreadOpen(o => !o)}
+          className="text-xs font-semibold text-gray-500 hover:text-gray-900 shrink-0 flex items-center gap-1">
+          💬 {h.messageCount > 0 && <span>{h.messageCount}</span>}
+        </button>
+      </div>
+
+      {/* Comment thread */}
+      {threadOpen && (
+        <div className="mt-3 pt-3 border-t border-gray-100 space-y-3">
+          {loadingMsg ? (
+            <p className="text-xs text-gray-400 text-center py-2">Loading…</p>
+          ) : messages.length === 0 ? (
+            <p className="text-xs text-gray-400 text-center py-2">No messages yet — be the first.</p>
+          ) : (
+            messages.map(m => (
+              <div key={m.id} className="flex items-start gap-2">
+                {m.user.profilePhoto
+                  ? <img src={resolveImageUrl(m.user.profilePhoto)} alt="" className="w-6 h-6 rounded-full object-cover shrink-0" />
+                  : <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0"
+                      style={{ backgroundColor: m.user.color }}>{m.user.name[0]}</div>}
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs"><span className="font-semibold text-gray-900">{m.user.name}</span> <span className="text-gray-400">· {new Date(m.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span></p>
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{m.body}</p>
+                </div>
+              </div>
+            ))
+          )}
+          <form onSubmit={sendMessage} className="flex items-center gap-2 pt-1">
+            <input value={draft} onChange={e => setDraft(e.target.value)} maxLength={1000}
+              placeholder="Running 10min late…" className="flex-1 input text-sm" />
+            <button type="submit" disabled={sending || !draft.trim()}
+              className="text-xs font-bold bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white px-3 py-2 rounded-xl">
+              Send
+            </button>
+          </form>
+        </div>
+      )}
     </div>
   )
 }

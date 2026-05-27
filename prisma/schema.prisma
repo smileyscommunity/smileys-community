@@ -81,6 +81,8 @@ model User {
   neighborhoodPostReplies NeighborhoodPostReply[]
   visitorAnnouncements    VisitorAnnouncement[]
   hangouts                Hangout[]
+  hangoutJoins            HangoutJoin[]
+  hangoutMessages         HangoutMessage[]
   clubPollVotes           ClubPollVote[]
   clubPhotos              ClubPhoto[]
   clubSpotlights          Club[]                  @relation("ClubSpotlight")
@@ -974,11 +976,47 @@ model Hangout {
   status       String   @default("active") // active | expired | cancelled
   createdAt    DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  joins    HangoutJoin[]
+  messages HangoutMessage[]
 
   @@index([status, endsAt])
   @@index([neighborhood, status])
   @@map("hangouts")
+}
+
+// "I'm in" — one row per member who tapped Going on a hangout. Drives the
+// avatar strip + count on each card and the recipient list for push when a
+// new message lands.
+model HangoutJoin {
+  id        String   @id @default(cuid())
+  hangoutId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  hangout Hangout @relation(fields: [hangoutId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([hangoutId, userId])
+  @@index([hangoutId])
+  @@index([userId])
+  @@map("hangout_joins")
+}
+
+// Lightweight comment thread on each hangout — for "running 10min late" /
+// "we're at the back table" coordination, not full event chat.
+model HangoutMessage {
+  id        String   @id @default(cuid())
+  hangoutId String
+  userId    String
+  body      String
+  createdAt DateTime @default(now())
+
+  hangout Hangout @relation(fields: [hangoutId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([hangoutId, createdAt])
+  @@map("hangout_messages")
 }
 
 // "I'm visiting Istanbul" announcements — anonymous-friendly so non-members
