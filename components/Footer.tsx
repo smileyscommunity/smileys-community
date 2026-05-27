@@ -113,15 +113,16 @@ export default function Footer() {
             <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Discover</h4>
             <ul className="space-y-3">
               {[
-                { href: '/events',        label: 'Events'          },
-                { href: '/clubs',         label: 'Clubs'           },
-                { href: '/members',       label: 'Members'         },
-                { href: '/listings',      label: 'Community Board' },
-                { href: '/posts',         label: 'Articles'        },
-                { href: '/neighborhoods', label: 'Neighborhoods'   },
+                { href: '/events',        label: 'Events 🎉'          },
+                { href: '/clubs',         label: 'Clubs 👥'           },
+                { href: '/members',       label: 'Members 🙂'         },
+                { href: '/hangouts',      label: 'Hangouts ☕'        },
+                { href: '/listings',      label: 'Community Board 🛍️' },
+                { href: '/posts',         label: 'Articles 📰'        },
+                { href: '/neighborhoods', label: 'Neighborhoods 🏘️'   },
                 { href: '/guide',         label: 'Istanbul Guide 🗺️' },
-                { href: '/visiting',      label: 'Visiting? 👋'     },
-                { href: '/perks',         label: 'Member Perks 🎁' },
+                { href: '/visiting',      label: 'Visiting? 👋'       },
+                { href: '/perks',         label: 'Member Perks 🎁'   },
               ].map(l => (
                 <li key={l.href}>
                   <Link href={l.href} className="text-sm text-gray-500 hover:text-amber-600 transition-colors">
