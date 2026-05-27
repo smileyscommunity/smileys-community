@@ -45,6 +45,12 @@ export async function GET(req: NextRequest) {
     data:  { status: 'expired' },
   })
 
+  // Auto-expire visitor announcements whose trip has ended
+  await prisma.visitorAnnouncement.updateMany({
+    where: { endsOn: { lt: todayStr }, status: 'active' },
+    data:  { status: 'expired' },
+  })
+
   // Listing expiry warnings — 7 days and 3 days before expiry
   const in7days = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
   const in3days = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)

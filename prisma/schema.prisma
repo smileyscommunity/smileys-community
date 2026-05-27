@@ -72,6 +72,7 @@ model User {
   neighborhoodPosts       NeighborhoodPost[]
   neighborhoodPostLikes   NeighborhoodPostLike[]
   neighborhoodPostReplies NeighborhoodPostReply[]
+  visitorAnnouncements    VisitorAnnouncement[]
   clubPollVotes           ClubPollVote[]
   clubPhotos              ClubPhoto[]
   clubSpotlights          Club[]                  @relation("ClubSpotlight")
@@ -948,6 +949,30 @@ model Listing {
   @@index([neighborhood, status])
   @@index([userId])
   @@map("listings")
+}
+
+// "I'm visiting Istanbul" announcements — anonymous-friendly so non-members
+// can post before they sign up (Couchsurfing-style growth lever). Contact
+// info is gated client-side behind login to discourage scraping.
+model VisitorAnnouncement {
+  id           String   @id @default(cuid())
+  userId       String?  // null when a non-member posts; linked when a member does
+  name         String   // display name as entered
+  email        String?  // shown only to logged-in members
+  fromCity     String?  // "Berlin", "Mumbai"…
+  intro        String   // why visiting / what they want
+  startsOn     String   // YYYY-MM-DD
+  endsOn       String   // YYYY-MM-DD
+  neighborhood String?  // primary area
+  contact      String?  // WhatsApp / Telegram / Instagram — gated client-side
+  status       String   @default("active") // active | expired | removed
+  createdAt    DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([status, endsOn])
+  @@index([neighborhood, status])
+  @@map("visitor_announcements")
 }
 
 model SavedListing {
