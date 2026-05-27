@@ -11,13 +11,23 @@ export async function GET(req: NextRequest) {
   const offset    = parseInt(req.nextUrl.searchParams.get('offset') ?? '0') || 0
   const isHost    = req.nextUrl.searchParams.get('isHost') === 'true'
   const adminOnly = req.nextUrl.searchParams.get('adminOnly') === 'true'
+  // ?openTo=coffee | language | hosting — narrows to members who've opted in.
+  const openTo    = req.nextUrl.searchParams.get('openTo')
+  const openFilter =
+    openTo === 'coffee'   ? { openToCoffee:   true } :
+    openTo === 'language' ? { openToLanguage: true } :
+    openTo === 'hosting'  ? { openToHosting:  true } :
+    {}
 
   const roleIn = ['member', 'moderator', 'admin'] as string[]
-  const where = isHost
-    ? { status: 'approved', role: { in: roleIn }, clubMemberships: { some: { role: 'host', status: 'approved' } } }
-    : adminOnly
-    ? { status: 'approved', role: 'admin' }
-    : { status: 'approved', role: { in: roleIn } }
+  const where = {
+    ...openFilter,
+    ...(isHost
+      ? { status: 'approved', role: { in: roleIn }, clubMemberships: { some: { role: 'host', status: 'approved' } } }
+      : adminOnly
+      ? { status: 'approved', role: 'admin' }
+      : { status: 'approved', role: { in: roleIn } }),
+  }
 
   // Get IDs the current user has blocked or is blocked by
   const blockRelations = await prisma.memberBlock.findMany({
@@ -39,6 +49,7 @@ export async function GET(req: NextRequest) {
         neighborhood: true, nationality: true, interests: true,
         languages: true, profilePhoto: true, joinedAt: true, role: true,
         instagram: true, lastActive: true, socialStyles: true,
+        openToCoffee: true, openToLanguage: true, openToHosting: true,
         clubMemberships: {
           where: { status: 'approved' },
           select: {

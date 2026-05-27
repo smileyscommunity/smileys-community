@@ -53,6 +53,13 @@ model User {
   tokenVersion   Int       @default(0)
   emailMarketing Boolean   @default(true)
 
+  // "Open to…" availability flags — surface as badges on member cards and
+  // filter on /members. Let willing matches show themselves without forcing
+  // cold messages.
+  openToCoffee     Boolean @default(false) // grab coffee with newcomers
+  openToLanguage   Boolean @default(false) // language exchange
+  openToHosting    Boolean @default(false) // host / show around visitors
+
   joinedEvents            EventAttendee[]
   clubMemberships         ClubMembership[]
   reviews                 Review[]

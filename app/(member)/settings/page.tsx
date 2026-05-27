@@ -152,6 +152,13 @@ export default function SettingsPage() {
   const [emailMarketing,    setEmailMarketing]    = useState(true)
   const [emailSaving,       setEmailSaving]       = useState(false)
 
+  // "Open to…" availability flags — surfaced on member cards + filterable on
+  // /members. Helps willing matches discover each other without cold messages.
+  const [openToCoffee,   setOpenToCoffee]   = useState(false)
+  const [openToLanguage, setOpenToLanguage] = useState(false)
+  const [openToHosting,  setOpenToHosting]  = useState(false)
+  const [openSaving,     setOpenSaving]     = useState(false)
+
   useEffect(() => {
     fetch('/app/api/notifications/preferences', { credentials: 'include' })
       .then(r => r.json())
@@ -161,9 +168,27 @@ export default function SettingsPage() {
 
     fetch('/app/api/auth/me', { credentials: 'include' })
       .then(r => r.json())
-      .then(d => { if (d?.emailMarketing !== undefined) setEmailMarketing(d.emailMarketing) })
+      .then(d => {
+        if (d?.emailMarketing !== undefined) setEmailMarketing(d.emailMarketing)
+        if (d?.openToCoffee   !== undefined) setOpenToCoffee(d.openToCoffee)
+        if (d?.openToLanguage !== undefined) setOpenToLanguage(d.openToLanguage)
+        if (d?.openToHosting  !== undefined) setOpenToHosting(d.openToHosting)
+      })
       .catch(() => {})
   }, [])
+
+  async function saveOpenFlag(key: 'openToCoffee' | 'openToLanguage' | 'openToHosting', value: boolean) {
+    if (key === 'openToCoffee')   setOpenToCoffee(value)
+    if (key === 'openToLanguage') setOpenToLanguage(value)
+    if (key === 'openToHosting')  setOpenToHosting(value)
+    setOpenSaving(true)
+    await fetch('/app/api/auth/me', {
+      method: 'PATCH', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ [key]: value }),
+    }).catch(() => {})
+    setOpenSaving(false)
+  }
 
   async function handleChangePassword(e: React.FormEvent) {
     e.preventDefault()
@@ -280,6 +305,29 @@ export default function SettingsPage() {
         </Section>
 
         <PushNotificationsSection />
+
+        {/* Open to… flags */}
+        <Section title="Open to…" description="Shown as small badges on your member card so people know what you’re up for.">
+          <Toggle
+            label="☕ Coffee with newcomers"
+            description="New arrivals and visitors can reach out for an intro coffee."
+            checked={openToCoffee}
+            onChange={v => saveOpenFlag('openToCoffee', v)}
+          />
+          <Toggle
+            label="🗣️ Language exchange"
+            description="Trade an hour of your language for theirs."
+            checked={openToLanguage}
+            onChange={v => saveOpenFlag('openToLanguage', v)}
+          />
+          <Toggle
+            label="🏠 Hosting visitors"
+            description="Show visiting members around your neighborhood."
+            checked={openToHosting}
+            onChange={v => saveOpenFlag('openToHosting', v)}
+          />
+          {openSaving && <p className="text-xs text-gray-400 mt-2">Saving…</p>}
+        </Section>
 
         {/* Email preferences */}
         <Section title="Email Preferences" description="Control marketing emails from Smileys">

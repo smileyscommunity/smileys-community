@@ -61,6 +61,9 @@ interface Member {
   eventIds?: string[]
   instagram: string | null
   lastActive: string | null
+  openToCoffee?:   boolean
+  openToLanguage?: boolean
+  openToHosting?:  boolean
 }
 
 function displayRole(m: Member): { label: string; cls: string } {
@@ -538,6 +541,15 @@ function MemberCard({ m, onClick, connectionStatus }: { m: Member; onClick: () =
           </span>
         )}
 
+        {/* "Open to…" availability pills — small, emoji-led so they read at a glance. */}
+        {(m.openToCoffee || m.openToLanguage || m.openToHosting) && (
+          <div className="flex flex-wrap gap-1">
+            {m.openToCoffee   && <span title="Open to coffee with newcomers"  className="text-[10px] px-1.5 py-0.5 bg-amber-50 text-amber-700 border border-amber-100 rounded-full">☕</span>}
+            {m.openToLanguage && <span title="Open to language exchange"      className="text-[10px] px-1.5 py-0.5 bg-blue-50  text-blue-700  border border-blue-100  rounded-full">🗣️</span>}
+            {m.openToHosting  && <span title="Open to hosting visitors"       className="text-[10px] px-1.5 py-0.5 bg-green-50 text-green-700 border border-green-100 rounded-full">🏠</span>}
+          </div>
+        )}
+
         <div className="flex items-center gap-1.5 mt-auto pt-2 border-t border-gray-50 text-[11px] text-gray-400">
           {m.eventsCount > 0 && (
             <span className="flex items-center gap-0.5">
@@ -583,6 +595,8 @@ function MembersPageInner() {
   const [filterLoading, setFilterLoading] = useState(false)
   const [search,       setSearch]       = useState(neighborhoodParam)
   const [roleFilter,   setRoleFilter]   = useState<RoleFilter>('All')
+  // ?openTo= filter — only one active at a time (matches the role-pill UX).
+  const [openToFilter, setOpenToFilter] = useState<'' | 'coffee' | 'language' | 'hosting'>('')
   const [sort,         setSort]         = useState<SortOption>('newest')
   const [selected,     setSelected]     = useState<Member | null>(null)
   const [myClubIds,    setMyClubIds]    = useState<string[]>([])
@@ -630,15 +644,19 @@ function MembersPageInner() {
   }, [])
 
   useEffect(() => {
-    if (roleFilter === 'All') { setFilteredMembers(null); return }
+    // No active filters → fall back to the initial member list.
+    if (roleFilter === 'All' && !openToFilter) { setFilteredMembers(null); return }
     setFilterLoading(true)
-    const param = roleFilter === 'Hosts' ? 'isHost=true' : 'adminOnly=true'
-    fetch(`/app/api/members?${param}`, { credentials: 'include' })
+    const params = new URLSearchParams()
+    if (roleFilter === 'Hosts')  params.set('isHost', 'true')
+    if (roleFilter === 'Admins') params.set('adminOnly', 'true')
+    if (openToFilter) params.set('openTo', openToFilter)
+    fetch(`/app/api/members?${params}`, { credentials: 'include' })
       .then(r => r.json())
       .then(d => setFilteredMembers(Array.isArray(d?.members) ? d.members : []))
       .catch(() => setFilteredMembers([]))
       .finally(() => setFilterLoading(false))
-  }, [roleFilter])
+  }, [roleFilter, openToFilter])
 
   async function loadMore() {
     setLoadingMore(true)
@@ -738,7 +756,7 @@ function MembersPageInner() {
 
           <AdBannerStrip page="members" />
 
-          {/* Role filter pills */}
+          {/* Role + open-to filter pills */}
           <div className="flex gap-2 pb-4 overflow-x-auto scrollbar-hide">
             {(['All', 'Hosts', 'Admins'] as RoleFilter[]).map(f => {
               const count = f === 'Hosts' ? hostCount : f === 'Admins' ? adminCount : total
@@ -756,6 +774,31 @@ function MembersPageInner() {
                       {count}
                     </span>
                   )}
+                </button>
+              )
+            })}
+
+            {/* Divider — open-to filters are an orthogonal dimension to role */}
+            <div className="w-px bg-gray-200 my-1.5 shrink-0" />
+
+            {([
+              { id: 'coffee',   emoji: '☕', label: 'Coffee'   },
+              { id: 'language', emoji: '🗣️', label: 'Language' },
+              { id: 'hosting',  emoji: '🏠', label: 'Hosting'  },
+            ] as const).map(o => {
+              const active = openToFilter === o.id
+              return (
+                <button
+                  key={o.id}
+                  onClick={() => setOpenToFilter(active ? '' : o.id)}
+                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold border whitespace-nowrap transition-all ${
+                    active
+                      ? 'bg-amber-50 text-amber-700 border-amber-300'
+                      : 'bg-white text-gray-600 border-gray-200 hover:border-amber-200'
+                  }`}
+                  title={`Members open to ${o.label.toLowerCase()}`}
+                >
+                  <span>{o.emoji}</span> {o.label}
                 </button>
               )
             })}

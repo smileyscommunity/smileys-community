@@ -17,6 +17,7 @@ export async function GET() {
           phone: true, gender: true, nationality: true, languages: true, interests: true, socialStyles: true,
           status: true, membershipType: true, profilePhoto: true, lastActive: true,
           partnerId: true, suspendedUntil: true,
+          openToCoffee: true, openToLanguage: true, openToHosting: true,
         },
       }),
       prisma.clubMembership.count({
@@ -61,7 +62,8 @@ export async function PATCH(req: NextRequest) {
 
     const body = await req.json()
     const allowed = ['name', 'bio', 'neighborhood', 'instagram', 'linkedin', 'lookingFor', 'color',
-                     'phone', 'gender', 'nationality', 'languages', 'interests', 'profileVisibility', 'socialStyles', 'emailMarketing']
+                     'phone', 'gender', 'nationality', 'languages', 'interests', 'profileVisibility', 'socialStyles', 'emailMarketing',
+                     'openToCoffee', 'openToLanguage', 'openToHosting']
     const data: Record<string, unknown> = {}
     for (const key of allowed) {
       if (key in body) data[key] = body[key]
