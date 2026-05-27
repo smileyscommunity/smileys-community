@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { toast } from 'sonner'
 import { useAuth } from '@/contexts/AuthContext'
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!
@@ -182,12 +183,29 @@ export default function SettingsPage() {
     if (key === 'openToLanguage') setOpenToLanguage(value)
     if (key === 'openToHosting')  setOpenToHosting(value)
     setOpenSaving(true)
-    await fetch('/app/api/auth/me', {
-      method: 'PATCH', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ [key]: value }),
-    }).catch(() => {})
-    setOpenSaving(false)
+    try {
+      const res = await fetch('/app/api/auth/me', {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [key]: value }),
+      })
+      if (res.ok) {
+        toast.success(value ? 'Saved — you’ll appear in this filter' : 'Saved')
+      } else {
+        // Roll back the optimistic flip so the UI matches DB reality.
+        if (key === 'openToCoffee')   setOpenToCoffee(!value)
+        if (key === 'openToLanguage') setOpenToLanguage(!value)
+        if (key === 'openToHosting')  setOpenToHosting(!value)
+        toast.error('Could not save — try again')
+      }
+    } catch {
+      if (key === 'openToCoffee')   setOpenToCoffee(!value)
+      if (key === 'openToLanguage') setOpenToLanguage(!value)
+      if (key === 'openToHosting')  setOpenToHosting(!value)
+      toast.error('Network error')
+    } finally {
+      setOpenSaving(false)
+    }
   }
 
   async function handleChangePassword(e: React.FormEvent) {
