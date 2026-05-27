@@ -14,6 +14,7 @@ import ReviewReminder from '@/components/ReviewReminder'
 import ReferralImpact from '@/components/ReferralImpact'
 import InviteBanner from '@/components/InviteBanner'
 import AnnouncementBanner from '@/components/AnnouncementBanner'
+import OnboardingCard from '@/components/OnboardingCard'
 import CommunityPollWidget from '@/components/CommunityPollWidget'
 import PendingConnectionsWidget from '@/components/PendingConnectionsWidget'
 import PartnersBanner from '@/components/PartnersBanner'
@@ -349,6 +350,10 @@ export default async function DashboardPage() {
 
           {/* ── LEFT ── */}
           <div className="lg:w-60 lg:shrink-0 space-y-4">
+            {/* Dismissible "what's new" card — only renders for members who
+                haven't dismissed it (localStorage). Self-hides otherwise. */}
+            <OnboardingCard />
+
             {/* Announcement */}
             {announcement && (
               <AnnouncementBanner text={announcement.text} link={announcement.link || undefined} />
