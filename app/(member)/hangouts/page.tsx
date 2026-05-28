@@ -236,9 +236,11 @@ export default function HangoutsPage() {
               {/* Recap entry point — anyone who's had a recent hangout can
                   leave references here. The recap push deep-links to the
                   same page; this gives a way in for users who tapped past
-                  the push but still want to leave one. */}
+                  the push but still want to leave one. Hidden on mobile to
+                  keep the header from feeling cramped — phone users get
+                  here via the recap push notification instead. */}
               <Link href="/hangouts/recap"
-                className="text-xs font-semibold text-gray-600 hover:text-amber-600 px-3 py-2 rounded-xl border border-gray-200 hover:border-amber-300 transition-colors">
+                className="hidden sm:inline-flex text-xs font-semibold text-gray-600 hover:text-amber-600 px-3 py-2 rounded-xl border border-gray-200 hover:border-amber-300 transition-colors">
                 Recap
               </Link>
               {/* Pulse trigger — soft commitment, opens the small modal form.
