@@ -65,9 +65,9 @@ export default function Footer() {
 
       {/* Main footer */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-10">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-10">
 
-          {/* Brand */}
+          {/* Brand — spans 2 on mobile so the social row breathes */}
           <div className="col-span-2 lg:col-span-1">
             <Link href="/" className="flex items-center gap-2 mb-4 group">
               <span className="text-2xl">😊</span>
@@ -108,21 +108,16 @@ export default function Footer() {
             </div>
           </div>
 
-          {/* Discover */}
+          {/* Connect — action-y: events, people, real-time */}
           <div>
-            <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Discover</h4>
+            <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Connect</h4>
             <ul className="space-y-3">
               {[
-                { href: '/events',        label: 'Events 🎉'          },
-                { href: '/clubs',         label: 'Clubs 👥'           },
-                { href: '/members',       label: 'Members 🙂'         },
-                { href: '/hangouts',      label: 'Hangouts ☕'        },
-                { href: '/listings',      label: 'Community Board 🛍️' },
-                { href: '/posts',         label: 'Articles 📰'        },
-                { href: '/neighborhoods', label: 'Neighborhoods 🏘️'   },
-                { href: '/guide',         label: 'Istanbul Guide 🗺️' },
-                { href: '/visiting',      label: 'Visiting? 👋'       },
-                { href: '/perks',         label: 'Member Perks 🎁'   },
+                { href: '/events',   label: 'Events 🎉'    },
+                { href: '/clubs',    label: 'Clubs 👥'     },
+                { href: '/members',  label: 'Members'     },
+                { href: '/hangouts', label: 'Hangouts ☕'  },
+                { href: '/visiting', label: 'Visiting? 👋' },
               ].map(l => (
                 <li key={l.href}>
                   <Link href={l.href} className="text-sm text-gray-500 hover:text-amber-600 transition-colors">
@@ -133,9 +128,29 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* Community */}
+          {/* Resources — content / browse */}
           <div>
-            <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Community</h4>
+            <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Resources</h4>
+            <ul className="space-y-3">
+              {[
+                { href: '/listings',      label: 'Community Board 🛍️' },
+                { href: '/guide',         label: 'Istanbul Guide 🗺️'  },
+                { href: '/neighborhoods', label: 'Neighborhoods 🏘️'   },
+                { href: '/posts',         label: 'Articles 📰'        },
+                { href: '/perks',         label: 'Member Perks 🎁'    },
+              ].map(l => (
+                <li key={l.href}>
+                  <Link href={l.href} className="text-sm text-gray-500 hover:text-amber-600 transition-colors">
+                    {l.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Membership — account + contributor links */}
+          <div>
+            <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Membership</h4>
             <ul className="space-y-3">
               {[
                 ...(isLoggedIn
@@ -143,7 +158,7 @@ export default function Footer() {
                   : [{ href: '/apply',     label: 'Apply to join' }]
                 ),
                 { href: '/invite',       label: 'Invite a friend'  },
-                { href: '/get-involved', label: 'Get involved'      },
+                { href: '/get-involved', label: 'Get involved'     },
                 { href: '/advertise',    label: 'Advertise with us'},
               ].map(l => (
                 <li key={l.href}>
