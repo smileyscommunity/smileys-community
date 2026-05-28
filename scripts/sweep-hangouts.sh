@@ -25,6 +25,11 @@ if [ -z "$SECRET" ]; then
   exit 0
 fi
 
+# middleware.ts requires every mutating API call to carry an Origin that
+# matches the request host (CSRF defense). Derive the origin from the
+# endpoint URL so this script works in any environment without hardcoding.
+ORIGIN=$(echo "$ENDPOINT" | awk -F/ '{print $1"//"$3}')
+
 # -s silent, -S show errors, --max-time so a hung Next.js doesn't pile up
 # crontab processes. Fail-soft (|| true) so a transient failure doesn't
 # trigger crontab email noise; the sweeper is idempotent so missed runs
@@ -32,4 +37,5 @@ fi
 curl -s -S --max-time 60 \
   -X POST \
   -H "Authorization: Bearer $SECRET" \
+  -H "Origin: $ORIGIN" \
   "$ENDPOINT" || true
