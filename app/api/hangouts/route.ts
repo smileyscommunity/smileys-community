@@ -48,6 +48,7 @@ export async function GET(req: NextRequest) {
     startsAt:     h.startsAt,
     endsAt:       h.endsAt,
     status:       h.status,
+    meetMode:     h.meetMode,
     user:         h.user,
     joiners:      h.joins.map(j => j.user),
     joinedByMe:   h.joins.some(j => j.userId === session.id),
@@ -66,7 +67,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Too many hangouts this hour. Take a breath.' }, { status: 429 })
     }
 
-    const { title, description, location, neighborhood, startsAt, endsAt } = await req.json()
+    const { title, description, location, neighborhood, startsAt, endsAt, meetMode } = await req.json()
 
     if (!title?.trim() || !location?.trim() || !startsAt || !endsAt) {
       return NextResponse.json({ error: 'Title, location, and times are required' }, { status: 400 })
@@ -98,6 +99,11 @@ export async function POST(req: NextRequest) {
       && (ISTANBUL_NEIGHBORHOODS as readonly string[]).includes(neighborhood)
       ? neighborhood : null
 
+    // meetMode: tighten to the two allowed values. Anything else falls back
+    // to 'group' so a misbehaving client can't poison the DB with arbitrary
+    // strings (we filter on this in the feed).
+    const safeMeetMode = meetMode === 'solo' ? 'solo' : 'group'
+
     const created = await prisma.hangout.create({
       data: {
         userId:       session.id,
@@ -107,6 +113,7 @@ export async function POST(req: NextRequest) {
         neighborhood: safeNeighborhood,
         startsAt:     startDate,
         endsAt:       endDate,
+        meetMode:     safeMeetMode,
       },
     })
 

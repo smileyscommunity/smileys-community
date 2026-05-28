@@ -86,6 +86,7 @@ model User {
   hangoutMessages         HangoutMessage[]
   hangoutReferencesGiven  HangoutReference[]      @relation("HangoutReferencesGiven")
   hangoutReferencesGot    HangoutReference[]      @relation("HangoutReferencesGot")
+  availabilityPulses      AvailabilityPulse[]
   clubPollVotes           ClubPollVote[]
   clubPhotos              ClubPhoto[]
   clubSpotlights          Club[]                  @relation("ClubSpotlight")
@@ -1029,6 +1030,11 @@ model Hangout {
   startsAt     DateTime
   endsAt       DateTime
   status       String   @default("active") // active | expired | cancelled
+  // Intent signal — 'group' means "bring whoever", 'solo' means
+  // "looking for one person." Drives the feed filter chips and the
+  // small badge on each card. Defaults to 'group' so legacy hangouts
+  // (and forgetful hosts) stay in the broad-reach pool.
+  meetMode     String   @default("group")  // 'group' | 'solo'
   createdAt    DateTime @default(now())
 
   // Lifecycle push tracking — set by the sweeper cron so we only fire each
@@ -1114,6 +1120,32 @@ model HangoutReference {
   @@index([toUserId, vibe])                     // for any rebuilds of the counters
   @@index([hangoutId])
   @@map("hangout_references")
+}
+
+// Lightweight "I'm around" pulse — between "I'd love to meet someone in
+// theory" and "I'm posting a real hangout at X cafe at Y time." A user
+// drops one of these to signal "free for the next few hours, message me
+// if you're nearby." Surfaces in the hangouts feed as a different card
+// type so it drives activity when no one's posted a real hangout.
+//
+// One active pulse per user at a time — posting a new one replaces the
+// old one (enforced by the route handler, not the schema, so we can keep
+// historical rows if we ever want a "you've been around 12 times" badge).
+// 4-hour max TTL — fresh-only signal, enforced at create time.
+model AvailabilityPulse {
+  id           String   @id @default(cuid())
+  userId       String
+  neighborhood String?  // canonical Istanbul neighborhood (filter + targeting)
+  note         String?  // "down for coffee" / "drinks after work" / etc.
+  until        DateTime // when this pulse stops being visible
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([until])                  // feed query is `until > now`
+  @@index([neighborhood, until])    // neighborhood-scoped feed
+  @@index([userId])                 // for "find my active pulse"
+  @@map("availability_pulses")
 }
 
 // "I'm visiting Istanbul" announcements — anonymous-friendly so non-members
