@@ -226,33 +226,35 @@ export default function HangoutsPage() {
     <div className="min-h-screen bg-warm pb-16">
       <div className="bg-white border-b border-gray-100">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 pt-8 pb-6">
-          <div className="flex items-start justify-between gap-3 mb-1">
+          {/* Header — stacks vertically on mobile so the two action buttons
+              get a full row of their own (side by side, equal width).
+              Desktop keeps the original side-by-side title/actions layout. */}
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-3 mb-1">
             <div>
               <p className="text-xs font-bold uppercase tracking-widest text-amber-600 mb-1">Spontaneous</p>
               <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">Hangouts</h1>
               <p className="text-sm text-gray-500 mt-1">&quot;I&apos;m at X right now — join me?&quot;</p>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 w-full sm:w-auto sm:shrink-0">
               {/* Recap entry point — anyone who's had a recent hangout can
                   leave references here. The recap push deep-links to the
                   same page; this gives a way in for users who tapped past
                   the push but still want to leave one. Hidden on mobile to
-                  keep the header from feeling cramped — phone users get
-                  here via the recap push notification instead. */}
+                  keep the action row to two equal-width buttons; phone
+                  users get here via the recap push notification instead. */}
               <Link href="/hangouts/recap"
                 className="hidden sm:inline-flex text-xs font-semibold text-gray-600 hover:text-amber-600 px-3 py-2 rounded-xl border border-gray-200 hover:border-amber-300 transition-colors">
                 Recap
               </Link>
-              {/* Pulse trigger — soft commitment, opens the small modal form.
-                  Sits next to "Post one" so the two grades of commitment
-                  (vague "I'm around" vs. specific "X cafe at Y time") are
-                  visible together. */}
+              {/* Pulse trigger — soft commitment. flex-1 on mobile so it
+                  splits the row 50/50 with Post one; sm:flex-initial on
+                  desktop so it sits at content width like before. */}
               <button onClick={() => { setShowPulseForm(s => !s); setShowForm(false) }}
-                className="flex items-center gap-1.5 px-3 py-2 text-amber-600 border border-amber-300 hover:bg-amber-50 text-sm font-bold rounded-xl transition-colors">
+                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 text-amber-600 border border-amber-300 hover:bg-amber-50 text-sm font-bold rounded-xl transition-colors">
                 {showPulseForm ? '× Close' : '✦ I’m around'}
               </button>
               <button onClick={() => { setShowForm(s => !s); setShowPulseForm(false) }}
-                className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
+                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
                 {showForm ? '× Close' : '＋ Post one'}
               </button>
             </div>
