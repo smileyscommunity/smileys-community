@@ -41,6 +41,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         '/admin/participants',
         '/admin/checkin',
         '/admin/spotlight',
+        // Announcements + polls (was /admin/engagement; kept here so the
+        // legacy URL still resolves before its server-side redirect runs).
+        '/admin/announcements',
         '/admin/engagement',
         '/admin/listings',
         '/admin/retention',

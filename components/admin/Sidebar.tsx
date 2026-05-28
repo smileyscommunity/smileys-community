@@ -62,7 +62,10 @@ const NAV_GROUPS = [
       // "Reports" used to point at a misnamed analytics page; the actual
       // member-reports queue lives at /admin/moderation (default tab).
       { label: 'Moderation',   href: '/admin/moderation',   exact: false, roles: ['admin', 'moderator'],  icon: 'moderation'   },
-      { label: 'Retention',    href: '/admin/retention',    exact: false, roles: ['admin', 'moderator'],  icon: 'retention'    },
+      // Moderators get a Retention shortcut here since they can't see Analytics
+      // (admin-only API). Admins access the same data via Analytics > Members
+      // tab, where it's folded in alongside the engagement summary.
+      { label: 'Retention',    href: '/admin/retention',    exact: false, roles: ['moderator'],  icon: 'retention'    },
       { label: 'Audit Log',    href: '/admin/audit',        exact: false, roles: ['admin', 'moderator'],  icon: 'audit'        },
     ],
   },
@@ -94,9 +97,11 @@ const NAV_GROUPS = [
   {
     label: 'Content',
     items: [
-      { label: 'Notifications', href: '/admin/notifications',         exact: false, roles: ['admin', 'moderator'],  icon: 'notifications' },
-      { label: 'Announcements', href: '/admin/engagement?tab=announcement', exact: false, roles: ['admin', 'moderator'],  icon: 'banners'    },
-      { label: 'Polls',        href: '/admin/engagement?tab=polls',        exact: false, roles: ['admin', 'moderator'],  icon: 'engagement' },
+      { label: 'Notifications', href: '/admin/notifications',                 exact: false, roles: ['admin', 'moderator'],  icon: 'notifications' },
+      // Was /admin/engagement (misnamed as analytics); now /admin/announcements
+      // and lives in this Content group alongside the other comms surfaces.
+      { label: 'Announcements', href: '/admin/announcements?tab=announcement', exact: false, roles: ['admin', 'moderator'],  icon: 'banners'    },
+      { label: 'Polls',         href: '/admin/announcements?tab=polls',        exact: false, roles: ['admin', 'moderator'],  icon: 'engagement' },
       { label: 'Stories',       href: '/admin/stories',                     exact: false, roles: ['admin', 'moderator'],  icon: 'stories'       },
       { label: 'Articles',      href: '/admin/posts',         exact: false, roles: ['admin', 'moderator'],  icon: 'articles'      },
       { label: 'Neighborhoods', href: '/admin/neighborhoods', exact: false, roles: ['admin', 'moderator'],  icon: 'tags'          },
@@ -196,8 +201,11 @@ export default function Sidebar({ open, onClose }: Props) {
       const [key, val] = hrefQuery.split('=')
       return params.get(key) === val
     }
-    // For /admin/engagement without query, don't match tab-specific links
-    if (hrefPath === '/admin/engagement') return false
+    // For tab-routed pages without a query specifier, don't false-match
+    // tab-specific links (otherwise both Announcements + Polls would
+    // highlight at /admin/announcements with no ?tab=).
+    if (hrefPath === '/admin/announcements') return false
+    if (hrefPath === '/admin/engagement')    return false  // legacy redirect
     return true
   }
 
