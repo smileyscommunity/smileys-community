@@ -65,10 +65,13 @@ export default function Footer() {
 
       {/* Main footer */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-10">
+        {/* 4 cols at lg (small laptops) so the 6-col layout doesn't crush each
+            column to ~140px; 6 cols at xl+ where there's room to fit everything
+            on one row. */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-10">
 
-          {/* Brand — spans 2 on mobile so the social row breathes */}
-          <div className="col-span-2 lg:col-span-1">
+          {/* Brand — wider until xl so the social row breathes */}
+          <div className="col-span-2 xl:col-span-1">
             <Link href="/" className="flex items-center gap-2 mb-4 group">
               <span className="text-2xl">😊</span>
               <span className="font-extrabold text-gray-900 group-hover:text-amber-600 transition-colors text-lg">
@@ -148,17 +151,25 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* Membership — account + contributor links */}
+          {/* Membership — account + contributor links. Order respects funnel:
+              anonymous visitors see Apply first (no Invite — they have nothing
+              to invite people to yet); members see dashboard → invite (post-
+              join action) → get-involved → advertise. */}
           <div>
             <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Membership</h4>
             <ul className="space-y-3">
               {[
                 ...(isLoggedIn
-                  ? [{ href: '/dashboard', label: 'My dashboard' }]
-                  : [{ href: '/apply',     label: 'Apply to join' }]
+                  ? [
+                      { href: '/dashboard',    label: 'My dashboard'    },
+                      { href: '/invite',       label: 'Invite a friend' },
+                      { href: '/get-involved', label: 'Get involved'    },
+                    ]
+                  : [
+                      { href: '/apply',        label: 'Apply to join' },
+                      { href: '/get-involved', label: 'Get involved'  },
+                    ]
                 ),
-                { href: '/invite',       label: 'Invite a friend'  },
-                { href: '/get-involved', label: 'Get involved'     },
                 { href: '/advertise',    label: 'Advertise with us'},
               ].map(l => (
                 <li key={l.href}>
