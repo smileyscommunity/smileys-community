@@ -73,6 +73,7 @@ model User {
   reportsReceived         Report[]                @relation("ReportsReceived")
   sentMessages            DirectMessage[]         @relation("SentMessages")
   receivedMessages        DirectMessage[]         @relation("ReceivedMessages")
+  dmReactions             DirectMessageReaction[]
   clubPosts               ClubPost[]
   clubPostLikes           ClubPostLike[]
   clubPostReplies         ClubPostReply[]
@@ -896,16 +897,39 @@ model DirectMessage {
   fromId    String
   toId      String
   text      String
+  // Optional image attachment — validated against the /api/upload regex
+  // (/app/api/files/<sub>/<file>.ext). text remains required; can be a single
+  // space for an image-only message.
+  imageUrl  String?
   isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
 
-  from User @relation("SentMessages", fields: [fromId], references: [id], onDelete: Cascade)
-  to   User @relation("ReceivedMessages", fields: [toId], references: [id], onDelete: Cascade)
+  from      User                    @relation("SentMessages",     fields: [fromId], references: [id], onDelete: Cascade)
+  to        User                    @relation("ReceivedMessages", fields: [toId],   references: [id], onDelete: Cascade)
+  reactions DirectMessageReaction[]
 
   @@index([fromId, toId])
   @@index([toId, isRead])
   @@index([createdAt])
   @@map("direct_messages")
+}
+
+// WhatsApp-style reactions on direct messages. One emoji per user per
+// message (unique constraint); re-reacting with the same emoji removes it,
+// re-reacting with a different one switches.
+model DirectMessageReaction {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  message DirectMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User          @relation(fields: [userId],    references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([messageId])
+  @@map("direct_message_reactions")
 }
 
 model NeighborhoodPost {

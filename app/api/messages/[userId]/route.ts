@@ -27,6 +27,10 @@ export async function GET(req: NextRequest, { params }: Params) {
       orderBy: { createdAt: 'asc' },
       include: {
         from: { select: { id: true, name: true, color: true, profilePhoto: true } },
+        // Reactions ship with the message so the UI doesn't need a second
+        // request per message. Small list (1 row per reactor) so payload
+        // stays compact.
+        reactions: { select: { userId: true, emoji: true } },
       },
     })
 
@@ -54,9 +58,17 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Sending too fast — slow down' }, { status: 429 })
     }
 
-    const { text } = await req.json()
-    if (!text?.trim()) return NextResponse.json({ error: 'Message cannot be empty' }, { status: 400 })
-    if (text.trim().length > 2000) return NextResponse.json({ error: 'Message too long (max 2000 chars)' }, { status: 400 })
+    const { text, imageUrl } = await req.json()
+    const hasText  = typeof text === 'string' && text.trim().length > 0
+    const hasImage = typeof imageUrl === 'string' && imageUrl.length > 0
+    if (!hasText && !hasImage) return NextResponse.json({ error: 'Message cannot be empty' }, { status: 400 })
+    if (hasText && text.trim().length > 2000) return NextResponse.json({ error: 'Message too long (max 2000 chars)' }, { status: 400 })
+
+    // Image must be a path produced by our /api/upload (same regex enforced
+    // for event/listing photos) — prevents injecting external trackers.
+    const photoRegex = /^\/app\/api\/files\/[a-zA-Z0-9\-]+\/[a-zA-Z0-9\-]+\.(jpg|jpeg|png|webp|gif)$/
+    const safeImageUrl = hasImage && photoRegex.test(imageUrl) ? imageUrl : null
+    if (hasImage && !safeImageUrl) return NextResponse.json({ error: 'Invalid image URL' }, { status: 400 })
 
     const isModeration = isAdminOrModerator(session)
     const privileged = isModeration || await isClubHost(session.id)
@@ -92,8 +104,16 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (!recipient) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
     const message = await prisma.directMessage.create({
-      data: { fromId: session.id, toId, text: text.trim() },
-      include: { from: { select: { id: true, name: true, color: true, profilePhoto: true } } },
+      data: {
+        fromId: session.id,
+        toId,
+        text: hasText ? text.trim() : '',
+        imageUrl: safeImageUrl,
+      },
+      include: {
+        from:      { select: { id: true, name: true, color: true, profilePhoto: true } },
+        reactions: { select: { userId: true, emoji: true } },
+      },
     })
 
     // Notify recipient — only if no recent unread notification from this sender
@@ -101,7 +121,8 @@ export async function POST(req: NextRequest, { params }: Params) {
       where: { userId: toId, type: 'message', link: `/messages/${session.id}`, isRead: false },
     })
     if (!recentNotif) {
-      createNotification(toId, 'message', `${session.name} sent you a message 💬`, text.trim().slice(0, 80), `/messages/${session.id}`)
+      const preview = hasText ? text.trim().slice(0, 80) : '📷 Photo'
+      createNotification(toId, 'message', `${session.name} sent you a message 💬`, preview, `/messages/${session.id}`)
         .catch(() => {})
     }
 

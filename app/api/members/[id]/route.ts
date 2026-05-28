@@ -23,7 +23,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         id: true, name: true, color: true, bio: true,
         neighborhood: true, nationality: true, interests: true,
         languages: true, profilePhoto: true, joinedAt: true, role: true,
-        instagram: true, socialStyles: true,
+        instagram: true, socialStyles: true, lastActive: true,
         clubMemberships: {
           where: { status: 'approved', role: 'host' },
           select: { club: { select: { id: true, name: true, emoji: true, slug: true, bgColor: true } } },
