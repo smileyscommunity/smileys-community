@@ -114,8 +114,8 @@ export default function Footer() {
             <ul className="space-y-3">
               {[
                 { href: '/events',   label: 'Events 🎉'    },
-                { href: '/clubs',    label: 'Clubs 👥'     },
-                { href: '/members',  label: 'Members'     },
+                { href: '/clubs',    label: 'Clubs 🏠'     },
+                { href: '/members',  label: 'Members 👥'   },
                 { href: '/hangouts', label: 'Hangouts ☕'  },
                 { href: '/visiting', label: 'Visiting? 👋' },
               ].map(l => (
