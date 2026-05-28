@@ -18,6 +18,7 @@ const step0Schema = z.object({
   phone:        z.string().min(6, 'Phone number is required'),
   country:      z.string().min(1, 'Country is required'),
   neighborhood: z.string().min(2, 'Neighborhood is required'),
+  gender:       z.string().min(1, 'Gender is required'),
 })
 
 type FieldErrors = Partial<Record<keyof z.infer<typeof step0Schema>, string>>
@@ -33,9 +34,13 @@ const STEPS = [
   'About You',
   'Community Fit',
   'Interests',
-  'Contribution',
-  'Verification',
+  'Verification', // also covers Contribution + Social Judgment after the merge
 ]
+
+// Rough time-left estimate shown next to the step label — calibrated for
+// "specific beats long" answers, not deep essays.
+const STEP_MINUTES_LEFT = [6, 5, 3, 2, 1]
+const DRAFT_KEY = 'smileys_apply_draft_v1'
 
 const SOCIAL_STYLES = [
   { id: 'deep_talker',      label: '🗣️ Deep Talker',      desc: 'Loves meaningful 1:1 conversations' },
@@ -88,6 +93,10 @@ function ApplyForm() {
     FingerprintJS.load().then(fp => fp.get()).then(result => setFingerprint(result.visitorId)).catch(() => {})
     try { setBrowserTz(Intl.DateTimeFormat().resolvedOptions().timeZone) } catch {}
   }, [])
+
+  // Track whether the draft restore has run so the save-on-change effect
+  // doesn't fire before we've loaded (which would overwrite the saved draft).
+  const [draftHydrated, setDraftHydrated] = useState(false)
   const [step,    setStep]    = useState(0)
   const [form,    setForm]    = useState({
     firstName: '', lastName: '', email: '', phone: '', birthdate: '', gender: '',
@@ -117,6 +126,35 @@ function ApplyForm() {
   const [localPhoto,     setLocalPhoto]     = useState('')
   const photoInputRef  = useRef<HTMLInputElement>(null)
   const errorRef       = useRef<HTMLDivElement>(null)
+
+  // Restore any in-progress draft on first mount. Errors (private window,
+  // corrupt JSON) silently fall back to the empty form — never block the user
+  // from applying.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY)
+      if (raw) {
+        const d = JSON.parse(raw)
+        if (d.form)         setForm(f => ({ ...f, ...d.form }))
+        if (d.interests)    setInterests(d.interests)
+        if (d.socialStyles) setSocialStyles(d.socialStyles)
+        if (d.languages)    setLanguages(d.languages)
+        if (typeof d.step === 'number') setStep(d.step)
+      }
+    } catch {}
+    setDraftHydrated(true)
+  }, [])
+
+  // Save draft on any change once hydration is done. Skip the agreements +
+  // photo upload state — those should be re-confirmed each session.
+  useEffect(() => {
+    if (!draftHydrated) return
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({
+        form, interests, socialStyles, languages, step,
+      }))
+    } catch {}
+  }, [draftHydrated, form, interests, socialStyles, languages, step])
 
   function set(key: string, value: string) {
     setForm(f => ({ ...f, [key]: value }))
@@ -168,7 +206,7 @@ function ApplyForm() {
       }
       setFieldErrors({})
     }
-    if (step === 5) {
+    if (step === STEPS.length - 1) {
       if (!form.profilePhoto) { setSubmitError('Please upload a profile photo'); return false }
       if (!agreements.a1 || !agreements.a2 || !agreements.a3) { setSubmitError('Please agree to all terms'); return false }
     }
@@ -222,6 +260,7 @@ function ApplyForm() {
         country:     form.country,
       })
       setSubmitted(true)
+      try { localStorage.removeItem(DRAFT_KEY) } catch {}
     } catch {
       showError('Something went wrong. Please try again.')
     } finally {
@@ -268,7 +307,10 @@ function ApplyForm() {
         {/* Progress bar */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-gray-500">Step {step + 1} of {STEPS.length}</span>
+            <span className="text-xs font-semibold text-gray-500">
+              Step {step + 1} of {STEPS.length}
+              <span className="text-gray-400 font-normal"> · about {STEP_MINUTES_LEFT[step] ?? 1} min left</span>
+            </span>
             <span className="text-xs font-semibold text-amber-600">{STEPS[step]}</span>
           </div>
           <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
@@ -351,14 +393,20 @@ function ApplyForm() {
               </div>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-2">Gender</label>
-              <select value={form.gender} onChange={e => set('gender', e.target.value)} className={`${inputCls} bg-white`}>
+              <label className="block text-xs font-semibold text-gray-500 mb-2">Gender *</label>
+              <select
+                value={form.gender}
+                onChange={e => { set('gender', e.target.value); validateField('gender', e.target.value) }}
+                onBlur={e => validateField('gender', e.target.value)}
+                className={`${fieldCls(fieldErrors.gender)} bg-white`}
+              >
                 <option value="">Select…</option>
                 <option value="male">Male</option>
                 <option value="female">Female</option>
                 <option value="non_binary">Non-binary</option>
                 <option value="prefer_not_to_say">Prefer not to say</option>
               </select>
+              {fieldErrors.gender && <p className="text-xs text-red-500 mt-1">{fieldErrors.gender}</p>}
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-500 mb-2">Neighborhood / Area *</label>
@@ -517,7 +565,10 @@ function ApplyForm() {
             </div>
           </>}
 
-          {/* Step 5: Contribution & Social Behavior */}
+          {/* Step 5: Contribution + Social Judgment + Verification merged. The
+              first three step-4 sections were each short; folding them into
+              Verification keeps the screening signal but drops perceived
+              length from 6 steps to 5. */}
           {step === 4 && <>
             <h2 className="font-bold text-gray-900 text-base mb-1">Contribution Mindset</h2>
             <p className="text-xs text-gray-400 mb-2">What role do you see yourself playing?</p>
@@ -539,11 +590,8 @@ function ApplyForm() {
               ))}
             </div>
 
-            <div className="pt-2">
+            <div className="pt-4 mt-2 border-t border-gray-100">
               <h3 className="font-bold text-gray-900 text-sm mb-3">Social Judgment</h3>
-              {/* One open prompt replaces three direct interrogation questions
-                  (groupBehavior / removedFromCommunity / toxicBehavior). Same
-                  screening signal, less defensive vibe. */}
               <div>
                 <label className="block text-xs font-semibold text-gray-500 mb-2">
                   Tell us about a time you handled a difficult social situation well.
@@ -553,11 +601,8 @@ function ApplyForm() {
                   className={`${inputCls} resize-none`} />
               </div>
             </div>
-          </>}
 
-          {/* Step 6: Verification & Agreement */}
-          {step === 5 && <>
-            <h2 className="font-bold text-gray-900 text-base mb-1">Verification</h2>
+            <h2 className="font-bold text-gray-900 text-base mb-1 pt-6 mt-4 border-t border-gray-100">Verification</h2>
             <div>
               <label className="block text-xs font-semibold text-gray-500 mb-2">Profile photo <span className="text-red-400">*</span></label>
               <input ref={photoInputRef} type="file" accept="image/*" className="hidden"
