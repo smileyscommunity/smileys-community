@@ -32,10 +32,12 @@ export default async function NeighborhoodSections({
 }: Props) {
   const today = new Date().toISOString().split('T')[0]
 
+  const now = new Date()
+
   const [
     upcomingRaw, pastCount, locals, hostCounts,
     totalLocals, allEventCounts, communityPhotos, wallPostCount,
-    activeListings, upcomingVisitors,
+    activeListings, upcomingVisitors, activeHangouts,
   ] = await Promise.all([
     prisma.event.findMany({
       where:   { neighborhood: name, date: { gte: today } },
@@ -100,6 +102,20 @@ export default async function NeighborhoodSections({
       take:    3,
       select:  {
         id: true, name: true, fromCity: true, startsOn: true, endsOn: true, intro: true,
+      },
+    }),
+    // Active hangouts in this neighborhood — sweeper flips them to 'expired'
+    // when endsAt passes, but we also filter by endsAt >= now so a missed
+    // sweeper run can't show stale ones. Same shape the /hangouts feed uses
+    // so users can recognize the cards.
+    prisma.hangout.findMany({
+      where:   { neighborhood: name, status: 'active', endsAt: { gte: now } },
+      orderBy: { startsAt: 'asc' },
+      take:    3,
+      select:  {
+        id: true, title: true, location: true, startsAt: true, endsAt: true,
+        user: { select: { id: true, name: true, color: true, profilePhoto: true, goodHangouts: true } },
+        _count: { select: { joins: true } },
       },
     }),
   ])
@@ -485,6 +501,55 @@ export default async function NeighborhoodSections({
                         {l.title}
                       </h3>
                       {l.price && <p className="text-xs font-bold text-gray-700 mt-1.5">{l.price}</p>}
+                    </div>
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Active hangouts in this neighborhood — surfaces spontaneous meetups
+          to anyone browsing the area page, not just members whose home is
+          set to this neighborhood. Silent when empty so quiet areas don't
+          read as "nothing happening". */}
+      {activeHangouts.length > 0 && (
+        <div className="pt-6 border-t border-gray-100">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xs font-bold text-gray-500 uppercase tracking-widest">Hangouts happening in {name}</h2>
+            <Link href={`/hangouts?neighborhood=${encodeURIComponent(name)}`}
+              className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
+              See all →
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {activeHangouts.map(h => {
+              const s = new Date(h.startsAt)
+              const minsToStart = Math.round((s.getTime() - now.getTime()) / 60_000)
+              const window = minsToStart < 0  ? 'Happening now'
+                           : minsToStart < 60 ? `Starts in ${minsToStart}m`
+                           : minsToStart < 60 * 12
+                             ? `Starts ${s.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
+                             : s.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+              const avatar = h.user.profilePhoto ? resolveImageUrl(h.user.profilePhoto) : null
+              const going  = h._count.joins + 1  // +1 = host
+              return (
+                <Link key={h.id} href="/hangouts" className="group block">
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hover:shadow-md hover:-translate-y-0.5 transition-all h-full">
+                    <p className="text-xs font-bold text-amber-700 uppercase tracking-wide mb-2">☕ {window}</p>
+                    <p className="text-sm font-bold text-gray-900 mb-1 line-clamp-2">{h.title}</p>
+                    <p className="text-xs text-gray-500 mb-3 line-clamp-1">📍 {h.location}</p>
+                    <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
+                      {avatar
+                        ? <img src={avatar} alt={h.user.name} className="w-6 h-6 rounded-full object-cover shrink-0" />
+                        : <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0"
+                            style={{ backgroundColor: h.user.color }}>{h.user.name[0]}</div>}
+                      <span className="text-xs text-gray-600 truncate">{h.user.name}</span>
+                      {h.user.goodHangouts > 0 && (
+                        <span className="text-[10px] font-semibold text-green-700 shrink-0">✓ {h.user.goodHangouts}</span>
+                      )}
+                      <span className="text-xs text-gray-400 ml-auto shrink-0">{going} going</span>
                     </div>
                   </div>
                 </Link>

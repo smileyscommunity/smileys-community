@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
-import { sendPushToUser } from '@/lib/push'
+import { createNotification } from '@/lib/notify'
 import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
 
 // Members-only — hangouts are real-time, contact-required, and we don't want
@@ -110,21 +110,51 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    // Push nearby members — the entire value-prop is "someone shows up." Skip
-    // if no neighborhood; we don't want to broadcast a hangout city-wide.
+    // Notify nearby members — the entire value-prop is "someone shows up,"
+    // so reach is everything. Skip city-wide broadcast when no neighborhood
+    // is set, but otherwise we want the audience to include:
+    //   (a) members whose home neighborhood matches the hangout
+    //   (b) members who've previously joined a hangout in this neighborhood
+    //       — they've signaled interest in the area with their feet
+    // Union the two, dedupe, exclude the host. createNotification gives every
+    // recipient an inbox row AND a push, so missed-push users still see it.
     if (safeNeighborhood) {
-      prisma.user.findMany({
-        where:  { neighborhood: safeNeighborhood, status: 'approved', id: { not: session.id } },
-        select: { id: true },
-      }).then(locals => {
-        for (const u of locals) {
-          sendPushToUser(u.id, {
-            title: `☕ Hangout in ${safeNeighborhood}`,
-            body:  `${created.title} — ${created.location}`,
-            link:  `/hangouts`,
-          }).catch(() => {})
+      (async () => {
+        try {
+          const [locals, pastJoiners] = await Promise.all([
+            prisma.user.findMany({
+              where:  { neighborhood: safeNeighborhood, status: 'approved', id: { not: session.id } },
+              select: { id: true },
+            }),
+            // Distinct users who've joined any past hangout in this
+            // neighborhood — proxy for "would be interested again."
+            prisma.hangoutJoin.findMany({
+              where:    {
+                hangout:  { neighborhood: safeNeighborhood },
+                userId:   { not: session.id },
+                user:     { status: 'approved' },
+              },
+              select:   { userId: true },
+              distinct: ['userId'],
+            }),
+          ])
+          const audience = new Set<string>()
+          for (const u of locals)      audience.add(u.id)
+          for (const j of pastJoiners) audience.add(j.userId)
+
+          for (const userId of audience) {
+            createNotification(
+              userId,
+              'new_hangout',
+              `☕ Hangout in ${safeNeighborhood}`,
+              `${created.title} — ${created.location}`,
+              `/hangouts`,
+            ).catch(() => {})
+          }
+        } catch (e) {
+          console.error('[hangout fanout]', e)
         }
-      }).catch(() => {})
+      })()
     }
 
     return NextResponse.json({ id: created.id }, { status: 201 })

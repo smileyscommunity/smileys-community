@@ -38,6 +38,12 @@ const PREF_KEY: Record<string, 'newEvents' | 'reminders' | 'eventUpdates' | 'joi
   hangout_starting:   null,  // "starts in 30 min" reminder from sweeper cron
   hangout_recap:      null,  // "ended — hope it was good" closer from sweeper cron
   hangout_cancelled:  null,  // host cancelled — notify joiners
+  // Wide-fanout broadcast when a hangout posts in someone's neighborhood
+  // OR a neighborhood they've previously joined hangouts in. Gated by the
+  // newEvents preference so users who muted event broadcasts also mute
+  // hangout broadcasts — it's the same "something is happening near you"
+  // signal class.
+  new_hangout:        'newEvents',
   visitor_announced:  null,
   listing_new:        null,
 }
