@@ -304,14 +304,17 @@ export default function HangoutsPage() {
               <input value={location} onChange={e => setLocation(e.target.value)} maxLength={200}
                 placeholder="Café name, address, or Maps link" className="input" />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            {/* Stack on mobile — native datetime-local inputs reserve a
+                fixed width for their date+time controls and overflow a
+                2-col grid on phones, causing the two fields to overlap. */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">From</label>
-                <input type="datetime-local" value={startsAt} onChange={e => setStartsAt(e.target.value)} className="input" />
+                <input type="datetime-local" value={startsAt} onChange={e => setStartsAt(e.target.value)} className="input w-full" />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Until</label>
-                <input type="datetime-local" value={endsAt} onChange={e => setEndsAt(e.target.value)} min={startsAt} className="input" />
+                <input type="datetime-local" value={endsAt} onChange={e => setEndsAt(e.target.value)} min={startsAt} className="input w-full" />
               </div>
             </div>
             <div>
