@@ -1074,7 +1074,7 @@ export default async function DashboardPage() {
               const steps = [
                 { label: 'Add a profile photo',   done: !!userProfile?.profilePhoto,          href: '/profile' },
                 { label: 'Write a short bio',      done: !!userProfile?.bio?.trim(),            href: '/profile' },
-                { label: 'Set your neighbourhood', done: !!userProfile?.neighborhood,           href: '/profile' },
+                { label: 'Set your neighborhood',  done: !!userProfile?.neighborhood,           href: '/profile' },
                 { label: 'Pick your interests',    done: (userProfile?.interests?.length ?? 0) > 0, href: '/profile' },
                 { label: 'Join a club',             done: myMemberships.length > 0,             href: '/clubs'   },
                 { label: 'RSVP to an event',        done: myAttendances.length > 0,             href: '/events'  },

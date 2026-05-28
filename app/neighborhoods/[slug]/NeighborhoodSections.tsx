@@ -151,7 +151,7 @@ export default async function NeighborhoodSections({
 
   return (
     <>
-      {/* Neighbourhood Wall */}
+      {/* Neighborhood Wall */}
       {myId && (
         <div id="wall">
           <div className="flex items-center gap-3 mb-5">
@@ -322,7 +322,7 @@ export default async function NeighborhoodSections({
         </div>
       )}
 
-      {/* Nearby neighbourhoods */}
+      {/* Nearby neighborhoods */}
       {nearby.length > 0 && (
         <div>
           <h2 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-5">

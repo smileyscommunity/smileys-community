@@ -194,7 +194,7 @@ export default async function NeighborhoodPage({ params }: { params: Promise<{ s
             <div className="flex items-center gap-3">
               <span className="text-xl">🏡</span>
               <p className="text-sm text-blue-800 font-medium">
-                Do you live in {name}? Set it as your neighbourhood so locals can find you.
+                Do you live in {name}? Set it as your neighborhood so locals can find you.
               </p>
             </div>
             <Link href="/profile"

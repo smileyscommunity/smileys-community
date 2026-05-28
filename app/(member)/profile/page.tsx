@@ -380,7 +380,7 @@ export default function ProfilePage() {
                   </select>
                 </div>
                 <div className="col-span-full">
-                  <label className="block text-xs font-semibold text-gray-500 mb-1.5">Neighbourhood</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1.5">Neighborhood</label>
                   <select value={form.neighborhood} onChange={e => set('neighborhood', e.target.value)} className={inputCls}>
                     <option value="">Select…</option>
                     {ISTANBUL_NEIGHBORHOODS.map(n => <option key={n} value={n}>{n}</option>)}
