@@ -49,6 +49,7 @@ export async function GET(req: NextRequest) {
     endsAt:       h.endsAt,
     status:       h.status,
     meetMode:     h.meetMode,
+    photo:        h.photo,
     user:         h.user,
     joiners:      h.joins.map(j => j.user),
     joinedByMe:   h.joins.some(j => j.userId === session.id),
@@ -67,7 +68,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Too many hangouts this hour. Take a breath.' }, { status: 429 })
     }
 
-    const { title, description, location, neighborhood, startsAt, endsAt, meetMode } = await req.json()
+    const { title, description, location, neighborhood, startsAt, endsAt, meetMode, photo } = await req.json()
 
     if (!title?.trim() || !location?.trim() || !startsAt || !endsAt) {
       return NextResponse.json({ error: 'Title, location, and times are required' }, { status: 400 })
@@ -104,6 +105,12 @@ export async function POST(req: NextRequest) {
     // strings (we filter on this in the feed).
     const safeMeetMode = meetMode === 'solo' ? 'solo' : 'group'
 
+    // photo: must be a string matching the upload-output URL pattern. Same
+    // regex as DM image attachments — prevents a malicious client from
+    // smuggling a remote URL through this field.
+    const PHOTO_URL_RE = /^\/app\/api\/files\/[a-zA-Z0-9\-]+\/[a-zA-Z0-9\-]+\.(jpg|jpeg|png|webp|gif)$/
+    const safePhoto = typeof photo === 'string' && PHOTO_URL_RE.test(photo) ? photo : null
+
     const created = await prisma.hangout.create({
       data: {
         userId:       session.id,
@@ -114,6 +121,7 @@ export async function POST(req: NextRequest) {
         startsAt:     startDate,
         endsAt:       endDate,
         meetMode:     safeMeetMode,
+        photo:        safePhoto,
       },
     })
 

@@ -16,7 +16,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id } = await params
   const today = todayIstanbul()
 
-  const [user, upcomingEvents, connection] = await Promise.all([
+  const [user, upcomingEvents, connection, hangoutsHosted, hangoutsJoined] = await Promise.all([
     prisma.user.findFirst({
       where: { id, status: 'approved', role: { in: ['member', 'moderator', 'admin'] } },
       select: {
@@ -24,6 +24,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         neighborhood: true, nationality: true, interests: true,
         languages: true, profilePhoto: true, joinedAt: true, role: true,
         instagram: true, socialStyles: true, lastActive: true,
+        // Hangout trust + activity counters — drive the "✓ N good hangouts"
+        // badge and the "hosted/joined" line on the profile.
+        goodHangouts: true,
         clubMemberships: {
           where: { status: 'approved', role: 'host' },
           select: { club: { select: { id: true, name: true, emoji: true, slug: true, bgColor: true } } },
@@ -46,6 +49,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       },
       select: { id: true },
     }),
+    // Hangouts hosted — exclude cancelled so a wash of cancellations
+    // doesn't pad the number. Includes still-active ones.
+    prisma.hangout.count({
+      where: { userId: id, status: { in: ['active', 'expired'] } },
+    }),
+    // Hangouts joined — distinct hangout count via HangoutJoin.
+    prisma.hangoutJoin.count({ where: { userId: id } }),
   ])
 
   if (!user) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -97,5 +107,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     clubs:        user.clubMemberships.map(cm => cm.club),
     upcomingEvents,
     isConnected:  !!connection,
+    // Hangout stats — for the profile counter + trust badge.
+    goodHangouts: user.goodHangouts,
+    hangoutsHosted,
+    hangoutsJoined,
   })
 }

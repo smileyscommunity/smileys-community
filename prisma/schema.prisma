@@ -1035,6 +1035,11 @@ model Hangout {
   // small badge on each card. Defaults to 'group' so legacy hangouts
   // (and forgetful hosts) stay in the broad-reach pool.
   meetMode     String   @default("group")  // 'group' | 'solo'
+  // Optional photo of the meeting spot — single image, hosted on our
+  // /app/api/files/hangouts/ tree. Resolves the "where is the group?"
+  // problem at busy cafés. Same URL shape and regex enforcement as
+  // DM image attachments.
+  photo        String?
   createdAt    DateTime @default(now())
 
   // Lifecycle push tracking — set by the sweeper cron so we only fire each

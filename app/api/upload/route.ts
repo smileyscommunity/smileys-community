@@ -40,8 +40,10 @@ export async function POST(req: NextRequest) {
       isClubHost = !!hostMembership
     }
 
-    // Regular members can upload event/club photos; downstream API routes enforce membership auth
-    const isMemberUpload = folder === 'events' || folder === 'clubs'
+    // Regular members can upload event/club/hangout photos; downstream API
+    // routes enforce per-feature auth (e.g. the hangouts POST checks the
+    // returned URL against a regex before storing).
+    const isMemberUpload = folder === 'events' || folder === 'clubs' || folder === 'hangouts'
 
     if (!isPrivileged && !isClubHost && !isMemberUpload && folder !== 'users') {
       return NextResponse.json({ error: 'You can only upload profile photos.' }, { status: 403 })
@@ -56,7 +58,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Only JPG, PNG, WebP, GIF allowed' }, { status: 400 })
     }
 
-    const validFolders = ['events', 'clubs', 'users', 'general', 'posts']
+    const validFolders = ['events', 'clubs', 'users', 'general', 'posts', 'hangouts']
     const subfolder  = validFolders.includes(folder ?? '') ? folder! : 'general'
     const filename   = `${Date.now()}-${randomBytes(6).toString('hex')}.jpg`
     const uploadDir  = join(process.cwd(), 'public', 'uploads', subfolder)

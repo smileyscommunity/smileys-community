@@ -28,6 +28,8 @@ interface Hangout {
   endsAt:       string
   status:       string
   meetMode:     'solo' | 'group'
+  // Optional photo of the meeting spot — single image URL.
+  photo:        string | null
   user:         JoinerSummary
   joiners:      JoinerSummary[]
   joinedByMe:   boolean
@@ -106,6 +108,8 @@ export default function HangoutsPage() {
   const [startsAt,     setStartsAt]     = useState(defaultStartsAt())
   const [endsAt,       setEndsAt]       = useState(defaultEndsAt())
   const [meetMode,     setMeetMode]     = useState<'group' | 'solo'>('group')
+  const [photo,        setPhoto]        = useState<string | null>(null)
+  const [uploading,    setUploading]    = useState(false)
   const [submitting,   setSubmitting]   = useState(false)
 
   // Pulse form
@@ -132,6 +136,28 @@ export default function HangoutsPage() {
     }).finally(() => setLoading(false))
   }, [isLoggedIn])
 
+  // Location photo upload — single image, hangouts folder. Same pattern
+  // as the DM photo attach. Toast on either side so a failure isn't silent.
+  async function handlePhotoChoose(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 5 * 1024 * 1024) { toast.error('Image too large (max 5MB)'); return }
+    setUploading(true)
+    const fd = new FormData()
+    fd.append('file', file)
+    fd.append('folder', 'hangouts')
+    try {
+      const r = await fetch('/app/api/upload', { method: 'POST', credentials: 'include', body: fd }).then(res => res.json())
+      if (r?.url) setPhoto(r.url)
+      else toast.error(r?.error ?? 'Upload failed')
+    } catch {
+      toast.error('Upload failed')
+    } finally {
+      setUploading(false)
+      e.target.value = ''
+    }
+  }
+
   async function reloadFeed() {
     const [h, p] = await Promise.allSettled([
       fetch('/app/api/hangouts',     { credentials: 'include' }).then(r => r.json()),
@@ -155,6 +181,7 @@ export default function HangoutsPage() {
           startsAt: new Date(startsAt).toISOString(),
           endsAt:   new Date(endsAt).toISOString(),
           meetMode,
+          photo: photo || undefined,
         }),
       })
       const data = await res.json()
@@ -164,6 +191,7 @@ export default function HangoutsPage() {
       setShowForm(false)
       setTitle(''); setLocation(''); setNeighborhood(''); setDescription('')
       setStartsAt(defaultStartsAt()); setEndsAt(defaultEndsAt()); setMeetMode('group')
+      setPhoto(null)
     } catch {
       toast.error('Network error')
     } finally {
@@ -325,7 +353,28 @@ export default function HangoutsPage() {
                 placeholder="What you're up for — quiet work, chatty, walk after…"
                 className="input resize-none" />
             </div>
-            <button type="submit" disabled={submitting}
+            {/* Location photo — optional. Helps people find the group at busy
+                venues ("we're at the back table next to the window"). */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                Photo of the spot <span className="text-gray-400 font-normal">(optional)</span>
+              </label>
+              {photo ? (
+                <div className="relative inline-block">
+                  <img src={resolveImageUrl(photo)} alt="Hangout spot" className="w-32 h-32 object-cover rounded-xl border border-gray-200" />
+                  <button type="button" onClick={() => setPhoto(null)}
+                    className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-gray-900 text-white text-xs hover:bg-red-500 shadow">
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <label className="inline-flex items-center gap-2 px-4 py-2.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 border-dashed rounded-xl cursor-pointer text-sm font-semibold text-gray-600">
+                  📷 {uploading ? 'Uploading…' : 'Add photo'}
+                  <input type="file" accept="image/*" className="hidden" onChange={handlePhotoChoose} disabled={uploading} />
+                </label>
+              )}
+            </div>
+            <button type="submit" disabled={submitting || uploading}
               className="w-full bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-bold py-3 rounded-xl transition-colors">
               {submitting ? 'Posting…' : 'Post hangout'}
             </button>
@@ -528,8 +577,17 @@ function HangoutCard({ h, currentUserId, onCancel, onMutated }: {
     } finally { setSending(false) }
   }
 
+  const photoUrl = h.photo ? resolveImageUrl(h.photo) : null
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
+    <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+      {/* Location photo — full-bleed at top so it reads as "this is where
+          we're meeting" rather than a small decorative thumbnail. */}
+      {photoUrl && (
+        <Link href={`/hangouts/${h.id}`} className="block">
+          <img src={photoUrl} alt={h.title} className="w-full h-40 object-cover" />
+        </Link>
+      )}
+      <div className="p-4">
       <div className="flex items-start gap-3">
         {avatar
           ? <img src={avatar} alt={h.user.name} className="w-10 h-10 rounded-full object-cover shrink-0" />
@@ -537,7 +595,7 @@ function HangoutCard({ h, currentUserId, onCancel, onMutated }: {
               style={{ backgroundColor: h.user.color }}>{h.user.name[0]}</div>}
         <div className="flex-1 min-w-0">
           <div className="flex items-start gap-2 flex-wrap">
-            <p className="text-sm font-bold text-gray-900 leading-snug">{h.title}</p>
+            <Link href={`/hangouts/${h.id}`} className="text-sm font-bold text-gray-900 leading-snug hover:text-amber-700">{h.title}</Link>
             {/* Intent badge — only renders for 'solo' since 'group' is the
                 default and adding "open to all" everywhere is noise. */}
             {h.meetMode === 'solo' && (
@@ -636,6 +694,7 @@ function HangoutCard({ h, currentUserId, onCancel, onMutated }: {
           </form>
         </div>
       )}
+      </div>{/* close p-4 wrapper that hosts everything below the photo */}
     </div>
   )
 }

@@ -44,7 +44,10 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
         'hangout_cancelled',
         `❌ Hangout cancelled`,
         `${cancelledBy} cancelled "${hangout.title}" — check the feed for other plans`,
-        `/hangouts`,
+        // Deep-link to the permalink so the joiner sees the cancellation
+        // banner instead of just landing on a feed that no longer
+        // contains the hangout (which reads as "did I imagine that?").
+        `/hangouts/${id}`,
       ).catch(() => {})
     }
   }

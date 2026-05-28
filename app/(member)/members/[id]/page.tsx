@@ -43,6 +43,11 @@ interface MemberProfile {
   clubs: HostClub[]
   upcomingEvents: UpcomingEvent[]
   isConnected: boolean
+  // Hangout activity — used for the "X hosted · Y joined" counter line
+  // and the "✓ N good hangouts" trust badge.
+  goodHangouts?: number
+  hangoutsHosted?: number
+  hangoutsJoined?: number
 }
 
 export default function MemberProfilePage({ params }: { params: Promise<{ id: string }> }) {
@@ -295,6 +300,24 @@ export default function MemberProfilePage({ params }: { params: Promise<{ id: st
               {member.neighborhood && <span>📍 {member.neighborhood}</span>}
               {member.joinedAt && <span>Joined {new Date(member.joinedAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</span>}
             </div>
+            {/* Hangout counter — surfaces social-proof for the spontaneous
+                meetup signal. Hidden entirely when this member has zero
+                history so newcomers don't read absence as a red flag. */}
+            {((member.hangoutsHosted ?? 0) + (member.hangoutsJoined ?? 0) > 0 || (member.goodHangouts ?? 0) > 0) && (
+              <div className="flex flex-wrap items-center gap-2 mt-2">
+                {(member.hangoutsHosted ?? 0) > 0 && (
+                  <span className="text-xs text-gray-600 font-medium">☕ {member.hangoutsHosted} hosted</span>
+                )}
+                {(member.hangoutsJoined ?? 0) > 0 && (
+                  <span className="text-xs text-gray-600 font-medium">· {member.hangoutsJoined} joined</span>
+                )}
+                {(member.goodHangouts ?? 0) > 0 && (
+                  <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-green-50 text-green-700 text-xs font-semibold border border-green-200">
+                    ✓ {member.goodHangouts} good
+                  </span>
+                )}
+              </div>
+            )}
             {member.instagram && (
               <a href={`https://instagram.com/${member.instagram.replace('@', '')}`}
                 target="_blank" rel="noopener noreferrer"
