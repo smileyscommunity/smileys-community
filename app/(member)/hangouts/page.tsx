@@ -12,6 +12,10 @@ import { toast } from 'sonner'
 
 interface JoinerSummary {
   id: string; name: string; color: string; profilePhoto: string | null
+  // Only the host slot includes goodHangouts (we don't fetch it for every
+  // joiner in the avatar strip — too noisy and the trust signal is mostly
+  // about who's hosting).
+  goodHangouts?: number
 }
 
 interface Hangout {
@@ -151,10 +155,20 @@ export default function HangoutsPage() {
               <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">Hangouts</h1>
               <p className="text-sm text-gray-500 mt-1">&quot;I&apos;m at X right now — join me?&quot;</p>
             </div>
-            <button onClick={() => setShowForm(s => !s)}
-              className="shrink-0 flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
-              {showForm ? '× Close' : '＋ Post one'}
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Recap entry point — anyone who's had a recent hangout can
+                  leave references here. The recap push deep-links to the
+                  same page; this gives a way in for users who tapped past
+                  the push but still want to leave one. */}
+              <Link href="/hangouts/recap"
+                className="text-xs font-semibold text-gray-600 hover:text-amber-600 px-3 py-2 rounded-xl border border-gray-200 hover:border-amber-300 transition-colors">
+                Recap
+              </Link>
+              <button onClick={() => setShowForm(s => !s)}
+                className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
+                {showForm ? '× Close' : '＋ Post one'}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -319,7 +333,17 @@ function HangoutCard({ h, currentUserId, onCancel, onMutated }: {
           {h.description && (
             <p className="text-xs text-gray-500 mt-2 whitespace-pre-wrap">{h.description}</p>
           )}
-          <p className="text-[11px] text-gray-400 mt-2">Posted by {isOwner ? 'you' : h.user.name}</p>
+          <p className="text-[11px] text-gray-400 mt-2 flex items-center gap-1.5 flex-wrap">
+            <span>Posted by {isOwner ? 'you' : h.user.name}</span>
+            {/* Trust badge — sourced from HangoutReference aggregates. Only
+                shows once a host has at least one good reference so it
+                doesn't make newcomers look unproven by absence. */}
+            {!isOwner && (h.user.goodHangouts ?? 0) > 0 && (
+              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-green-50 text-green-700 text-[10px] font-semibold border border-green-200">
+                ✓ {h.user.goodHangouts} good hangout{h.user.goodHangouts === 1 ? '' : 's'}
+              </span>
+            )}
+          </p>
         </div>
         {isOwner && (
           <button onClick={() => onCancel(h.id)}

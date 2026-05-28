@@ -112,26 +112,27 @@ async function runSweep() {
   for (const h of expired) {
     const joinerCount = h.joins.length
 
-    // Host recap — closes the loop and primes the "leave a reference" surface
-    // once the references feature ships (see hangouts roadmap).
+    // Host recap — closes the loop and deep-links into /hangouts/recap so
+    // they can leave references for joiners while the meetup is fresh.
     createNotification(
       h.userId,
       'hangout_recap',
       `✓ Your hangout ended`,
       joinerCount > 0
-        ? `${h.title} — ${joinerCount} joiner${joinerCount === 1 ? '' : 's'} — hope it was good!`
+        ? `${h.title} — ${joinerCount} joiner${joinerCount === 1 ? '' : 's'} — leave a quick reference?`
         : `${h.title} ended with no joiners — try again with a different time?`,
-      `/hangouts`,
+      joinerCount > 0 ? `/hangouts/recap` : `/hangouts`,
     ).catch(() => {})
 
-    // Joiner recap — same closing-ritual purpose. Skips silent disappearance.
+    // Joiner recap — same closing-ritual purpose. Deep-links so they can
+    // rate the host (and any other joiners) and build the trust graph.
     for (const j of h.joins) {
       createNotification(
         j.userId,
         'hangout_recap',
         `✓ Hangout ended`,
-        `${h.title} with ${h.user.name} — hope it was good!`,
-        `/hangouts`,
+        `${h.title} with ${h.user.name} — leave a quick reference?`,
+        `/hangouts/recap`,
       ).catch(() => {})
     }
 

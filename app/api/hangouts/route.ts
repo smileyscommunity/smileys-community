@@ -25,7 +25,10 @@ export async function GET(req: NextRequest) {
     orderBy: { startsAt: 'asc' },
     take: 100,
     include: {
-      user:  { select: { id: true, name: true, color: true, profilePhoto: true } },
+      // goodHangouts surfaces as a "✓ N good hangouts" badge next to the
+      // host name on each card. Cheap to fetch (denormalized counter), and
+      // the single highest-signal trust cue we have right now.
+      user:  { select: { id: true, name: true, color: true, profilePhoto: true, goodHangouts: true } },
       joins: {
         select: { userId: true, user: { select: { id: true, name: true, color: true, profilePhoto: true } } },
         orderBy: { createdAt: 'asc' },

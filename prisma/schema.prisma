@@ -84,6 +84,8 @@ model User {
   hangouts                Hangout[]
   hangoutJoins            HangoutJoin[]
   hangoutMessages         HangoutMessage[]
+  hangoutReferencesGiven  HangoutReference[]      @relation("HangoutReferencesGiven")
+  hangoutReferencesGot    HangoutReference[]      @relation("HangoutReferencesGot")
   clubPollVotes           ClubPollVote[]
   clubPhotos              ClubPhoto[]
   clubSpotlights          Club[]                  @relation("ClubSpotlight")
@@ -98,6 +100,12 @@ model User {
   savedListings           SavedListing[]
   listingAlerts           String[]
   checkedInCount          Int                     @default(0)
+  // Hangout trust counters — denormalized for cheap reads on every hangout
+  // card. Source of truth is HangoutReference rows; these get incremented
+  // inside the same transaction that inserts a reference. If they ever
+  // drift, recompute from references in a one-off backfill script.
+  goodHangouts            Int                     @default(0)
+  noShowCount             Int                     @default(0)
   partner                 Partner?                @relation(fields: [partnerId], references: [id])
 
   // Security
@@ -1031,9 +1039,10 @@ model Hangout {
   // sweeper finds expired hangouts by status === 'active' && endsAt < now,
   // and flips the status as part of the same pass)
 
-  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  joins    HangoutJoin[]
-  messages HangoutMessage[]
+  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  joins      HangoutJoin[]
+  messages   HangoutMessage[]
+  references HangoutReference[]
 
   @@index([status, endsAt])
   @@index([status, startsAt])     // sweeper queries by (status, startsAt window)
@@ -1073,6 +1082,38 @@ model HangoutMessage {
 
   @@index([hangoutId, createdAt])
   @@map("hangout_messages")
+}
+
+// Per-hangout, per-pair trust signal. Joiners reference the host; the host
+// references each joiner. The aggregate goodHangouts / noShowCount counters
+// on User are the source-of-truth-for-reads — every other surface (hangout
+// card badge, member profile, application review) defers to those numbers.
+//
+// One reference per (hangout, from, to) tuple — re-clicking a button updates
+// the existing row via vibe field, doesn't insert duplicates.
+//
+// vibe values:
+//   - 'good'    — showed up, good chat. Increments toUser.goodHangouts.
+//   - 'meh'     — showed up, fine. No counter movement (neutral).
+//   - 'no_show' — said they were coming, never appeared. Increments
+//                 toUser.noShowCount.
+model HangoutReference {
+  id         String   @id @default(cuid())
+  hangoutId  String
+  fromUserId String   // who left the reference
+  toUserId   String   // who's being referenced
+  vibe       String   // 'good' | 'meh' | 'no_show'
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  hangout  Hangout @relation(fields: [hangoutId], references: [id], onDelete: Cascade)
+  fromUser User    @relation("HangoutReferencesGiven", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser   User    @relation("HangoutReferencesGot",   fields: [toUserId],   references: [id], onDelete: Cascade)
+
+  @@unique([hangoutId, fromUserId, toUserId])  // one ref per pair per hangout
+  @@index([toUserId, vibe])                     // for any rebuilds of the counters
+  @@index([hangoutId])
+  @@map("hangout_references")
 }
 
 // "I'm visiting Istanbul" announcements — anonymous-friendly so non-members
