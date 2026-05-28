@@ -26,9 +26,10 @@ export async function GET(req: NextRequest) {
     take: 100,
     include: {
       // goodHangouts surfaces as a "✓ N good hangouts" badge next to the
-      // host name on each card. Cheap to fetch (denormalized counter), and
-      // the single highest-signal trust cue we have right now.
-      user:  { select: { id: true, name: true, color: true, profilePhoto: true, goodHangouts: true } },
+      // host name on each card. languages drives the "Speaks my language"
+      // filter — overlap with caller's languages is computed client-side
+      // so we don't have to denormalize a derived field.
+      user:  { select: { id: true, name: true, color: true, profilePhoto: true, goodHangouts: true, languages: true } },
       joins: {
         select: { userId: true, user: { select: { id: true, name: true, color: true, profilePhoto: true } } },
         orderBy: { createdAt: 'asc' },
@@ -36,6 +37,42 @@ export async function GET(req: NextRequest) {
       _count: { select: { messages: true } },
     },
   })
+
+  // Mutual-connections per host — the friend-of-friend trust signal. Two
+  // queries: (1) caller's friend IDs, (2) host↔friend edges. Cheap because
+  // both are indexed on (requesterId|receiverId).
+  const hostIds = [...new Set(hangouts.map(h => h.userId).filter(id => id !== session.id))]
+  let mutualsByHost: Record<string, number> = {}
+  if (hostIds.length > 0) {
+    const myConns = await prisma.memberConnection.findMany({
+      where:  { status: 'accepted', OR: [{ requesterId: session.id }, { receiverId: session.id }] },
+      select: { requesterId: true, receiverId: true },
+    })
+    const myFriendIds = new Set<string>()
+    for (const c of myConns) {
+      if (c.requesterId !== session.id) myFriendIds.add(c.requesterId)
+      if (c.receiverId  !== session.id) myFriendIds.add(c.receiverId)
+    }
+
+    if (myFriendIds.size > 0) {
+      const friendArr = [...myFriendIds]
+      const hostConns = await prisma.memberConnection.findMany({
+        where: {
+          status: 'accepted',
+          OR: [
+            { requesterId: { in: hostIds   }, receiverId: { in: friendArr } },
+            { receiverId:  { in: hostIds   }, requesterId: { in: friendArr } },
+          ],
+        },
+        select: { requesterId: true, receiverId: true },
+      })
+      const hostSet = new Set(hostIds)
+      for (const c of hostConns) {
+        const hostId = hostSet.has(c.requesterId) ? c.requesterId : c.receiverId
+        mutualsByHost[hostId] = (mutualsByHost[hostId] ?? 0) + 1
+      }
+    }
+  }
 
   // Shape into something the client can render directly — joinedByMe is a
   // boolean instead of forcing the client to scan the joins array.
@@ -50,7 +87,12 @@ export async function GET(req: NextRequest) {
     status:       h.status,
     meetMode:     h.meetMode,
     photo:        h.photo,
-    user:         h.user,
+    user:         {
+      ...h.user,
+      // Number of caller's friends who are also friends with this host.
+      // Zero is normal for new members — only render the badge when > 0.
+      mutualConnections: mutualsByHost[h.userId] ?? 0,
+    },
     joiners:      h.joins.map(j => j.user),
     joinedByMe:   h.joins.some(j => j.userId === session.id),
     messageCount: h._count.messages,

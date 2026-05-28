@@ -12,10 +12,12 @@ import { toast } from 'sonner'
 
 interface JoinerSummary {
   id: string; name: string; color: string; profilePhoto: string | null
-  // Only the host slot includes goodHangouts (we don't fetch it for every
-  // joiner in the avatar strip — too noisy and the trust signal is mostly
-  // about who's hosting).
-  goodHangouts?: number
+  // Only the host slot includes goodHangouts + languages + mutualConnections
+  // (we don't fetch them for every joiner in the avatar strip — too noisy
+  // and the trust signal is mostly about who's hosting).
+  goodHangouts?:      number
+  languages?:         string[]
+  mutualConnections?: number
 }
 
 interface Hangout {
@@ -97,8 +99,12 @@ export default function HangoutsPage() {
   const [loading,  setLoading]  = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [showPulseForm, setShowPulseForm] = useState(false)
-  // Filter chip — defaults to 'all' so newcomers see the full feed.
-  const [modeFilter, setModeFilter] = useState<ModeFilter>('all')
+  // Filter chips — exclusive: meet-mode. Toggleable: neighborhood + language.
+  // All default to "off" / "all" so newcomers see the full feed by default;
+  // filters are an explicit narrowing action.
+  const [modeFilter,          setModeFilter]          = useState<ModeFilter>('all')
+  const [neighborhoodOnly,    setNeighborhoodOnly]    = useState(false)
+  const [languageOnly,        setLanguageOnly]        = useState(false)
 
   // Hangout form
   const [title,        setTitle]        = useState('')
@@ -425,12 +431,13 @@ export default function HangoutsPage() {
           </form>
         )}
 
-        {/* Filter chips — local to the feed, no server round-trip. 'All'
-            is the default; selecting solo/group narrows the hangouts. The
-            pulse pill is read-only (you can't filter to pulses-only since
-            they're a separate signal class). */}
+        {/* Filter chips — local to the feed, no server round-trip. The
+            meet-mode chips are exclusive (All / Open to all / Solo only);
+            the neighborhood + language toggles stack independently so a
+            user can mix any combination. Hidden when there's nothing to
+            filter. */}
         {!loading && (hangouts.length > 0 || pulses.length > 0) && (
-          <div className="flex items-center gap-2 -mt-2 overflow-x-auto">
+          <div className="flex items-center gap-2 -mt-2 overflow-x-auto pb-1">
             {([
               { v: 'all',   label: 'All' },
               { v: 'group', label: 'Open to all' },
@@ -445,6 +452,36 @@ export default function HangoutsPage() {
                 {opt.label}
               </button>
             ))}
+
+            {/* Neighborhood toggle — only meaningful if the caller has a
+                home neighborhood set; suppress otherwise so the chip isn't
+                a no-op for users who never picked one. */}
+            {user.neighborhood && (
+              <button onClick={() => setNeighborhoodOnly(v => !v)}
+                className={`text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap transition-colors ${
+                  neighborhoodOnly
+                    ? 'bg-amber-500 text-white'
+                    : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300'
+                }`}
+                title={`Filter to ${user.neighborhood}`}>
+                📍 {user.neighborhood}
+              </button>
+            )}
+
+            {/* Language toggle — same suppression pattern: if no languages
+                set on the profile, the chip would never match anything. */}
+            {(user.languages?.length ?? 0) > 0 && (
+              <button onClick={() => setLanguageOnly(v => !v)}
+                className={`text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap transition-colors ${
+                  languageOnly
+                    ? 'bg-amber-500 text-white'
+                    : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300'
+                }`}
+                title="Hosts who speak a language you do">
+                🗣 My language
+              </button>
+            )}
+
             {pulses.length > 0 && (
               <span className="text-xs text-amber-700 font-semibold px-3 py-1.5 rounded-full bg-amber-50 border border-amber-200 whitespace-nowrap ml-auto">
                 {pulses.length} {pulses.length === 1 ? 'pulse' : 'pulses'} active
@@ -456,14 +493,26 @@ export default function HangoutsPage() {
         {loading ? (
           <p className="text-center text-gray-400 text-sm py-10">Loading…</p>
         ) : (() => {
-          const filtered = modeFilter === 'all' ? hangouts : hangouts.filter(h => h.meetMode === modeFilter)
+          // Apply all three filters in order. modeFilter is exclusive
+          // (single chip), neighborhood + language are independent toggles.
+          const myLangs = new Set(user.languages ?? [])
+          const filtered = hangouts.filter(h => {
+            if (modeFilter !== 'all' && h.meetMode !== modeFilter) return false
+            if (neighborhoodOnly && h.neighborhood !== user.neighborhood) return false
+            if (languageOnly) {
+              const hostLangs = h.user.languages ?? []
+              if (!hostLangs.some(l => myLangs.has(l))) return false
+            }
+            return true
+          })
 
           if (filtered.length === 0 && pulses.length === 0) {
+            const anyFilterOn = modeFilter !== 'all' || neighborhoodOnly || languageOnly
             return (
               <div className="text-center py-16">
                 <div className="text-5xl mb-3">☕</div>
                 <p className="text-base font-bold text-gray-900 mb-1">
-                  {modeFilter === 'all' ? 'Nothing right now' : `No ${modeFilter === 'solo' ? 'solo' : 'group'} hangouts`}
+                  {anyFilterOn ? 'Nothing matches your filters' : 'Nothing right now'}
                 </p>
                 <p className="text-sm text-gray-500 mb-6 max-w-md mx-auto">
                   Be the first — post where you are or just drop a pulse if you don&apos;t want to commit to a venue yet.
@@ -620,6 +669,14 @@ function HangoutCard({ h, currentUserId, onCancel, onMutated }: {
             {!isOwner && (h.user.goodHangouts ?? 0) > 0 && (
               <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-green-50 text-green-700 text-[10px] font-semibold border border-green-200">
                 ✓ {h.user.goodHangouts} good hangout{h.user.goodHangouts === 1 ? '' : 's'}
+              </span>
+            )}
+            {/* Friend-of-friend signal — softens the "stranger meets
+                stranger" risk. Hidden at zero so the absence isn't a
+                negative cue. */}
+            {!isOwner && (h.user.mutualConnections ?? 0) > 0 && (
+              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-semibold border border-blue-200">
+                👥 {h.user.mutualConnections} mutual
               </span>
             )}
           </p>
