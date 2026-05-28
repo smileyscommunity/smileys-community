@@ -31,6 +31,17 @@ export async function GET(req: NextRequest, { params }: Params) {
         // request per message. Small list (1 row per reactor) so payload
         // stays compact.
         reactions: { select: { userId: true, emoji: true } },
+        // Quoted-message snippet for reply chips. We embed a snippet rather
+        // than relying on the client having the parent in the same batch —
+        // a reply might quote an older message that was paginated out.
+        replyTo: {
+          select: {
+            id: true,
+            text: true,
+            imageUrl: true,
+            from: { select: { id: true, name: true } },
+          },
+        },
       },
     })
 
@@ -58,7 +69,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Sending too fast — slow down' }, { status: 429 })
     }
 
-    const { text, imageUrl } = await req.json()
+    const { text, imageUrl, replyToId } = await req.json()
     const hasText  = typeof text === 'string' && text.trim().length > 0
     const hasImage = typeof imageUrl === 'string' && imageUrl.length > 0
     if (!hasText && !hasImage) return NextResponse.json({ error: 'Message cannot be empty' }, { status: 400 })
@@ -69,6 +80,22 @@ export async function POST(req: NextRequest, { params }: Params) {
     const photoRegex = /^\/app\/api\/files\/[a-zA-Z0-9\-]+\/[a-zA-Z0-9\-]+\.(jpg|jpeg|png|webp|gif)$/
     const safeImageUrl = hasImage && photoRegex.test(imageUrl) ? imageUrl : null
     if (hasImage && !safeImageUrl) return NextResponse.json({ error: 'Invalid image URL' }, { status: 400 })
+
+    // Verify the replyToId (if present) belongs to this conversation — prevents
+    // quoting random messages from other threads.
+    let safeReplyToId: string | null = null
+    if (typeof replyToId === 'string' && replyToId.length > 0) {
+      const parent = await prisma.directMessage.findUnique({
+        where:  { id: replyToId },
+        select: { fromId: true, toId: true },
+      })
+      const inThread = parent && (
+        (parent.fromId === session.id && parent.toId === toId) ||
+        (parent.fromId === toId       && parent.toId === session.id)
+      )
+      if (!inThread) return NextResponse.json({ error: 'Invalid reply target' }, { status: 400 })
+      safeReplyToId = replyToId
+    }
 
     const isModeration = isAdminOrModerator(session)
     const privileged = isModeration || await isClubHost(session.id)
@@ -105,14 +132,16 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     const message = await prisma.directMessage.create({
       data: {
-        fromId: session.id,
+        fromId:    session.id,
         toId,
-        text: hasText ? text.trim() : '',
-        imageUrl: safeImageUrl,
+        text:      hasText ? text.trim() : '',
+        imageUrl:  safeImageUrl,
+        replyToId: safeReplyToId,
       },
       include: {
         from:      { select: { id: true, name: true, color: true, profilePhoto: true } },
         reactions: { select: { userId: true, emoji: true } },
+        replyTo:   { select: { id: true, text: true, imageUrl: true, from: { select: { id: true, name: true } } } },
       },
     })
 

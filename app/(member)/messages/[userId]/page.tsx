@@ -7,10 +7,18 @@ import { resolveImageUrl, getInitials } from '@/lib/data'
 
 interface Reaction { userId: string; emoji: string }
 
+interface ReplySnippet {
+  id: string
+  text: string
+  imageUrl: string | null
+  from: { id: string; name: string }
+}
+
 interface Message {
   id: string
   text: string
   imageUrl: string | null
+  replyTo: ReplySnippet | null
   fromId: string
   toId: string
   isRead: boolean
@@ -73,6 +81,9 @@ export default function ThreadPage({ params }: { params: Promise<{ userId: strin
   const [pendingImage, setPendingImage] = useState<string | null>(null)
   // Which message has its reaction picker open (mobile-friendly: tap "+" to open).
   const [reactingId,   setReactingId]   = useState<string | null>(null)
+  // Message being replied to — shows a preview above the input bar until
+  // the reply is sent or dismissed.
+  const [replyingTo,   setReplyingTo]   = useState<Message | null>(null)
   const bottomRef  = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -136,7 +147,11 @@ export default function ThreadPage({ params }: { params: Promise<{ userId: strin
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, imageUrl: pendingImage ?? undefined }),
+      body: JSON.stringify({
+        text,
+        imageUrl:  pendingImage ?? undefined,
+        replyToId: replyingTo?.id ?? undefined,
+      }),
     })
     setSending(false)
     if (res.status === 403) { setNotConnected(true); return }
@@ -146,6 +161,7 @@ export default function ThreadPage({ params }: { params: Promise<{ userId: strin
     lastMsgRef.current = msg.createdAt
     setText('')
     setPendingImage(null)
+    setReplyingTo(null)
     textareaRef.current?.focus()
   }
 
@@ -275,6 +291,25 @@ export default function ThreadPage({ params }: { params: Promise<{ userId: strin
                       </div>
                     )}
                     <div className={`max-w-[72%] sm:max-w-[60%] relative`}>
+                      {/* Quote bubble — shown above the actual message when
+                          it's a reply. SetNull on parent delete means replyTo
+                          can be missing even if msg has replyToId; we just
+                          don't render the chip in that case. */}
+                      {msg.replyTo && (
+                        <div className={`mb-1 px-3 py-1.5 rounded-xl text-xs border-l-2 ${
+                          isMe
+                            ? 'bg-amber-400/40 border-amber-200 text-amber-50'
+                            : 'bg-gray-50 border-amber-400 text-gray-600'
+                        }`}>
+                          <p className={`font-semibold mb-0.5 ${isMe ? 'text-amber-50' : 'text-amber-700'}`}>
+                            {msg.replyTo.from.id === me?.id ? 'You' : msg.replyTo.from.name}
+                          </p>
+                          <p className="truncate">
+                            {msg.replyTo.imageUrl && !msg.replyTo.text ? '📷 Photo' : (msg.replyTo.text || '📷 Photo')}
+                          </p>
+                        </div>
+                      )}
+
                       {/* Image attachment — shown above text bubble when present */}
                       {msg.imageUrl && (
                         <a href={resolveImageUrl(msg.imageUrl)} target="_blank" rel="noopener noreferrer"
@@ -328,7 +363,7 @@ export default function ThreadPage({ params }: { params: Promise<{ userId: strin
                             {msg.isRead ? '✓✓' : '✓'}
                           </span>
                         )}
-                        {/* React button (always visible on mobile via tap; hover-revealed on desktop) */}
+                        {/* React + Reply buttons (always visible on mobile via tap; hover-revealed on desktop) */}
                         <button
                           onClick={() => setReactingId(r => r === msg.id ? null : msg.id)}
                           className="opacity-60 sm:opacity-0 sm:group-hover:opacity-100 text-xs text-gray-400 hover:text-amber-500 transition-all"
@@ -336,6 +371,14 @@ export default function ThreadPage({ params }: { params: Promise<{ userId: strin
                           aria-label="React"
                         >
                           😀+
+                        </button>
+                        <button
+                          onClick={() => { setReplyingTo(msg); textareaRef.current?.focus() }}
+                          className="opacity-60 sm:opacity-0 sm:group-hover:opacity-100 text-xs text-gray-400 hover:text-amber-500 transition-all"
+                          title="Reply"
+                          aria-label="Reply"
+                        >
+                          ↩
                         </button>
                         {isMe && (
                           <button
@@ -380,6 +423,23 @@ export default function ThreadPage({ params }: { params: Promise<{ userId: strin
           </div>
         ) : (
           <div>
+            {/* "Replying to..." preview — sits above the input until sent
+                or dismissed. Snippet only; full message stays in the thread. */}
+            {replyingTo && (
+              <div className="mb-2 flex items-center gap-2 bg-amber-50 border-l-2 border-amber-400 rounded-r-xl px-3 py-2">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold text-amber-700">
+                    Replying to {replyingTo.from.id === me?.id ? 'yourself' : replyingTo.from.name}
+                  </p>
+                  <p className="text-xs text-gray-600 truncate">
+                    {replyingTo.imageUrl && !replyingTo.text ? '📷 Photo' : (replyingTo.text || '📷 Photo')}
+                  </p>
+                </div>
+                <button onClick={() => setReplyingTo(null)}
+                  className="w-6 h-6 text-gray-400 hover:text-gray-700 text-lg leading-none shrink-0">×</button>
+              </div>
+            )}
+
             {/* Pending image preview — small thumbnail above the input bar with
                 a × to remove before sending. */}
             {pendingImage && (

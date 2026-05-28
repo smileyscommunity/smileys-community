@@ -901,16 +901,22 @@ model DirectMessage {
   // (/app/api/files/<sub>/<file>.ext). text remains required; can be a single
   // space for an image-only message.
   imageUrl  String?
+  // Reply-to — self-referencing FK. SetNull (not Cascade) so deleting the
+  // original message keeps the reply visible (it just loses the quote chip).
+  replyToId String?
   isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
 
   from      User                    @relation("SentMessages",     fields: [fromId], references: [id], onDelete: Cascade)
   to        User                    @relation("ReceivedMessages", fields: [toId],   references: [id], onDelete: Cascade)
+  replyTo   DirectMessage?          @relation("DMReplyTo", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies   DirectMessage[]         @relation("DMReplyTo")
   reactions DirectMessageReaction[]
 
   @@index([fromId, toId])
   @@index([toId, isRead])
   @@index([createdAt])
+  @@index([replyToId])
   @@map("direct_messages")
 }
 
