@@ -16,6 +16,10 @@ interface Application {
   enjoyWith: string | null; goodCommunity: string | null; interests: string[]
   contribution: string | null; groupBehavior: string | null
   removedFromCommunity: string | null; toxicBehavior: string | null
+  // New consolidated fields — preferred when present.
+  aboutCommunity: string | null; socialJudgment: string | null
+  languages: string[]
+  openToCoffee: boolean; openToLanguage: boolean; openToHosting: boolean
   profilePhoto: string | null; suggestion: string | null; suggestedBy: string | null
   bio: string | null; source: string | null; referredBy: string | null; status: string
   reviewNote: string | null; createdAt: string; reviewer: { name: string } | null
@@ -42,16 +46,17 @@ const INTERESTS = ['sailing','dining','social','wellness','networking','language
 function score(app: Application): number {
   let s = 0
   const GENERIC = ['just meet','meet people','meet new people','make friends','socialize','hang out','networking opportunities','new connections']
-  const combined = [app.whyJoin, app.goodCommunity, app.enjoyWith].map(a => (a ?? '').toLowerCase()).join(' ')
-  const isGeneric = GENERIC.some(kw => combined.includes(kw))
-  const detailed  = (app.whyJoin?.length ?? 0) > 80 && (app.goodCommunity?.length ?? 0) > 50
-  if (detailed)                                              s += 20
+  // Coalesce new + legacy essay fields so scoring works across both schemas.
+  const essayText = [app.aboutCommunity, app.whyJoin, app.goodCommunity, app.enjoyWith].map(a => (a ?? '').toLowerCase()).join(' ')
+  const essayLen  = (app.aboutCommunity?.length ?? 0) + (app.whyJoin?.length ?? 0) + (app.goodCommunity?.length ?? 0)
+  const isGeneric = GENERIC.some(kw => essayText.includes(kw))
+  if (essayLen > 200)                                        s += 20
   if (app.contribution === 'host' || app.contribution === 'organize') s += 15
-  if ((app.whyJoin?.length ?? 0) > 60 && !isGeneric)       s += 20
-  if (app.instagram || app.linkedin)                        s += 10
-  if (!app.whyJoin && !app.goodCommunity && !app.bio)       s -= 30
-  if (isGeneric)                                            s -= 15
-  if (!app.profilePhoto)                                    s -= 40
+  if (essayLen > 80 && !isGeneric)                           s += 20
+  if (app.instagram || app.linkedin)                         s += 10
+  if (!app.aboutCommunity && !app.whyJoin && !app.goodCommunity && !app.bio) s -= 30
+  if (isGeneric)                                             s -= 15
+  if (!app.profilePhoto)                                     s -= 40
   return Math.max(0, Math.min(100, s))
 }
 
@@ -64,11 +69,11 @@ function Score({ app }: { app: Application }) {
 
 function Flag({ app }: { app: Application }) {
   const GENERIC  = ['just meet','meet people','meet new people','make friends','socialize','hang out']
-  const combined = [app.whyJoin, app.goodCommunity, app.enjoyWith].map(a => (a ?? '').toLowerCase()).join(' ')
+  const combined = [app.aboutCommunity, app.whyJoin, app.goodCommunity, app.enjoyWith].map(a => (a ?? '').toLowerCase()).join(' ')
   const removed  = (app.removedFromCommunity ?? '').toLowerCase()
   if (removed && removed !== 'no' && removed.length > 2)
     return <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-500/10 text-red-400">⚠️ Flagged</span>
-  if (!app.whyJoin && !app.goodCommunity && !app.bio)
+  if (!app.aboutCommunity && !app.whyJoin && !app.goodCommunity && !app.bio)
     return <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-zinc-700 text-zinc-400">Empty</span>
   if (GENERIC.some(kw => combined.includes(kw)))
     return <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-zinc-700 text-zinc-400">Generic</span>
@@ -397,9 +402,9 @@ function AdminApplicationsPageInner() {
                   {app.profession && <span className="text-xs text-zinc-500">{app.profession}</span>}
                   {app.country && <span className="text-xs text-zinc-600">· {app.country}</span>}
                 </div>
-                {(app.whyJoin || app.bio) && (
+                {(app.aboutCommunity || app.whyJoin || app.bio) && (
                   <p className="text-xs text-zinc-500 mt-0.5 truncate">
-                    {(app.whyJoin || app.bio)?.slice(0, 100)}
+                    {(app.aboutCommunity || app.whyJoin || app.bio)?.slice(0, 100)}
                   </p>
                 )}
                 <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
@@ -656,6 +661,11 @@ function AdminApplicationsPageInner() {
                   })()}
 
                   {/* Key answers */}
+                  {selected.aboutCommunity && (
+                    <div className="bg-zinc-800/40 border border-zinc-700 rounded-xl p-3 mb-3">
+                      <QA q="Community they're looking for + what they'd bring" a={selected.aboutCommunity} />
+                    </div>
+                  )}
                   {(selected.whyJoin || selected.goodCommunity || selected.enjoyWith) && (
                     <div className="space-y-3">
                       <QA q="Why join Smileys?" a={selected.whyJoin} />
@@ -674,6 +684,11 @@ function AdminApplicationsPageInner() {
                   )}
 
                   {/* Social behavior */}
+                  {selected.socialJudgment && (
+                    <div className="bg-zinc-800/40 border border-zinc-700 rounded-xl p-3 mb-3">
+                      <QA q="Handled a difficult social situation" a={selected.socialJudgment} />
+                    </div>
+                  )}
                   {(selected.groupBehavior || selected.removedFromCommunity || selected.toxicBehavior) && (
                     <div className="border-t border-zinc-800 pt-4 space-y-3">
                       <QA q="In group settings" a={selected.groupBehavior} />

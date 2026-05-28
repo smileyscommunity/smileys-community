@@ -77,6 +77,10 @@ export async function POST(req: NextRequest) {
     const color    = COLORS[Math.floor(Math.random() * COLORS.length)]
     const initials = name.trim().split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
 
+    // Carry the openTo flags + languages forward from the approved application
+    // so the new member lands discoverable in /members filters on day 1.
+    // Registration form values take priority; fall back to application values.
+    const langsFromReg = Array.isArray(languages) ? languages : []
     const user = await prisma.user.create({
       data: {
         name:         name.trim(),
@@ -88,8 +92,11 @@ export async function POST(req: NextRequest) {
         phone:        phone        ?? null,
         nationality:  nationality  ?? null,
         neighborhood: neighborhood ?? null,
-        languages:    Array.isArray(languages) ? languages : [],
+        languages:    langsFromReg.length > 0 ? langsFromReg : (application?.languages ?? []),
         interests:    Array.isArray(interests)  ? interests  : [],
+        openToCoffee:   application?.openToCoffee   ?? false,
+        openToLanguage: application?.openToLanguage ?? false,
+        openToHosting:  application?.openToHosting  ?? false,
       },
     })
 

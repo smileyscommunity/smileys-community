@@ -454,15 +454,32 @@ model MemberApplication {
   profession           String?
   timeInCity           String?
   reasonHere           String?
+  // Legacy essay fields — collected before the apply form was consolidated.
+  // Kept nullable so older applications keep their answers visible in admin
+  // review. New applications populate aboutCommunity instead.
   whyJoin              String?
   enjoyWith            String?
   goodCommunity        String?
+  // Replaces whyJoin + enjoyWith + goodCommunity — one prompt covering all
+  // three: "What community are you looking for, and what would you bring to it?"
+  aboutCommunity       String?
   interests            String[]
   socialStyles         String[]
   contribution         String?
   groupBehavior        String?
   removedFromCommunity String?
   toxicBehavior        String?
+  // Replaces groupBehavior + removedFromCommunity + toxicBehavior — one
+  // prompt: "Tell us about a time you handled a difficult social situation well."
+  socialJudgment       String?
+  // Languages spoken — multi-select on apply, populates User.languages on
+  // approval (currently registration re-prompts; can later prefill).
+  languages            String[]
+  // "Open to…" pre-set at apply time; copied to User.openTo* on registration
+  // so new members land discoverable in /members filters from day 1.
+  openToCoffee         Boolean   @default(false)
+  openToLanguage       Boolean   @default(false)
+  openToHosting        Boolean   @default(false)
   profilePhoto         String?
   assignedClubs        String[]
   suggestion           String?

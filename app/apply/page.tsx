@@ -48,6 +48,14 @@ const SOCIAL_STYLES = [
   { id: 'up_for_anything',  label: '🎭 Up for Anything',   desc: 'Spontaneous and adventurous' },
 ]
 
+// Common languages on apply — matches the list shown in /profile edit.
+// (Could be hoisted to lib/data later if anywhere else needs it.)
+const COMMON_LANGUAGES = [
+  'English', 'Turkish', 'Arabic', 'Russian', 'German', 'French',
+  'Spanish', 'Italian', 'Persian', 'Portuguese', 'Chinese', 'Japanese',
+  'Korean', 'Hindi', 'Ukrainian', 'Dutch', 'Greek', 'Hebrew',
+]
+
 const INTERESTS_LIST = [
   { value: 'sailing',    label: 'Sailing',               emoji: '⛵' },
   { value: 'dining',     label: 'Dining',                emoji: '🍽️' },
@@ -84,13 +92,20 @@ function ApplyForm() {
   const [form,    setForm]    = useState({
     firstName: '', lastName: '', email: '', phone: '', birthdate: '', gender: '',
     country: '', neighborhood: '',
-    instagram: '', linkedin: '',
     profession: '', timeInCity: '', reasonHere: '', bio: '', source: '',
-    whyJoin: '', enjoyWith: '', goodCommunity: '',
+    // One consolidated essay (replaces whyJoin + enjoyWith + goodCommunity)
+    aboutCommunity: '',
     contribution: '',
-    groupBehavior: '', removedFromCommunity: '', toxicBehavior: '',
+    // One judgment prompt (replaces groupBehavior + removedFromCommunity + toxicBehavior)
+    socialJudgment: '',
     profilePhoto: '',
+    // Open-to flags collected at apply time so new members are discoverable
+    // on day 1 (copied to User on registration via approved application).
+    openToCoffee:   false,
+    openToLanguage: false,
+    openToHosting:  false,
   })
+  const [languages, setLanguages] = useState<string[]>([])
   const [interests,      setInterests]      = useState<string[]>([])
   const [socialStyles,   setSocialStyles]   = useState<string[]>([])
   const [agreements,     setAgreements]     = useState({ a1: false, a2: false, a3: false })
@@ -195,7 +210,7 @@ function ApplyForm() {
       const res  = await fetch('/app/api/apply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, interests, socialStyles, referredBy: refCode || undefined, _hp: honeypot, _cf: turnstileToken, _fp: fingerprint, _tz: browserTz }),
+        body: JSON.stringify({ ...form, interests, socialStyles, languages, referredBy: refCode || undefined, _hp: honeypot, _cf: turnstileToken, _fp: fingerprint, _tz: browserTz }),
       })
       const data = await res.json()
       if (!res.ok) { showError(data.error ?? 'Failed to submit'); return }
@@ -373,18 +388,8 @@ function ApplyForm() {
                 placeholder="you@example.com" className={fieldCls(fieldErrors.email)} />
               {fieldErrors.email && <p className="text-xs text-red-500 mt-1">{fieldErrors.email}</p>}
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-2">Instagram</label>
-                <input type="text" value={form.instagram} onChange={e => set('instagram', e.target.value)}
-                  placeholder="@handle" className={inputCls} />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-2">LinkedIn</label>
-                <input type="text" value={form.linkedin} onChange={e => set('linkedin', e.target.value)}
-                  placeholder="linkedin.com/in/…" className={inputCls} />
-              </div>
-            </div>
+            {/* Instagram + LinkedIn moved to profile-edit post-approval —
+                most applicants filled only one anyway, kept the funnel lighter. */}
           </>}
 
           {/* Step 2: About You */}
@@ -424,32 +429,47 @@ function ApplyForm() {
             </div>
           </>}
 
-          {/* Step 3: Community Fit */}
+          {/* Step 3: Community Fit — one consolidated prompt replaces three
+              overlapping ones (whyJoin / enjoyWith / goodCommunity). */}
           {step === 2 && <>
             <h2 className="font-bold text-gray-900 text-base mb-1">Community Fit</h2>
             <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-2">Why do you want to join Smileys?</label>
-              <textarea rows={3} value={form.whyJoin} onChange={e => set('whyJoin', e.target.value)}
-                placeholder="What draws you to Smileys specifically…"
+              <label className="block text-xs font-semibold text-gray-500 mb-2">
+                What kind of community are you looking for — and what would you bring to it?
+              </label>
+              <textarea rows={6} value={form.aboutCommunity} onChange={e => set('aboutCommunity', e.target.value)}
+                placeholder="The community you're hoping to find, the people you'd love to spend time with, what you'd add to the mix…"
                 className={`${inputCls} resize-none`} />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-2">What kind of people do you enjoy spending time with?</label>
-              <textarea rows={3} value={form.enjoyWith} onChange={e => set('enjoyWith', e.target.value)}
-                placeholder="Describe your ideal social circle…"
-                className={`${inputCls} resize-none`} />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-2">What does a "good community" mean to you?</label>
-              <textarea rows={3} value={form.goodCommunity} onChange={e => set('goodCommunity', e.target.value)}
-                placeholder="What makes a community worth being part of…"
-                className={`${inputCls} resize-none`} />
+              <p className="text-xs text-gray-400 mt-1">A few sentences is plenty. Specific beats long.</p>
             </div>
           </>}
 
-          {/* Step 4: Interests + Social Style */}
+          {/* Step 4: Languages + Interests + Social Style */}
           {step === 3 && <>
-            <h2 className="font-bold text-gray-900 text-base mb-1">Interests & Activities</h2>
+            {/* Languages chip multi-select — top matching axis for an
+                expat-heavy community, currently missing from apply. */}
+            <div>
+              <h2 className="font-bold text-gray-900 text-base mb-1">Languages you speak</h2>
+              <p className="text-xs text-gray-400 mb-2">Pick all that apply.</p>
+              <div className="flex flex-wrap gap-2">
+                {COMMON_LANGUAGES.map(lang => {
+                  const active = languages.includes(lang)
+                  return (
+                    <button key={lang} type="button"
+                      onClick={() => setLanguages(prev =>
+                        prev.includes(lang) ? prev.filter(l => l !== lang) : [...prev, lang]
+                      )}
+                      className={`px-3 py-1.5 rounded-full border text-sm font-medium transition-all ${
+                        active ? 'bg-amber-50 border-amber-400 text-amber-700' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                      }`}>
+                      {lang}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <h2 className="font-bold text-gray-900 text-base mb-1 pt-4 mt-4 border-t border-gray-100">Interests & Activities</h2>
             <p className="text-xs text-gray-400">Select everything that interests you</p>
             <div className="grid grid-cols-2 gap-2 pt-1">
               {INTERESTS_LIST.map(item => {
@@ -520,26 +540,17 @@ function ApplyForm() {
             </div>
 
             <div className="pt-2">
-              <h3 className="font-bold text-gray-900 text-sm mb-3">Social Behavior</h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-2">How do you usually behave in group settings?</label>
-                  <textarea rows={2} value={form.groupBehavior} onChange={e => set('groupBehavior', e.target.value)}
-                    placeholder="e.g. I'm usually the one who brings people together…"
-                    className={`${inputCls} resize-none`} />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-2">Have you ever been removed from a community? <span className="font-normal text-gray-400">(If yes, why?)</span></label>
-                  <textarea rows={2} value={form.removedFromCommunity} onChange={e => set('removedFromCommunity', e.target.value)}
-                    placeholder="No / Yes — briefly explain…"
-                    className={`${inputCls} resize-none`} />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-2">What would you do if you see toxic behavior in a group?</label>
-                  <textarea rows={2} value={form.toxicBehavior} onChange={e => set('toxicBehavior', e.target.value)}
-                    placeholder="e.g. I would address it directly, speak to the organizer…"
-                    className={`${inputCls} resize-none`} />
-                </div>
+              <h3 className="font-bold text-gray-900 text-sm mb-3">Social Judgment</h3>
+              {/* One open prompt replaces three direct interrogation questions
+                  (groupBehavior / removedFromCommunity / toxicBehavior). Same
+                  screening signal, less defensive vibe. */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-2">
+                  Tell us about a time you handled a difficult social situation well.
+                </label>
+                <textarea rows={4} value={form.socialJudgment} onChange={e => set('socialJudgment', e.target.value)}
+                  placeholder="A few sentences — what happened, what you did, how it landed."
+                  className={`${inputCls} resize-none`} />
               </div>
             </div>
           </>}
@@ -567,6 +578,27 @@ function ApplyForm() {
                   </>}
                 </button>
               )}
+            </div>
+
+            {/* Open-to flags — pre-set at apply so on approval the new
+                member lands discoverable in /members filters. Skipping these
+                doesn't block the application. */}
+            <div className="pt-4 mt-2 border-t border-gray-100 space-y-2">
+              <h3 className="font-bold text-gray-900 text-sm">Open to… <span className="font-normal text-gray-400">(optional)</span></h3>
+              <p className="text-xs text-gray-400 mb-1">Lets newcomers and locals reach out for the right kind of meet-up.</p>
+              {[
+                { key: 'openToCoffee'   as const, emoji: '☕', label: 'Coffee with newcomers' },
+                { key: 'openToLanguage' as const, emoji: '🗣️', label: 'Language exchange'    },
+                { key: 'openToHosting'  as const, emoji: '🏠', label: 'Hosting visitors'     },
+              ].map(opt => (
+                <label key={opt.key} className="flex items-center gap-3 cursor-pointer py-1">
+                  <input type="checkbox"
+                    checked={form[opt.key] as boolean}
+                    onChange={e => setForm(f => ({ ...f, [opt.key]: e.target.checked }))}
+                    className="w-4 h-4 rounded text-amber-500 focus:ring-amber-400" />
+                  <span className="text-sm text-gray-700"><span className="mr-1.5">{opt.emoji}</span>{opt.label}</span>
+                </label>
+              ))}
             </div>
 
             <div className="pt-2 space-y-3">

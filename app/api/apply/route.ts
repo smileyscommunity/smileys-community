@@ -40,6 +40,11 @@ export async function POST(req: NextRequest) {
 
     const { firstName, lastName, email, phone, birthdate, gender, country, city, neighborhood, instagram, linkedin,
             profession, timeInCity, reasonHere,
+            // New consolidated fields (UI now posts these instead of the 3+3 below)
+            aboutCommunity, socialJudgment, languages,
+            openToCoffee, openToLanguage, openToHosting,
+            // Legacy fields still accepted so older clients / drafts don't break;
+            // routed to their existing columns and not surfaced in the new UI.
             whyJoin, enjoyWith, goodCommunity, interests, socialStyles,
             contribution, groupBehavior, removedFromCommunity, toxicBehavior,
             profilePhoto,
@@ -202,10 +207,17 @@ export async function POST(req: NextRequest) {
         goodCommunity:        goodCommunity?.trim()        || null,
         interests:            Array.isArray(interests)    ? interests    : [],
         socialStyles:         Array.isArray(socialStyles) ? socialStyles : [],
+        languages:            Array.isArray(languages)    ? languages    : [],
         contribution:         contribution?.trim()         || null,
         groupBehavior:        groupBehavior?.trim()        || null,
         removedFromCommunity: removedFromCommunity?.trim() || null,
         toxicBehavior:        toxicBehavior?.trim()        || null,
+        // Consolidated essay + judgment fields — current UI posts these instead.
+        aboutCommunity:       aboutCommunity?.trim()       || null,
+        socialJudgment:       socialJudgment?.trim()       || null,
+        openToCoffee:         openToCoffee   === true,
+        openToLanguage:       openToLanguage === true,
+        openToHosting:        openToHosting  === true,
         profilePhoto:         profilePhoto?.trim()         || null,
         assignedClubs:        [],
         bio:                  bio?.trim()                  || null,
