@@ -35,6 +35,9 @@ const PREF_KEY: Record<string, 'newEvents' | 'reminders' | 'eventUpdates' | 'joi
   // Hangout + visitor types — all transactional (high-signal, user-initiated).
   hangout_join:       null,
   hangout_message:    null,
+  hangout_starting:   null,  // "starts in 30 min" reminder from sweeper cron
+  hangout_recap:      null,  // "ended — hope it was good" closer from sweeper cron
+  hangout_cancelled:  null,  // host cancelled — notify joiners
   visitor_announced:  null,
   listing_new:        null,
 }

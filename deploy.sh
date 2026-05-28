@@ -55,9 +55,17 @@ rsync -av --delete \
   --exclude='data/banners.json' \
   --exclude='data/why-content.json' \
   --exclude='data/content.json' \
+  --exclude='data/city-guide.json' \
   "$LOCAL/" "$SERVER:$REMOTE/" || { CODE=$?; [ "$CODE" = "23" ] || [ "$CODE" = "24" ] || exit $CODE; }
 
 echo "→ Starting server..."
 ssh "$SERVER" "cd $REMOTE && npm install --legacy-peer-deps && npx prisma generate --schema=./prisma/schema.prisma && npx prisma db push --schema=./prisma/schema.prisma && pm2 start smileys --max-memory-restart 512M && pm2 save"
+
+# Install the Hangouts sweeper cron (idempotent — strips any existing
+# sweep-hangouts line first, then adds a fresh one). Without this, expired
+# hangouts never get a recap and "starting soon" pushes never fire. The
+# script itself is fail-soft if CRON_SECRET isn't configured yet.
+echo "→ Registering hangouts sweeper crontab..."
+ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-hangouts.sh && (crontab -l 2>/dev/null | grep -v 'sweep-hangouts' ; echo '*/15 * * * * $REMOTE/scripts/sweep-hangouts.sh >> /var/log/sweep-hangouts.log 2>&1') | crontab -"
 
 echo "✓ Done (release: $SENTRY_RELEASE)"

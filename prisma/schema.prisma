@@ -1023,11 +1023,20 @@ model Hangout {
   status       String   @default("active") // active | expired | cancelled
   createdAt    DateTime @default(now())
 
+  // Lifecycle push tracking — set by the sweeper cron so we only fire each
+  // notification once per hangout, even if the sweeper runs concurrently or
+  // restarts mid-batch.
+  notifiedStartingAt DateTime?  // "starts in 30 min" push has been sent
+  // (recap push is implicitly tracked by status === 'expired' since the
+  // sweeper finds expired hangouts by status === 'active' && endsAt < now,
+  // and flips the status as part of the same pass)
+
   user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   joins    HangoutJoin[]
   messages HangoutMessage[]
 
   @@index([status, endsAt])
+  @@index([status, startsAt])     // sweeper queries by (status, startsAt window)
   @@index([neighborhood, status])
   @@map("hangouts")
 }
