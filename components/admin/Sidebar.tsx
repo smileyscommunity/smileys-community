@@ -279,7 +279,7 @@ export default function Sidebar({ open, onClose }: Props) {
                           )}
                         </span>
 
-                        <span className="leading-tight flex-1">{item.label}</span>
+                        <span className="leading-tight flex-1 md:text-left">{item.label}</span>
 
                         {/* Desktop: count chip — shows the number so admins
                             spot work without clicking. */}
