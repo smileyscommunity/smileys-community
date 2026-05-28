@@ -187,6 +187,8 @@ export default function LoginPage() {
                   type="email"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
+                  inputMode="email"
+                  autoComplete="email"
                   placeholder="you@example.com"
                   required
                   className="input"
@@ -203,6 +205,7 @@ export default function LoginPage() {
                     type={show ? 'text' : 'password'}
                     value={password}
                     onChange={e => setPassword(e.target.value)}
+                    autoComplete="current-password"
                     placeholder="••••••••"
                     required
                     className="input pr-12"
@@ -252,6 +255,7 @@ export default function LoginPage() {
                   inputMode="numeric"
                   pattern="\d{6}"
                   maxLength={6}
+                  autoComplete="one-time-code"
                   value={totpCode}
                   onChange={e => setTotpCode(e.target.value.replace(/\D/g, ''))}
                   placeholder="000000"

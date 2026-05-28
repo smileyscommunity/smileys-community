@@ -362,6 +362,7 @@ function ApplyForm() {
                 <input type="text" value={form.firstName}
                   onChange={e => set('firstName', e.target.value)}
                   onBlur={e => validateField('firstName', e.target.value)}
+                  autoComplete="given-name"
                   placeholder="Ayşe" className={fieldCls(fieldErrors.firstName)} />
                 {fieldErrors.firstName && <p className="text-xs text-red-500 mt-1">{fieldErrors.firstName}</p>}
               </div>
@@ -370,6 +371,7 @@ function ApplyForm() {
                 <input type="text" value={form.lastName}
                   onChange={e => set('lastName', e.target.value)}
                   onBlur={e => validateField('lastName', e.target.value)}
+                  autoComplete="family-name"
                   placeholder="Kaya" className={fieldCls(fieldErrors.lastName)} />
                 {fieldErrors.lastName && <p className="text-xs text-red-500 mt-1">{fieldErrors.lastName}</p>}
               </div>
@@ -378,6 +380,7 @@ function ApplyForm() {
               <div>
                 <label className="block text-xs font-semibold text-gray-500 mb-2">Date of birth</label>
                 <input type="date" value={form.birthdate} onChange={e => set('birthdate', e.target.value)}
+                  autoComplete="bday"
                   max={new Date().toISOString().split('T')[0]} className={inputCls} />
               </div>
               <div>
@@ -385,6 +388,7 @@ function ApplyForm() {
                 <select value={form.country}
                   onChange={e => set('country', e.target.value)}
                   onBlur={e => validateField('country', e.target.value)}
+                  autoComplete="country-name"
                   className={`${fieldCls(fieldErrors.country)} bg-white`}>
                   <option value="">Select country…</option>
                   {COUNTRIES.map(c => <option key={c.code} value={c.name}>{c.name}</option>)}
@@ -425,6 +429,8 @@ function ApplyForm() {
               <input type="tel" value={form.phone}
                 onChange={e => set('phone', e.target.value)}
                 onBlur={e => validateField('phone', e.target.value)}
+                inputMode="tel"
+                autoComplete="tel"
                 placeholder="+90 555 000 0000" className={fieldCls(fieldErrors.phone)} />
               {fieldErrors.phone && <p className="text-xs text-red-500 mt-1">{fieldErrors.phone}</p>}
             </div>
@@ -433,6 +439,8 @@ function ApplyForm() {
               <input type="email" value={form.email}
                 onChange={e => set('email', e.target.value)}
                 onBlur={e => validateField('email', e.target.value)}
+                inputMode="email"
+                autoComplete="email"
                 placeholder="you@example.com" className={fieldCls(fieldErrors.email)} />
               {fieldErrors.email && <p className="text-xs text-red-500 mt-1">{fieldErrors.email}</p>}
             </div>
