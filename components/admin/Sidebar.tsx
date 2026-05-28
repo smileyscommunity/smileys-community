@@ -59,7 +59,8 @@ const NAV_GROUPS = [
     items: [
       { label: 'Applications', href: '/admin/applications', exact: false, roles: ['admin', 'moderator'],  icon: 'applications' },
       { label: 'Users',        href: '/admin/users',        exact: false, roles: ['admin'],               icon: 'users'        },
-      { label: 'Reports',      href: '/admin/reports',      exact: false, roles: ['admin', 'moderator'],  icon: 'reports'      },
+      // "Reports" used to point at a misnamed analytics page; the actual
+      // member-reports queue lives at /admin/moderation (default tab).
       { label: 'Moderation',   href: '/admin/moderation',   exact: false, roles: ['admin', 'moderator'],  icon: 'moderation'   },
       { label: 'Retention',    href: '/admin/retention',    exact: false, roles: ['admin', 'moderator'],  icon: 'retention'    },
       { label: 'Audit Log',    href: '/admin/audit',        exact: false, roles: ['admin', 'moderator'],  icon: 'audit'        },

@@ -36,7 +36,6 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       const moderatorAllowed = [
         '/admin/moderator',
         '/admin/applications',
-        '/admin/reports',
         '/admin/moderation',
         '/admin/events',
         '/admin/participants',

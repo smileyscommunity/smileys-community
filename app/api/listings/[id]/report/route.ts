@@ -65,7 +65,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       'report',
       '🚨 Listing reported',
       `${session.name} flagged "${listing.title}" for ${reason}.`,
-      '/admin/reports',
+      '/admin/moderation',
     ).catch(() => {}))
 
     return NextResponse.json(report, { status: 201 })

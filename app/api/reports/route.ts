@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
       'report',
       '🚨 New report',
       `${session.name} reported ${reportedUser.name} for ${reasonLabel}.`,
-      '/admin/reports'
+      '/admin/moderation'
     ))
 
     return NextResponse.json(report)

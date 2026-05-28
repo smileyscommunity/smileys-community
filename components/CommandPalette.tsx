@@ -96,7 +96,7 @@ export default function CommandPalette() {
 
     ...((isMod && !isAdmin) ? [
       { id: 'm-applications', label: 'Applications', hint: 'Review applications', icon: '📄', group: 'Moderator', action: () => go('/admin/applications') },
-      { id: 'm-reports',      label: 'Reports',      hint: 'Community reports',   icon: '🚨', group: 'Moderator', action: () => go('/admin/reports')      },
+      { id: 'm-reports',      label: 'Reports',      hint: 'Community reports',   icon: '🚨', group: 'Moderator', action: () => go('/admin/moderation')   },
     ] : []),
 
     ...((isHost && !isAdmin) ? [
