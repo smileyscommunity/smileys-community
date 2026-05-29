@@ -2,8 +2,8 @@
 
 import { toast } from 'sonner'
 
-import { useState, useEffect, useMemo, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useState, useEffect, useMemo, useCallback, Suspense } from 'react'
+import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { getInitials } from '@/lib/data'
 
@@ -92,17 +92,78 @@ export default function AdminUsersPage() {
 
 function AdminUsersPageInner() {
   const searchParams = useSearchParams()
-  const [users,   setUsers]   = useState<DBUser[]>([])
-  const [loading, setLoading] = useState(true)
-  const [tab,     setTab]     = useState<TabKey>('all')
-  const [search,  setSearch]  = useState(searchParams.get('search') ?? '')
+  const router       = useRouter()
+  const pathname     = usePathname()
+  const [users,       setUsers]       = useState<DBUser[]>([])
+  const [loading,     setLoading]     = useState(true)
+  const [tab,         setTab]         = useState<TabKey>('all')
+  const [search,      setSearch]      = useState(searchParams.get('search') ?? '')
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
+  const [, setTick] = useState(0)  // forces re-render so the "Updated Xs ago" label ages
 
-  useEffect(() => {
+  // load() runs the initial fetch and the auto-refresh poll. background=true
+  // skips the skeleton flicker so the 30s refresh doesn't blank the page.
+  const load = useCallback((background = false) => {
+    if (!background) setLoading(true)
     fetch('/app/api/admin/users', { credentials: 'include' })
       .then(r => r.json())
-      .then(data => { setUsers(Array.isArray(data) ? data : []); setLoading(false) })
-      .catch(() => setLoading(false))
+      .then(data => {
+        if (Array.isArray(data)) {
+          setUsers(data)
+          setLastRefresh(new Date())
+        }
+      })
+      .catch(() => {})
+      .finally(() => { if (!background) setLoading(false) })
   }, [])
+
+  useEffect(() => { load(false) }, [load])
+
+  // Background auto-refresh every 30s, paused via the Page Visibility API
+  // when the tab is hidden (matches the applications page pattern) and
+  // resumed on focus with an immediate refresh.
+  useEffect(() => {
+    let timer: ReturnType<typeof setInterval> | null = null
+    const start = () => { if (!timer) timer = setInterval(() => { if (!document.hidden) load(true) }, 30_000) }
+    const stop  = () => { if (timer) { clearInterval(timer); timer = null } }
+    const onVisibility = () => { if (document.hidden) stop(); else { load(true); start() } }
+    start()
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => { stop(); document.removeEventListener('visibilitychange', onVisibility) }
+  }, [load])
+
+  // 1s tick so the "Updated Xs ago" label ages without refetching.
+  useEffect(() => {
+    const t = setInterval(() => setTick(n => n + 1), 1000)
+    return () => clearInterval(t)
+  }, [])
+
+  // URL-sync the search input — debounced 250ms so typing doesn't spam
+  // history. Replace (not push) so the back button doesn't re-create every
+  // intermediate query state.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const params = new URLSearchParams(searchParams.toString())
+      if (search) params.set('search', search)
+      else        params.delete('search')
+      const q = params.toString()
+      router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false })
+    }, 250)
+    return () => clearTimeout(t)
+  // searchParams is intentionally excluded — including it would re-fire the
+  // effect on every URL change (including the ones we just made), creating
+  // an infinite loop.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, pathname, router])
+
+  const refreshLabel = (() => {
+    if (!lastRefresh) return ''
+    const s = Math.floor((Date.now() - lastRefresh.getTime()) / 1000)
+    if (s < 5)     return 'Updated just now'
+    if (s < 60)    return `Updated ${s}s ago`
+    if (s < 3600)  return `Updated ${Math.floor(s / 60)}m ago`
+    return `Updated ${Math.floor(s / 3600)}h ago`
+  })()
 
 
   async function changeRole(u: DBUser, role: string) {
@@ -385,8 +446,9 @@ function AdminUsersPageInner() {
         </div>
 
         {visible.length > 0 && (
-          <div className="px-6 py-3 border-t border-zinc-800 bg-zinc-800/50 text-xs text-zinc-500">
-            Showing {visible.length} of {users.length} users
+          <div className="px-6 py-3 border-t border-zinc-800 bg-zinc-800/50 text-xs text-zinc-500 flex items-center justify-between gap-3 flex-wrap">
+            <span>Showing {visible.length} of {users.length} users</span>
+            {refreshLabel && <span className="text-zinc-600">{refreshLabel}</span>}
           </div>
         )}
       </div>
