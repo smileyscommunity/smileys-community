@@ -12,6 +12,8 @@ interface Stats {
   revenueCollected: number; revenuePending: number; pendingPayments: number
   pendingApplications: number; pendingReports: number
   trends: { members: number; rsvps: number; revenue: number }
+  hangouts:   { active: number; today: number; referencesWeek: number }
+  rsvpsByDay: number[]   // 7 entries, oldest first
 }
 
 interface AuditEntry {
@@ -126,14 +128,24 @@ export default function AdminPage() {
   return (
     <div className="p-4 sm:p-6 space-y-6 text-white">
 
-      {/* ── Header ── */}
-      {/* Used to host a "New Event" CTA on the right; removed because the
-          same action lives inside the Upcoming Events card (where it sits
-          with the thing it creates). One source of truth for "I want to
-          start a new event" beats two CTAs split across the page. */}
-      <div>
-        <p className="text-xs text-zinc-500 font-medium">{greeting}</p>
-        <h1 className="text-xl font-extrabold text-white tracking-tight">{firstName} 👋</h1>
+      {/* ── Header + quick search ──
+          Greeting on top, persistent search input below. The input is a
+          thin shim that dispatches the same 'open-command-palette' event
+          the mobile search button uses — gives moderators a discoverable
+          handle for ⌘K's underlying logic without duplicating it. */}
+      <div className="space-y-3">
+        <div>
+          <p className="text-xs text-zinc-500 font-medium">{greeting}</p>
+          <h1 className="text-xl font-extrabold text-white tracking-tight">{firstName} 👋</h1>
+        </div>
+        <button onClick={() => window.dispatchEvent(new CustomEvent('open-command-palette'))}
+          className="w-full sm:max-w-md flex items-center gap-2.5 px-3.5 py-2.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-xl transition-colors text-left">
+          <svg className="w-4 h-4 text-zinc-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <span className="text-sm text-zinc-500 flex-1">Search users, events, listings…</span>
+          <span className="hidden sm:inline text-[10px] font-bold text-zinc-600 bg-zinc-800 px-1.5 py-0.5 rounded">⌘K</span>
+        </button>
       </div>
 
       {/* ── Load error ── */}
@@ -222,6 +234,88 @@ export default function AdminPage() {
               : card.sub && <div className="text-[11px] text-zinc-600 mt-1">{card.sub}</div>}
           </Link>
         ))}
+      </div>
+
+      {/* ── Hangouts pulse + RSVPs sparkline ──
+          Two complementary signals: hangouts is the new spontaneous-meetup
+          surface (was completely invisible from admin before); RSVPs-per-day
+          gives the short-term momentum signal the single trend chip can't
+          show. Side-by-side on desktop, stacked on mobile. */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        {/* Hangouts pulse */}
+        <Link href="/hangouts"
+          className="bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-2xl p-4 transition-colors group">
+          <div className="flex items-start justify-between mb-3">
+            <span className="w-9 h-9 rounded-xl flex items-center justify-center text-lg bg-amber-500/10 text-amber-400">
+              ☕
+            </span>
+            <span className="text-xs text-zinc-500 font-medium">Hangouts</span>
+          </div>
+          {stats ? (
+            <div className="flex items-end gap-5">
+              <div>
+                <div className="text-2xl font-extrabold text-white group-hover:text-amber-400 transition-colors">{stats.hangouts.active}</div>
+                <div className="text-[11px] text-zinc-500 mt-0.5">active</div>
+              </div>
+              <div>
+                <div className="text-2xl font-extrabold text-zinc-300">{stats.hangouts.today}</div>
+                <div className="text-[11px] text-zinc-500 mt-0.5">today</div>
+              </div>
+              <div>
+                <div className="text-2xl font-extrabold text-zinc-300">{stats.hangouts.referencesWeek}</div>
+                <div className="text-[11px] text-zinc-500 mt-0.5">refs / 7d</div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-end gap-5">
+              {[1, 2, 3].map(i => (
+                <div key={i}>
+                  <div className="h-7 w-10 rounded-md bg-zinc-800 animate-pulse" />
+                  <div className="h-3 w-14 rounded-md bg-zinc-800/60 animate-pulse mt-1.5" />
+                </div>
+              ))}
+            </div>
+          )}
+        </Link>
+
+        {/* RSVPs sparkline — last 7 days, oldest left → newest right */}
+        <Link href="/admin/analytics?tab=events"
+          className="bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-2xl p-4 transition-colors group">
+          <div className="flex items-start justify-between mb-3">
+            <span className="w-9 h-9 rounded-xl flex items-center justify-center text-lg bg-green-500/10 text-green-400">
+              🎟️
+            </span>
+            <span className="text-xs text-zinc-500 font-medium">RSVPs · last 7 days</span>
+          </div>
+          {stats ? (() => {
+            const arr = stats.rsvpsByDay
+            const max = Math.max(...arr, 1)
+            const total = arr.reduce((s, v) => s + v, 0)
+            return (
+              <>
+                <div className="text-2xl font-extrabold text-white group-hover:text-amber-400 transition-colors">{total}</div>
+                <div className="text-[11px] text-zinc-600 mt-0.5 mb-3">attendances this week</div>
+                <div className="flex items-end gap-1 h-10">
+                  {arr.map((v, i) => (
+                    <div key={i} className="flex-1 flex flex-col items-center justify-end">
+                      <div
+                        className="w-full rounded-t bg-green-500/80"
+                        style={{ height: `${Math.max((v / max) * 36, v > 0 ? 4 : 1)}px` }}
+                        title={`${v} on day ${i + 1}`}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </>
+            )
+          })() : (
+            <>
+              <div className="h-7 w-16 rounded-md bg-zinc-800 animate-pulse" />
+              <div className="h-3 w-32 rounded-md bg-zinc-800/60 animate-pulse mt-1.5 mb-3" />
+              <div className="h-10 w-full rounded-md bg-zinc-800/60 animate-pulse" />
+            </>
+          )}
+        </Link>
       </div>
 
       {/* ── Main grid: Events + Audit ── */}
