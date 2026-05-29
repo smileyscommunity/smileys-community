@@ -5,6 +5,10 @@ import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { resolveImageUrl, todayIstanbul } from '@/lib/data'
 
+interface TopHost {
+  id: string; name: string; color: string; profilePhoto: string | null; count: number
+}
+
 interface Stats {
   totalAccounts: number; members: number; hosts: number
   events: number; upcoming: number; rsvps: number
@@ -12,8 +16,15 @@ interface Stats {
   revenueCollected: number; revenuePending: number; pendingPayments: number
   pendingApplications: number; pendingReports: number
   trends: { members: number; rsvps: number; revenue: number }
-  hangouts:   { active: number; today: number; referencesWeek: number }
+  hangouts:   {
+    active: number; today: number; referencesWeek: number
+    topHost: TopHost | null
+  }
+  visitorsThisWeek: number
+  funnel:     { applications: number; approved: number; firstEvent: number; repeat: number }
   rsvpsByDay: number[]   // 7 entries, oldest first
+  release:    string | null
+  uptimeSeconds: number
 }
 
 interface AuditEntry {
@@ -123,7 +134,33 @@ export default function AdminPage() {
       icon: '🚨', label: `${stats.pendingReports} report${stats.pendingReports !== 1 ? 's' : ''} to review`,
       href: '/admin/moderation', color: 'border-red-500/30 bg-red-500/5 text-red-400',
     },
+    // Visitors pill — soft signal, not a "do something" alert. Sits in the
+    // same row so admins see "what's happening" + "what needs me" together.
+    stats.visitorsThisWeek > 0 && {
+      icon: '👋', label: `${stats.visitorsThisWeek} visitor${stats.visitorsThisWeek !== 1 ? 's' : ''} this week`,
+      href: '/visiting', color: 'border-blue-500/30 bg-blue-500/5 text-blue-400',
+    },
   ].filter(Boolean) as { icon: string; label: string; href: string; color: string }[] : []
+
+  // Conversion funnel one-liner — shows the funnel as percentages of the
+  // previous stage. Hidden when no applications exist (zero-data community).
+  const funnelLine = stats && stats.funnel.applications > 0 ? (() => {
+    const f = stats.funnel
+    const approvedPct   = Math.round((f.approved   / f.applications) * 100)
+    const firstPct      = f.approved   > 0 ? Math.round((f.firstEvent / f.approved) * 100)   : 0
+    const repeatPct     = f.firstEvent > 0 ? Math.round((f.repeat     / f.firstEvent) * 100) : 0
+    return { approvedPct, firstPct, repeatPct }
+  })() : null
+
+  // Deploy footer — "Last deploy 23m ago" from uptimeSeconds (seconds since
+  // pm2 restart ≈ seconds since deploy). Compressed format reads at a glance.
+  const deployLabel = stats ? (() => {
+    const s = stats.uptimeSeconds
+    if (s < 60)    return `${s}s ago`
+    if (s < 3600)  return `${Math.floor(s / 60)}m ago`
+    if (s < 86400) return `${Math.floor(s / 3600)}h ago`
+    return `${Math.floor(s / 86400)}d ago`
+  })() : ''
 
   return (
     <div className="p-4 sm:p-6 space-y-6 text-white">
@@ -172,6 +209,43 @@ export default function AdminPage() {
               </svg>
             </Link>
           ))}
+        </div>
+      )}
+
+      {/* ── Quick actions ──
+          Shortcuts to the three most-common admin ops that otherwise need
+          two clicks (open sidebar → click section → land on page). Pure
+          link buttons; no new endpoints. */}
+      <div className="grid grid-cols-3 gap-2">
+        {[
+          { href: '/admin/applications',                 label: 'Review apps',  icon: '👤' },
+          { href: '/admin/moderation',                   label: 'Review reports', icon: '🚨' },
+          { href: '/admin/announcements?tab=announcement', label: 'Announce',   icon: '📣' },
+        ].map(a => (
+          <Link key={a.href} href={a.href}
+            className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-xl text-xs font-semibold text-zinc-300 transition-colors">
+            <span>{a.icon}</span>
+            <span className="hidden sm:inline">{a.label}</span>
+          </Link>
+        ))}
+      </div>
+
+      {/* ── Conversion funnel one-liner ──
+          Applications → Approved → First event → Repeat, as percentages of
+          the previous stage. Read in one glance: "where are we losing
+          people?" Hidden when applications = 0 (zero-data community). */}
+      {funnelLine && stats && (
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-900 px-4 py-3 text-xs text-zinc-400 overflow-x-auto whitespace-nowrap">
+          <span className="font-bold text-white">{stats.funnel.applications}</span> applications
+          <span className="text-zinc-600 mx-2">→</span>
+          <span className="font-bold text-white">{stats.funnel.approved}</span> approved
+          <span className="text-amber-400 ml-1">({funnelLine.approvedPct}%)</span>
+          <span className="text-zinc-600 mx-2">→</span>
+          <span className="font-bold text-white">{stats.funnel.firstEvent}</span> first event
+          <span className={`ml-1 ${funnelLine.firstPct >= 50 ? 'text-green-400' : 'text-amber-400'}`}>({funnelLine.firstPct}%)</span>
+          <span className="text-zinc-600 mx-2">→</span>
+          <span className="font-bold text-white">{stats.funnel.repeat}</span> repeat
+          <span className={`ml-1 ${funnelLine.repeatPct >= 50 ? 'text-green-400' : 'text-amber-400'}`}>({funnelLine.repeatPct}%)</span>
         </div>
       )}
 
@@ -252,20 +326,38 @@ export default function AdminPage() {
             <span className="text-xs text-zinc-500 font-medium">Hangouts</span>
           </div>
           {stats ? (
-            <div className="flex items-end gap-5">
-              <div>
-                <div className="text-2xl font-extrabold text-white group-hover:text-amber-400 transition-colors">{stats.hangouts.active}</div>
-                <div className="text-[11px] text-zinc-500 mt-0.5">active</div>
+            <>
+              <div className="flex items-end gap-5">
+                <div>
+                  <div className="text-2xl font-extrabold text-white group-hover:text-amber-400 transition-colors">{stats.hangouts.active}</div>
+                  <div className="text-[11px] text-zinc-500 mt-0.5">active</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-extrabold text-zinc-300">{stats.hangouts.today}</div>
+                  <div className="text-[11px] text-zinc-500 mt-0.5">today</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-extrabold text-zinc-300">{stats.hangouts.referencesWeek}</div>
+                  <div className="text-[11px] text-zinc-500 mt-0.5">refs / 7d</div>
+                </div>
               </div>
-              <div>
-                <div className="text-2xl font-extrabold text-zinc-300">{stats.hangouts.today}</div>
-                <div className="text-[11px] text-zinc-500 mt-0.5">today</div>
-              </div>
-              <div>
-                <div className="text-2xl font-extrabold text-zinc-300">{stats.hangouts.referencesWeek}</div>
-                <div className="text-[11px] text-zinc-500 mt-0.5">refs / 7d</div>
-              </div>
-            </div>
+              {/* Top host this week — surfaces the rising connector. Hidden
+                  when nobody posted any hangouts in the window. */}
+              {stats.hangouts.topHost && (
+                <div className="flex items-center gap-2 mt-3 pt-3 border-t border-zinc-800">
+                  <div className="w-5 h-5 rounded-full overflow-hidden flex items-center justify-center text-white text-[9px] font-bold shrink-0"
+                    style={{ backgroundColor: stats.hangouts.topHost.color }}>
+                    {stats.hangouts.topHost.profilePhoto
+                      ? <img src={resolveImageUrl(stats.hangouts.topHost.profilePhoto)} alt={stats.hangouts.topHost.name} className="w-full h-full object-cover" />
+                      : stats.hangouts.topHost.name[0]}
+                  </div>
+                  <span className="text-[11px] text-zinc-500">
+                    Top host this week: <span className="text-zinc-300 font-medium">{stats.hangouts.topHost.name}</span>
+                    <span className="text-zinc-600"> · {stats.hangouts.topHost.count} hangout{stats.hangouts.topHost.count !== 1 ? 's' : ''}</span>
+                  </span>
+                </div>
+              )}
+            </>
           ) : (
             <div className="flex items-end gap-5">
               {[1, 2, 3].map(i => (
@@ -424,6 +516,18 @@ export default function AdminPage() {
         </div>
 
       </div>
+
+      {/* ── Deploy footer ──
+          Tiny strip at the bottom with the live release hash + time since
+          pm2 restart. Helpful when debugging "did my change land?" — you
+          can confirm the prod release matches your local SHA at a glance. */}
+      {stats?.release && (
+        <div className="text-[10px] text-zinc-600 text-center pt-2">
+          Release <span className="font-mono text-zinc-500">{stats.release}</span>
+          <span className="mx-1.5">·</span>
+          Deployed {deployLabel}
+        </div>
+      )}
     </div>
   )
 }

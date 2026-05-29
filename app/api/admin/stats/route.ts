@@ -32,6 +32,8 @@ export async function GET() {
     rsvpsThisMonth, prevRsvpsMonth,
     payments, prevPayments,
     hangoutsActive, hangoutsToday, hangoutReferencesWeek,
+    topHostGroup, visitorsThisWeek,
+    appsTotal, appsApproved, rsvpUserGroups,
     ...rsvpsByDayCounts
   ] = await Promise.all<any>([
     prisma.user.count({ where: { role: { not: 'admin' } } }),
@@ -57,6 +59,33 @@ export async function GET() {
     prisma.hangout.count({ where: { status: 'active', endsAt: { gte: new Date() } } }),
     prisma.hangout.count({ where: { startsAt: { gte: todayStart, lt: new Date(todayStart.getTime() + 24 * 60 * 60 * 1000) } } }),
     prisma.hangoutReference.count({ where: { createdAt: { gte: weekAgo } } }),
+    // Top hangout host this week — surfaces the rising community
+    // connector. groupBy + take=1 keeps it to a single query.
+    prisma.hangout.groupBy({
+      by: ['userId'],
+      where: { createdAt: { gte: weekAgo } },
+      _count: { _all: true },
+      orderBy: { _count: { userId: 'desc' } },
+      take: 1,
+    }),
+    // Visitors arriving this week — soft alert pill on the dashboard.
+    // Counts active announcements that start in the next 7 days.
+    prisma.visitorAnnouncement.count({
+      where: {
+        status:   'active',
+        startsOn: { gte: todayStr, lte: todayIstanbul(7) },
+      },
+    }),
+    // Conversion funnel — applications → approved → first event → repeat.
+    // Distinct-attendees-by-RSVP-count gives us the last two steps from a
+    // single groupBy that we then filter in JS.
+    prisma.memberApplication.count(),
+    prisma.memberApplication.count({ where: { status: 'approved' } }),
+    prisma.eventAttendee.groupBy({
+      by:     ['userId'],
+      where:  { status: 'approved', user: { role: { not: 'admin' } } },
+      _count: { _all: true },
+    }),
     // RSVPs by day — 7 separate counts. Each runs against an indexed
     // (status, joinedAt) range so they're individually cheap; the
     // Promise.all parallelism keeps total wall-time low.
@@ -84,6 +113,18 @@ export async function GET() {
     return Math.round(((curr - prev) / prev) * 100)
   }
 
+  // Hydrate top hangout host's display fields (name + color) — separate
+  // query because Prisma's groupBy can't include relations.
+  const topHostId = topHostGroup?.[0]?.userId as string | undefined
+  const topHostUser = topHostId
+    ? await prisma.user.findUnique({ where: { id: topHostId }, select: { id: true, name: true, color: true, profilePhoto: true } })
+    : null
+
+  // Conversion funnel — derive distinct-counts from the rsvp groupBy.
+  const groups       = (rsvpUserGroups ?? []) as { userId: string; _count: { _all: number } }[]
+  const firstEvent   = groups.length
+  const repeatEvent  = groups.filter(g => g._count._all >= 2).length
+
   return NextResponse.json({
     totalAccounts, members, hosts, events, upcoming, rsvps,
     newMembersThisMonth, revenueCollected, revenuePending, pendingPayments,
@@ -94,11 +135,29 @@ export async function GET() {
       revenue: calcTrend(revenueCollected, prevRevenue),
     },
     hangouts: {
-      active:           hangoutsActive,
-      today:            hangoutsToday,
-      referencesWeek:   hangoutReferencesWeek,
+      active:         hangoutsActive,
+      today:          hangoutsToday,
+      referencesWeek: hangoutReferencesWeek,
+      // Top host this week — null when nobody posted any hangouts in the
+      // window. Render conditionally on the client.
+      topHost: topHostUser ? {
+        ...topHostUser,
+        count: topHostGroup[0]._count._all as number,
+      } : null,
+    },
+    visitorsThisWeek,
+    funnel: {
+      applications: appsTotal      as number,
+      approved:     appsApproved   as number,
+      firstEvent,
+      repeat:       repeatEvent,
     },
     // Oldest → newest, 7 days. Drives the dashboard RSVP sparkline.
     rsvpsByDay: rsvpsByDayCounts as number[],
+    // Deploy metadata — release is baked at build time (deploy.sh sets
+    // SENTRY_RELEASE=$(git rev-parse --short HEAD)); uptimeSeconds gives
+    // time since pm2 restart ≈ time since deploy.
+    release:        process.env.SENTRY_RELEASE ?? null,
+    uptimeSeconds:  Math.round(process.uptime()),
   })
 }
