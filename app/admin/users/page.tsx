@@ -45,10 +45,19 @@ function whatsappUrl(phone: string, nationality: string | null): string | null {
   return `https://wa.me/${normalized}`
 }
 
+const ROLE_BADGE_FALLBACK = 'bg-zinc-700 text-zinc-400'
 const roleBadge: Record<string, string> = {
   admin:     'bg-amber-500/10 text-amber-400',
   moderator: 'bg-purple-500/10 text-purple-400',
-  member:    'bg-zinc-700 text-zinc-400',
+  member:    ROLE_BADGE_FALLBACK,
+}
+
+// One source of truth for the role pill's color classes. Previously the
+// fallback string `bg-zinc-700 text-zinc-400` was inlined at every call
+// site, so adding a new role would need three edits and the desktop +
+// mobile pills could silently drift out of sync.
+function roleBadgeClass(role: string): string {
+  return roleBadge[role] ?? ROLE_BADGE_FALLBACK
 }
 
 function SuspendMenu({ u, onSuspend, onBan }: {
@@ -399,7 +408,7 @@ function AdminUsersPageInner() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <Link href={`/admin/users/${u.id}`} className="font-semibold text-sm text-white truncate hover:text-amber-400 transition-colors">{u.name}</Link>
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full capitalize shrink-0 ${roleBadge[u.role] ?? 'bg-zinc-700 text-zinc-400'}`}>{u.role}</span>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full capitalize shrink-0 ${roleBadgeClass(u.role)}`}>{u.role}</span>
                     </div>
                     <div className="text-xs text-zinc-500">{new Date(u.joinedAt).toLocaleDateString('en-GB')}</div>
                     {(u.status === 'banned' || u.status === 'suspended' || u.warningCount > 0) && (
@@ -424,7 +433,7 @@ function AdminUsersPageInner() {
                   </Link>
                   <div className="col-span-4">
                     {u.role === 'admin' ? (
-                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${roleBadge[u.role] ?? 'bg-zinc-700 text-zinc-400'}`}>{u.role}</span>
+                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${roleBadgeClass(u.role)}`}>{u.role}</span>
                     ) : (
                       <select
                         value={u.role}
