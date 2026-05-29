@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { canViewModStats } from '@/lib/access'
+import { todayIstanbul } from '@/lib/data'
 
 export async function GET() {
   try {
@@ -14,12 +15,21 @@ export async function GET() {
       pendingApplications,
       pendingReports,
       approvalQueueEvents,
+      visitorsThisWeek,
       recentMessages,
       myEvents,
     ] = await Promise.all([
       prisma.memberApplication.count({ where: { status: 'pending' } }),
       prisma.report.count({ where: { status: 'pending' } }),
       prisma.event.count({ where: { status: 'pending' } }),
+      // Visitors-this-week — mods see the same soft signal admins do so the
+      // shared AlertsRow renders the same pill on both dashboards.
+      prisma.visitorAnnouncement.count({
+        where: {
+          status:   'active',
+          startsOn: { gte: todayIstanbul(), lte: todayIstanbul(7) },
+        },
+      }),
       prisma.eventMessage.findMany({
         orderBy: { createdAt: 'desc' },
         take: 5,
@@ -44,6 +54,7 @@ export async function GET() {
       pendingApplications,
       pendingReports,
       approvalQueueEvents,
+      visitorsThisWeek,
       recentMessages,
       myEvents,
     })

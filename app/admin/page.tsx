@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { resolveImageUrl, todayIstanbul } from '@/lib/data'
+import AlertsRow, { type Alert } from '@/components/admin/AlertsRow'
 
 interface TopHost {
   id: string; name: string; color: string; profilePhoto: string | null; count: number
@@ -87,12 +88,19 @@ export default function AdminPage() {
   const [loading,  setLoading]  = useState(true)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
+  // Auto-refresh state — "Updated 12s ago" indicator + 60s background poll.
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
+  const [, setTick] = useState(0)  // forces re-render so the timer label ages
+
   // Use Istanbul-local date floor, not the UTC slice of new Date(), so events
   // on the same calendar day in Istanbul aren't dropped when admin's clock
   // crosses midnight UTC. Server-side filter + take so we fetch only the 6
   // upcoming events we render, instead of every published event ever.
-  const load = useCallback(() => {
-    setLoading(true)
+  //
+  // background=true skips the skeleton state so the 60s auto-poll doesn't
+  // flicker the UI back to "loading" every minute.
+  const load = useCallback((background = false) => {
+    if (!background) setLoading(true)
     setErrorMsg(null)
     const today = todayIstanbul()
     Promise.all([
@@ -109,19 +117,49 @@ export default function AdminPage() {
       setStats(s)
       setAudit(Array.isArray(a) ? a : [])
       setEvents(Array.isArray(e) ? e : [])
+      setLastRefresh(new Date())
     }).catch(err => {
       console.error('[admin dashboard load]', err)
-      setErrorMsg('Could not load dashboard. Try again?')
-    }).finally(() => setLoading(false))
+      // Only show the banner on foreground load failures — a flaky 60s
+      // poll shouldn't yank attention away from whatever the admin's
+      // currently reading.
+      if (!background) setErrorMsg('Could not load dashboard. Try again?')
+    }).finally(() => { if (!background) setLoading(false) })
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { load(false) }, [load])
+
+  // Background auto-refresh — every 60s, but pause when the tab is hidden
+  // (saves DB load when nobody's looking) and resume immediately on focus
+  // so a returning admin sees fresh data right away.
+  useEffect(() => {
+    let timer: ReturnType<typeof setInterval> | null = null
+    function start() {
+      if (timer) return
+      timer = setInterval(() => { if (!document.hidden) load(true) }, 60_000)
+    }
+    function stop() { if (timer) { clearInterval(timer); timer = null } }
+    function onVisibility() {
+      if (document.hidden) stop()
+      else { load(true); start() }
+    }
+    start()
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => { stop(); document.removeEventListener('visibilitychange', onVisibility) }
+  }, [load])
+
+  // Tick once a second so the "Updated Xs ago" label visibly counts up
+  // without re-fetching anything.
+  useEffect(() => {
+    const t = setInterval(() => setTick(n => n + 1), 1000)
+    return () => clearInterval(t)
+  }, [])
 
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
   const firstName = user?.name?.split(' ')[0] ?? 'Admin'
 
-  const alerts = stats ? [
+  const alerts: Alert[] = stats ? [
     stats.pendingApplications > 0 && {
       icon: '👤', label: `${stats.pendingApplications} application${stats.pendingApplications !== 1 ? 's' : ''} pending`,
       href: '/admin/applications', color: 'border-amber-500/30 bg-amber-500/5 text-amber-400',
@@ -140,7 +178,18 @@ export default function AdminPage() {
       icon: '👋', label: `${stats.visitorsThisWeek} visitor${stats.visitorsThisWeek !== 1 ? 's' : ''} this week`,
       href: '/visiting', color: 'border-blue-500/30 bg-blue-500/5 text-blue-400',
     },
-  ].filter(Boolean) as { icon: string; label: string; href: string; color: string }[] : []
+  ].filter(Boolean) as Alert[] : []
+
+  // "Updated Xs ago" indicator label — counts up between background
+  // refreshes so the page reads as live, not stale.
+  const refreshLabel = (() => {
+    if (!lastRefresh) return ''
+    const s = Math.floor((Date.now() - lastRefresh.getTime()) / 1000)
+    if (s < 5)     return 'Updated just now'
+    if (s < 60)    return `Updated ${s}s ago`
+    if (s < 3600)  return `Updated ${Math.floor(s / 60)}m ago`
+    return `Updated ${Math.floor(s / 3600)}h ago`
+  })()
 
   // Conversion funnel one-liner — shows the funnel as percentages of the
   // previous stage. Hidden when no applications exist (zero-data community).
@@ -189,28 +238,15 @@ export default function AdminPage() {
       {errorMsg && (
         <div className="rounded-2xl border border-red-500/30 bg-red-500/5 px-4 py-3 flex items-center justify-between gap-3">
           <p className="text-sm text-red-300 font-medium">⚠ {errorMsg}</p>
-          <button onClick={load} disabled={loading}
+          <button onClick={() => load(false)} disabled={loading}
             className="text-xs font-bold bg-red-500 hover:bg-red-400 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg">
             {loading ? 'Retrying…' : 'Retry'}
           </button>
         </div>
       )}
 
-      {/* ── Alerts ── */}
-      {alerts.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-          {alerts.map((a, i) => (
-            <Link key={i} href={a.href}
-              className={`flex items-center gap-2.5 px-4 py-3 rounded-2xl border text-sm font-semibold hover:opacity-80 transition-opacity ${a.color}`}>
-              <span className="text-base shrink-0">{a.icon}</span>
-              <span>{a.label}</span>
-              <svg className="w-3.5 h-3.5 ml-auto opacity-60 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </Link>
-          ))}
-        </div>
-      )}
+      {/* ── Alerts ── shared with /admin/moderator via AlertsRow component */}
+      <AlertsRow alerts={alerts} />
 
       {/* ── Quick actions ──
           Shortcuts to the three most-common admin ops that otherwise need
@@ -517,15 +553,21 @@ export default function AdminPage() {
 
       </div>
 
-      {/* ── Deploy footer ──
-          Tiny strip at the bottom with the live release hash + time since
-          pm2 restart. Helpful when debugging "did my change land?" — you
-          can confirm the prod release matches your local SHA at a glance. */}
+      {/* ── Deploy + refresh footer ──
+          Tiny strip with the live release + "Updated Xs ago." Background
+          poll updates lastRefresh every 60s; tick effect re-renders the
+          label every 1s so it visibly counts up. */}
       {stats?.release && (
         <div className="text-[10px] text-zinc-600 text-center pt-2">
           Release <span className="font-mono text-zinc-500">{stats.release}</span>
           <span className="mx-1.5">·</span>
           Deployed {deployLabel}
+          {refreshLabel && (
+            <>
+              <span className="mx-1.5">·</span>
+              {refreshLabel}
+            </>
+          )}
         </div>
       )}
     </div>

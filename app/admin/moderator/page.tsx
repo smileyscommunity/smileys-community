@@ -3,11 +3,13 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
+import AlertsRow, { type Alert } from '@/components/admin/AlertsRow'
 
 interface ModStats {
   pendingApplications: number
   pendingReports: number
   approvalQueueEvents: number
+  visitorsThisWeek: number
   recentMessages: {
     id: string; message: string; createdAt: string
     user:  { id: string; name: string; color: string }
@@ -48,6 +50,24 @@ export default function ModeratorPage() {
 
   const totalPriority = (stats?.pendingApplications ?? 0) + (stats?.pendingReports ?? 0)
 
+  // Build the same shape AlertsRow expects, but with only the data
+  // moderators are authorized to see (no payments). Keeps the "what needs
+  // attention" surface visually consistent with /admin.
+  const alerts: Alert[] = stats ? [
+    stats.pendingApplications > 0 && {
+      icon: '👤', label: `${stats.pendingApplications} application${stats.pendingApplications !== 1 ? 's' : ''} pending`,
+      href: '/admin/applications', color: 'border-amber-500/30 bg-amber-500/5 text-amber-400',
+    },
+    stats.pendingReports > 0 && {
+      icon: '🚨', label: `${stats.pendingReports} report${stats.pendingReports !== 1 ? 's' : ''} to review`,
+      href: '/admin/moderation', color: 'border-red-500/30 bg-red-500/5 text-red-400',
+    },
+    stats.visitorsThisWeek > 0 && {
+      icon: '👋', label: `${stats.visitorsThisWeek} visitor${stats.visitorsThisWeek !== 1 ? 's' : ''} this week`,
+      href: '/visiting', color: 'border-blue-500/30 bg-blue-500/5 text-blue-400',
+    },
+  ].filter(Boolean) as Alert[] : []
+
   return (
     <div className="p-4 sm:p-6 space-y-5 text-white">
 
@@ -68,6 +88,11 @@ export default function ModeratorPage() {
           </div>
         )}
       </div>
+
+      {/* Shared "what needs attention" pill row — same component /admin
+          uses, fed by the data moderators are authorized to see (apps +
+          reports + visitors; no payments). */}
+      {!loading && <AlertsRow alerts={alerts} />}
 
       {loading ? (
         <div className="space-y-3">
