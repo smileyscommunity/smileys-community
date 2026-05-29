@@ -2,7 +2,7 @@
 
 import { toast } from 'sonner'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, useMemo, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { getInitials } from '@/lib/data'
@@ -22,6 +22,27 @@ interface DBUser {
   warningCount: number
   hasPassword: boolean
   phone: string | null
+  // nationality drives the WhatsApp link's country-code logic — only
+  // assume Turkey (+90) for a leading zero when the user has a Turkish
+  // nationality recorded; otherwise pass digits through as-is.
+  nationality: string | null
+}
+
+const TURKISH_NATIONALITIES = new Set(['turkey', 'türkiye', 'turkiye', 'tr', 'turkish'])
+
+// WhatsApp URL with smarter country-code handling than the old
+// `.replace(/^0/, '90')` shortcut, which mangled local-format phones from
+// non-Turkish users (e.g. a French `0123456789` became `90123456789`).
+function whatsappUrl(phone: string, nationality: string | null): string | null {
+  const digits = phone.replace(/\D/g, '')
+  if (!digits) return null
+  const isTurkish = nationality
+    ? TURKISH_NATIONALITIES.has(nationality.trim().toLowerCase())
+    : false
+  const normalized = (digits.startsWith('0') && isTurkish)
+    ? '90' + digits.slice(1)
+    : digits
+  return `https://wa.me/${normalized}`
 }
 
 const roleBadge: Record<string, string> = {
@@ -156,44 +177,40 @@ function AdminUsersPageInner() {
     }
   }
 
-  const counts: Record<TabKey, number> = {
-    all:        users.length,
-    member:     users.filter(u => u.role === 'member').length,
-    moderator:  users.filter(u => u.role === 'moderator').length,
-    admin:      users.filter(u => u.role === 'admin').length,
-    unverified: users.filter(u => !u.emailVerified).length,
-    banned:     users.filter(u => u.status === 'banned').length,
-    inactive:   users.filter(u => {
-      if (!u.lastActive) return true
-      const last = new Date(u.lastActive).getTime()
-      const ninetyDaysAgo = Date.now() - (90 * 86400000)
-      return last < ninetyDaysAgo
-    }).length,
-  }
+  // Search filter runs once and memoizes, so the tab counts below ALL
+  // reflect the search-narrowed set instead of pretending nothing was
+  // searched (the old code's counts ignored the search box, showing
+  // misleading totals like "423 members" while only "1" was visible).
+  const searchFiltered = useMemo(() => {
+    if (!search) return users
+    const s = search.toLowerCase()
+    return users.filter(u => u.name.toLowerCase().includes(s) || u.email.toLowerCase().includes(s))
+  }, [users, search])
 
-  const visible = users.filter(u => {
-    // Search runs first so it applies to every tab. Previous version
-    // early-returned per tab before checking search, which made the
-    // input a no-op on every tab except "All" — a real bug ("I searched
-    // yasemin on the Members tab and got nothing").
-    if (search) {
-      const s = search.toLowerCase()
-      if (!u.name.toLowerCase().includes(s) && !u.email.toLowerCase().includes(s)) return false
-    }
+  const ninetyDaysAgo = Date.now() - (90 * 86400000)
+  const counts: Record<TabKey, number> = useMemo(() => ({
+    all:        searchFiltered.length,
+    member:     searchFiltered.filter(u => u.role === 'member').length,
+    moderator:  searchFiltered.filter(u => u.role === 'moderator').length,
+    admin:      searchFiltered.filter(u => u.role === 'admin').length,
+    unverified: searchFiltered.filter(u => !u.emailVerified).length,
+    banned:     searchFiltered.filter(u => u.status === 'banned').length,
+    inactive:   searchFiltered.filter(u =>
+      !u.lastActive || new Date(u.lastActive).getTime() < ninetyDaysAgo
+    ).length,
+  }), [searchFiltered, ninetyDaysAgo])
 
+  const visible = useMemo(() => searchFiltered.filter(u => {
     if (tab === 'member')    return u.role === 'member'
     if (tab === 'moderator') return u.role === 'moderator'
     if (tab === 'admin')     return u.role === 'admin'
     if (tab === 'unverified') return !u.emailVerified
     if (tab === 'banned')     return u.status === 'banned'
     if (tab === 'inactive') {
-      if (!u.lastActive) return true
-      const last = new Date(u.lastActive).getTime()
-      const ninetyDaysAgo = Date.now() - (90 * 86400000)
-      return last < ninetyDaysAgo
+      return !u.lastActive || new Date(u.lastActive).getTime() < ninetyDaysAgo
     }
-    return true  // 'all' tab — search already applied above
-  })
+    return true  // 'all'
+  }), [searchFiltered, tab, ninetyDaysAgo])
 
   const tabs: { key: TabKey; label: string }[] = [
     { key: 'all',       label: 'All'        },
@@ -251,8 +268,13 @@ function AdminUsersPageInner() {
               u.lastActive ? new Date(u.lastActive).toLocaleDateString('en-GB') : '',
             ])
             const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
-            const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([csv], { type: 'text/csv' })), download: 'members.csv' })
+            // Revoke the object URL after the browser has had a beat to
+            // start the download — without revoke, each Export click
+            // leaks the blob until the page unloads.
+            const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+            const a = Object.assign(document.createElement('a'), { href: url, download: 'members.csv' })
             a.click()
+            setTimeout(() => URL.revokeObjectURL(url), 200)
           }}
           className="shrink-0 flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 transition-colors"
         >
@@ -275,12 +297,15 @@ function AdminUsersPageInner() {
           {loading && <div className="px-6 py-12 text-center text-zinc-500 text-sm">Loading…</div>}
           {!loading && visible.length === 0 && <div className="px-6 py-12 text-center text-zinc-500 text-sm">No users found.</div>}
           {visible.map(u => {
-            const waLink = u.phone ? `https://wa.me/${u.phone.replace(/\D/g, '').replace(/^0/, '90')}` : null
-            const isSelf = false // can't know without session here; API protects it
+            // waLink replaces the earlier dead-code + duplicate of this
+            // inline string. The helper applies the +90 prefix only when
+            // nationality is Turkish (was unconditional before, which
+            // broke non-Turkish users' local-format numbers).
+            const waLink = u.phone ? whatsappUrl(u.phone, u.nationality) : null
             const userActions = (
               <div className="flex gap-1.5 items-center">
-                {u.phone && (
-                  <a href={`https://wa.me/${u.phone.replace(/\D/g, '').replace(/^0/, '90')}`} target="_blank" rel="noopener noreferrer"
+                {waLink && (
+                  <a href={waLink} target="_blank" rel="noopener noreferrer"
                     className="p-2 rounded-lg text-green-400 hover:bg-green-500/10 transition-colors" title="Message on WhatsApp"
                     onClick={e => e.stopPropagation()}>
                     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">

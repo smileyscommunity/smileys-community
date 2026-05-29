@@ -2,7 +2,6 @@ import { canManageUsers, canViewUserList } from '@/lib/access'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { writeAudit, getDiff } from '@/lib/audit'
 
 export async function GET(req: NextRequest) {
   try {
@@ -40,7 +39,12 @@ export async function GET(req: NextRequest) {
         color: true, emailVerified: true, joinedAt: true,
         status: true, banReason: true, bannedAt: true, warningCount: true,
         appealNote: true, appealStatus: true, appealedAt: true,
-        lastActive: true, phone: true, password: true, lastFingerprint: true,
+        // nationality is needed by the admin users page to decide whether
+        // a phone number with a leading 0 should get the Turkey country
+        // code (+90) prepended for the WhatsApp link, or be left as-is
+        // (non-Turkish users with local-format numbers were getting their
+        // links mangled to '90xxx' before this).
+        lastActive: true, phone: true, password: true, lastFingerprint: true, nationality: true,
       },
     })
 
@@ -57,45 +61,8 @@ export async function GET(req: NextRequest) {
   }
 }
 
-export async function PATCH(req: Request) {
-  try {
-    const session = await getSession()
-    if (!session || !canManageUsers(session)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
-    const { id, role } = await req.json()
-    if (!['admin', 'moderator', 'member'].includes(role)) {
-      return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
-    }
-    if (id === session.id) {
-      return NextResponse.json({ error: 'Cannot change your own role' }, { status: 400 })
-    }
-    const before = await prisma.user.findUnique({ where: { id }, select: { role: true, name: true } })
-    if (!before) return NextResponse.json({ error: 'User not found' }, { status: 404 })
-
-    const user = await prisma.user.update({
-      where: { id },
-      data: { role },
-      select: {
-        id: true, name: true, email: true, role: true,
-        color: true, emailVerified: true, joinedAt: true,
-        status: true,
-      },
-    })
-
-    const diff = getDiff(before, { role })
-    if (diff) {
-      writeAudit(session.id, session.name, 'user.update', id, 'user',
-        { diff, name: before.name },
-        `Changed role for ${before.name} to ${role}`
-      )
-    }
-
-    return NextResponse.json(user)
-  } catch (e) {
-    console.error(e)
-    return NextResponse.json({ error: 'Server error' }, { status: 500 })
-  }
-}
+// PATCH at this route was dead — accepted { id, role } in the body and
+// duplicated the role-change logic that already lives in [id]/route.ts
+// PATCH (which the admin users page actually calls via
+// /api/admin/users/{id}). Removed to stop two routes drifting apart.
 
