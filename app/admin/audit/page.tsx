@@ -2,6 +2,19 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
+import Link from 'next/link'
+
+// Map an audit entry's targetType to the admin detail route for that
+// resource. Returning null means the target has no admin landing page
+// (payments, messages, reports, attendees) and the id stays as plain
+// text. Centralised here so a new targetType only edits one place.
+function targetHref(targetType: string | null, targetId: string | null): string | null {
+  if (!targetType || !targetId) return null
+  if (targetType === 'user')  return `/admin/users/${targetId}`
+  if (targetType === 'event') return `/admin/events/${targetId}/edit`
+  if (targetType === 'club')  return `/admin/clubs/${targetId}`
+  return null
+}
 
 interface AuditEntry {
   id: string
@@ -234,8 +247,21 @@ function AdminAuditPageInner() {
     }
   }
 
-  function applyPreset(days: number) {
-    const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  // Shared formatter — yyyy-mm-dd in local time, the shape the <input
+  // type="date"> elements expect.
+  const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+  // "Today" means start-of-today → now, NOT the rolling last-24h window
+  // the old `applyPreset(1)` produced. Clicking it at 14:00 should show
+  // actions taken since midnight, not actions since yesterday-at-14:00.
+  function applyToday() {
+    const t = fmt(new Date())
+    setFromDate(t); setToDate(t)
+  }
+
+  // Rolling lookback — fromDate = N days before today (inclusive),
+  // toDate = today. The server pushes `to` to end-of-day.
+  function applyLookback(days: number) {
     const t = new Date()
     const f = new Date(); f.setDate(f.getDate() - days)
     setFromDate(fmt(f)); setToDate(fmt(t))
@@ -278,10 +304,10 @@ function AdminAuditPageInner() {
           last incident was months ago. */}
       <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
         <span className="font-semibold">When</span>
-        <button onClick={() => applyPreset(1)}  className="px-2 py-1 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700 transition-colors">Today</button>
-        <button onClick={() => applyPreset(7)}  className="px-2 py-1 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700 transition-colors">7d</button>
-        <button onClick={() => applyPreset(30)} className="px-2 py-1 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700 transition-colors">30d</button>
-        <button onClick={() => applyPreset(90)} className="px-2 py-1 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700 transition-colors">90d</button>
+        <button onClick={applyToday}            className="px-2 py-1 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700 transition-colors">Today</button>
+        <button onClick={() => applyLookback(7)}  className="px-2 py-1 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700 transition-colors">7d</button>
+        <button onClick={() => applyLookback(30)} className="px-2 py-1 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700 transition-colors">30d</button>
+        <button onClick={() => applyLookback(90)} className="px-2 py-1 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700 transition-colors">90d</button>
         <span className="text-zinc-700">|</span>
         <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
           className="px-2 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:ring-1 focus:ring-amber-500" />
@@ -365,9 +391,21 @@ function AdminAuditPageInner() {
                       )}
 
                       <DiffView meta={log.meta} action={log.action} />
-                      {log.targetId && (
-                        <div className="text-xs text-zinc-600 font-mono mt-0.5">{log.targetType} · {log.targetId}</div>
-                      )}
+                      {log.targetId && (() => {
+                        const href = targetHref(log.targetType, log.targetId)
+                        const text = `${log.targetType} · ${log.targetId}`
+                        // Click through to the resource's admin page when
+                        // one exists (user / event / club). Other target
+                        // types fall back to plain text — no detail
+                        // route to navigate to.
+                        return href ? (
+                          <Link href={href} className="text-xs text-zinc-600 hover:text-amber-400 font-mono mt-0.5 inline-block transition-colors">
+                            {text} →
+                          </Link>
+                        ) : (
+                          <div className="text-xs text-zinc-600 font-mono mt-0.5">{text}</div>
+                        )
+                      })()}
                     </div>
                     {/* Day divider now carries the date — row shows
                         just time so the eye doesn't read the date twice. */}
