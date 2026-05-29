@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import AlertsRow, { type Alert } from '@/components/admin/AlertsRow'
+import Avatar from '@/components/admin/Avatar'
 
 interface ModStats {
   pendingApplications: number
@@ -19,16 +20,6 @@ interface ModStats {
     id: string; title: string; date: string; time: string
     spotsLeft: number; totalSpots: number; status: string
   }[]
-}
-
-function Avatar({ name, color }: { name: string; color: string }) {
-  const initials = name.trim().split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
-  return (
-    <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-      style={{ backgroundColor: color }}>
-      {initials}
-    </div>
-  )
 }
 
 export default function ModeratorPage() {
@@ -193,7 +184,7 @@ export default function ModeratorPage() {
               <div className="divide-y divide-zinc-800">
                 {stats.recentMessages.map(m => (
                   <div key={m.id} className="flex items-start gap-3 px-5 py-3">
-                    <Avatar name={m.user.name} color={m.user.color} />
+                    <Avatar name={m.user.name} color={m.user.color} size="sm" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
                         <span className="text-xs font-semibold text-white">{m.user.name}</span>

@@ -5,6 +5,7 @@ import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { useAuth } from '@/contexts/AuthContext'
+import Avatar from '@/components/admin/Avatar'
 
 interface Report {
   id: string
@@ -63,16 +64,6 @@ const EVENT_STATUS_COLORS: Record<string, string> = {
   published:   'bg-green-500/10 text-green-400',
   flagged:     'bg-red-500/10 text-red-400',
   unpublished: 'bg-zinc-700 text-zinc-400',
-}
-
-function Avatar({ name, color }: { name: string; color: string }) {
-  const initials = name.trim().split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
-  return (
-    <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-      style={{ backgroundColor: color }}>
-      {initials}
-    </div>
-  )
 }
 
 type TabKey = 'reports' | 'messages' | 'events' | 'banned' | 'blacklist'
@@ -278,32 +269,34 @@ function ModerationPageInner() {
     }
   }
 
-  async function handleUnban(userId: string) {
-    if (!window.confirm('Unban this user?')) return
+  // Single source of truth for the PATCH that lifts a ban — used both
+  // by the direct Unban button and by the "Approve appeal" path so they
+  // can't drift (the old code had two copies of this object literal).
+  const UNBAN_PAYLOAD = { status: 'approved', banReason: null, bannedAt: null, appealStatus: 'approved' } as const
+
+  async function patchUser(userId: string, body: object): Promise<boolean> {
     const res = await fetch(`/app/api/admin/users/${userId}`, {
       method: 'PATCH', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'approved', banReason: null, bannedAt: null, appealStatus: 'approved' }),
+      body: JSON.stringify(body),
     })
-    if (res.ok) setBanned(prev => prev.filter(u => u.id !== userId))
+    return res.ok
+  }
+
+  async function handleUnban(userId: string) {
+    if (!window.confirm('Unban this user?')) return
+    if (await patchUser(userId, UNBAN_PAYLOAD)) {
+      setBanned(prev => prev.filter(u => u.id !== userId))
+    }
   }
 
   async function handleAppeal(userId: string, decision: 'approved' | 'rejected') {
-    const res = await fetch(`/app/api/admin/users/${userId}`, {
-      method: 'PATCH', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(
-        decision === 'approved'
-          ? { status: 'approved', banReason: null, bannedAt: null, appealStatus: 'approved' }
-          : { appealStatus: 'rejected' }
-      ),
-    })
-    if (res.ok) {
-      if (decision === 'approved') {
-        setBanned(prev => prev.filter(u => u.id !== userId))
-      } else {
-        setBanned(prev => prev.map(u => u.id === userId ? { ...u, appealStatus: 'rejected' } : u))
-      }
+    const body = decision === 'approved' ? UNBAN_PAYLOAD : { appealStatus: 'rejected' }
+    if (!(await patchUser(userId, body))) return
+    if (decision === 'approved') {
+      setBanned(prev => prev.filter(u => u.id !== userId))
+    } else {
+      setBanned(prev => prev.map(u => u.id === userId ? { ...u, appealStatus: 'rejected' } : u))
     }
   }
 
@@ -400,7 +393,10 @@ function ModerationPageInner() {
 
   const allTabs = [
     { key: 'reports',  label: 'Reports',      badge: pendingCount, adminOnly: false },
-    { key: 'messages', label: 'Messages',     badge: messages.length, adminOnly: false },
+    // No badge on Messages — the count is just the 200-message rolling
+    // window the API returns, not "items needing attention". Surfacing
+    // it as a badge implied actionable work and made the tab look noisy.
+    { key: 'messages', label: 'Messages',     badge: 0, adminOnly: false },
     { key: 'events',   label: 'Event Queue',  badge: queue.filter(e => e.status === 'published').length, adminOnly: false },
     { key: 'banned',   label: 'Banned',       badge: banned.length, adminOnly: true },
     { key: 'blacklist',label: 'Blacklist',    badge: blacklist.length, adminOnly: true },
@@ -470,10 +466,14 @@ function ModerationPageInner() {
               { key: 'dismissed', label: 'Dismissed', count: reports.filter(r => r.status === 'dismissed').length },
             ] as const).map(f => f.count > 0 || f.key === 'all' || f.key === 'pending' ? (
               <button key={f.key} onClick={() => setStatusFilter(f.key)}
-                className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+                className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors border ${
                   statusFilter === f.key
-                    ? 'bg-amber-500 text-white'
-                    : 'bg-zinc-800 text-zinc-400 hover:text-white border border-zinc-700'
+                    ? 'bg-amber-500 text-white border-amber-500'
+                    // Unselected pills reuse STATUS_COLORS so each filter
+                    // visually previews the status it represents — the
+                    // map was already defined for the row badges and was
+                    // being ignored here.
+                    : `${STATUS_COLORS[f.key] ?? 'bg-zinc-800 text-zinc-400'} border-zinc-700 hover:opacity-80`
                 }`}>
                 {f.label} {f.count > 0 && `(${f.count})`}
               </button>
