@@ -101,9 +101,19 @@ export async function POST(req: NextRequest, { params }: Params) {
         return NextResponse.json({ ok: true, status: 'waitlisted', position })
       }
       // Create as pending — host approves from the participants page.
+      // Payment record is created upfront for paid events (mirror of the
+      // auto-approve path) so paid-event commitment is captured at RSVP
+      // time; admin rejection later would trigger a refund of any
+      // payment that was actually collected, but the unpaid 'pending'
+      // record just gets cancelled.
       await prisma.eventAttendee.create({
         data: { userId: session.id, eventId, status: 'pending', stealth },
       })
+      if (event.price > 0) {
+        await prisma.payment.create({
+          data: { userId: session.id, eventId, amount: event.price, currency: event.currency ?? 'TRY', status: 'pending' },
+        })
+      }
       createNotification(session.id, 'rsvp_pending', 'RSVP submitted ⏳',
         `Your request to join "${event.title}" is waiting on the host. You'll be notified once it's reviewed.`,
         `/events/${eventId}`)
