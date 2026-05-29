@@ -34,19 +34,51 @@ function Avatar({ m }: { m: Member }) {
 
 function MemberRow({ m, sub }: { m: Member; sub: string }) {
   const [drafting, setDrafting] = useState(false)
-  const [nudge, setNudge]       = useState('')
+  const [sending,  setSending]  = useState(false)
+  const [sent,     setSent]     = useState(false)
+  const [nudge,    setNudge]    = useState('')
+  const [error,    setError]    = useState<string | null>(null)
 
   async function draftNudge() {
-    setDrafting(true)
-    const res = await fetch('/app/api/admin/users/reengage', {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: m.id }),
-    })
-    const data = await res.json()
-    if (data.message) setNudge(data.message)
-    setDrafting(false)
+    setError(null); setSent(false); setDrafting(true)
+    try {
+      const res = await fetch('/app/api/admin/users/reengage', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: m.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) setError(data?.error ?? 'Could not draft')
+      else if (data.message) setNudge(data.message)
+    } finally {
+      setDrafting(false)
+    }
+  }
+
+  // Send the drafted message via the same _reengage PATCH used elsewhere.
+  // Without this button the drafted message had no way out — Nudge looked
+  // broken because clicking it produced a read-only block of text.
+  async function sendNudge() {
+    if (!nudge.trim()) return
+    setError(null); setSending(true)
+    try {
+      const res = await fetch(`/app/api/admin/users/${m.id}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ _reengage: nudge }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        setError(d?.error ?? 'Could not send')
+        return
+      }
+      setSent(true); setNudge('')
+      setTimeout(() => setSent(false), 4000)
+    } finally {
+      setSending(false)
+    }
   }
 
   return (
@@ -61,6 +93,7 @@ function MemberRow({ m, sub }: { m: Member; sub: string }) {
             {m.neighborhood && (
               <span className="text-xs text-zinc-500">{m.neighborhood}</span>
             )}
+            {sent && <span className="text-[10px] font-bold text-green-400 bg-green-500/10 px-1.5 py-0.5 rounded">✓ Sent</span>}
           </div>
           <p className="text-xs text-zinc-500 mt-0.5">{sub}</p>
         </div>
@@ -71,17 +104,34 @@ function MemberRow({ m, sub }: { m: Member; sub: string }) {
           </a>
           <button
             onClick={draftNudge}
-            disabled={drafting}
+            disabled={drafting || sending}
             className="text-xs text-amber-400 hover:text-amber-300 font-semibold px-2.5 py-2 rounded-lg hover:bg-amber-500/10 transition-colors disabled:opacity-50"
           >
-            {drafting ? '…' : '✦ Nudge'}
+            {drafting ? '…' : nudge ? '✦ Redraft' : '✦ Nudge'}
           </button>
         </div>
       </div>
 
-      {nudge && (
-        <div className="mt-3 ml-11 p-3 bg-zinc-800 rounded-xl border border-zinc-700 text-xs text-zinc-300 leading-relaxed">
-          {nudge}
+      {(nudge || error) && (
+        <div className="mt-3 ml-11 space-y-2">
+          {nudge && (
+            <textarea
+              value={nudge}
+              onChange={e => setNudge(e.target.value)}
+              rows={3}
+              className="w-full px-3 py-2 text-xs bg-zinc-800 border border-violet-500/30 rounded-xl text-zinc-200 resize-none focus:outline-none focus:ring-1 focus:ring-violet-500/50 leading-relaxed"
+            />
+          )}
+          {error && <p className="text-xs text-red-400">⚠ {error}</p>}
+          {nudge && (
+            <button
+              onClick={sendNudge}
+              disabled={sending || !nudge.trim()}
+              className="w-full py-2 text-xs font-semibold bg-violet-500 hover:bg-violet-600 disabled:opacity-50 text-white rounded-xl transition-colors"
+            >
+              {sending ? 'Sending…' : 'Send notification'}
+            </button>
+          )}
         </div>
       )}
     </div>
