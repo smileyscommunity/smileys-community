@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 
@@ -149,6 +149,13 @@ const PERIODS = [
   { key: '12m', label: '12 months' },
 ]
 
+// Human-readable window label used in chart titles ("Member growth — last
+// 6 months") so the captions actually track the period selector instead of
+// reading "last 6 months" forever regardless.
+function periodWindowLabel(key: string): string {
+  return PERIODS.find(p => p.key === key)?.label ?? '6 months'
+}
+
 type Tab = 'overview' | 'members' | 'events' | 'revenue' | 'health'
 const TABS: { key: Tab; label: string }[] = [
   { key: 'overview', label: 'Overview' },
@@ -164,7 +171,13 @@ function AnalyticsInner() {
   const pathname     = usePathname()
 
   const [data,          setData]          = useState<Analytics | null>(null)
+  // Two-state load tracking: `loading` only fires on the initial fetch (when
+  // there's no data yet) so the skeleton shows once. Subsequent fetches —
+  // period changes, retries — set `refreshing`, which keeps the stale data
+  // on screen with a small indicator instead of blanking the page.
   const [loading,       setLoading]       = useState(true)
+  const [refreshing,    setRefreshing]    = useState(false)
+  const [errorMsg,      setErrorMsg]      = useState<string | null>(null)
   const [period,        setPeriod]        = useState('6m')
   const [reengageId,    setReengageId]    = useState<string | null>(null)
   const [reengageMsgs,  setReengageMsgs]  = useState<Record<string, string>>({})
@@ -184,13 +197,32 @@ function AnalyticsInner() {
     router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false })
   }
 
-  useEffect(() => {
-    setLoading(true)
+  // load() doubles as the initial fetch and the retry/refresh trigger.
+  // Tracks errorMsg so we can show a retry banner instead of leaving the
+  // page on "Failed to load" forever.
+  const load = useCallback(() => {
+    const isInitial = !data
+    if (isInitial) setLoading(true)
+    else           setRefreshing(true)
+    setErrorMsg(null)
     fetch(`/app/api/admin/analytics?period=${period}`, { credentials: 'include' })
-      .then(r => r.ok ? r.json() : null)
+      .then(async r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json()
+      })
       .then(d => { if (d) setData(d) })
-      .finally(() => setLoading(false))
+      .catch(err => {
+        console.error('[analytics load]', err)
+        setErrorMsg('Could not load analytics. Try again?')
+      })
+      .finally(() => { setLoading(false); setRefreshing(false) })
+  // data is intentionally NOT in deps — we read it once at call time to
+  // decide skeleton-vs-stale, but re-running the effect on data change
+  // would cause an infinite fetch loop.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [period])
+
+  useEffect(() => { load() }, [load])
 
   // Lazy-load retention list only when Members tab is opened. Endpoint is
   // server-rendered list of never-attended + dormant — separate from the
@@ -203,14 +235,26 @@ function AnalyticsInner() {
       .catch(() => {})
   }, [tab, retention])
 
-  if (loading) return (
+  // Initial-load skeleton — only fires when there's no data yet. Period
+  // changes after first load keep showing the previous data (greyed out)
+  // until the refresh resolves, so the page never blanks.
+  if (loading && !data) return (
     <div className="p-6 space-y-4">
       {[1, 2, 3].map(i => <div key={i} className="h-32 bg-zinc-900 rounded-2xl border border-zinc-800 animate-pulse" />)}
     </div>
   )
 
+  // Hard failure on first load — no data, no fallback, retry surface.
   if (!data) return (
-    <div className="p-6 text-zinc-500 text-sm">Failed to load analytics.</div>
+    <div className="p-6 space-y-3">
+      <div className="rounded-2xl border border-red-500/30 bg-red-500/5 p-4">
+        <p className="text-sm text-red-300 font-medium">⚠ {errorMsg ?? 'Could not load analytics.'}</p>
+        <button onClick={load} disabled={loading || refreshing}
+          className="mt-2 text-xs font-bold bg-red-500 hover:bg-red-400 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg">
+          {loading || refreshing ? 'Retrying…' : 'Retry'}
+        </button>
+      </div>
+    </div>
   )
 
   const growthColor = data.members.growthRate >= 0 ? 'text-green-400' : 'text-red-400'
@@ -233,17 +277,40 @@ function AnalyticsInner() {
           <h1 className="text-2xl font-extrabold text-white tracking-tight">Analytics</h1>
           <p className="text-sm text-zinc-500 mt-0.5">Platform growth, revenue, and community health</p>
         </div>
-        <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-xl p-1 gap-0.5 shrink-0">
-          {PERIODS.map(p => (
-            <button key={p.key} onClick={() => setPeriod(p.key)}
-              className={`px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${
-                period === p.key ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'
-              }`}>
-              {p.label}
-            </button>
-          ))}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Stale-data indicator — only shows during in-flight refreshes
+              that aren't the initial load, so admins know the chart values
+              are catching up to a new period selection. */}
+          {refreshing && (
+            <span className="text-xs text-zinc-500 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+              Refreshing…
+            </span>
+          )}
+          <div className={`flex items-center bg-zinc-900 border border-zinc-800 rounded-xl p-1 gap-0.5 transition-opacity ${refreshing ? 'opacity-60' : ''}`}>
+            {PERIODS.map(p => (
+              <button key={p.key} onClick={() => setPeriod(p.key)} disabled={refreshing}
+                className={`px-3 py-2 rounded-lg text-xs font-semibold transition-colors disabled:cursor-wait ${
+                  period === p.key ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'
+                }`}>
+                {p.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
+
+      {/* Soft error banner — appears after first load if a refresh fails;
+          the page keeps showing the previous data so context isn't lost. */}
+      {errorMsg && data && (
+        <div className="rounded-2xl border border-red-500/30 bg-red-500/5 px-4 py-3 flex items-center justify-between gap-3">
+          <p className="text-sm text-red-300 font-medium">⚠ {errorMsg}</p>
+          <button onClick={load} disabled={refreshing}
+            className="text-xs font-bold bg-red-500 hover:bg-red-400 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg">
+            {refreshing ? 'Retrying…' : 'Retry'}
+          </button>
+        </div>
+      )}
 
       {/* Tab nav — URL-synced via ?tab=. Sticks under the page header so
           admins can switch lenses without losing the period selector above. */}
@@ -296,7 +363,7 @@ function AnalyticsInner() {
                 sub={data.applications.pending >= 10 ? 'Urgent — many pending' : data.applications.pending > 0 ? 'Review now' : 'All clear'} />
             </div>
             <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5">
-              <div className="text-xs font-semibold text-zinc-400 mb-3">Member growth — last 6 months</div>
+              <div className="text-xs font-semibold text-zinc-400 mb-3">Member growth — last {periodWindowLabel(period)}</div>
               <MiniBar values={data.members.byMonth} months={data.months} color="#f59e0b" />
             </div>
           </section>
@@ -306,7 +373,7 @@ function AnalyticsInner() {
             <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3">Applications</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5">
-                <div className="text-xs font-semibold text-zinc-400 mb-3">Volume — last 6 months</div>
+                <div className="text-xs font-semibold text-zinc-400 mb-3">Volume — last {periodWindowLabel(period)}</div>
                 <MiniBar values={data.applications.byMonth} months={data.months} color="#a78bfa" />
               </div>
               <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5">
@@ -341,7 +408,15 @@ function AnalyticsInner() {
           {/* ── Engagement summary ──────────────────────────────────────── */}
           {data.engagement && (
             <section>
-              <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3">Retention & Engagement</h2>
+              <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
+                <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Retention & Engagement</h2>
+                {/* These metrics use fixed time windows (30d active, 90d
+                    dormant, lifetime repeat) — they don't shift with the
+                    period selector at the top. Disclose that here so
+                    admins don't read e.g. activeMemberRate as scoped to
+                    the chosen period. */}
+                <span className="text-[10px] text-zinc-600 italic">Fixed windows · not affected by the period selector</span>
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
                 <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5">
                   <div className="text-xs text-zinc-500 font-medium mb-1">Active member rate</div>
@@ -545,11 +620,11 @@ function AnalyticsInner() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
               <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5">
-                <div className="text-xs font-semibold text-zinc-400 mb-3">Events created — last 6 months</div>
+                <div className="text-xs font-semibold text-zinc-400 mb-3">Events created — last {periodWindowLabel(period)}</div>
                 <MiniBar values={data.events.byMonth} months={data.months} color="#34d399" />
               </div>
               <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5">
-                <div className="text-xs font-semibold text-zinc-400 mb-3">RSVPs — last 6 months</div>
+                <div className="text-xs font-semibold text-zinc-400 mb-3">RSVPs — last {periodWindowLabel(period)}</div>
                 <MiniBar values={data.events.rsvpByMonth} months={data.months} color="#60a5fa" />
               </div>
             </div>
@@ -705,7 +780,7 @@ function AnalyticsInner() {
               <StatCard label="Refunded"   value={`₺${data.revenue.refunded.toLocaleString()}`}  subColor="text-zinc-400"  sub="Total refunded" />
             </div>
             <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5">
-              <div className="text-xs font-semibold text-zinc-400 mb-3">Revenue collected — last 6 months (₺)</div>
+              <div className="text-xs font-semibold text-zinc-400 mb-3">Revenue collected — last {periodWindowLabel(period)} (₺)</div>
               <MiniBar values={data.revenue.byMonth} months={data.months} color="#34d399" />
               {data.revenue.byMonth.every(v => v === 0) && (
                 <p className="text-xs text-zinc-600 mt-2">No paid transactions recorded yet.</p>
