@@ -55,22 +55,55 @@ const ACTION_LABELS: Record<string, string> = {
   'club.update':           'Update',
 }
 
-function DiffView({ diff }: { diff: unknown }) {
-  if (!diff || typeof diff !== 'object' || Array.isArray(diff)) return null
-  const entries = Object.entries(diff as Record<string, { from: any; to: any }>)
-  if (!entries.length) return null
-  return (
-    <div className="mt-1.5 space-y-0.5">
-      {entries.map(([key, val]) => (
-        <div key={key} className="flex items-center gap-2 text-xs">
-          <span className="text-zinc-500 font-medium">{key}:</span>
-          <span className="text-red-400 line-through decoration-red-400/50">{String(val.from ?? 'null')}</span>
-          <span className="text-zinc-600">→</span>
-          <span className="text-green-400 font-medium">{String(val.to ?? 'null')}</span>
+// The action suffix tells you which field a flat-shape diff (top-level
+// `meta.from` / `meta.to`) is about — e.g. `user.role_change` → "role",
+// `payment.status` → "status". Falls back to the whole action when the
+// shape is unfamiliar.
+function flatDiffLabel(action: string): string {
+  if (action.endsWith('.role_change'))   return 'role'
+  if (action.endsWith('.status_change')) return 'status'
+  if (action.endsWith('.status'))        return 'status'
+  return action
+}
+
+function DiffView({ meta, action }: { meta: Record<string, unknown> | null; action: string }) {
+  if (!meta) return null
+
+  // Shape A — nested under meta.diff (clubs, events): a map of
+  // field → { from, to }. Render every field on its own row.
+  if (meta.diff && typeof meta.diff === 'object' && !Array.isArray(meta.diff)) {
+    const entries = Object.entries(meta.diff as Record<string, { from: any; to: any }>)
+    if (entries.length) {
+      return (
+        <div className="mt-1.5 space-y-0.5">
+          {entries.map(([key, val]) => (
+            <div key={key} className="flex items-center gap-2 text-xs">
+              <span className="text-zinc-500 font-medium">{key}:</span>
+              <span className="text-red-400 line-through decoration-red-400/50">{String(val.from ?? 'null')}</span>
+              <span className="text-zinc-600">→</span>
+              <span className="text-green-400 font-medium">{String(val.to ?? 'null')}</span>
+            </div>
+          ))}
         </div>
-      ))}
-    </div>
-  )
+      )
+    }
+  }
+
+  // Shape B — flat `{ from, to }` at meta top level (role_change,
+  // status_change, payment.status). Render as a single-row diff using a
+  // label derived from the action. Previously these entries got no
+  // visual diff at all — the prose description was the only signal.
+  if ('from' in meta && 'to' in meta) {
+    return (
+      <div className="mt-1.5 flex items-center gap-2 text-xs">
+        <span className="text-zinc-500 font-medium">{flatDiffLabel(action)}:</span>
+        <span className="text-red-400 line-through decoration-red-400/50">{String(meta.from ?? 'null')}</span>
+        <span className="text-zinc-600">→</span>
+        <span className="text-green-400 font-medium">{String(meta.to ?? 'null')}</span>
+      </div>
+    )
+  }
+  return null
 }
 
 // Fallback for entries created before description field was added
@@ -101,16 +134,28 @@ export default function AdminAuditPage() {
   const [loading, setLoading] = useState(true)
   const [filter,  setFilter]  = useState('')
 
+  // Re-fetch when the filter changes so the server-side action prefix
+  // narrows the result set — previously the route accepted ?action= and
+  // ?take= but the client never used them, so the page filtered a
+  // rolling-100 window client-side and an active filter often emptied
+  // the visible list (the 100 latest entries might contain zero matches
+  // for "Payments" if recent activity was elsewhere). take=200 is the
+  // server's hard cap.
   useEffect(() => {
-    fetch('/app/api/admin/audit', { credentials: 'include' })
+    setLoading(true)
+    const qs = new URLSearchParams({ take: '200' })
+    if (filter) qs.set('action', filter)
+    fetch(`/app/api/admin/audit?${qs.toString()}`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : [])
       .then(d => setLogs(Array.isArray(d) ? d : []))
       .finally(() => setLoading(false))
-  }, [])
+  }, [filter])
 
-  const visible = filter
-    ? logs.filter(l => l.action.startsWith(filter) || l.adminName.toLowerCase().includes(filter.toLowerCase()))
-    : logs
+  // Server has already narrowed by action prefix; no further client
+  // filter needed. (The old `|| adminName.includes(filter)` clause was
+  // dead — every filter chip is an action prefix, no admin is named
+  // "user.ban".)
+  const visible = logs
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
@@ -157,7 +202,7 @@ export default function AdminAuditPage() {
                       <p className="text-xs text-zinc-600 font-mono">{log.action}</p>
                     )}
 
-                    <DiffView diff={log.meta?.diff} />
+                    <DiffView meta={log.meta} action={log.action} />
                     {log.targetId && (
                       <div className="text-xs text-zinc-600 font-mono mt-0.5">{log.targetType} · {log.targetId}</div>
                     )}
