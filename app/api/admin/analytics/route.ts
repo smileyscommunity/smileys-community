@@ -419,12 +419,13 @@ export async function GET(req: NextRequest) {
     }
 
     // ── Cohort retention ─────────────────────────────────────────────────────
-    // Group approved members by joinedAt month (last 6 cohorts). For each
-    // cohort: total size + % who attended an event within 30 / 90 days of
-    // joining + % who ever attended. Onboarding-speed signal — flags
-    // cohorts where new members aren't activating.
+    // Group approved members by joinedAt month. Cohort count scales with the
+    // period selector: 30d=1 cohort, 90d=3, 6m=6, 12m=12. For each cohort:
+    // total size + % who attended an event within 30 / 90 days of joining +
+    // % who ever attended. Onboarding-speed signal — flags cohorts where
+    // new members aren't activating.
     const cohortMonthLabels: string[] = []
-    for (let i = 5; i >= 0; i--) {
+    for (let i = numMonths - 1; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
       cohortMonthLabels.push(d.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }))
     }

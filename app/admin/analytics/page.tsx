@@ -769,16 +769,16 @@ function AnalyticsInner() {
           </section>
 
           {/* ── Cohort retention ────────────────────────────────────────────
-              For each of the last 6 monthly cohorts (members who joined in
-              month X), what % attended an event within their first 30 days,
-              first 90 days, or ever. Reads as a heatmap-ish stacked
-              breakdown: bright bars = good onboarding, dim bars = members
-              never activated. The single most actionable community-health
-              chart we have. */}
+              For each monthly cohort in the selected period (30d=1, 90d=3,
+              6m=6, 12m=12), what % attended an event within their first
+              30 days, first 90 days, or ever. Reads as a heatmap-ish
+              stacked breakdown: bright bars = good onboarding, dim bars =
+              members never activated. The single most actionable
+              community-health chart we have. */}
           {data.cohorts.length > 0 && (
             <section>
               <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
-                <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Cohort retention</h2>
+                <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Cohort retention · last {periodWindowLabel(period)}</h2>
                 <span className="text-[10px] text-zinc-600 italic">% of each month&apos;s joiners who attended ≥1 event</span>
               </div>
               <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5">
