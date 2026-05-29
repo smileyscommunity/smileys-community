@@ -39,6 +39,11 @@ export async function GET(req: NextRequest) {
         color: true, emailVerified: true, joinedAt: true,
         status: true, banReason: true, bannedAt: true, warningCount: true,
         appealNote: true, appealStatus: true, appealedAt: true,
+        // suspendedUntil drives the "suspended" UI bucket — the DB status
+        // enum is only approved/pending/banned, so the admin list page
+        // computes `isSuspended = suspendedUntil > now()` from this field.
+        // Without it the Suspended tab was permanently empty on reload.
+        suspendedUntil: true,
         // nationality is needed by the admin users page to decide whether
         // a phone number with a leading 0 should get the Turkey country
         // code (+90) prepended for the WhatsApp link, or be left as-is

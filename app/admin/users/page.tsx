@@ -30,6 +30,14 @@ interface DBUser {
   // Used for cross-account risk flagging — if two accounts share this,
   // they were last logged in from the same device.
   lastFingerprint: string | null
+  // ISO string. User is "suspended" iff this is set and in the future.
+  // Status enum doesn't have a 'suspended' value, so this is the only
+  // source of truth — see isSuspended() below.
+  suspendedUntil: string | null
+}
+
+function isSuspended(u: { suspendedUntil: string | null }): boolean {
+  return !!u.suspendedUntil && new Date(u.suspendedUntil).getTime() > Date.now()
 }
 
 type SortKey = 'recent' | 'active' | 'warnings'
@@ -162,6 +170,14 @@ function AdminUsersPageInner() {
     return () => clearInterval(t)
   }, [])
 
+  // Auto-pick the "most warnings" sort when the admin clicks the Warned
+  // tab. Otherwise they see warned users in joined-date order and have to
+  // hit the sort dropdown to surface the worst offender. Only fires on the
+  // tab change (not the user picking a different sort while on Warned).
+  useEffect(() => {
+    if (tab === 'warned') setSortBy('warnings')
+  }, [tab])
+
   // URL-sync the search input — debounced 250ms so typing doesn't spam
   // history. Replace (not push) so the back button doesn't re-create every
   // intermediate query state.
@@ -191,6 +207,12 @@ function AdminUsersPageInner() {
 
 
   async function changeRole(u: DBUser, role: string) {
+    // Admin promotion is a privilege escalation that's one careless click
+    // away on a select; require explicit confirm. Demotions don't need
+    // the same gate (worst case: a re-promote click).
+    if (role === 'admin' && u.role !== 'admin') {
+      if (!window.confirm(`Promote ${u.name} to admin? They will gain full moderation and user-management powers.`)) return
+    }
     const res = await fetch(`/app/api/admin/users/${u.id}`, {
       method: 'PATCH', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -229,11 +251,43 @@ function AdminUsersPageInner() {
       body: JSON.stringify({ suspendedUntil: until, suspensionNote: `Suspended ${days}d by admin` }),
     })
     if (res.ok) {
-      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, status: 'suspended' } : x))
+      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, suspendedUntil: until } : x))
       toast.success(`${u.name} suspended ${days}d`)
     } else {
       const d = await res.json().catch(() => ({}))
       toast.error(d.error ?? 'Failed to suspend')
+    }
+  }
+
+  async function unsuspendUser(u: DBUser) {
+    if (!window.confirm(`Lift suspension on ${u.name}?`)) return
+    const res = await fetch(`/app/api/admin/users/${u.id}`, {
+      method: 'PATCH', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ suspendedUntil: null, suspensionNote: null }),
+    })
+    if (res.ok) {
+      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, suspendedUntil: null } : x))
+      toast.success(`${u.name} unsuspended`)
+    } else {
+      const d = await res.json().catch(() => ({}))
+      toast.error(d.error ?? 'Failed to unsuspend')
+    }
+  }
+
+  async function unbanUser(u: DBUser) {
+    if (!window.confirm(`Unban ${u.name}? They will regain access.`)) return
+    const res = await fetch(`/app/api/admin/users/${u.id}`, {
+      method: 'PATCH', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'approved', banReason: null }),
+    })
+    if (res.ok) {
+      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, status: 'approved' } : x))
+      toast.success(`${u.name} unbanned`)
+    } else {
+      const d = await res.json().catch(() => ({}))
+      toast.error(d.error ?? 'Failed to unban')
     }
   }
 
@@ -326,7 +380,7 @@ function AdminUsersPageInner() {
         body: JSON.stringify({ suspendedUntil: until, suspensionNote: `Suspended ${days}d by admin (bulk)` }),
       })
       if (res.ok) {
-        setUsers(prev => prev.map(x => x.id === u.id ? { ...x, status: 'suspended' } : x))
+        setUsers(prev => prev.map(x => x.id === u.id ? { ...x, suspendedUntil: until } : x))
         return true
       }
       return false
@@ -352,9 +406,11 @@ function AdminUsersPageInner() {
   function exportSelected() {
     if (selected.size === 0) return
     const targets = users.filter(u => selected.has(u.id))
-    const headers = ['Name', 'Email', 'Role', 'Status', 'Warnings', 'Joined', 'Last Active']
+    const headers = ['Name', 'Email', 'Role', 'Status', 'Warnings', 'Nationality', 'Joined', 'Last Active']
     const rows = targets.map(u => [
-      u.name, u.email, u.role, u.status, String(u.warningCount),
+      u.name, u.email, u.role,
+      isSuspended(u) ? 'suspended' : u.status,
+      String(u.warningCount), u.nationality ?? '',
       new Date(u.joinedAt).toLocaleDateString('en-GB'),
       u.lastActive ? new Date(u.lastActive).toLocaleDateString('en-GB') : '',
     ])
@@ -407,7 +463,7 @@ function AdminUsersPageInner() {
     admin:      searchFiltered.filter(u => u.role === 'admin').length,
     unverified: searchFiltered.filter(u => !u.emailVerified).length,
     banned:     searchFiltered.filter(u => u.status === 'banned').length,
-    suspended:  searchFiltered.filter(u => u.status === 'suspended').length,
+    suspended:  searchFiltered.filter(isSuspended).length,
     inactive:   searchFiltered.filter(u =>
       !u.lastActive || new Date(u.lastActive).getTime() < ninetyDaysAgo
     ).length,
@@ -421,7 +477,7 @@ function AdminUsersPageInner() {
       if (tab === 'admin')     return u.role === 'admin'
       if (tab === 'unverified') return !u.emailVerified
       if (tab === 'banned')     return u.status === 'banned'
-      if (tab === 'suspended')  return u.status === 'suspended'
+      if (tab === 'suspended')  return isSuspended(u)
       if (tab === 'warned')     return u.warningCount > 0
       if (tab === 'inactive') {
         return !u.lastActive || new Date(u.lastActive).getTime() < ninetyDaysAgo
@@ -493,7 +549,11 @@ function AdminUsersPageInner() {
       <div>
         <h1 className="text-2xl font-extrabold text-white">Users</h1>
         <p className="text-sm text-zinc-500 mt-0.5">
-          {loading ? 'Manage member accounts and roles' : <><span className="text-white font-bold">{users.length}</span> members · Manage accounts and roles</>}
+          {loading
+            ? 'Manage member accounts and roles'
+            : searchFiltered.length === users.length
+              ? <><span className="text-white font-bold">{users.length}</span> members · Manage accounts and roles</>
+              : <><span className="text-white font-bold">{searchFiltered.length}</span> of {users.length} members match filters</>}
         </p>
       </div>
 
@@ -535,9 +595,11 @@ function AdminUsersPageInner() {
         </select>
         <button
           onClick={() => {
-            const headers = ['Name', 'Email', 'Role', 'Status', 'Joined', 'Last Active']
+            const headers = ['Name', 'Email', 'Role', 'Status', 'Warnings', 'Nationality', 'Joined', 'Last Active']
             const rows = visible.map(u => [
-              u.name, u.email, u.role, u.status,
+              u.name, u.email, u.role,
+              isSuspended(u) ? 'suspended' : u.status,
+              String(u.warningCount), u.nationality ?? '',
               new Date(u.joinedAt).toLocaleDateString('en-GB'),
               u.lastActive ? new Date(u.lastActive).toLocaleDateString('en-GB') : '',
             ])
@@ -662,13 +724,26 @@ function AdminUsersPageInner() {
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
                   </button>
                 )}
-                {u.role !== 'admin' && u.status !== 'banned' && (
+                {u.role !== 'admin' && u.status !== 'banned' && !isSuspended(u) && (
                   <button onClick={() => warnUser(u)} className="p-2 rounded-lg text-orange-400 hover:bg-orange-500/10 transition-colors" title="Warn">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                   </button>
                 )}
-                {u.role !== 'admin' && u.status !== 'banned' && (
+                {u.role !== 'admin' && u.status !== 'banned' && !isSuspended(u) && (
                   <SuspendMenu u={u} onSuspend={suspendUser} onBan={banUser} />
+                )}
+                {/* Reverse-moderation buttons — only appear on the row that
+                    needs them, so the action bar doesn't get heavier for
+                    healthy accounts. Replaces a trip to the user detail page. */}
+                {isSuspended(u) && (
+                  <button onClick={() => unsuspendUser(u)} className="p-2 rounded-lg text-green-400 hover:bg-green-500/10 transition-colors" title="Lift suspension">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                  </button>
+                )}
+                {u.status === 'banned' && (
+                  <button onClick={() => unbanUser(u)} className="p-2 rounded-lg text-green-400 hover:bg-green-500/10 transition-colors" title="Unban">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                  </button>
                 )}
                 {u.role !== 'admin' && (
                   <button onClick={() => removeUser(u)} className="p-2 rounded-lg text-red-400 hover:bg-red-500/10 transition-colors" title="Remove">
@@ -694,10 +769,10 @@ function AdminUsersPageInner() {
                       <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full capitalize shrink-0 ${roleBadgeClass(u.role)}`}>{u.role}</span>
                     </div>
                     <div className="text-xs text-zinc-500">{new Date(u.joinedAt).toLocaleDateString('en-GB')}</div>
-                    {(u.status === 'banned' || u.status === 'suspended' || u.warningCount > 0 || sharedFp) && (
+                    {(u.status === 'banned' || isSuspended(u) || u.warningCount > 0 || sharedFp) && (
                       <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                         {u.status === 'banned' && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">banned</span>}
-                        {u.status === 'suspended' && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20">suspended</span>}
+                        {isSuspended(u) && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20" title={`Until ${new Date(u.suspendedUntil!).toLocaleDateString('en-GB')}`}>suspended</span>}
                         {u.warningCount > 0 && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20">⚠ {u.warningCount} warning{u.warningCount !== 1 ? 's' : ''}</span>}
                         {sharedFp && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20" title={`Shares device fingerprint with ${(fingerprintCounts.get(u.lastFingerprint!) ?? 1) - 1} other account(s)`}>⚠ Same device</span>}
                       </div>
