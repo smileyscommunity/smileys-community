@@ -127,18 +127,13 @@ export default function AdminPage() {
     <div className="p-4 sm:p-6 space-y-6 text-white">
 
       {/* ── Header ── */}
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-xs text-zinc-500 font-medium">{greeting}</p>
-          <h1 className="text-xl font-extrabold text-white tracking-tight">{firstName} 👋</h1>
-        </div>
-        <Link href="/admin/events/new"
-          className="flex items-center gap-1.5 px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl transition-colors shadow-lg shadow-amber-500/20">
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          New Event
-        </Link>
+      {/* Used to host a "New Event" CTA on the right; removed because the
+          same action lives inside the Upcoming Events card (where it sits
+          with the thing it creates). One source of truth for "I want to
+          start a new event" beats two CTAs split across the page. */}
+      <div>
+        <p className="text-xs text-zinc-500 font-medium">{greeting}</p>
+        <h1 className="text-xl font-extrabold text-white tracking-tight">{firstName} 👋</h1>
       </div>
 
       {/* ── Load error ── */}
@@ -168,48 +163,63 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* ── Key stats ── */}
+      {/* ── Key stats ──
+          Card value/sub render as skeleton bars while loading (replaces the
+          old "…" placeholder which read as actual content). When stats has
+          loaded, the real value or formatted string shows. */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {[
+        {([
           {
-            label: 'Members', value: stats?.members ?? '…',
-            sub: `+${stats?.newMembersThisMonth ?? 0} this month`,
+            label: 'Members', value: stats?.members,
+            sub: stats ? `+${stats.newMembersThisMonth} this month` : null,
             trend: stats?.trends.members,
             icon: '👥', iconBg: 'bg-blue-500/10 text-blue-400',
             href: '/admin/users',
           },
           {
-            label: 'Upcoming', value: stats?.upcoming ?? '…',
-            sub: `${stats?.events ?? 0} total events`,
+            label: 'Upcoming', value: stats?.upcoming,
+            // sub used to be "X total events" — pure noise on a dashboard
+            // where admins care about what's coming, not the lifetime
+            // count. Dropped; card stays compact.
+            sub: null,
             icon: '🗓️', iconBg: 'bg-amber-500/10 text-amber-400',
             href: '/admin/events',
           },
           {
-            label: 'RSVPs', value: stats?.rsvps ?? '…',
-            sub: 'All-time attendances',
+            label: 'RSVPs', value: stats?.rsvps,
+            sub: stats ? 'All-time attendances' : null,
             trend: stats?.trends.rsvps,
             icon: '🎟️', iconBg: 'bg-green-500/10 text-green-400',
             href: '/admin/participants',
           },
           {
-            label: 'Revenue', value: stats ? `₺${stats.revenueCollected.toLocaleString()}` : '…',
-            sub: stats?.revenuePending ? `₺${stats.revenuePending.toLocaleString()} pending` : 'No pending',
+            label: 'Revenue', value: stats ? `₺${stats.revenueCollected.toLocaleString()}` : undefined,
+            sub: stats ? (stats.revenuePending ? `₺${stats.revenuePending.toLocaleString()} pending` : 'No pending') : null,
             trend: stats?.trends.revenue,
             icon: '💰', iconBg: 'bg-violet-500/10 text-violet-400',
             href: '/admin/payments',
           },
-        ].map(card => (
+        ] as {
+          label: string; value: string | number | undefined; sub: string | null
+          trend?: number; icon: string; iconBg: string; href: string
+        }[]).map(card => (
           <Link key={card.label} href={card.href}
             className="bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-2xl p-4 transition-colors group">
             <div className="flex items-start justify-between mb-3">
               <span className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg ${card.iconBg}`}>
                 {card.icon}
               </span>
-              {'trend' in card && <Trend v={card.trend} />}
+              {/* Explicit undefined check beats `'trend' in card` (which
+                  fires even when the key is set to undefined). */}
+              {card.trend !== undefined && <Trend v={card.trend} />}
             </div>
-            <div className="text-2xl font-extrabold text-white group-hover:text-amber-400 transition-colors">{card.value}</div>
+            {card.value === undefined
+              ? <div className="h-7 w-20 rounded-md bg-zinc-800 animate-pulse" />
+              : <div className="text-2xl font-extrabold text-white group-hover:text-amber-400 transition-colors">{card.value}</div>}
             <div className="text-xs text-zinc-500 mt-0.5 font-medium">{card.label}</div>
-            <div className="text-[11px] text-zinc-600 mt-1">{card.sub}</div>
+            {card.sub === null && card.value === undefined
+              ? <div className="h-3 w-16 rounded-md bg-zinc-800/60 animate-pulse mt-1.5" />
+              : card.sub && <div className="text-[11px] text-zinc-600 mt-1">{card.sub}</div>}
           </Link>
         ))}
       </div>
