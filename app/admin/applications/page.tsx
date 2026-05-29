@@ -118,6 +118,13 @@ function AdminApplicationsPageInner() {
   // only read ?interest=. Now host-intent applications are one tap away
   // from the analytics tab that flagged them.
   const [filterContribution, setFilterContribution] = useState(searchParams.get('contribution') ?? '')
+  // Free-text search across fullName + email — case-insensitive substring.
+  // Trimmed at filter time so trailing whitespace doesn't break matches.
+  const [searchQuery, setSearchQuery] = useState('')
+  // Acquisition source filter — dropdown options are computed from the
+  // distinct source values seen in the loaded applications so it adapts to
+  // whatever's actually in the data (source is free-text from the apply form).
+  const [filterSource, setFilterSource] = useState('')
   const [reviewNote,    setReviewNote]    = useState('')
   const [rejectMsg,     setRejectMsg]     = useState('')
   const [assignedClubs, setAssignedClubs] = useState<string[]>([])
@@ -373,14 +380,33 @@ function AdminApplicationsPageInner() {
   // decide invisible rows.
   const RENDER_CAP = 200
 
-  const filtered = useMemo(() => apps
-    .filter(a => a.status === tab)
-    .filter(a => !filterInterest     || a.interests?.includes(filterInterest))
-    .filter(a => !filterContribution || a.contribution === filterContribution)
-    .sort((a, b) => sortBy === 'score'
-      ? (scoreById.get(b.id) ?? 0) - (scoreById.get(a.id) ?? 0)
-      : new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    ), [apps, tab, filterInterest, filterContribution, sortBy, scoreById])
+  const filtered = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    return apps
+      .filter(a => a.status === tab)
+      .filter(a => !filterInterest     || a.interests?.includes(filterInterest))
+      .filter(a => !filterContribution || a.contribution === filterContribution)
+      .filter(a => !filterSource       || (a.source ?? '').toLowerCase() === filterSource.toLowerCase())
+      .filter(a => !q || a.fullName.toLowerCase().includes(q) || a.email.toLowerCase().includes(q))
+      .sort((a, b) => sortBy === 'score'
+        ? (scoreById.get(b.id) ?? 0) - (scoreById.get(a.id) ?? 0)
+        : new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      )
+  }, [apps, tab, filterInterest, filterContribution, filterSource, searchQuery, sortBy, scoreById])
+
+  // Distinct sources for the dropdown — sorted alphabetically with the
+  // most-common ones first (a tiny bias so 'friend' / 'instagram' surface
+  // ahead of one-off freeform entries).
+  const sourceOptions = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const a of apps) {
+      const s = (a.source ?? '').trim()
+      if (s) counts.set(s, (counts.get(s) ?? 0) + 1)
+    }
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([source, count]) => ({ source, count }))
+  }, [apps])
 
   const overCap = filtered.length > RENDER_CAP
   const visible = overCap ? filtered.slice(0, RENDER_CAP) : filtered
@@ -435,6 +461,17 @@ function AdminApplicationsPageInner() {
           ))}
         </div>
 
+        {/* Free-text search across name + email. No debounce — the filter
+            runs purely client-side off the already-loaded array, so each
+            keystroke is cheap (< 1ms with the memoized score map). */}
+        <input
+          type="search"
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          placeholder="Search name or email…"
+          className="px-3 py-1.5 rounded-xl border border-zinc-700 text-xs text-zinc-300 bg-zinc-800 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-amber-500 w-44"
+        />
+
         <select value={sortBy} onChange={e => setSortBy(e.target.value as typeof sortBy)}
           className="px-3 py-1.5 rounded-xl border border-zinc-700 text-xs text-zinc-300 bg-zinc-800 focus:outline-none focus:ring-1 focus:ring-amber-500">
           <option value="recent">Newest first</option>
@@ -458,8 +495,23 @@ function AdminApplicationsPageInner() {
           <option value="attend">🎟️ Attend only</option>
         </select>
 
-        {(filterInterest || filterContribution) && (
-          <button onClick={() => { setFilterInterest(''); setFilterContribution('') }}
+        {/* Source filter — options are the distinct source values seen in
+            loaded data, ordered by frequency so the channels you actually
+            use surface first. Hidden when no sources have been recorded. */}
+        {sourceOptions.length > 0 && (
+          <select value={filterSource} onChange={e => setFilterSource(e.target.value)}
+            className="px-3 py-1.5 rounded-xl border border-zinc-700 text-xs text-zinc-300 bg-zinc-800 focus:outline-none focus:ring-1 focus:ring-amber-500">
+            <option value="">Any source</option>
+            {sourceOptions.map(({ source, count }) => (
+              <option key={source} value={source}>
+                {source.length > 24 ? source.slice(0, 22) + '…' : source} ({count})
+              </option>
+            ))}
+          </select>
+        )}
+
+        {(filterInterest || filterContribution || filterSource || searchQuery) && (
+          <button onClick={() => { setFilterInterest(''); setFilterContribution(''); setFilterSource(''); setSearchQuery('') }}
             className="text-xs text-zinc-500 hover:text-white">✕ Clear filters</button>
         )}
       </div>
