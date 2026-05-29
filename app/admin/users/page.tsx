@@ -285,9 +285,13 @@ function AdminUsersPageInner() {
   // batch silently. Clearing the selection only happens after all complete.
   async function bulkRun(label: string, work: (u: DBUser) => Promise<boolean>) {
     if (selected.size === 0) return
-    if (!window.confirm(`${label} ${selected.size} user${selected.size > 1 ? 's' : ''}?`)) return
+    // Drop admins defensively — checkbox is hidden for admin rows, but a
+    // role change between selection and click could still slip one through
+    // and the resulting "1 failed" toast wouldn't explain why.
+    const targets = users.filter(u => selected.has(u.id) && u.role !== 'admin')
+    if (targets.length === 0) { toast.error('Selection contains only admins — nothing to do'); return }
+    if (!window.confirm(`${label} ${targets.length} user${targets.length > 1 ? 's' : ''}?`)) return
     setBulkSaving(true)
-    const targets = users.filter(u => selected.has(u.id))
     let ok = 0, fail = 0
     for (const u of targets) {
       try { if (await work(u)) ok++; else fail++ } catch { fail++ }
@@ -455,10 +459,14 @@ function AdminUsersPageInner() {
     { key: 'inactive',  label: 'Inactive'   },
   ]
 
-  // Selection helpers — `selectAllVisible` toggles every row currently on
-  // screen (respects search/tab/date), so an admin can filter to e.g.
-  // "warned" and bulk-ban from there without touching the rest.
-  const allVisibleSelected = visible.length > 0 && visible.every(u => selected.has(u.id))
+  // Selection helpers — `selectAllVisible` toggles every *non-admin* row
+  // currently on screen. Admins are excluded from selection because every
+  // moderation action (warn/suspend/ban/remove) is already gated by
+  // `u.role !== 'admin'` server-side and at the row-button level; letting
+  // them be selected would just produce "N failed" toasts with no signal
+  // about why (the self-actions-invisibly-fail audit item).
+  const selectable = useMemo(() => visible.filter(u => u.role !== 'admin'), [visible])
+  const allVisibleSelected = selectable.length > 0 && selectable.every(u => selected.has(u.id))
   const toggleOne = useCallback((id: string) => {
     setSelected(prev => {
       const next = new Set(prev)
@@ -469,14 +477,14 @@ function AdminUsersPageInner() {
   const toggleAllVisible = useCallback(() => {
     setSelected(prev => {
       const next = new Set(prev)
-      if (visible.every(u => next.has(u.id))) {
-        for (const u of visible) next.delete(u.id)
+      if (selectable.every(u => next.has(u.id))) {
+        for (const u of selectable) next.delete(u.id)
       } else {
-        for (const u of visible) next.add(u.id)
+        for (const u of selectable) next.add(u.id)
       }
       return next
     })
-  }, [visible])
+  }, [selectable])
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
@@ -611,7 +619,21 @@ function AdminUsersPageInner() {
         </div>
 
         <div className="divide-y divide-zinc-800">
-          {loading && <div className="px-6 py-12 text-center text-zinc-500 text-sm">Loading…</div>}
+          {/* Skeleton rows — match the real row height so the layout doesn't
+              jump when data arrives. Matches the bar pattern on /admin
+              (dashboard) and /admin/posts. */}
+          {loading && [0, 1, 2, 3, 4, 5].map(i => (
+            <div key={i} className="px-4 sm:px-6 py-3.5 flex items-center gap-3">
+              <div className="hidden md:block w-3.5 h-3.5 rounded bg-zinc-800 animate-pulse shrink-0" />
+              <div className="w-9 h-9 rounded-full bg-zinc-800 animate-pulse shrink-0" />
+              <div className="flex-1 min-w-0 space-y-1.5">
+                <div className="h-3.5 w-32 rounded bg-zinc-800 animate-pulse" />
+                <div className="h-3 w-20 rounded bg-zinc-800/60 animate-pulse" />
+              </div>
+              <div className="hidden md:block h-6 w-24 rounded-full bg-zinc-800 animate-pulse" />
+              <div className="h-7 w-20 rounded-lg bg-zinc-800 animate-pulse" />
+            </div>
+          ))}
           {!loading && visible.length === 0 && <div className="px-6 py-12 text-center text-zinc-500 text-sm">No users found.</div>}
           {visible.map(u => {
             // waLink replaces the earlier dead-code + duplicate of this
@@ -659,8 +681,10 @@ function AdminUsersPageInner() {
               <div key={u.id}>
                 {/* Mobile card */}
                 <div className="md:hidden px-4 py-3 flex items-center gap-3">
-                  <input type="checkbox" checked={selected.has(u.id)} onChange={() => toggleOne(u.id)}
-                    className="w-3.5 h-3.5 rounded border-zinc-700 bg-zinc-800 text-amber-500 focus:ring-amber-500 cursor-pointer shrink-0" />
+                  {u.role === 'admin'
+                    ? <div className="w-3.5 shrink-0" />
+                    : <input type="checkbox" checked={selected.has(u.id)} onChange={() => toggleOne(u.id)}
+                        className="w-3.5 h-3.5 rounded border-zinc-700 bg-zinc-800 text-amber-500 focus:ring-amber-500 cursor-pointer shrink-0" />}
                   <Link href={`/admin/users/${u.id}`} className="shrink-0">
                     <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-bold" style={{ backgroundColor: u.color }}>{getInitials(u.name)}</div>
                   </Link>
@@ -685,8 +709,10 @@ function AdminUsersPageInner() {
                 {/* Desktop row */}
                 <div className="hidden md:grid grid-cols-12 gap-3 px-6 py-3.5 items-center hover:bg-zinc-800/40 transition-colors">
                   <div className="col-span-1">
-                    <input type="checkbox" checked={selected.has(u.id)} onChange={() => toggleOne(u.id)}
-                      className="w-3.5 h-3.5 rounded border-zinc-700 bg-zinc-800 text-amber-500 focus:ring-amber-500 cursor-pointer" />
+                    {u.role !== 'admin' && (
+                      <input type="checkbox" checked={selected.has(u.id)} onChange={() => toggleOne(u.id)}
+                        className="w-3.5 h-3.5 rounded border-zinc-700 bg-zinc-800 text-amber-500 focus:ring-amber-500 cursor-pointer" />
+                    )}
                   </div>
                   <Link href={`/admin/users/${u.id}`} className="col-span-4 flex items-center gap-3 min-w-0 group">
                     <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0" style={{ backgroundColor: u.color }}>{getInitials(u.name)}</div>
