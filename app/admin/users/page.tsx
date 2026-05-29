@@ -622,9 +622,27 @@ function AdminUsersPageInner() {
 
       {/* Date-range filter — collapses to its own row under the tabs/search
           on mobile. Both inputs are optional; the joined-date predicate
-          short-circuits when both are empty. */}
+          short-circuits when both are empty. Quick presets ahead of the
+          inputs cover the common admin questions ("who joined this week?
+          this month? this year?") in one click. */}
       <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
         <span className="font-semibold">Joined</span>
+        {([
+          ['7d',         () => { const d = new Date(); d.setDate(d.getDate() - 7);  return [d, new Date()] as const }],
+          ['30d',        () => { const d = new Date(); d.setDate(d.getDate() - 30); return [d, new Date()] as const }],
+          ['This month', () => { const n = new Date(); return [new Date(n.getFullYear(), n.getMonth(), 1), n] as const }],
+          ['This year',  () => { const n = new Date(); return [new Date(n.getFullYear(), 0, 1),         n] as const }],
+        ] as const).map(([label, range]) => (
+          <button key={label} onClick={() => {
+            const [f, t] = range()
+            // Inputs expect yyyy-mm-dd in local time, so slice the ISO date.
+            const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+            setJoinedFrom(fmt(f)); setJoinedTo(fmt(t))
+          }} className="px-2 py-1 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700 transition-colors">
+            {label}
+          </button>
+        ))}
+        <span className="text-zinc-700">|</span>
         <input type="date" value={joinedFrom} onChange={e => setJoinedFrom(e.target.value)}
           className="px-2 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:ring-1 focus:ring-amber-500" />
         <span>→</span>
@@ -800,6 +818,12 @@ function AdminUsersPageInner() {
                     <div className="min-w-0">
                       <div className="font-semibold text-sm text-white truncate group-hover:text-amber-400 transition-colors flex items-center gap-1.5">
                         {u.name}
+                        {/* Status badges live next to the name on desktop so
+                            an admin scanning a long list spots banned /
+                            suspended rows without inferring it from the
+                            absence of the suspend/ban action buttons. */}
+                        {u.status === 'banned' && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">banned</span>}
+                        {isSuspended(u) && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20" title={`Until ${new Date(u.suspendedUntil!).toLocaleDateString('en-GB')}`}>suspended</span>}
                         {sharedFp && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20" title={`Shares device fingerprint with ${(fingerprintCounts.get(u.lastFingerprint!) ?? 1) - 1} other account(s)`}>⚠ Same device</span>}
                       </div>
                       <div className="text-xs text-zinc-500 flex items-center gap-2 flex-wrap">
