@@ -22,7 +22,7 @@ interface Application {
   openToCoffee: boolean; openToLanguage: boolean; openToHosting: boolean
   profilePhoto: string | null; suggestion: string | null; suggestedBy: string | null
   bio: string | null; source: string | null; referredBy: string | null; status: string
-  reviewNote: string | null; createdAt: string; reviewer: { name: string } | null
+  reviewNote: string | null; createdAt: string; reviewedAt: string | null; reviewer: { name: string } | null
   ipAddress: string | null; userAgent: string | null; fingerprint: string | null
   timezone: string | null; timezoneMismatch: boolean; disposableEmail: boolean
   // Aggregate signal computed at apply time — see /api/apply/route.ts.
@@ -110,11 +110,12 @@ function AdminApplicationsPageInner() {
   const [clubs,         setClubs]         = useState<{ id: string; name: string; emoji: string }[]>([])
   const [loading,       setLoading]       = useState(true)
   const [selected,      setSelected]      = useState<Application | null>(null)
-  // 'hold' = awaiting more info from the applicant — the API status set
-  // by the "Request more info" decision-panel button. Stays out of the
-  // pending queue so it doesn't clog the review list but admins can find
-  // it via the Hold tab when the applicant responds.
-  const [tab,           setTab]           = useState<'pending' | 'approved' | 'rejected' | 'hold'>('pending')
+  // 'hold' status (API-side) folds INTO the Pending tab as a badge rather
+  // than getting its own tab. The Request More Info workflow is preserved
+  // (modal button + API behaviour unchanged) — admins just see held apps
+  // alongside genuinely-pending ones, marked "✉ Info requested Xd ago",
+  // so they don't disappear into a side tab nobody clicks.
+  const [tab,           setTab]           = useState<'pending' | 'approved' | 'rejected'>('pending')
   const [sortBy,        setSortBy]        = useState<'recent' | 'score' | 'suspicion'>('recent')
   const [filterInterest,setFilterInterest]= useState(searchParams.get('interest') ?? '')
   // ?contribution=host wires up to the host-pipeline link on
@@ -333,10 +334,12 @@ function AdminApplicationsPageInner() {
   }
 
   const counts = useMemo(() => ({
-    pending:  apps.filter(a => a.status === 'pending').length,
+    // pending count includes 'hold' status — held apps are folded into the
+    // pending queue with an "✉ Info requested" badge so they stay visible
+    // without a dedicated tab nobody would think to click.
+    pending:  apps.filter(a => a.status === 'pending' || a.status === 'hold').length,
     approved: apps.filter(a => a.status === 'approved').length,
     rejected: apps.filter(a => a.status === 'rejected').length,
-    hold:     apps.filter(a => a.status === 'hold').length,
   }), [apps])
 
   // Pipeline numbers for the header — computed from the apps array that's
@@ -387,7 +390,10 @@ function AdminApplicationsPageInner() {
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
     return apps
-      .filter(a => a.status === tab)
+      // Pending tab includes 'hold'-status apps so they don't disappear into
+      // a side tab; the card itself renders an "✉ Info requested" badge so
+      // admins can tell them apart at a glance.
+      .filter(a => a.status === tab || (tab === 'pending' && a.status === 'hold'))
       .filter(a => !filterInterest     || a.interests?.includes(filterInterest))
       .filter(a => !filterContribution || a.contribution === filterContribution)
       .filter(a => !filterSource       || (a.source ?? '').toLowerCase() === filterSource.toLowerCase())
@@ -455,7 +461,7 @@ function AdminApplicationsPageInner() {
           the search input on phones; filters wrap below. */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
         <div className="flex gap-1 bg-zinc-800 rounded-xl p-1 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-1 sm:overflow-visible shrink-0">
-          {(['pending', 'hold', 'approved', 'rejected'] as const).map(t => (
+          {(['pending', 'approved', 'rejected'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)}
               className={`px-3 py-2 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
                 tab === t ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-white'
@@ -642,6 +648,21 @@ function AdminApplicationsPageInner() {
                       🚨 Sus {app.suspicionScore}
                     </span>
                   )}
+                  {/* Info-requested badge — shown for hold-status apps that
+                      now live inside the Pending queue. Includes the days-
+                      since-asked so the admin can spot stale holds that
+                      should probably be force-decided. */}
+                  {app.status === 'hold' && app.reviewedAt && (() => {
+                    const days = Math.max(0, Math.floor((Date.now() - new Date(app.reviewedAt).getTime()) / 86400000))
+                    const stale = days >= 7
+                    return (
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                        stale ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30' : 'bg-blue-500/10 text-blue-400'
+                      }`} title={`Asked applicant for more info ${days}d ago`}>
+                        ✉ Info requested {days === 0 ? 'today' : `${days}d ago`}
+                      </span>
+                    )
+                  })()}
                   {/* Risk signals — single badge when there's one risk so the
                       specific cause is readable at a glance, collapsed into
                       "⚠ N risks" with title tooltip when 2+ so the card
@@ -689,8 +710,11 @@ function AdminApplicationsPageInner() {
               </div>
 
               {/* Actions — icon-only on mobile so name + badges fit on the
-                  same row, with full text on sm+ where there's room. */}
-              {app.status === 'pending' ? (
+                  same row, with full text on sm+ where there's room. Held
+                  apps get the same quick-decide controls as pending (the
+                  "✉ Info requested" badge above already conveys their
+                  state) so admins can decide once the applicant replies. */}
+              {app.status === 'pending' || app.status === 'hold' ? (
                 <div className="flex gap-1.5 shrink-0" onClick={e => e.stopPropagation()}>
                   <button onClick={e => quickDecide(e, app.id, 'approved')}
                     aria-label="Approve"
