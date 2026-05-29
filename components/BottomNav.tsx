@@ -6,6 +6,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import { resolveImageUrl } from '@/lib/data'
 import { usePendingConnections } from '@/hooks/usePendingConnections'
 import { useState, useEffect, useCallback } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import AccountMenu from '@/components/AccountMenu'
 
 function useUnreadMessages(isLoggedIn: boolean) {
   const [unread, setUnread] = useState(0)
@@ -47,6 +49,11 @@ export default function BottomNav() {
   const pendingConnections    = usePendingConnections()
   const unreadMessages        = useUnreadMessages(isLoggedIn)
   const unreadNotifications   = useUnreadNotifications(isLoggedIn)
+  // Mobile-only account sheet — opens when the avatar tab is tapped, gives
+  // mobile users reach to everything in the desktop dropdown (Sign out,
+  // Settings, Perks, Hangouts recap, etc.) that was otherwise unreachable.
+  const [sheetOpen, setSheetOpen] = useState(false)
+  useEffect(() => { setSheetOpen(false) }, [pathname])  // close on nav
 
   const isInApp = pathname.startsWith('/admin') || pathname.startsWith('/host') || pathname.startsWith('/partner') ||
     ['/events', '/clubs', '/members', '/perks', '/dashboard', '/profile', '/my-events', '/notifications', '/pending', '/reviews', '/listings', '/messages', '/neighborhoods', '/invite', '/guide', '/hangouts', '/visiting'].some(r => pathname === r || pathname.startsWith(r + '/'))
@@ -185,9 +192,13 @@ export default function BottomNav() {
             )
           })}
 
-          {/* Profile / Me tab — always last */}
-          <Link
-            href="/profile"
+          {/* Profile / Me tab — was a direct link to /profile; now opens the
+              AccountMenu sheet so mobile users can reach Sign out + Settings
+              + Perks + Hangouts recap + everything else that used to be
+              desktop-dropdown-only. Tap-to-open, swipe/backdrop to close. */}
+          <button
+            type="button"
+            onClick={() => setSheetOpen(true)}
             className="flex-1 flex flex-col items-center justify-center py-2 gap-0.5 relative"
           >
             <div className={`relative flex items-center justify-center w-12 h-7 rounded-full transition-colors ${isProfileActive ? 'bg-amber-50' : ''}`}>
@@ -208,9 +219,42 @@ export default function BottomNav() {
             <span className={`text-[10px] font-semibold ${isProfileActive ? 'text-amber-600' : 'text-gray-400'}`}>
               Me
             </span>
-          </Link>
+          </button>
         </div>
       </nav>
+
+      {/* Mobile account sheet — slides up from the bottom on avatar tap,
+          dismissed via backdrop or by tapping a menu item. Renders the
+          same AccountMenu shared with the desktop dropdown so the two
+          surfaces never drift. */}
+      <AnimatePresence>
+        {sheetOpen && (
+          <>
+            <motion.div
+              key="account-sheet-backdrop"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              onClick={() => setSheetOpen(false)}
+              className="fixed inset-0 z-[60] bg-black/40 md:hidden"
+              aria-hidden="true"
+            />
+            <motion.div
+              key="account-sheet"
+              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+              transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+              className="fixed bottom-0 left-0 right-0 z-[61] bg-white rounded-t-3xl shadow-2xl max-h-[85vh] overflow-y-auto md:hidden safe-area-pb"
+              role="dialog"
+              aria-modal="true"
+            >
+              {/* Grab handle — visual affordance that this is a sheet */}
+              <div className="flex justify-center pt-2 pb-1">
+                <div className="w-10 h-1 rounded-full bg-gray-300" />
+              </div>
+              <AccountMenu onItemClick={() => setSheetOpen(false)} />
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </>
   )
 }
