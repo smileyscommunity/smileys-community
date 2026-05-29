@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, Suspense } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
+import { resolveImageUrl } from '@/lib/data'
 
 interface Analytics {
   period: string
@@ -32,6 +33,17 @@ interface Analytics {
   }
   funnel:  { applications: number; approved: number; firstEvent: number; repeat: number }
   cohorts: { cohort: string; size: number; within30Pct: number; within90Pct: number; everPct: number }[]
+  hostPipeline: {
+    pending:          number
+    activeHosts:      number
+    neverHostedCount: number
+    neverHosted:      {
+      id: string; name: string; color: string; profilePhoto: string | null
+      neighborhood: string | null; joinedAt: string; lastActive: string | null
+      interests: string[]
+    }[]
+  }
+  sourceBreakdown: { source: string; approved: number; attended: number; conversionPct: number }[]
   moderation: {
     reportsInPeriod:     number
     actionedInPeriod:    number
@@ -565,6 +577,45 @@ function AnalyticsInner() {
               </div>
             </section>
           )}
+
+          {/* ── Acquisition source ──────────────────────────────────────────
+              Where approved members say they came from + how many actually
+              attended an event. Tells you which channels send people who
+              *engage* vs. which ones just send signup-and-disappear users.
+              Hidden when no sources are recorded (zero-data community). */}
+          {data.sourceBreakdown.length > 0 && (
+            <section>
+              <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3">Acquisition source · lifetime</h2>
+              <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5">
+                <div className="grid grid-cols-[1fr_auto_auto_minmax(80px,160px)] gap-x-4 gap-y-3 items-center text-xs">
+                  <span className="text-[10px] font-bold text-zinc-500 uppercase">Source</span>
+                  <span className="text-[10px] font-bold text-zinc-500 uppercase text-right">Approved</span>
+                  <span className="text-[10px] font-bold text-zinc-500 uppercase text-right">Attended</span>
+                  <span className="text-[10px] font-bold text-zinc-500 uppercase">Conversion</span>
+
+                  {data.sourceBreakdown.map(s => (
+                    <React.Fragment key={s.source}>
+                      <span className="text-zinc-300 font-medium capitalize truncate">{s.source}</span>
+                      <span className="text-zinc-200 text-right tabular-nums">{s.approved}</span>
+                      <span className="text-zinc-400 text-right tabular-nums">{s.attended}</span>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="relative h-2 flex-1 bg-zinc-800 rounded-full overflow-hidden min-w-[40px]">
+                          <div
+                            className="absolute inset-y-0 left-0 transition-all"
+                            style={{
+                              width: `${s.conversionPct}%`,
+                              backgroundColor: s.conversionPct >= 50 ? '#34d399' : s.conversionPct >= 25 ? '#f59e0b' : '#ef4444',
+                            }}
+                          />
+                        </div>
+                        <span className="text-zinc-300 font-bold tabular-nums w-8 text-right">{s.conversionPct}%</span>
+                      </div>
+                    </React.Fragment>
+                  ))}
+                </div>
+              </div>
+            </section>
+          )}
         </>
       )}
 
@@ -767,6 +818,81 @@ function AnalyticsInner() {
               )}
             </div>
           </section>
+
+          {/* ── Host pipeline ────────────────────────────────────────────────
+              Catches "the Yasemin trap" — members who said contribution:
+              'host' on their application, got approved, and never threw an
+              event. Surfaced as a clickable list of avatars + names so
+              admins can DM each one directly to recover lost host capacity. */}
+          {(data.hostPipeline.neverHostedCount > 0 || data.hostPipeline.pending > 0 || data.hostPipeline.activeHosts > 0) && (
+            <section>
+              <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
+                <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Host pipeline</h2>
+                <span className="text-[10px] text-zinc-600 italic">Lifetime — based on application contribution: host</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+                <Link href="/admin/applications?contribution=host"
+                  className="bg-zinc-900 rounded-2xl border border-zinc-800 hover:border-zinc-700 transition-colors p-5">
+                  <div className="text-xs text-zinc-500 font-medium mb-1">Pending host apps</div>
+                  <div className="text-2xl font-extrabold text-white">{data.hostPipeline.pending}</div>
+                  <div className="text-[11px] text-zinc-600 mt-1">In application queue</div>
+                </Link>
+                <div className={`rounded-2xl border p-5 ${data.hostPipeline.neverHostedCount > 0
+                  ? 'bg-amber-500/5 border-amber-500/30'
+                  : 'bg-zinc-900 border-zinc-800'}`}>
+                  <div className="text-xs text-zinc-500 font-medium mb-1">Approved, never hosted</div>
+                  <div className={`text-2xl font-extrabold ${data.hostPipeline.neverHostedCount > 0 ? 'text-amber-400' : 'text-zinc-300'}`}>
+                    {data.hostPipeline.neverHostedCount}
+                  </div>
+                  <div className="text-[11px] text-zinc-600 mt-1">Said they&apos;d host — list below</div>
+                </div>
+                <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5">
+                  <div className="text-xs text-zinc-500 font-medium mb-1">Active hosts</div>
+                  <div className="text-2xl font-extrabold text-green-400">{data.hostPipeline.activeHosts}</div>
+                  <div className="text-[11px] text-zinc-600 mt-1">≥1 event hosted</div>
+                </div>
+              </div>
+
+              {data.hostPipeline.neverHosted.length > 0 && (
+                <div className="bg-zinc-900 rounded-2xl border border-amber-500/20 overflow-hidden">
+                  <div className="px-5 py-3 border-b border-zinc-800 bg-amber-500/5">
+                    <div className="text-sm font-bold text-amber-300">⚠ Approved hosts who haven&apos;t hosted yet</div>
+                    <div className="text-xs text-zinc-500 mt-0.5">DM them with a specific event idea — generic nudges read as desperate.</div>
+                  </div>
+                  <div className="divide-y divide-zinc-800/60">
+                    {data.hostPipeline.neverHosted.map(h => (
+                      <Link key={h.id} href={`/admin/users/${h.id}`}
+                        className="flex items-center gap-3 px-5 py-3 hover:bg-zinc-800/40 transition-colors">
+                        <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center text-white text-xs font-bold shrink-0"
+                          style={{ backgroundColor: h.color }}>
+                          {h.profilePhoto
+                            ? <img src={resolveImageUrl(h.profilePhoto)} alt={h.name} className="w-full h-full object-cover" />
+                            : h.name[0]}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-semibold text-zinc-200 truncate">{h.name}</span>
+                            {h.neighborhood && <span className="text-xs text-zinc-500">{h.neighborhood}</span>}
+                          </div>
+                          <div className="text-xs text-zinc-500 mt-0.5">
+                            Joined {timeAgo(h.joinedAt)}
+                            {h.lastActive && <> · last seen {timeAgo(h.lastActive)}</>}
+                          </div>
+                          {h.interests.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {h.interests.slice(0, 5).map(i => (
+                                <span key={i} className="text-[9px] px-1.5 py-0.5 bg-zinc-800 text-zinc-500 rounded-full capitalize">{i}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
 
           {/* ── Cohort retention ────────────────────────────────────────────
               For each monthly cohort in the selected period (30d=1, 90d=3,

@@ -51,6 +51,7 @@ export async function GET(req: NextRequest) {
       memberNeighborhoods, eventNeighborhoods, attendedEventTags,
       revenueByClubRaw, refundsByHostRaw,
       hangoutsInPeriod, referencesInPeriod,
+      hostApplications, eventsByHost, approvedApps,
       reportsInPeriod, bansInPeriod, totalApprovedMembers,
     ] = await Promise.all([
       prisma.user.findMany({
@@ -168,6 +169,28 @@ export async function GET(req: NextRequest) {
       prisma.hangoutReference.findMany({
         where:  { createdAt: { gte: periodStart } },
         select: { createdAt: true, vibe: true },
+      }),
+      // Host pipeline — every application where the applicant said
+      // contribution: 'host'. We need fullName + email + interests so the
+      // page can render the Yasemin trap: approved-host-candidates with
+      // 0 events to their name.
+      prisma.memberApplication.findMany({
+        where:  { contribution: 'host' },
+        select: { fullName: true, email: true, status: true, createdAt: true, interests: true },
+      }),
+      // Events grouped by hostId so we can tell which host-intent users
+      // have actually thrown an event vs. fell through onboarding.
+      prisma.event.groupBy({
+        by: ['hostId'],
+        where:  { status: { in: ['published', 'archived'] } },
+        _count: { _all: true },
+      }),
+      // All approved-status applications with source — the acquisition
+      // attribution dataset. Matched to users-with-event-attendance below
+      // to compute conversion-by-source.
+      prisma.memberApplication.findMany({
+        where:  { status: 'approved' },
+        select: { email: true, source: true },
       }),
       // Reports in the selected period with their resolution timestamps —
       // drives mod velocity ("how fast are reports getting actioned?") and
@@ -436,7 +459,11 @@ export async function GET(req: NextRequest) {
     // cohort math has the join key. Cheap query, single table scan.
     const approvedWithId = await prisma.user.findMany({
       where:  { status: 'approved', role: { in: ['member', 'moderator'] } },
-      select: { id: true, joinedAt: true },
+      // email added so we can match host-intent applications + acquisition-
+      // source applications to actual user records via email join.
+      // color/profilePhoto added so the host pipeline can render avatars
+      // without an extra query.
+      select: { id: true, joinedAt: true, email: true, name: true, color: true, profilePhoto: true, neighborhood: true, lastActive: true },
     })
     const userJoinById = new Map(approvedWithId.map(u => [u.id, new Date(u.joinedAt)]))
     // userId → first attendance date
@@ -531,6 +558,72 @@ export async function GET(req: NextRequest) {
         vibeBreakdown,
         topHostsOfPeriod,
       },
+      // Host pipeline — the Yasemin trap. Approved members who said
+      // contribution: 'host' on their application but have hosted zero
+      // events. Computed by matching applications.email to users.email,
+      // then checking event count from the eventsByHost groupBy.
+      hostPipeline: (() => {
+        const userByEmail   = new Map(approvedWithId.map(u => [u.email, u]))
+        const eventCountByHost = new Map(
+          (eventsByHost as { hostId: string | null; _count: { _all: number } }[])
+            .filter(e => e.hostId)
+            .map(e => [e.hostId!, e._count._all])
+        )
+        const pending = hostApplications.filter(a => a.status === 'pending').length
+        const approvedHostUsers = hostApplications
+          .filter(a => a.status === 'approved' && userByEmail.has(a.email))
+          .map(a => {
+            const user = userByEmail.get(a.email)!
+            return {
+              ...user,
+              hostedCount: eventCountByHost.get(user.id) ?? 0,
+              interests:   a.interests,
+              joinedAt:    user.joinedAt,
+            }
+          })
+        const neverHosted = approvedHostUsers.filter(u => u.hostedCount === 0)
+        const activeHosts = approvedHostUsers.length - neverHosted.length
+        return {
+          pending,
+          activeHosts,
+          neverHostedCount: neverHosted.length,
+          // Top 12 sorted by most-recently-joined-but-not-hosted; admins
+          // can DM these directly to recover host capacity that fell through
+          // the standard member onboarding.
+          neverHosted: neverHosted
+            .sort((a, b) => new Date(b.joinedAt).getTime() - new Date(a.joinedAt).getTime())
+            .slice(0, 12)
+            .map(u => ({
+              id: u.id, name: u.name, color: u.color, profilePhoto: u.profilePhoto,
+              neighborhood: u.neighborhood, joinedAt: u.joinedAt, lastActive: u.lastActive,
+              interests: u.interests,
+            })),
+        }
+      })(),
+      // Acquisition source — where approved members say they came from
+      // (friend / Instagram / search / etc.) plus the % who've attended ≥1
+      // event. Surfaces which acquisition channels actually engage instead
+      // of which ones just send people who bounce.
+      sourceBreakdown: (() => {
+        const userIdByEmail   = new Map(approvedWithId.map(u => [u.email, u.id]))
+        const attendedUserIds = new Set(allAttendees.map(a => a.userId))
+        const bucket: Record<string, { approved: number; attended: number }> = {}
+        for (const app of approvedApps as { email: string; source: string | null }[]) {
+          const key = app.source?.trim() || 'unknown'
+          if (!bucket[key]) bucket[key] = { approved: 0, attended: 0 }
+          bucket[key].approved++
+          const uid = userIdByEmail.get(app.email)
+          if (uid && attendedUserIds.has(uid)) bucket[key].attended++
+        }
+        return Object.entries(bucket)
+          .map(([source, m]) => ({
+            source,
+            approved:      m.approved,
+            attended:      m.attended,
+            conversionPct: m.approved > 0 ? Math.round((m.attended / m.approved) * 100) : 0,
+          }))
+          .sort((a, b) => b.approved - a.approved)
+      })(),
       funnel,
       cohorts,
       // Health / moderation velocity — fleshes out the previously-thin Health
