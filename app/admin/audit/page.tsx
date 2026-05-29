@@ -129,48 +129,131 @@ const FILTER_GROUPS = [
   { key: 'event',               label: 'Events'       },
 ]
 
-export default function AdminAuditPage() {
-  const [logs,    setLogs]    = useState<AuditEntry[]>([])
-  const [loading, setLoading] = useState(true)
-  const [filter,  setFilter]  = useState('')
+// Server caps `take` at 200; we keep page size below that so the
+// "hasMore" inference (returned === PAGE_SIZE) actually triggers.
+const PAGE_SIZE = 100
 
-  // Re-fetch when the filter changes so the server-side action prefix
-  // narrows the result set — previously the route accepted ?action= and
-  // ?take= but the client never used them, so the page filtered a
-  // rolling-100 window client-side and an active filter often emptied
-  // the visible list (the 100 latest entries might contain zero matches
-  // for "Payments" if recent activity was elsewhere). take=200 is the
-  // server's hard cap.
+export default function AdminAuditPage() {
+  const [logs,        setLogs]        = useState<AuditEntry[]>([])
+  const [loading,     setLoading]     = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore,     setHasMore]     = useState(false)
+  const [filter,      setFilter]      = useState('')
+  const [search,      setSearch]      = useState('')
+  const [fromDate,    setFromDate]    = useState('')
+  const [toDate,      setToDate]      = useState('')
+  // Debounced version of `search` — keeps typing from spamming the API.
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 250)
+    return () => clearTimeout(t)
+  }, [search])
+
+  // Build the query string for both initial and load-more fetches. The
+  // only difference between them is the `before` cursor.
+  function buildQs(before?: string) {
+    const qs = new URLSearchParams({ take: String(PAGE_SIZE) })
+    if (filter)          qs.set('action', filter)
+    if (debouncedSearch) qs.set('search', debouncedSearch)
+    if (fromDate)        qs.set('from',   fromDate)
+    // `to` is a yyyy-mm-dd; the server compares to createdAt which is a
+    // datetime, so push it to end-of-day so an entry created at 23:00
+    // still falls inside "today".
+    if (toDate)          qs.set('to',     `${toDate}T23:59:59.999`)
+    if (before)          qs.set('before', before)
+    return qs.toString()
+  }
+
+  // Re-fetch from scratch whenever any filter changes. Resets the list
+  // (this is a new query, not a continuation) and recomputes hasMore.
   useEffect(() => {
     setLoading(true)
-    const qs = new URLSearchParams({ take: '200' })
-    if (filter) qs.set('action', filter)
-    fetch(`/app/api/admin/audit?${qs.toString()}`, { credentials: 'include' })
+    fetch(`/app/api/admin/audit?${buildQs()}`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : [])
-      .then(d => setLogs(Array.isArray(d) ? d : []))
+      .then((d: AuditEntry[]) => {
+        const data = Array.isArray(d) ? d : []
+        setLogs(data)
+        setHasMore(data.length === PAGE_SIZE)
+      })
       .finally(() => setLoading(false))
-  }, [filter])
+  // buildQs depends on every filter via closure, so rebuilding it
+  // doesn't need to be a dep — listing the fields is enough.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter, debouncedSearch, fromDate, toDate])
 
-  // Server has already narrowed by action prefix; no further client
-  // filter needed. (The old `|| adminName.includes(filter)` clause was
-  // dead — every filter chip is an action prefix, no admin is named
-  // "user.ban".)
+  async function loadMore() {
+    if (!hasMore || loadingMore || logs.length === 0) return
+    const cursor = logs[logs.length - 1].createdAt
+    setLoadingMore(true)
+    try {
+      const res = await fetch(`/app/api/admin/audit?${buildQs(cursor)}`, { credentials: 'include' })
+      const d   = res.ok ? await res.json() : []
+      const data: AuditEntry[] = Array.isArray(d) ? d : []
+      setLogs(prev => [...prev, ...data])
+      setHasMore(data.length === PAGE_SIZE)
+    } finally {
+      setLoadingMore(false)
+    }
+  }
+
+  function applyPreset(days: number) {
+    const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    const t = new Date()
+    const f = new Date(); f.setDate(f.getDate() - days)
+    setFromDate(fmt(f)); setToDate(fmt(t))
+  }
+
   const visible = logs
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-extrabold text-white tracking-tight">Audit Log</h1>
-        <p className="text-sm text-zinc-500 mt-0.5">All sensitive admin actions — {logs.length} entries</p>
+        <p className="text-sm text-zinc-500 mt-0.5">
+          All sensitive admin actions — showing {logs.length}
+          {hasMore && ' (more available)'}
+        </p>
       </div>
 
-      <div className="flex gap-1 bg-zinc-900 rounded-xl p-1 w-fit border border-zinc-800 flex-wrap">
-        {FILTER_GROUPS.map(f => (
-          <button key={f.key} onClick={() => setFilter(f.key)}
-            className={`px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${filter === f.key ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-white'}`}>
-            {f.label}
-          </button>
-        ))}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="flex gap-1 bg-zinc-900 rounded-xl p-1 w-fit border border-zinc-800 flex-wrap">
+          {FILTER_GROUPS.map(f => (
+            <button key={f.key} onClick={() => setFilter(f.key)}
+              className={`px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${filter === f.key ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-white'}`}>
+              {f.label}
+            </button>
+          ))}
+        </div>
+        <div className="relative flex-1 max-w-xs">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Search admin, description, target id…"
+            className="w-full pl-8 pr-3 py-2 text-xs rounded-xl bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500" />
+        </div>
+      </div>
+
+      {/* Date range — quick presets + two open inputs. Same shape the
+          users page uses. Date range is server-applied so combining it
+          with a filter chip or search narrows accurately even when the
+          last incident was months ago. */}
+      <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+        <span className="font-semibold">When</span>
+        <button onClick={() => applyPreset(1)}  className="px-2 py-1 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700 transition-colors">Today</button>
+        <button onClick={() => applyPreset(7)}  className="px-2 py-1 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700 transition-colors">7d</button>
+        <button onClick={() => applyPreset(30)} className="px-2 py-1 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700 transition-colors">30d</button>
+        <button onClick={() => applyPreset(90)} className="px-2 py-1 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700 transition-colors">90d</button>
+        <span className="text-zinc-700">|</span>
+        <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
+          className="px-2 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:ring-1 focus:ring-amber-500" />
+        <span>→</span>
+        <input type="date" value={toDate} onChange={e => setToDate(e.target.value)}
+          className="px-2 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:ring-1 focus:ring-amber-500" />
+        {(fromDate || toDate) && (
+          <button onClick={() => { setFromDate(''); setToDate('') }} className="text-zinc-500 hover:text-white underline">clear</button>
+        )}
       </div>
 
       {loading ? (
@@ -181,6 +264,7 @@ export default function AdminAuditPage() {
           <p className="text-zinc-400 text-sm">No audit entries yet.</p>
         </div>
       ) : (
+        <div className="space-y-3">
         <div className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
           <div className="divide-y divide-zinc-800">
             {visible.map(log => {
@@ -214,6 +298,16 @@ export default function AdminAuditPage() {
               )
             })}
           </div>
+        </div>
+        {hasMore && (
+          <button onClick={loadMore} disabled={loadingMore}
+            className="w-full py-3 text-xs font-semibold rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-300 hover:bg-zinc-800 disabled:opacity-50 transition-colors">
+            {loadingMore ? 'Loading…' : `Load more (next ${PAGE_SIZE})`}
+          </button>
+        )}
+        {!hasMore && logs.length >= PAGE_SIZE && (
+          <p className="text-center text-xs text-zinc-600 py-2">End of log.</p>
+        )}
         </div>
       )}
     </div>
