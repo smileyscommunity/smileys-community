@@ -7,7 +7,7 @@ import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { getInitials } from '@/lib/data'
 
-type TabKey = 'all' | 'member' | 'moderator' | 'admin' | 'unverified' | 'banned' | 'inactive'
+type TabKey = 'all' | 'member' | 'moderator' | 'admin' | 'unverified' | 'banned' | 'suspended' | 'inactive' | 'warned'
 
 interface DBUser {
   id: string
@@ -26,7 +26,13 @@ interface DBUser {
   // assume Turkey (+90) for a leading zero when the user has a Turkish
   // nationality recorded; otherwise pass digits through as-is.
   nationality: string | null
+  // FingerprintJS visitorId from the user's last successful login.
+  // Used for cross-account risk flagging — if two accounts share this,
+  // they were last logged in from the same device.
+  lastFingerprint: string | null
 }
+
+type SortKey = 'recent' | 'active' | 'warnings'
 
 const TURKISH_NATIONALITIES = new Set(['turkey', 'türkiye', 'turkiye', 'tr', 'turkish'])
 
@@ -107,6 +113,15 @@ function AdminUsersPageInner() {
   const [loading,     setLoading]     = useState(true)
   const [tab,         setTab]         = useState<TabKey>('all')
   const [search,      setSearch]      = useState(searchParams.get('search') ?? '')
+  const [sortBy,      setSortBy]      = useState<SortKey>('recent')
+  // Date-range filter — two ISO yyyy-mm-dd strings, both optional. Restricts
+  // to users whose joinedAt falls within the range.
+  const [joinedFrom,  setJoinedFrom]  = useState('')
+  const [joinedTo,    setJoinedTo]    = useState('')
+  // Bulk-action selection — Set of user ids. Same pattern the applications
+  // page uses; bulk-action bar appears once any are selected.
+  const [selected,    setSelected]    = useState<Set<string>>(new Set())
+  const [bulkSaving,  setBulkSaving]  = useState(false)
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
   const [, setTick] = useState(0)  // forces re-render so the "Updated Xs ago" label ages
 
@@ -247,15 +262,138 @@ function AdminUsersPageInner() {
     }
   }
 
-  // Search filter runs once and memoizes, so the tab counts below ALL
-  // reflect the search-narrowed set instead of pretending nothing was
-  // searched (the old code's counts ignored the search box, showing
+  async function warnUser(u: DBUser) {
+    const reason = window.prompt(`Warn ${u.name}? Reason will be sent to them and logged.`)
+    if (!reason || !reason.trim()) return
+    const res = await fetch(`/app/api/admin/users/${u.id}/warn`, {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: reason.trim() }),
+    })
+    if (res.ok) {
+      const data = await res.json().catch(() => ({}))
+      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, warningCount: data.warningCount ?? x.warningCount + 1 } : x))
+      toast.success(`${u.name} warned`)
+    } else {
+      const d = await res.json().catch(() => ({}))
+      toast.error(d.error ?? 'Failed to warn')
+    }
+  }
+
+  // Bulk actions — operate on the `selected` Set. Run in series so the user
+  // gets one toast per success/failure and so a single 500 doesn't abort the
+  // batch silently. Clearing the selection only happens after all complete.
+  async function bulkRun(label: string, work: (u: DBUser) => Promise<boolean>) {
+    if (selected.size === 0) return
+    if (!window.confirm(`${label} ${selected.size} user${selected.size > 1 ? 's' : ''}?`)) return
+    setBulkSaving(true)
+    const targets = users.filter(u => selected.has(u.id))
+    let ok = 0, fail = 0
+    for (const u of targets) {
+      try { if (await work(u)) ok++; else fail++ } catch { fail++ }
+    }
+    setBulkSaving(false)
+    setSelected(new Set())
+    if (ok)   toast.success(`${label}: ${ok} done`)
+    if (fail) toast.error(`${label}: ${fail} failed`)
+  }
+
+  async function bulkBan(reason: string) {
+    await bulkRun('Ban', async (u) => {
+      const res = await fetch(`/app/api/admin/users/${u.id}`, {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'banned', banReason: reason }),
+      })
+      if (res.ok) {
+        setUsers(prev => prev.map(x => x.id === u.id ? { ...x, status: 'banned' } : x))
+        return true
+      }
+      return false
+    })
+  }
+
+  async function bulkSuspend(days: number) {
+    const until = new Date(Date.now() + days * 86400000).toISOString()
+    await bulkRun(`Suspend ${days}d`, async (u) => {
+      const res = await fetch(`/app/api/admin/users/${u.id}`, {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ suspendedUntil: until, suspensionNote: `Suspended ${days}d by admin (bulk)` }),
+      })
+      if (res.ok) {
+        setUsers(prev => prev.map(x => x.id === u.id ? { ...x, status: 'suspended' } : x))
+        return true
+      }
+      return false
+    })
+  }
+
+  async function bulkWarn(reason: string) {
+    await bulkRun('Warn', async (u) => {
+      const res = await fetch(`/app/api/admin/users/${u.id}/warn`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason }),
+      })
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setUsers(prev => prev.map(x => x.id === u.id ? { ...x, warningCount: data.warningCount ?? x.warningCount + 1 } : x))
+        return true
+      }
+      return false
+    })
+  }
+
+  function exportSelected() {
+    if (selected.size === 0) return
+    const targets = users.filter(u => selected.has(u.id))
+    const headers = ['Name', 'Email', 'Role', 'Status', 'Warnings', 'Joined', 'Last Active']
+    const rows = targets.map(u => [
+      u.name, u.email, u.role, u.status, String(u.warningCount),
+      new Date(u.joinedAt).toLocaleDateString('en-GB'),
+      u.lastActive ? new Date(u.lastActive).toLocaleDateString('en-GB') : '',
+    ])
+    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+    const a = Object.assign(document.createElement('a'), { href: url, download: 'members-selected.csv' })
+    a.click()
+    setTimeout(() => URL.revokeObjectURL(url), 200)
+  }
+
+  // Map of fingerprint → count of accounts sharing it. Used to surface a
+  // "⚠ Same device" risk badge when two or more accounts last signed in
+  // from the same FingerprintJS visitorId. Built once per `users` change so
+  // we don't recompute per row.
+  const fingerprintCounts = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const u of users) {
+      if (!u.lastFingerprint) continue
+      m.set(u.lastFingerprint, (m.get(u.lastFingerprint) ?? 0) + 1)
+    }
+    return m
+  }, [users])
+
+  // Search + date-range filter. Runs once and memoizes, so the tab counts
+  // below ALL reflect the narrowed set instead of pretending nothing was
+  // filtered (the old code's counts ignored the search box, showing
   // misleading totals like "423 members" while only "1" was visible).
   const searchFiltered = useMemo(() => {
-    if (!search) return users
     const s = search.toLowerCase()
-    return users.filter(u => u.name.toLowerCase().includes(s) || u.email.toLowerCase().includes(s))
-  }, [users, search])
+    // Date inputs are yyyy-mm-dd local; treat "from" as start-of-day and
+    // "to" as end-of-day in the user's tz by appending T00 / T23:59:59.999.
+    const fromTs = joinedFrom ? new Date(joinedFrom + 'T00:00:00').getTime() : null
+    const toTs   = joinedTo   ? new Date(joinedTo   + 'T23:59:59.999').getTime() : null
+    return users.filter(u => {
+      if (s && !u.name.toLowerCase().includes(s) && !u.email.toLowerCase().includes(s)) return false
+      if (fromTs !== null || toTs !== null) {
+        const t = new Date(u.joinedAt).getTime()
+        if (fromTs !== null && t < fromTs) return false
+        if (toTs   !== null && t > toTs)   return false
+      }
+      return true
+    })
+  }, [users, search, joinedFrom, joinedTo])
 
   const ninetyDaysAgo = Date.now() - (90 * 86400000)
   const counts: Record<TabKey, number> = useMemo(() => ({
@@ -265,22 +403,45 @@ function AdminUsersPageInner() {
     admin:      searchFiltered.filter(u => u.role === 'admin').length,
     unverified: searchFiltered.filter(u => !u.emailVerified).length,
     banned:     searchFiltered.filter(u => u.status === 'banned').length,
+    suspended:  searchFiltered.filter(u => u.status === 'suspended').length,
     inactive:   searchFiltered.filter(u =>
       !u.lastActive || new Date(u.lastActive).getTime() < ninetyDaysAgo
     ).length,
+    warned:     searchFiltered.filter(u => u.warningCount > 0).length,
   }), [searchFiltered, ninetyDaysAgo])
 
-  const visible = useMemo(() => searchFiltered.filter(u => {
-    if (tab === 'member')    return u.role === 'member'
-    if (tab === 'moderator') return u.role === 'moderator'
-    if (tab === 'admin')     return u.role === 'admin'
-    if (tab === 'unverified') return !u.emailVerified
-    if (tab === 'banned')     return u.status === 'banned'
-    if (tab === 'inactive') {
-      return !u.lastActive || new Date(u.lastActive).getTime() < ninetyDaysAgo
+  const visible = useMemo(() => {
+    const filtered = searchFiltered.filter(u => {
+      if (tab === 'member')    return u.role === 'member'
+      if (tab === 'moderator') return u.role === 'moderator'
+      if (tab === 'admin')     return u.role === 'admin'
+      if (tab === 'unverified') return !u.emailVerified
+      if (tab === 'banned')     return u.status === 'banned'
+      if (tab === 'suspended')  return u.status === 'suspended'
+      if (tab === 'warned')     return u.warningCount > 0
+      if (tab === 'inactive') {
+        return !u.lastActive || new Date(u.lastActive).getTime() < ninetyDaysAgo
+      }
+      return true  // 'all'
+    })
+    // Sort is applied after tab/search/date filtering so the rows you see
+    // are ranked by whatever the admin picked. Spread into a fresh array
+    // because Array.sort mutates and the upstream memo is shared.
+    const sorted = [...filtered]
+    if (sortBy === 'recent') {
+      sorted.sort((a, b) => new Date(b.joinedAt).getTime() - new Date(a.joinedAt).getTime())
+    } else if (sortBy === 'active') {
+      // Nulls (never active) sink to the bottom.
+      sorted.sort((a, b) => {
+        const at = a.lastActive ? new Date(a.lastActive).getTime() : 0
+        const bt = b.lastActive ? new Date(b.lastActive).getTime() : 0
+        return bt - at
+      })
+    } else if (sortBy === 'warnings') {
+      sorted.sort((a, b) => b.warningCount - a.warningCount)
     }
-    return true  // 'all'
-  }), [searchFiltered, tab, ninetyDaysAgo])
+    return sorted
+  }, [searchFiltered, tab, sortBy, ninetyDaysAgo])
 
   const tabs: { key: TabKey; label: string }[] = [
     { key: 'all',       label: 'All'        },
@@ -288,9 +449,34 @@ function AdminUsersPageInner() {
     { key: 'moderator', label: 'Moderators' },
     { key: 'admin',     label: 'Admins'     },
     { key: 'unverified',label: 'Unverified' },
+    { key: 'warned',    label: 'Warned'     },
+    { key: 'suspended', label: 'Suspended'  },
     { key: 'banned',    label: 'Banned'     },
     { key: 'inactive',  label: 'Inactive'   },
   ]
+
+  // Selection helpers — `selectAllVisible` toggles every row currently on
+  // screen (respects search/tab/date), so an admin can filter to e.g.
+  // "warned" and bulk-ban from there without touching the rest.
+  const allVisibleSelected = visible.length > 0 && visible.every(u => selected.has(u.id))
+  const toggleOne = useCallback((id: string) => {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }, [])
+  const toggleAllVisible = useCallback(() => {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (visible.every(u => next.has(u.id))) {
+        for (const u of visible) next.delete(u.id)
+      } else {
+        for (const u of visible) next.add(u.id)
+      }
+      return next
+    })
+  }, [visible])
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
@@ -329,6 +515,16 @@ function AdminUsersPageInner() {
             className="w-full pl-8 pr-3 py-2 text-xs rounded-xl bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
           />
         </div>
+        <select
+          value={sortBy}
+          onChange={e => setSortBy(e.target.value as SortKey)}
+          className="shrink-0 px-3 py-2 text-xs font-semibold rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 transition-colors cursor-pointer"
+          title="Sort by"
+        >
+          <option value="recent">Newest</option>
+          <option value="active">Recent active</option>
+          <option value="warnings">Most warnings</option>
+        </select>
         <button
           onClick={() => {
             const headers = ['Name', 'Email', 'Role', 'Status', 'Joined', 'Last Active']
@@ -354,11 +550,62 @@ function AdminUsersPageInner() {
         <div className="flex-1 hidden sm:block" />
       </div>
 
+      {/* Date-range filter — collapses to its own row under the tabs/search
+          on mobile. Both inputs are optional; the joined-date predicate
+          short-circuits when both are empty. */}
+      <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+        <span className="font-semibold">Joined</span>
+        <input type="date" value={joinedFrom} onChange={e => setJoinedFrom(e.target.value)}
+          className="px-2 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:ring-1 focus:ring-amber-500" />
+        <span>→</span>
+        <input type="date" value={joinedTo} onChange={e => setJoinedTo(e.target.value)}
+          className="px-2 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:ring-1 focus:ring-amber-500" />
+        {(joinedFrom || joinedTo) && (
+          <button onClick={() => { setJoinedFrom(''); setJoinedTo('') }} className="text-zinc-500 hover:text-white underline">clear</button>
+        )}
+      </div>
+
+      {/* Bulk-action bar — only renders when something is checked. Mirrors
+          the moderation toolkit on /admin/applications so admins don't need
+          to click N×3 buttons to discipline a batch of accounts. */}
+      {selected.size > 0 && (
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-3 flex flex-wrap items-center gap-2 sticky top-0 z-30">
+          <span className="text-sm font-bold text-amber-300">{selected.size} selected</span>
+          <span className="flex-1" />
+          <button onClick={() => {
+            const reason = window.prompt('Warning reason (sent to user, logged):')
+            if (reason && reason.trim()) bulkWarn(reason.trim())
+          }} disabled={bulkSaving} className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 border border-orange-500/30 disabled:opacity-50 transition-colors">
+            ⚠ Warn
+          </button>
+          <button onClick={() => bulkSuspend(7)} disabled={bulkSaving} className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 border border-orange-500/30 disabled:opacity-50 transition-colors">
+            Suspend 7d
+          </button>
+          <button onClick={() => {
+            const reason = window.prompt('Ban reason:') ?? 'Banned by admin'
+            bulkBan(reason)
+          }} disabled={bulkSaving} className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/30 disabled:opacity-50 transition-colors">
+            Ban
+          </button>
+          <button onClick={exportSelected} disabled={bulkSaving} className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 disabled:opacity-50 transition-colors">
+            Export
+          </button>
+          <button onClick={() => setSelected(new Set())} disabled={bulkSaving} className="px-3 py-1.5 text-xs font-semibold rounded-lg text-zinc-400 hover:text-white disabled:opacity-50 transition-colors">
+            Clear
+          </button>
+        </div>
+      )}
+
       {/* Table */}
       <div className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
         {/* Desktop header */}
-        <div className="hidden md:grid grid-cols-12 gap-3 px-6 py-3 border-b border-zinc-800 text-xs font-bold text-zinc-500 uppercase tracking-wider">
-          <div className="col-span-5">Name</div>
+        <div className="hidden md:grid grid-cols-12 gap-3 px-6 py-3 border-b border-zinc-800 text-xs font-bold text-zinc-500 uppercase tracking-wider items-center">
+          <div className="col-span-1">
+            <input type="checkbox" checked={allVisibleSelected} onChange={toggleAllVisible}
+              className="w-3.5 h-3.5 rounded border-zinc-700 bg-zinc-800 text-amber-500 focus:ring-amber-500 cursor-pointer"
+              title="Select all visible" />
+          </div>
+          <div className="col-span-4">Name</div>
           <div className="col-span-4">Role</div>
           <div className="col-span-3 text-right">Actions</div>
         </div>
@@ -372,8 +619,13 @@ function AdminUsersPageInner() {
             // nationality is Turkish (was unconditional before, which
             // broke non-Turkish users' local-format numbers).
             const waLink = u.phone ? whatsappUrl(u.phone, u.nationality) : null
+            const sharedFp = u.lastFingerprint ? (fingerprintCounts.get(u.lastFingerprint) ?? 0) > 1 : false
             const userActions = (
               <div className="flex gap-1.5 items-center">
+                <Link href={`/messages/${u.id}`} onClick={e => e.stopPropagation()}
+                  className="p-2 rounded-lg text-amber-400 hover:bg-amber-500/10 transition-colors" title="Message in-app">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                </Link>
                 {waLink && (
                   <a href={waLink} target="_blank" rel="noopener noreferrer"
                     className="p-2 rounded-lg text-green-400 hover:bg-green-500/10 transition-colors" title="Message on WhatsApp"
@@ -386,6 +638,11 @@ function AdminUsersPageInner() {
                 {u.status === 'approved' && !u.hasPassword && (
                   <button onClick={() => resendApproval(u)} className="p-2 rounded-lg text-amber-400 hover:bg-amber-500/10 transition-colors" title="Resend approval link">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                  </button>
+                )}
+                {u.role !== 'admin' && u.status !== 'banned' && (
+                  <button onClick={() => warnUser(u)} className="p-2 rounded-lg text-orange-400 hover:bg-orange-500/10 transition-colors" title="Warn">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                   </button>
                 )}
                 {u.role !== 'admin' && u.status !== 'banned' && (
@@ -402,6 +659,8 @@ function AdminUsersPageInner() {
               <div key={u.id}>
                 {/* Mobile card */}
                 <div className="md:hidden px-4 py-3 flex items-center gap-3">
+                  <input type="checkbox" checked={selected.has(u.id)} onChange={() => toggleOne(u.id)}
+                    className="w-3.5 h-3.5 rounded border-zinc-700 bg-zinc-800 text-amber-500 focus:ring-amber-500 cursor-pointer shrink-0" />
                   <Link href={`/admin/users/${u.id}`} className="shrink-0">
                     <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-bold" style={{ backgroundColor: u.color }}>{getInitials(u.name)}</div>
                   </Link>
@@ -411,11 +670,12 @@ function AdminUsersPageInner() {
                       <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full capitalize shrink-0 ${roleBadgeClass(u.role)}`}>{u.role}</span>
                     </div>
                     <div className="text-xs text-zinc-500">{new Date(u.joinedAt).toLocaleDateString('en-GB')}</div>
-                    {(u.status === 'banned' || u.status === 'suspended' || u.warningCount > 0) && (
-                      <div className="flex items-center gap-1.5 mt-1">
+                    {(u.status === 'banned' || u.status === 'suspended' || u.warningCount > 0 || sharedFp) && (
+                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                         {u.status === 'banned' && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">banned</span>}
                         {u.status === 'suspended' && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20">suspended</span>}
                         {u.warningCount > 0 && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20">⚠ {u.warningCount} warning{u.warningCount !== 1 ? 's' : ''}</span>}
+                        {sharedFp && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20" title={`Shares device fingerprint with ${(fingerprintCounts.get(u.lastFingerprint!) ?? 1) - 1} other account(s)`}>⚠ Same device</span>}
                       </div>
                     )}
                   </div>
@@ -424,11 +684,22 @@ function AdminUsersPageInner() {
 
                 {/* Desktop row */}
                 <div className="hidden md:grid grid-cols-12 gap-3 px-6 py-3.5 items-center hover:bg-zinc-800/40 transition-colors">
-                  <Link href={`/admin/users/${u.id}`} className="col-span-5 flex items-center gap-3 min-w-0 group">
+                  <div className="col-span-1">
+                    <input type="checkbox" checked={selected.has(u.id)} onChange={() => toggleOne(u.id)}
+                      className="w-3.5 h-3.5 rounded border-zinc-700 bg-zinc-800 text-amber-500 focus:ring-amber-500 cursor-pointer" />
+                  </div>
+                  <Link href={`/admin/users/${u.id}`} className="col-span-4 flex items-center gap-3 min-w-0 group">
                     <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0" style={{ backgroundColor: u.color }}>{getInitials(u.name)}</div>
                     <div className="min-w-0">
-                      <div className="font-semibold text-sm text-white truncate group-hover:text-amber-400 transition-colors">{u.name}</div>
-                      <div className="text-xs text-zinc-500">{new Date(u.joinedAt).toLocaleDateString('en-GB')}</div>
+                      <div className="font-semibold text-sm text-white truncate group-hover:text-amber-400 transition-colors flex items-center gap-1.5">
+                        {u.name}
+                        {sharedFp && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20" title={`Shares device fingerprint with ${(fingerprintCounts.get(u.lastFingerprint!) ?? 1) - 1} other account(s)`}>⚠ Same device</span>}
+                      </div>
+                      <div className="text-xs text-zinc-500 flex items-center gap-2 flex-wrap">
+                        <span>Joined {new Date(u.joinedAt).toLocaleDateString('en-GB')}</span>
+                        {u.lastActive && <span className="text-zinc-600">· Active {new Date(u.lastActive).toLocaleDateString('en-GB')}</span>}
+                        {u.warningCount > 0 && <span className="text-orange-400 font-semibold">⚠ {u.warningCount}</span>}
+                      </div>
                     </div>
                   </Link>
                   <div className="col-span-4">
