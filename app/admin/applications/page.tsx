@@ -106,6 +106,11 @@ function AdminApplicationsPageInner() {
   const [tab,           setTab]           = useState<'pending' | 'approved' | 'rejected'>('pending')
   const [sortBy,        setSortBy]        = useState<'recent' | 'score'>('recent')
   const [filterInterest,setFilterInterest]= useState(searchParams.get('interest') ?? '')
+  // ?contribution=host wires up to the host-pipeline link on
+  // /admin/analytics?tab=members. The link was previously dead — the page
+  // only read ?interest=. Now host-intent applications are one tap away
+  // from the analytics tab that flagged them.
+  const [filterContribution, setFilterContribution] = useState(searchParams.get('contribution') ?? '')
   const [reviewNote,    setReviewNote]    = useState('')
   const [rejectMsg,     setRejectMsg]     = useState('')
   const [assignedClubs, setAssignedClubs] = useState<string[]>([])
@@ -113,25 +118,49 @@ function AdminApplicationsPageInner() {
   const [saving,        setSaving]        = useState(false)
   const [selected2,     setSelected2]     = useState<Set<string>>(new Set())
   const [bulkSaving,    setBulkSaving]    = useState(false)
-  const [pipeline,      setPipeline]      = useState<{ total: number; pending: number; approved: number; rejected: number; approvalRate: number | null } | null>(null)
+  // Pipeline derived from `apps` (already loaded) instead of fetched from
+  // /api/admin/analytics. Previously the page hit the heaviest endpoint
+  // (~17 queries) just to render `total` + `approvalRate` — and read the
+  // wrong fields (analytics returns `applications.total`, page read `.total`)
+  // so the values were always undefined and the header bar never rendered.
   const [aiResult,      setAiResult]      = useState<{ recommendation: string; confidence: number; summary: string; strengths: string[]; redFlags: string[]; suggestedQuestions: string[] } | null>(null)
   const [aiLoading,     setAiLoading]     = useState(false)
   const [welcomeMsg,    setWelcomeMsg]    = useState('')
   const [welcomeLoading,setWelcomeLoading]= useState(false)
 
-  useEffect(() => {
+  function loadApps() {
+    setLoading(true)
+    const opts: RequestInit = { credentials: 'include', cache: 'no-store' }
     Promise.all([
-      fetch('/app/api/admin/applications', { credentials: 'include' }).then(r => r.json()),
-      fetch('/app/api/clubs',              { credentials: 'include' }).then(r => r.json()),
-      fetch('/app/api/admin/settings',     { credentials: 'include' }).then(r => r.json()),
-      fetch('/app/api/admin/analytics',    { credentials: 'include' }).then(r => r.json()),
-    ]).then(([appsData, clubData, settings, analytics]) => {
-      setApps(Array.isArray(appsData) ? appsData : [])
+      fetch('/app/api/admin/applications', opts).then(r => r.json()),
+      fetch('/app/api/clubs',              opts).then(r => r.json()),
+      fetch('/app/api/admin/settings',     opts).then(r => r.json()),
+    ]).then(([appsData, clubData, settings]) => {
+      if (!Array.isArray(appsData)) {
+        console.error('[applications] API returned non-array:', appsData)
+        toast.error('Failed to load applications — try refreshing')
+        return
+      }
+      setApps(appsData)
       setClubs(Array.isArray(clubData) ? clubData : [])
       if (settings?.defaultClubId) setDefaultClubId(settings.defaultClubId)
-      if (analytics && !analytics.error) setPipeline(analytics)
     }).finally(() => setLoading(false))
-  }, [])
+  }
+
+  useEffect(() => {
+    loadApps()
+    const onFocus = () => loadApps()
+    window.addEventListener('focus', onFocus)
+    const interval = setInterval(() => {
+      // Don't disrupt an open review panel
+      if (document.hidden) return
+      fetch('/app/api/admin/applications', { credentials: 'include', cache: 'no-store' })
+        .then(r => r.json())
+        .then(data => { if (Array.isArray(data)) setApps(data) })
+        .catch(() => {})
+    }, 30_000)
+    return () => { window.removeEventListener('focus', onFocus); clearInterval(interval) }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   function open(app: Application) {
     setSelected(app)
@@ -216,14 +245,29 @@ function AdminApplicationsPageInner() {
     if (res.ok) { setApps(prev => prev.map(a => a.id === selected.id ? { ...a, reviewNote } : a)); toast('Note saved') }
   }
 
+  // Quick decide — inline approve/reject without opening the modal. Sends
+  // the standard activation/rejection email but skips the personalized
+  // welcome / rejection message that the modal would let you write. The
+  // toast and (for reject) confirm dialog make the "no personal note"
+  // consequence explicit so admins don't accidentally silent-reject.
   async function quickDecide(e: React.MouseEvent, id: string, status: 'approved' | 'rejected') {
     e.stopPropagation()
+    if (status === 'rejected') {
+      const app = apps.find(a => a.id === id)
+      const name = app?.fullName ?? 'this applicant'
+      if (!confirm(`Reject ${name} without a personalized message?\n\nThe standard rejection email will still go out — but they won't get any context. Open the review modal if you want to add a note.`)) return
+    }
     const res = await fetch('/app/api/admin/applications', {
       method: 'PATCH', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, status, reviewNote: '', assignedClubs: status === 'approved' && defaultClubId ? [defaultClubId] : [] }),
     })
-    if (res.ok) { setApps(prev => prev.map(a => a.id === id ? { ...a, status } : a)); toast.success(status === 'approved' ? 'Approved ✓' : 'Rejected') }
+    if (res.ok) {
+      setApps(prev => prev.map(a => a.id === id ? { ...a, status } : a))
+      toast.success(status === 'approved'
+        ? 'Approved · standard welcome email sent (no personal note)'
+        : 'Rejected · standard email sent (no personal note)')
+    }
   }
 
   async function bulkAction(status: 'approved' | 'rejected') {
@@ -249,9 +293,19 @@ function AdminApplicationsPageInner() {
     rejected: apps.filter(a => a.status === 'rejected').length,
   }
 
+  // Pipeline numbers for the header — computed from the apps array that's
+  // already loaded. Approval rate is approved / (approved + rejected) so
+  // pending applications don't drag it down before they're decided.
+  const decidedCount = counts.approved + counts.rejected
+  const pipeline = {
+    total:        apps.length,
+    approvalRate: decidedCount > 0 ? Math.round((counts.approved / decidedCount) * 100) : null,
+  }
+
   const visible = apps
     .filter(a => a.status === tab)
-    .filter(a => !filterInterest || a.interests?.includes(filterInterest))
+    .filter(a => !filterInterest     || a.interests?.includes(filterInterest))
+    .filter(a => !filterContribution || a.contribution === filterContribution)
     .sort((a, b) => sortBy === 'score'
       ? score(b) - score(a)
       : new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -267,9 +321,9 @@ function AdminApplicationsPageInner() {
           <h1 className="text-2xl font-extrabold text-white">Applications</h1>
           <div className="flex items-center gap-3 mt-1">
             <span className="text-sm text-zinc-500">
-              {pipeline ? <><span className="text-white font-bold">{pipeline.total}</span> total</> : 'Review membership requests'}
+              <span className="text-white font-bold">{pipeline.total}</span> total
             </span>
-            {pipeline?.approvalRate !== null && pipeline && (
+            {pipeline.approvalRate !== null && (
               <span className="flex items-center gap-1.5 text-xs text-zinc-500">
                 <span className="w-16 h-1 bg-zinc-700 rounded-full overflow-hidden inline-block align-middle">
                   <span className="h-full bg-green-500 rounded-full block" style={{ width: `${pipeline.approvalRate}%` }} />
@@ -279,10 +333,16 @@ function AdminApplicationsPageInner() {
             )}
           </div>
         </div>
-        <Link href="/apply" target="_blank"
-          className="text-xs px-3 py-2 rounded-lg border border-zinc-700 text-zinc-400 hover:bg-zinc-800 transition-colors">
-          View form →
-        </Link>
+        <div className="flex items-center gap-2">
+          <button onClick={loadApps} disabled={loading}
+            className="text-xs px-3 py-2 rounded-lg border border-zinc-700 text-zinc-400 hover:bg-zinc-800 transition-colors disabled:opacity-40">
+            {loading ? '…' : '↻ Refresh'}
+          </button>
+          <Link href="/apply" target="_blank"
+            className="text-xs px-3 py-2 rounded-lg border border-zinc-700 text-zinc-400 hover:bg-zinc-800 transition-colors">
+            View form →
+          </Link>
+        </div>
       </div>
 
       {/* Tabs + filters in one row */}
@@ -313,8 +373,20 @@ function AdminApplicationsPageInner() {
           {INTERESTS.map(i => <option key={i} value={i}>{i.charAt(0).toUpperCase() + i.slice(1)}</option>)}
         </select>
 
-        {filterInterest && (
-          <button onClick={() => setFilterInterest('')} className="text-xs text-zinc-500 hover:text-white">✕ Clear</button>
+        {/* Contribution filter — wires up the ?contribution=host URL param
+            from the analytics host-pipeline link. Drops the dead-link bug
+            and gives admins a single dropdown to find host candidates. */}
+        <select value={filterContribution} onChange={e => setFilterContribution(e.target.value)}
+          className="px-3 py-1.5 rounded-xl border border-zinc-700 text-xs text-zinc-300 bg-zinc-800 focus:outline-none focus:ring-1 focus:ring-amber-500">
+          <option value="">Any contribution</option>
+          <option value="host">🎖️ Wants to host</option>
+          <option value="organize">🤝 Help organize</option>
+          <option value="attend">🎟️ Attend only</option>
+        </select>
+
+        {(filterInterest || filterContribution) && (
+          <button onClick={() => { setFilterInterest(''); setFilterContribution('') }}
+            className="text-xs text-zinc-500 hover:text-white">✕ Clear filters</button>
         )}
       </div>
 
@@ -410,10 +482,10 @@ function AdminApplicationsPageInner() {
                 <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                   <Score app={app} />
                   <Flag app={app} />
-                  {app.fingerprint && apps.some(a => a.id !== app.id && a.fingerprint === app.fingerprint) && (
+                  {app.fingerprint && apps.some(a => a.id !== app.id && a.fingerprint === app.fingerprint && a.status !== 'approved') && (
                     <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-500/10 text-red-400">⚠️ Same device</span>
                   )}
-                  {app.ipAddress && apps.some(a => a.id !== app.id && a.ipAddress === app.ipAddress) && (
+                  {app.ipAddress && apps.some(a => a.id !== app.id && a.ipAddress === app.ipAddress && a.status !== 'approved') && (
                     <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-400">⚠️ IP reused</span>
                   )}
                   {app.timezoneMismatch && (
@@ -530,7 +602,7 @@ function AdminApplicationsPageInner() {
                     <div className="flex gap-2 items-center">
                       <span className="text-zinc-600 w-12 shrink-0">IP</span>
                       <span className="text-zinc-300 font-mono text-xs">{selected.ipAddress}</span>
-                      {apps.filter(a => a.id !== selected.id && a.ipAddress === selected.ipAddress).length > 0 && (
+                      {apps.filter(a => a.id !== selected.id && a.ipAddress === selected.ipAddress && a.status !== 'approved').length > 0 && (
                         <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-red-500/20 text-red-400">⚠️ IP reused</span>
                       )}
                     </div>
@@ -540,7 +612,7 @@ function AdminApplicationsPageInner() {
                     <div className="flex gap-2 items-center">
                       <span className="text-zinc-600 w-20 shrink-0">Fingerprint</span>
                       <span className="text-zinc-400 font-mono text-xs">{selected.fingerprint.slice(0, 16)}…</span>
-                      {apps.filter(a => a.id !== selected.id && a.fingerprint && a.fingerprint === selected.fingerprint).length > 0 && (
+                      {apps.filter(a => a.id !== selected.id && a.fingerprint && a.fingerprint === selected.fingerprint && a.status !== 'approved').length > 0 && (
                         <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-red-500/20 text-red-400">⚠️ Same device</span>
                       )}
                     </div>
