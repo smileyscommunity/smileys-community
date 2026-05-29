@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
-import { resolveImageUrl } from '@/lib/data'
+import { resolveImageUrl, todayIstanbul } from '@/lib/data'
 
 interface Stats {
   totalAccounts: number; members: number; hosts: number
@@ -43,8 +43,18 @@ function timeAgo(date: string) {
   return `${Math.floor(s/86400)}d ago`
 }
 
-function Trend({ v }: { v?: number }) {
-  if (!v) return null
+function Trend({ v }: { v?: number | null }) {
+  // Only suppress when the value is genuinely unknown (null/undefined).
+  // A real 0% week-over-week change is still data — surface it as a
+  // neutral "no change" chip so admins can see we actually measured.
+  if (v === undefined || v === null) return null
+  if (v === 0) {
+    return (
+      <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-md bg-zinc-700/40 text-zinc-400">
+        = 0%
+      </span>
+    )
+  }
   const pos = v > 0
   return (
     <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-md ${pos ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
@@ -55,23 +65,44 @@ function Trend({ v }: { v?: number }) {
 
 export default function AdminPage() {
   const { user } = useAuth()
-  const [stats,  setStats]  = useState<Stats | null>(null)
-  const [audit,  setAudit]  = useState<AuditEntry[]>([])
-  const [events, setEvents] = useState<AdminEvent[]>([])
+  const [stats,    setStats]    = useState<Stats | null>(null)
+  const [audit,    setAudit]    = useState<AuditEntry[]>([])
+  const [events,   setEvents]   = useState<AdminEvent[]>([])
+  // Distinguish "not loaded yet" from "load failed" so we don't render the
+  // … placeholder forever when /api/admin/stats 500s. errorMsg drives the
+  // retry banner; loading drives the skeleton state.
+  const [loading,  setLoading]  = useState(true)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
-  useEffect(() => {
-    const today = new Date().toISOString().split('T')[0]
+  // Use Istanbul-local date floor, not the UTC slice of new Date(), so events
+  // on the same calendar day in Istanbul aren't dropped when admin's clock
+  // crosses midnight UTC. Server-side filter + take so we fetch only the 6
+  // upcoming events we render, instead of every published event ever.
+  const load = useCallback(() => {
+    setLoading(true)
+    setErrorMsg(null)
+    const today = todayIstanbul()
     Promise.all([
-      fetch('/app/api/admin/stats',        { credentials: 'include' }).then(r => r.ok ? r.json() : null),
-      fetch('/app/api/admin/audit?take=8', { credentials: 'include' }).then(r => r.ok ? r.json() : []),
-      fetch('/app/api/admin/events?status=published', { credentials: 'include' }).then(r => r.ok ? r.json() : []),
-    ]).then(([s, a, e]) => {
-      if (s) setStats(s)
+      fetch('/app/api/admin/stats',                                                  { credentials: 'include' }),
+      fetch('/app/api/admin/audit?take=8',                                            { credentials: 'include' }),
+      fetch(`/app/api/admin/events?status=published&from=${today}&take=6`,            { credentials: 'include' }),
+    ]).then(async ([sRes, aRes, eRes]) => {
+      if (!sRes.ok) throw new Error('stats')
+      const [s, a, e] = await Promise.all([
+        sRes.json(),
+        aRes.ok ? aRes.json() : [],
+        eRes.ok ? eRes.json() : [],
+      ])
+      setStats(s)
       setAudit(Array.isArray(a) ? a : [])
-      const evts = Array.isArray(e) ? e.filter((ev: AdminEvent) => ev.date >= today).slice(0, 6) : []
-      setEvents(evts)
-    })
+      setEvents(Array.isArray(e) ? e : [])
+    }).catch(err => {
+      console.error('[admin dashboard load]', err)
+      setErrorMsg('Could not load dashboard. Try again?')
+    }).finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => { load() }, [load])
 
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
@@ -109,6 +140,17 @@ export default function AdminPage() {
           New Event
         </Link>
       </div>
+
+      {/* ── Load error ── */}
+      {errorMsg && (
+        <div className="rounded-2xl border border-red-500/30 bg-red-500/5 px-4 py-3 flex items-center justify-between gap-3">
+          <p className="text-sm text-red-300 font-medium">⚠ {errorMsg}</p>
+          <button onClick={load} disabled={loading}
+            className="text-xs font-bold bg-red-500 hover:bg-red-400 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg">
+            {loading ? 'Retrying…' : 'Retry'}
+          </button>
+        </div>
+      )}
 
       {/* ── Alerts ── */}
       {alerts.length > 0 && (

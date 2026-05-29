@@ -16,15 +16,27 @@ export async function GET(req: NextRequest) {
 
     const showArchived = req.nextUrl.searchParams.get('archived') === '1'
     const statusParam  = req.nextUrl.searchParams.get('status')
+    // Optional date floor + row cap — added so the admin dashboard can ask
+    // for "next N upcoming events" in one round trip instead of fetching
+    // everything and slicing client-side. Validated cheaply: from must be
+    // YYYY-MM-DD, take must be 1–100.
+    const fromParam    = req.nextUrl.searchParams.get('from')
+    const takeRaw      = req.nextUrl.searchParams.get('take')
+    const takeParam    = takeRaw && /^\d+$/.test(takeRaw) && +takeRaw > 0 && +takeRaw <= 100
+                         ? +takeRaw : undefined
+    const fromValid    = fromParam && /^\d{4}-\d{2}-\d{2}$/.test(fromParam) ? fromParam : undefined
+
     const where: any = {
       ...(clubHost ? { hostId: session.id } : {}),
       ...(!showArchived && !statusParam ? { status: { not: 'archived' } } : {}),
+      ...(fromValid ? { date: { gte: fromValid } } : {}),
     }
     if (statusParam) where.status = statusParam
 
     const events = await prisma.event.findMany({
       where,
       orderBy: { date: 'asc' },
+      ...(takeParam ? { take: takeParam } : {}),
       select: {
         id: true, title: true, date: true, time: true, emoji: true,
         status: true, totalSpots: true, spotsLeft: true, clubId: true, hostId: true,
