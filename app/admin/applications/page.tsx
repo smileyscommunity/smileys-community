@@ -3,7 +3,7 @@
 import { toast } from 'sonner'
 
 import Link from 'next/link'
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, useMemo, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { resolveImageUrl } from '@/lib/data'
@@ -321,12 +321,12 @@ function AdminApplicationsPageInner() {
     toast(`${ids.length} ${status}`)
   }
 
-  const counts = {
+  const counts = useMemo(() => ({
     pending:  apps.filter(a => a.status === 'pending').length,
     approved: apps.filter(a => a.status === 'approved').length,
     rejected: apps.filter(a => a.status === 'rejected').length,
     hold:     apps.filter(a => a.status === 'hold').length,
-  }
+  }), [apps])
 
   // Pipeline numbers for the header — computed from the apps array that's
   // already loaded. Approval rate is approved / (approved + rejected) so
@@ -337,14 +337,53 @@ function AdminApplicationsPageInner() {
     approvalRate: decidedCount > 0 ? Math.round((counts.approved / decidedCount) * 100) : null,
   }
 
-  const visible = apps
+  // Pre-compute fingerprint + IP dedup maps once per apps change. Was an
+  // O(n²) `apps.some(...)` lookup per card per render — 100 apps = 10,000
+  // ops on every keystroke. With these maps each badge check is O(1).
+  // Excludes already-approved apps from the count so a returning user with
+  // a previously-approved app from the same device doesn't keep showing
+  // the warning forever (matches the original semantic).
+  const fingerprintCounts = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const a of apps) {
+      if (a.fingerprint && a.status !== 'approved') m.set(a.fingerprint, (m.get(a.fingerprint) ?? 0) + 1)
+    }
+    return m
+  }, [apps])
+  const ipCounts = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const a of apps) {
+      if (a.ipAddress && a.status !== 'approved') m.set(a.ipAddress, (m.get(a.ipAddress) ?? 0) + 1)
+    }
+    return m
+  }, [apps])
+
+  // Pre-compute score per app once. Was called twice per card per render
+  // (Score badge + sort compare) — non-trivial regex/text work each call.
+  const scoreById = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const a of apps) m.set(a.id, score(a))
+    return m
+  }, [apps])
+
+  // Render cap — at very large application counts (500+) DOM weight on the
+  // list becomes the bottleneck. Cap the visible rows and surface a
+  // banner if filtering would otherwise show more. Bulk-select still
+  // operates on the rendered slice so admins can't accidentally bulk-
+  // decide invisible rows.
+  const RENDER_CAP = 200
+
+  const filtered = useMemo(() => apps
     .filter(a => a.status === tab)
     .filter(a => !filterInterest     || a.interests?.includes(filterInterest))
     .filter(a => !filterContribution || a.contribution === filterContribution)
     .sort((a, b) => sortBy === 'score'
-      ? score(b) - score(a)
+      ? (scoreById.get(b.id) ?? 0) - (scoreById.get(a.id) ?? 0)
       : new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    )
+    ), [apps, tab, filterInterest, filterContribution, sortBy, scoreById])
+
+  const overCap = filtered.length > RENDER_CAP
+  const visible = overCap ? filtered.slice(0, RENDER_CAP) : filtered
 
   return (
     <div className="p-4 sm:p-6 space-y-5">
@@ -475,6 +514,15 @@ function AdminApplicationsPageInner() {
         </div>
       )}
 
+      {/* Over-cap banner — at 200+ visible rows DOM weight starts mattering.
+          Tell the admin to narrow filters; bulk-decide still works on the
+          rendered slice. */}
+      {overCap && (
+        <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl px-4 py-2 text-xs text-amber-400">
+          Showing {RENDER_CAP} of {filtered.length} matching applications · narrow filters or change tab to see more
+        </div>
+      )}
+
       {/* List */}
       <div className="space-y-2">
         {loading && <div className="py-12 text-center text-zinc-500 text-sm">Loading…</div>}
@@ -517,18 +565,33 @@ function AdminApplicationsPageInner() {
                 <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                   <Score app={app} />
                   <Flag app={app} />
-                  {app.fingerprint && apps.some(a => a.id !== app.id && a.fingerprint === app.fingerprint && a.status !== 'approved') && (
-                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-500/10 text-red-400">⚠️ Same device</span>
-                  )}
-                  {app.ipAddress && apps.some(a => a.id !== app.id && a.ipAddress === app.ipAddress && a.status !== 'approved') && (
-                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-400">⚠️ IP reused</span>
-                  )}
-                  {app.timezoneMismatch && (
-                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-400">⚠️ VPN?</span>
-                  )}
-                  {app.disposableEmail && (
-                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-500/10 text-red-400">⚠️ Temp email</span>
-                  )}
+                  {/* Risk signals — single badge when there's one risk so the
+                      specific cause is readable at a glance, collapsed into
+                      "⚠ N risks" with title tooltip when 2+ so the card
+                      doesn't blow up vertically. Reads off pre-computed
+                      Maps so this is O(1) per card. */}
+                  {(() => {
+                    const risks: { label: string; color: string }[] = []
+                    if (app.fingerprint && (fingerprintCounts.get(app.fingerprint) ?? 0) > 1)
+                      risks.push({ label: '⚠️ Same device', color: 'bg-red-500/10 text-red-400' })
+                    if (app.ipAddress && (ipCounts.get(app.ipAddress) ?? 0) > 1)
+                      risks.push({ label: '⚠️ IP reused', color: 'bg-orange-500/10 text-orange-400' })
+                    if (app.timezoneMismatch)
+                      risks.push({ label: '⚠️ VPN?', color: 'bg-yellow-500/10 text-yellow-400' })
+                    if (app.disposableEmail)
+                      risks.push({ label: '⚠️ Temp email', color: 'bg-red-500/10 text-red-400' })
+                    if (risks.length === 0) return null
+                    if (risks.length === 1) {
+                      const r = risks[0]
+                      return <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${r.color}`}>{r.label}</span>
+                    }
+                    return (
+                      <span title={risks.map(r => r.label).join(' · ')}
+                        className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 cursor-help">
+                        ⚠️ {risks.length} risks
+                      </span>
+                    )
+                  })()}
                   {app.referredBy && (
                     <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400">
                       🔗 Referred
@@ -767,19 +830,23 @@ function AdminApplicationsPageInner() {
                     )
                   })()}
 
-                  {/* Key answers */}
-                  {selected.aboutCommunity && (
+                  {/* Key answers — schema went from 3 separate essay prompts
+                      (whyJoin / goodCommunity / enjoyWith) to one consolidated
+                      prompt (aboutCommunity). Prefer the new field when
+                      present; fall back to legacy fields only for older
+                      applications that don't have aboutCommunity. Avoids
+                      rendering both forms on apps that got migrated. */}
+                  {selected.aboutCommunity ? (
                     <div className="bg-zinc-800/40 border border-zinc-700 rounded-xl p-3 mb-3">
                       <QA q="Community they're looking for + what they'd bring" a={selected.aboutCommunity} />
                     </div>
-                  )}
-                  {(selected.whyJoin || selected.goodCommunity || selected.enjoyWith) && (
+                  ) : (selected.whyJoin || selected.goodCommunity || selected.enjoyWith) ? (
                     <div className="space-y-3">
                       <QA q="Why join Smileys?" a={selected.whyJoin} />
                       <QA q="What makes a great community?" a={selected.goodCommunity} />
                       <QA q="Enjoys spending time with" a={selected.enjoyWith} />
                     </div>
-                  )}
+                  ) : null}
 
                   {/* Background */}
                   {(selected.reasonHere || selected.timeInCity || selected.bio) && (
