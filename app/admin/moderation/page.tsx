@@ -127,6 +127,18 @@ function ModerationPageInner() {
   const [triageResults, setTriageResults] = useState<Record<string, { recommendation: string; confidence: number; reasoning: string }>>({})
   const [triageLoading, setTriageLoading] = useState<string | null>(null)
 
+  // One search box adapts to whichever tab is active — fields differ per
+  // tab but a single piece of state keeps the UI quiet. Reset on tab
+  // switch so a Reports query doesn't bleed into the Messages list.
+  const [search, setSearch] = useState('')
+  useEffect(() => { setSearch('') }, [tab])
+
+  // Bulk-selection state for the Messages tab. Same pattern as
+  // /admin/users — bulk-action bar appears once anything is checked.
+  const [selectedMsgs, setSelectedMsgs] = useState<Set<string>>(new Set())
+  const [bulkDeleting, setBulkDeleting] = useState(false)
+  useEffect(() => { setSelectedMsgs(new Set()) }, [tab])
+
   async function triageReport(reportId: string) {
     setTriageLoading(reportId)
     try {
@@ -325,6 +337,29 @@ function ModerationPageInner() {
     if (res.ok) setMessages(prev => prev.filter(m => m.id !== id))
   }
 
+  async function handleBulkDeleteMessages() {
+    if (selectedMsgs.size === 0) return
+    if (!window.confirm(`Delete ${selectedMsgs.size} message${selectedMsgs.size > 1 ? 's' : ''}?`)) return
+    setBulkDeleting(true)
+    // Track which ids actually deleted so a partial failure (e.g. one
+    // 500) only removes the rows that really went away. Running in
+    // series so the toast counts are accurate and the endpoint isn't
+    // hammered in parallel.
+    const deleted = new Set<string>()
+    let fail = 0
+    for (const id of selectedMsgs) {
+      try {
+        const res = await fetch(`/app/api/admin/messages/${id}`, { method: 'DELETE', credentials: 'include' })
+        if (res.ok) deleted.add(id); else fail++
+      } catch { fail++ }
+    }
+    setMessages(prev => prev.filter(m => !deleted.has(m.id)))
+    setSelectedMsgs(new Set())
+    setBulkDeleting(false)
+    if (deleted.size) toast.success(`Deleted ${deleted.size} message${deleted.size > 1 ? 's' : ''}`)
+    if (fail)         toast.error(`${fail} delete${fail > 1 ? 's' : ''} failed`)
+  }
+
   async function handleEventStatus(id: string, status: string) {
     const res = await fetch(`/app/api/admin/events/${id}`, {
       method: 'PATCH', credentials: 'include',
@@ -334,11 +369,32 @@ function ModerationPageInner() {
     if (res.ok) setQueue(prev => prev.map(e => e.id === id ? { ...e, status } : e))
   }
 
+  // Esc closes the Review modal — only listens while the modal is open
+  // and cleans up immediately on close so we don't accumulate handlers.
+  useEffect(() => {
+    if (!selected) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setSelected(null) }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [selected])
+
+  // Per-tab search predicates. One shared input, each tab decides which
+  // of its row fields to match against. Case-insensitive substring; empty
+  // search short-circuits to "everything".
+  const s = search.trim().toLowerCase()
+  const matchReport   = (r: Report)        => !s || r.reporter.name.toLowerCase().includes(s) || r.reported.name.toLowerCase().includes(s) || r.reason.toLowerCase().includes(s) || (r.details?.toLowerCase().includes(s) ?? false)
+  const matchMessage  = (m: EventMessage)  => !s || m.user.name.toLowerCase().includes(s) || m.message.toLowerCase().includes(s) || m.event.title.toLowerCase().includes(s)
+  const matchQueue    = (e: QueueEvent)    => !s || e.title.toLowerCase().includes(s) || e.host.name.toLowerCase().includes(s) || (e.club?.name.toLowerCase().includes(s) ?? false)
+  const matchBanned   = (u: BannedUser)    => !s || u.name.toLowerCase().includes(s) || u.email.toLowerCase().includes(s) || (u.banReason?.toLowerCase().includes(s) ?? false)
+  const matchBlEntry  = (b: BlacklistEntry)=> !s || (b.email?.toLowerCase().includes(s) ?? false) || (b.phone?.toLowerCase().includes(s) ?? false) || (b.name?.toLowerCase().includes(s) ?? false) || b.reason.toLowerCase().includes(s)
+
   const pendingCount = reports.filter(r => r.status === 'pending').length
-  const visibleReports = reports.filter(r =>
-    statusFilter === 'all'      ? true :
-    r.status === statusFilter
-  )
+  const visibleReports   = reports.filter(r => (statusFilter === 'all' || r.status === statusFilter) && matchReport(r))
+  const visibleMessages  = messages.filter(matchMessage)
+  const visibleQueue     = queue.filter(matchQueue)
+  const visibleBanned    = banned.filter(matchBanned)
+  const visibleBlacklist = blacklist.filter(matchBlEntry)
+  const allVisibleMsgsSelected = visibleMessages.length > 0 && visibleMessages.every(m => selectedMsgs.has(m.id))
 
   const inputCls = 'w-full px-3 py-2 text-sm border border-zinc-700 rounded-xl bg-zinc-800 text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500'
 
@@ -359,23 +415,43 @@ function ModerationPageInner() {
         <p className="text-sm text-zinc-500 mt-0.5">Reports, messages, event queue{isAdmin ? ', banned users, and blacklist' : ''}</p>
       </div>
 
-      {/* Tabs */}
-      <div className="flex flex-wrap gap-1 bg-zinc-900 rounded-xl p-1 w-fit border border-zinc-800">
-        {visibleTabs.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key as typeof tab)}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-1.5 ${
-              tab === t.key ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-white'
-            }`}>
-            {t.label}
-            {t.badge > 0 && (
-              <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${
-                t.key === 'reports' && pendingCount > 0
-                  ? 'bg-red-500 text-white'
-                  : 'bg-zinc-600 text-zinc-300'
-              }`}>{t.badge}</span>
-            )}
-          </button>
-        ))}
+      {/* Tabs + search. Search adapts to the active tab — placeholder
+          spells out which fields it actually matches against so the
+          moderator doesn't type a reason hoping the Reports tab will
+          match it. */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="flex flex-wrap gap-1 bg-zinc-900 rounded-xl p-1 w-fit border border-zinc-800">
+          {visibleTabs.map(t => (
+            <button key={t.key} onClick={() => setTab(t.key as typeof tab)}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-1.5 ${
+                tab === t.key ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-white'
+              }`}>
+              {t.label}
+              {t.badge > 0 && (
+                <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${
+                  t.key === 'reports' && pendingCount > 0
+                    ? 'bg-red-500 text-white'
+                    : 'bg-zinc-600 text-zinc-300'
+                }`}>{t.badge}</span>
+              )}
+            </button>
+          ))}
+        </div>
+        {!loading && tab !== 'blacklist' && (
+          <div className="relative flex-1 max-w-xs">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+              placeholder={
+                tab === 'reports'  ? 'Search reporter, reported, reason…' :
+                tab === 'messages' ? 'Search user, text, event…' :
+                tab === 'events'   ? 'Search title, host, club…' :
+                                     'Search name, email, ban reason…'
+              }
+              className="w-full pl-8 pr-3 py-2 text-xs rounded-xl bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500" />
+          </div>
+        )}
       </div>
 
       {loading ? (
@@ -482,15 +558,58 @@ function ModerationPageInner() {
       ) : tab === 'messages' ? (
         <div className="space-y-3">
           <p className="text-xs text-zinc-500">200 most recent event messages. Delete any that violate community guidelines.</p>
-          {messages.length === 0 ? (
+
+          {/* Bulk-action bar — only shows once anything is selected.
+              Mirrors the toolkit on /admin/users; lets a moderator clear
+              a thread of spam in one click instead of N. */}
+          {selectedMsgs.size > 0 && (
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-3 flex flex-wrap items-center gap-2 sticky top-0 z-30">
+              <span className="text-sm font-bold text-amber-300">{selectedMsgs.size} selected</span>
+              <span className="flex-1" />
+              <button onClick={handleBulkDeleteMessages} disabled={bulkDeleting}
+                className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/30 disabled:opacity-50 transition-colors">
+                Delete
+              </button>
+              <button onClick={() => setSelectedMsgs(new Set())} disabled={bulkDeleting}
+                className="px-3 py-1.5 text-xs font-semibold rounded-lg text-zinc-400 hover:text-white disabled:opacity-50 transition-colors">
+                Clear
+              </button>
+            </div>
+          )}
+
+          {visibleMessages.length === 0 ? (
             <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-10 text-center">
               <div className="text-3xl mb-2">💬</div>
-              <div className="text-zinc-400 text-sm">No messages yet.</div>
+              <div className="text-zinc-400 text-sm">{messages.length === 0 ? 'No messages yet.' : 'No messages match.'}</div>
             </div>
           ) : (
             <div className="space-y-2">
-              {messages.map(m => (
+              {/* "Select all visible" header — only renders once the list
+                  is non-empty. Clicking it toggles every row that
+                  currently matches the search. */}
+              <div className="flex items-center gap-3 px-4 py-2 text-xs text-zinc-500">
+                <input type="checkbox" checked={allVisibleMsgsSelected}
+                  onChange={() => setSelectedMsgs(prev => {
+                    const next = new Set(prev)
+                    if (visibleMessages.every(m => next.has(m.id))) {
+                      for (const m of visibleMessages) next.delete(m.id)
+                    } else {
+                      for (const m of visibleMessages) next.add(m.id)
+                    }
+                    return next
+                  })}
+                  className="w-3.5 h-3.5 rounded border-zinc-700 bg-zinc-800 text-amber-500 focus:ring-amber-500 cursor-pointer" />
+                <span>Select all visible</span>
+              </div>
+              {visibleMessages.map(m => (
                 <div key={m.id} className="bg-zinc-900 rounded-xl border border-zinc-800 px-4 py-3 flex items-start gap-3">
+                  <input type="checkbox" checked={selectedMsgs.has(m.id)}
+                    onChange={() => setSelectedMsgs(prev => {
+                      const next = new Set(prev)
+                      if (next.has(m.id)) next.delete(m.id); else next.add(m.id)
+                      return next
+                    })}
+                    className="w-3.5 h-3.5 rounded border-zinc-700 bg-zinc-800 text-amber-500 focus:ring-amber-500 cursor-pointer mt-1 shrink-0" />
                   <Avatar name={m.user.name} color={m.user.color} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
@@ -521,14 +640,14 @@ function ModerationPageInner() {
             Events with "Approval required" enabled — these need manual vetting for quality and pricing.
             Flag removes them from public listings; approve confirms they meet standards.
           </p>
-          {queue.length === 0 ? (
+          {visibleQueue.length === 0 ? (
             <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-10 text-center">
               <div className="text-3xl mb-2">✅</div>
-              <div className="text-zinc-400 text-sm">No events pending review.</div>
+              <div className="text-zinc-400 text-sm">{queue.length === 0 ? 'No events pending review.' : 'No events match.'}</div>
             </div>
           ) : (
             <div className="space-y-3">
-              {queue.map(e => (
+              {visibleQueue.map(e => (
                 <div key={e.id} className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5">
                   <div className="flex items-start gap-4">
                     <div className="flex-1 min-w-0">
@@ -583,12 +702,12 @@ function ModerationPageInner() {
 
       ) : tab === 'banned' ? (
         <div className="space-y-3">
-          {banned.length === 0 ? (
+          {visibleBanned.length === 0 ? (
             <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-10 text-center">
               <div className="text-3xl mb-2">✅</div>
-              <div className="text-zinc-400 text-sm">No banned users.</div>
+              <div className="text-zinc-400 text-sm">{banned.length === 0 ? 'No banned users.' : 'No banned users match.'}</div>
             </div>
-          ) : banned.map(u => (
+          ) : visibleBanned.map(u => (
             <div key={u.id} className={`bg-zinc-900 rounded-2xl border p-5 ${
               u.appealStatus === 'pending' ? 'border-amber-500/40' : 'border-zinc-800'
             }`}>
