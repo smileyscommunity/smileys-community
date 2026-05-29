@@ -1,12 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import Turnstile from '@/components/Turnstile'
 import { useAuth } from '@/contexts/AuthContext'
 import type { AppUser } from '@/lib/auth'
 import posthog from 'posthog-js'
+// Same FingerprintJS library the apply form uses — collects a stable
+// visitorId so the login endpoint can stamp User.lastFingerprint, giving
+// admins the cross-account match signal ("is this banned user back?").
+import FingerprintJS from '@fingerprintjs/fingerprintjs'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -22,6 +26,14 @@ export default function LoginPage() {
   const [turnstileToken, setTurnstileToken] = useState('')
   const [step,          setStep]          = useState<'credentials' | '2fa'>('credentials')
   const [totpCode,      setTotpCode]      = useState('')
+  const [fingerprint,   setFingerprint]   = useState('')
+
+  useEffect(() => {
+    // Async load — runs while user is typing credentials. If it hasn't
+    // resolved by submit time, login still proceeds without _fp (admin
+    // tooling tolerates null).
+    FingerprintJS.load().then(fp => fp.get()).then(r => setFingerprint(r.visitorId)).catch(() => {})
+  }, [])
 
   const needsVerification  = error.includes('verify your email')
   const isSuspended        = error.includes('suspended')
@@ -46,7 +58,7 @@ export default function LoginPage() {
       const res = await fetch('/app/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, _cf: turnstileToken }),
+        body: JSON.stringify({ email, password, _cf: turnstileToken, _fp: fingerprint || undefined }),
       })
 
       const data = await res.json()

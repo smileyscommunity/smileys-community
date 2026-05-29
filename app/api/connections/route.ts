@@ -29,9 +29,11 @@ export async function POST(req: NextRequest) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  if (!await rateLimit(`connect:${session.id}`, 5, 60_000)) {
-    return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
-  }
+  // Layered limits: 5/min stops burst-spam; 20/day stops sustained
+  // "scrape every member and request a connection" campaigns that the
+  // per-minute cap would otherwise allow over the course of a few hours.
+  if (!await rateLimit(`connect:${session.id}`,     5,  60_000))            return NextResponse.json({ error: 'Sending too fast — slow down' }, { status: 429 })
+  if (!await rateLimit(`connect-day:${session.id}`, 20, 24 * 60 * 60_000))  return NextResponse.json({ error: 'Daily connection-request cap reached. Try tomorrow.' }, { status: 429 })
 
   const { receiverId, note } = await req.json()
   if (!receiverId || receiverId === session.id) {

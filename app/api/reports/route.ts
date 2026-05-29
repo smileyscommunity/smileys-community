@@ -64,6 +64,28 @@ export async function POST(req: NextRequest) {
       '/admin/moderation'
     ))
 
+    // Pattern alert — count distinct reports against this user in the last
+    // 30 days. ≥3 means people are organically flagging the same person, not
+    // a one-off interpersonal beef. Send a louder staff notification at the
+    // threshold so it doesn't get lost in the per-report stream.
+    ;(async () => {
+      try {
+        const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+        const recentCount = await prisma.report.count({
+          where: { reportedId, createdAt: { gte: monthAgo } },
+        })
+        if (recentCount >= 3) {
+          staff.forEach(s => createNotification(
+            s.id,
+            'report',
+            `⚠️ ${reportedUser.name} has ${recentCount} reports in 30 days`,
+            `Pattern alert — ≥3 different reports about the same member. Worth reviewing the account directly.`,
+            `/admin/users/${reportedId}`,
+          ))
+        }
+      } catch (e) { console.error('[report aggregation alert]', e) }
+    })()
+
     return NextResponse.json(report)
   } catch (e) {
     console.error(e)

@@ -113,6 +113,10 @@ model User {
   failedLoginCount Int       @default(0)
   loginLockedUntil DateTime?
   knownIps         String[]
+  // Browser FingerprintJS visitorId from the last successful login. Lets
+  // admins cross-check "is this banned user back on a fresh email?" by
+  // grepping for the same fingerprint across accounts. Cleared on signout.
+  lastFingerprint  String?
 
   // Privacy & blocking
   profileViews     ProfileView[] @relation("ViewedProfile")
@@ -512,6 +516,13 @@ model MemberApplication {
   timezone             String?
   timezoneMismatch     Boolean   @default(false)
   disposableEmail      Boolean   @default(false)
+  // Aggregate suspicion score computed at apply-time from the individual
+  // signals above (timezoneMismatch / disposableEmail / fingerprint or IP
+  // match / no phone / name similar to blacklist). Surfaces a single
+  // "🚨 Sus N" badge on the admin card alongside the existing fit Score,
+  // and gives admins a single dimension to sort the pending queue by when
+  // the spam wave hits.
+  suspicionScore       Int       @default(0)
 
   reviewer User? @relation(fields: [reviewedBy], references: [id])
 

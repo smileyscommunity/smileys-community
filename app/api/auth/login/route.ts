@@ -23,7 +23,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Too many attempts. Try again in 15 minutes.' }, { status: 429 })
     }
 
-    const { email, password, _cf } = await req.json()
+    const { email, password, _cf, _fp } = await req.json()
+    // FingerprintJS visitorId from the login page. Stored on User.lastFingerprint
+    // after auth succeeds so admins can grep across accounts ("is this banned
+    // user back on a new email?"). 64-char cap matches the apply route's
+    // sanitisation.
+    const loginFingerprint = typeof _fp === 'string' && _fp ? _fp.slice(0, 64) : null
 
     if (!(await verifyTurnstile(_cf ?? '', getIp(req)))) {
       return NextResponse.json({ error: 'Human verification failed. Please try again.' }, { status: 400 })
@@ -125,7 +130,18 @@ export async function POST(req: NextRequest) {
       }).catch(() => {})
       // Add IP to known list (keep last 20)
       const updatedIps = [...new Set([...(user.knownIps ?? []), loginIp])].slice(-20)
-      await prisma.user.update({ where: { id: user.id }, data: { knownIps: updatedIps } })
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          knownIps: updatedIps,
+          // Stamp lastFingerprint on every successful login (not just new IPs)
+          // so the cross-account match always reflects the most recent device.
+          ...(loginFingerprint ? { lastFingerprint: loginFingerprint } : {}),
+        },
+      })
+    } else if (loginFingerprint) {
+      // Same-IP login from a different device — still stamp the fingerprint.
+      await prisma.user.update({ where: { id: user.id }, data: { lastFingerprint: loginFingerprint } })
     }
 
     await Promise.all([

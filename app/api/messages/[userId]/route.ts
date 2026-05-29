@@ -65,9 +65,15 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     const { userId: toId } = await params
     if (toId === session.id) return NextResponse.json({ error: 'Cannot message yourself' }, { status: 400 })
-    if (!await rateLimit(`dm:${session.id}`, 60, 60_000)) {
-      return NextResponse.json({ error: 'Sending too fast — slow down' }, { status: 429 })
-    }
+    // Layered rate limits:
+    //   - 60/min total across all DMs catches burst spam (was the only check)
+    //   - 20/hour to ANY single recipient catches a stalker hammering one
+    //     person while staying under the 60/min ceiling
+    //   - 200/day total stops sustained harassment campaigns across multiple
+    //     targets that would otherwise stay under both per-minute limits
+    if (!await rateLimit(`dm:${session.id}`,          60,  60_000))    return NextResponse.json({ error: 'Sending too fast — slow down' }, { status: 429 })
+    if (!await rateLimit(`dm-to:${session.id}:${toId}`, 20, 60 * 60_000)) return NextResponse.json({ error: 'You\'ve messaged this person too many times in the last hour' }, { status: 429 })
+    if (!await rateLimit(`dm-day:${session.id}`,      200, 24 * 60 * 60_000)) return NextResponse.json({ error: 'Daily message cap reached' }, { status: 429 })
 
     const { text, imageUrl, replyToId } = await req.json()
     const hasText  = typeof text === 'string' && text.trim().length > 0

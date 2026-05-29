@@ -56,8 +56,8 @@ export async function POST(req: NextRequest) {
 
     if (_hp) return NextResponse.json({ ok: true })
 
-    if (!firstName?.trim() || !lastName?.trim() || !email?.trim() || !phone?.trim() || !country?.trim() || !neighborhood?.trim()) {
-      return NextResponse.json({ error: 'Name, email, phone, country, and neighborhood are required' }, { status: 400 })
+    if (!firstName?.trim() || !lastName?.trim() || !email?.trim() || !phone?.trim() || !country?.trim() || !neighborhood?.trim() || !gender?.trim()) {
+      return NextResponse.json({ error: 'Name, email, phone, country, neighborhood, and gender are required' }, { status: 400 })
     }
 
     const fullName = `${firstName.trim()} ${lastName.trim()}`
@@ -185,6 +185,18 @@ export async function POST(req: NextRequest) {
     ])
     const isKnownDevice = !!(fpMatch || ipMatch || nameSimilar)
 
+    // Aggregate suspicion score — single dimension admins can sort by. Each
+    // signal contributes a weight; admins can later tune via constants. Score
+    // 0-1 = normal, 2-3 = worth a glance, 4+ = high-suspicion (admin push
+    // gets stronger language).
+    let suspicionScore = 0
+    if (timezoneMismatch) suspicionScore += 1   // possible VPN
+    if (isDisposable)     suspicionScore += 2   // temp/throwaway email
+    if (nameSimilar)      suspicionScore += 2   // close to a blacklist name
+    if (fpMatch)          suspicionScore += 1   // fingerprint hit on prior decision
+    if (ipMatch)          suspicionScore += 1   // IP hit on prior rejection
+    if (!cleanPhone)      suspicionScore += 1   // no phone provided
+
     await prisma.memberApplication.create({
       data: {
         firstName:   firstName.trim(),
@@ -229,6 +241,7 @@ export async function POST(req: NextRequest) {
         timezone:             browserTz,
         timezoneMismatch,
         disposableEmail:      isDisposable,
+        suspicionScore,
       },
     })
 

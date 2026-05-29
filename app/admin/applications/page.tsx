@@ -25,6 +25,10 @@ interface Application {
   reviewNote: string | null; createdAt: string; reviewer: { name: string } | null
   ipAddress: string | null; userAgent: string | null; fingerprint: string | null
   timezone: string | null; timezoneMismatch: boolean; disposableEmail: boolean
+  // Aggregate signal computed at apply time — see /api/apply/route.ts.
+  // Single-dimension axis for sorting the pending queue when spam waves
+  // hit; rendered as a "🚨 Sus N" pill in the badge row.
+  suspicionScore?: number
   referrer?: { name: string } | null
   escalated?: boolean; escalatedNote?: string | null
 }
@@ -111,7 +115,7 @@ function AdminApplicationsPageInner() {
   // pending queue so it doesn't clog the review list but admins can find
   // it via the Hold tab when the applicant responds.
   const [tab,           setTab]           = useState<'pending' | 'approved' | 'rejected' | 'hold'>('pending')
-  const [sortBy,        setSortBy]        = useState<'recent' | 'score'>('recent')
+  const [sortBy,        setSortBy]        = useState<'recent' | 'score' | 'suspicion'>('recent')
   const [filterInterest,setFilterInterest]= useState(searchParams.get('interest') ?? '')
   // ?contribution=host wires up to the host-pipeline link on
   // /admin/analytics?tab=members. The link was previously dead — the page
@@ -388,10 +392,12 @@ function AdminApplicationsPageInner() {
       .filter(a => !filterContribution || a.contribution === filterContribution)
       .filter(a => !filterSource       || (a.source ?? '').toLowerCase() === filterSource.toLowerCase())
       .filter(a => !q || a.fullName.toLowerCase().includes(q) || a.email.toLowerCase().includes(q))
-      .sort((a, b) => sortBy === 'score'
-        ? (scoreById.get(b.id) ?? 0) - (scoreById.get(a.id) ?? 0)
-        : new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      )
+      .sort((a, b) => {
+        if (sortBy === 'score')     return (scoreById.get(b.id) ?? 0) - (scoreById.get(a.id) ?? 0)
+        if (sortBy === 'suspicion') return (b.suspicionScore ?? 0) - (a.suspicionScore ?? 0)
+                                    || new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      })
   }, [apps, tab, filterInterest, filterContribution, filterSource, searchQuery, sortBy, scoreById])
 
   // Distinct sources for the dropdown — sorted alphabetically with the
@@ -476,6 +482,7 @@ function AdminApplicationsPageInner() {
           className="px-3 py-1.5 rounded-xl border border-zinc-700 text-xs text-zinc-300 bg-zinc-800 focus:outline-none focus:ring-1 focus:ring-amber-500">
           <option value="recent">Newest first</option>
           <option value="score">Best fit first</option>
+          <option value="suspicion">Most suspicious first</option>
         </select>
 
         <select value={filterInterest} onChange={e => setFilterInterest(e.target.value)}
@@ -617,6 +624,18 @@ function AdminApplicationsPageInner() {
                 <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                   <Score app={app} />
                   <Flag app={app} />
+                  {/* Aggregate suspicion score — purely informational at 1-2,
+                      attention-getting at 3+, urgent at 5+. Hidden at 0 so
+                      clean applications stay visually quiet. */}
+                  {(app.suspicionScore ?? 0) > 0 && (
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                      (app.suspicionScore ?? 0) >= 5 ? 'bg-red-500/20 text-red-300 border border-red-500/30'
+                      : (app.suspicionScore ?? 0) >= 3 ? 'bg-red-500/10 text-red-400'
+                      : 'bg-amber-500/10 text-amber-400'
+                    }`}>
+                      🚨 Sus {app.suspicionScore}
+                    </span>
+                  )}
                   {/* Risk signals — single badge when there's one risk so the
                       specific cause is readable at a glance, collapsed into
                       "⚠ N risks" with title tooltip when 2+ so the card

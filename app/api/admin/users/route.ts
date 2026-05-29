@@ -15,15 +15,24 @@ export async function GET(req: NextRequest) {
     const search = params.get('search') ?? ''
     const status = params.get('status') ?? ''
 
+    // Search clause — exact match on lastFingerprint short-circuits the
+    // substring lookups when the search box receives a 16+ char hex string
+    // (a FingerprintJS visitorId). Lets admins do the cross-account grep
+    // ("show me everyone who ever logged in from this device") by pasting
+    // the fp from one user's record into the search.
+    const searchClause = search
+      ? (/^[a-f0-9]{16,}$/i.test(search)
+          ? { lastFingerprint: search }
+          : { OR: [
+              { name:  { contains: search, mode: 'insensitive' as const } },
+              { email: { contains: search, mode: 'insensitive' as const } },
+            ] })
+      : {}
+
     const users = await prisma.user.findMany({
       where: {
         ...(status && { status }),
-        ...(search && {
-          OR: [
-            { name:  { contains: search, mode: 'insensitive' } },
-            { email: { contains: search, mode: 'insensitive' } },
-          ],
-        }),
+        ...searchClause,
       },
       orderBy: { joinedAt: 'desc' },
       select: {
@@ -31,7 +40,7 @@ export async function GET(req: NextRequest) {
         color: true, emailVerified: true, joinedAt: true,
         status: true, banReason: true, bannedAt: true, warningCount: true,
         appealNote: true, appealStatus: true, appealedAt: true,
-        lastActive: true, phone: true, password: true,
+        lastActive: true, phone: true, password: true, lastFingerprint: true,
       },
     })
 
