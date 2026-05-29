@@ -1,7 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, Suspense } from 'react'
+import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
+import { toast } from 'sonner'
 import { useAuth } from '@/contexts/AuthContext'
 
 interface Report {
@@ -14,7 +16,7 @@ interface Report {
   escalated?: boolean
   escalatedNote?: string | null
   reporter: { id: string; name: string; email: string; color: string }
-  reported: { id: string; name: string; email: string; color: string; status: string }
+  reported: { id: string; name: string; email: string; color: string; status: string; role: string }
 }
 
 interface BannedUser {
@@ -73,18 +75,40 @@ function Avatar({ name, color }: { name: string; color: string }) {
   )
 }
 
+type TabKey = 'reports' | 'messages' | 'events' | 'banned' | 'blacklist'
+type StatusFilter = 'all' | 'pending' | 'actioned' | 'dismissed'
+
+const TAB_KEYS: TabKey[] = ['reports', 'messages', 'events', 'banned', 'blacklist']
+const STATUS_KEYS: StatusFilter[] = ['all', 'pending', 'actioned', 'dismissed']
+
 export default function ModerationPage() {
+  return <Suspense><ModerationPageInner /></Suspense>
+}
+
+function ModerationPageInner() {
   const { user, isLoading: authLoading } = useAuth()
   const isAdmin = user?.role === 'admin'
+  const searchParams = useSearchParams()
+  const router       = useRouter()
+  const pathname     = usePathname()
 
-  const [tab, setTab] = useState<'reports' | 'messages' | 'events' | 'banned' | 'blacklist'>('reports')
+  // Read initial tab / status filter from the URL so reload + deep links
+  // land on the same view. Whitelist guards against junk query strings.
+  const initialTab = (TAB_KEYS as readonly string[]).includes(searchParams.get('tab') ?? '')
+    ? (searchParams.get('tab') as TabKey) : 'reports'
+  const initialStatus = (STATUS_KEYS as readonly string[]).includes(searchParams.get('status') ?? '')
+    ? (searchParams.get('status') as StatusFilter) : 'all'
+
+  const [tab, setTab] = useState<TabKey>(initialTab)
   const [reports,   setReports]   = useState<Report[]>([])
   const [banned,    setBanned]    = useState<BannedUser[]>([])
   const [blacklist, setBlacklist] = useState<BlacklistEntry[]>([])
   const [messages,  setMessages]  = useState<EventMessage[]>([])
   const [queue,     setQueue]     = useState<QueueEvent[]>([])
   const [loading,   setLoading]   = useState(true)
-  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'actioned' | 'dismissed'>('all')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(initialStatus)
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
+  const [, setTick] = useState(0)  // 1s tick so the "Updated Xs ago" label ages
 
   // Review modal
   const [selected,   setSelected]   = useState<Report | null>(null)
@@ -111,22 +135,34 @@ export default function ModerationPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reportId }),
       })
-      if (res.ok) { const data = await res.json(); setTriageResults(prev => ({ ...prev, [reportId]: data })) }
+      if (res.ok) {
+        const data = await res.json()
+        setTriageResults(prev => ({ ...prev, [reportId]: data }))
+      } else {
+        // Without this the spinner just clears and the moderator has no
+        // idea the LLM call failed — they'd click again wondering why
+        // nothing happened.
+        const d = await res.json().catch(() => ({}))
+        toast.error(d.error ?? 'AI triage failed')
+      }
+    } catch {
+      toast.error('AI triage failed')
     } finally {
       setTriageLoading(null)
     }
   }
 
-  useEffect(() => {
-    if (authLoading) return
-
+  // load() runs the initial fetch and the auto-refresh poll. background=true
+  // skips the skeleton flicker so the 30s refresh doesn't blank the page.
+  const load = useCallback((background = false) => {
     const safe = (p: Promise<Response>) =>
       p.then(r => r.json()).catch((e) => { console.error('Moderation fetch error:', e); return null })
 
+    if (!background) setLoading(true)
     const all = [
-      safe(fetch('/app/api/admin/moderation',       { credentials: 'include' })),
-      safe(fetch('/app/api/admin/messages',          { credentials: 'include' })),
-      safe(fetch('/app/api/admin/events/approval',   { credentials: 'include' })),
+      safe(fetch('/app/api/admin/moderation',     { credentials: 'include' })),
+      safe(fetch('/app/api/admin/messages',        { credentials: 'include' })),
+      safe(fetch('/app/api/admin/events/approval', { credentials: 'include' })),
       isAdmin ? safe(fetch('/app/api/admin/users?status=banned', { credentials: 'include' })) : Promise.resolve(null),
       isAdmin ? safe(fetch('/app/api/admin/blacklist',           { credentials: 'include' })) : Promise.resolve(null),
     ]
@@ -137,8 +173,59 @@ export default function ModerationPage() {
       setQueue(Array.isArray(q) ? q : [])
       setBanned(Array.isArray(b)   ? b   : [])
       setBlacklist(Array.isArray(bl) ? bl : [])
-    }).finally(() => setLoading(false))
-  }, [isAdmin, authLoading])
+      setLastRefresh(new Date())
+    }).finally(() => { if (!background) setLoading(false) })
+  }, [isAdmin])
+
+  useEffect(() => {
+    if (authLoading) return
+    load(false)
+  }, [authLoading, load])
+
+  // Background auto-refresh every 30s, paused via the Page Visibility API
+  // when the tab is hidden (matches the admin users / applications pages)
+  // and resumed on focus with an immediate refresh — so a new report that
+  // came in while the moderator was elsewhere shows up the moment they
+  // come back to the tab.
+  useEffect(() => {
+    if (authLoading) return
+    let timer: ReturnType<typeof setInterval> | null = null
+    const start = () => { if (!timer) timer = setInterval(() => { if (!document.hidden) load(true) }, 30_000) }
+    const stop  = () => { if (timer) { clearInterval(timer); timer = null } }
+    const onVisibility = () => { if (document.hidden) stop(); else { load(true); start() } }
+    start()
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => { stop(); document.removeEventListener('visibilitychange', onVisibility) }
+  }, [authLoading, load])
+
+  // 1s tick so the "Updated Xs ago" label ages without refetching.
+  useEffect(() => {
+    const t = setInterval(() => setTick(n => n + 1), 1000)
+    return () => clearInterval(t)
+  }, [])
+
+  // URL-sync tab + status filter. Reload + deep links land on the same
+  // view. Status only shows in the URL on the Reports tab where it
+  // actually applies — the other tabs ignore it.
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams.toString())
+    if (tab !== 'reports') params.set('tab', tab); else params.delete('tab')
+    if (tab === 'reports' && statusFilter !== 'all') params.set('status', statusFilter); else params.delete('status')
+    const q = params.toString()
+    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false })
+  // searchParams excluded — including it would re-fire on the URL change
+  // we just made and create an infinite loop.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, statusFilter, pathname, router])
+
+  const refreshLabel = (() => {
+    if (!lastRefresh) return ''
+    const s = Math.floor((Date.now() - lastRefresh.getTime()) / 1000)
+    if (s < 5)     return 'Updated just now'
+    if (s < 60)    return `Updated ${s}s ago`
+    if (s < 3600)  return `Updated ${Math.floor(s / 60)}m ago`
+    return `Updated ${Math.floor(s / 3600)}h ago`
+  })()
 
   async function handleAction(action: 'dismiss' | 'warn' | 'ban') {
     if (!selected) return
@@ -162,7 +249,11 @@ export default function ModerationPage() {
           setBanned(prev => [...prev, {
             id: selected.reported.id, name: selected.reported.name,
             email: selected.reported.email, color: selected.reported.color,
-            banReason: banReason.trim(), bannedAt: new Date().toISOString(), role: 'member',
+            banReason: banReason.trim(), bannedAt: new Date().toISOString(),
+            // Carry the reported user's actual role through — the old code
+            // hardcoded 'member', which silently misrepresented banned mods
+            // in the Banned tab until next reload.
+            role: selected.reported.role,
             appealNote: null, appealStatus: null, appealedAt: null,
           }])
         }
@@ -288,7 +379,11 @@ export default function ModerationPage() {
       </div>
 
       {loading ? (
-        <div className="text-zinc-400 text-sm">Loading…</div>
+        <div className="space-y-3">
+          {[0, 1, 2, 3].map(i => (
+            <div key={i} className="h-32 bg-zinc-900 rounded-2xl border border-zinc-800 animate-pulse" />
+          ))}
+        </div>
       ) : tab === 'reports' ? (
         <div className="space-y-4">
           <div className="flex gap-1.5">
@@ -632,6 +727,12 @@ export default function ModerationPage() {
         </div>
       )}
 
+      {/* Freshness footer — same auto-refresh contract as /admin/users
+          and /admin/applications. Hidden until the first fetch lands. */}
+      {!loading && refreshLabel && (
+        <p className="text-xs text-zinc-600 text-right pt-2">{refreshLabel}</p>
+      )}
+
       {/* Review modal */}
       {selected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
@@ -673,7 +774,7 @@ export default function ModerationPage() {
               </div>
             )}
 
-            <div className={`grid gap-2 ${isAdmin ? 'grid-cols-3' : 'grid-cols-3'} mb-2`}>
+            <div className={`grid gap-2 ${isAdmin ? 'grid-cols-3' : 'grid-cols-2'} mb-2`}>
               <button onClick={() => handleAction('dismiss')} disabled={saving}
                 className="py-2.5 text-sm font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl transition-colors disabled:opacity-50">
                 Dismiss
