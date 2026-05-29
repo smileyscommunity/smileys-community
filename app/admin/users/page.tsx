@@ -172,6 +172,15 @@ function AdminUsersPageInner() {
   }
 
   const visible = users.filter(u => {
+    // Search runs first so it applies to every tab. Previous version
+    // early-returned per tab before checking search, which made the
+    // input a no-op on every tab except "All" — a real bug ("I searched
+    // yasemin on the Members tab and got nothing").
+    if (search) {
+      const s = search.toLowerCase()
+      if (!u.name.toLowerCase().includes(s) && !u.email.toLowerCase().includes(s)) return false
+    }
+
     if (tab === 'member')    return u.role === 'member'
     if (tab === 'moderator') return u.role === 'moderator'
     if (tab === 'admin')     return u.role === 'admin'
@@ -183,9 +192,7 @@ function AdminUsersPageInner() {
       const ninetyDaysAgo = Date.now() - (90 * 86400000)
       return last < ninetyDaysAgo
     }
-    
-    if (search && !u.name.toLowerCase().includes(search.toLowerCase()) && !u.email.toLowerCase().includes(search.toLowerCase())) return false
-    return true
+    return true  // 'all' tab — search already applied above
   })
 
   const tabs: { key: TabKey; label: string }[] = [
