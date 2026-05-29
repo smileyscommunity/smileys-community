@@ -451,9 +451,10 @@ function AdminApplicationsPageInner() {
         </div>
       </div>
 
-      {/* Tabs + filters in one row */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="flex gap-1 bg-zinc-800 rounded-xl p-1">
+      {/* Tabs + filters — tabs scroll horizontally so they don't crowd
+          the search input on phones; filters wrap below. */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+        <div className="flex gap-1 bg-zinc-800 rounded-xl p-1 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-1 sm:overflow-visible shrink-0">
           {(['pending', 'hold', 'approved', 'rejected'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)}
               className={`px-3 py-2 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
@@ -475,8 +476,12 @@ function AdminApplicationsPageInner() {
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
           placeholder="Search name or email…"
-          className="px-3 py-1.5 rounded-xl border border-zinc-700 text-xs text-zinc-300 bg-zinc-800 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-amber-500 w-44"
+          className="px-3 py-1.5 rounded-xl border border-zinc-700 text-xs text-zinc-300 bg-zinc-800 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-amber-500 w-full sm:w-44"
         />
+
+        {/* Wrapper so the dropdowns flow as a separate group below the
+            tab strip + search on mobile, inline on desktop. */}
+        <div className="flex items-center gap-2 flex-wrap">
 
         <select value={sortBy} onChange={e => setSortBy(e.target.value as typeof sortBy)}
           className="px-3 py-1.5 rounded-xl border border-zinc-700 text-xs text-zinc-300 bg-zinc-800 focus:outline-none focus:ring-1 focus:ring-amber-500">
@@ -521,11 +526,12 @@ function AdminApplicationsPageInner() {
           <button onClick={() => { setFilterInterest(''); setFilterContribution(''); setFilterSource(''); setSearchQuery('') }}
             className="text-xs text-zinc-500 hover:text-white">✕ Clear filters</button>
         )}
+        </div>{/* close dropdowns wrapper */}
       </div>
 
       {/* Bulk bar */}
       {(selected2.size > 0 || visible.length > 0) && tab === 'pending' && (
-        <div className="flex items-center gap-3 px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-xl">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 sm:px-4 py-2.5 sm:py-3 bg-zinc-800 border border-zinc-700 rounded-xl">
           <input
             type="checkbox"
             checked={selected2.size === visible.length && visible.length > 0}
@@ -536,13 +542,13 @@ function AdminApplicationsPageInner() {
             {selected2.size > 0 ? <span className="font-semibold text-white">{selected2.size} selected</span> : `Select all ${visible.length}`}
           </span>
           {selected2.size > 0 && (
-            <div className="flex gap-2 ml-auto">
+            <div className="flex gap-2 w-full sm:w-auto sm:ml-auto">
               <button onClick={() => bulkAction('approved')} disabled={bulkSaving}
-                className="px-4 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-bold rounded-lg disabled:opacity-50">
+                className="flex-1 sm:flex-initial px-3 sm:px-4 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-bold rounded-lg disabled:opacity-50">
                 {bulkSaving ? '…' : `✅ Approve ${selected2.size}`}
               </button>
               <button onClick={() => bulkAction('rejected')} disabled={bulkSaving}
-                className="px-4 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold rounded-lg disabled:opacity-50">
+                className="flex-1 sm:flex-initial px-3 sm:px-4 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold rounded-lg disabled:opacity-50">
                 {bulkSaving ? '…' : `❌ Reject ${selected2.size}`}
               </button>
               <button onClick={() => setSelected2(new Set())} className="px-3 py-1.5 text-xs text-zinc-400 hover:text-white">Cancel</button>
@@ -682,16 +688,19 @@ function AdminApplicationsPageInner() {
                 </div>
               </div>
 
-              {/* Actions */}
+              {/* Actions — icon-only on mobile so name + badges fit on the
+                  same row, with full text on sm+ where there's room. */}
               {app.status === 'pending' ? (
                 <div className="flex gap-1.5 shrink-0" onClick={e => e.stopPropagation()}>
                   <button onClick={e => quickDecide(e, app.id, 'approved')}
-                    className="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-bold rounded-lg transition-colors">
-                    ✓ Approve
+                    aria-label="Approve"
+                    className="px-2.5 sm:px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-bold rounded-lg transition-colors">
+                    ✓<span className="hidden sm:inline ml-1">Approve</span>
                   </button>
                   <button onClick={e => quickDecide(e, app.id, 'rejected')}
-                    className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold rounded-lg transition-colors">
-                    ✕ Reject
+                    aria-label="Reject"
+                    className="px-2.5 sm:px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold rounded-lg transition-colors">
+                    ✕<span className="hidden sm:inline ml-1">Reject</span>
                   </button>
                 </div>
               ) : (
@@ -706,13 +715,17 @@ function AdminApplicationsPageInner() {
         ))}
       </div>
 
-      {/* Review modal */}
+      {/* Review modal — full-bleed on phones (no rounded corners, no padding
+          on the backdrop) so admins get the whole screen for reading and
+          deciding; padded centered card on desktop. */}
       {selected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setSelected(null)}>
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-y-auto flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-stretch sm:items-center sm:justify-center bg-black/40 backdrop-blur-sm sm:p-4" onClick={() => setSelected(null)}>
+          <div className="bg-zinc-900 border-0 sm:border sm:border-zinc-800 rounded-none sm:rounded-2xl shadow-2xl w-full max-w-5xl h-full sm:h-auto sm:max-h-[90vh] overflow-y-auto sm:overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
 
-            {/* Modal header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 shrink-0">
+            {/* Modal header — sticky-top on mobile (paired with sticky-bottom
+                decision panel below) so context + close X are always visible
+                regardless of scroll position. */}
+            <div className="sticky top-0 sm:static flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-zinc-800 shrink-0 bg-zinc-900/95 backdrop-blur-sm sm:bg-zinc-900 z-10">
               <div className="flex items-center gap-2 flex-wrap">
                 <Score app={selected} />
                 <Flag app={selected} />
@@ -967,8 +980,12 @@ function AdminApplicationsPageInner() {
                   )}
                 </div>
 
-                {/* Decision panel */}
-                <div className="shrink-0 border-t border-zinc-800 p-4 space-y-3 bg-zinc-900/80">
+                {/* Decision panel — sticky-bottom on mobile so Approve/Reject
+                    is always one tap away regardless of how far the admin
+                    has scrolled through the application essays; static
+                    bottom panel on desktop where the body has its own
+                    overflow container. */}
+                <div className="sticky bottom-0 sm:static shrink-0 border-t border-zinc-800 p-4 space-y-3 bg-zinc-900/95 backdrop-blur-sm sm:bg-zinc-900/80 z-10">
                   <div className="flex gap-2">
                     <input value={reviewNote} onChange={e => setReviewNote(e.target.value)}
                       placeholder="Internal note (only visible to admins)…"
