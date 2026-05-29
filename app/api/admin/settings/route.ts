@@ -44,6 +44,16 @@ export async function POST(req: NextRequest) {
     if ('notifications'   in body && typeof body.notifications   === 'object') patch.notifications   = body.notifications
     if ('toggles'         in body && typeof body.toggles         === 'object') patch.toggles         = body.toggles
     if ('listingSettings' in body && typeof body.listingSettings === 'object') patch.listingSettings = body.listingSettings
+    // The "Auto-assign on approval" club picker on /admin/applications POSTs
+    // here with { defaultClubId }. Before this branch existed, every save
+    // fell through to the empty-patch 400 — the dropdown looked functional
+    // (React state held the choice within a session) but never persisted,
+    // so a page reload reset it and approvals stopped auto-enrolling.
+    // Empty string = clear (admin picked "No default club").
+    if ('defaultClubId' in body) {
+      const v = body.defaultClubId
+      patch.defaultClubId = (typeof v === 'string' && v) ? v.slice(0, 100) : null
+    }
 
     if (Object.keys(patch).length === 0) {
       return NextResponse.json({ error: 'No valid settings fields' }, { status: 400 })
