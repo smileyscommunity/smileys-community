@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, Suspense } from 'react'
+import React, { useState, useEffect, useCallback, Suspense } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 
@@ -23,6 +23,15 @@ interface Analytics {
     fromApplications:  { interest: string; count: number }[]
     fromAttendedEvents: { interest: string; count: number }[]
   }
+  hangouts: {
+    totals: { createdInPeriod: number; referencesInPeriod: number }
+    byMonth:           number[]
+    referencesByMonth: number[]
+    vibeBreakdown:     { good: number; meh: number; noShow: number }
+    topHostsOfPeriod:  { id: string; name: string; color: string; profilePhoto: string | null; count: number }[]
+  }
+  funnel:  { applications: number; approved: number; firstEvent: number; repeat: number }
+  cohorts: { cohort: string; size: number; within30Pct: number; within90Pct: number; everPct: number }[]
 }
 
 // Retention page used to live at /admin/retention with this shape. Folding it
@@ -156,11 +165,12 @@ function periodWindowLabel(key: string): string {
   return PERIODS.find(p => p.key === key)?.label ?? '6 months'
 }
 
-type Tab = 'overview' | 'members' | 'events' | 'revenue' | 'health'
+type Tab = 'overview' | 'members' | 'events' | 'hangouts' | 'revenue' | 'health'
 const TABS: { key: Tab; label: string }[] = [
   { key: 'overview', label: 'Overview' },
   { key: 'members',  label: 'Members'  },
   { key: 'events',   label: 'Events'   },
+  { key: 'hangouts', label: 'Hangouts' },
   { key: 'revenue',  label: 'Revenue'  },
   { key: 'health',   label: 'Health'   },
 ]
@@ -396,6 +406,54 @@ function AnalyticsInner() {
               </div>
             </div>
           </section>
+
+          {/* ── Conversion funnel ───────────────────────────────────────────
+              Visual drop-off chart for Applications → Approved → First
+              event → Repeat. Each bar's width scales to its percentage of
+              the top stage; the percentage chip shows conversion from the
+              *previous* stage (the actionable metric — "where are we
+              losing people"). Hidden when applications = 0. */}
+          {data.funnel.applications > 0 && (
+            <section>
+              <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3">Conversion funnel</h2>
+              <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5 space-y-3">
+                {(() => {
+                  const f = data.funnel
+                  const stages = [
+                    { label: 'Applications', value: f.applications, color: '#a78bfa', prev: f.applications },
+                    { label: 'Approved',     value: f.approved,     color: '#60a5fa', prev: f.applications },
+                    { label: 'First event',  value: f.firstEvent,   color: '#f59e0b', prev: f.approved   },
+                    { label: 'Repeat',       value: f.repeat,       color: '#34d399', prev: f.firstEvent },
+                  ]
+                  const top = stages[0].value || 1
+                  return stages.map((s, i) => {
+                    const widthPct = Math.round((s.value / top) * 100)
+                    const convPct  = s.prev > 0 ? Math.round((s.value / s.prev) * 100) : 0
+                    const convColor = i === 0 ? 'text-zinc-500'
+                                    : convPct >= 60 ? 'text-green-400'
+                                    : convPct >= 35 ? 'text-amber-400'
+                                                    : 'text-red-400'
+                    return (
+                      <div key={s.label}>
+                        <div className="flex items-baseline justify-between mb-1">
+                          <span className="text-xs font-semibold text-zinc-300">{s.label}</span>
+                          <div className="flex items-baseline gap-2">
+                            <span className="text-sm font-bold text-white">{s.value.toLocaleString()}</span>
+                            {i > 0 && (
+                              <span className={`text-xs font-bold ${convColor}`}>({convPct}%)</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="h-3 bg-zinc-800 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full transition-all" style={{ width: `${Math.max(widthPct, 2)}%`, backgroundColor: s.color }} />
+                        </div>
+                      </div>
+                    )
+                  })
+                })()}
+              </div>
+            </section>
+          )}
         </>
       )}
 
@@ -598,6 +656,58 @@ function AnalyticsInner() {
               )}
             </div>
           </section>
+
+          {/* ── Cohort retention ────────────────────────────────────────────
+              For each of the last 6 monthly cohorts (members who joined in
+              month X), what % attended an event within their first 30 days,
+              first 90 days, or ever. Reads as a heatmap-ish stacked
+              breakdown: bright bars = good onboarding, dim bars = members
+              never activated. The single most actionable community-health
+              chart we have. */}
+          {data.cohorts.length > 0 && (
+            <section>
+              <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
+                <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Cohort retention</h2>
+                <span className="text-[10px] text-zinc-600 italic">% of each month&apos;s joiners who attended ≥1 event</span>
+              </div>
+              <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5">
+                <div className="grid grid-cols-[auto_1fr_auto] gap-x-4 gap-y-3 items-center text-xs">
+                  {/* Column headers */}
+                  <span className="text-[10px] font-bold text-zinc-500 uppercase">Cohort</span>
+                  <div className="grid grid-cols-3 gap-2 text-[10px] font-bold text-zinc-500 uppercase">
+                    <span className="text-center">First 30d</span>
+                    <span className="text-center">First 90d</span>
+                    <span className="text-center">Ever</span>
+                  </div>
+                  <span className="text-[10px] font-bold text-zinc-500 uppercase text-right">Size</span>
+
+                  {data.cohorts.map(c => (
+                    <React.Fragment key={c.cohort}>
+                      <span className="text-zinc-300 font-medium">{c.cohort}</span>
+                      <div className="grid grid-cols-3 gap-2">
+                        {[c.within30Pct, c.within90Pct, c.everPct].map((pct, i) => (
+                          <div key={i} className="relative h-5 bg-zinc-800 rounded-md overflow-hidden">
+                            <div
+                              className="absolute inset-y-0 left-0 transition-all"
+                              style={{
+                                width: `${pct}%`,
+                                backgroundColor: pct >= 50 ? '#34d399' : pct >= 25 ? '#f59e0b' : '#ef4444',
+                                opacity: c.size === 0 ? 0.3 : 1,
+                              }}
+                            />
+                            <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white mix-blend-difference">
+                              {c.size === 0 ? '—' : `${pct}%`}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      <span className="text-zinc-500 text-right tabular-nums">{c.size}</span>
+                    </React.Fragment>
+                  ))}
+                </div>
+              </div>
+            </section>
+          )}
         </>
       )}
 
@@ -763,6 +873,104 @@ function AnalyticsInner() {
                 )
               })()}
             </section>
+          )}
+        </>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════════════
+          HANGOUTS TAB — totals, velocity, vibe breakdown, top hosts
+          ════════════════════════════════════════════════════════════════════ */}
+      {tab === 'hangouts' && (
+        <>
+          <section>
+            <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3">Hangouts</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+              <StatCard label="Hangouts" value={data.hangouts.totals.createdInPeriod}
+                sub={`Created in last ${periodWindowLabel(period)}`} />
+              <StatCard label="References" value={data.hangouts.totals.referencesInPeriod}
+                sub="Trust signals left after meetups" subColor="text-green-400" />
+              <StatCard label="Good refs" value={data.hangouts.vibeBreakdown.good}
+                subColor="text-green-400"
+                sub={data.hangouts.totals.referencesInPeriod > 0
+                  ? `${Math.round((data.hangouts.vibeBreakdown.good / data.hangouts.totals.referencesInPeriod) * 100)}% of refs`
+                  : 'No refs yet'} />
+              <StatCard label="No-shows" value={data.hangouts.vibeBreakdown.noShow}
+                subColor={data.hangouts.vibeBreakdown.noShow > 0 ? 'text-red-400' : 'text-zinc-500'}
+                alert={data.hangouts.vibeBreakdown.noShow > 5 ? 'red' : data.hangouts.vibeBreakdown.noShow > 0 ? 'amber' : undefined}
+                sub="Reported as didn't show" />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5">
+                <div className="text-xs font-semibold text-zinc-400 mb-3">Hangouts posted — last {periodWindowLabel(period)}</div>
+                <MiniBar values={data.hangouts.byMonth} months={data.months} color="#f59e0b" />
+              </div>
+              <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5">
+                <div className="text-xs font-semibold text-zinc-400 mb-3">References created — last {periodWindowLabel(period)}</div>
+                <MiniBar values={data.hangouts.referencesByMonth} months={data.months} color="#34d399" />
+              </div>
+            </div>
+          </section>
+
+          {/* Vibe breakdown — qualitative view that the raw count can't give */}
+          {data.hangouts.totals.referencesInPeriod > 0 && (
+            <section>
+              <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3">Vibe breakdown</h2>
+              <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5 space-y-3">
+                {([
+                  { label: 'Good',            count: data.hangouts.vibeBreakdown.good,   color: '#34d399' },
+                  { label: 'Meh',             count: data.hangouts.vibeBreakdown.meh,    color: '#a1a1aa' },
+                  { label: 'Didn’t show',     count: data.hangouts.vibeBreakdown.noShow, color: '#ef4444' },
+                ] as { label: string; count: number; color: string }[]).map(v => {
+                  const total = data.hangouts.totals.referencesInPeriod
+                  const pct   = total > 0 ? Math.round((v.count / total) * 100) : 0
+                  return (
+                    <div key={v.label}>
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="text-zinc-300 font-medium">{v.label}</span>
+                        <span className="text-zinc-500">{v.count} <span className="text-zinc-600">· {pct}%</span></span>
+                      </div>
+                      <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: v.color }} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </section>
+          )}
+
+          {/* Top hosts — leaderboard for the selected period */}
+          {data.hangouts.topHostsOfPeriod.length > 0 && (
+            <section>
+              <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3">Top hosts · last {periodWindowLabel(period)}</h2>
+              <div className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
+                <div className="divide-y divide-zinc-800">
+                  {data.hangouts.topHostsOfPeriod.map((h, i) => (
+                    <Link key={h.id} href={`/members/${h.id}`}
+                      className="flex items-center gap-3 px-5 py-3 hover:bg-zinc-800/40 transition-colors">
+                      <span className="text-xs font-bold text-zinc-600 w-4">{i + 1}</span>
+                      <div className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center text-white text-[10px] font-bold shrink-0"
+                        style={{ backgroundColor: h.color }}>
+                        {h.profilePhoto
+                          ? <img src={`/app/api/files${h.profilePhoto.replace('/app/api/files', '')}`} alt={h.name} className="w-full h-full object-cover" />
+                          : h.name[0]}
+                      </div>
+                      <span className="text-sm font-semibold text-zinc-200 flex-1 min-w-0 truncate">{h.name}</span>
+                      <span className="text-xs text-zinc-500 shrink-0">{h.count} hangout{h.count !== 1 ? 's' : ''}</span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* Empty state — guides admins toward the feature when no data */}
+          {data.hangouts.totals.createdInPeriod === 0 && data.hangouts.totals.referencesInPeriod === 0 && (
+            <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-10 text-center text-zinc-500">
+              <p className="text-2xl mb-2">☕</p>
+              <p className="text-sm">No hangouts in this period.</p>
+              <p className="text-xs text-zinc-600 mt-1">Try a longer window or seed activity in <Link href="/hangouts" className="text-amber-400 hover:underline">/hangouts</Link>.</p>
+            </div>
           )}
         </>
       )}

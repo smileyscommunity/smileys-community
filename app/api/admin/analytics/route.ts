@@ -50,6 +50,7 @@ export async function GET(req: NextRequest) {
       activeAttendees, dormantMembers, repeatRsvpData,
       memberNeighborhoods, eventNeighborhoods, attendedEventTags,
       revenueByClubRaw, refundsByHostRaw,
+      hangoutsInPeriod, referencesInPeriod,
     ] = await Promise.all([
       prisma.user.findMany({
         where: { role: { not: 'admin' } },
@@ -63,7 +64,9 @@ export async function GET(req: NextRequest) {
       }),
       prisma.eventAttendee.findMany({
         where: { status: 'approved' },
-        select: { joinedAt: true },
+        // userId needed for cohort retention math (which cohort attended an
+        // event within their first 30 / 90 days).
+        select: { joinedAt: true, userId: true },
       }),
       prisma.payment.findMany({
         select: { status: true, amount: true, createdAt: true },
@@ -148,6 +151,22 @@ export async function GET(req: NextRequest) {
             },
           },
         },
+      }),
+      // Hangouts created in the selected period — feeds byMonth chart and
+      // top-hosts ranking. Includes host name for the leaderboard row.
+      prisma.hangout.findMany({
+        where:  { createdAt: { gte: periodStart } },
+        select: {
+          createdAt: true,
+          userId:    true,
+          user:      { select: { id: true, name: true, color: true, profilePhoto: true } },
+        },
+      }),
+      // Hangout references in the selected period — drives the velocity
+      // chart + vibe breakdown ("is the trust loop firing? what shape?").
+      prisma.hangoutReference.findMany({
+        where:  { createdAt: { gte: periodStart } },
+        select: { createdAt: true, vibe: true },
       }),
     ])
 
@@ -339,6 +358,101 @@ export async function GET(req: NextRequest) {
     const repeatRsvpers      = repeatRsvpData.filter(r => r._count.userId > 1).length
     const repeatRsvpRate     = totalUniqueRsvpers > 0 ? Math.round((repeatRsvpers / totalUniqueRsvpers) * 100) : 0
 
+    // ── Hangouts ──────────────────────────────────────────────────────────────
+    // byMonth buckets — same labels as members/events charts so they line up
+    // visually when admins compare across sections.
+    const hangoutsByMonth   = emptyMonths()
+    const referencesByMonth = emptyMonths()
+    for (const h of hangoutsInPeriod) {
+      const key = new Date(h.createdAt).toLocaleDateString('en-GB', { month: 'short', year: '2-digit' })
+      if (key in hangoutsByMonth) hangoutsByMonth[key] += 1
+    }
+    for (const r of referencesInPeriod) {
+      const key = new Date(r.createdAt).toLocaleDateString('en-GB', { month: 'short', year: '2-digit' })
+      if (key in referencesByMonth) referencesByMonth[key] += 1
+    }
+    // Vibe breakdown — gives the qualitative trust signal that the raw
+    // count can't. A spike in no_show is a different story from a spike
+    // in good references.
+    const vibeBreakdown = {
+      good:    referencesInPeriod.filter(r => r.vibe === 'good').length,
+      meh:     referencesInPeriod.filter(r => r.vibe === 'meh').length,
+      noShow:  referencesInPeriod.filter(r => r.vibe === 'no_show').length,
+    }
+    // Top hosts of the period — bucket by userId, take top 5.
+    const hostCounts = new Map<string, { count: number; user: typeof hangoutsInPeriod[0]['user'] }>()
+    for (const h of hangoutsInPeriod) {
+      const existing = hostCounts.get(h.userId)
+      if (existing) existing.count++
+      else hostCounts.set(h.userId, { count: 1, user: h.user })
+    }
+    const topHostsOfPeriod = [...hostCounts.values()]
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5)
+      .map(({ count, user }) => ({ ...user, count }))
+
+    // ── Funnel ────────────────────────────────────────────────────────────────
+    // Applications → Approved → First event (≥1 RSVP) → Repeat (≥2 RSVPs).
+    // Reuse the repeatRsvpData groupBy (already in flight) instead of a new
+    // query — distinct userId count = first-event tier, ≥2 = repeat tier.
+    const funnel = {
+      applications: allApps.length,
+      approved:     allApps.filter(a => a.status === 'approved').length,
+      firstEvent:   repeatRsvpData.length,
+      repeat:       repeatRsvpData.filter(r => r._count.userId > 1).length,
+    }
+
+    // ── Cohort retention ─────────────────────────────────────────────────────
+    // Group approved members by joinedAt month (last 6 cohorts). For each
+    // cohort: total size + % who attended an event within 30 / 90 days of
+    // joining + % who ever attended. Onboarding-speed signal — flags
+    // cohorts where new members aren't activating.
+    const cohortMonthLabels: string[] = []
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      cohortMonthLabels.push(d.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }))
+    }
+    // userId → joinedAt for fast cohort assignment
+    const userJoin = new Map<string, Date>()
+    for (const u of approved) userJoin.set((u as { id?: string }).id ?? '', new Date(u.joinedAt))
+    // We didn't select id earlier — re-fetch a minimal users-with-id set so
+    // cohort math has the join key. Cheap query, single table scan.
+    const approvedWithId = await prisma.user.findMany({
+      where:  { status: 'approved', role: { in: ['member', 'moderator'] } },
+      select: { id: true, joinedAt: true },
+    })
+    const userJoinById = new Map(approvedWithId.map(u => [u.id, new Date(u.joinedAt)]))
+    // userId → first attendance date
+    const firstAttendanceByUser = new Map<string, Date>()
+    for (const a of allAttendees) {
+      const existing = firstAttendanceByUser.get(a.userId)
+      const d = new Date(a.joinedAt)
+      if (!existing || d < existing) firstAttendanceByUser.set(a.userId, d)
+    }
+    const cohorts = cohortMonthLabels.map(label => {
+      const cohortUsers = approvedWithId.filter(u =>
+        new Date(u.joinedAt).toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }) === label
+      )
+      const size = cohortUsers.length
+      let within30 = 0, within90 = 0, ever = 0
+      for (const u of cohortUsers) {
+        const joined = userJoinById.get(u.id)!
+        const first  = firstAttendanceByUser.get(u.id)
+        if (!first) continue
+        const daysToFirst = (first.getTime() - joined.getTime()) / 86400000
+        ever++
+        if (daysToFirst <= 90) within90++
+        if (daysToFirst <= 30) within30++
+      }
+      return {
+        cohort: label,
+        size,
+        within30Pct: size > 0 ? Math.round((within30 / size) * 100) : 0,
+        within90Pct: size > 0 ? Math.round((within90 / size) * 100) : 0,
+        everPct:    size > 0 ? Math.round((ever    / size) * 100) : 0,
+      }
+    })
+
     const result = {
       period: periodKey,
       periodLabel: period.label,
@@ -390,6 +504,18 @@ export async function GET(req: NextRequest) {
         fromApplications: topInterests,
         fromAttendedEvents: topAttendedInterests,
       },
+      hangouts: {
+        totals: {
+          createdInPeriod:   hangoutsInPeriod.length,
+          referencesInPeriod: referencesInPeriod.length,
+        },
+        byMonth:           Object.values(hangoutsByMonth),
+        referencesByMonth: Object.values(referencesByMonth),
+        vibeBreakdown,
+        topHostsOfPeriod,
+      },
+      funnel,
+      cohorts,
     }
 
     setCached(cacheKey, result, CACHE_TTL)
