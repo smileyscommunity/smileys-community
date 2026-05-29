@@ -32,6 +32,15 @@ interface Analytics {
   }
   funnel:  { applications: number; approved: number; firstEvent: number; repeat: number }
   cohorts: { cohort: string; size: number; within30Pct: number; within90Pct: number; everPct: number }[]
+  moderation: {
+    reportsInPeriod:     number
+    actionedInPeriod:    number
+    dismissedInPeriod:   number
+    meanHoursToAction:   number | null
+    repeatOffenderCount: number
+    bansInPeriod:        number
+    banRatePct:          number
+  }
 }
 
 // Retention page used to live at /admin/retention with this shape. Folding it
@@ -64,15 +73,20 @@ function StatCard({ label, value, sub, subColor = 'text-zinc-500', href, alert }
 
 function MiniBar({ values, months, color = '#f59e0b' }: { values: number[]; months: string[]; color?: string }) {
   const max = Math.max(...values, 1)
+  // Bar height capped at 76px so 12-bucket charts (12-month period) stay
+  // readable instead of compressing into hairlines. Tooltip on each bar
+  // shows the exact value for the labeled month — browser-native, no
+  // JS overlay, works on touch via long-press too.
   return (
-    <div className="flex items-end gap-1 h-16">
+    <div className="flex items-end gap-1 h-24">
       {values.map((v, i) => (
-        <div key={i} className="flex-1 flex flex-col items-center gap-1">
+        <div key={i} className="flex-1 flex flex-col items-center gap-1 min-w-0">
           <div
-            className="w-full rounded-t"
-            style={{ height: `${Math.max((v / max) * 48, v > 0 ? 4 : 0)}px`, backgroundColor: color, opacity: i === values.length - 1 ? 1 : 0.5 }}
+            className="w-full rounded-t hover:opacity-80 transition-opacity cursor-default"
+            style={{ height: `${Math.max((v / max) * 76, v > 0 ? 4 : 0)}px`, backgroundColor: color, opacity: i === values.length - 1 ? 1 : 0.5 }}
+            title={`${months[i] ?? ''}: ${v.toLocaleString()}`}
           />
-          <span className="text-[9px] text-zinc-600 leading-none">{months[i]?.split(' ')[0]}</span>
+          <span className="text-[9px] text-zinc-600 leading-none truncate w-full text-center">{months[i]?.split(' ')[0]}</span>
         </div>
       ))}
     </div>
@@ -188,6 +202,8 @@ function AnalyticsInner() {
   const [loading,       setLoading]       = useState(true)
   const [refreshing,    setRefreshing]    = useState(false)
   const [errorMsg,      setErrorMsg]      = useState<string | null>(null)
+  const [lastRefresh,   setLastRefresh]   = useState<Date | null>(null)
+  const [, setTick] = useState(0)
   const [period,        setPeriod]        = useState('6m')
   const [reengageId,    setReengageId]    = useState<string | null>(null)
   const [reengageMsgs,  setReengageMsgs]  = useState<Record<string, string>>({})
@@ -200,12 +216,42 @@ function AnalyticsInner() {
   const tab: Tab = (TABS.some(t => t.key === tabParam) ? tabParam : 'overview') as Tab
 
   function setTab(next: Tab) {
+    if (next === tab) return
     const params = new URLSearchParams(searchParams.toString())
     if (next === 'overview') params.delete('tab')
     else params.set('tab', next)
     const q = params.toString()
     router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false })
+    // Scroll to top on tab change so admins land on the new content's
+    // header instead of mid-section of the previous tab's content.
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior })
   }
+
+  // Keyboard nav between tabs — Left / Right arrows when no input is
+  // focused. Cycles through TABS in declaration order so admins can
+  // sweep through lenses without touching the mouse.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null
+      if (target?.matches('input, textarea, select, [contenteditable]')) return
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+      const idx = TABS.findIndex(t => t.key === tab)
+      if (idx < 0) return
+      const nextIdx = e.key === 'ArrowRight' ? (idx + 1) % TABS.length : (idx - 1 + TABS.length) % TABS.length
+      setTab(TABS[nextIdx].key)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  // setTab + tab change between renders, but we want the effect tied to
+  // the *current* tab so the index math is correct.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab])
+
+  // Tick once a minute so the "Updated Xm ago" label visibly ages.
+  useEffect(() => {
+    const t = setInterval(() => setTick(n => n + 1), 60_000)
+    return () => clearInterval(t)
+  }, [])
 
   // load() doubles as the initial fetch and the retry/refresh trigger.
   // Tracks errorMsg so we can show a retry banner instead of leaving the
@@ -220,7 +266,7 @@ function AnalyticsInner() {
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
         return r.json()
       })
-      .then(d => { if (d) setData(d) })
+      .then(d => { if (d) { setData(d); setLastRefresh(new Date()) } })
       .catch(err => {
         console.error('[analytics load]', err)
         setErrorMsg('Could not load analytics. Try again?')
@@ -285,7 +331,20 @@ function AnalyticsInner() {
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-extrabold text-white tracking-tight">Analytics</h1>
-          <p className="text-sm text-zinc-500 mt-0.5">Platform growth, revenue, and community health</p>
+          <p className="text-sm text-zinc-500 mt-0.5">
+            Platform growth, revenue, and community health
+            {lastRefresh && (() => {
+              // "Updated Xm ago" — cache freshness signal so admins watching
+              // for a number to tick know whether they're seeing fresh or
+              // 5-min-stale data (API caches for 5 min).
+              const s = Math.floor((Date.now() - lastRefresh.getTime()) / 1000)
+              const label = s < 60      ? 'just now'
+                          : s < 3600    ? `${Math.floor(s / 60)}m ago`
+                          : s < 86400   ? `${Math.floor(s / 3600)}h ago`
+                                        : `${Math.floor(s / 86400)}d ago`
+              return <span className="text-zinc-600 ml-2">· Updated {label}</span>
+            })()}
+          </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {/* Stale-data indicator — only shows during in-flight refreshes
@@ -1069,9 +1128,39 @@ function AnalyticsInner() {
       )}
 
       {/* ════════════════════════════════════════════════════════════════════
-          HEALTH TAB — reports + top clubs
+          HEALTH TAB — reports + moderation velocity + top clubs
           ════════════════════════════════════════════════════════════════════ */}
       {tab === 'health' && (
+        <>
+        {/* ── Moderation velocity (period-scoped) ──
+            Was the thinnest tab — only Reports + Top Clubs. Now leads with
+            moderation-efficiency metrics for the selected period: how many
+            reports came in, how fast they were actioned, whose names keep
+            showing up. Together these answer "is moderation keeping up?" */}
+        <section>
+          <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3">Moderation · last {periodWindowLabel(period)}</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+            <StatCard label="Reports" value={data.moderation.reportsInPeriod}
+              sub={`${data.moderation.actionedInPeriod} actioned · ${data.moderation.dismissedInPeriod} dismissed`} />
+            <StatCard label="Avg time to action"
+              value={data.moderation.meanHoursToAction == null ? '—'
+                : data.moderation.meanHoursToAction < 24 ? `${data.moderation.meanHoursToAction}h`
+                : `${Math.round(data.moderation.meanHoursToAction / 24)}d`}
+              sub="From report to review"
+              subColor={data.moderation.meanHoursToAction == null ? 'text-zinc-500'
+                : data.moderation.meanHoursToAction <= 24 ? 'text-green-400'
+                : data.moderation.meanHoursToAction <= 72 ? 'text-amber-400' : 'text-red-400'}
+              alert={data.moderation.meanHoursToAction != null && data.moderation.meanHoursToAction > 72 ? 'red' : undefined} />
+            <StatCard label="Repeat offenders" value={data.moderation.repeatOffenderCount}
+              sub="Members in 2+ reports"
+              subColor={data.moderation.repeatOffenderCount > 0 ? 'text-amber-400' : 'text-zinc-500'}
+              alert={data.moderation.repeatOffenderCount >= 5 ? 'red' : data.moderation.repeatOffenderCount > 0 ? 'amber' : undefined} />
+            <StatCard label="Bans" value={data.moderation.bansInPeriod}
+              sub={`${data.moderation.banRatePct}% of approved`}
+              subColor={data.moderation.banRatePct >= 1 ? 'text-red-400' : 'text-zinc-500'} />
+          </div>
+        </section>
+
         <section>
           <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3">Community health</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1121,6 +1210,7 @@ function AnalyticsInner() {
             </div>
           </div>
         </section>
+        </>
       )}
     </div>
   )

@@ -51,6 +51,7 @@ export async function GET(req: NextRequest) {
       memberNeighborhoods, eventNeighborhoods, attendedEventTags,
       revenueByClubRaw, refundsByHostRaw,
       hangoutsInPeriod, referencesInPeriod,
+      reportsInPeriod, bansInPeriod, totalApprovedMembers,
     ] = await Promise.all([
       prisma.user.findMany({
         where: { role: { not: 'admin' } },
@@ -168,6 +169,21 @@ export async function GET(req: NextRequest) {
         where:  { createdAt: { gte: periodStart } },
         select: { createdAt: true, vibe: true },
       }),
+      // Reports in the selected period with their resolution timestamps —
+      // drives mod velocity ("how fast are reports getting actioned?") and
+      // surfaces repeat offenders (users named in ≥2 reports).
+      prisma.report.findMany({
+        where:  { createdAt: { gte: periodStart } },
+        select: { createdAt: true, status: true, reviewedAt: true, reportedId: true },
+      }),
+      // Bans applied in period — pulled from the AuditLog so a ban that
+      // was later reversed still counts as a moderation action taken.
+      prisma.auditLog.findMany({
+        where:  { createdAt: { gte: periodStart }, action: 'user.ban' },
+        select: { createdAt: true },
+      }),
+      // Total approved members — denominator for the ban-rate metric.
+      prisma.user.count({ where: { status: 'approved', role: { in: ['member', 'moderator'] } } }),
     ])
 
     // ── Members ──────────────────────────────────────────────────────────────
@@ -516,6 +532,35 @@ export async function GET(req: NextRequest) {
       },
       funnel,
       cohorts,
+      // Health / moderation velocity — fleshes out the previously-thin Health
+      // tab. Mean time to action is the headline mod-efficiency metric;
+      // repeat offenders are the "spending most of moderation time on whom?"
+      // signal; ban rate is the slow-moving denominator-aware trend.
+      moderation: (() => {
+        const reviewed   = reportsInPeriod.filter(r => r.reviewedAt)
+        const meanHours  = reviewed.length === 0 ? null : Math.round(
+          reviewed.reduce((s, r) => s + (new Date(r.reviewedAt!).getTime() - new Date(r.createdAt).getTime()), 0)
+            / reviewed.length / (60 * 60 * 1000)
+        )
+        // Repeat offenders — users named in ≥2 reports this period.
+        const reportCountByUser = new Map<string, number>()
+        for (const r of reportsInPeriod) {
+          reportCountByUser.set(r.reportedId, (reportCountByUser.get(r.reportedId) ?? 0) + 1)
+        }
+        const repeatOffenderCount = [...reportCountByUser.values()].filter(c => c >= 2).length
+        const banRate = totalApprovedMembers > 0
+          ? Math.round((bansInPeriod.length / totalApprovedMembers) * 10000) / 100  // 2 decimals
+          : 0
+        return {
+          reportsInPeriod:     reportsInPeriod.length,
+          actionedInPeriod:    reportsInPeriod.filter(r => r.status === 'actioned').length,
+          dismissedInPeriod:   reportsInPeriod.filter(r => r.status === 'dismissed').length,
+          meanHoursToAction:   meanHours,    // null if nothing was reviewed in period
+          repeatOffenderCount,
+          bansInPeriod:        bansInPeriod.length,
+          banRatePct:          banRate,      // % of approved members banned this period
+        }
+      })(),
     }
 
     setCached(cacheKey, result, CACHE_TTL)
