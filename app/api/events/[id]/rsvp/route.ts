@@ -82,24 +82,76 @@ export async function POST(req: NextRequest, { params }: Params) {
       }, { status: 400 })
     }
 
+    // Shared sets so the participants and RSVP routes count the same
+    // variant spectrum without copy-paste rot.
+    const MALE_VARIANTS    = ['male', 'Male', 'MALE']
+    const FEMALE_VARIANTS  = ['female', 'Female', 'FEMALE']
+    const TURKEY_VARIANTS  = ['Turkey', 'turkey', 'Türkiye', 'türkiye', 'Turkiye', 'TR']
+
     // Approval-required events create a 'pending' attendee instead of
     // auto-approving — that's the whole point of the flag. spotsLeft is NOT
     // decremented until the host/admin approves; the participants page
-    // handles that. The capacity check below treats pending RSVPs as
-    // soft holds so two concurrent requests can't both claim the last slot.
+    // handles that.
+    //
+    // Quota POOL caps (2× the hard quota) apply at RSVP time so a flood of
+    // same-gender requests doesn't fill the pending list with people the
+    // host could never approve. Logic: if maleQuota = 10, allow up to 20
+    // male approved+pending — the host gets twice as many candidates as
+    // slots, plenty to pick from, without an unbounded pending stack. Male
+    // 21 goes to waitlist with a "male spots are full" message so they
+    // have honest signal.
     if (event.approvalRequired) {
       const [approvedCount, pendingCount] = await Promise.all([
         prisma.eventAttendee.count({ where: { eventId, status: 'approved' } }),
         prisma.eventAttendee.count({ where: { eventId, status: 'pending' } }),
       ])
-      if (approvedCount + pendingCount >= event.totalSpots) {
+
+      // Helper that pushes the caller onto the waitlist with the right
+      // reason text and returns the response. Used by both the over-capacity
+      // and the quota-pool blocks below so the wording stays consistent.
+      const waitlistWithReason = async (reason: string) => {
         await prisma.waitlistEntry.create({ data: { userId: session.id, eventId } })
         const position = await prisma.waitlistEntry.count({ where: { eventId } })
         createNotification(session.id, 'waitlist', 'Added to waitlist 📋',
-          `"${event.title}" has no open request slots right now — you're #${position} on the waitlist.`,
+          `${reason} — you're #${position} on the waitlist.`,
           `/events/${eventId}`)
         return NextResponse.json({ ok: true, status: 'waitlisted', position })
       }
+
+      if (approvedCount + pendingCount >= event.totalSpots) {
+        return waitlistWithReason(`"${event.title}" has no open request slots right now`)
+      }
+
+      // Gender-pool caps at 2× hard quota for approval-required events.
+      if (event.genderBalance && isMale) {
+        const maleQuota = event.maleQuota ?? Math.floor(event.totalSpots / 2)
+        const malePool = await prisma.eventAttendee.count({
+          where: { eventId, status: { in: ['approved', 'pending'] }, user: { gender: { in: MALE_VARIANTS } } },
+        })
+        if (malePool >= maleQuota * 2) {
+          return waitlistWithReason(`Male request pool for "${event.title}" is full (2× quota reached)`)
+        }
+      }
+      if (event.genderBalance && isFemale && event.femaleQuota != null) {
+        const femalePool = await prisma.eventAttendee.count({
+          where: { eventId, status: { in: ['approved', 'pending'] }, user: { gender: { in: FEMALE_VARIANTS } } },
+        })
+        if (femalePool >= event.femaleQuota * 2) {
+          return waitlistWithReason(`Female request pool for "${event.title}" is full (2× quota reached)`)
+        }
+      }
+      if (event.turkishMaleQuota && isMale && isTurkish) {
+        const turkishMalePool = await prisma.eventAttendee.count({
+          where: {
+            eventId, status: { in: ['approved', 'pending'] },
+            user: { gender: { in: MALE_VARIANTS }, nationality: { in: TURKEY_VARIANTS } },
+          },
+        })
+        if (turkishMalePool >= event.turkishMaleQuota * 2) {
+          return waitlistWithReason(`Turkish male request pool for "${event.title}" is full (2× quota reached)`)
+        }
+      }
+
       // Create as pending — host approves from the participants page.
       // Payment record is created upfront for paid events (mirror of the
       // auto-approve path) so paid-event commitment is captured at RSVP
@@ -135,7 +187,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       if (event.genderBalance && isMale) {
         const maleQuota = event.maleQuota ?? Math.floor(event.totalSpots / 2)
         const maleCount = await tx.eventAttendee.count({
-          where: { eventId, status: 'approved', user: { gender: { in: ['male', 'Male', 'MALE'] } } },
+          where: { eventId, status: 'approved', user: { gender: { in: MALE_VARIANTS } } },
         })
         if (maleCount >= maleQuota) return { kind: 'gender_full' as const }
       }
@@ -146,7 +198,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       // shut males out entirely.
       if (event.genderBalance && isFemale && event.femaleQuota != null) {
         const femaleCount = await tx.eventAttendee.count({
-          where: { eventId, status: 'approved', user: { gender: { in: ['female', 'Female', 'FEMALE'] } } },
+          where: { eventId, status: 'approved', user: { gender: { in: FEMALE_VARIANTS } } },
         })
         if (femaleCount >= event.femaleQuota) return { kind: 'female_full' as const }
       }
@@ -154,7 +206,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       if (event.turkishMaleQuota && isMale && isTurkish) {
         const turkishMaleCount = await tx.eventAttendee.count({
           where: { eventId, status: 'approved',
-            user: { gender: { in: ['male', 'Male', 'MALE'] }, nationality: { in: ['Turkey', 'turkey', 'Türkiye', 'türkiye', 'Turkiye', 'TR'] } } },
+            user: { gender: { in: MALE_VARIANTS }, nationality: { in: TURKEY_VARIANTS } } },
         })
         if (turkishMaleCount >= event.turkishMaleQuota) return { kind: 'turkish_full' as const }
       }
