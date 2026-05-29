@@ -754,31 +754,37 @@ function AdminUsersPageInner() {
             )
             return (
               <div key={u.id}>
-                {/* Mobile card */}
-                <div className="md:hidden px-4 py-3 flex items-center gap-3">
-                  {u.role === 'admin'
-                    ? <div className="w-3.5 shrink-0" />
-                    : <input type="checkbox" checked={selected.has(u.id)} onChange={() => toggleOne(u.id)}
-                        className="w-3.5 h-3.5 rounded border-zinc-700 bg-zinc-800 text-amber-500 focus:ring-amber-500 cursor-pointer shrink-0" />}
-                  <Link href={`/admin/users/${u.id}`} className="shrink-0">
-                    <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-bold" style={{ backgroundColor: u.color }}>{getInitials(u.name)}</div>
-                  </Link>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <Link href={`/admin/users/${u.id}`} className="font-semibold text-sm text-white truncate hover:text-amber-400 transition-colors">{u.name}</Link>
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full capitalize shrink-0 ${roleBadgeClass(u.role)}`}>{u.role}</span>
-                    </div>
-                    <div className="text-xs text-zinc-500">{new Date(u.joinedAt).toLocaleDateString('en-GB')}</div>
-                    {(u.status === 'banned' || isSuspended(u) || u.warningCount > 0 || sharedFp) && (
-                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                        {u.status === 'banned' && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">banned</span>}
-                        {isSuspended(u) && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20" title={`Until ${new Date(u.suspendedUntil!).toLocaleDateString('en-GB')}`}>suspended</span>}
-                        {u.warningCount > 0 && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20">⚠ {u.warningCount} warning{u.warningCount !== 1 ? 's' : ''}</span>}
-                        {sharedFp && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20" title={`Shares device fingerprint with ${(fingerprintCounts.get(u.lastFingerprint!) ?? 1) - 1} other account(s)`}>⚠ Same device</span>}
+                {/* Mobile card — info row on top, actions row underneath.
+                    Earlier the actions sat to the right of the name and 5-6
+                    icons would either crush the name truncation or visually
+                    overlap on narrow viewports. Now they get their own row
+                    so no element fights another for horizontal space. */}
+                <div className="md:hidden px-4 py-3 space-y-2">
+                  <div className="flex items-start gap-3">
+                    {u.role === 'admin'
+                      ? <div className="w-3.5 shrink-0 mt-1" />
+                      : <input type="checkbox" checked={selected.has(u.id)} onChange={() => toggleOne(u.id)}
+                          className="w-3.5 h-3.5 rounded border-zinc-700 bg-zinc-800 text-amber-500 focus:ring-amber-500 cursor-pointer shrink-0 mt-1" />}
+                    <Link href={`/admin/users/${u.id}`} className="shrink-0">
+                      <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-bold" style={{ backgroundColor: u.color }}>{getInitials(u.name)}</div>
+                    </Link>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <Link href={`/admin/users/${u.id}`} className="font-semibold text-sm text-white truncate hover:text-amber-400 transition-colors">{u.name}</Link>
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full capitalize shrink-0 ${roleBadgeClass(u.role)}`}>{u.role}</span>
                       </div>
-                    )}
+                      <div className="text-xs text-zinc-500">{new Date(u.joinedAt).toLocaleDateString('en-GB')}</div>
+                      {(u.status === 'banned' || isSuspended(u) || u.warningCount > 0 || sharedFp) && (
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                          {u.status === 'banned' && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">banned</span>}
+                          {isSuspended(u) && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20" title={`Until ${new Date(u.suspendedUntil!).toLocaleDateString('en-GB')}`}>suspended</span>}
+                          {u.warningCount > 0 && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20">⚠ {u.warningCount} warning{u.warningCount !== 1 ? 's' : ''}</span>}
+                          {sharedFp && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20" title={`Shares device fingerprint with ${(fingerprintCounts.get(u.lastFingerprint!) ?? 1) - 1} other account(s)`}>⚠ Same device</span>}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1 shrink-0">{userActions}</div>
+                  <div className="flex items-center gap-0.5 justify-end -mr-1">{userActions}</div>
                 </div>
 
                 {/* Desktop row */}
