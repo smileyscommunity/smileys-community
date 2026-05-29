@@ -74,7 +74,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
       'membersOnly', 'limitedSpots', 'vibes', 'status', 'coverImage', 'coverImagePosition', 'meetingUrl',
       'whatsappUrl', 'minAge', 'maxAge', 'language', 'difficulty', 'refundPolicy',
       'registrationDeadline', 'endTime', 'currency', 'approvalRequired', 'isRecurring',
-      'lat', 'lng', 'featured', 'genderBalance', 'maleQuota', 'turkishMaleQuota',
+      'lat', 'lng', 'featured', 'genderBalance', 'maleQuota', 'femaleQuota', 'turkishMaleQuota',
       'cancelReason', 'duration', 'clubId', 'hostId', 'seriesId',
     ]
     const rest: Record<string, unknown> = {}

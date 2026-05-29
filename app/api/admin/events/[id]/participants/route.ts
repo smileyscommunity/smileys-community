@@ -6,6 +6,7 @@ import { createNotification } from '@/lib/notify'
 import { sendEventApprovedEmail, sendEventRejectedEmail } from '@/lib/email'
 import { autoJoinClub } from '@/lib/autoJoinClub'
 import { sendPushToUser } from '@/lib/push'
+import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -88,9 +89,10 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       return NextResponse.json({ ok: true })
     }
 
-    const entry = await prisma.eventAttendee.findUnique({
-      where: { userId_eventId: { userId, eventId } },
-    })
+    const [entry, eventRow] = await Promise.all([
+      prisma.eventAttendee.findUnique({ where: { userId_eventId: { userId, eventId } } }),
+      prisma.event.findUnique({ where: { id: eventId }, select: { title: true, approvalRequired: true, totalSpots: true } }),
+    ])
     await prisma.eventAttendee.deleteMany({ where: { eventId, userId } })
 
     if (entry?.status === 'approved') {
@@ -101,11 +103,13 @@ export async function DELETE(req: NextRequest, { params }: Params) {
           prisma.waitlistEntry.delete({ where: { id: next.id } }),
           prisma.eventAttendee.create({ data: { userId: next.userId, eventId, status: 'approved' } }),
         ])
-        const eventRow = await prisma.event.findUnique({ where: { id: eventId }, select: { title: true } })
         createNotification(next.userId, 'waitlist_promoted', 'Spot available! 🎉',
           `A spot opened up for "${eventRow?.title}" — you're in!`, `/events/${eventId}`)
         sendPushToUser(next.userId, { title: 'Spot available! 🎉', body: `A spot opened up for "${eventRow?.title}" — you're in!`, link: `/app/events/${eventId}` }).catch(() => {})
-      } else {
+      }
+      if (eventRow?.approvalRequired) {
+        await recomputeSpotsLeft(eventId, eventRow.totalSpots)
+      } else if (!next) {
         await prisma.event.update({ where: { id: eventId }, data: { spotsLeft: { increment: 1 } } })
       }
     }
@@ -129,15 +133,30 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const { userId, action } = await req.json() // action: 'approve' | 'reject'
 
     const [event, user] = await Promise.all([
-      prisma.event.findUnique({ where: { id: eventId }, select: { title: true, spotsLeft: true, date: true, neighborhood: true, turkishMaleQuota: true, genderBalance: true, maleQuota: true, totalSpots: true } }),
+      prisma.event.findUnique({ where: { id: eventId }, select: { title: true, spotsLeft: true, date: true, neighborhood: true, turkishMaleQuota: true, genderBalance: true, maleQuota: true, femaleQuota: true, totalSpots: true, approvalRequired: true } }),
       prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true, gender: true, nationality: true } }),
     ])
 
+    // Normalize so 'Male' / 'MALE' / 'male' and 'Türkiye' / 'Turkey' / 'TR'
+    // all compare equal — same approach as the RSVP route.
+    const userGender = (user?.gender ?? '').trim().toLowerCase()
+    const userNat    = (user?.nationality ?? '').trim().toLowerCase()
+    const TURKISH    = new Set(['turkey', 'türkiye', 'turkiye', 'tr', 'turkish'])
+    const isMale     = userGender === 'male'
+    const isFemale   = userGender === 'female'
+    const isTurkish  = TURKISH.has(userNat)
+    // The same broad value sets used in the where clauses for case-insensitive
+    // counts. (Prisma doesn't have a built-in case-insensitive enum match,
+    // so we list the practical variants explicitly.)
+    const MALE_VARIANTS    = ['male', 'Male', 'MALE']
+    const FEMALE_VARIANTS  = ['female', 'Female', 'FEMALE']
+    const TURKEY_VARIANTS  = ['Turkey', 'turkey', 'Türkiye', 'türkiye', 'Turkiye', 'TR']
+
     if (action === 'approve') {
       // Turkish male quota check
-      if (event?.turkishMaleQuota && user?.gender === 'male' && user?.nationality === 'Turkey') {
+      if (event?.turkishMaleQuota && isMale && isTurkish) {
         const turkishMaleCount = await prisma.eventAttendee.count({
-          where: { eventId, status: 'approved', user: { gender: 'male', nationality: 'Turkey' } },
+          where: { eventId, status: 'approved', user: { gender: { in: MALE_VARIANTS }, nationality: { in: TURKEY_VARIANTS } } },
         })
         if (turkishMaleCount >= event.turkishMaleQuota) {
           // Move to waitlist instead
@@ -150,10 +169,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       }
 
       // General male quota check
-      if (event?.genderBalance && user?.gender === 'male') {
+      if (event?.genderBalance && isMale) {
         const maleQuota = event.maleQuota ?? Math.floor(event.totalSpots / 2)
         const maleCount = await prisma.eventAttendee.count({
-          where: { eventId, status: 'approved', user: { gender: 'male' } },
+          where: { eventId, status: 'approved', user: { gender: { in: MALE_VARIANTS } } },
         })
         if (maleCount >= maleQuota) {
           await prisma.eventAttendee.delete({ where: { userId_eventId: { userId, eventId } } })
@@ -164,11 +183,31 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         }
       }
 
+      // Female quota check — mirrors the male side. Only enforced when
+      // femaleQuota is explicitly set; null = uncapped female side (old
+      // behaviour, preserved by default).
+      if (event?.genderBalance && isFemale && event.femaleQuota != null) {
+        const femaleCount = await prisma.eventAttendee.count({
+          where: { eventId, status: 'approved', user: { gender: { in: FEMALE_VARIANTS } } },
+        })
+        if (femaleCount >= event.femaleQuota) {
+          await prisma.eventAttendee.delete({ where: { userId_eventId: { userId, eventId } } })
+          await prisma.waitlistEntry.create({ data: { userId, eventId } })
+          createNotification(userId, 'waitlist', 'Added to waitlist 📋',
+            `Female spots for "${event.title}" are full — you're on the waitlist.`, `/events/${eventId}`)
+          return NextResponse.json({ ok: true, status: 'waitlisted', reason: 'female_quota' })
+        }
+      }
+
       await prisma.eventAttendee.update({
         where: { userId_eventId: { userId, eventId } },
         data: { status: 'approved' },
       })
-      await prisma.event.update({ where: { id: eventId }, data: { spotsLeft: { decrement: 1 } } })
+      if (event?.approvalRequired) {
+        await recomputeSpotsLeft(eventId, event.totalSpots)
+      } else {
+        await prisma.event.update({ where: { id: eventId }, data: { spotsLeft: { decrement: 1 } } })
+      }
       autoJoinClub(userId, eventId).catch(() => {})
       createNotification(userId, 'rsvp', 'You\'re in! 🎉', `Your request for "${event?.title}" has been approved.`, `/events/${eventId}`)
       if (user?.email && event) {
@@ -203,7 +242,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
     const event = await prisma.event.findUnique({
       where: { id: eventId },
-      select: { title: true, spotsLeft: true },
+      select: { title: true, spotsLeft: true, approvalRequired: true, totalSpots: true },
     })
     if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
 
@@ -215,8 +254,11 @@ export async function PUT(req: NextRequest, { params }: Params) {
     await prisma.$transaction([
       prisma.waitlistEntry.deleteMany({ where: { eventId, userId } }),
       prisma.eventAttendee.create({ data: { userId, eventId, status: 'approved' } }),
-      prisma.event.update({ where: { id: eventId }, data: { spotsLeft: { decrement: 1 } } }),
+      ...(event.approvalRequired ? [] : [prisma.event.update({ where: { id: eventId }, data: { spotsLeft: { decrement: 1 } } })]),
     ])
+    if (event.approvalRequired) {
+      await recomputeSpotsLeft(eventId, event.totalSpots)
+    }
 
     autoJoinClub(userId, eventId).catch(() => {})
     createNotification(userId, 'rsvp', 'You\'re in! 🎉',
@@ -240,11 +282,19 @@ export async function POST(req: NextRequest, { params }: Params) {
     }
     const { userId } = await req.json()
 
+    const eventMeta = await prisma.event.findUnique({
+      where: { id: eventId },
+      select: { approvalRequired: true, totalSpots: true },
+    })
+
     await prisma.$transaction([
       prisma.waitlistEntry.deleteMany({ where: { eventId, userId } }),
       prisma.eventAttendee.create({ data: { userId, eventId, status: 'approved' } }),
-      prisma.event.update({ where: { id: eventId }, data: { spotsLeft: { decrement: 1 } } }),
+      ...(eventMeta?.approvalRequired ? [] : [prisma.event.update({ where: { id: eventId }, data: { spotsLeft: { decrement: 1 } } })]),
     ])
+    if (eventMeta?.approvalRequired) {
+      await recomputeSpotsLeft(eventId, eventMeta.totalSpots)
+    }
     autoJoinClub(userId, eventId).catch(() => {})
 
     return NextResponse.json({ ok: true })

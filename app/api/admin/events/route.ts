@@ -81,6 +81,10 @@ export async function POST(req: NextRequest) {
             vibes, tagIds, tags, status, coverImage, coverImagePosition, meetingUrl, whatsappUrl, address,
             minAge, maxAge, language, difficulty,
             refundPolicy, registrationDeadline, endTime, currency, approvalRequired,
+            // Pre-existing gap: genderBalance + the three quotas were destructured
+            // nowhere, so admin-form gender-balance settings silently never made
+            // it to prisma.event.create. Fix while adding femaleQuota.
+            genderBalance, maleQuota, femaleQuota, turkishMaleQuota,
             isRecurring, seriesId, lat, lng } = body
 
     if (!title || !date || !time || !location || !clubId || !hostId) {
@@ -159,6 +163,13 @@ export async function POST(req: NextRequest) {
         endTime:              endTime ?? null,
         currency:             currency ?? 'TRY',
         approvalRequired:     approvalRequired ?? false,
+        // Gender balance + quotas — null defaults so explicit-off doesn't
+        // get coerced to 0. Cast numbers explicitly since the form ships
+        // them as strings from <input type=number>.
+        genderBalance:        genderBalance ?? false,
+        maleQuota:            maleQuota        ? parseInt(maleQuota)        : null,
+        femaleQuota:          femaleQuota      ? parseInt(femaleQuota)      : null,
+        turkishMaleQuota:     turkishMaleQuota ? parseInt(turkishMaleQuota) : null,
         isRecurring:          isRecurring ?? false,
         seriesId:             seriesId    ?? null,
         lat:                  lat != null && lat !== '' ? parseFloat(lat) : null,

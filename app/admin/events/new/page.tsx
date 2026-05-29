@@ -27,6 +27,8 @@ export default function NewEventPage() {
     approvalRequired: false,
     genderBalance: false,
     maleQuota: '',
+    femaleQuota: '',
+    turkishMaleQuota: '',
     coverImage: '', coverImagePosition: 50, meetingUrl: '', whatsappUrl: '',
     minAge: '', maxAge: '',
     language: '', refundPolicy: '', registrationDeadline: '',
@@ -319,7 +321,16 @@ export default function NewEventPage() {
             </div>
             <div>
               <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Start time *</label>
-              <input type="time" value={form.time} onChange={e => set('time', e.target.value)} className={`${inputCls} admin-date-input`} />
+              <div className="flex items-center gap-1.5">
+                <select value={form.time.split(':')[0] ?? ''} onChange={e => set('time', `${e.target.value}:${form.time.split(':')[1] ?? '00'}`)} className={inputCls}>
+                  <option value="">HH</option>
+                  {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(h => <option key={h} value={h}>{h}</option>)}
+                </select>
+                <span className="text-zinc-400 font-bold">:</span>
+                <select value={form.time.split(':')[1] ?? '00'} onChange={e => set('time', `${form.time.split(':')[0] ?? '00'}:${e.target.value}`)} className={inputCls}>
+                  {['00', '15', '30', '45'].map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
             </div>
           </div>
 
@@ -327,7 +338,16 @@ export default function NewEventPage() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-zinc-400 mb-1.5">End time</label>
-              <input type="time" value={form.endTime} onChange={e => set('endTime', e.target.value)} className={`${inputCls} admin-date-input`} />
+              <div className="flex items-center gap-1.5">
+                <select value={form.endTime.split(':')[0] ?? ''} onChange={e => set('endTime', `${e.target.value}:${form.endTime.split(':')[1] ?? '00'}`)} className={inputCls}>
+                  <option value="">HH</option>
+                  {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(h => <option key={h} value={h}>{h}</option>)}
+                </select>
+                <span className="text-zinc-400 font-bold">:</span>
+                <select value={form.endTime.split(':')[1] ?? '00'} onChange={e => set('endTime', `${form.endTime.split(':')[0] ?? '00'}:${e.target.value}`)} className={inputCls}>
+                  {['00', '15', '30', '45'].map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
             </div>
             <div>
               <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Deadline</label>
@@ -486,18 +506,48 @@ export default function NewEventPage() {
           ))}
         </div>
         {form.genderBalance && (
-          <div className="mt-4 flex items-center gap-3">
-            <label className="text-sm font-medium text-zinc-300 shrink-0">♂ Male quota</label>
-            <input
-              type="number"
-              min={1}
-              max={form.totalSpots ? parseInt(form.totalSpots) - 1 : undefined}
-              value={form.maleQuota}
-              onChange={e => set('maleQuota', e.target.value)}
-              placeholder={`Default: ${form.totalSpots ? Math.floor(parseInt(form.totalSpots) / 2) : '½ of spots'}`}
-              className="w-32 bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 px-3 py-2 text-sm"
-            />
-            <span className="text-xs text-zinc-500">max males allowed (females fill rest freely)</span>
+          <div className="mt-4 space-y-3">
+            <div className="flex items-center gap-3">
+              <label className="text-sm font-medium text-zinc-300 shrink-0 w-32">♂ Male quota</label>
+              <input
+                type="number"
+                min={1}
+                max={form.totalSpots ? parseInt(form.totalSpots) - 1 : undefined}
+                value={form.maleQuota}
+                onChange={e => set('maleQuota', e.target.value)}
+                placeholder={`Default: ${form.totalSpots ? Math.floor(parseInt(form.totalSpots) / 2) : '½ of spots'}`}
+                className="w-32 bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 px-3 py-2 text-sm"
+              />
+              <span className="text-xs text-zinc-500">max males allowed</span>
+            </div>
+            {/* Female cap — null/empty = uncapped (preserves old behaviour).
+                Set this to also cap the female side so the event balances
+                instead of just protecting against male-dominance. */}
+            <div className="flex items-center gap-3">
+              <label className="text-sm font-medium text-zinc-300 shrink-0 w-32">♀ Female quota</label>
+              <input
+                type="number"
+                min={1}
+                max={form.totalSpots ? parseInt(form.totalSpots) - 1 : undefined}
+                value={form.femaleQuota}
+                onChange={e => set('femaleQuota', e.target.value)}
+                placeholder="Leave blank for uncapped"
+                className="w-32 bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 px-3 py-2 text-sm"
+              />
+              <span className="text-xs text-zinc-500">max females allowed (blank = no cap)</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <label className="text-sm font-medium text-zinc-300 shrink-0 w-32">🇹🇷 Turkish male</label>
+              <input
+                type="number"
+                min={1}
+                value={form.turkishMaleQuota}
+                onChange={e => set('turkishMaleQuota', e.target.value)}
+                placeholder="Leave blank for no sub-cap"
+                className="w-32 bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 px-3 py-2 text-sm"
+              />
+              <span className="text-xs text-zinc-500">sub-cap on Turkish males specifically</span>
+            </div>
           </div>
         )}
       </section>

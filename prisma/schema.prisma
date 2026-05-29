@@ -310,6 +310,11 @@ model Event {
   featured             Boolean   @default(false)
   genderBalance        Boolean   @default(false)
   maleQuota            Int?
+  // Female-side cap — mirror of maleQuota. Before this existed, the male
+  // cap was the only enforcement, so an all-female RSVP wave could fill
+  // 100% of spots and males got waitlisted indefinitely. With both set,
+  // the event balances on both sides.
+  femaleQuota          Int?
   turkishMaleQuota     Int?
   updatedAt            DateTime  @default(now()) @updatedAt
   clubId               String

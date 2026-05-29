@@ -5,6 +5,7 @@ import { rateLimit } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
 import { getAvailableSpots } from '@/lib/db'
 import { sendRsvpConfirmationEmail, sendWaitlistPromotedEmail } from '@/lib/email'
+import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 import { autoJoinClub } from '@/lib/autoJoinClub'
 import { sendPushToUser } from '@/lib/push'
 
@@ -63,15 +64,30 @@ export async function POST(req: NextRequest, { params }: Params) {
     })
     if (onWaitlist) return NextResponse.json({ error: 'Already on waitlist' }, { status: 400 })
 
+    // Normalize gender / nationality so 'Male', 'MALE', 'male' all compare
+    // equal and 'Türkiye' / 'Turkey' / 'TR' don't accidentally bypass the
+    // Turkish-male sub-quota. Cheap, applies at compare time so existing
+    // dirty data doesn't need a backfill.
+    const userGender      = (userRecord?.gender      ?? '').trim().toLowerCase()
+    const userNationality = (userRecord?.nationality ?? '').trim().toLowerCase()
+    const TURKISH_VALUES = new Set(['turkey', 'türkiye', 'turkiye', 'tr', 'turkish'])
+    const isMale         = userGender === 'male'
+    const isFemale       = userGender === 'female'
+    const isTurkish      = TURKISH_VALUES.has(userNationality)
+
     // Gender-balanced events require gender to be set
-    if (event.genderBalance && !userRecord?.gender) {
+    if (event.genderBalance && !userGender) {
       return NextResponse.json({
         error: 'This event uses gender balance. Please set your gender in your profile settings before joining.',
       }, { status: 400 })
     }
 
+    // Approval-required events create a 'pending' attendee instead of
+    // auto-approving — that's the whole point of the flag. spotsLeft is NOT
+    // decremented until the host/admin approves; the participants page
+    // handles that. The capacity check below treats pending RSVPs as
+    // soft holds so two concurrent requests can't both claim the last slot.
     if (event.approvalRequired) {
-      // Check if pending + approved requests are already at capacity
       const [approvedCount, pendingCount] = await Promise.all([
         prisma.eventAttendee.count({ where: { eventId, status: 'approved' } }),
         prisma.eventAttendee.count({ where: { eventId, status: 'pending' } }),
@@ -84,89 +100,51 @@ export async function POST(req: NextRequest, { params }: Params) {
           `/events/${eventId}`)
         return NextResponse.json({ ok: true, status: 'waitlisted', position })
       }
-
-      // Gender quota check for approval-required events
-      if (event.genderBalance && userRecord?.gender === 'male') {
-        const maleQuota = event.maleQuota ?? Math.floor(event.totalSpots / 2)
-        const maleCount = await prisma.eventAttendee.count({
-          where: { eventId, status: 'approved', user: { gender: 'male' } },
-        })
-        if (maleCount >= maleQuota) {
-          await prisma.waitlistEntry.create({ data: { userId: session.id, eventId } })
-          const position = await prisma.waitlistEntry.count({ where: { eventId } })
-          createNotification(session.id, 'waitlist', 'Added to waitlist 📋',
-            `Male spots for "${event.title}" are full — you're #${position} on the waitlist.`,
-            `/events/${eventId}`)
-          return NextResponse.json({ ok: true, status: 'waitlisted', position })
-        }
-      }
-
-      // Turkish male quota check
-      if (event.turkishMaleQuota && userRecord?.gender === 'male' && userRecord?.nationality === 'Turkey') {
-        const turkishMaleCount = await prisma.eventAttendee.count({
-          where: { eventId, status: 'approved', user: { gender: 'male', nationality: 'Turkey' } },
-        })
-        if (turkishMaleCount >= event.turkishMaleQuota) {
-          await prisma.waitlistEntry.create({ data: { userId: session.id, eventId } })
-          const position = await prisma.waitlistEntry.count({ where: { eventId } })
-          createNotification(session.id, 'waitlist', 'Added to waitlist 📋',
-            `Turkish male spots for "${event.title}" are full — you're #${position} on the waitlist.`,
-            `/events/${eventId}`)
-          return NextResponse.json({ ok: true, status: 'waitlisted', position })
-        }
-      }
-
-      await prisma.$transaction(async (tx) => {
-        await tx.eventAttendee.create({ data: { userId: session.id, eventId, status: 'pending' } })
-        if (event.price > 0) {
-          await tx.payment.create({
-            data: { userId: session.id, eventId, amount: event.price, currency: event.currency ?? 'TRY', status: 'pending' },
-          })
-        }
+      // Create as pending — host approves from the participants page.
+      await prisma.eventAttendee.create({
+        data: { userId: session.id, eventId, status: 'pending', stealth },
       })
-
-      createNotification(session.id, 'rsvp_pending', 'Request submitted ⏳', `Your request for "${event.title}" is under review — you'll hear back soon.`, `/events/${eventId}`)
-
-      const joiner = await prisma.user.findUnique({ where: { id: session.id }, select: { name: true } })
-      const joinerName = joiner?.name ?? 'A member'
-      const notifTitle = 'New join request 🙌'
-      const notifBody  = `${joinerName} requested to join "${event.title}"`
-      const notifLink  = `/admin/events/${eventId}/participants`
-
-      // Notify Primary Host, Co-hosts and Admins
-      const cohosts = await prisma.eventCoHost.findMany({ where: { eventId }, select: { userId: true } })
-      const recipientIds = new Set<string>()
-      
-      if (event.hostId && event.hostId !== session.id) recipientIds.add(event.hostId)
-      cohosts.forEach(ch => { if (ch.userId !== session.id) recipientIds.add(ch.userId) })
-      
-      const staff = await prisma.user.findMany({ where: { role: { in: ['admin', 'moderator'] } }, select: { id: true } })
-      staff.forEach(s => { if (s.id !== session.id) recipientIds.add(s.id) })
-
-      await Promise.all(
-        Array.from(recipientIds).map(uid => createNotification(uid, 'attendee_joined', notifTitle, notifBody, notifLink))
-      )
-
+      createNotification(session.id, 'rsvp_pending', 'RSVP submitted ⏳',
+        `Your request to join "${event.title}" is waiting on the host. You'll be notified once it's reviewed.`,
+        `/events/${eventId}`)
+      if (event.hostId) {
+        createNotification(event.hostId, 'attendee_joined', 'New RSVP awaiting approval ⏳',
+          `Someone just requested to join "${event.title}".`,
+          `/host/events/${eventId}/participants`)
+      }
       return NextResponse.json({ ok: true, status: 'pending' })
     }
 
-    // Quota and spot checks all happen in one transaction with a row-level lock on
-    // the event, so concurrent RSVPs serialize and can't both pass a quota at the
-    // boundary (e.g. two males both claiming the last male slot).
+    // Auto-approve path. Quota + spot checks happen in one transaction with
+    // a row-level lock on the event, so concurrent RSVPs serialize and can't
+    // both pass a quota at the boundary (e.g. two males both claiming the
+    // last male slot).
     const outcome = await prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM events WHERE id = ${eventId} FOR UPDATE`
 
-      if (event.genderBalance && userRecord?.gender === 'male') {
+      if (event.genderBalance && isMale) {
         const maleQuota = event.maleQuota ?? Math.floor(event.totalSpots / 2)
         const maleCount = await tx.eventAttendee.count({
-          where: { eventId, status: 'approved', user: { gender: 'male' } },
+          where: { eventId, status: 'approved', user: { gender: { in: ['male', 'Male', 'MALE'] } } },
         })
         if (maleCount >= maleQuota) return { kind: 'gender_full' as const }
       }
 
-      if (event.turkishMaleQuota && userRecord?.gender === 'male' && userRecord?.nationality === 'Turkey') {
+      // Female-side cap — mirrors the male check. Only enforced when
+      // femaleQuota is explicitly set (event.femaleQuota null = uncapped).
+      // Without this, an all-female RSVP wave could fill 100% of spots and
+      // shut males out entirely.
+      if (event.genderBalance && isFemale && event.femaleQuota != null) {
+        const femaleCount = await tx.eventAttendee.count({
+          where: { eventId, status: 'approved', user: { gender: { in: ['female', 'Female', 'FEMALE'] } } },
+        })
+        if (femaleCount >= event.femaleQuota) return { kind: 'female_full' as const }
+      }
+
+      if (event.turkishMaleQuota && isMale && isTurkish) {
         const turkishMaleCount = await tx.eventAttendee.count({
-          where: { eventId, status: 'approved', user: { gender: 'male', nationality: 'Turkey' } },
+          where: { eventId, status: 'approved',
+            user: { gender: { in: ['male', 'Male', 'MALE'] }, nationality: { in: ['Turkey', 'turkey', 'Türkiye', 'türkiye', 'Turkiye', 'TR'] } } },
         })
         if (turkishMaleCount >= event.turkishMaleQuota) return { kind: 'turkish_full' as const }
       }
@@ -177,7 +155,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       })
       if (claimed.count === 0) return { kind: 'full' as const }
 
-      await tx.eventAttendee.create({ data: { userId: session.id, eventId, status: 'approved' } })
+      await tx.eventAttendee.create({ data: { userId: session.id, eventId, status: 'approved', stealth } })
 
       if (event.price > 0) {
         await tx.payment.create({
@@ -192,6 +170,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       const position = await prisma.waitlistEntry.count({ where: { eventId } })
       const reason =
         outcome.kind === 'gender_full'  ? `Male spots for "${event.title}" are full` :
+        outcome.kind === 'female_full'  ? `Female spots for "${event.title}" are full` :
         outcome.kind === 'turkish_full' ? `Turkish male spots for "${event.title}" are full` :
                                           `"${event.title}" is full`
       createNotification(session.id, 'waitlist', 'Added to waitlist 📋',
@@ -204,7 +183,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     createNotification(session.id, 'rsvp', 'You\'re in! 🎉', `Your spot for "${event.title}" is confirmed.`, `/events/${eventId}`)
 
-    // Confirmation email (fire-and-forget)
+    // Confirmation email + host notification (fire-and-forget)
     ;(async () => {
       const user = await prisma.user.findUnique({ where: { id: session.id }, select: { email: true, name: true } })
       if (user) {
@@ -214,6 +193,15 @@ export async function POST(req: NextRequest, { params }: Params) {
           event.location ?? event.neighborhood ?? 'Istanbul',
           eventId,
         ).catch(() => {})
+      }
+      if (event.hostId) {
+        createNotification(
+          event.hostId,
+          'attendee_joined',
+          'New RSVP 🎉',
+          `${user?.name ?? 'A member'} just signed up for "${event.title}"`,
+          `/host/events/${eventId}/participants`,
+        )
       }
     })()
 
@@ -266,7 +254,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     // Promote first person on waitlist (spot stays filled — no net change to spotsLeft)
     const [next, eventRow] = await Promise.all([
       wasApproved ? prisma.waitlistEntry.findFirst({ where: { eventId }, orderBy: { createdAt: 'asc' } }) : Promise.resolve(null),
-      prisma.event.findUnique({ where: { id: eventId }, select: { title: true } }),
+      prisma.event.findUnique({ where: { id: eventId }, select: { title: true, approvalRequired: true, totalSpots: true } }),
     ])
     if (next) {
       await prisma.$transaction([
@@ -284,9 +272,14 @@ export async function DELETE(req: NextRequest, { params }: Params) {
           sendWaitlistPromotedEmail(promoted.email, promoted.name ?? 'Member', eventRow.title, ev?.date ?? '', eventId).catch(() => {})
         }
       })()
-    } else if (wasApproved) {
-      // No waitlist — free the spot
-      await prisma.event.update({ where: { id: eventId }, data: { spotsLeft: { increment: 1 } } })
+    }
+    if (wasApproved) {
+      if (eventRow?.approvalRequired) {
+        await recomputeSpotsLeft(eventId, eventRow.totalSpots)
+      } else if (!next) {
+        // No waitlist — free the spot
+        await prisma.event.update({ where: { id: eventId }, data: { spotsLeft: { increment: 1 } } })
+      }
     }
 
     return NextResponse.json({ ok: true })
