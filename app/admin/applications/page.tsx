@@ -33,6 +33,9 @@ const STATUS: Record<string, string> = {
   pending:  'bg-amber-500/10 text-amber-400 border-amber-500/20',
   approved: 'bg-green-500/10 text-green-400 border-green-500/20',
   rejected: 'bg-red-500/10 text-red-400 border-red-500/20',
+  // Awaiting more info from applicant — visually quieter than pending so
+  // the eye is drawn to the still-actionable pending queue first.
+  hold:     'bg-blue-500/10 text-blue-400 border-blue-500/20',
 }
 
 const CONTRIBUTION_LABEL: Record<string, string> = {
@@ -103,7 +106,11 @@ function AdminApplicationsPageInner() {
   const [clubs,         setClubs]         = useState<{ id: string; name: string; emoji: string }[]>([])
   const [loading,       setLoading]       = useState(true)
   const [selected,      setSelected]      = useState<Application | null>(null)
-  const [tab,           setTab]           = useState<'pending' | 'approved' | 'rejected'>('pending')
+  // 'hold' = awaiting more info from the applicant — the API status set
+  // by the "Request more info" decision-panel button. Stays out of the
+  // pending queue so it doesn't clog the review list but admins can find
+  // it via the Hold tab when the applicant responds.
+  const [tab,           setTab]           = useState<'pending' | 'approved' | 'rejected' | 'hold'>('pending')
   const [sortBy,        setSortBy]        = useState<'recent' | 'score'>('recent')
   const [filterInterest,setFilterInterest]= useState(searchParams.get('interest') ?? '')
   // ?contribution=host wires up to the host-pipeline link on
@@ -127,6 +134,10 @@ function AdminApplicationsPageInner() {
   const [aiLoading,     setAiLoading]     = useState(false)
   const [welcomeMsg,    setWelcomeMsg]    = useState('')
   const [welcomeLoading,setWelcomeLoading]= useState(false)
+  // Hold-pending: what the admin wants to ask the applicant before deciding.
+  // The API only emails it when status='hold' AND moreInfoMessage is non-empty.
+  const [moreInfoMsg,   setMoreInfoMsg]   = useState('')
+  const [holdSaving,    setHoldSaving]    = useState(false)
 
   function loadApps() {
     setLoading(true)
@@ -166,6 +177,7 @@ function AdminApplicationsPageInner() {
     setSelected(app)
     setReviewNote(app.reviewNote ?? '')
     setRejectMsg('')
+    setMoreInfoMsg('')
     setAssignedClubs(defaultClubId ? [defaultClubId] : [])
     setAiResult(null)
     setWelcomeMsg('')
@@ -203,6 +215,28 @@ function AdminApplicationsPageInner() {
     } finally {
       setAiLoading(false)
     }
+  }
+
+  // Park an application as 'hold' and email the applicant a clarifying
+  // question. The API already supported this status + moreInfoMessage
+  // (sendRequestMoreInfoEmail) but the page had no button to trigger it.
+  async function requestMoreInfo(id: string) {
+    if (!moreInfoMsg.trim()) { toast.error('Add a question first — applicant gets the email verbatim'); return }
+    setHoldSaving(true)
+    const res = await fetch('/app/api/admin/applications', {
+      method: 'PATCH', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, status: 'hold', reviewNote, moreInfoMessage: moreInfoMsg.trim() }),
+    })
+    if (res.ok) {
+      setApps(prev => prev.map(a => a.id === id ? { ...a, status: 'hold', reviewNote } : a))
+      setSelected(null)
+      toast.success('Info requested — applicant emailed, moved to Hold')
+    } else {
+      const d = await res.json().catch(() => ({}))
+      toast.error(d.error ?? 'Could not request info')
+    }
+    setHoldSaving(false)
   }
 
   async function decide(id: string, status: 'approved' | 'rejected') {
@@ -291,6 +325,7 @@ function AdminApplicationsPageInner() {
     pending:  apps.filter(a => a.status === 'pending').length,
     approved: apps.filter(a => a.status === 'approved').length,
     rejected: apps.filter(a => a.status === 'rejected').length,
+    hold:     apps.filter(a => a.status === 'hold').length,
   }
 
   // Pipeline numbers for the header — computed from the apps array that's
@@ -348,7 +383,7 @@ function AdminApplicationsPageInner() {
       {/* Tabs + filters in one row */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex gap-1 bg-zinc-800 rounded-xl p-1">
-          {(['pending', 'approved', 'rejected'] as const).map(t => (
+          {(['pending', 'hold', 'approved', 'rejected'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)}
               className={`px-3 py-2 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
                 tab === t ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-white'
@@ -837,6 +872,30 @@ function AdminApplicationsPageInner() {
                           className="w-full px-3 py-2 text-xs bg-zinc-900 border border-zinc-700 rounded-lg text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-violet-500/50 resize-none"
                         />
                         {welcomeMsg && <p className="text-xs text-zinc-600">Sent to the member on approval. Edit before approving.</p>}
+                      </div>
+
+                      {/* Request more info — emails the applicant a question
+                          and parks the app as 'hold' so it leaves the pending
+                          queue. When they reply, manually flip back to
+                          pending from the Hold tab. */}
+                      <div className="bg-zinc-800/60 border border-zinc-700 rounded-xl p-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Request more info</p>
+                          {moreInfoMsg.trim() && (
+                            <span className="text-[10px] text-zinc-500">Moves to Hold tab</span>
+                          )}
+                        </div>
+                        <textarea
+                          value={moreInfoMsg}
+                          onChange={e => setMoreInfoMsg(e.target.value)}
+                          rows={2}
+                          placeholder="Ask a clarifying question — sent verbatim to the applicant…"
+                          className="w-full px-3 py-2 text-xs bg-zinc-900 border border-zinc-700 rounded-lg text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-blue-500/50 resize-none"
+                        />
+                        <button onClick={() => requestMoreInfo(selected.id)} disabled={holdSaving || !moreInfoMsg.trim()}
+                          className="w-full py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 font-semibold rounded-lg text-xs transition-colors border border-blue-500/20 disabled:opacity-50">
+                          {holdSaving ? 'Sending…' : '✉ Send + Hold'}
+                        </button>
                       </div>
 
                       <div className="grid grid-cols-2 gap-2">
