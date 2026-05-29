@@ -13,15 +13,28 @@ export async function GET(req: NextRequest) {
   const adminOnly = req.nextUrl.searchParams.get('adminOnly') === 'true'
   // ?openTo=coffee | language | hosting — narrows to members who've opted in.
   const openTo    = req.nextUrl.searchParams.get('openTo')
+  // ?search= — case-insensitive substring match against name + neighborhood +
+  // nationality. Without this the client-side filter could only find what
+  // was already on screen, so a name beyond the first PAGE_SIZE rows of
+  // joinedAt-desc never matched.
+  const search    = req.nextUrl.searchParams.get('search')?.trim() ?? ''
   const openFilter =
     openTo === 'coffee'   ? { openToCoffee:   true } :
     openTo === 'language' ? { openToLanguage: true } :
     openTo === 'hosting'  ? { openToHosting:  true } :
     {}
+  const searchFilter = search ? {
+    OR: [
+      { name:         { contains: search, mode: 'insensitive' as const } },
+      { neighborhood: { contains: search, mode: 'insensitive' as const } },
+      { nationality:  { contains: search, mode: 'insensitive' as const } },
+    ],
+  } : {}
 
   const roleIn = ['member', 'moderator', 'admin'] as string[]
   const where = {
     ...openFilter,
+    ...searchFilter,
     ...(isHost
       ? { status: 'approved', role: { in: roleIn }, clubMemberships: { some: { role: 'host', status: 'approved' } } }
       : adminOnly

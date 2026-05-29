@@ -667,19 +667,29 @@ function MembersPageInner() {
   }, [])
 
   useEffect(() => {
-    // No active filters → fall back to the initial member list.
-    if (roleFilter === 'All' && !openToFilter) { setFilteredMembers(null); return }
-    setFilterLoading(true)
-    const params = new URLSearchParams()
-    if (roleFilter === 'Hosts')  params.set('isHost', 'true')
-    if (roleFilter === 'Admins') params.set('adminOnly', 'true')
-    if (openToFilter) params.set('openTo', openToFilter)
-    fetch(`/app/api/members?${params}`, { credentials: 'include' })
-      .then(r => r.json())
-      .then(d => setFilteredMembers(Array.isArray(d?.members) ? d.members : []))
-      .catch(() => setFilteredMembers([]))
-      .finally(() => setFilterLoading(false))
-  }, [roleFilter, openToFilter])
+    const trimmed = search.trim()
+    // No active filters at all → fall back to the initial member list.
+    if (roleFilter === 'All' && !openToFilter && !trimmed) { setFilteredMembers(null); return }
+
+    // Debounce search input so typing "yasemin" fires one fetch, not seven.
+    // role/openTo changes don't need debouncing (single click) but routing
+    // through the same timer keeps the effect simple.
+    const delay = trimmed ? 250 : 0
+    const t = setTimeout(() => {
+      setFilterLoading(true)
+      const params = new URLSearchParams()
+      if (roleFilter === 'Hosts')  params.set('isHost', 'true')
+      if (roleFilter === 'Admins') params.set('adminOnly', 'true')
+      if (openToFilter)            params.set('openTo', openToFilter)
+      if (trimmed)                 params.set('search', trimmed)
+      fetch(`/app/api/members?${params}`, { credentials: 'include' })
+        .then(r => r.json())
+        .then(d => setFilteredMembers(Array.isArray(d?.members) ? d.members : []))
+        .catch(() => setFilteredMembers([]))
+        .finally(() => setFilterLoading(false))
+    }, delay)
+    return () => clearTimeout(t)
+  }, [roleFilter, openToFilter, search])
 
   async function loadMore() {
     setLoadingMore(true)
