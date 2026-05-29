@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
+import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 
 interface AuditEntry {
   id: string
@@ -133,22 +134,58 @@ const FILTER_GROUPS = [
 // "hasMore" inference (returned === PAGE_SIZE) actually triggers.
 const PAGE_SIZE = 100
 
+const FILTER_KEYS = new Set(FILTER_GROUPS.map(f => f.key))
+
 export default function AdminAuditPage() {
+  return <Suspense><AdminAuditPageInner /></Suspense>
+}
+
+function AdminAuditPageInner() {
+  const searchParams = useSearchParams()
+  const router       = useRouter()
+  const pathname     = usePathname()
+
+  // Hydrate every filter from the URL so reload + deep links land on
+  // the same view. Whitelist the action filter against the known chip
+  // keys to keep junk query strings from putting the chip bar into a
+  // state where no button looks selected.
+  const initialFilter = FILTER_KEYS.has(searchParams.get('filter') ?? '') ? (searchParams.get('filter') ?? '') : ''
+  const initialSearch = searchParams.get('search') ?? ''
+  const initialFrom   = searchParams.get('from')   ?? ''
+  const initialTo     = searchParams.get('to')     ?? ''
+
   const [logs,        setLogs]        = useState<AuditEntry[]>([])
   const [loading,     setLoading]     = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore,     setHasMore]     = useState(false)
-  const [filter,      setFilter]      = useState('')
-  const [search,      setSearch]      = useState('')
-  const [fromDate,    setFromDate]    = useState('')
-  const [toDate,      setToDate]      = useState('')
+  const [filter,      setFilter]      = useState(initialFilter)
+  const [search,      setSearch]      = useState(initialSearch)
+  const [fromDate,    setFromDate]    = useState(initialFrom)
+  const [toDate,      setToDate]      = useState(initialTo)
   // Debounced version of `search` — keeps typing from spamming the API.
-  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState(initialSearch.trim())
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search.trim()), 250)
     return () => clearTimeout(t)
   }, [search])
+
+  // URL-sync filter + search + date range so reload preserves the view
+  // and admins can share a deep link (e.g. "?filter=user.ban&from=…").
+  // Debounced via debouncedSearch so we don't push intermediate URLs on
+  // every keystroke. Replace (not push) keeps the back button useful.
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams.toString())
+    if (filter)          params.set('filter', filter);          else params.delete('filter')
+    if (debouncedSearch) params.set('search', debouncedSearch); else params.delete('search')
+    if (fromDate)        params.set('from',   fromDate);        else params.delete('from')
+    if (toDate)          params.set('to',     toDate);          else params.delete('to')
+    const q = params.toString()
+    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false })
+  // searchParams excluded — including it would re-fire on every URL
+  // change we just made and loop.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter, debouncedSearch, fromDate, toDate, pathname, router])
 
   // Build the query string for both initial and load-more fetches. The
   // only difference between them is the `before` cursor.
@@ -257,7 +294,23 @@ export default function AdminAuditPage() {
       </div>
 
       {loading ? (
-        <p className="text-zinc-500 text-sm">Loading…</p>
+        <div className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
+          <div className="divide-y divide-zinc-800">
+            {/* Skeleton rows mirror the real row layout so nothing
+                jumps when data arrives. Matches the bar pattern on
+                /admin/users + /admin/moderation. */}
+            {[0, 1, 2, 3, 4, 5, 6].map(i => (
+              <div key={i} className="flex items-start gap-3 px-5 py-3.5">
+                <div className="h-5 w-16 rounded-full bg-zinc-800 animate-pulse shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0 space-y-1.5">
+                  <div className="h-3.5 w-32 rounded bg-zinc-800 animate-pulse" />
+                  <div className="h-3 w-2/3 rounded bg-zinc-800/60 animate-pulse" />
+                </div>
+                <div className="h-3 w-16 rounded bg-zinc-800/60 animate-pulse shrink-0 mt-1" />
+              </div>
+            ))}
+          </div>
+        </div>
       ) : visible.length === 0 ? (
         <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-10 text-center">
           <div className="text-3xl mb-2">🗒</div>
@@ -267,32 +320,60 @@ export default function AdminAuditPage() {
         <div className="space-y-3">
         <div className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
           <div className="divide-y divide-zinc-800">
-            {visible.map(log => {
+            {/* Day grouping: insert a date divider when the calendar
+                day changes between adjacent (sorted-desc) entries.
+                "Today" / "Yesterday" labels at the top for quick
+                scanning; older days show full date. */}
+            {visible.map((log, i) => {
               const style   = ACTION_STYLES[log.action] ?? 'bg-zinc-700 text-zinc-400 border-zinc-600'
               const label   = ACTION_LABELS[log.action] ?? log.action
               const summary = log.description || legacySummary(log.action, log.meta)
-              return (
-                <div key={log.id} className="flex items-start gap-3 px-5 py-3.5 hover:bg-zinc-800/40 transition-colors">
-                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full border shrink-0 mt-0.5 ${style}`}>
-                    {label}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                      <span className="text-sm font-semibold text-white">{log.adminName}</span>
-                    </div>
-                    {summary ? (
-                      <p className="text-xs text-zinc-300 leading-snug">{summary}</p>
-                    ) : (
-                      <p className="text-xs text-zinc-600 font-mono">{log.action}</p>
-                    )}
+              const day     = new Date(log.createdAt).toDateString()
+              const prevDay = i > 0 ? new Date(visible[i - 1].createdAt).toDateString() : null
+              const showDivider = day !== prevDay
 
-                    <DiffView meta={log.meta} action={log.action} />
-                    {log.targetId && (
-                      <div className="text-xs text-zinc-600 font-mono mt-0.5">{log.targetType} · {log.targetId}</div>
-                    )}
-                  </div>
-                  <div className="text-xs text-zinc-600 whitespace-nowrap shrink-0 mt-0.5">
-                    {new Date(log.createdAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+              // Human-friendly day label. toDateString gives stable
+              // identity for the comparison above; this label is just
+              // for display.
+              let dayLabel = day
+              const today = new Date().toDateString()
+              const y     = new Date(); y.setDate(y.getDate() - 1)
+              const yesterday = y.toDateString()
+              if (day === today)     dayLabel = 'Today'
+              else if (day === yesterday) dayLabel = 'Yesterday'
+              else dayLabel = new Date(log.createdAt).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })
+
+              return (
+                <div key={log.id}>
+                  {showDivider && (
+                    <div className="bg-zinc-950/60 px-5 py-1.5 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                      {dayLabel}
+                    </div>
+                  )}
+                  <div className="flex items-start gap-3 px-5 py-3.5 hover:bg-zinc-800/40 transition-colors">
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full border shrink-0 mt-0.5 ${style}`}>
+                      {label}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                        <span className="text-sm font-semibold text-white">{log.adminName}</span>
+                      </div>
+                      {summary ? (
+                        <p className="text-xs text-zinc-300 leading-snug">{summary}</p>
+                      ) : (
+                        <p className="text-xs text-zinc-600 font-mono">{log.action}</p>
+                      )}
+
+                      <DiffView meta={log.meta} action={log.action} />
+                      {log.targetId && (
+                        <div className="text-xs text-zinc-600 font-mono mt-0.5">{log.targetType} · {log.targetId}</div>
+                      )}
+                    </div>
+                    {/* Day divider now carries the date — row shows
+                        just time so the eye doesn't read the date twice. */}
+                    <div className="text-xs text-zinc-600 whitespace-nowrap shrink-0 mt-0.5">
+                      {new Date(log.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                    </div>
                   </div>
                 </div>
               )
