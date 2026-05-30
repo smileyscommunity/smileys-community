@@ -109,6 +109,12 @@ model User {
   noShowCount             Int                     @default(0)
   partner                 Partner?                @relation(fields: [partnerId], references: [id])
 
+  // Multi-city scaffolding — nullable for now so the backfill can run
+  // without coercing existing users. After the Istanbul backfill ships
+  // and every row is populated, this becomes required.
+  cityId                  String?
+  city                    City?                   @relation(fields: [cityId], references: [id])
+
   // Security
   failedLoginCount Int       @default(0)
   loginLockedUntil DateTime?
@@ -233,6 +239,42 @@ model ClubMembership {
   @@map("club_memberships")
 }
 
+// City is the foundation of the multi-city scaffolding. Istanbul is
+// the only row at launch but the schema is designed so adding Berlin
+// / Lisbon / Dubai is a row insert, not a migration.
+//
+// status drives the city's lifecycle:
+//   - launching → invite-only founding cohort, not visible publicly
+//   - live      → full membership + events
+//   - paused    → city is being wound down (no new applications)
+//
+// timezone / currency / country / lang are per-city so events,
+// payments and notifications render with the right local context.
+model City {
+  id          String   @id @default(cuid())
+  name        String   // "Istanbul"
+  slug        String   @unique // "istanbul"
+  country     String   // ISO 3166-1 alpha-2, e.g. "TR"
+  timezone    String   // IANA, e.g. "Europe/Istanbul"
+  currency    String   @default("TRY") // ISO 4217
+  // language used for default emails / push copy in the city. The app
+  // itself stays English-first; this is for outbound comms only.
+  defaultLang String   @default("en")
+  status      String   @default("launching") // launching | live | paused
+  // Optional: the local lead for this city. Carries no auth power on
+  // its own — the user still needs role='admin' or 'moderator' to
+  // moderate — this field is for credit / contact / display only.
+  leadUserId  String?
+  createdAt   DateTime @default(now())
+
+  users        User[]
+  clubs        Club[]
+  events       Event[]
+  applications MemberApplication[]
+
+  @@map("cities")
+}
+
 model Club {
   id          String @id @default(cuid())
   name        String
@@ -265,6 +307,13 @@ model Club {
   photos        ClubPhoto[]
   spotlightUser User?            @relation("ClubSpotlight", fields: [spotlightUserId], references: [id], onDelete: SetNull)
 
+  // Clubs are city-scoped — Sailing Istanbul is a different club from
+  // Sailing Berlin even if the category matches. Nullable during the
+  // backfill; becomes required after Istanbul is set on every row.
+  cityId String?
+  city   City?   @relation(fields: [cityId], references: [id])
+
+  @@index([cityId])
   @@map("clubs")
 }
 
@@ -330,10 +379,18 @@ model Event {
   cohosts   EventCoHost[]
   photos    EventPhoto[]
 
+  // Events belong to a city. Derivable from the parent club today,
+  // but storing it directly lets the events feed filter by the
+  // viewer's city in one indexed query instead of joining through
+  // clubs. Nullable during backfill.
+  cityId    String?
+  city      City?           @relation(fields: [cityId], references: [id])
+
   @@index([date])
   @@index([clubId])
   @@index([status])
   @@index([hostId])
+  @@index([cityId])
   @@map("events")
 }
 
@@ -529,6 +586,16 @@ model MemberApplication {
   // the spam wave hits.
   suspicionScore       Int       @default(0)
 
+  // Target city for the application — routes review into that city's
+  // queue and determines which moderators see it. Nullable during the
+  // backfill; the apply form will start populating it from a city
+  // selector (defaulting to Istanbul) once the column lands.
+  // Note: the existing free-text `city` field above is the applicant's
+  // currently-resident city (a personal datum); cityId is the *target*
+  // community they're applying to. Different concepts.
+  targetCityId         String?
+  targetCity           City?     @relation(fields: [targetCityId], references: [id])
+
   reviewer User? @relation(fields: [reviewedBy], references: [id])
 
   @@index([email])
@@ -537,6 +604,7 @@ model MemberApplication {
   @@index([status])
   @@index([fingerprint, createdAt])
   @@index([ipAddress, createdAt])
+  @@index([targetCityId])
   @@map("member_applications")
 }
 
