@@ -23,6 +23,18 @@ interface Stats {
   }
   visitorsThisWeek: number
   funnel:     { applications: number; approved: number; firstEvent: number; repeat: number }
+  // Post-event survey quality rollup. wouldReturnRate is null when no
+  // responses landed in the 30d window (no surveys dispatched yet, or
+  // the events that ran got 0 responses). rateTrendPp is in
+  // percentage-points: "+3pp" reads correctly for rates whereas a
+  // relative %-change would mislead.
+  quality?: {
+    responses: number; anomalies: number
+    wouldReturnRate: number | null
+    anomalyRate:     number | null
+    rateTrendPp:     number | null
+    responsesTrend:  number
+  }
   rsvpsByDay: number[]   // 7 entries, oldest first
   release:    string | null
   uptimeSeconds: number
@@ -288,6 +300,68 @@ export default function AdminPage() {
           <span className="font-bold text-white">{stats.funnel.repeat}</span> repeat
           <span className={`ml-1 ${funnelLine.repeatPct >= 50 ? 'text-green-400' : 'text-amber-400'}`}>({funnelLine.repeatPct}%)</span>
         </div>
+      )}
+
+      {/* ── Quality (post-event survey rollup) ──
+          Last 30 days: the would-attend-again rate, the anomaly rate,
+          and how many responses we've actually collected. The trend
+          arrow is in percentage POINTS not relative %-change, because
+          a relative move on a rate ("84% is 5% higher than 80%") reads
+          wrong. Hidden when no survey responses have landed yet. */}
+      {stats?.quality && stats.quality.responses > 0 && (
+        <Link href="/admin/moderation" className="block rounded-2xl border border-zinc-800 bg-zinc-900 hover:border-zinc-700 transition-colors p-4 sm:p-5">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h3 className="text-sm font-bold text-white">Quality · last 30 days</h3>
+              <p className="text-xs text-zinc-500 mt-0.5">
+                {stats.quality.responses} post-event response{stats.quality.responses === 1 ? '' : 's'} collected
+              </p>
+            </div>
+            {stats.quality.anomalies > 0 && (
+              <span className="text-xs font-bold px-2 py-1 rounded-full bg-red-500/15 text-red-400 border border-red-500/30 shrink-0">
+                ⚠ {stats.quality.anomalies} flag{stats.quality.anomalies === 1 ? '' : 's'}
+              </span>
+            )}
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <div className={`text-2xl sm:text-3xl font-extrabold ${
+                stats.quality.wouldReturnRate === null  ? 'text-zinc-600'
+                  : stats.quality.wouldReturnRate >= 80 ? 'text-green-400'
+                  : stats.quality.wouldReturnRate >= 60 ? 'text-amber-400'
+                  : 'text-red-400'
+              }`}>
+                {stats.quality.wouldReturnRate === null ? '—' : `${stats.quality.wouldReturnRate}%`}
+              </div>
+              <div className="text-[10px] sm:text-xs text-zinc-500 mt-0.5 uppercase tracking-wider">Would return</div>
+              {stats.quality.rateTrendPp !== null && stats.quality.rateTrendPp !== 0 && (
+                <div className={`text-[10px] mt-1 ${stats.quality.rateTrendPp > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {stats.quality.rateTrendPp > 0 ? '+' : ''}{stats.quality.rateTrendPp}pp vs prior 30d
+                </div>
+              )}
+            </div>
+            <div>
+              <div className={`text-2xl sm:text-3xl font-extrabold ${
+                stats.quality.anomalyRate === null   ? 'text-zinc-600'
+                  : stats.quality.anomalyRate === 0  ? 'text-green-400'
+                  : stats.quality.anomalyRate < 5    ? 'text-amber-400'
+                  : 'text-red-400'
+              }`}>
+                {stats.quality.anomalyRate === null ? '—' : `${stats.quality.anomalyRate}%`}
+              </div>
+              <div className="text-[10px] sm:text-xs text-zinc-500 mt-0.5 uppercase tracking-wider">Anomaly rate</div>
+            </div>
+            <div>
+              <div className="text-2xl sm:text-3xl font-extrabold text-white">{stats.quality.responses}</div>
+              <div className="text-[10px] sm:text-xs text-zinc-500 mt-0.5 uppercase tracking-wider">Responses</div>
+              {stats.quality.responsesTrend !== 0 && (
+                <div className={`text-[10px] mt-1 ${stats.quality.responsesTrend > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {stats.quality.responsesTrend > 0 ? '+' : ''}{stats.quality.responsesTrend}% vs prior 30d
+                </div>
+              )}
+            </div>
+          </div>
+        </Link>
       )}
 
       {/* ── Key stats ──

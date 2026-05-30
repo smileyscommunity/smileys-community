@@ -44,6 +44,19 @@ interface UserDetail {
   warningCount: number
   adminNotes: AdminNote[]
   joinedEvents: { event: AttendedEvent; joinedAt: string; checkedIn: boolean; status: string }[]
+  // Aggregate host quality — surfaces only when the user has hosted
+  // at least one event. wouldReturnRate stays null when the events
+  // exist but no surveys have responded yet.
+  hostQuality: {
+    eventsHosted:    number
+    surveyResponses: number
+    wouldReturnRate: number | null
+    anomalyCount:    number
+    recent: {
+      id: string; title: string; emoji: string; date: string
+      wouldReturnRate: number | null; responses: number; anomalyCount: number
+    }[]
+  } | null
 }
 
 const roleBadge: Record<string, string> = {
@@ -427,6 +440,88 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
           </div>
         ))}
       </div>
+
+      {/* Host quality card — surfaces only when the user has hosted
+          at least one event. The wouldReturn rate is the single most
+          powerful host-quality signal on the platform: an objective
+          "would the room come back?" number, aggregated across every
+          event they've run, hard to game. Recent-6 row lets admins
+          spot a trend (improving / declining / consistent) before
+          taking action. */}
+      {user.hostQuality && user.hostQuality.eventsHosted > 0 && (
+        <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-4 sm:p-5">
+          <div className="flex items-center justify-between mb-3 sm:mb-4">
+            <div>
+              <h3 className="text-sm font-bold text-white">Host quality</h3>
+              <p className="text-xs text-zinc-500 mt-0.5">
+                {user.hostQuality.surveyResponses > 0
+                  ? `${user.hostQuality.surveyResponses} post-event survey response${user.hostQuality.surveyResponses === 1 ? '' : 's'} across ${user.hostQuality.eventsHosted} hosted event${user.hostQuality.eventsHosted === 1 ? '' : 's'}`
+                  : `${user.hostQuality.eventsHosted} hosted event${user.hostQuality.eventsHosted === 1 ? '' : 's'} — no survey responses yet`}
+              </p>
+            </div>
+            {user.hostQuality.anomalyCount > 0 && (
+              <span className="text-xs font-bold px-2 py-1 rounded-full bg-red-500/15 text-red-400 border border-red-500/30 shrink-0">
+                ⚠ {user.hostQuality.anomalyCount} anomal{user.hostQuality.anomalyCount === 1 ? 'y' : 'ies'}
+              </span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
+            <div className="bg-zinc-950/40 rounded-xl p-3">
+              <div className={`text-2xl sm:text-3xl font-extrabold ${
+                user.hostQuality.wouldReturnRate === null  ? 'text-zinc-600'
+                  : user.hostQuality.wouldReturnRate >= 80 ? 'text-green-400'
+                  : user.hostQuality.wouldReturnRate >= 60 ? 'text-amber-400'
+                  : 'text-red-400'
+              }`}>
+                {user.hostQuality.wouldReturnRate === null ? '—' : `${user.hostQuality.wouldReturnRate}%`}
+              </div>
+              <div className="text-xs text-zinc-500 mt-1">Would attend again</div>
+            </div>
+            <div className="bg-zinc-950/40 rounded-xl p-3">
+              <div className="text-2xl sm:text-3xl font-extrabold text-white">{user.hostQuality.eventsHosted}</div>
+              <div className="text-xs text-zinc-500 mt-1">Events hosted</div>
+            </div>
+            <div className="bg-zinc-950/40 rounded-xl p-3 col-span-2 sm:col-span-1">
+              <div className="text-2xl sm:text-3xl font-extrabold text-white">{user.hostQuality.surveyResponses}</div>
+              <div className="text-xs text-zinc-500 mt-1">Responses collected</div>
+            </div>
+          </div>
+
+          {user.hostQuality.recent.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-zinc-800">
+              <p className="text-xs font-bold text-zinc-600 uppercase tracking-wider mb-2">Recent — last {user.hostQuality.recent.length}</p>
+              <div className="space-y-1.5">
+                {user.hostQuality.recent.map(e => (
+                  <Link key={e.id} href={`/admin/events/${e.id}/edit`}
+                    className="flex items-center gap-3 px-3 py-2 rounded-lg bg-zinc-950/40 hover:bg-zinc-800 transition-colors">
+                    <span className="text-base shrink-0">{e.emoji}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold text-white truncate">{e.title}</p>
+                      <p className="text-[10px] text-zinc-600">{new Date(e.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</p>
+                    </div>
+                    <div className="text-right shrink-0 text-xs">
+                      {e.wouldReturnRate !== null ? (
+                        <span className={`font-bold ${
+                          e.wouldReturnRate >= 80 ? 'text-green-400'
+                            : e.wouldReturnRate >= 60 ? 'text-amber-400'
+                            : 'text-red-400'
+                        }`}>{e.wouldReturnRate}%</span>
+                      ) : (
+                        <span className="text-zinc-600">—</span>
+                      )}
+                      <span className="text-zinc-600 ml-1">{e.responses > 0 ? `(${e.responses})` : ''}</span>
+                      {e.anomalyCount > 0 && (
+                        <span className="ml-1.5 px-1 rounded bg-red-500/20 text-red-400 font-bold">⚠{e.anomalyCount}</span>
+                      )}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Profile details + Membership */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">

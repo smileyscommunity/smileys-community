@@ -52,6 +52,10 @@ const REASON_LABELS: Record<string, string> = {
   spam:                   'Spam',
   no_show:                'Repeated no-shows',
   other:                  'Other',
+  // Reports auto-created by the post-event safety survey when a
+  // respondent flagged "anything off?" — the details field carries
+  // the verbatim free-text the respondent left.
+  post_event_survey:      '✿ From post-event survey',
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -98,6 +102,13 @@ function ModerationPageInner() {
   const [queue,     setQueue]     = useState<QueueEvent[]>([])
   const [loading,   setLoading]   = useState(true)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(initialStatus)
+  // "From surveys" pill — filters to reports auto-created by the
+  // post-event survey when an attendee flagged something off. These
+  // come with the verbatim anomalyNote in `details` and need to be
+  // triaged differently from member-filed reports (the reporter is
+  // anonymous to the host; the host is the responsible party but
+  // not necessarily the offender).
+  const [surveyOnly, setSurveyOnly] = useState(false)
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
   const [, setTick] = useState(0)  // 1s tick so the "Updated Xs ago" label ages
 
@@ -382,7 +393,12 @@ function ModerationPageInner() {
   const matchBlEntry  = (b: BlacklistEntry)=> !s || (b.email?.toLowerCase().includes(s) ?? false) || (b.phone?.toLowerCase().includes(s) ?? false) || (b.name?.toLowerCase().includes(s) ?? false) || b.reason.toLowerCase().includes(s)
 
   const pendingCount = reports.filter(r => r.status === 'pending').length
-  const visibleReports   = reports.filter(r => (statusFilter === 'all' || r.status === statusFilter) && matchReport(r))
+  const surveyReportCount = reports.filter(r => r.reason === 'post_event_survey' && r.status === 'pending').length
+  const visibleReports   = reports.filter(r =>
+    (statusFilter === 'all' || r.status === statusFilter)
+    && (!surveyOnly || r.reason === 'post_event_survey')
+    && matchReport(r)
+  )
   const visibleMessages  = messages.filter(matchMessage)
   const visibleQueue     = queue.filter(matchQueue)
   const visibleBanned    = banned.filter(matchBanned)
@@ -478,6 +494,23 @@ function ModerationPageInner() {
                 {f.label} {f.count > 0 && `(${f.count})`}
               </button>
             ) : null)}
+            {/* Survey-source toggle pill — sits next to the status
+                pills because the reasoning the moderator makes
+                ("triage these as anonymous-anomaly flags") is
+                orthogonal to status. Only renders when there's at
+                least one survey-source report so the chip doesn't
+                clutter the empty state. */}
+            {surveyReportCount > 0 && (
+              <button onClick={() => setSurveyOnly(s => !s)}
+                className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors border ${
+                  surveyOnly
+                    ? 'bg-violet-500 text-white border-violet-500'
+                    : 'bg-violet-500/10 text-violet-400 border-violet-500/30 hover:opacity-80'
+                }`}
+                title="Reports auto-filed by the post-event safety survey">
+                ✿ From surveys ({surveyReportCount})
+              </button>
+            )}
           </div>
 
           {visibleReports.length === 0 ? (

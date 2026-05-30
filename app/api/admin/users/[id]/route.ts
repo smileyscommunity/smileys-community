@@ -59,7 +59,68 @@ export async function GET(_: NextRequest, { params }: Params) {
       }
     }
 
-    return NextResponse.json(user)
+    // Host quality — aggregate post-event survey signal across every
+    // event this user has hosted. The single most powerful host-
+    // quality metric the platform has: an objective "would the room
+    // come back?" number that's hard to game. Null when the user has
+    // hosted zero events or no surveys have landed yet.
+    const hostedEventIds = await prisma.event.findMany({
+      where:  { hostId: id, status: { in: ['published', 'archived'] } },
+      select: { id: true, title: true, date: true, emoji: true },
+      orderBy: { date: 'desc' },
+    })
+    let hostQuality: {
+      eventsHosted:    number
+      surveyResponses: number
+      wouldReturnRate: number | null
+      anomalyCount:    number
+      recent:          { id: string; title: string; emoji: string; date: string; wouldReturnRate: number | null; responses: number; anomalyCount: number }[]
+    } | null = null
+
+    if (hostedEventIds.length > 0) {
+      const ids = hostedEventIds.map(e => e.id)
+      // Three counts each (total + would-return + anomaly), once
+      // platform-wide and once per-event. Prisma's typed API doesn't
+      // expose _sum on Booleans so we reach for counts instead.
+      const [respTotal, retTotal, anomTotal, perEventResp, perEventRet, perEventAnom] = await Promise.all([
+        prisma.eventSurvey.count({ where: { eventId: { in: ids } } }),
+        prisma.eventSurvey.count({ where: { eventId: { in: ids }, wouldReturn: true } }),
+        prisma.eventSurvey.count({ where: { eventId: { in: ids }, anomaly: true } }),
+        prisma.eventSurvey.groupBy({ by: ['eventId'], where: { eventId: { in: ids } },                          _count: { _all: true } }),
+        prisma.eventSurvey.groupBy({ by: ['eventId'], where: { eventId: { in: ids }, wouldReturn: true },        _count: { _all: true } }),
+        prisma.eventSurvey.groupBy({ by: ['eventId'], where: { eventId: { in: ids }, anomaly: true },            _count: { _all: true } }),
+      ])
+
+      const perRespMap = new Map(perEventResp.map(r => [r.eventId, r._count._all]))
+      const perRetMap  = new Map(perEventRet.map(r  => [r.eventId, r._count._all]))
+      const perAnomMap = new Map(perEventAnom.map(r => [r.eventId, r._count._all]))
+
+      // Recent 6 hosted events, newest first — trendline at a glance.
+      const recent = hostedEventIds.slice(0, 6).map(e => {
+        const responses = perRespMap.get(e.id) ?? 0
+        const wouldRet  = perRetMap.get(e.id)  ?? 0
+        const anom      = perAnomMap.get(e.id) ?? 0
+        return {
+          id:              e.id,
+          title:           e.title,
+          emoji:           e.emoji,
+          date:            e.date,
+          responses,
+          wouldReturnRate: responses > 0 ? Math.round((wouldRet / responses) * 100) : null,
+          anomalyCount:    anom,
+        }
+      })
+
+      hostQuality = {
+        eventsHosted:    hostedEventIds.length,
+        surveyResponses: respTotal,
+        wouldReturnRate: respTotal > 0 ? Math.round((retTotal / respTotal) * 100) : null,
+        anomalyCount:    anomTotal,
+        recent,
+      }
+    }
+
+    return NextResponse.json({ ...user, hostQuality })
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

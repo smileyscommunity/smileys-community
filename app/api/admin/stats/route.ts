@@ -34,6 +34,7 @@ export async function GET() {
     hangoutsActive, hangoutsToday, hangoutReferencesWeek,
     topHostGroup, visitorsThisWeek,
     appsTotal, appsApproved, rsvpUserGroups,
+    survey30d, surveyPrev30d,
     ...rsvpsByDayCounts
   ] = await Promise.all<any>([
     prisma.user.count({ where: { role: { not: 'admin' } } }),
@@ -86,6 +87,23 @@ export async function GET() {
       where:  { status: 'approved', user: { role: { not: 'admin' } } },
       _count: { _all: true },
     }),
+    // Post-event survey rollup — 30d window + previous-30d window
+    // for a trend arrow. Three counts each (total, would-return-true,
+    // anomaly-true) because Prisma's typed API doesn't expose _sum
+    // on Boolean columns. Counted in the same Promise.all so wall
+    // time stays flat.
+    prisma.eventSurvey.count({ where: { createdAt: { gte: monthAgo } } })
+      .then(async total => ({
+        total,
+        ret:  await prisma.eventSurvey.count({ where: { createdAt: { gte: monthAgo }, wouldReturn: true } }),
+        anom: await prisma.eventSurvey.count({ where: { createdAt: { gte: monthAgo }, anomaly: true } }),
+      })),
+    prisma.eventSurvey.count({ where: { createdAt: { gte: prevMonth, lt: monthAgo } } })
+      .then(async total => ({
+        total,
+        ret:  await prisma.eventSurvey.count({ where: { createdAt: { gte: prevMonth, lt: monthAgo }, wouldReturn: true } }),
+        anom: await prisma.eventSurvey.count({ where: { createdAt: { gte: prevMonth, lt: monthAgo }, anomaly: true } }),
+      })),
     // RSVPs by day — 7 separate counts. Each runs against an indexed
     // (status, joinedAt) range so they're individually cheap; the
     // Promise.all parallelism keeps total wall-time low.
@@ -152,6 +170,26 @@ export async function GET() {
       firstEvent,
       repeat:       repeatEvent,
     },
+    // Post-event survey quality signal (last 30d + previous 30d for
+    // a trend arrow). Null wouldReturnRate when no responses in the
+    // window — UI renders "—" instead of a misleading 0%.
+    quality: (() => {
+      const cur  = survey30d     as { total: number; ret: number; anom: number }
+      const prev = surveyPrev30d as { total: number; ret: number; anom: number }
+      const rate     = cur.total  > 0 ? Math.round((cur.ret  / cur.total)  * 100) : null
+      const prevRate = prev.total > 0 ? Math.round((prev.ret / prev.total) * 100) : null
+      return {
+        responses:       cur.total,
+        anomalies:       cur.anom,
+        wouldReturnRate: rate,
+        anomalyRate:     cur.total > 0 ? Math.round((cur.anom / cur.total) * 100) : null,
+        // Trend in percentage-points, not a percentage — "+3pp" reads
+        // correctly for rates whereas calcTrend's relative %-change
+        // would say "5%" for a 80→84pp shift, which is misleading.
+        rateTrendPp:     (rate !== null && prevRate !== null) ? rate - prevRate : null,
+        responsesTrend:  calcTrend(cur.total, prev.total),
+      }
+    })(),
     // Oldest → newest, 7 days. Drives the dashboard RSVP sparkline.
     rsvpsByDay: rsvpsByDayCounts as number[],
     // Deploy metadata — release is baked at build time (deploy.sh sets

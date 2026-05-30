@@ -17,6 +17,11 @@ interface AdminEvent {
   isRecurring: boolean; seriesId: string | null
   _count: { attendees: number }
   host: { id: string; name: string; color: string; profilePhoto: string | null } | null
+  // Survey rollup from the post-event safety survey. Null when no
+  // attendee has responded yet (or surveys haven't been dispatched
+  // because the event is still recent enough to be inside the 24h
+  // delay). UI shows "—" in that case rather than a misleading 0%.
+  survey: { responses: number; wouldReturnRate: number; anomalyCount: number } | null
 }
 
 interface Club { id: string; name: string; emoji: string }
@@ -606,6 +611,23 @@ function AdminEventsPageInner() {
                   <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
                     <div className={`h-full rounded-full ${fillPct >= 80 ? 'bg-red-400' : 'bg-amber-400'}`} style={{ width: `${fillPct}%` }} />
                   </div>
+                  {event.survey && event.survey.responses > 0 && (
+                    <div className="flex items-center gap-1.5 text-[11px]">
+                      <span className={`font-bold ${
+                        event.survey.wouldReturnRate >= 80 ? 'text-green-400'
+                          : event.survey.wouldReturnRate >= 60 ? 'text-amber-400'
+                          : 'text-red-400'
+                      }`}>
+                        ✓ {event.survey.wouldReturnRate}%
+                      </span>
+                      <span className="text-zinc-500">{event.survey.responses} feedback</span>
+                      {event.survey.anomalyCount > 0 && (
+                        <span className="px-1.5 rounded bg-red-500/20 text-red-400 font-bold">
+                          ⚠ {event.survey.anomalyCount}
+                        </span>
+                      )}
+                    </div>
+                  )}
                   {/* Host on its own line, actions on the next — used to
                       share one flex row with `justify-between` and a
                       phantom `<div />` filler when there was no host.
@@ -680,6 +702,29 @@ function AdminEventsPageInner() {
                     <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
                       <div className={`h-full rounded-full ${fillPct >= 80 ? 'bg-red-400' : 'bg-amber-400'}`} style={{ width: `${fillPct}%` }} />
                     </div>
+                    {/* Survey rollup — wouldReturn rate + response count.
+                        Hidden until at least one response lands. Anomaly
+                        count surfaces a separate red pill so a high
+                        return-rate event with flags doesn't visually
+                        get the "all green" treatment. */}
+                    {event.survey && event.survey.responses > 0 && (
+                      <div className="mt-1.5 flex items-center justify-center gap-1 text-[10px]">
+                        <span className={`font-bold ${
+                          event.survey.wouldReturnRate >= 80 ? 'text-green-400'
+                            : event.survey.wouldReturnRate >= 60 ? 'text-amber-400'
+                            : 'text-red-400'
+                        }`} title={`${event.survey.wouldReturnRate}% would attend again — ${event.survey.responses} response${event.survey.responses === 1 ? '' : 's'}`}>
+                          {event.survey.wouldReturnRate}%
+                        </span>
+                        <span className="text-zinc-600">·</span>
+                        <span className="text-zinc-500">{event.survey.responses}</span>
+                        {event.survey.anomalyCount > 0 && (
+                          <span className="ml-0.5 px-1 rounded bg-red-500/20 text-red-400 font-bold" title={`${event.survey.anomalyCount} anomaly flag${event.survey.anomalyCount === 1 ? '' : 's'} reported`}>
+                            ⚠{event.survey.anomalyCount}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Actions */}
