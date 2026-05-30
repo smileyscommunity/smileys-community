@@ -400,12 +400,21 @@ function AdminEventsPageInner() {
           ))}
         </div>
         <div className="flex flex-wrap gap-2">
-          <div className="relative w-64">
+          {/* Search takes the full row on mobile (w-64 used to dominate
+              a 360px viewport and shove the club/date controls into
+              awkward wraps). Caps back to w-64 from sm: up. */}
+          <div className="relative w-full sm:w-64">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <input type="text" placeholder="Search title, host, neighborhood…" value={search} onChange={e => setSearch(e.target.value)}
-              className="w-full pl-8 pr-3 py-2 text-xs rounded-xl bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500" />
+              className="w-full pl-8 pr-8 py-2 text-xs rounded-xl bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500" />
+            {search && (
+              <button onClick={() => setSearch('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-zinc-500 hover:text-white" title="Clear search">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            )}
           </div>
           <select value={clubFilter} onChange={e => setClubFilter(e.target.value)}
             className="text-xs px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:ring-2 focus:ring-amber-500 w-40">
@@ -437,7 +446,11 @@ function AdminEventsPageInner() {
             className="px-3 py-1.5 text-xs font-semibold bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-lg transition-colors disabled:opacity-40">
             Delete all
           </button>
-          <button onClick={() => setSelected(new Set())} className="ml-auto text-xs text-zinc-500 hover:text-white transition-colors">
+          {/* ml-auto used to push Clear right on a single line, but on a
+              wrapped bar (likely on mobile) it ended up stranded in the
+              middle of the last row. Now it sits at the end of the flex
+              flow so it packs left with the action buttons. */}
+          <button onClick={() => setSelected(new Set())} className="px-3 py-1.5 text-xs text-zinc-500 hover:text-white transition-colors">
             Clear
           </button>
         </div>
@@ -460,25 +473,63 @@ function AdminEventsPageInner() {
           <div className="col-span-3 text-right">Actions</div>
         </div>
 
+        {/* Mobile "select all" strip — desktop has the checkbox in the
+            grid header above, which is hidden on mobile. Without this
+            mobile equivalent the per-row checkboxes (added below) work
+            but bulk-clearing a whole filter view requires N taps. */}
+        {!loading && visible.length > 0 && (
+          <div className="md:hidden flex items-center gap-2 px-4 py-2.5 bg-zinc-800/40 border-b border-zinc-800">
+            <input type="checkbox"
+              checked={selected.size === visible.length && visible.length > 0}
+              onChange={() => setSelected(prev => prev.size === visible.length ? new Set() : new Set(visible.map(e => e.id)))}
+              className="w-4 h-4 rounded border-zinc-600 bg-zinc-800 text-amber-500 focus:ring-amber-500 shrink-0" />
+            <span className="text-xs text-zinc-400">
+              {selected.size > 0 ? <><span className="font-semibold text-white">{selected.size}</span> of {visible.length} selected</> : `Select all ${visible.length}`}
+            </span>
+          </div>
+        )}
+
         <div className="divide-y divide-zinc-800">
-          {/* Skeleton rows mirror the real row shape (checkbox + emoji
-              + title/club + date/price + fill bar + actions) so the
-              layout doesn't jump when data lands. Matches the bar
-              pattern on /admin/users + /admin/moderation. */}
-          {loading && [0, 1, 2, 3, 4].map(i => (
-            <div key={i} className="flex items-center gap-4 px-4 sm:px-6 py-4">
-              <div className="hidden md:block w-3.5 h-3.5 rounded bg-zinc-800 animate-pulse shrink-0" />
-              <div className="w-7 h-7 rounded-lg bg-zinc-800 animate-pulse shrink-0" />
-              <div className="flex-1 min-w-0 space-y-1.5">
-                <div className="h-3.5 w-1/2 rounded bg-zinc-800 animate-pulse" />
-                <div className="h-3 w-1/3 rounded bg-zinc-800/60 animate-pulse" />
+          {/* Skeleton — separate shapes per breakpoint so the layout
+              doesn't jump when data lands. Mobile cards are 3 stacked
+              rows (title+badge, meta+fill bar, host+actions); desktop
+              is a single grid row. Old single-shape skeleton matched
+              desktop only and made mobile cards visibly snap into
+              place. */}
+          {loading && [0, 1, 2, 3].map(i => (
+            <div key={i}>
+              {/* Mobile skeleton card */}
+              <div className="md:hidden p-4 space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-4 h-4 rounded bg-zinc-800 animate-pulse shrink-0 mt-1" />
+                  <div className="w-7 h-7 rounded bg-zinc-800 animate-pulse shrink-0" />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="h-3.5 w-2/3 rounded bg-zinc-800 animate-pulse" />
+                    <div className="h-3 w-1/2 rounded bg-zinc-800/60 animate-pulse" />
+                  </div>
+                </div>
+                <div className="h-3 w-full rounded bg-zinc-800/60 animate-pulse" />
+                <div className="h-1.5 w-full rounded bg-zinc-800/40 animate-pulse" />
+                <div className="flex justify-between gap-2">
+                  <div className="h-4 w-24 rounded bg-zinc-800/60 animate-pulse" />
+                  <div className="h-7 w-32 rounded-lg bg-zinc-800 animate-pulse" />
+                </div>
               </div>
-              <div className="hidden md:block space-y-1.5 w-20 shrink-0">
-                <div className="h-3 w-full rounded bg-zinc-800 animate-pulse" />
-                <div className="h-3 w-2/3 rounded bg-zinc-800/60 animate-pulse" />
+              {/* Desktop skeleton row */}
+              <div className="hidden md:flex items-center gap-4 px-6 py-4">
+                <div className="w-3.5 h-3.5 rounded bg-zinc-800 animate-pulse shrink-0" />
+                <div className="w-7 h-7 rounded-lg bg-zinc-800 animate-pulse shrink-0" />
+                <div className="flex-1 min-w-0 space-y-1.5">
+                  <div className="h-3.5 w-1/2 rounded bg-zinc-800 animate-pulse" />
+                  <div className="h-3 w-1/3 rounded bg-zinc-800/60 animate-pulse" />
+                </div>
+                <div className="space-y-1.5 w-20 shrink-0">
+                  <div className="h-3 w-full rounded bg-zinc-800 animate-pulse" />
+                  <div className="h-3 w-2/3 rounded bg-zinc-800/60 animate-pulse" />
+                </div>
+                <div className="w-12 h-1.5 rounded bg-zinc-800 animate-pulse shrink-0" />
+                <div className="h-7 w-20 rounded-lg bg-zinc-800 animate-pulse shrink-0" />
               </div>
-              <div className="hidden md:block w-12 h-1.5 rounded bg-zinc-800 animate-pulse shrink-0" />
-              <div className="h-7 w-20 rounded-lg bg-zinc-800 animate-pulse shrink-0" />
             </div>
           ))}
           {!loading && visible.length === 0 && (
@@ -513,11 +564,21 @@ function AdminEventsPageInner() {
               <div key={event.id}>
 
                 {/* ── Mobile card ── */}
-                <div className="md:hidden p-4 space-y-3">
+                <div className={`md:hidden p-4 space-y-3 ${selected.has(event.id) ? 'bg-amber-500/5' : ''}`}>
                   <div className="flex items-start gap-3">
+                    {/* Per-card checkbox — desktop had this in a hidden
+                        md:grid column, so mobile users couldn't put
+                        anything into `selected` and the bulk-actions
+                        bar was unreachable from a phone. */}
+                    <input type="checkbox" checked={selected.has(event.id)} onChange={() => toggleSelect(event.id)}
+                      className="w-4 h-4 mt-1 rounded border-zinc-600 bg-zinc-800 text-amber-500 focus:ring-amber-500 shrink-0" />
                     <span className="text-2xl shrink-0 mt-0.5">{event.emoji}</span>
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-2">
+                      {/* flex-wrap lets the status pill drop to its own
+                          line when the title is long — used to be
+                          shrink-0 inline and would crush a long title
+                          to a few characters. */}
+                      <div className="flex items-start justify-between gap-2 flex-wrap">
                         <Link href={`/admin/events/${event.id}/edit`}
                           className="font-semibold text-sm text-white hover:text-amber-400 transition-colors leading-snug">
                           {event.title}
