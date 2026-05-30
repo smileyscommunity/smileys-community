@@ -5,6 +5,20 @@ const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! })
 const prisma   = new PrismaClient({ adapter } as ConstructorParameters<typeof PrismaClient>[0])
 
 async function main() {
+  console.log('Seeding Istanbul city...')
+  // City row needs to exist before any seeded club/event/user can
+  // reference it — every domain object is city-scoped now.
+  const istanbul = await prisma.city.upsert({
+    where:  { slug: 'istanbul' },
+    update: {},
+    create: {
+      name: 'Istanbul', slug: 'istanbul', country: 'TR',
+      timezone: 'Europe/Istanbul', currency: 'TRY', defaultLang: 'en',
+      status: 'live',
+    },
+  })
+  console.log(`✓ Istanbul ready (id: ${istanbul.id})`)
+
   console.log('Seeding clubs...')
 
   const clubs = [
@@ -16,7 +30,8 @@ async function main() {
   ]
 
   for (const club of clubs) {
-    await prisma.club.upsert({ where: { id: club.id }, update: club, create: club })
+    const data = { ...club, cityId: istanbul.id }
+    await prisma.club.upsert({ where: { id: club.id }, update: data, create: data })
   }
   console.log(`✓ ${clubs.length} clubs seeded`)
 
@@ -67,7 +82,8 @@ async function main() {
   ]
 
   for (const event of events) {
-    await prisma.event.upsert({ where: { id: event.id }, update: event, create: event })
+    const data = { ...event, cityId: istanbul.id }
+    await prisma.event.upsert({ where: { id: event.id }, update: data, create: data })
   }
   console.log(`✓ ${events.length} events seeded`)
 

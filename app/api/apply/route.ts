@@ -60,6 +60,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Name, email, phone, country, neighborhood, and gender are required' }, { status: 400 })
     }
 
+    // Resolve the target city. The apply form will eventually post a
+    // city slug; until then everything defaults to Istanbul. Looked up
+    // once per request — handler runs end-to-end in ~100ms so a tiny
+    // cache would be premature optimisation.
+    const targetCity = await prisma.city.findUnique({ where: { slug: 'istanbul' }, select: { id: true } })
+    if (!targetCity) {
+      return NextResponse.json({ error: 'Server misconfigured: target city unavailable' }, { status: 500 })
+    }
+    const targetCityId = targetCity.id
+
     const fullName = `${firstName.trim()} ${lastName.trim()}`
     if (!profilePhoto?.trim()) {
       return NextResponse.json({ error: 'Profile photo is required' }, { status: 400 })
@@ -166,6 +176,7 @@ export async function POST(req: NextRequest) {
           fingerprint, timezone: browserTz, timezoneMismatch, disposableEmail: isDisposable,
           status: 'rejected', reviewNote: 'Auto-rejected: velocity limit (same device/IP within 24h)',
           assignedClubs: [], interests: [], socialStyles: [],
+          targetCityId,
         },
       })
       for (const admin of admins) {
@@ -242,6 +253,7 @@ export async function POST(req: NextRequest) {
         timezoneMismatch,
         disposableEmail:      isDisposable,
         suspicionScore,
+        targetCityId,
       },
     })
 

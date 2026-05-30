@@ -97,6 +97,10 @@ export async function POST(req: NextRequest) {
         openToCoffee:   application?.openToCoffee   ?? false,
         openToLanguage: application?.openToLanguage ?? false,
         openToHosting:  application?.openToHosting  ?? false,
+        // City inherits from the approved application's targetCityId
+        // — the applicant told us which community they were joining
+        // when they applied.
+        cityId:         application.targetCityId,
       },
     })
 

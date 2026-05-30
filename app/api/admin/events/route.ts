@@ -131,6 +131,16 @@ export async function POST(req: NextRequest) {
     const needsReview   = !admin && !isModerator(session)
     const eventStatus   = needsReview ? 'pending' : (tooFarOut ? 'pending' : (status ?? 'published'))
 
+    // Events inherit their city from the parent club — keeps Sailing
+    // Istanbul events out of the Berlin feed even if a host belongs
+    // to both cities. Fail loudly if the club has no cityId because
+    // every club has one post-backfill; this would only fire on a
+    // bug.
+    const parentClub = await prisma.club.findUnique({ where: { id: clubId }, select: { cityId: true } })
+    if (!parentClub?.cityId) {
+      return NextResponse.json({ error: 'Parent club has no city — cannot create event' }, { status: 400 })
+    }
+
     const event = await prisma.event.create({
       data: {
         title:                title.trim(),
@@ -139,6 +149,7 @@ export async function POST(req: NextRequest) {
         neighborhood:         neighborhood?.trim() ?? '',
         address:              address?.trim() ?? '',
         clubId, hostId,
+        cityId:               parentClub.cityId,
         description:          description?.trim() ?? '',
         totalSpots:           spots,
         spotsLeft:            spots,

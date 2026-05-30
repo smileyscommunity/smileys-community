@@ -109,11 +109,11 @@ model User {
   noShowCount             Int                     @default(0)
   partner                 Partner?                @relation(fields: [partnerId], references: [id])
 
-  // Multi-city scaffolding — nullable for now so the backfill can run
-  // without coercing existing users. After the Istanbul backfill ships
-  // and every row is populated, this becomes required.
-  cityId                  String?
-  city                    City?                   @relation(fields: [cityId], references: [id])
+  // Multi-city scaffolding. Backfill ran on 2026-05-29 and every row
+  // got an Istanbul cityId; the column is now required. New users get
+  // their city from the apply form's targetCityId on approval.
+  cityId                  String
+  city                    City                    @relation(fields: [cityId], references: [id])
 
   // Security
   failedLoginCount Int       @default(0)
@@ -308,10 +308,10 @@ model Club {
   spotlightUser User?            @relation("ClubSpotlight", fields: [spotlightUserId], references: [id], onDelete: SetNull)
 
   // Clubs are city-scoped — Sailing Istanbul is a different club from
-  // Sailing Berlin even if the category matches. Nullable during the
-  // backfill; becomes required after Istanbul is set on every row.
-  cityId String?
-  city   City?   @relation(fields: [cityId], references: [id])
+  // Sailing Berlin even if the category matches. Backfill ran on
+  // 2026-05-29 and every existing row got an Istanbul cityId.
+  cityId String
+  city   City   @relation(fields: [cityId], references: [id])
 
   @@index([cityId])
   @@map("clubs")
@@ -382,9 +382,9 @@ model Event {
   // Events belong to a city. Derivable from the parent club today,
   // but storing it directly lets the events feed filter by the
   // viewer's city in one indexed query instead of joining through
-  // clubs. Nullable during backfill.
-  cityId    String?
-  city      City?           @relation(fields: [cityId], references: [id])
+  // clubs. Backfilled to Istanbul on 2026-05-29 and now required.
+  cityId    String
+  city      City            @relation(fields: [cityId], references: [id])
 
   @@index([date])
   @@index([clubId])
@@ -587,14 +587,14 @@ model MemberApplication {
   suspicionScore       Int       @default(0)
 
   // Target city for the application — routes review into that city's
-  // queue and determines which moderators see it. Nullable during the
-  // backfill; the apply form will start populating it from a city
-  // selector (defaulting to Istanbul) once the column lands.
+  // queue and determines which moderators see it. Backfilled to
+  // Istanbul on 2026-05-29 and now required. The apply form
+  // populates it from a city selector (defaulting to Istanbul).
   // Note: the existing free-text `city` field above is the applicant's
-  // currently-resident city (a personal datum); cityId is the *target*
-  // community they're applying to. Different concepts.
-  targetCityId         String?
-  targetCity           City?     @relation(fields: [targetCityId], references: [id])
+  // currently-resident city (a personal datum); targetCityId is the
+  // *community* they're applying to. Different concepts.
+  targetCityId         String
+  targetCity           City      @relation(fields: [targetCityId], references: [id])
 
   reviewer User? @relation(fields: [reviewedBy], references: [id])
 

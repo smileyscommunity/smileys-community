@@ -18,6 +18,12 @@ export interface SessionUser {
   emailVerified?: boolean
   partnerId?: string
   tokenVersion?: number
+  // City the user belongs to — drives moderator scoping. Optional in
+  // the type because JWTs issued before the multi-city scaffolding
+  // landed don't carry it; getSession() refreshes it from the DB on
+  // every request alongside the existing status/suspension checks so
+  // every code path gets a fresh value regardless of JWT age.
+  cityId?: string
 }
 
 export async function createSession(user: SessionUser) {
@@ -47,7 +53,7 @@ export async function getSession(): Promise<SessionUser | null> {
     // Real-time check: ban/suspension + tokenVersion (logout invalidates all sessions)
     const dbUser = await prisma.user.findUnique({
       where: { id: user.id },
-      select: { status: true, suspendedUntil: true, tokenVersion: true },
+      select: { status: true, suspendedUntil: true, tokenVersion: true, cityId: true },
     })
     if (!dbUser || dbUser.status === 'banned') {
       await deleteSession()
@@ -65,7 +71,10 @@ export async function getSession(): Promise<SessionUser | null> {
       return null
     }
 
-    return user
+    // Inject the live cityId from the DB so capability checks have a
+    // fresh value even for sessions issued before the multi-city
+    // scaffolding landed. Avoids forcing every member to re-login.
+    return { ...user, cityId: dbUser.cityId }
   } catch {
     return null
   }

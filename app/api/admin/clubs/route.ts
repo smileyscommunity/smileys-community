@@ -34,6 +34,14 @@ export async function POST(req: NextRequest) {
     }
 
     const slug = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+
+    // Default new clubs to the admin's own city. Multi-city UI for
+    // creating clubs across cities is a later phase; for now the
+    // creator's affiliation is the right behaviour.
+    if (!session.cityId) {
+      return NextResponse.json({ error: 'Your account has no city — contact a super-admin' }, { status: 400 })
+    }
+
     const club = await prisma.club.create({
       data: {
         name:        name.trim(),
@@ -44,6 +52,7 @@ export async function POST(req: NextRequest) {
         color:       'text-amber-600',
         bgColor:     'bg-amber-50',
         memberCount: 0,
+        cityId:      session.cityId,
       },
     })
     return NextResponse.json(club, { status: 201 })

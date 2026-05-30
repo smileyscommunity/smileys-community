@@ -101,6 +101,8 @@ export async function PATCH(req: NextRequest) {
                   bio:          application.bio          ?? null,
                   instagram:    application.instagram    ?? null,
                   neighborhood: application.neighborhood ?? null,
+                  // User joins the city they applied to.
+                  cityId:       application.targetCityId,
                 },
               })
             } catch (e) {
