@@ -2,7 +2,7 @@
 
 import { toast } from 'sonner'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import Link from 'next/link'
 import { formatShortDate } from '@/lib/data'
 import UserAvatar from '@/components/UserAvatar'
@@ -30,9 +30,12 @@ export default function AdminParticipantsPage() {
   const [selected,    setSelected]    = useState<Set<string>>(new Set())
   const [bulkSaving,  setBulkSaving]  = useState(false)
 
-  useEffect(() => { load() }, [])
-
-  async function load() {
+  // Single source of truth — both the initial mount effect and any
+  // future refresh callers can reuse it. useCallback keeps it stable so
+  // the effect's dep array is honest (the old `useEffect(() => { load()
+  // }, [])` had a missing dep that react-hooks/exhaustive-deps would
+  // normally flag).
+  const load = useCallback(async () => {
     setLoading(true)
     const res = await fetch('/app/api/admin/participants', { credentials: 'include' })
     if (res.ok) {
@@ -41,7 +44,21 @@ export default function AdminParticipantsPage() {
       setWaitlist(Array.isArray(data.waitlist) ? data.waitlist : [])
     }
     setLoading(false)
-  }
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  // Drop a row's key out of the selection set — used when a single-row
+  // action (approve / reject / remove) leaves the bucket. Without this,
+  // `selected` accumulated stale keys forever; the "X selected" count
+  // would drift from what was actually selectable.
+  const dropSelection = useCallback((userId: string, eventId: string) => {
+    const key = `${userId}-${eventId}`
+    setSelected(prev => {
+      if (!prev.has(key)) return prev
+      const s = new Set(prev); s.delete(key); return s
+    })
+  }, [])
 
   async function approve(userId: string, eventId: string) {
     const res = await fetch(`/app/api/admin/events/${eventId}/participants`, {
@@ -53,7 +70,11 @@ export default function AdminParticipantsPage() {
       setAttendees(prev => prev.map(a =>
         a.userId === userId && a.eventId === eventId ? { ...a, status: 'approved' } : a
       ))
+      dropSelection(userId, eventId)
       toast.success('Approved ✓')
+    } else {
+      const d = await res.json().catch(() => ({}))
+      toast.error(d.error ?? 'Failed to approve')
     }
   }
 
@@ -66,7 +87,11 @@ export default function AdminParticipantsPage() {
     })
     if (res.ok) {
       setAttendees(prev => prev.filter(a => !(a.userId === userId && a.eventId === eventId)))
+      dropSelection(userId, eventId)
       toast('Rejected')
+    } else {
+      const d = await res.json().catch(() => ({}))
+      toast.error(d.error ?? 'Failed to reject')
     }
   }
 
@@ -79,7 +104,11 @@ export default function AdminParticipantsPage() {
     })
     if (res.ok) {
       setAttendees(prev => prev.filter(a => !(a.userId === userId && a.eventId === eventId)))
+      dropSelection(userId, eventId)
       toast('Removed')
+    } else {
+      const d = await res.json().catch(() => ({}))
+      toast.error(d.error ?? 'Failed to remove')
     }
   }
 
@@ -107,42 +136,67 @@ export default function AdminParticipantsPage() {
     setSelected(prev => { const s = new Set(prev); s.has(key) ? s.delete(key) : s.add(key); return s })
   }
 
-  async function bulkApprove() {
-    setBulkSaving(true)
+  // Memoize pending / approved so unrelated state changes (selection,
+  // bulkSaving toggle, tab switch, focus) don't re-filter the whole
+  // attendees list every render. Same pattern as /admin/events and the
+  // search-aware tabs on /admin/users.
+  const pending  = useMemo(() => attendees.filter(a => a.status === 'pending'),  [attendees])
+  const approved = useMemo(() => attendees.filter(a => a.status === 'approved'), [attendees])
+
+  // Bulk runner — tracks per-id success in a Set so a partial 500
+  // only flips the rows that actually changed. Previously Promise.all
+  // dropped per-request status entirely; the toast claimed "X approved"
+  // even on full failure and rows were marked approved regardless.
+  async function bulkRun(
+    label: string,
+    confirmMsg: string,
+    work: (a: Attendee) => Promise<boolean>,
+    onSuccess: (ok: Set<string>) => void,
+  ) {
     const targets = pending.filter(a => selected.has(rowKey(a)))
-    await Promise.all(targets.map(a =>
-      fetch(`/app/api/admin/events/${a.eventId}/participants`, {
+    if (targets.length === 0) return
+    if (!window.confirm(`${confirmMsg} ${targets.length} request${targets.length > 1 ? 's' : ''}?`)) return
+    setBulkSaving(true)
+    const results = await Promise.all(targets.map(async a => ({
+      key: rowKey(a),
+      ok:  await work(a).catch(() => false),
+    })))
+    const ok = new Set(results.filter(r => r.ok).map(r => r.key))
+    const fail = results.length - ok.size
+    if (ok.size) onSuccess(ok)
+    setSelected(new Set())
+    setBulkSaving(false)
+    if (ok.size) toast.success(`${label}: ${ok.size} done`)
+    if (fail)    toast.error(`${label}: ${fail} failed`)
+  }
+
+  async function bulkApprove() {
+    await bulkRun('Approve', 'Approve', async (a) => {
+      const res = await fetch(`/app/api/admin/events/${a.eventId}/participants`, {
         method: 'PATCH', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: a.userId, action: 'approve' }),
       })
-    ))
-    const keys = new Set(targets.map(rowKey))
-    setAttendees(prev => prev.map(a => keys.has(rowKey(a)) ? { ...a, status: 'approved' } : a))
-    setSelected(new Set())
-    setBulkSaving(false)
-    toast.success(`${targets.length} approved ✓`)
+      return res.ok
+    }, (ok) => {
+      setAttendees(prev => prev.map(a => ok.has(rowKey(a)) ? { ...a, status: 'approved' } : a))
+    })
   }
 
   async function bulkReject() {
-    setBulkSaving(true)
-    const targets = pending.filter(a => selected.has(rowKey(a)))
-    await Promise.all(targets.map(a =>
-      fetch(`/app/api/admin/events/${a.eventId}/participants`, {
+    // Bulk reject now confirms — the single-row reject already did but
+    // bulk fired instantly on click, making a misclick irreversible.
+    await bulkRun('Reject', 'Reject', async (a) => {
+      const res = await fetch(`/app/api/admin/events/${a.eventId}/participants`, {
         method: 'PATCH', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: a.userId, action: 'reject' }),
       })
-    ))
-    const keys = new Set(targets.map(rowKey))
-    setAttendees(prev => prev.filter(a => !keys.has(rowKey(a))))
-    setSelected(new Set())
-    setBulkSaving(false)
-    toast(`${targets.length} rejected`)
+      return res.ok
+    }, (ok) => {
+      setAttendees(prev => prev.filter(a => !ok.has(rowKey(a))))
+    })
   }
-
-  const pending  = attendees.filter(a => a.status === 'pending')
-  const approved = attendees.filter(a => a.status === 'approved')
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
