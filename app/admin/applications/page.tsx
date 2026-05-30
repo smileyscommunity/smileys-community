@@ -185,6 +185,19 @@ function AdminApplicationsPageInner() {
     return () => { window.removeEventListener('focus', onFocus); clearInterval(interval) }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Keep `selected` mirroring the fresh row from `apps`. The 30s
+  // auto-refresh + window-focus refetch both replace the apps array
+  // wholesale; without this the modal's `selected` reference points at
+  // the pre-refresh snapshot and `setApps(...)` mutations from other
+  // handlers (suggest / saveNote / decide) flow into `apps` but the
+  // modal keeps rendering the stale object. Reference-equality guard
+  // prevents the infinite loop the naive version would have.
+  useEffect(() => {
+    if (!selected) return
+    const fresh = apps.find(a => a.id === selected.id)
+    if (fresh && fresh !== selected) setSelected(fresh)
+  }, [apps, selected])
+
   function open(app: Application) {
     setSelected(app)
     setReviewNote(app.reviewNote ?? '')
@@ -278,6 +291,9 @@ function AdminApplicationsPageInner() {
     if (res.ok) {
       setApps(prev => prev.map(a => a.id === id ? { ...a, suggestion, reviewNote } : a))
       toast(suggestion ? `Suggested: ${suggestion}` : 'Suggestion cleared')
+    } else {
+      const d = await res.json().catch(() => ({}))
+      toast.error(d.error ?? 'Failed to save suggestion')
     }
   }
 
@@ -288,7 +304,13 @@ function AdminApplicationsPageInner() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: selected.id, reviewNote }),
     })
-    if (res.ok) { setApps(prev => prev.map(a => a.id === selected.id ? { ...a, reviewNote } : a)); toast('Note saved') }
+    if (res.ok) {
+      setApps(prev => prev.map(a => a.id === selected.id ? { ...a, reviewNote } : a))
+      toast('Note saved')
+    } else {
+      const d = await res.json().catch(() => ({}))
+      toast.error(d.error ?? 'Failed to save note')
+    }
   }
 
   // Quick decide — inline approve/reject without opening the modal. Sends
@@ -313,24 +335,49 @@ function AdminApplicationsPageInner() {
       toast.success(status === 'approved'
         ? 'Approved · standard welcome email sent (no personal note)'
         : 'Rejected · standard email sent (no personal note)')
+    } else {
+      // Old impl silently no-op'd on a non-OK response. The list never
+      // got updated (correct) but the admin had no signal the action
+      // had failed — they'd assume the click landed and move on.
+      const d = await res.json().catch(() => ({}))
+      toast.error(d.error ?? `Failed to ${status === 'approved' ? 'approve' : 'reject'}`)
     }
   }
 
   async function bulkAction(status: 'approved' | 'rejected') {
     if (!selected2.size) return
+    const verb = status === 'approved' ? 'Approve' : 'Reject'
+    if (!window.confirm(`${verb} ${selected2.size} application${selected2.size > 1 ? 's' : ''}?`)) return
     setBulkSaving(true)
     const ids = [...selected2]
-    await Promise.all(ids.map(id =>
-      fetch('/app/api/admin/applications', {
+    // Track per-id success so a partial failure only flips the rows
+    // that really changed AND leaves failed ids in the selection so
+    // the admin can retry. Old impl flipped every row optimistically,
+    // cleared the whole selection, and toasted "N approved" even when
+    // every PATCH errored.
+    const results = await Promise.all(ids.map(async id => ({
+      id,
+      ok: await fetch('/app/api/admin/applications', {
         method: 'PATCH', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, status, reviewNote: '', assignedClubs: status === 'approved' && defaultClubId ? [defaultClubId] : [] }),
+      }).then(r => r.ok).catch(() => false),
+    })))
+    const ok = new Set(results.filter(r => r.ok).map(r => r.id))
+    const fail = results.length - ok.size
+    if (ok.size) {
+      setApps(prev => prev.map(a => ok.has(a.id) ? { ...a, status } : a))
+      // Drop successes from the selection; failures stay selected for
+      // the retry click. On full failure the whole selection survives.
+      setSelected2(prev => {
+        const s = new Set(prev)
+        for (const id of ok) s.delete(id)
+        return s
       })
-    ))
-    setApps(prev => prev.map(a => ids.includes(a.id) ? { ...a, status } : a))
-    setSelected2(new Set())
+    }
     setBulkSaving(false)
-    toast(`${ids.length} ${status}`)
+    if (ok.size) toast.success(`${verb}d ${ok.size}`)
+    if (fail)    toast.error(`${fail} failed`)
   }
 
   const counts = useMemo(() => ({
@@ -808,7 +855,11 @@ function AdminApplicationsPageInner() {
                     <div className="flex gap-2 items-center">
                       <span className="text-zinc-600 w-12 shrink-0">IP</span>
                       <span className="text-zinc-300 font-mono text-xs">{selected.ipAddress}</span>
-                      {apps.filter(a => a.id !== selected.id && a.ipAddress === selected.ipAddress && a.status !== 'approved').length > 0 && (
+                      {/* Reuse the memoized map the list cards already
+                          build instead of re-scanning `apps` per render.
+                          Map counts include the current app, so > 1 is
+                          the "shared with someone else" condition. */}
+                      {(ipCounts.get(selected.ipAddress) ?? 0) > 1 && (
                         <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-red-500/20 text-red-400">⚠️ IP reused</span>
                       )}
                     </div>
@@ -818,7 +869,7 @@ function AdminApplicationsPageInner() {
                     <div className="flex gap-2 items-center">
                       <span className="text-zinc-600 w-20 shrink-0">Fingerprint</span>
                       <span className="text-zinc-400 font-mono text-xs">{selected.fingerprint.slice(0, 16)}…</span>
-                      {apps.filter(a => a.id !== selected.id && a.fingerprint && a.fingerprint === selected.fingerprint && a.status !== 'approved').length > 0 && (
+                      {(fingerprintCounts.get(selected.fingerprint) ?? 0) > 1 && (
                         <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-red-500/20 text-red-400">⚠️ Same device</span>
                       )}
                     </div>
