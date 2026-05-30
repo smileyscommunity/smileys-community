@@ -51,15 +51,18 @@ export default function AdminNeighborhoodsPage() {
         <p className="text-zinc-500 text-sm mt-1">Edit guides, tips, and banner images for each neighborhood.</p>
       </div>
 
-      {/* Stats */}
+      {/* Stats — 2-up on phones so the text-2xl figures don't
+          squeeze, 3-up from sm+. "Have banners" takes the orphan
+          slot full-width on row 2 to avoid the half-row-stranded
+          look. */}
       {!loading && (
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {[
             { label: 'Total', value: neighborhoods.length, color: 'text-white' },
             { label: 'Have guides', value: withGuide, color: 'text-amber-400' },
-            { label: 'Have banners', value: withImage, color: 'text-emerald-400' },
+            { label: 'Have banners', value: withImage, color: 'text-emerald-400', span: true as const },
           ].map(s => (
-            <div key={s.label} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
+            <div key={s.label} className={`bg-zinc-900 border border-zinc-800 rounded-2xl p-4 ${s.span ? 'col-span-2 sm:col-span-1' : ''}`}>
               <div className="text-xs text-zinc-500 mb-1">{s.label}</div>
               <div className={`text-2xl font-extrabold ${s.color}`}>{s.value}</div>
             </div>

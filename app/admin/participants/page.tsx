@@ -283,14 +283,18 @@ export default function AdminParticipantsPage() {
         <div className="text-zinc-500 text-sm text-center py-16">Loading…</div>
       ) : (
         <>
-          {/* Stats */}
-          <div className="grid grid-cols-3 gap-3">
+          {/* Stats — 2-up on phones so each tile breathes, 3-up from
+              sm+. Pending + Approved sit side-by-side on the first
+              mobile row (the two most-acted-on); Waitlist takes the
+              orphan slot full-width on row 2 rather than getting
+              half-row-stranded. */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {[
               { label: 'Pending',  value: pending.length,  color: pending.length > 0 ? 'text-amber-400' : 'text-white' },
               { label: 'Approved', value: approved.length, color: 'text-green-400' },
-              { label: 'Waitlist', value: waitlist.length, color: waitlist.length > 0 ? 'text-violet-400' : 'text-white' },
+              { label: 'Waitlist', value: waitlist.length, color: waitlist.length > 0 ? 'text-violet-400' : 'text-white', span: true as const },
             ].map(s => (
-              <div key={s.label} className="bg-zinc-900 rounded-xl border border-zinc-800 p-4 text-center">
+              <div key={s.label} className={`bg-zinc-900 rounded-xl border border-zinc-800 p-4 text-center ${s.span ? 'col-span-2 sm:col-span-1' : ''}`}>
                 <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
                 <div className="text-xs text-zinc-500 mt-0.5">{s.label}</div>
               </div>
