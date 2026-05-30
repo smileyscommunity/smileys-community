@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { useSearchParams, useRouter, usePathname } from 'next/navigation'
+import { toast } from 'sonner'
 import { Suspense } from 'react'
 import { getInitials } from '@/lib/data'
 import { parseCheckinQR, vibrate } from '@/lib/checkin'
@@ -30,6 +31,8 @@ interface ScanResult {
 
 function CheckInPageInner() {
   const searchParams    = useSearchParams()
+  const router          = useRouter()
+  const pathname        = usePathname()
   const defaultEventId  = searchParams.get('event') ?? ''
 
   const [events,        setEvents]        = useState<Event[]>([])
@@ -41,6 +44,32 @@ function CheckInPageInner() {
   const [lastChecked,   setLastChecked]   = useState<string | null>(null)
   const [scanning,      setScanning]      = useState(false)
   const [scanResult,    setScanResult]    = useState<ScanResult | null>(null)
+  // Per-row saving state — keyed by attendee.id so multiple taps queue
+  // gracefully and the row spinner only shows on the row that's busy.
+  // Set-shape mirrors how the bulk pages track inflight work.
+  const [toggling,      setToggling]      = useState<Set<string>>(new Set())
+
+  // Shared refs for both visual timers (lastChecked highlight + scan
+  // result toast). Storing them in refs lets us cancel the previous
+  // timeout when a new check-in lands and clear both on unmount, so a
+  // scanner kiosk that's been running all evening doesn't leak handles
+  // or fire setState on an unmounted page.
+  const lastCheckedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const scanResultTimer  = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const flashLastChecked = useCallback((userId: string) => {
+    setLastChecked(userId)
+    if (lastCheckedTimer.current) clearTimeout(lastCheckedTimer.current)
+    lastCheckedTimer.current = setTimeout(() => setLastChecked(null), 1500)
+  }, [])
+  const flashScanResult = useCallback((result: ScanResult, ms = 3000) => {
+    setScanResult(result)
+    if (scanResultTimer.current) clearTimeout(scanResultTimer.current)
+    scanResultTimer.current = setTimeout(() => setScanResult(null), ms)
+  }, [])
+  useEffect(() => () => {
+    if (lastCheckedTimer.current) clearTimeout(lastCheckedTimer.current)
+    if (scanResultTimer.current)  clearTimeout(scanResultTimer.current)
+  }, [])
 
   useEffect(() => {
     fetch('/app/api/admin/events', { credentials: 'include' })
@@ -51,6 +80,10 @@ function CheckInPageInner() {
         if (!defaultEventId && list.length > 0) setSelectedId(list[0].id)
       })
       .finally(() => setLoadingEvents(false))
+  // defaultEventId is intentionally read once on mount — adding it to
+  // deps would refire the events fetch every time we router.replace()
+  // to sync the URL with the active selection.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -63,6 +96,19 @@ function CheckInPageInner() {
       .finally(() => setLoadingAtts(false))
   }, [selectedId])
 
+  // URL-sync selectedId so reload keeps the kiosk on the right event.
+  // Replace (not push) keeps the back button useful — the typical user
+  // never wants to "go back" between events.
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams.toString())
+    if (selectedId) params.set('event', selectedId); else params.delete('event')
+    const q = params.toString()
+    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false })
+  // searchParams excluded — including it would feedback-loop on the URL
+  // we just wrote.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId, pathname, router])
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
     return q
@@ -74,16 +120,32 @@ function CheckInPageInner() {
   const event = events.find(e => e.id === selectedId)
 
   async function toggle(a: Attendee) {
+    if (toggling.has(a.id)) return  // ignore double-taps while inflight
     const next = !a.checkedIn
+    // Optimistic update — kept in scope so we can roll back on failure.
+    // The old impl fired-and-forgot the fetch; a 500 would leave the
+    // row showing "checked in" forever while the server still said
+    // otherwise.
     setAttendees(prev => prev.map(x => x.id === a.id ? { ...x, checkedIn: next } : x))
-    setLastChecked(a.userId)
-    setTimeout(() => setLastChecked(null), 1500)
-    await fetch(`/app/api/events/${selectedId}/checkin`, {
-      method: 'PATCH',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: a.userId, checkedIn: next }),
-    })
+    setToggling(prev => { const s = new Set(prev); s.add(a.id); return s })
+    flashLastChecked(a.userId)
+    try {
+      const res = await fetch(`/app/api/events/${selectedId}/checkin`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: a.userId, checkedIn: next }),
+      })
+      if (!res.ok) throw new Error()
+    } catch {
+      // Roll back the optimistic flip and tell the operator. Vibrate so
+      // a kiosk operator scanning rapidly notices without looking.
+      setAttendees(prev => prev.map(x => x.id === a.id ? { ...x, checkedIn: a.checkedIn } : x))
+      vibrate.error()
+      toast.error(`Failed to ${next ? 'check in' : 'undo'} ${a.user.name}`)
+    } finally {
+      setToggling(prev => { const s = new Set(prev); s.delete(a.id); return s })
+    }
   }
 
   const handleScan = useCallback(async (raw: string) => {
@@ -95,8 +157,7 @@ function CheckInPageInner() {
     const userId = parseCheckinQR(raw, selectedId)
     if (!userId) {
       vibrate.error()
-      setScanResult({ type: 'invalid' })
-      setTimeout(() => setScanResult(null), 3000)
+      flashScanResult({ type: 'invalid' })
       return
     }
 
@@ -104,33 +165,40 @@ function CheckInPageInner() {
 
     if (!attendee) {
       vibrate.error()
-      setScanResult({ type: 'notfound' })
-      setTimeout(() => setScanResult(null), 3000)
+      flashScanResult({ type: 'notfound' })
       return
     }
 
     if (attendee.checkedIn) {
       vibrate.alreadyCheckedIn()
-      setScanResult({ type: 'already', name: attendee.user.name })
-      setTimeout(() => setScanResult(null), 3000)
+      flashScanResult({ type: 'already', name: attendee.user.name })
       return
     }
 
-    // Check them in
+    // Check them in. Old impl flipped the optimistic state, fired the
+    // PATCH, and called the scan a success without ever inspecting the
+    // response. A 500 would leave the row showing "checked in" forever
+    // while the server still said otherwise. Now we await + roll back
+    // on failure.
     setAttendees(prev => prev.map(a => a.userId === userId ? { ...a, checkedIn: true } : a))
-    setLastChecked(userId)
-    setTimeout(() => setLastChecked(null), 1500)
-    vibrate.success()
-    setScanResult({ type: 'success', name: attendee.user.name })
-    setTimeout(() => setScanResult(null), 3000)
-
-    await fetch(`/app/api/events/${selectedId}/checkin`, {
-      method: 'PATCH',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, checkedIn: true }),
-    })
-  }, [attendees, selectedId])
+    flashLastChecked(userId)
+    try {
+      const res = await fetch(`/app/api/events/${selectedId}/checkin`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, checkedIn: true }),
+      })
+      if (!res.ok) throw new Error()
+      vibrate.success()
+      flashScanResult({ type: 'success', name: attendee.user.name })
+    } catch {
+      setAttendees(prev => prev.map(a => a.userId === userId ? { ...a, checkedIn: false } : a))
+      vibrate.error()
+      flashScanResult({ type: 'notfound', name: attendee.user.name })  // surfaces via the red toast
+      toast.error(`Failed to check in ${attendee.user.name}`)
+    }
+  }, [attendees, selectedId, flashLastChecked, flashScanResult])
 
   return (
     <div className="min-h-screen bg-black text-white flex flex-col max-w-lg mx-auto">
@@ -217,12 +285,14 @@ function CheckInPageInner() {
         {filtered.map(a => {
           const isIn     = a.checkedIn
           const justDone = lastChecked === a.userId
+          const isBusy   = toggling.has(a.id)
 
           return (
             <button
               key={a.id}
               onClick={() => toggle(a)}
-              className={`w-full flex items-center gap-4 px-4 py-4 active:opacity-70 transition-colors text-left ${
+              disabled={isBusy}
+              className={`w-full flex items-center gap-4 px-4 py-4 active:opacity-70 transition-colors text-left disabled:opacity-60 ${
                 isIn ? 'bg-green-950/40' : 'bg-black'
               }`}
             >
@@ -243,7 +313,9 @@ function CheckInPageInner() {
                   ? 'bg-green-500/20 border-2 border-green-500'
                   : 'bg-zinc-800 border-2 border-zinc-700'
               }`}>
-                {isIn && (
+                {isBusy ? (
+                  <div className="w-4 h-4 border-2 border-zinc-500 border-t-white rounded-full animate-spin" />
+                ) : isIn && (
                   <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                   </svg>
