@@ -25,7 +25,13 @@ export async function GET() {
     if (!session || !isAdminOrModerator(session)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
+    // Moderators see only applications targeting their own city. Admins
+    // see everything (cross-city audits + global review).
+    const cityFilter = isAdmin(session) || !session.cityId
+      ? {}
+      : { targetCityId: session.cityId }
     const applications = await prisma.memberApplication.findMany({
+      where:   cityFilter,
       orderBy: { createdAt: 'desc' },
       include: { reviewer: { select: { name: true } } },
     })

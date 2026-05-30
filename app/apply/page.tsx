@@ -98,6 +98,12 @@ function ApplyForm() {
     totalActiveInviters: number
   } | null>(null)
 
+  // Available cities for the target-city selector. Populated from
+  // /api/cities; defaults to Istanbul-only on first load so the form
+  // is usable while the fetch is in flight.
+  const [cities,         setCities]         = useState<{ slug: string; name: string; status: string }[]>([{ slug: 'istanbul', name: 'Istanbul', status: 'live' }])
+  const [targetCitySlug, setTargetCitySlug] = useState('istanbul')
+
   useEffect(() => {
     FingerprintJS.load().then(fp => fp.get()).then(result => setFingerprint(result.visitorId)).catch(() => {})
     try { setBrowserTz(Intl.DateTimeFormat().resolvedOptions().timeZone) } catch {}
@@ -114,6 +120,16 @@ function ApplyForm() {
       .then(d => { if (d) setReferralCtx(d) })
       .catch(() => {})
   }, [refCode])
+
+  // Fetch the open cities so the form can route the application into
+  // the right review queue. With only Istanbul live today the dropdown
+  // hides entirely; once a second city goes live the selector appears.
+  useEffect(() => {
+    fetch('/app/api/cities')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (Array.isArray(d) && d.length > 0) setCities(d) })
+      .catch(() => {})
+  }, [])
 
   // Track whether the draft restore has run so the save-on-change effect
   // doesn't fire before we've loaded (which would overwrite the saved draft).
@@ -269,7 +285,7 @@ function ApplyForm() {
       const res  = await fetch('/app/api/apply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, interests, socialStyles, languages, referredBy: refCode || undefined, _hp: honeypot, _cf: turnstileToken, _fp: fingerprint, _tz: browserTz }),
+        body: JSON.stringify({ ...form, interests, socialStyles, languages, referredBy: refCode || undefined, targetCitySlug, _hp: honeypot, _cf: turnstileToken, _fp: fingerprint, _tz: browserTz }),
       })
       const data = await res.json()
       if (!res.ok) { showError(data.error ?? 'Failed to submit'); return }
@@ -344,6 +360,31 @@ function ApplyForm() {
             ))}
           </div>
         </div>
+
+        {/* City selector — hidden while only Istanbul is live. Once a
+            second city opens for applications the selector appears
+            automatically at the top of step 0 so applicants route
+            their essay into the right city's review queue. */}
+        {step === 0 && cities.length > 1 && (
+          <div className="bg-white border border-gray-200 rounded-2xl p-3.5 mb-3">
+            <label htmlFor="target-city" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
+              Which city are you applying to?
+            </label>
+            <select
+              id="target-city"
+              value={targetCitySlug}
+              onChange={e => setTargetCitySlug(e.target.value)}
+              className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-amber-500"
+            >
+              {cities.map(c => (
+                <option key={c.slug} value={c.slug}>
+                  {c.name}{c.status === 'launching' ? ' ✦ Launching' : ''}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-500 mt-1.5">Pick the city you'll attend events in. Each city has its own admin team and rhythm.</p>
+          </div>
+        )}
 
         {/* Referral chip — only when ?ref=XYZ resolved to a real
             approved member. Personalised "Sarah invited you" with a

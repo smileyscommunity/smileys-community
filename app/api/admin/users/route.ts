@@ -1,4 +1,4 @@
-import { canManageUsers, canViewUserList } from '@/lib/access'
+import { canManageUsers, canViewUserList, isAdmin as sessionIsAdmin } from '@/lib/access'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
@@ -28,10 +28,20 @@ export async function GET(req: NextRequest) {
             ] })
       : {}
 
+    // Moderators see only their own city's users. Admins see all.
+    // Admins can override the view per-city via `?city=<id>` to drill
+    // into one city's roster (useful for multi-city audits).
+    const cityFilter: { cityId?: string } = (() => {
+      if (!sessionIsAdmin(session)) return session.cityId ? { cityId: session.cityId } : {}
+      const cityId = params.get('city')
+      return cityId ? { cityId } : {}
+    })()
+
     const users = await prisma.user.findMany({
       where: {
         ...(status && { status }),
         ...searchClause,
+        ...cityFilter,
       },
       orderBy: { joinedAt: 'desc' },
       select: {

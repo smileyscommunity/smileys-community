@@ -128,14 +128,19 @@ export async function getEvents(options?: {
   limit?: number
   offset?: number
   upcoming?: boolean
+  // Filter to events in this city. Caller passes the viewer's cityId
+  // for the default "show me my city's events" feed; pass undefined
+  // for the cross-city "show all" view a traveller would want.
+  cityId?: string
 }): Promise<{ events: Event[]; total: number }> {
-  const { limit = 24, offset = 0, upcoming } = options ?? {}
+  const { limit = 24, offset = 0, upcoming, cityId } = options ?? {}
   const today = new Date(new Date().toLocaleString('en-CA', { timeZone: 'Europe/Istanbul' }).split(',')[0]).toISOString().split('T')[0]
-  const where = upcoming === true
+  const baseWhere = upcoming === true
     ? { date: { gte: today }, status: 'published' }
     : upcoming === false
     ? { date: { lt: today }, status: { in: ['published', 'archived'] } }
     : {}
+  const where = cityId ? { ...baseWhere, cityId } : baseWhere
 
   const [rows, total] = await Promise.all([
     prisma.event.findMany({

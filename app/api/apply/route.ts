@@ -48,6 +48,9 @@ export async function POST(req: NextRequest) {
             whyJoin, enjoyWith, goodCommunity, interests, socialStyles,
             contribution, groupBehavior, removedFromCommunity, toxicBehavior,
             profilePhoto,
+            // targetCitySlug — which community they're applying to. Defaults to
+            // istanbul for backwards compat with older clients that don't post it.
+            targetCitySlug,
             bio, source, referredBy, _hp, _cf, _fp, _tz } = await req.json()
 
     if (!(await verifyTurnstile(_cf ?? '', getIp(req)))) {
@@ -60,13 +63,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Name, email, phone, country, neighborhood, and gender are required' }, { status: 400 })
     }
 
-    // Resolve the target city. The apply form will eventually post a
-    // city slug; until then everything defaults to Istanbul. Looked up
-    // once per request — handler runs end-to-end in ~100ms so a tiny
-    // cache would be premature optimisation.
-    const targetCity = await prisma.city.findUnique({ where: { slug: 'istanbul' }, select: { id: true } })
-    if (!targetCity) {
-      return NextResponse.json({ error: 'Server misconfigured: target city unavailable' }, { status: 500 })
+    // Resolve the target city from the slug the form posted (or
+    // Istanbul if the client didn't send one — older builds). Reject
+    // applications to paused cities at the door.
+    const wantedSlug = (typeof targetCitySlug === 'string' && targetCitySlug.trim()) || 'istanbul'
+    const targetCity = await prisma.city.findUnique({
+      where: { slug: wantedSlug },
+      select: { id: true, status: true },
+    })
+    if (!targetCity || targetCity.status === 'paused') {
+      return NextResponse.json({ error: `Applications to "${wantedSlug}" aren't open right now.` }, { status: 400 })
     }
     const targetCityId = targetCity.id
 
