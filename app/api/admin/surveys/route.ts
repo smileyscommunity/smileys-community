@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { canViewAnalytics } from '@/lib/access'
+import { canModerateReports } from '@/lib/access'
 
 // GET /api/admin/surveys
 //
@@ -11,11 +11,16 @@ import { canViewAnalytics } from '@/lib/access'
 //   - the most recent 50 survey responses with event context for the
 //     scrollable list
 //
+// Auth: same gate as the Reports tab (canModerateReports = admin or
+// moderator). Surveys *are* the upstream signal for the auto-filed
+// reports moderators triage, so locking this admin-only would force
+// moderators to react to flags without seeing the data behind them.
+//
 // Three counts per window because Prisma's typed _sum doesn't expose
 // Boolean columns; counted in parallel so wall time stays flat.
 export async function GET() {
   const session = await getSession()
-  if (!session || !canViewAnalytics(session)) {
+  if (!session || !canModerateReports(session)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

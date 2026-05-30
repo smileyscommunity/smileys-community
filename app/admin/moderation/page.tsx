@@ -216,7 +216,9 @@ function ModerationPageInner() {
       safe(fetch('/app/api/admin/events/approval', { credentials: 'include' })),
       isAdmin ? safe(fetch('/app/api/admin/users?status=banned', { credentials: 'include' })) : Promise.resolve(null),
       isAdmin ? safe(fetch('/app/api/admin/blacklist',           { credentials: 'include' })) : Promise.resolve(null),
-      isAdmin ? safe(fetch('/app/api/admin/surveys',             { credentials: 'include' })) : Promise.resolve(null),
+      // Surveys are moderator-accessible — they need the upstream
+      // signal to triage the auto-filed Reports.
+      safe(fetch('/app/api/admin/surveys', { credentials: 'include' })),
     ]
 
     Promise.all(all).then(([r, m, q, b, bl, sv]) => {
@@ -456,7 +458,9 @@ function ModerationPageInner() {
     // Surveys badge = anomaly count from the last 30 days. Zero
     // surfaces as no badge, which keeps the tab visually quiet on a
     // healthy week and screams when there's something to look at.
-    { key: 'surveys',  label: 'Surveys ✿',    badge: surveyData?.last30.anomalies ?? 0, adminOnly: true },
+    // adminOnly: false — moderators triage the auto-filed Reports
+    // from anomaly flags, so they need to see the upstream signal.
+    { key: 'surveys',  label: 'Surveys ✿',    badge: surveyData?.last30.anomalies ?? 0, adminOnly: false },
     { key: 'banned',   label: 'Banned',       badge: banned.length, adminOnly: true },
     { key: 'blacklist',label: 'Blacklist',    badge: blacklist.length, adminOnly: true },
   ] as const
