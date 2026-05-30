@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
 import { getInitials } from '@/lib/data'
+import { parseCheckinQR, vibrate } from '@/lib/checkin'
 import QRScanner from '@/components/QRScanner'
 
 interface Event {
@@ -88,24 +89,28 @@ function CheckInPageInner() {
   const handleScan = useCallback(async (raw: string) => {
     setScanning(false)
 
-    // Parse smileys:member:[userId]
-    const match = raw.match(/^smileys:member:(.+)$/)
-    if (!match) {
+    // Shared parser accepts both the member-card format and the legacy
+    // event-bound format — older codes used to fail silently on the
+    // admin page because it only recognised the new one.
+    const userId = parseCheckinQR(raw, selectedId)
+    if (!userId) {
+      vibrate.error()
       setScanResult({ type: 'invalid' })
       setTimeout(() => setScanResult(null), 3000)
       return
     }
 
-    const userId = match[1]
     const attendee = attendees.find(a => a.userId === userId)
 
     if (!attendee) {
+      vibrate.error()
       setScanResult({ type: 'notfound' })
       setTimeout(() => setScanResult(null), 3000)
       return
     }
 
     if (attendee.checkedIn) {
+      vibrate.alreadyCheckedIn()
       setScanResult({ type: 'already', name: attendee.user.name })
       setTimeout(() => setScanResult(null), 3000)
       return
@@ -115,6 +120,7 @@ function CheckInPageInner() {
     setAttendees(prev => prev.map(a => a.userId === userId ? { ...a, checkedIn: true } : a))
     setLastChecked(userId)
     setTimeout(() => setLastChecked(null), 1500)
+    vibrate.success()
     setScanResult({ type: 'success', name: attendee.user.name })
     setTimeout(() => setScanResult(null), 3000)
 

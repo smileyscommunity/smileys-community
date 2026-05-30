@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { resolveImageUrl, getInitials, todayIstanbul } from '@/lib/data'
+import { parseCheckinQR, vibrate } from '@/lib/checkin'
 import SwipeRow from '@/components/SwipeRow'
 import dynamic from 'next/dynamic'
 
@@ -98,25 +99,17 @@ function CheckInScanner() {
     })
     if (res.ok) {
       setAttendees(prev => prev.map(a => a.userId === userId ? { ...a, checkedIn: !current } : a))
-      if (!current) navigator.vibrate?.([50, 30, 80])
+      if (!current) vibrate.success()
     }
     setToggling(null)
   }
 
   async function handleQRScan(value: string) {
     setScanning(false)
-    const parts = value.split(':')
-
-    // Accept member card QR: "smileys:member:{userId}"
-    // Also accept legacy event-specific QR: "smileys-checkin:{eventId}:{userId}"
-    let userId: string | undefined
-    if (parts[0] === 'smileys' && parts[1] === 'member') {
-      userId = parts[2]
-    } else if (parts[0] === 'smileys-checkin' && parts[1] === eventId) {
-      userId = parts[2]
-    }
+    const userId = parseCheckinQR(value, eventId)
 
     if (!userId) {
+      vibrate.error()
       setScanResult({ name: 'Invalid QR code', ok: false })
       setTimeout(() => setScanResult(null), 3000)
       return
@@ -124,14 +117,14 @@ function CheckInScanner() {
 
     const attendee = attendees.find(a => a.userId === userId)
     if (!attendee) {
+      vibrate.error()
       setScanResult({ name: 'Not on the guest list', ok: false })
-      navigator.vibrate?.([100, 50, 100])
       setTimeout(() => setScanResult(null), 3000)
       return
     }
     if (attendee.checkedIn) {
+      vibrate.alreadyCheckedIn()
       setScanResult({ name: `${attendee.user.name} — already checked in`, ok: true })
-      navigator.vibrate?.(40)
       setTimeout(() => setScanResult(null), 2500)
       return
     }
@@ -142,11 +135,11 @@ function CheckInScanner() {
     })
     if (res.ok) {
       setAttendees(prev => prev.map(a => a.userId === userId ? { ...a, checkedIn: true } : a))
+      vibrate.success()
       setScanResult({ name: attendee.user.name, ok: true })
-      navigator.vibrate?.([50, 30, 80])
     } else {
+      vibrate.error()
       setScanResult({ name: 'Check-in failed', ok: false })
-      navigator.vibrate?.([100, 50, 100])
     }
     setTimeout(() => setScanResult(null), 3000)
   }
