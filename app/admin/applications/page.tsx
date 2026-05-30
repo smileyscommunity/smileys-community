@@ -3,8 +3,8 @@
 import { toast } from 'sonner'
 
 import Link from 'next/link'
-import { useState, useEffect, useMemo, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useState, useEffect, useMemo, useRef, Suspense } from 'react'
+import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { resolveImageUrl } from '@/lib/data'
 
@@ -101,10 +101,21 @@ export default function AdminApplicationsPage() {
   return <Suspense><AdminApplicationsPageInner /></Suspense>
 }
 
+// Whitelist for the tab URL param so a junk query string can't leave
+// the chip bar in a state where no button looks selected.
+const TAB_KEYS = ['pending', 'approved', 'rejected'] as const
+type TabKey = typeof TAB_KEYS[number]
+
+// Same for sort.
+const SORT_KEYS = ['recent', 'score', 'suspicion'] as const
+type SortKey = typeof SORT_KEYS[number]
+
 function AdminApplicationsPageInner() {
   const { user } = useAuth()
   const isMod = user?.role === 'moderator'
   const searchParams = useSearchParams()
+  const router       = useRouter()
+  const pathname     = usePathname()
 
   const [apps,          setApps]          = useState<Application[]>([])
   const [clubs,         setClubs]         = useState<{ id: string; name: string; emoji: string }[]>([])
@@ -115,8 +126,14 @@ function AdminApplicationsPageInner() {
   // (modal button + API behaviour unchanged) — admins just see held apps
   // alongside genuinely-pending ones, marked "✉ Info requested Xd ago",
   // so they don't disappear into a side tab nobody clicks.
-  const [tab,           setTab]           = useState<'pending' | 'approved' | 'rejected'>('pending')
-  const [sortBy,        setSortBy]        = useState<'recent' | 'score' | 'suspicion'>('recent')
+  const [tab,           setTab]           = useState<TabKey>(
+    (TAB_KEYS as readonly string[]).includes(searchParams.get('tab') ?? '')
+      ? (searchParams.get('tab') as TabKey) : 'pending'
+  )
+  const [sortBy,        setSortBy]        = useState<SortKey>(
+    (SORT_KEYS as readonly string[]).includes(searchParams.get('sort') ?? '')
+      ? (searchParams.get('sort') as SortKey) : 'recent'
+  )
   const [filterInterest,setFilterInterest]= useState(searchParams.get('interest') ?? '')
   // ?contribution=host wires up to the host-pipeline link on
   // /admin/analytics?tab=members. The link was previously dead — the page
@@ -125,11 +142,11 @@ function AdminApplicationsPageInner() {
   const [filterContribution, setFilterContribution] = useState(searchParams.get('contribution') ?? '')
   // Free-text search across fullName + email — case-insensitive substring.
   // Trimmed at filter time so trailing whitespace doesn't break matches.
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('search') ?? '')
   // Acquisition source filter — dropdown options are computed from the
   // distinct source values seen in the loaded applications so it adapts to
   // whatever's actually in the data (source is free-text from the apply form).
-  const [filterSource, setFilterSource] = useState('')
+  const [filterSource, setFilterSource] = useState(searchParams.get('source') ?? '')
   const [reviewNote,    setReviewNote]    = useState('')
   const [rejectMsg,     setRejectMsg]     = useState('')
   const [assignedClubs, setAssignedClubs] = useState<string[]>([])
@@ -155,6 +172,19 @@ function AdminApplicationsPageInner() {
   const [moreInfoMsg,   setMoreInfoMsg]   = useState('')
   const [holdSaving,    setHoldSaving]    = useState(false)
 
+  // Freshness state + 1s tick so the "Updated Xs ago" footer ages
+  // without refetching. Matches the pattern shipped on /admin/users +
+  // /admin/moderation. lastRefreshRef shadows the state so the
+  // window-focus handler can rate-limit without depending on the
+  // state via closure.
+  const [lastRefresh,   setLastRefresh]   = useState<Date | null>(null)
+  const lastRefreshRef                     = useRef<number>(0)
+  const [, setTick]                        = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setTick(n => n + 1), 1000)
+    return () => clearInterval(t)
+  }, [])
+
   function loadApps() {
     setLoading(true)
     const opts: RequestInit = { credentials: 'include', cache: 'no-store' }
@@ -171,23 +201,65 @@ function AdminApplicationsPageInner() {
       setApps(appsData)
       setClubs(Array.isArray(clubData) ? clubData : [])
       if (settings?.defaultClubId) setDefaultClubId(settings.defaultClubId)
+      const now = new Date()
+      setLastRefresh(now)
+      lastRefreshRef.current = now.getTime()
     }).finally(() => setLoading(false))
   }
 
   useEffect(() => {
     loadApps()
-    const onFocus = () => loadApps()
+    // Rate-limit the window-focus refetch — without this every tab
+    // alt-tab fired a full fetch even if the previous one was 2s ago.
+    // Skip when a refresh is already < 10s old.
+    const onFocus = () => {
+      if (Date.now() - lastRefreshRef.current < 10_000) return
+      loadApps()
+    }
     window.addEventListener('focus', onFocus)
     const interval = setInterval(() => {
       // Don't disrupt an open review panel
       if (document.hidden) return
       fetch('/app/api/admin/applications', { credentials: 'include', cache: 'no-store' })
         .then(r => r.json())
-        .then(data => { if (Array.isArray(data)) setApps(data) })
+        .then(data => {
+          if (Array.isArray(data)) {
+            setApps(data)
+            const now = new Date()
+            setLastRefresh(now)
+            lastRefreshRef.current = now.getTime()
+          }
+        })
         .catch(() => {})
     }, 30_000)
     return () => { window.removeEventListener('focus', onFocus); clearInterval(interval) }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // URL-sync the filter state so reload + deep links land on the
+  // same view. Tab + sort whitelisted on read (above); everything
+  // else is free-text. Replace (not push) keeps the back button
+  // useful — typical use is "narrow + refine", not "step back".
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams.toString())
+    if (tab !== 'pending')   params.set('tab',   tab);   else params.delete('tab')
+    if (sortBy !== 'recent') params.set('sort',  sortBy); else params.delete('sort')
+    if (searchQuery)         params.set('search', searchQuery); else params.delete('search')
+    if (filterInterest)      params.set('interest', filterInterest); else params.delete('interest')
+    if (filterContribution)  params.set('contribution', filterContribution); else params.delete('contribution')
+    if (filterSource)        params.set('source', filterSource); else params.delete('source')
+    const q = params.toString()
+    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, sortBy, searchQuery, filterInterest, filterContribution, filterSource, pathname, router])
+
+  const refreshLabel = (() => {
+    if (!lastRefresh) return ''
+    const s = Math.floor((Date.now() - lastRefresh.getTime()) / 1000)
+    if (s < 5)     return 'Updated just now'
+    if (s < 60)    return `Updated ${s}s ago`
+    if (s < 3600)  return `Updated ${Math.floor(s / 60)}m ago`
+    return `Updated ${Math.floor(s / 3600)}h ago`
+  })()
 
   // Keep `selected` mirroring the fresh row from `apps`. The 30s
   // auto-refresh + window-focus refetch both replace the apps array
@@ -650,7 +722,25 @@ function AdminApplicationsPageInner() {
 
       {/* List */}
       <div className="space-y-2">
-        {loading && <div className="py-12 text-center text-zinc-500 text-sm">Loading…</div>}
+        {/* Skeleton rows mirror the real application card shape (avatar
+            + name/badges row + meta row) so nothing jumps when data
+            lands. Matches the bar pattern shipped on /admin/users +
+            /admin/moderation. */}
+        {loading && [0, 1, 2, 3, 4].map(i => (
+          <div key={i} className="bg-zinc-900 rounded-2xl border border-zinc-800 p-4 flex items-center gap-4">
+            <div className="w-4 h-4 rounded bg-zinc-800 animate-pulse shrink-0" />
+            <div className="w-12 h-12 rounded-xl bg-zinc-800 animate-pulse shrink-0" />
+            <div className="flex-1 min-w-0 space-y-1.5">
+              <div className="h-3.5 w-1/2 rounded bg-zinc-800 animate-pulse" />
+              <div className="h-3 w-2/3 rounded bg-zinc-800/60 animate-pulse" />
+              <div className="flex gap-1.5 mt-1.5">
+                <div className="h-4 w-16 rounded-full bg-zinc-800 animate-pulse" />
+                <div className="h-4 w-12 rounded-full bg-zinc-800/60 animate-pulse" />
+              </div>
+            </div>
+            <div className="h-7 w-20 rounded-lg bg-zinc-800 animate-pulse shrink-0" />
+          </div>
+        ))}
         {!loading && visible.length === 0 && (
           <div className="py-16 text-center">
             <div className="text-3xl mb-2">{tab === 'pending' ? '🎉' : tab === 'approved' ? '✅' : '📭'}</div>
@@ -795,6 +885,9 @@ function AdminApplicationsPageInner() {
             </div>
           </div>
         ))}
+        {!loading && refreshLabel && visible.length > 0 && (
+          <p className="text-xs text-zinc-600 text-right pt-2">{refreshLabel}</p>
+        )}
       </div>
 
       {/* Review modal — full-bleed on phones (no rounded corners, no padding
