@@ -2,8 +2,12 @@
 
 import { toast } from 'sonner'
 import Link from 'next/link'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback, Suspense } from 'react'
+import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { formatTime, resolveImageUrl, todayIstanbul, getInitials } from '@/lib/data'
+
+type TabKey = 'all' | 'upcoming' | 'pending' | 'archived'
+const TAB_KEYS: TabKey[] = ['all', 'upcoming', 'pending', 'archived']
 
 interface AdminEvent {
   id: string; title: string; date: string; time: string; emoji: string
@@ -119,17 +123,59 @@ function RowActions({
 }
 
 export default function AdminEventsPage() {
+  return <Suspense><AdminEventsPageInner /></Suspense>
+}
+
+function AdminEventsPageInner() {
   const today = todayIstanbul()
+  const searchParams = useSearchParams()
+  const router       = useRouter()
+  const pathname     = usePathname()
+
+  // Hydrate every filter from the URL so reload + deep links land on
+  // the same view. Whitelist the tab against TAB_KEYS so a junk query
+  // string can't leave the chip bar with no button looking selected.
+  const initialTab    = (TAB_KEYS as readonly string[]).includes(searchParams.get('tab') ?? '')
+    ? (searchParams.get('tab') as TabKey) : 'upcoming'
+  const initialSearch = searchParams.get('search') ?? ''
+  const initialClub   = searchParams.get('club')   ?? 'all'
+  const initialFrom   = searchParams.get('from')   ?? ''
+  const initialTo     = searchParams.get('to')     ?? ''
+
   const [events,     setEvents]     = useState<AdminEvent[]>([])
   const [clubs,      setClubs]      = useState<Club[]>([])
   const [loading,    setLoading]    = useState(true)
-  const [search,     setSearch]     = useState('')
-  const [tabStatus,  setTabStatus]  = useState<'all' | 'upcoming' | 'pending' | 'archived'>('upcoming')
-  const [clubFilter, setClubFilter] = useState('all')
-  const [dateFrom,   setDateFrom]   = useState('')
-  const [dateTo,     setDateTo]     = useState('')
+  const [search,     setSearch]     = useState(initialSearch)
+  const [tabStatus,  setTabStatus]  = useState<TabKey>(initialTab)
+  const [clubFilter, setClubFilter] = useState(initialClub)
+  const [dateFrom,   setDateFrom]   = useState(initialFrom)
+  const [dateTo,     setDateTo]     = useState(initialTo)
   const [selected,   setSelected]   = useState<Set<string>>(new Set())
   const [bulkBusy,   setBulkBusy]   = useState(false)
+
+  // Debounced version of `search` — keeps typing from spamming
+  // history with intermediate URLs.
+  const [debouncedSearch, setDebouncedSearch] = useState(initialSearch)
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 250)
+    return () => clearTimeout(t)
+  }, [search])
+
+  // URL-sync every filter. Replace (not push) so the back button
+  // doesn't dump intermediate states. Same contract as the other
+  // admin pages — searchParams excluded from deps to avoid feedback
+  // loop on the URL we just wrote.
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams.toString())
+    if (tabStatus !== 'upcoming') params.set('tab',    tabStatus);       else params.delete('tab')
+    if (debouncedSearch)          params.set('search', debouncedSearch); else params.delete('search')
+    if (clubFilter !== 'all')     params.set('club',   clubFilter);      else params.delete('club')
+    if (dateFrom)                 params.set('from',   dateFrom);        else params.delete('from')
+    if (dateTo)                   params.set('to',     dateTo);          else params.delete('to')
+    const q = params.toString()
+    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabStatus, debouncedSearch, clubFilter, dateFrom, dateTo, pathname, router])
 
   useEffect(() => {
     // Previously setLoading(true) was only called on mount, so clicking
@@ -269,46 +315,45 @@ export default function AdminEventsPage() {
     setSelected(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
   }
 
-  // `duplicated` was a left-over from the client-only duplicate impl;
-  // now that handleDuplicate persists and prepends to `events`, this
-  // shadow list isn't needed — keeping the alias for the JSX below.
-  const allEvents = events
-
-  // Apply the "non-tab" filters first (search, club, date range) so the
-  // tab counts below all reflect those narrowings — matches the
-  // search-aware tabs on /admin/users. Without this, counts always read
-  // the unfiltered totals and looked wrong next to a narrowed list.
-  const baseFiltered = allEvents.filter(e => {
-    if (clubFilter !== 'all' && e.clubId !== clubFilter) return false
-    if (dateFrom && e.date < dateFrom) return false
-    if (dateTo   && e.date > dateTo)   return false
-    if (search) {
-      const q = search.toLowerCase()
-      if (!e.title.toLowerCase().includes(q) && !e.neighborhood.toLowerCase().includes(q) && !(e.host?.name.toLowerCase().includes(q))) return false
-    }
-    return true
-  })
-
-  // "Upcoming" = published-style events with a future date. Cancelled
-  // and postponed events used to leak in because the old filter only
-  // excluded archived / pending / past.
-  function isUpcoming(e: AdminEvent): boolean {
+  // "Upcoming" = published-style events with a future date. Cancelled,
+  // postponed, archived, and pending all sit outside the bucket — the
+  // old filter only excluded archived/pending/past, letting cancelled
+  // events leak in.
+  const isUpcoming = useCallback((e: AdminEvent): boolean => {
     if (e.status === 'archived' || e.status === 'pending') return false
     if (e.status === 'cancelled' || e.status === 'postponed') return false
     if (e.date < today) return false
     return true
-  }
+  }, [today])
 
-  const visible = baseFiltered.filter(e => {
+  // Apply non-tab filters once and memoize, so the tab counts and the
+  // visible list both derive from the same narrowed source — matches
+  // the search-aware tabs pattern on /admin/users. Recomputing every
+  // render also wasted work proportional to events.length on every
+  // unrelated state change (selected, bulkBusy, etc.).
+  const baseFiltered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return events.filter(e => {
+      if (clubFilter !== 'all' && e.clubId !== clubFilter) return false
+      if (dateFrom && e.date < dateFrom) return false
+      if (dateTo   && e.date > dateTo)   return false
+      if (q && !e.title.toLowerCase().includes(q) && !e.neighborhood.toLowerCase().includes(q) && !(e.host?.name.toLowerCase().includes(q))) return false
+      return true
+    })
+  }, [events, search, clubFilter, dateFrom, dateTo])
+
+  const visible = useMemo(() => baseFiltered.filter(e => {
     if (tabStatus === 'upcoming') return isUpcoming(e)
     if (tabStatus === 'archived') return e.status === 'archived'
     if (tabStatus === 'pending')  return e.status === 'pending'
     return true  // 'all'
-  })
+  }), [baseFiltered, tabStatus, isUpcoming])
 
-  const upcomingCount = baseFiltered.filter(isUpcoming).length
-  const pendingCount  = baseFiltered.filter(e => e.status === 'pending').length
-  const archivedCount = baseFiltered.filter(e => e.status === 'archived').length
+  const { upcomingCount, pendingCount, archivedCount } = useMemo(() => ({
+    upcomingCount: baseFiltered.filter(isUpcoming).length,
+    pendingCount:  baseFiltered.filter(e => e.status === 'pending').length,
+    archivedCount: baseFiltered.filter(e => e.status === 'archived').length,
+  }), [baseFiltered, isUpcoming])
 
   return (
     <div className="p-4 sm:p-6 space-y-5">
@@ -416,7 +461,26 @@ export default function AdminEventsPage() {
         </div>
 
         <div className="divide-y divide-zinc-800">
-          {loading && <div className="px-6 py-16 text-center text-zinc-500 text-sm">Loading…</div>}
+          {/* Skeleton rows mirror the real row shape (checkbox + emoji
+              + title/club + date/price + fill bar + actions) so the
+              layout doesn't jump when data lands. Matches the bar
+              pattern on /admin/users + /admin/moderation. */}
+          {loading && [0, 1, 2, 3, 4].map(i => (
+            <div key={i} className="flex items-center gap-4 px-4 sm:px-6 py-4">
+              <div className="hidden md:block w-3.5 h-3.5 rounded bg-zinc-800 animate-pulse shrink-0" />
+              <div className="w-7 h-7 rounded-lg bg-zinc-800 animate-pulse shrink-0" />
+              <div className="flex-1 min-w-0 space-y-1.5">
+                <div className="h-3.5 w-1/2 rounded bg-zinc-800 animate-pulse" />
+                <div className="h-3 w-1/3 rounded bg-zinc-800/60 animate-pulse" />
+              </div>
+              <div className="hidden md:block space-y-1.5 w-20 shrink-0">
+                <div className="h-3 w-full rounded bg-zinc-800 animate-pulse" />
+                <div className="h-3 w-2/3 rounded bg-zinc-800/60 animate-pulse" />
+              </div>
+              <div className="hidden md:block w-12 h-1.5 rounded bg-zinc-800 animate-pulse shrink-0" />
+              <div className="h-7 w-20 rounded-lg bg-zinc-800 animate-pulse shrink-0" />
+            </div>
+          ))}
           {!loading && visible.length === 0 && (
             <div className="px-6 py-16 text-center text-zinc-500 text-sm">No events match your filters.</div>
           )}
