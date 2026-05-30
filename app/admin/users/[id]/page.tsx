@@ -409,17 +409,21 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      {/* Stats — four cards. grid-cols-3 left a single orphan card on
+          row 2 at every viewport because the data is 4-wide. Now 2 per
+          row on mobile (where text-3xl + p-5 in a 120px column was
+          cramped) and 4 per row from sm+ where there's screen space.
+          Padding scales with the column width. */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
         {[
           { label: 'Events attended', value: attendedEvents.length,  color: 'text-white' },
           { label: 'No-show rate',   value: pastJoined.length > 0 ? `${noShowRate}%` : '—', color: noShowRate >= 50 ? 'text-red-400' : noShowRate >= 25 ? 'text-amber-400' : 'text-green-400' },
           { label: 'Total spent',     value: `₺${totalSpent}`,       color: 'text-green-400' },
           { label: 'Days as member',  value: daysSinceJoin ?? '—',   color: 'text-white' },
         ].map(s => (
-          <div key={s.label} className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5">
-            <div className={`text-3xl font-extrabold ${s.color}`}>{s.value}</div>
-            <div className="text-sm text-zinc-500 mt-1">{s.label}</div>
+          <div key={s.label} className="bg-zinc-900 rounded-2xl border border-zinc-800 p-4 sm:p-5">
+            <div className={`text-2xl sm:text-3xl font-extrabold ${s.color}`}>{s.value}</div>
+            <div className="text-xs sm:text-sm text-zinc-500 mt-1">{s.label}</div>
           </div>
         ))}
       </div>

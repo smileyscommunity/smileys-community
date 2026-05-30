@@ -252,6 +252,11 @@ export default function AdminPage() {
           Shortcuts to the three most-common admin ops that otherwise need
           two clicks (open sidebar → click section → land on page). Pure
           link buttons; no new endpoints. */}
+      {/* Stacked icon+label tiles instead of an icon-only row. Old
+          layout hid the label below sm so phones got three tiny
+          icon-only chips with no context — admins had to remember
+          which icon meant which. Now each tile is a comfortable tap
+          target with a visible label at every viewport. */}
       <div className="grid grid-cols-3 gap-2">
         {[
           { href: '/admin/applications',                 label: 'Review apps',  icon: '👤' },
@@ -259,9 +264,9 @@ export default function AdminPage() {
           { href: '/admin/announcements?tab=announcement', label: 'Announce',   icon: '📣' },
         ].map(a => (
           <Link key={a.href} href={a.href}
-            className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-xl text-xs font-semibold text-zinc-300 transition-colors">
-            <span>{a.icon}</span>
-            <span className="hidden sm:inline">{a.label}</span>
+            className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-3 sm:py-2.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-xl text-[11px] sm:text-xs font-semibold text-zinc-300 transition-colors text-center">
+            <span className="text-base sm:text-sm leading-none">{a.icon}</span>
+            <span className="leading-tight">{a.label}</span>
           </Link>
         ))}
       </div>
