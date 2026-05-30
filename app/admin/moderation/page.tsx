@@ -70,14 +70,43 @@ const EVENT_STATUS_COLORS: Record<string, string> = {
   unpublished: 'bg-zinc-700 text-zinc-400',
 }
 
-type TabKey = 'reports' | 'messages' | 'events' | 'banned' | 'blacklist'
+type TabKey = 'reports' | 'messages' | 'events' | 'surveys' | 'banned' | 'blacklist'
 type StatusFilter = 'all' | 'pending' | 'actioned' | 'dismissed'
 
-const TAB_KEYS: TabKey[] = ['reports', 'messages', 'events', 'banned', 'blacklist']
+const TAB_KEYS: TabKey[] = ['reports', 'messages', 'events', 'surveys', 'banned', 'blacklist']
 const STATUS_KEYS: StatusFilter[] = ['all', 'pending', 'actioned', 'dismissed']
 
 export default function ModerationPage() {
   return <Suspense><ModerationPageInner /></Suspense>
+}
+
+// Compact stat tile used in the Surveys tab. Renders "—" when value
+// is null (no data yet) instead of a misleading "0%" or "0". Three
+// color modes: rate-high-good (would-return), rate-low-good
+// (anomaly), and raw (response count).
+function Stat({ label, value, trendPp, kind }: {
+  label:   string
+  value:   number | null
+  trendPp?: number | null
+  kind:    'rate-high-good' | 'rate-low-good' | 'raw'
+}) {
+  const color = value === null   ? 'text-zinc-600'
+    : kind === 'raw'             ? 'text-white'
+    : kind === 'rate-high-good'  ? (value >= 80 ? 'text-green-400' : value >= 60 ? 'text-amber-400' : 'text-red-400')
+    :                              (value === 0 ? 'text-green-400' : value < 5  ? 'text-amber-400' : 'text-red-400')
+  return (
+    <div>
+      <div className={`text-2xl sm:text-3xl font-extrabold ${color}`}>
+        {value === null ? '—' : kind === 'raw' ? value : `${value}%`}
+      </div>
+      <div className="text-[10px] sm:text-xs text-zinc-500 mt-0.5 uppercase tracking-wider">{label}</div>
+      {trendPp !== null && trendPp !== undefined && trendPp !== 0 && (
+        <div className={`text-[10px] mt-1 ${trendPp > 0 ? 'text-green-400' : 'text-red-400'}`}>
+          {trendPp > 0 ? '+' : ''}{trendPp}pp vs prior 30d
+        </div>
+      )}
+    </div>
+  )
 }
 
 function ModerationPageInner() {
@@ -100,6 +129,14 @@ function ModerationPageInner() {
   const [blacklist, setBlacklist] = useState<BlacklistEntry[]>([])
   const [messages,  setMessages]  = useState<EventMessage[]>([])
   const [queue,     setQueue]     = useState<QueueEvent[]>([])
+  // Survey rollup + recent responses. Null until the first fetch
+  // resolves so the tab can render a separate skeleton vs an
+  // "actually empty" state.
+  const [surveyData, setSurveyData] = useState<{
+    last30:  { responses: number; wouldReturnRate: number | null; anomalyRate: number | null; anomalies: number; rateTrendPp: number | null }
+    allTime: { responses: number; anomalies: number }
+    recent:  { id: string; createdAt: string; anomaly: boolean; anomalyNote: string | null; wouldReturn: boolean; event: { id: string; title: string; emoji: string; date: string; hostId: string | null } }[]
+  } | null>(null)
   const [loading,   setLoading]   = useState(true)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(initialStatus)
   // "From surveys" pill — filters to reports auto-created by the
@@ -179,14 +216,16 @@ function ModerationPageInner() {
       safe(fetch('/app/api/admin/events/approval', { credentials: 'include' })),
       isAdmin ? safe(fetch('/app/api/admin/users?status=banned', { credentials: 'include' })) : Promise.resolve(null),
       isAdmin ? safe(fetch('/app/api/admin/blacklist',           { credentials: 'include' })) : Promise.resolve(null),
+      isAdmin ? safe(fetch('/app/api/admin/surveys',             { credentials: 'include' })) : Promise.resolve(null),
     ]
 
-    Promise.all(all).then(([r, m, q, b, bl]) => {
+    Promise.all(all).then(([r, m, q, b, bl, sv]) => {
       setReports(Array.isArray(r) ? r : [])
       setMessages(Array.isArray(m) ? m : [])
       setQueue(Array.isArray(q) ? q : [])
       setBanned(Array.isArray(b)   ? b   : [])
       setBlacklist(Array.isArray(bl) ? bl : [])
+      if (sv && typeof sv === 'object' && 'last30' in sv) setSurveyData(sv)
       setLastRefresh(new Date())
     }).finally(() => { if (!background) setLoading(false) })
   }, [isAdmin])
@@ -414,6 +453,10 @@ function ModerationPageInner() {
     // it as a badge implied actionable work and made the tab look noisy.
     { key: 'messages', label: 'Messages',     badge: 0, adminOnly: false },
     { key: 'events',   label: 'Event Queue',  badge: queue.filter(e => e.status === 'published').length, adminOnly: false },
+    // Surveys badge = anomaly count from the last 30 days. Zero
+    // surfaces as no badge, which keeps the tab visually quiet on a
+    // healthy week and screams when there's something to look at.
+    { key: 'surveys',  label: 'Surveys ✿',    badge: surveyData?.last30.anomalies ?? 0, adminOnly: true },
     { key: 'banned',   label: 'Banned',       badge: banned.length, adminOnly: true },
     { key: 'blacklist',label: 'Blacklist',    badge: blacklist.length, adminOnly: true },
   ] as const
@@ -729,6 +772,86 @@ function ModerationPageInner() {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+
+      ) : tab === 'surveys' ? (
+        <div className="space-y-4">
+          {/* Stats card — same 30d shape as the dashboard widget for
+              consistency. Always renders so the tab has something even
+              before any responses land. */}
+          <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-4 sm:p-5">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h3 className="text-sm font-bold text-white">Last 30 days</h3>
+                <p className="text-xs text-zinc-500 mt-0.5">
+                  {surveyData ? `${surveyData.last30.responses} response${surveyData.last30.responses === 1 ? '' : 's'} · ${surveyData.allTime.responses} all-time` : 'Loading…'}
+                </p>
+              </div>
+              {surveyData && surveyData.last30.anomalies > 0 && (
+                <span className="text-xs font-bold px-2 py-1 rounded-full bg-red-500/15 text-red-400 border border-red-500/30 shrink-0">
+                  ⚠ {surveyData.last30.anomalies} flag{surveyData.last30.anomalies === 1 ? '' : 's'}
+                </span>
+              )}
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <Stat label="Would return"
+                value={surveyData?.last30.wouldReturnRate ?? null}
+                trendPp={surveyData?.last30.rateTrendPp ?? null}
+                kind="rate-high-good" />
+              <Stat label="Anomaly rate"
+                value={surveyData?.last30.anomalyRate ?? null}
+                kind="rate-low-good" />
+              <Stat label="Responses"
+                value={surveyData?.last30.responses ?? 0}
+                kind="raw" />
+            </div>
+          </div>
+
+          {/* Empty state vs recent list. The empty state isn't an
+              "uh oh nothing's working" message — it's a small primer
+              on when surveys land so admins know what to expect. */}
+          {!surveyData ? (
+            <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-10 text-center text-zinc-500 text-sm">Loading recent responses…</div>
+          ) : surveyData.recent.length === 0 ? (
+            <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-10 text-center">
+              <div className="text-3xl mb-2">✿</div>
+              <p className="text-zinc-300 text-sm font-medium">No survey responses yet</p>
+              <p className="text-zinc-500 text-xs mt-2 max-w-sm mx-auto">
+                Every event that ends gets a survey dispatched ~24h later to its approved attendees. Anomaly flags auto-file a Report under the Reports tab.
+              </p>
+            </div>
+          ) : (
+            <div className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
+              <div className="divide-y divide-zinc-800">
+                {surveyData.recent.map(r => (
+                  <Link key={r.id} href={`/admin/events/${r.event.id}/edit`}
+                    className="flex items-start gap-3 px-4 sm:px-5 py-3 hover:bg-zinc-800/50 transition-colors">
+                    <span className="text-lg shrink-0 mt-0.5">{r.event.emoji}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-semibold text-white truncate">{r.event.title}</span>
+                        <span className="text-[10px] text-zinc-600">{new Date(r.event.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
+                      </div>
+                      {r.anomaly && r.anomalyNote && (
+                        <p className="text-xs text-zinc-300 mt-1 italic leading-snug">"{r.anomalyNote}"</p>
+                      )}
+                      <p className="text-[10px] text-zinc-600 mt-1">
+                        Submitted {new Date(r.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${r.wouldReturn ? 'bg-green-500/15 text-green-400' : 'bg-red-500/15 text-red-400'}`}>
+                        {r.wouldReturn ? '✓ would return' : '✕ would not'}
+                      </span>
+                      {r.anomaly && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400">⚠ flagged</span>
+                      )}
+                    </div>
+                  </Link>
+                ))}
+              </div>
             </div>
           )}
         </div>
