@@ -22,6 +22,41 @@ interface WaitlistEntry {
   user: User; event: EventRef
 }
 
+// Shared row layout for the three tabs (pending / approved / waitlist).
+// All three render the same avatar + name/email + event-link structure;
+// only the leading slot (checkbox vs rank vs nothing), the row's
+// selection-highlight state, and the trailing actions differ. Pulled out
+// so a layout tweak (e.g. mobile breakpoint) hits one place.
+function ParticipantRow({
+  user, event, leading, selected, children,
+}: {
+  user:      User
+  event:     EventRef
+  leading?:  React.ReactNode
+  selected?: boolean
+  children:  React.ReactNode
+}) {
+  return (
+    <div className={`flex items-center gap-4 px-5 py-4 transition-colors ${selected ? 'bg-amber-500/5' : 'hover:bg-zinc-800/40'}`}>
+      {leading}
+      <UserAvatar user={user} />
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-white truncate">{user.name}</p>
+        <p className="text-xs text-zinc-500 truncate">{user.email}</p>
+      </div>
+      <div className="hidden sm:block min-w-0 flex-1">
+        <Link href={`/admin/events/${event.id}/participants`}
+          className="text-sm text-zinc-300 hover:text-amber-400 transition-colors truncate flex items-center gap-1.5">
+          <span>{event.emoji}</span>
+          <span className="truncate">{event.title}</span>
+        </Link>
+        <p className="text-xs text-zinc-600 mt-0.5">{formatShortDate(event.date)}</p>
+      </div>
+      {children}
+    </div>
+  )
+}
+
 export default function AdminParticipantsPage() {
   const [attendees,   setAttendees]   = useState<Attendee[]>([])
   const [waitlist,    setWaitlist]    = useState<WaitlistEntry[]>([])
@@ -281,22 +316,11 @@ export default function AdminParticipantsPage() {
                     {pending.map(a => {
                       const key = rowKey(a)
                       return (
-                        <div key={key} className={`flex items-center gap-4 px-5 py-4 transition-colors ${selected.has(key) ? 'bg-amber-500/5' : 'hover:bg-zinc-800/40'}`}>
-                          <input type="checkbox" checked={selected.has(key)} onChange={() => toggleSelect(key)}
-                            className="w-4 h-4 rounded accent-amber-500 shrink-0" />
-                          <UserAvatar user={a.user} />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-white truncate">{a.user.name}</p>
-                            <p className="text-xs text-zinc-500 truncate">{a.user.email}</p>
-                          </div>
-                          <div className="hidden sm:block min-w-0 flex-1">
-                            <Link href={`/admin/events/${a.eventId}/participants`}
-                              className="text-sm text-zinc-300 hover:text-amber-400 transition-colors truncate flex items-center gap-1.5">
-                              <span>{a.event.emoji}</span>
-                              <span className="truncate">{a.event.title}</span>
-                            </Link>
-                            <p className="text-xs text-zinc-600 mt-0.5">{formatShortDate(a.event.date)}</p>
-                          </div>
+                        <ParticipantRow key={key} user={a.user} event={a.event} selected={selected.has(key)}
+                          leading={
+                            <input type="checkbox" checked={selected.has(key)} onChange={() => toggleSelect(key)}
+                              className="w-4 h-4 rounded accent-amber-500 shrink-0" />
+                          }>
                           <div className="flex gap-2 shrink-0">
                             <button onClick={() => approve(a.userId, a.eventId)}
                               className="px-3 py-2 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 text-xs font-semibold transition-colors">
@@ -307,7 +331,7 @@ export default function AdminParticipantsPage() {
                               Reject
                             </button>
                           </div>
-                        </div>
+                        </ParticipantRow>
                       )
                     })}
                   </div>
@@ -324,20 +348,7 @@ export default function AdminParticipantsPage() {
               ) : (
                 <div className="divide-y divide-zinc-800">
                   {approved.map(a => (
-                    <div key={`${a.userId}-${a.eventId}`} className="flex items-center gap-4 px-5 py-4 hover:bg-zinc-800/40 transition-colors">
-                      <UserAvatar user={a.user} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-white truncate">{a.user.name}</p>
-                        <p className="text-xs text-zinc-500 truncate">{a.user.email}</p>
-                      </div>
-                      <div className="hidden sm:block min-w-0 flex-1">
-                        <Link href={`/admin/events/${a.eventId}/participants`}
-                          className="text-sm text-zinc-300 hover:text-amber-400 transition-colors truncate flex items-center gap-1.5">
-                          <span>{a.event.emoji}</span>
-                          <span className="truncate">{a.event.title}</span>
-                        </Link>
-                        <p className="text-xs text-zinc-600 mt-0.5">{formatShortDate(a.event.date)}</p>
-                      </div>
+                    <ParticipantRow key={`${a.userId}-${a.eventId}`} user={a.user} event={a.event}>
                       <div className="flex items-center gap-2 shrink-0">
                         {a.checkedIn && (
                           <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-green-500/10 text-green-400">Checked in</span>
@@ -347,7 +358,7 @@ export default function AdminParticipantsPage() {
                           Remove
                         </button>
                       </div>
-                    </div>
+                    </ParticipantRow>
                   ))}
                 </div>
               )}
@@ -362,26 +373,15 @@ export default function AdminParticipantsPage() {
               ) : (
                 <div className="divide-y divide-zinc-800">
                   {waitlist.map((w, i) => (
-                    <div key={`${w.userId}-${w.eventId}`} className="flex items-center gap-4 px-5 py-4 hover:bg-zinc-800/40 transition-colors">
-                      <span className="text-xs font-bold text-zinc-600 w-5 text-center shrink-0">{i + 1}</span>
-                      <UserAvatar user={w.user} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-white truncate">{w.user.name}</p>
-                        <p className="text-xs text-zinc-500 truncate">{w.user.email}</p>
-                      </div>
-                      <div className="hidden sm:block min-w-0 flex-1">
-                        <Link href={`/admin/events/${w.eventId}/participants`}
-                          className="text-sm text-zinc-300 hover:text-amber-400 transition-colors truncate flex items-center gap-1.5">
-                          <span>{w.event.emoji}</span>
-                          <span className="truncate">{w.event.title}</span>
-                        </Link>
-                        <p className="text-xs text-zinc-600 mt-0.5">{formatShortDate(w.event.date)}</p>
-                      </div>
+                    <ParticipantRow key={`${w.userId}-${w.eventId}`} user={w.user} event={w.event}
+                      leading={
+                        <span className="text-xs font-bold text-zinc-600 w-5 text-center shrink-0">{i + 1}</span>
+                      }>
                       <button onClick={() => promoteWaitlist(w)}
                         className="px-3 py-2 rounded-lg bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 text-xs font-semibold transition-colors shrink-0">
                         Approve
                       </button>
-                    </div>
+                    </ParticipantRow>
                   ))}
                 </div>
               )}
