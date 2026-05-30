@@ -248,10 +248,16 @@ function InnerPage() {
             </Link>
           )}
         </div>
-        <div className="grid grid-cols-3 gap-3">
+        {/* 2-up on mobile so each tile gets breathing room with the
+            text-3xl figure + uppercase label; back to 3 columns at
+            sm+ where the row has horizontal space. Responses spans
+            both columns on mobile so it fills the orphan slot
+            cleanly instead of half-row-stranded. */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <Stat label="Would return" value={last30?.wouldReturnRate ?? null} trendPp={last30?.rateTrendPp ?? null} kind="rate-high-good" />
           <Stat label="Anomaly rate" value={last30?.anomalyRate ?? null}                              kind="rate-low-good"  />
-          <Stat label="Responses"    value={last30 ? last30.responses : null}                         kind="raw"            />
+          <Stat label="Responses"    value={last30 ? last30.responses : null}                         kind="raw"
+            className="col-span-2 sm:col-span-1" />
         </div>
       </div>
 
@@ -488,18 +494,22 @@ function ListSkeleton() {
   )
 }
 
-function Stat({ label, value, trendPp, kind }: {
+function Stat({ label, value, trendPp, kind, className }: {
   label:   string
   value:   number | null
   trendPp?: number | null
   kind:    'rate-high-good' | 'rate-low-good' | 'raw'
+  // Forwarded to the wrapper so callers can pass grid spans
+  // (e.g. col-span-2 sm:col-span-1 for tiles that should fill the
+  // remainder of a 2-col mobile layout).
+  className?: string
 }) {
   const color = value === null   ? 'text-zinc-600'
     : kind === 'raw'             ? 'text-white'
     : kind === 'rate-high-good'  ? (value >= 80 ? 'text-green-400' : value >= 60 ? 'text-amber-400' : 'text-red-400')
     :                              (value === 0 ? 'text-green-400' : value < 5  ? 'text-amber-400' : 'text-red-400')
   return (
-    <div>
+    <div className={className}>
       <div className={`text-2xl sm:text-3xl font-extrabold ${color}`}>
         {value === null ? '—' : kind === 'raw' ? value : `${value}%`}
       </div>

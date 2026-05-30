@@ -323,7 +323,12 @@ export default function AdminPage() {
               </span>
             )}
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          {/* 2-up on mobile so each tile gets breathing room with the
+              text-3xl figure + uppercase label; back to 3 columns at
+              sm+ where the row has horizontal space. Responses spans
+              both columns on mobile so it fills the orphan slot
+              cleanly instead of half-row-stranded. */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <div>
               <div className={`text-2xl sm:text-3xl font-extrabold ${
                 stats.quality.wouldReturnRate === null  ? 'text-zinc-600'
@@ -351,7 +356,7 @@ export default function AdminPage() {
               </div>
               <div className="text-[10px] sm:text-xs text-zinc-500 mt-0.5 uppercase tracking-wider">Anomaly rate</div>
             </div>
-            <div>
+            <div className="col-span-2 sm:col-span-1">
               <div className="text-2xl sm:text-3xl font-extrabold text-white">{stats.quality.responses}</div>
               <div className="text-[10px] sm:text-xs text-zinc-500 mt-0.5 uppercase tracking-wider">Responses</div>
               {stats.quality.responsesTrend !== 0 && (
