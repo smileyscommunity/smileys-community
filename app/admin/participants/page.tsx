@@ -11,7 +11,21 @@ interface User {
   id: string; name: string; color: string; email: string; profilePhoto?: string | null
 }
 interface EventRef {
-  id: string; title: string; date: string; emoji: string
+  id: string; title: string; date: string; emoji: string; status: string
+}
+
+// Pill colors mirror /admin/events so the moderator sees the same
+// vocabulary in both places. Past/draft/archived collapse to zinc
+// because nothing needs urgent action on a closed event.
+function eventStatusPill(status: string, dateStr: string): { label: string; cls: string } {
+  const isPast = dateStr < new Date().toISOString().slice(0, 10)
+  if (status === 'cancelled') return { label: 'Cancelled', cls: 'bg-red-500/10 text-red-400' }
+  if (status === 'postponed') return { label: 'Postponed', cls: 'bg-amber-500/10 text-amber-400' }
+  if (status === 'archived')  return { label: 'Archived',  cls: 'bg-zinc-700 text-zinc-400' }
+  if (status === 'draft')     return { label: 'Draft',     cls: 'bg-zinc-700 text-zinc-400' }
+  if (status === 'pending')   return { label: 'Pending',   cls: 'bg-amber-500/10 text-amber-400' }
+  if (isPast)                 return { label: 'Past',      cls: 'bg-zinc-700 text-zinc-400' }
+  return { label: 'Live', cls: 'bg-green-500/10 text-green-400' }
 }
 interface Attendee {
   userId: string; eventId: string; status: string; checkedIn: boolean; joinedAt: string
@@ -175,8 +189,32 @@ export default function AdminParticipantsPage() {
   // bulkSaving toggle, tab switch, focus) don't re-filter the whole
   // attendees list every render. Same pattern as /admin/events and the
   // search-aware tabs on /admin/users.
+  //
+  // pending stays in the server's joinedAt-asc order — longest-waiting
+  // request surfaces first so a moderator clearing a backlog hits the
+  // most overdue cases up top. approved flips to joinedAt-desc because
+  // "what changed recently?" is the natural question on that tab.
   const pending  = useMemo(() => attendees.filter(a => a.status === 'pending'),  [attendees])
-  const approved = useMemo(() => attendees.filter(a => a.status === 'approved'), [attendees])
+  const approved = useMemo(
+    () => attendees.filter(a => a.status === 'approved')
+      .slice().sort((x, y) => y.joinedAt.localeCompare(x.joinedAt)),
+    [attendees],
+  )
+
+  // Group pending requests by event so the Pending tab gets section
+  // headers showing event title + status pill + count. Before this,
+  // moderators staring at a flat list couldn't tell that 8 of the 12
+  // pending requests belonged to a cancelled event. Order matches the
+  // event's date (soonest first) so urgent events bubble up.
+  const pendingByEvent = useMemo(() => {
+    const groups = new Map<string, { event: EventRef; rows: Attendee[] }>()
+    for (const a of pending) {
+      const g = groups.get(a.eventId)
+      if (g) g.rows.push(a)
+      else groups.set(a.eventId, { event: a.event, rows: [a] })
+    }
+    return [...groups.values()].sort((a, b) => a.event.date.localeCompare(b.event.date))
+  }, [pending])
 
   // Bulk runner — tracks per-id success in a Set so a partial 500
   // only flips the rows that actually changed. Previously Promise.all
@@ -304,39 +342,61 @@ export default function AdminParticipantsPage() {
                 </div>
               )}
 
-              <div className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
-                {pending.length === 0 ? (
-                  <div className="py-16 text-center">
-                    <div className="text-4xl mb-3">✅</div>
-                    <p className="text-zinc-400 font-medium">No pending requests</p>
-                    <p className="text-zinc-600 text-sm mt-1">All caught up!</p>
-                  </div>
-                ) : (
-                  <div className="divide-y divide-zinc-800">
-                    {pending.map(a => {
-                      const key = rowKey(a)
-                      return (
-                        <ParticipantRow key={key} user={a.user} event={a.event} selected={selected.has(key)}
-                          leading={
-                            <input type="checkbox" checked={selected.has(key)} onChange={() => toggleSelect(key)}
-                              className="w-4 h-4 rounded accent-amber-500 shrink-0" />
-                          }>
-                          <div className="flex gap-2 shrink-0">
-                            <button onClick={() => approve(a.userId, a.eventId)}
-                              className="px-3 py-2 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 text-xs font-semibold transition-colors">
-                              Approve
-                            </button>
-                            <button onClick={() => reject(a.userId, a.eventId)}
-                              className="px-3 py-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 text-xs font-semibold transition-colors">
-                              Reject
-                            </button>
-                          </div>
-                        </ParticipantRow>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
+              {pending.length === 0 ? (
+                <div className="bg-zinc-900 rounded-2xl border border-zinc-800 py-16 text-center">
+                  <div className="text-4xl mb-3">✅</div>
+                  <p className="text-zinc-400 font-medium">No pending requests</p>
+                  <p className="text-zinc-600 text-sm mt-1">All caught up!</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {pendingByEvent.map(group => {
+                    const pill = eventStatusPill(group.event.status, group.event.date)
+                    return (
+                      <div key={group.event.id} className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
+                        {/* Section header — event identity + status pill +
+                            count. The status pill is the load-bearing part:
+                            it stops moderators silently approving people
+                            into a cancelled / postponed event. */}
+                        <div className="flex items-center gap-2 px-5 py-3 border-b border-zinc-800 bg-zinc-800/40">
+                          <span>{group.event.emoji}</span>
+                          <Link href={`/admin/events/${group.event.id}/participants`}
+                            className="text-sm font-bold text-white hover:text-amber-400 transition-colors truncate">
+                            {group.event.title}
+                          </Link>
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${pill.cls}`}>{pill.label}</span>
+                          <span className="text-xs text-zinc-500 ml-auto shrink-0">
+                            {formatShortDate(group.event.date)} · {group.rows.length} pending
+                          </span>
+                        </div>
+                        <div className="divide-y divide-zinc-800">
+                          {group.rows.map(a => {
+                            const key = rowKey(a)
+                            return (
+                              <ParticipantRow key={key} user={a.user} event={a.event} selected={selected.has(key)}
+                                leading={
+                                  <input type="checkbox" checked={selected.has(key)} onChange={() => toggleSelect(key)}
+                                    className="w-4 h-4 rounded accent-amber-500 shrink-0" />
+                                }>
+                                <div className="flex gap-2 shrink-0">
+                                  <button onClick={() => approve(a.userId, a.eventId)}
+                                    className="px-3 py-2 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 text-xs font-semibold transition-colors">
+                                    Approve
+                                  </button>
+                                  <button onClick={() => reject(a.userId, a.eventId)}
+                                    className="px-3 py-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 text-xs font-semibold transition-colors">
+                                    Reject
+                                  </button>
+                                </div>
+                              </ParticipantRow>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </>
           )}
 

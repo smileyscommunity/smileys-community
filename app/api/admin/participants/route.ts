@@ -4,7 +4,11 @@ import { getSession } from '@/lib/session'
 import { isAdmin, isClubHost } from '@/lib/access'
 
 const userSelect  = { id: true, name: true, color: true, email: true, profilePhoto: true }
-const eventSelect = { id: true, title: true, date: true, emoji: true }
+// status is needed by /admin/participants so each event's section
+// header can show a status pill (live / draft / cancelled / etc.) —
+// without it, the admin moderating bulk requests can't tell that
+// they're approving people into a cancelled event.
+const eventSelect = { id: true, title: true, date: true, emoji: true, status: true }
 
 export async function GET() {
   try {
