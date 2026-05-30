@@ -48,6 +48,7 @@ function CheckInPageInner() {
   // gracefully and the row spinner only shows on the row that's busy.
   // Set-shape mirrors how the bulk pages track inflight work.
   const [toggling,      setToggling]      = useState<Set<string>>(new Set())
+  const searchRef                          = useRef<HTMLInputElement>(null)
   // Default to today-only (matching /host/checkin). Admins can opt back
   // into the full list for prepping tomorrow's check-in or fixing
   // yesterday's data, but the dropdown is no longer choked with months
@@ -74,6 +75,28 @@ function CheckInPageInner() {
   useEffect(() => () => {
     if (lastCheckedTimer.current) clearTimeout(lastCheckedTimer.current)
     if (scanResultTimer.current)  clearTimeout(scanResultTimer.current)
+  }, [])
+
+  // Keyboard shortcuts for the high-throughput check-in flow:
+  //   / → focus search (skipped when already typing in a field)
+  //   Esc → clear search when focused, so a missed-name retry is fast
+  // Guards against form-element targets so typing "/" in the search
+  // doesn't trap focus, and against modifier keys so browser shortcuts
+  // (Cmd+/, Ctrl+/) still reach the system.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null
+      const inField = target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable
+      if (e.key === '/' && !inField && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault()
+        searchRef.current?.focus()
+      } else if (e.key === 'Escape' && document.activeElement === searchRef.current) {
+        setSearch('')
+        searchRef.current?.blur()
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
   }, [])
 
   useEffect(() => {
@@ -218,10 +241,21 @@ function CheckInPageInner() {
   }, [attendees, selectedId, flashLastChecked, flashScanResult])
 
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col max-w-lg mx-auto">
+    // Desktop admins reviewing a long list shouldn't be punished by the
+    // mobile-kiosk column width — caps at max-w-lg on phones, max-w-3xl
+    // (~768px) on lg+ where there's screen to use. flex-col + flex-1
+    // overflow-y-auto used to constrain the list to its own scroll so
+    // the header stayed pinned by accident; with `min-h-screen` the
+    // inner container sometimes exceeded viewport and outer-main
+    // scrolled instead, taking the header off-screen. Now header +
+    // search are explicitly sticky to the outer scroll, and the list
+    // scrolls with the page like every other admin surface.
+    <div className="min-h-screen bg-black text-white max-w-lg lg:max-w-3xl mx-auto">
 
-      {/* Header */}
-      <div className="px-4 pt-5 pb-3 border-b border-zinc-800">
+      {/* Sticky header — event picker + scan button + stats stay
+          in view while the operator scrolls a long attendee list. */}
+      <div className="sticky top-0 z-20 bg-black border-b border-zinc-800">
+      <div className="px-4 pt-5 pb-3">
         <div className="flex items-center justify-between mb-2">
           <h1 className="text-lg font-bold">Check-In</h1>
           <button
@@ -304,19 +338,24 @@ function CheckInPageInner() {
       </div>
 
       {/* Search */}
-      <div className="px-4 py-3 border-b border-zinc-800">
+      <div className="px-4 py-3 border-t border-zinc-800">
         <input
+          ref={searchRef}
           type="text"
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="Search by name or email…"
+          placeholder="Search by name or email… ( / to focus )"
           autoComplete="off"
           className="w-full bg-zinc-900 border border-zinc-700 text-white text-base rounded-xl px-4 py-3 placeholder-zinc-600 focus:outline-none focus:border-zinc-500"
         />
       </div>
+      </div>
 
-      {/* Attendee list */}
-      <div className="flex-1 divide-y divide-zinc-900 overflow-y-auto">
+      {/* Attendee list — scrolls with the page now that header+search
+          are sticky. Old flex-1 + overflow-y-auto constrained the list
+          to its own internal scroll, which only worked when the inner
+          container exactly matched viewport height. */}
+      <div className="divide-y divide-zinc-900">
         {loadingAtts && (
           <div className="px-4 py-10 text-center text-zinc-500 text-sm">Loading attendees…</div>
         )}
