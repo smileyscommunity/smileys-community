@@ -5,8 +5,9 @@ import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { toast } from 'sonner'
 import { Suspense } from 'react'
 import { getInitials, todayIstanbul } from '@/lib/data'
-import { parseCheckinQR, vibrate } from '@/lib/checkin'
+import { vibrate, useScanCheckin } from '@/lib/checkin'
 import QRScanner from '@/components/QRScanner'
+import ScanResultToast from '@/components/ScanResultToast'
 
 interface Event {
   id: string
@@ -24,11 +25,6 @@ interface Attendee {
   user: { id: string; name: string; color: string; email: string }
 }
 
-interface ScanResult {
-  type: 'success' | 'already' | 'notfound' | 'invalid'
-  name?: string
-}
-
 function CheckInPageInner() {
   const searchParams    = useSearchParams()
   const router          = useRouter()
@@ -42,8 +38,6 @@ function CheckInPageInner() {
   const [loadingAtts,   setLoadingAtts]   = useState(false)
   const [search,        setSearch]        = useState('')
   const [lastChecked,   setLastChecked]   = useState<string | null>(null)
-  const [scanning,      setScanning]      = useState(false)
-  const [scanResult,    setScanResult]    = useState<ScanResult | null>(null)
   // Per-row saving state — keyed by attendee.id so multiple taps queue
   // gracefully and the row spinner only shows on the row that's busy.
   // Set-shape mirrors how the bulk pages track inflight work.
@@ -55,26 +49,17 @@ function CheckInPageInner() {
   // of events the moment you open the page.
   const [showAllEvents, setShowAllEvents] = useState(false)
 
-  // Shared refs for both visual timers (lastChecked highlight + scan
-  // result toast). Storing them in refs lets us cancel the previous
-  // timeout when a new check-in lands and clear both on unmount, so a
-  // scanner kiosk that's been running all evening doesn't leak handles
-  // or fire setState on an unmounted page.
+  // lastChecked highlight timer (the scan-result timer now lives inside
+  // useScanCheckin). Ref pattern so a busy kiosk doesn't accumulate
+  // pending setStates on the heap.
   const lastCheckedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const scanResultTimer  = useRef<ReturnType<typeof setTimeout> | null>(null)
   const flashLastChecked = useCallback((userId: string) => {
     setLastChecked(userId)
     if (lastCheckedTimer.current) clearTimeout(lastCheckedTimer.current)
     lastCheckedTimer.current = setTimeout(() => setLastChecked(null), 1500)
   }, [])
-  const flashScanResult = useCallback((result: ScanResult, ms = 3000) => {
-    setScanResult(result)
-    if (scanResultTimer.current) clearTimeout(scanResultTimer.current)
-    scanResultTimer.current = setTimeout(() => setScanResult(null), ms)
-  }, [])
   useEffect(() => () => {
     if (lastCheckedTimer.current) clearTimeout(lastCheckedTimer.current)
-    if (scanResultTimer.current)  clearTimeout(scanResultTimer.current)
   }, [])
 
   // Keyboard shortcuts for the high-throughput check-in flow:
@@ -188,57 +173,15 @@ function CheckInPageInner() {
     }
   }
 
-  const handleScan = useCallback(async (raw: string) => {
-    setScanning(false)
-
-    // Shared parser accepts both the member-card format and the legacy
-    // event-bound format — older codes used to fail silently on the
-    // admin page because it only recognised the new one.
-    const userId = parseCheckinQR(raw, selectedId)
-    if (!userId) {
-      vibrate.error()
-      flashScanResult({ type: 'invalid' })
-      return
-    }
-
-    const attendee = attendees.find(a => a.userId === userId)
-
-    if (!attendee) {
-      vibrate.error()
-      flashScanResult({ type: 'notfound' })
-      return
-    }
-
-    if (attendee.checkedIn) {
-      vibrate.alreadyCheckedIn()
-      flashScanResult({ type: 'already', name: attendee.user.name })
-      return
-    }
-
-    // Check them in. Old impl flipped the optimistic state, fired the
-    // PATCH, and called the scan a success without ever inspecting the
-    // response. A 500 would leave the row showing "checked in" forever
-    // while the server still said otherwise. Now we await + roll back
-    // on failure.
-    setAttendees(prev => prev.map(a => a.userId === userId ? { ...a, checkedIn: true } : a))
-    flashLastChecked(userId)
-    try {
-      const res = await fetch(`/app/api/events/${selectedId}/checkin`, {
-        method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, checkedIn: true }),
-      })
-      if (!res.ok) throw new Error()
-      vibrate.success()
-      flashScanResult({ type: 'success', name: attendee.user.name })
-    } catch {
-      setAttendees(prev => prev.map(a => a.userId === userId ? { ...a, checkedIn: false } : a))
-      vibrate.error()
-      flashScanResult({ type: 'notfound', name: attendee.user.name })  // surfaces via the red toast
-      toast.error(`Failed to check in ${attendee.user.name}`)
-    }
-  }, [attendees, selectedId, flashLastChecked, flashScanResult])
+  // useScanCheckin owns the scan flow (parse → look up → vibrate →
+  // optimistic PATCH with rollback → toast). flashLastChecked still
+  // happens here as the admin-only highlight side-effect.
+  const { scanning, setScanning, scanResult, handleScan } = useScanCheckin({
+    eventId:           selectedId,
+    attendees,
+    setAttendees,
+    onCheckinSuccess:  flashLastChecked,
+  })
 
   return (
     // Desktop admins reviewing a long list shouldn't be punished by the
@@ -420,19 +363,9 @@ function CheckInPageInner() {
         <QRScanner onScan={handleScan} onClose={() => setScanning(false)} />
       )}
 
-      {/* Scan result toast */}
-      {scanResult && (
-        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-2xl shadow-2xl text-sm font-semibold flex items-center gap-2 ${
-          scanResult.type === 'success'  ? 'bg-green-500 text-white' :
-          scanResult.type === 'already' ? 'bg-amber-500 text-white' :
-          'bg-red-500 text-white'
-        }`}>
-          {scanResult.type === 'success'  && <><span>✓</span><span>{scanResult.name} checked in!</span></>}
-          {scanResult.type === 'already'  && <><span>↩</span><span>{scanResult.name} already checked in</span></>}
-          {scanResult.type === 'notfound' && <><span>✕</span><span>Not registered for this event</span></>}
-          {scanResult.type === 'invalid'  && <><span>✕</span><span>Invalid QR code</span></>}
-        </div>
-      )}
+      {/* Scan result toast — shared component handles the per-type
+          color, icon, and copy so the two pages can't drift again. */}
+      <ScanResultToast result={scanResult} position="bottom" />
     </div>
   )
 }

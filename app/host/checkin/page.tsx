@@ -3,8 +3,9 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { resolveImageUrl, getInitials, todayIstanbul } from '@/lib/data'
-import { parseCheckinQR, vibrate } from '@/lib/checkin'
+import { vibrate, useScanCheckin } from '@/lib/checkin'
 import SwipeRow from '@/components/SwipeRow'
+import ScanResultToast from '@/components/ScanResultToast'
 import dynamic from 'next/dynamic'
 
 const QRScanner = dynamic(() => import('@/components/QRScanner'), { ssr: false })
@@ -76,8 +77,14 @@ function CheckInScanner() {
   const [search,      setSearch]      = useState('')
   const [eventName,   setEventName]   = useState('')
   const [toggling,    setToggling]    = useState<string | null>(null)
-  const [scanning,    setScanning]    = useState(false)
-  const [scanResult,  setScanResult]  = useState<{ name: string; ok: boolean } | null>(null)
+
+  // useScanCheckin owns scan parse + look-up + optimistic PATCH with
+  // rollback + vibrate + toast lifecycle. Same hook /admin/checkin
+  // uses — keeps the two surfaces from drifting on QR formats, scan
+  // result shape, haptics, or wording.
+  const { scanning, setScanning, scanResult, handleScan } = useScanCheckin({
+    eventId, attendees, setAttendees,
+  })
 
   useEffect(() => {
     if (!eventId) return
@@ -104,45 +111,6 @@ function CheckInScanner() {
     setToggling(null)
   }
 
-  async function handleQRScan(value: string) {
-    setScanning(false)
-    const userId = parseCheckinQR(value, eventId)
-
-    if (!userId) {
-      vibrate.error()
-      setScanResult({ name: 'Invalid QR code', ok: false })
-      setTimeout(() => setScanResult(null), 3000)
-      return
-    }
-
-    const attendee = attendees.find(a => a.userId === userId)
-    if (!attendee) {
-      vibrate.error()
-      setScanResult({ name: 'Not on the guest list', ok: false })
-      setTimeout(() => setScanResult(null), 3000)
-      return
-    }
-    if (attendee.checkedIn) {
-      vibrate.alreadyCheckedIn()
-      setScanResult({ name: `${attendee.user.name} — already checked in`, ok: true })
-      setTimeout(() => setScanResult(null), 2500)
-      return
-    }
-    const res = await fetch(`/app/api/events/${eventId}/checkin`, {
-      method: 'PATCH', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, checkedIn: true }),
-    })
-    if (res.ok) {
-      setAttendees(prev => prev.map(a => a.userId === userId ? { ...a, checkedIn: true } : a))
-      vibrate.success()
-      setScanResult({ name: attendee.user.name, ok: true })
-    } else {
-      vibrate.error()
-      setScanResult({ name: 'Check-in failed', ok: false })
-    }
-    setTimeout(() => setScanResult(null), 3000)
-  }
 
   const checkedInCount = attendees.filter(a => a.checkedIn).length
   const visible = attendees.filter(a =>
@@ -153,15 +121,9 @@ function CheckInScanner() {
 
   return (
     <div className="space-y-4">
-      {scanning && <QRScanner onScan={handleQRScan} onClose={() => setScanning(false)} />}
+      {scanning && <QRScanner onScan={handleScan} onClose={() => setScanning(false)} />}
 
-      {scanResult && (
-        <div className={`fixed top-4 left-4 right-4 z-40 px-4 py-3 rounded-2xl text-sm font-semibold text-center shadow-xl ${
-          scanResult.ok ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
-        }`}>
-          {scanResult.ok ? '✓ ' : '✕ '}{scanResult.name}
-        </div>
-      )}
+      <ScanResultToast result={scanResult} position="top" />
 
       {/* Header */}
       <div className="flex items-center gap-3">
