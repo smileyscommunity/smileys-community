@@ -90,7 +90,17 @@ function CheckInPageInner() {
       .then(data => {
         const list = Array.isArray(data) ? data.filter((e: Event) => e.status !== 'cancelled' && e.status !== 'archived') : []
         setEvents(list)
-        if (!defaultEventId && list.length > 0) setSelectedId(list[0].id)
+        // Snap a stale `?event=` to today's first event. Without this a
+        // bookmark or kiosk URL captured during yesterday's event would
+        // re-open on a past event today — exactly the "expired events
+        // show up in check-in" complaint. The currently-selected event
+        // stays accessible behind the "Show all events" toggle for
+        // admins fixing yesterday's data.
+        const today      = todayIstanbul()
+        const todayList  = list.filter((e: Event) => e.date === today)
+        const fallback   = todayList[0]?.id ?? list[0]?.id ?? ''
+        const stillValid = defaultEventId && list.some((e: Event) => e.id === defaultEventId && e.date >= today)
+        if (!stillValid) setSelectedId(fallback)
       })
       .finally(() => setLoadingEvents(false))
   // defaultEventId is intentionally read once on mount — adding it to
@@ -132,17 +142,29 @@ function CheckInPageInner() {
   const checkedInCount = attendees.filter(a => a.checkedIn).length
   const event = events.find(e => e.id === selectedId)
 
-  // Event picker scope. Default to "today" so a kiosk operator opens
-  // the page and sees only the events they're actually checking people
-  // into. The "Show all" toggle below the dropdown reveals the full
-  // list (still excluding archived/cancelled — those are filtered at
-  // fetch time). The currently-selected event is always included so a
-  // deep link to a past event still shows its title in the dropdown.
+  // Event picker scope. Default to "today + future" so a kiosk left
+  // open past midnight no longer surfaces the previous day's events.
+  // "Show all" reveals everything for admins fixing yesterday's data.
   const visibleEvents = useMemo(() => {
     if (showAllEvents) return events
     const today = todayIstanbul()
-    return events.filter(e => e.date === today || e.id === selectedId)
-  }, [events, showAllEvents, selectedId])
+    return events.filter(e => e.date >= today)
+  }, [events, showAllEvents])
+
+  // If toggling back from "Show all" with a past event selected, snap
+  // to the first current/future event so the dropdown doesn't render
+  // with no matching option. Same guard runs after the initial fetch
+  // via the `defaultEventId` check, this covers the post-fetch
+  // user-driven path.
+  useEffect(() => {
+    if (showAllEvents || !selectedId || events.length === 0) return
+    const today    = todayIstanbul()
+    const current  = events.find(e => e.id === selectedId)
+    if (current && current.date < today) {
+      const next = events.find(e => e.date >= today)
+      if (next) setSelectedId(next.id)
+    }
+  }, [showAllEvents, selectedId, events])
 
   async function toggle(a: Attendee) {
     if (toggling.has(a.id)) return  // ignore double-taps while inflight
