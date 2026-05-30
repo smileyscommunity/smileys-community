@@ -79,7 +79,6 @@ export default function AdminEventsPage() {
   const [events,     setEvents]     = useState<AdminEvent[]>([])
   const [clubs,      setClubs]      = useState<Club[]>([])
   const [loading,    setLoading]    = useState(true)
-  const [duplicated, setDuplicated] = useState<AdminEvent[]>([])
   const [search,     setSearch]     = useState('')
   const [tabStatus,  setTabStatus]  = useState<'all' | 'upcoming' | 'pending' | 'archived'>('upcoming')
   const [clubFilter, setClubFilter] = useState('all')
@@ -89,6 +88,10 @@ export default function AdminEventsPage() {
   const [bulkBusy,   setBulkBusy]   = useState(false)
 
   useEffect(() => {
+    // Previously setLoading(true) was only called on mount, so clicking
+    // a tab left the previous tab's data on screen until the new fetch
+    // landed — looked instant but was actually stale.
+    setLoading(true)
     const archived = tabStatus === 'archived' ? '?archived=1' : ''
     const pending  = tabStatus === 'pending'  ? '?status=pending' : ''
     Promise.all([
@@ -134,56 +137,104 @@ export default function AdminEventsPage() {
     }
   }
 
+  // PATCH allowlist on the server is `published / flagged / unpublished
+  // / pending` — admins can hit those as moderators too. Anything else
+  // (cancelled, postponed, draft, archived) goes through PUT which
+  // requires admin. Using PATCH where allowed keeps moderators able to
+  // publish from the ⋯ menu — previously this always went through PUT
+  // and would 403 a moderator.
+  const PATCH_STATUSES = new Set(['published', 'flagged', 'unpublished', 'pending'])
+
   async function handleStatusChange(id: string, newStatus: string) {
     if (newStatus === 'cancelled' && !window.confirm('Cancel event? Attendees will be notified.')) return
+    const method = PATCH_STATUSES.has(newStatus) ? 'PATCH' : 'PUT'
     const res = await fetch(`/app/api/admin/events/${id}`, {
-      method: 'PUT', credentials: 'include',
+      method, credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: newStatus }),
     })
     if (res.ok) {
       setEvents(prev => prev.map(e => e.id === id ? { ...e, status: newStatus } : e))
       toast.success(`Status → ${newStatus}`)
+    } else {
+      const d = await res.json().catch(() => ({}))
+      toast.error(d.error ?? 'Failed to update status')
     }
   }
 
-  function handleDuplicate(event: AdminEvent) {
-    setDuplicated(prev => [{ ...event, id: `dup-${Date.now()}`, title: `${event.title} (Copy)`, date: today }, ...prev])
-    toast.success('Duplicated ✓')
+  async function handleDuplicate(event: AdminEvent) {
+    // Real server-side duplicate now — the old impl just inserted a
+    // client-only row with id `dup-${Date.now()}` that vanished on
+    // reload and 404'd on any subsequent Edit/Delete. New endpoint
+    // clones the source as a fresh draft with today's date.
+    const res = await fetch(`/app/api/admin/events/${event.id}/duplicate`, {
+      method: 'POST', credentials: 'include',
+    })
+    if (res.ok) {
+      const copy = await res.json()
+      setEvents(prev => [copy, ...prev])
+      toast.success('Duplicated ✓')
+    } else {
+      const d = await res.json().catch(() => ({}))
+      toast.error(d.error ?? 'Failed to duplicate')
+    }
+  }
+
+  // Bulk runner — tracks which ids actually completed so a partial 500
+  // only mutates the rows that really changed. Previously Promise.all
+  // dropped per-request status entirely and the toast claimed full
+  // success even on full failure.
+  async function bulkRun(label: string, work: (id: string) => Promise<boolean>, onSuccess: (ids: Set<string>) => void) {
+    if (selected.size === 0) return
+    setBulkBusy(true)
+    const results = await Promise.all([...selected].map(async id => ({ id, ok: await work(id).catch(() => false) })))
+    const ok = new Set(results.filter(r => r.ok).map(r => r.id))
+    const fail = results.length - ok.size
+    if (ok.size) onSuccess(ok)
+    setSelected(new Set())
+    setBulkBusy(false)
+    if (ok.size) toast.success(`${label}: ${ok.size} done`)
+    if (fail)    toast.error(`${label}: ${fail} failed`)
   }
 
   async function bulkCancel() {
-    if (!window.confirm(`Cancel ${selected.size} events?`)) return
-    setBulkBusy(true)
-    await Promise.all([...selected].map(id =>
-      fetch(`/app/api/admin/events/${id}`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'cancelled' }) })
-    ))
-    setEvents(prev => prev.map(e => selected.has(e.id) ? { ...e, status: 'cancelled' } : e))
-    setSelected(new Set()); setBulkBusy(false)
-    toast.success(`${selected.size} events cancelled`)
+    if (!window.confirm(`Cancel ${selected.size} events? Attendees will be notified.`)) return
+    await bulkRun('Cancel', async (id) => {
+      const res = await fetch(`/app/api/admin/events/${id}`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'cancelled' }),
+      })
+      return res.ok
+    }, (ok) => {
+      setEvents(prev => prev.map(e => ok.has(e.id) ? { ...e, status: 'cancelled' } : e))
+    })
   }
 
   async function bulkDelete() {
     if (!window.confirm(`Delete ${selected.size} events?`)) return
-    setBulkBusy(true)
-    await Promise.all([...selected].map(id =>
-      fetch(`/app/api/admin/events/${id}`, { method: 'DELETE', credentials: 'include' })
-    ))
-    setEvents(prev => prev.filter(e => !selected.has(e.id)))
-    setSelected(new Set()); setBulkBusy(false)
-    toast.success(`${selected.size} events deleted`)
+    await bulkRun('Delete', async (id) => {
+      const res = await fetch(`/app/api/admin/events/${id}`, { method: 'DELETE', credentials: 'include' })
+      return res.ok
+    }, (ok) => {
+      setEvents(prev => prev.filter(e => !ok.has(e.id)))
+    })
   }
 
   function toggleSelect(id: string) {
     setSelected(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
   }
 
-  const allEvents = [...duplicated, ...events]
+  // `duplicated` was a left-over from the client-only duplicate impl;
+  // now that handleDuplicate persists and prepends to `events`, this
+  // shadow list isn't needed — keeping the alias for the JSX below.
+  const allEvents = events
 
-  const visible = allEvents.filter(e => {
-    if (tabStatus === 'upcoming' && (e.status === 'archived' || e.status === 'pending' || e.date < today)) return false
-    if (tabStatus === 'archived' && e.status !== 'archived') return false
-    if (tabStatus === 'pending'  && e.status !== 'pending')  return false
+  // Apply the "non-tab" filters first (search, club, date range) so the
+  // tab counts below all reflect those narrowings — matches the
+  // search-aware tabs on /admin/users. Without this, counts always read
+  // the unfiltered totals and looked wrong next to a narrowed list.
+  const baseFiltered = allEvents.filter(e => {
     if (clubFilter !== 'all' && e.clubId !== clubFilter) return false
     if (dateFrom && e.date < dateFrom) return false
     if (dateTo   && e.date > dateTo)   return false
@@ -194,9 +245,26 @@ export default function AdminEventsPage() {
     return true
   })
 
-  const upcomingCount = allEvents.filter(e => e.status !== 'archived' && e.status !== 'pending').length
-  const pendingCount  = allEvents.filter(e => e.status === 'pending').length
-  const archivedCount = allEvents.filter(e => e.status === 'archived').length
+  // "Upcoming" = published-style events with a future date. Cancelled
+  // and postponed events used to leak in because the old filter only
+  // excluded archived / pending / past.
+  function isUpcoming(e: AdminEvent): boolean {
+    if (e.status === 'archived' || e.status === 'pending') return false
+    if (e.status === 'cancelled' || e.status === 'postponed') return false
+    if (e.date < today) return false
+    return true
+  }
+
+  const visible = baseFiltered.filter(e => {
+    if (tabStatus === 'upcoming') return isUpcoming(e)
+    if (tabStatus === 'archived') return e.status === 'archived'
+    if (tabStatus === 'pending')  return e.status === 'pending'
+    return true  // 'all'
+  })
+
+  const upcomingCount = baseFiltered.filter(isUpcoming).length
+  const pendingCount  = baseFiltered.filter(e => e.status === 'pending').length
+  const archivedCount = baseFiltered.filter(e => e.status === 'archived').length
 
   return (
     <div className="p-4 sm:p-6 space-y-5">
@@ -206,7 +274,7 @@ export default function AdminEventsPage() {
         <div>
           <h1 className="text-2xl font-extrabold text-white">Events</h1>
           <p className="text-sm text-zinc-500 mt-0.5">
-            {loading ? 'Loading…' : <><span className="text-white font-bold">{allEvents.length}</span> total · {upcomingCount} upcoming</>}
+            {loading ? 'Loading…' : <><span className="text-white font-bold">{events.length}</span> total · {upcomingCount} upcoming</>}
           </p>
         </div>
         <Link href="/admin/events/new"
@@ -222,10 +290,13 @@ export default function AdminEventsPage() {
       <div className="space-y-2">
         <div className="flex gap-1 bg-zinc-800 rounded-xl p-1 overflow-x-auto scrollbar-hide">
           {([
-            { key: 'all',      label: 'All',      count: allEvents.length },
-            { key: 'upcoming', label: 'Upcoming', count: upcomingCount    },
-            { key: 'pending',  label: 'Pending',  count: pendingCount     },
-            { key: 'archived', label: 'Past',     count: archivedCount    },
+            // Tab counts mirror the active search / club / date filters
+            // — same fix as /admin/users. The 'All' count reads from the
+            // search-narrowed baseFiltered, not the raw fetch.
+            { key: 'all',      label: 'All',      count: baseFiltered.length },
+            { key: 'upcoming', label: 'Upcoming', count: upcomingCount       },
+            { key: 'pending',  label: 'Pending',  count: pendingCount        },
+            { key: 'archived', label: 'Past',     count: archivedCount       },
           ] as const).map(tab => (
             <button key={tab.key} onClick={() => setTabStatus(tab.key)}
               className={`shrink-0 px-3 py-2 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
@@ -252,10 +323,13 @@ export default function AdminEventsPage() {
             <option value="all">All clubs</option>
             {clubs.map(c => <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}
           </select>
-          <input type="text" value={dateFrom} onChange={e => setDateFrom(e.target.value)} placeholder="From YYYY-MM-DD"
-            className="text-xs px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500 w-36" />
-          <input type="text" value={dateTo} onChange={e => setDateTo(e.target.value)} placeholder="To YYYY-MM-DD"
-            className="text-xs px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500 w-36" />
+          {/* Native date pickers — `type="text"` placeholders forced
+              admins to hand-type yyyy-mm-dd with no validation. Same
+              treatment the other admin pages got. */}
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+            className="text-xs px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500" />
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+            className="text-xs px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500" />
           {(dateFrom || dateTo) && (
             <button onClick={() => { setDateFrom(''); setDateTo('') }} className="text-xs text-zinc-500 hover:text-white transition-colors px-2">✕ Clear</button>
           )}
@@ -311,14 +385,19 @@ export default function AdminEventsPage() {
             const isPast     = event.date < today
             const isFeatured = event.featured
 
+            // Status cascade — pending used to fall through to "Live",
+            // making approval-required events look already published in
+            // the list.
             const statusLabel = event.status === 'cancelled' ? 'Cancelled'
               : event.status === 'postponed' ? 'Postponed'
               : event.status === 'archived'  ? 'Archived'
               : event.status === 'draft'     ? 'Draft'
+              : event.status === 'pending'   ? 'Pending'
               : isPast                       ? 'Past' : 'Live'
 
             const statusCls = event.status === 'cancelled' ? 'bg-red-500/10 text-red-400'
               : event.status === 'postponed' ? 'bg-amber-500/10 text-amber-400'
+              : event.status === 'pending'   ? 'bg-amber-500/10 text-amber-400'
               : (event.status === 'draft' || event.status === 'archived' || isPast) ? 'bg-zinc-700 text-zinc-400'
               : 'bg-green-500/10 text-green-400'
 
@@ -472,7 +551,7 @@ export default function AdminEventsPage() {
 
         {visible.length > 0 && (
           <div className="px-6 py-3 border-t border-zinc-800 bg-zinc-800/30 text-xs text-zinc-500">
-            Showing {visible.length} of {allEvents.length} events
+            Showing {visible.length} of {events.length} events
           </div>
         )}
       </div>
