@@ -108,7 +108,9 @@ function ModerationPageInner() {
   // triaged differently from member-filed reports (the reporter is
   // anonymous to the host; the host is the responsible party but
   // not necessarily the offender).
-  const [surveyOnly, setSurveyOnly] = useState(false)
+  // URL-initialised so /admin/feedback's "⚠ N flags →" pill can deep-
+  // link straight into the filtered Reports view via `?surveyOnly=1`.
+  const [surveyOnly, setSurveyOnly] = useState(searchParams.get('surveyOnly') === '1')
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
   const [, setTick] = useState(0)  // 1s tick so the "Updated Xs ago" label ages
 
@@ -225,12 +227,13 @@ function ModerationPageInner() {
     const params = new URLSearchParams(searchParams.toString())
     if (tab !== 'reports') params.set('tab', tab); else params.delete('tab')
     if (tab === 'reports' && statusFilter !== 'all') params.set('status', statusFilter); else params.delete('status')
+    if (tab === 'reports' && surveyOnly) params.set('surveyOnly', '1'); else params.delete('surveyOnly')
     const q = params.toString()
     router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false })
   // searchParams excluded — including it would re-fire on the URL change
   // we just made and create an infinite loop.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, statusFilter, pathname, router])
+  }, [tab, statusFilter, surveyOnly, pathname, router])
 
   const refreshLabel = (() => {
     if (!lastRefresh) return ''
