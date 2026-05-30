@@ -175,7 +175,13 @@ export default function BannersPage() {
                             }`}>
                               {b.active ? 'Active' : 'Draft'}
                             </span>
-                            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {/* md:opacity-0 + md:group-hover keeps the
+                                clean hover-reveal on desktop while
+                                showing the controls unconditionally on
+                                touch — previously the entire button
+                                cluster was unreachable from mobile
+                                because there's no hover on touch. */}
+                            <div className="flex items-center gap-2 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                               <button onClick={() => toggleActive(p.key, b.id)} className="p-1 text-zinc-500 hover:text-white" title={b.active ? 'Deactivate' : 'Activate'}>
                                 {b.active ? '⏸' : '▶'}
                               </button>

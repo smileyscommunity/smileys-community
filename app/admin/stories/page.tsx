@@ -386,7 +386,12 @@ export default function StoriesPage() {
                 <div key={p.id} className={`relative group rounded-2xl overflow-hidden bg-zinc-800 ${!p.active ? 'opacity-40' : ''}`}>
                   <img src={resolveImageUrl(p.url)} alt={p.caption ?? ''}
                     className="w-full aspect-square object-cover" />
-                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-3">
+                  {/* Desktop hover overlay — covers the photo on hover
+                      with caption/event + actions. Hidden on touch (md
+                      and below) because there's no hover, leaving the
+                      tile a dead surface with no way to toggle or
+                      delete a photo on mobile. */}
+                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity hidden md:flex flex-col items-center justify-center gap-2 p-3">
                     {p.caption && <p className="text-xs text-white text-center font-medium leading-snug">{p.caption}</p>}
                     {p.event   && <p className="text-xs text-amber-400 text-center">{p.event}</p>}
                     <div className="flex gap-2 mt-1">
@@ -397,6 +402,29 @@ export default function StoriesPage() {
                       <button onClick={() => deletePhoto(p.id)}
                         className="text-xs font-bold px-2.5 py-1 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors">
                         Delete
+                      </button>
+                    </div>
+                  </div>
+                  {/* Mobile always-visible action strip — bottom of the
+                      tile, semi-transparent so the photo stays
+                      readable. Caption/event live in the strip too so
+                      mobile admins see the same metadata the desktop
+                      overlay shows. */}
+                  <div className="md:hidden absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/60 to-transparent p-2 space-y-1">
+                    {(p.caption || p.event) && (
+                      <div className="text-[10px] leading-snug">
+                        {p.caption && <p className="text-white font-medium truncate">{p.caption}</p>}
+                        {p.event   && <p className="text-amber-400 truncate">{p.event}</p>}
+                      </div>
+                    )}
+                    <div className="flex gap-1.5">
+                      <button onClick={() => togglePhoto(p)}
+                        className={`flex-1 text-[10px] font-bold px-2 py-1 rounded-md ${p.active ? 'bg-green-500/30 text-green-300' : 'bg-white/20 text-zinc-200'}`}>
+                        {p.active ? 'Live' : 'Hidden'}
+                      </button>
+                      <button onClick={() => deletePhoto(p.id)}
+                        className="text-[10px] font-bold px-2 py-1 rounded-md bg-red-500/30 text-red-300">
+                        ✕
                       </button>
                     </div>
                   </div>

@@ -420,7 +420,7 @@ export default function AdminListingsPage() {
                     <div className="flex items-center gap-2 justify-end">
                       <button
                         onClick={() => openEdit(l)}
-                        className="text-xs text-amber-400 hover:text-amber-300 font-semibold px-3 py-2 rounded-lg hover:bg-amber-500/10 transition-colors opacity-0 group-hover:opacity-100"
+                        className="text-xs text-amber-400 hover:text-amber-300 font-semibold px-3 py-2 rounded-lg hover:bg-amber-500/10 transition-colors md:opacity-0 md:group-hover:opacity-100"
                       >
                         Edit
                       </button>
@@ -434,7 +434,7 @@ export default function AdminListingsPage() {
                       ) : (
                         <button
                           onClick={() => handleDelete(l.id)}
-                          className="text-xs text-red-400 hover:text-red-300 font-semibold px-3 py-2 rounded-lg hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100"
+                          className="text-xs text-red-400 hover:text-red-300 font-semibold px-3 py-2 rounded-lg hover:bg-red-500/10 transition-colors md:opacity-0 md:group-hover:opacity-100"
                         >
                           Remove
                         </button>
