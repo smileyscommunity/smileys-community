@@ -43,6 +43,8 @@ const ICONS: Record<string, JSX.Element> = {
   articles:     <Icon d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />,
   content:      <Icon d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />,
   board:        <Icon d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />,
+  // Speech-bubble / message icon — reads as "feedback / response."
+  feedback:     <Icon d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />,
 }
 
 const NAV_GROUPS = [
@@ -72,9 +74,14 @@ const NAV_GROUPS = [
   {
     label: 'Events',
     items: [
-      { label: 'Events',       href: '/admin/events',       exact: false, roles: ['admin', 'host'],       icon: 'events'       },
-      { label: 'Participants', href: '/admin/participants',  exact: false, roles: ['admin', 'host'],       icon: 'participants' },
-      { label: 'Check-In',    href: '/admin/checkin',       exact: false, roles: ['admin', 'host'],       icon: 'checkin'      },
+      { label: 'Events',       href: '/admin/events',       exact: false, roles: ['admin', 'host'],            icon: 'events'       },
+      { label: 'Participants', href: '/admin/participants',  exact: false, roles: ['admin', 'host'],            icon: 'participants' },
+      { label: 'Check-In',     href: '/admin/checkin',       exact: false, roles: ['admin', 'host'],            icon: 'checkin'      },
+      // Feedback ✿ = post-event safety + quality surveys. Lives here
+      // because it's per-event signal, not a moderation action. The
+      // auto-filed anomaly Reports still surface under Moderation
+      // (where they get triaged).
+      { label: 'Feedback',     href: '/admin/feedback',      exact: false, roles: ['admin', 'moderator'],       icon: 'feedback'     },
     ],
   },
   {
