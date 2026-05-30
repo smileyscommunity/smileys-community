@@ -68,4 +68,11 @@ ssh "$SERVER" "cd $REMOTE && npm install --legacy-peer-deps && npx prisma genera
 echo "→ Registering hangouts sweeper crontab..."
 ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-hangouts.sh && (crontab -l 2>/dev/null | grep -v 'sweep-hangouts' ; echo '*/15 * * * * $REMOTE/scripts/sweep-hangouts.sh >> /var/log/sweep-hangouts.log 2>&1') | crontab -"
 
+# Install the post-event survey dispatch cron. Hourly — events end on
+# variable schedules and we only need to land in the 24h-7d window
+# once per event. Idempotent in the same way as the hangouts cron
+# above: existing line is stripped before the fresh one lands.
+echo "→ Registering event-survey sweeper crontab..."
+ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-event-surveys.sh && (crontab -l 2>/dev/null | grep -v 'sweep-event-surveys' ; echo '5 * * * * $REMOTE/scripts/sweep-event-surveys.sh >> /var/log/sweep-event-surveys.log 2>&1') | crontab -"
+
 echo "✓ Done (release: $SENTRY_RELEASE)"

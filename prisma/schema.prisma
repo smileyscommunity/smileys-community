@@ -133,6 +133,8 @@ model User {
   // Multi-city hosting capabilities (separate from ClubMembership
   // role='host' which is per-club).
   cityHostings     CityHost[]
+  // Post-event survey responses this user has submitted.
+  eventSurveys     EventSurvey[]
 
   @@map("users")
 }
@@ -410,6 +412,11 @@ model Event {
   hostId               String
   createdAt            DateTime  @default(now())
 
+  // Set once the post-event survey dispatch has run for this event.
+  // Drives idempotency on the cron — the sweep picks events with a
+  // null surveyDispatchedAt and stamps this after notifying attendees.
+  surveyDispatchedAt   DateTime?
+
   club      Club?           @relation(fields: [clubId], references: [id])
   attendees EventAttendee[]
   reviews   Review[]
@@ -418,6 +425,7 @@ model Event {
   tags      EventTag[]
   cohosts   EventCoHost[]
   photos    EventPhoto[]
+  surveys   EventSurvey[]
 
   // Events belong to a city. Derivable from the parent club today,
   // but storing it directly lets the events feed filter by the
@@ -461,6 +469,41 @@ model EventCoHost {
   @@index([eventId])
   @@index([userId])
   @@map("event_cohosts")
+}
+
+// Post-event safety + quality signal. Two-question survey sent ~24h
+// after an event ends. The wedge: none of the open-marketplace
+// competitors (Internations, Meetup, Couchsurfing) have the trust to
+// ask members "anything off?" — Smileys does, and that compounds.
+//
+//   anomaly       — Q1 "Anything off?". When true, the submit endpoint
+//                   auto-files a Report against the event's host so
+//                   moderators can review. anomalyNote carries the
+//                   free-text detail.
+//   wouldReturn   — Q2 "Would you go again?". The single best per-event
+//                   quality signal. Aggregates roll up to host + club
+//                   level for the curation moat.
+//
+// The userId stays server-side only — it's used to gate "one response
+// per attendee" via the unique constraint and to support follow-up
+// moderator outreach when an anomaly is reported. It's never exposed
+// to the host in any UI.
+model EventSurvey {
+  id          String   @id @default(cuid())
+  eventId     String
+  userId      String
+  anomaly     Boolean  // "Anything off?" yes/no
+  anomalyNote String?  // optional free-text detail
+  wouldReturn Boolean  // "Would you go again?"
+  createdAt   DateTime @default(now())
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@index([eventId])
+  @@index([anomaly])
+  @@map("event_surveys")
 }
 
 model TagGroup {
