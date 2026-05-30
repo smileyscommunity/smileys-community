@@ -130,6 +130,10 @@ model User {
   blocksGiven      MemberBlock[] @relation("BlockGiver")
   blocksReceived   MemberBlock[] @relation("BlockReceiver")
 
+  // Multi-city hosting capabilities (separate from ClubMembership
+  // role='host' which is per-club).
+  cityHostings     CityHost[]
+
   @@map("users")
 }
 
@@ -261,18 +265,49 @@ model City {
   // itself stays English-first; this is for outbound comms only.
   defaultLang String   @default("en")
   status      String   @default("launching") // launching | live | paused
-  // Optional: the local lead for this city. Carries no auth power on
-  // its own — the user still needs role='admin' or 'moderator' to
-  // moderate — this field is for credit / contact / display only.
-  leadUserId  String?
+  // The city's consul — appointed local lead. One per city. Carries
+  // no auth power on its own (moderation still goes through role +
+  // canActInCity) but defines the public face of Smileys in this
+  // city: profile, contact, equity / revenue share, etc. Renders as
+  // a "Smileys [City] · [Name] ✿" badge in member-facing surfaces.
+  consulUserId String?
   createdAt   DateTime @default(now())
 
   users        User[]
   clubs        Club[]
   events       Event[]
   applications MemberApplication[]
+  cityHosts    CityHost[]
 
   @@map("cities")
+}
+
+// CityHost is a per-city operational hosting capability — separate
+// from club hosting (ClubMembership.role='host'). A city host can
+// create events that aren't tied to a club: welcome weeks, cross-
+// club socials, holidays, civic events. Consuls and admins implicitly
+// have this capability; CityHost is for everyone else granted the
+// scope.
+//
+// status=approved is the working state; revoked stays in the table
+// for audit/history (deleting would lose the grantedBy trail). The
+// canHostInCity helper filters by status.
+model CityHost {
+  id        String   @id @default(cuid())
+  userId    String
+  cityId    String
+  status    String   @default("approved") // approved | revoked
+  grantedBy String?  // admin who promoted this user
+  grantedAt DateTime @default(now())
+  revokedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  city City @relation(fields: [cityId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, cityId])
+  @@index([cityId])
+  @@index([userId])
+  @@map("city_hosts")
 }
 
 model Club {
@@ -366,11 +401,16 @@ model Event {
   femaleQuota          Int?
   turkishMaleQuota     Int?
   updatedAt            DateTime  @default(now()) @updatedAt
-  clubId               String
+  // clubId is now optional. Events with a club still belong to a
+  // curated sub-brand (Sailing Club, Eat Up Istanbul); events
+  // without one are city-level events created by a CityHost or
+  // consul (welcome weeks, cross-club socials, civic events). cityId
+  // remains required regardless.
+  clubId               String?
   hostId               String
   createdAt            DateTime  @default(now())
 
-  club      Club            @relation(fields: [clubId], references: [id])
+  club      Club?           @relation(fields: [clubId], references: [id])
   attendees EventAttendee[]
   reviews   Review[]
   payments  Payment[]

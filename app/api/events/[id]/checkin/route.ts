@@ -13,6 +13,9 @@ async function canManageEvent(sessionId: string, eventId: string, sessionRole: s
   if (event.hostId === sessionId) return true
   const cohost = await prisma.eventCoHost.findUnique({ where: { eventId_userId: { eventId, userId: sessionId } } })
   if (cohost) return true
+  // City-level events (clubId === null) have no club host fallback —
+  // gate strictly on host / co-host / admin above.
+  if (!event.clubId) return false
   const membership = await prisma.clubMembership.findFirst({
     where: { userId: sessionId, clubId: event.clubId, role: 'host', status: 'approved' },
   })

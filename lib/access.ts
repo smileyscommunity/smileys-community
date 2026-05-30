@@ -181,3 +181,71 @@ export async function isClubHostFor(userId: string, clubId: string): Promise<boo
   })
   return m?.status === 'approved' && m?.role === 'host'
 }
+
+// ── City-level host capabilities ──────────────────────────────────────────
+//
+// Three layers of city-level hosting authority, ordered by status:
+//   1. admin           — global, can host anywhere
+//   2. city consul     — appointed lead for that city (City.consulUserId)
+//   3. city host       — granted operational hosting (CityHost row)
+//
+// canHostInCity combines them so callers don't have to re-implement
+// the cascade. Club hosting (ClubMembership.role='host') is separate
+// and per-club — handled by isClubHostFor above.
+
+/** Is `userId` the appointed consul for `cityId`? Cheap single query. */
+export async function isCityConsul(userId: string, cityId: string): Promise<boolean> {
+  const city = await prisma.city.findUnique({
+    where:  { id: cityId },
+    select: { consulUserId: true },
+  })
+  return city?.consulUserId === userId
+}
+
+/** Has `userId` been granted city-host status (approved) for `cityId`? */
+export async function isCityHost(userId: string, cityId: string): Promise<boolean> {
+  const row = await prisma.cityHost.findUnique({
+    where:  { userId_cityId: { userId, cityId } },
+    select: { status: true },
+  })
+  return row?.status === 'approved'
+}
+
+/**
+ * Can the session host events in this city WITHOUT a club affiliation?
+ * Used by the events-create flow when the new event has no clubId.
+ *
+ *   - Admins: yes, anywhere.
+ *   - Consul of the city: yes.
+ *   - User with an approved CityHost row for the city: yes.
+ *   - Otherwise: no.
+ *
+ * Note: a club host is NOT automatically a city host. Hosting a club
+ * series doesn't make you an authority on city-wide programming —
+ * those need explicit promotion.
+ */
+export async function canHostInCity(session: SessionUser, cityId: string): Promise<boolean> {
+  if (session.role === 'admin') return true
+  if (await isCityConsul(session.id, cityId)) return true
+  if (await isCityHost(session.id, cityId))   return true
+  return false
+}
+
+/**
+ * Top-level event-creation authority. The caller passes the proposed
+ * event's cityId (always required now) and clubId (optional — null/
+ * undefined for city-level events).
+ *
+ *   - Admin: yes.
+ *   - Club event (clubId set): must be a club host of that club.
+ *   - City event (no clubId):  must be admin / consul / city host.
+ */
+export async function canCreateEvent(
+  session: SessionUser,
+  cityId: string,
+  clubId?: string | null,
+): Promise<boolean> {
+  if (session.role === 'admin') return true
+  if (clubId) return isClubHostFor(session.id, clubId)
+  return canHostInCity(session, cityId)
+}
