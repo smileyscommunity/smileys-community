@@ -90,15 +90,18 @@ function CheckInPageInner() {
       .then(data => {
         const list = Array.isArray(data) ? data.filter((e: Event) => e.status !== 'cancelled' && e.status !== 'archived') : []
         setEvents(list)
-        // Snap a stale `?event=` to today's first event. Without this a
-        // bookmark or kiosk URL captured during yesterday's event would
-        // re-open on a past event today — exactly the "expired events
-        // show up in check-in" complaint. The currently-selected event
-        // stays accessible behind the "Show all events" toggle for
-        // admins fixing yesterday's data.
+        // Snap a stale `?event=` to today's first (or next future)
+        // event. Without this a bookmark or kiosk URL captured during
+        // yesterday's event would re-open on a past event today —
+        // exactly the "expired events show up in check-in" complaint.
+        // The API returns events in date-asc order so list[0] is the
+        // OLDEST event in the DB; using it as the fallback is what made
+        // the kiosk land on ancient past events when nothing is today.
+        // Now we explicitly pick the first event that's today or later;
+        // if none exists the dropdown shows the empty-state copy.
+        // Admins fixing yesterday's data still get there via "Show all".
         const today      = todayIstanbul()
-        const todayList  = list.filter((e: Event) => e.date === today)
-        const fallback   = todayList[0]?.id ?? list[0]?.id ?? ''
+        const fallback   = list.find((e: Event) => e.date >= today)?.id ?? ''
         const stillValid = defaultEventId && list.some((e: Event) => e.id === defaultEventId && e.date >= today)
         if (!stillValid) setSelectedId(fallback)
       })
