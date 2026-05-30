@@ -311,9 +311,16 @@ function InnerPage() {
         {/* Date range row */}
         <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
           <span className="font-semibold">When</span>
-          <button onClick={() => applyPreset(7)}  className="px-2 py-1 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700 transition-colors">7d</button>
-          <button onClick={() => applyPreset(30)} className="px-2 py-1 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700 transition-colors">30d</button>
-          <button onClick={() => applyPreset(90)} className="px-2 py-1 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700 transition-colors">90d</button>
+          {/* Preset windows. 7d/30d/90d cover the operational triage
+              cadence; 180d/365d cover quarterly retrospectives and
+              annual reviews where the longer baseline matters for
+              comparing host or club performance over time. */}
+          {[7, 30, 90, 180, 365].map(d => (
+            <button key={d} onClick={() => applyPreset(d)}
+              className="px-2 py-1 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700 transition-colors">
+              {d === 365 ? '1y' : `${d}d`}
+            </button>
+          ))}
           <span className="text-zinc-700">|</span>
           <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
             className="px-2 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:ring-1 focus:ring-amber-500" />
