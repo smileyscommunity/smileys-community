@@ -367,11 +367,15 @@ function AdminEventsPageInner() {
           </p>
         </div>
         <Link href="/admin/events/new"
-          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-colors shrink-0">
+          className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-colors shrink-0"
+          title="Create event">
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
           </svg>
-          Create event
+          {/* Label hides below sm: so the button doesn't crowd the header
+              text on a 360px viewport. Icon + title attribute keep the
+              affordance accessible. */}
+          <span className="hidden sm:inline">Create event</span>
         </Link>
       </div>
 
@@ -602,20 +606,25 @@ function AdminEventsPageInner() {
                   <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
                     <div className={`h-full rounded-full ${fillPct >= 80 ? 'bg-red-400' : 'bg-amber-400'}`} style={{ width: `${fillPct}%` }} />
                   </div>
-                  <div className="flex items-center justify-between gap-2">
-                    {host ? (
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div className="w-5 h-5 rounded-full overflow-hidden flex items-center justify-center text-white text-[9px] font-bold shrink-0" style={{ backgroundColor: host.color }}>
-                          {host.profilePhoto ? <img src={resolveImageUrl(host.profilePhoto)} alt={host.name} className="w-full h-full object-cover" /> : getInitials(host.name)}
-                        </div>
-                        <span className="text-xs text-zinc-400 truncate">{host.name}</span>
+                  {/* Host on its own line, actions on the next — used to
+                      share one flex row with `justify-between` and a
+                      phantom `<div />` filler when there was no host.
+                      With up to 5 action controls (Approve + Attendees +
+                      Featured + Edit + ⋯) + the host avatar/name, the
+                      row overflowed on a 360px viewport. Two-row layout
+                      gives actions full width and drops the filler. */}
+                  {host && (
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-5 h-5 rounded-full overflow-hidden flex items-center justify-center text-white text-[9px] font-bold shrink-0" style={{ backgroundColor: host.color }}>
+                        {host.profilePhoto ? <img src={resolveImageUrl(host.profilePhoto)} alt={host.name} className="w-full h-full object-cover" /> : getInitials(host.name)}
                       </div>
-                    ) : <div />}
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <RowActions event={event} isFeatured={isFeatured}
-                        onApprove={approveEvent} onToggleFeatured={toggleFeatured}
-                        onStatusChange={handleStatusChange} onDuplicate={handleDuplicate} onDelete={handleDelete} />
+                      <span className="text-xs text-zinc-400 truncate">{host.name}</span>
                     </div>
+                  )}
+                  <div className="flex items-center justify-end gap-1.5 -mr-1">
+                    <RowActions event={event} isFeatured={isFeatured}
+                      onApprove={approveEvent} onToggleFeatured={toggleFeatured}
+                      onStatusChange={handleStatusChange} onDuplicate={handleDuplicate} onDelete={handleDelete} />
                   </div>
                 </div>
 
@@ -687,7 +696,7 @@ function AdminEventsPageInner() {
         </div>
 
         {visible.length > 0 && (
-          <div className="px-6 py-3 border-t border-zinc-800 bg-zinc-800/30 text-xs text-zinc-500">
+          <div className="px-4 sm:px-6 py-3 border-t border-zinc-800 bg-zinc-800/30 text-xs text-zinc-500">
             Showing {visible.length} of {events.length} events
           </div>
         )}
