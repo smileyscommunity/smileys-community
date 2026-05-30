@@ -223,9 +223,15 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     const before = await prisma.event.findUnique({
       where: { id },
-      select: { title: true, hostId: true, clubId: true, status: true },
+      select: { title: true, hostId: true, clubId: true, status: true, cityId: true },
     })
     if (!before) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+    // City scope — moderators can only change status on events in
+    // their own city. Admins act globally.
+    if (!isAdmin(session) && session.cityId !== before.cityId) {
+      return NextResponse.json({ error: 'Cross-city moderation is admin-only' }, { status: 403 })
+    }
 
     const event = await prisma.event.update({ where: { id }, data: { status } })
 

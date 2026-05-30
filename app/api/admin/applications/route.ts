@@ -51,6 +51,18 @@ export async function PATCH(req: NextRequest) {
 
     const { id, status, suggestion, reviewNote, assignedClubs, rejectionMessage, welcomeMessage, moreInfoMessage } = await req.json()
 
+    // City-scope check — fetch the application's target city so a
+    // Berlin moderator can't suggest on / decide an Istanbul-targeted
+    // application by hitting the API directly. Admins act globally.
+    const target = await prisma.memberApplication.findUnique({
+      where:  { id },
+      select: { targetCityId: true },
+    })
+    if (!target) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    if (!isAdmin(session) && session.cityId !== target.targetCityId) {
+      return NextResponse.json({ error: 'Cross-city moderation is admin-only' }, { status: 403 })
+    }
+
     // Moderators can only suggest — not set final status
     if (!isAdmin(session) && status !== undefined && status !== null) {
       return NextResponse.json({ error: 'Moderators cannot set final status' }, { status: 403 })

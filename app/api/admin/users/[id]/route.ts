@@ -1,4 +1,4 @@
-import { canManageUsers, canViewUserList, canSuspendUsers } from '@/lib/access'
+import { canManageUsers, canViewUserList, canSuspendUsers, canActInCity } from '@/lib/access'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
@@ -74,9 +74,19 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const { id } = await params
     const body = await req.json()
 
+    // Fetch the target's cityId early — every capability check below
+    // needs it to verify cross-city moderator escalation isn't
+    // happening. Bundles with the `before` snapshot we'd be fetching
+    // for the audit log anyway so this isn't an extra round-trip.
+    const target = await prisma.user.findUnique({
+      where: { id },
+      select: { role: true, status: true, name: true, email: true, phone: true, suspendedUntil: true, cityId: true },
+    })
+    if (!target) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
     // Re-engagement notification shortcut
     if (body._reengage) {
-      if (!canManageUsers(session) && !canSuspendUsers(session)) {
+      if (!canManageUsers(session) && !canSuspendUsers(session, target.cityId)) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
       const { createNotification } = await import('@/lib/notify')
@@ -84,11 +94,20 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return NextResponse.json({ ok: true })
     }
 
-    // Capability Checks
+    // Capability Checks — moderators are scoped to their own city so a
+    // Berlin mod can't suspend an Istanbul user via a direct API call
+    // even if they hold the id.
     const adminPrivilege = canManageUsers(session)
-    const modPrivilege   = canSuspendUsers(session)
+    const modPrivilege   = canSuspendUsers(session, target.cityId)
 
     if (!adminPrivilege && !modPrivilege) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    // Belt-and-braces: even an admin operating cross-city sees the
+    // canActInCity result, so a future "admins can be city-scoped"
+    // toggle would just work without rewiring this check.
+    if (!canActInCity(session, target.cityId) && !adminPrivilege) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -147,11 +166,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       allowed.suspendedBy = session.id
     }
 
-    // Capture before state for richer audit descriptions
-    const before = await prisma.user.findUnique({
-      where: { id },
-      select: { role: true, status: true, name: true, email: true, phone: true, suspendedUntil: true },
-    })
+    // Capture before state for richer audit descriptions — reuses
+    // the earlier fetch since we already pulled the target row for
+    // the city-scope check.
+    const before = target
 
     // role is read from the JWT body (not refreshed from DB by getSession), so a
     // demoted admin would keep session.role === 'admin' until their next login

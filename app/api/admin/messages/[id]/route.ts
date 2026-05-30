@@ -16,9 +16,17 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     const { id } = await params
     const msg = await prisma.eventMessage.findUnique({
       where: { id },
-      select: { id: true, userId: true, eventId: true, message: true },
+      select: {
+        id: true, userId: true, eventId: true, message: true,
+        // Event's city scopes moderator action — a Berlin mod can't
+        // delete messages from Istanbul events.
+        event: { select: { cityId: true } },
+      },
     })
     if (!msg) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    if (!canModerateMessages(session, msg.event.cityId)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
     await prisma.eventMessage.delete({ where: { id } })
     writeAudit(session.id, session.name, 'message.delete', id, 'eventMessage',

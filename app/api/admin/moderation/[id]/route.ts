@@ -25,8 +25,16 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const report = await prisma.report.findUnique({ where: { id } })
     if (!report) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-    // Fetch reported user name for richer descriptions
-    const reported = await prisma.user.findUnique({ where: { id: report.reportedId }, select: { name: true } })
+    // Fetch reported user — name for audit descriptions, cityId for
+    // cross-city scope check. Moderators can only action reports
+    // against users in their own city; admins act globally.
+    const reported = await prisma.user.findUnique({
+      where:  { id: report.reportedId },
+      select: { name: true, cityId: true },
+    })
+    if (!isAdmin(session) && reported && session.cityId !== reported.cityId) {
+      return NextResponse.json({ error: 'Cross-city moderation is admin-only' }, { status: 403 })
+    }
 
     await prisma.report.update({
       where: { id },
