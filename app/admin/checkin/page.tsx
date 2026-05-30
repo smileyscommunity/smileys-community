@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { toast } from 'sonner'
 import { Suspense } from 'react'
-import { getInitials } from '@/lib/data'
+import { getInitials, todayIstanbul } from '@/lib/data'
 import { parseCheckinQR, vibrate } from '@/lib/checkin'
 import QRScanner from '@/components/QRScanner'
 
@@ -48,6 +48,11 @@ function CheckInPageInner() {
   // gracefully and the row spinner only shows on the row that's busy.
   // Set-shape mirrors how the bulk pages track inflight work.
   const [toggling,      setToggling]      = useState<Set<string>>(new Set())
+  // Default to today-only (matching /host/checkin). Admins can opt back
+  // into the full list for prepping tomorrow's check-in or fixing
+  // yesterday's data, but the dropdown is no longer choked with months
+  // of events the moment you open the page.
+  const [showAllEvents, setShowAllEvents] = useState(false)
 
   // Shared refs for both visual timers (lastChecked highlight + scan
   // result toast). Storing them in refs lets us cancel the previous
@@ -118,6 +123,18 @@ function CheckInPageInner() {
 
   const checkedInCount = attendees.filter(a => a.checkedIn).length
   const event = events.find(e => e.id === selectedId)
+
+  // Event picker scope. Default to "today" so a kiosk operator opens
+  // the page and sees only the events they're actually checking people
+  // into. The "Show all" toggle below the dropdown reveals the full
+  // list (still excluding archived/cancelled — those are filtered at
+  // fetch time). The currently-selected event is always included so a
+  // deep link to a past event still shows its title in the dropdown.
+  const visibleEvents = useMemo(() => {
+    if (showAllEvents) return events
+    const today = todayIstanbul()
+    return events.filter(e => e.date === today || e.id === selectedId)
+  }, [events, showAllEvents, selectedId])
 
   async function toggle(a: Attendee) {
     if (toggling.has(a.id)) return  // ignore double-taps while inflight
@@ -222,16 +239,38 @@ function CheckInPageInner() {
         {loadingEvents ? (
           <div className="text-zinc-500 text-sm">Loading events…</div>
         ) : (
-          <select
-            value={selectedId}
-            onChange={e => { setSelectedId(e.target.value); setSearch('') }}
-            className="w-full bg-zinc-900 border border-zinc-700 text-white text-sm rounded-xl px-3 py-2.5 focus:outline-none focus:border-zinc-500"
-          >
-            {events.length === 0 && <option value="">No events</option>}
-            {events.map(e => (
-              <option key={e.id} value={e.id}>{e.emoji} {e.title} — {e.date}</option>
-            ))}
-          </select>
+          <>
+            <select
+              value={selectedId}
+              onChange={e => { setSelectedId(e.target.value); setSearch('') }}
+              className="w-full bg-zinc-900 border border-zinc-700 text-white text-sm rounded-xl px-3 py-2.5 focus:outline-none focus:border-zinc-500"
+            >
+              {visibleEvents.length === 0 && (
+                <option value="">
+                  {showAllEvents ? 'No events' : 'No events today'}
+                </option>
+              )}
+              {visibleEvents.map(e => (
+                <option key={e.id} value={e.id}>{e.emoji} {e.title} — {e.date}</option>
+              ))}
+            </select>
+            {/* Toggle is a single tap to switch between today-only (the
+                default kiosk view) and the full list (for prepping
+                tomorrow or fixing yesterday's data). Only renders when
+                there's actually more in `events` than the filter shows. */}
+            {events.length > visibleEvents.length && (
+              <button onClick={() => setShowAllEvents(true)}
+                className="mt-2 text-xs text-zinc-500 hover:text-amber-400 transition-colors">
+                Show all {events.length} events →
+              </button>
+            )}
+            {showAllEvents && (
+              <button onClick={() => setShowAllEvents(false)}
+                className="mt-2 text-xs text-zinc-500 hover:text-amber-400 transition-colors">
+                ← Today only
+              </button>
+            )}
+          </>
         )}
 
         {event && attendees.length > 0 && (
@@ -243,7 +282,11 @@ function CheckInPageInner() {
               </div>
               <div className="flex-1 bg-zinc-900 rounded-xl p-3 text-center">
                 <div className="text-2xl font-bold">{attendees.length - checkedInCount}</div>
-                <div className="text-xs text-zinc-500 mt-0.5">Expected</div>
+                {/* "Expected" used to live here, which read like "the
+                    planned count" — actually this is the still-to-arrive
+                    delta. "Remaining" is what an operator at the door
+                    reads correctly under pressure. */}
+                <div className="text-xs text-zinc-500 mt-0.5">Remaining</div>
               </div>
               <div className="flex-1 bg-zinc-900 rounded-xl p-3 text-center">
                 <div className="text-2xl font-bold text-zinc-400">{attendees.length}</div>
@@ -279,7 +322,14 @@ function CheckInPageInner() {
         )}
         {!loadingAtts && filtered.length === 0 && (
           <div className="px-4 py-10 text-center text-zinc-500 text-sm">
-            {search ? 'No match found' : 'No attendees registered'}
+            {/* Three distinct empty states — old code collapsed all of
+                them into "No attendees registered", which was wrong on
+                the "no event selected" and "search miss" paths. */}
+            {!selectedId
+              ? 'Pick an event to start checking in.'
+              : search
+                ? 'No match found.'
+                : 'No attendees registered for this event yet.'}
           </div>
         )}
         {filtered.map(a => {
