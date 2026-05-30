@@ -137,6 +137,10 @@ function AdminApplicationsPageInner() {
   const [saving,        setSaving]        = useState(false)
   const [selected2,     setSelected2]     = useState<Set<string>>(new Set())
   const [bulkSaving,    setBulkSaving]    = useState(false)
+  // Inflight quickDecide PATCH ids — used to disable the row's
+  // Approve/Reject buttons during the request so a rapid double-tap
+  // doesn't fire two PATCHes for the same applicant.
+  const [deciding,      setDeciding]      = useState<Set<string>>(new Set())
   // Pipeline derived from `apps` (already loaded) instead of fetched from
   // /api/admin/analytics. Previously the page hit the heaviest endpoint
   // (~17 queries) just to render `total` + `approvalRate` — and read the
@@ -320,27 +324,30 @@ function AdminApplicationsPageInner() {
   // consequence explicit so admins don't accidentally silent-reject.
   async function quickDecide(e: React.MouseEvent, id: string, status: 'approved' | 'rejected') {
     e.stopPropagation()
+    if (deciding.has(id)) return  // ignore a second tap while the first is still in flight
     if (status === 'rejected') {
       const app = apps.find(a => a.id === id)
       const name = app?.fullName ?? 'this applicant'
       if (!confirm(`Reject ${name} without a personalized message?\n\nThe standard rejection email will still go out — but they won't get any context. Open the review modal if you want to add a note.`)) return
     }
-    const res = await fetch('/app/api/admin/applications', {
-      method: 'PATCH', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, status, reviewNote: '', assignedClubs: status === 'approved' && defaultClubId ? [defaultClubId] : [] }),
-    })
-    if (res.ok) {
-      setApps(prev => prev.map(a => a.id === id ? { ...a, status } : a))
-      toast.success(status === 'approved'
-        ? 'Approved · standard welcome email sent (no personal note)'
-        : 'Rejected · standard email sent (no personal note)')
-    } else {
-      // Old impl silently no-op'd on a non-OK response. The list never
-      // got updated (correct) but the admin had no signal the action
-      // had failed — they'd assume the click landed and move on.
-      const d = await res.json().catch(() => ({}))
-      toast.error(d.error ?? `Failed to ${status === 'approved' ? 'approve' : 'reject'}`)
+    setDeciding(prev => { const s = new Set(prev); s.add(id); return s })
+    try {
+      const res = await fetch('/app/api/admin/applications', {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status, reviewNote: '', assignedClubs: status === 'approved' && defaultClubId ? [defaultClubId] : [] }),
+      })
+      if (res.ok) {
+        setApps(prev => prev.map(a => a.id === id ? { ...a, status } : a))
+        toast.success(status === 'approved'
+          ? 'Approved · standard welcome email sent (no personal note)'
+          : 'Rejected · standard email sent (no personal note)')
+      } else {
+        const d = await res.json().catch(() => ({}))
+        toast.error(d.error ?? `Failed to ${status === 'approved' ? 'approve' : 'reject'}`)
+      }
+    } finally {
+      setDeciding(prev => { const s = new Set(prev); s.delete(id); return s })
     }
   }
 
@@ -763,15 +770,19 @@ function AdminApplicationsPageInner() {
                   state) so admins can decide once the applicant replies. */}
               {app.status === 'pending' || app.status === 'hold' ? (
                 <div className="flex gap-1.5 shrink-0" onClick={e => e.stopPropagation()}>
+                  {/* Disabled + opacity'd during the inflight PATCH so
+                      a rapid second tap doesn't fire a duplicate
+                      request. The label collapses to "…" so the row
+                      visibly says "saving" without shifting width. */}
                   <button onClick={e => quickDecide(e, app.id, 'approved')}
-                    aria-label="Approve"
-                    className="px-2.5 sm:px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-bold rounded-lg transition-colors">
-                    ✓<span className="hidden sm:inline ml-1">Approve</span>
+                    aria-label="Approve" disabled={deciding.has(app.id)}
+                    className="px-2.5 sm:px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                    {deciding.has(app.id) ? '…' : <>✓<span className="hidden sm:inline ml-1">Approve</span></>}
                   </button>
                   <button onClick={e => quickDecide(e, app.id, 'rejected')}
-                    aria-label="Reject"
-                    className="px-2.5 sm:px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold rounded-lg transition-colors">
-                    ✕<span className="hidden sm:inline ml-1">Reject</span>
+                    aria-label="Reject" disabled={deciding.has(app.id)}
+                    className="px-2.5 sm:px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                    {deciding.has(app.id) ? '…' : <>✕<span className="hidden sm:inline ml-1">Reject</span></>}
                   </button>
                 </div>
               ) : (
