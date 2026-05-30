@@ -48,6 +48,9 @@ interface MemberProfile {
   goodHangouts?: number
   hangoutsHosted?: number
   hangoutsJoined?: number
+  // Count of members this person brought in via referral — drives the
+  // "🤝 Brought in N members" trust badge. Server omits when zero.
+  broughtInCount?: number
 }
 
 export default function MemberProfilePage({ params }: { params: Promise<{ id: string }> }) {
@@ -302,8 +305,10 @@ export default function MemberProfilePage({ params }: { params: Promise<{ id: st
             </div>
             {/* Hangout counter — surfaces social-proof for the spontaneous
                 meetup signal. Hidden entirely when this member has zero
-                history so newcomers don't read absence as a red flag. */}
-            {((member.hangoutsHosted ?? 0) + (member.hangoutsJoined ?? 0) > 0 || (member.goodHangouts ?? 0) > 0) && (
+                history so newcomers don't read absence as a red flag.
+                Referral badge sits in the same row — same hide-when-zero
+                contract so non-inviters don't get shamed. */}
+            {((member.hangoutsHosted ?? 0) + (member.hangoutsJoined ?? 0) > 0 || (member.goodHangouts ?? 0) > 0 || (member.broughtInCount ?? 0) > 0) && (
               <div className="flex flex-wrap items-center gap-2 mt-2">
                 {(member.hangoutsHosted ?? 0) > 0 && (
                   <span className="text-xs text-gray-600 font-medium">☕ {member.hangoutsHosted} hosted</span>
@@ -314,6 +319,11 @@ export default function MemberProfilePage({ params }: { params: Promise<{ id: st
                 {(member.goodHangouts ?? 0) > 0 && (
                   <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-green-50 text-green-700 text-xs font-semibold border border-green-200">
                     ✓ {member.goodHangouts} good
+                  </span>
+                )}
+                {(member.broughtInCount ?? 0) > 0 && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 text-xs font-semibold border border-amber-200" title="Members this person brought in via referral">
+                    🤝 Brought in {member.broughtInCount}
                   </span>
                 )}
               </div>

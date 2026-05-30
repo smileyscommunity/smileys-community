@@ -89,10 +89,31 @@ function ApplyForm() {
   const [fingerprint,    setFingerprint]    = useState('')
   const [browserTz,      setBrowserTz]      = useState('')
 
+  // Referral context — drives the apply-form social proof. `inviter`
+  // populated when ?ref=XYZ resolves to a real approved member;
+  // `totalActiveInviters` is the always-on aggregate so applicants
+  // without a ref code still see the loop is real.
+  const [referralCtx, setReferralCtx] = useState<{
+    inviter:             { firstName: string; color: string; profilePhoto: string | null } | null
+    totalActiveInviters: number
+  } | null>(null)
+
   useEffect(() => {
     FingerprintJS.load().then(fp => fp.get()).then(result => setFingerprint(result.visitorId)).catch(() => {})
     try { setBrowserTz(Intl.DateTimeFormat().resolvedOptions().timeZone) } catch {}
   }, [])
+
+  // Fetch the referral context once on mount. Public endpoint, no
+  // session needed; query string carries the ref code so a stale URL
+  // re-fetches naturally if the applicant arrives back later via a
+  // different link.
+  useEffect(() => {
+    const qs = refCode ? `?ref=${encodeURIComponent(refCode)}` : ''
+    fetch(`/app/api/apply/referral-context${qs}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setReferralCtx(d) })
+      .catch(() => {})
+  }, [refCode])
 
   // Track whether the draft restore has run so the save-on-change effect
   // doesn't fire before we've loaded (which would overwrite the saved draft).
@@ -324,6 +345,24 @@ function ApplyForm() {
           </div>
         </div>
 
+        {/* Referral chip — only when ?ref=XYZ resolved to a real
+            approved member. Personalised "Sarah invited you" with a
+            face beats any aggregate stat for conversion, so it sits
+            above the generic social-proof block on step 0. */}
+        {step === 0 && referralCtx?.inviter && (
+          <div className="bg-amber-100 border border-amber-200 rounded-2xl p-3.5 mb-3 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ backgroundColor: referralCtx.inviter.color }}>
+              {referralCtx.inviter.profilePhoto
+                ? <img src={referralCtx.inviter.profilePhoto.startsWith('http') ? referralCtx.inviter.profilePhoto : `/app${referralCtx.inviter.profilePhoto}`} alt="" className="w-full h-full object-cover" />
+                : referralCtx.inviter.firstName.slice(0, 2).toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-amber-900"><span className="text-amber-700">{referralCtx.inviter.firstName}</span> invited you to apply 👋</p>
+              <p className="text-xs text-amber-800 mt-0.5">Their referral is a positive signal in your review.</p>
+            </div>
+          </div>
+        )}
+
         {/* Social proof — only on first step */}
         {step === 0 && (
           <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4 mb-6 space-y-2">
@@ -337,6 +376,18 @@ function ApplyForm() {
                 <span className="text-xs text-amber-800 font-medium">{s.text}</span>
               </div>
             ))}
+            {/* Always-on referral aggregate — masks the empty state by
+                only rendering once the count clears a meaningful floor.
+                Tucked into the existing block so it reads as one panel
+                rather than two stacked cards. */}
+            {(referralCtx?.totalActiveInviters ?? 0) >= 5 && (
+              <div className="flex items-center gap-2.5 pt-2 border-t border-amber-200">
+                <span className="text-base shrink-0">💌</span>
+                <span className="text-xs text-amber-800 font-medium">
+                  Invited by <span className="font-bold text-amber-900">{referralCtx?.totalActiveInviters} members</span> who've brought friends in
+                </span>
+              </div>
+            )}
             <div className="pt-2 border-t border-amber-200 mt-1">
               <Link href="/why" className="text-xs font-bold text-amber-600 hover:underline">Read member stories →</Link>
             </div>

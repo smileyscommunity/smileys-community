@@ -24,6 +24,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         neighborhood: true, nationality: true, interests: true,
         languages: true, profilePhoto: true, joinedAt: true, role: true,
         instagram: true, socialStyles: true, lastActive: true,
+        // referralCode drives the brought-in count below — the count
+        // itself is derived (not the stale User.referralCount column)
+        // so it stays accurate even if a referred member later gets
+        // suspended or banned.
+        referralCode: true,
         // Hangout trust + activity counters — drive the "✓ N good hangouts"
         // badge and the "hosted/joined" line on the profile.
         goodHangouts: true,
@@ -59,6 +64,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   ])
 
   if (!user) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // Count of approved members this user brought in — drives the
+  // "🤝 Brought in N members" trust badge on the profile. Derived
+  // (not from the User.referralCount column) so it stays accurate
+  // after status churn. Skips the count entirely when the user has
+  // no referralCode yet — most users never generate one.
+  const broughtInCount = user.referralCode
+    ? await prisma.memberApplication.count({
+        where: { referredBy: user.referralCode, status: { in: ['approved', 'active'] } },
+      })
+    : 0
 
   // Block check — return 404 so blocker/blocked don't know they're blocked
   if (session.id !== id) {
@@ -111,5 +127,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     goodHangouts: user.goodHangouts,
     hangoutsHosted,
     hangoutsJoined,
+    // Referral signal — only included when non-zero so the front-end
+    // doesn't render a "Brought in 0" badge that would actively shame
+    // members who haven't invited anyone yet.
+    broughtInCount,
   })
 }
