@@ -3,7 +3,7 @@
 import { toast } from 'sonner'
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
-import { formatTime, resolveImageUrl, todayIstanbul } from '@/lib/data'
+import { formatTime, resolveImageUrl, todayIstanbul, getInitials } from '@/lib/data'
 
 interface AdminEvent {
   id: string; title: string; date: string; time: string; emoji: string
@@ -71,6 +71,50 @@ function ActionsMenu({
         </>
       )}
     </div>
+  )
+}
+
+// Shared per-row action cluster. Mobile and desktop layouts used to
+// render this whole sequence twice — same five controls (Approve,
+// Attendees, Featured, Edit, ⋯) with small accidental drift between
+// the two copies (gap sizes, inactive Featured color, Edit padding,
+// missing title on the mobile Featured button). Extracted as a
+// fragment so each caller still owns the wrapper's layout but the
+// button styles stay in lockstep.
+function RowActions({
+  event, isFeatured,
+  onApprove, onToggleFeatured, onStatusChange, onDuplicate, onDelete,
+}: {
+  event: AdminEvent
+  isFeatured: boolean
+  onApprove: (e: AdminEvent) => void
+  onToggleFeatured: (e: AdminEvent) => void
+  onStatusChange: (id: string, status: string) => void
+  onDuplicate: (e: AdminEvent) => void
+  onDelete: (e: AdminEvent) => void
+}) {
+  return (
+    <>
+      {event.status === 'pending' && (
+        <button onClick={() => onApprove(event)}
+          className="px-2.5 py-2 rounded-lg bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/20 text-xs font-bold transition-colors shrink-0">
+          Approve
+        </button>
+      )}
+      <Link href={`/admin/events/${event.id}/participants`}
+        className="p-1.5 rounded-lg bg-zinc-800 text-zinc-400 hover:bg-zinc-700 transition-colors shrink-0" title="Attendees">
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+      </Link>
+      <button onClick={() => onToggleFeatured(event)} title={isFeatured ? 'Unfeature' : 'Feature'}
+        className={`p-1.5 rounded-lg transition-colors shrink-0 ${isFeatured ? 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}>
+        <svg className="w-4 h-4" fill={isFeatured ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>
+      </button>
+      <Link href={`/admin/events/${event.id}/edit`}
+        className="px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-semibold transition-colors shrink-0">
+        Edit
+      </Link>
+      <ActionsMenu event={event} onStatusChange={onStatusChange} onDuplicate={onDuplicate} onDelete={onDelete} />
+    </>
   )
 }
 
@@ -437,31 +481,15 @@ export default function AdminEventsPage() {
                     {host ? (
                       <div className="flex items-center gap-2 min-w-0">
                         <div className="w-5 h-5 rounded-full overflow-hidden flex items-center justify-center text-white text-[9px] font-bold shrink-0" style={{ backgroundColor: host.color }}>
-                          {host.profilePhoto ? <img src={resolveImageUrl(host.profilePhoto)} alt={host.name} className="w-full h-full object-cover" /> : host.name.slice(0, 2).toUpperCase()}
+                          {host.profilePhoto ? <img src={resolveImageUrl(host.profilePhoto)} alt={host.name} className="w-full h-full object-cover" /> : getInitials(host.name)}
                         </div>
                         <span className="text-xs text-zinc-400 truncate">{host.name}</span>
                       </div>
                     ) : <div />}
-                    <div className="flex items-center gap-1 shrink-0">
-                      {event.status === 'pending' && (
-                        <button onClick={() => approveEvent(event)}
-                          className="px-2.5 py-2 rounded-lg bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/20 text-xs font-bold transition-colors">
-                          Approve
-                        </button>
-                      )}
-                      <Link href={`/admin/events/${event.id}/participants`}
-                        className="p-1.5 rounded-lg bg-zinc-800 text-zinc-400 hover:bg-zinc-700 transition-colors" title="Attendees">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                      </Link>
-                      <button onClick={() => toggleFeatured(event)}
-                        className={`p-1.5 rounded-lg transition-colors ${isFeatured ? 'bg-amber-500/10 text-amber-400' : 'bg-zinc-800 text-zinc-500 hover:bg-zinc-700'}`}>
-                        <svg className="w-4 h-4" fill={isFeatured ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>
-                      </button>
-                      <Link href={`/admin/events/${event.id}/edit`}
-                        className="px-2.5 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-semibold transition-colors">
-                        Edit
-                      </Link>
-                      <ActionsMenu event={event} onStatusChange={handleStatusChange} onDuplicate={handleDuplicate} onDelete={handleDelete} />
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <RowActions event={event} isFeatured={isFeatured}
+                        onApprove={approveEvent} onToggleFeatured={toggleFeatured}
+                        onStatusChange={handleStatusChange} onDuplicate={handleDuplicate} onDelete={handleDelete} />
                     </div>
                   </div>
                 </div>
@@ -492,7 +520,7 @@ export default function AdminEventsPage() {
                       {host && (
                         <div className="flex items-center gap-1.5 mt-1">
                           <div className="w-4 h-4 rounded-full overflow-hidden flex items-center justify-center text-white text-[8px] font-bold shrink-0" style={{ backgroundColor: host.color }}>
-                            {host.profilePhoto ? <img src={resolveImageUrl(host.profilePhoto)} alt={host.name} className="w-full h-full object-cover" /> : host.name.slice(0, 2).toUpperCase()}
+                            {host.profilePhoto ? <img src={resolveImageUrl(host.profilePhoto)} alt={host.name} className="w-full h-full object-cover" /> : getInitials(host.name)}
                           </div>
                           <span className="text-xs text-zinc-500 truncate">{host.name}</span>
                         </div>
@@ -522,25 +550,9 @@ export default function AdminEventsPage() {
 
                   {/* Actions */}
                   <div className="col-span-3 flex items-center justify-end gap-1.5">
-                    {event.status === 'pending' && (
-                      <button onClick={() => approveEvent(event)}
-                        className="px-2.5 py-2 rounded-lg bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/20 text-xs font-bold transition-colors shrink-0">
-                        Approve
-                      </button>
-                    )}
-                    <Link href={`/admin/events/${event.id}/participants`}
-                      className="p-1.5 rounded-lg bg-zinc-800 text-zinc-400 hover:bg-zinc-700 transition-colors" title="Attendees">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                    </Link>
-                    <button onClick={() => toggleFeatured(event)} title={isFeatured ? 'Unfeature' : 'Feature'}
-                      className={`p-1.5 rounded-lg transition-colors ${isFeatured ? 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}>
-                      <svg className="w-4 h-4" fill={isFeatured ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>
-                    </button>
-                    <Link href={`/admin/events/${event.id}/edit`}
-                      className="px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-semibold transition-colors shrink-0">
-                      Edit
-                    </Link>
-                    <ActionsMenu event={event} onStatusChange={handleStatusChange} onDuplicate={handleDuplicate} onDelete={handleDelete} />
+                    <RowActions event={event} isFeatured={isFeatured}
+                      onApprove={approveEvent} onToggleFeatured={toggleFeatured}
+                      onStatusChange={handleStatusChange} onDuplicate={handleDuplicate} onDelete={handleDelete} />
                   </div>
                 </div>
 
