@@ -31,6 +31,14 @@ export async function GET() {
       kickoffAt: true, venue: true,
       winnerTeam: true, homeScore: true, awayScore: true,
       points: true,
+      // Auto-scoring suggestion fields. Written by the
+      // sweep-cup-results cron. Surfaced on every fixture row in
+      // the admin UI so admin can one-click apply. Members /
+      // visitors will see them too via the same endpoint, but
+      // the member-side /cup page doesn't render them — saves
+      // doing a separate query.
+      suggestedHomeScore: true, suggestedAwayScore: true,
+      suggestedWinnerTeam: true, suggestedStatus: true, suggestedAt: true,
     },
   })
 

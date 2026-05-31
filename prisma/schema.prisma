@@ -556,6 +556,23 @@ model CupFixture {
   // round, even if the cron fires multiple times inside the [T-35,
   // T-25] window.
   reminderSentAt DateTime?
+  // Auto-scoring suggestion written by the cup-results sweeper from
+  // football-data.org. The sweeper only writes; admin clicks "Apply"
+  // in the fixtures UI to commit the values into homeScore /
+  // awayScore / winnerTeam (which is what actually triggers the
+  // prediction-scoring transaction). Keeping the suggestion separate
+  // means a wrong external value never lands as truth — admin always
+  // has the chance to override before scoring runs.
+  //
+  // suggestedStatus tracks the API's match state at the time of the
+  // write so we can show "live" suggestions differently from
+  // "finished" ones. FINISHED is the only state the UI offers an
+  // Apply button for.
+  suggestedHomeScore  Int?
+  suggestedAwayScore  Int?
+  suggestedWinnerTeam String?
+  suggestedStatus     String?
+  suggestedAt         DateTime?
   updatedAt    DateTime @updatedAt
   createdAt    DateTime @default(now())
 

@@ -98,6 +98,14 @@ ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-nps-dispatch.sh && (crontab -l 2>/
 echo "→ Registering cup-reminders sweeper crontab..."
 ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-cup-reminders.sh && (crontab -l 2>/dev/null | grep -v 'sweep-cup-reminders' ; echo '*/5 * * * * $REMOTE/scripts/sweep-cup-reminders.sh >> /var/log/sweep-cup-reminders.log 2>&1') | crontab -"
 
+# Install the cup auto-score sweeper — pulls football-data.org and
+# writes per-fixture suggestions for admin to one-click apply.
+# 5-min cadence keeps the result lag in single-digit minutes during
+# match days; an off-day tick is one cheap API call with zero DB
+# writes. Idempotent (sweeper grep strips any prior line first).
+echo "→ Registering cup-results sweeper crontab..."
+ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-cup-results.sh && (crontab -l 2>/dev/null | grep -v 'sweep-cup-results' ; echo '*/5 * * * * $REMOTE/scripts/sweep-cup-results.sh >> /var/log/sweep-cup-results.log 2>&1') | crontab -"
+
 # Seed the Smileys Cup 2026 fixtures (knockouts + group stage).
 # Idempotent — per-fixture findUnique guards mean re-runs are safe.
 # `--env-file=.env` is required so tsx loads DATABASE_URL (PM2's

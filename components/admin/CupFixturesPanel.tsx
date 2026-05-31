@@ -34,6 +34,16 @@ interface Fixture {
   homeScore:  number | null
   awayScore:  number | null
   points:     number
+  // Auto-result suggestion from the cup-results sweeper. Admin
+  // sees this as a pre-filled "Apply" badge on the row; clicking
+  // Apply commits the values into the real result fields via the
+  // same PUT endpoint manual entry uses, so prediction scoring
+  // runs in the same transaction.
+  suggestedHomeScore?:  number | null
+  suggestedAwayScore?:  number | null
+  suggestedWinnerTeam?: string | null
+  suggestedStatus?:     string | null
+  suggestedAt?:         string | null
 }
 
 export default function CupFixturesPanel() {
@@ -144,6 +154,48 @@ function FixtureRow({ fixture, onSaved }: { fixture: Fixture; onSaved: () => voi
 
   const kickoff = new Date(fixture.kickoffAt).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 
+  // Auto-suggestion shown in the row when:
+  //   - no admin-committed result yet (winnerTeam null)
+  //   - the sweeper saw FINISHED on the upstream feed
+  //   - both teams are set on the fixture (so the API result has
+  //     something to match against)
+  const hasAppliableSuggestion =
+    !fixture.winnerTeam &&
+    fixture.suggestedStatus === 'FINISHED' &&
+    fixture.suggestedHomeScore !== null && fixture.suggestedHomeScore !== undefined &&
+    fixture.suggestedAwayScore !== null && fixture.suggestedAwayScore !== undefined
+
+  async function applySuggestion() {
+    if (!hasAppliableSuggestion) return
+    setSaving(true)
+    try {
+      // Commits via the same PUT endpoint manual entry uses, so
+      // the prediction-scoring transaction runs identically. We
+      // pass the suggested values straight through; if any of the
+      // numbers got mangled the admin already had the chance to
+      // bail by clicking Edit instead.
+      const res = await fetch(`/app/api/admin/cup/fixtures/${fixture.id}`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          homeScore:  fixture.suggestedHomeScore,
+          awayScore:  fixture.suggestedAwayScore,
+          winnerTeam: fixture.suggestedWinnerTeam ?? null,
+        }),
+      })
+      const d = await res.json()
+      if (!res.ok) { toast.error(d.error ?? 'Apply failed'); return }
+      const scored   = d.predScored ?? 0
+      const brackets = d.bracketsRescored ?? 0
+      toast.success(
+        `Applied${scored ? ` · ${scored} prediction${scored === 1 ? '' : 's'} scored` : ''}${brackets ? ` · ${brackets} bracket${brackets === 1 ? '' : 's'} rescored` : ''}`,
+      )
+      onSaved()
+    } finally {
+      setSaving(false)
+    }
+  }
+
   async function save() {
     setSaving(true)
     try {
@@ -194,7 +246,7 @@ function FixtureRow({ fixture, onSaved }: { fixture: Fixture; onSaved: () => voi
       </div>
 
       {!editing ? (
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex-1 min-w-0">
             <div className="text-sm font-semibold text-white truncate">
               {fixture.homeTeam ? teamLabel(fixture.homeTeam) : (fixture.homeLabel ?? '—')}
@@ -206,11 +258,34 @@ function FixtureRow({ fixture, onSaved }: { fixture: Fixture; onSaved: () => voi
                 {fixture.homeScore}–{fixture.awayScore} · Winner: {teamLabel(fixture.winnerTeam)}
               </p>
             )}
+            {/* Auto-suggestion line. Only renders when the sweeper
+                has something appliable AND no admin result yet —
+                once admin commits, the suggestion stops mattering
+                and would just add visual noise. */}
+            {hasAppliableSuggestion && (
+              <p className="text-xs text-amber-400 mt-1 font-semibold inline-flex items-center gap-1.5">
+                <span className="text-[10px] uppercase tracking-wider bg-amber-500/10 px-1.5 py-0.5 rounded">⚡ Auto</span>
+                <span>
+                  {fixture.suggestedHomeScore}–{fixture.suggestedAwayScore}
+                  {fixture.suggestedWinnerTeam
+                    ? <> · Winner: {teamLabel(fixture.suggestedWinnerTeam)}</>
+                    : <> · Draw</>}
+                </span>
+              </p>
+            )}
           </div>
-          <button onClick={() => setEditing(true)}
-            className="text-xs px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700">
-            {hasResult ? 'Edit' : 'Enter result'}
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            {hasAppliableSuggestion && (
+              <button onClick={applySuggestion} disabled={saving}
+                className="text-xs px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-bold disabled:opacity-60">
+                {saving ? 'Applying…' : 'Apply →'}
+              </button>
+            )}
+            <button onClick={() => setEditing(true)}
+              className="text-xs px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700">
+              {hasResult ? 'Edit' : hasAppliableSuggestion ? 'Override' : 'Enter result'}
+            </button>
+          </div>
         </div>
       ) : (
         <div className="space-y-3 pt-1">
