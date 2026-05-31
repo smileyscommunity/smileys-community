@@ -1,21 +1,22 @@
 'use client'
 
-// Smileys Cup predictions UI. Lives under the WC club at
-// /clubs/world-cup-2026/cup so the URL stays inside the club
-// namespace (Joining the club = playing the cup; this page is the
-// game surface).
+// Smileys Cup predictions UI. Standalone page at /cup — the cup
+// is a campaign, not a community, so it doesn't live under a Club
+// route. Any approved Smileys member can play (no separate opt-in);
+// the only gate is "is your account approved?" enforced by the
+// /api/cup/* POST routes. Read endpoints stay public so logged-out
+// viewers see the leaderboard + fixtures and get an Apply CTA.
 //
-// Three viewer states:
-//   • Logged-out          → read-only bracket + fixtures, Apply CTA
-//   • Logged-in non-member → "Join the cup club" CTA
-//   • Approved cup member  → full pick UI
+// Two viewer states:
+//   • Logged-out / pending  → read-only fixtures, Apply CTA
+//   • Approved member       → full pick UI
 //
 // The page itself doesn't enforce the gate — the underlying APIs
 // (/api/cup/predict, /api/cup/bracket POST) all 403 non-members.
 // Render disables submit buttons when membership is missing so the
 // state is obvious before the user clicks.
 
-import { useEffect, useMemo, useState, use } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
@@ -118,8 +119,7 @@ const ROUND_LABEL: Record<string, string> = {
   qf: 'Quarterfinals', sf: 'Semifinals', final: 'Final',
 }
 
-export default function CupPredictionsPage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = use(params)
+export default function CupPredictionsPage() {
   const router = useRouter()
 
   const [fixtures, setFixtures] = useState<Fixture[] | null>(null)
@@ -190,7 +190,7 @@ export default function CupPredictionsPage({ params }: { params: Promise<{ slug:
         setBracket(prev => prev ? { ...prev, bracket: d.bracket } : prev)
         setEditingBracket(false)
         toast.success('Bracket locked in 🏆')
-      } else if (res.status === 403 && /Join/i.test(d.error)) {
+      } else if (res.status === 403 && /approved/i.test(d.error)) {
         setAccessState('not-member')
         toast.error(d.error)
       } else {
@@ -215,7 +215,7 @@ export default function CupPredictionsPage({ params }: { params: Promise<{ slug:
           ? { ...f, yourPick: { pickedTeam: team, submittedAt: new Date().toISOString(), pointsAwarded: 0 } }
           : f) ?? null)
         toast.success(`Picked ${teamLabel(team)}`)
-      } else if (res.status === 403 && /Join/i.test(d.error)) {
+      } else if (res.status === 403 && /approved/i.test(d.error)) {
         setAccessState('not-member')
         toast.error(d.error)
       } else {
@@ -255,24 +255,22 @@ export default function CupPredictionsPage({ params }: { params: Promise<{ slug:
 
   return (
     <Shell>
-      {/* Back to club + title */}
-      <div className="flex items-center gap-3 mb-4">
-        <Link href={`/clubs/${slug}`} className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-        </Link>
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">🏆 Smileys Cup Predictions</h1>
-          <p className="text-xs text-gray-500">{ROUND_LABEL.r32} · {ROUND_LABEL.r16} · {ROUND_LABEL.qf} · {ROUND_LABEL.sf} · {ROUND_LABEL.final}</p>
-        </div>
+      {/* Title — standalone page, no parent breadcrumb. The cup IS
+          the destination; nothing to navigate back to except the
+          rest of the app, which the global nav handles. */}
+      <div className="mb-4">
+        <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">🏆 Smileys Cup 2026</h1>
+        <p className="text-xs text-gray-500 mt-0.5">Pick a champion. Pick every knockout. Win the trophy.</p>
       </div>
 
-      {/* Non-member CTAs */}
+      {/* Logged-out / pending — Apply CTA. The cup is the only
+          page on the platform a non-member can land on and see
+          real members playing in real time, so the Apply pitch
+          rides the highest-intent surface we have. */}
       {accessState === 'unauthenticated' && (
         <div className="bg-white border border-amber-200 rounded-2xl p-5 mb-4 shadow-sm">
           <p className="font-bold text-gray-900 mb-1">Want to play?</p>
-          <p className="text-sm text-gray-600 mb-3">The Smileys Cup is for members. Apply to join, get accepted, then come back here to lock in your bracket.</p>
+          <p className="text-sm text-gray-600 mb-3">The Smileys Cup is for members. Apply to join — once you&apos;re accepted you can lock in your bracket and start picking matches.</p>
           <button onClick={() => router.push('/apply')}
             className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
             Apply to Smileys
@@ -281,12 +279,8 @@ export default function CupPredictionsPage({ params }: { params: Promise<{ slug:
       )}
       {accessState === 'not-member' && (
         <div className="bg-white border border-amber-200 rounded-2xl p-5 mb-4 shadow-sm">
-          <p className="font-bold text-gray-900 mb-1">Join the cup club</p>
-          <p className="text-sm text-gray-600 mb-3">You're a Smileys member — one more step. Join the Cup club to lock in your bracket and start picking matches.</p>
-          <Link href={`/clubs/${slug}`}
-            className="block w-full text-center py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
-            Join the Cup club →
-          </Link>
+          <p className="font-bold text-gray-900 mb-1">Your application is still under review</p>
+          <p className="text-sm text-gray-600">You&apos;ll be able to play once your membership is approved. Check back soon.</p>
         </div>
       )}
 

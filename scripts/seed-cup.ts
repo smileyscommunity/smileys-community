@@ -1,14 +1,11 @@
-// Smileys Cup 2026 — seed script.
+// Smileys Cup 2026 — fixture seed.
 //
-// Run once after deploying the cup schema:
-//   npx tsx scripts/seed-cup.ts
-//
-// Three things happen, all idempotent:
-//   1. Upsert the world-cup-2026 club (slug-keyed; existing edits
-//      preserved — we never overwrite user-edited copy)
-//   2. Seed the 12 × 6 = 72 group-stage fixtures (real teams from
+// Run on every deploy via deploy.sh — idempotent. The cup lives at
+// /cup as a standalone page (no parent Club), so this script only
+// touches CupFixture rows:
+//   1. Seed the 12 × 6 = 72 group-stage fixtures (real teams from
 //      the Dec 5 2025 draw, standard MD1–MD3 rotation)
-//   3. Seed the 31 knockout placeholders (R32 → Final with TBD
+//   2. Seed the 31 knockout placeholders (R32 → Final with TBD
 //      labels — admin fills in country codes as group play resolves)
 //
 // Schedule notes:
@@ -28,37 +25,7 @@
 import { prisma } from '@/lib/prisma'
 import { CUP_GROUPS, ROUND_POINTS } from '@/lib/cup'
 
-const SLUG = 'world-cup-2026'
-
 async function main() {
-  // ── City lookup ───────────────────────────────────────────────
-  const city = await prisma.city.findFirst({
-    where:  { OR: [{ slug: 'istanbul' }, { name: 'Istanbul' }] },
-    select: { id: true },
-  })
-  if (!city) throw new Error('Istanbul city not found — backfill before seeding cup')
-
-  // ── Upsert cup club ───────────────────────────────────────────
-  const club = await prisma.club.upsert({
-    where:  { slug: SLUG },
-    create: {
-      slug:        SLUG,
-      name:        'Smileys Cup 2026',
-      description: 'Predictions, watch parties, and the trophy. Pick a champion, watch the games with us, climb the leaderboard. Tournament runs Jun 11 – Jul 19.',
-      category:    'Sports',
-      emoji:       '🏆',
-      color:       '#f59e0b',
-      bgColor:     '#fef3c7',
-      rules:       '· One pick per match — locks at kickoff.\n· Bracket pick (champion + 4 semifinalists) locks at first kickoff.\n· Picks are private until match locks. Leaderboard is public.\n· Tiebreaker: earlier bracket submission.',
-      isActive:    true,
-      cityId:      city.id,
-      memberCount: 0,
-    },
-    update: {},
-    select: { id: true, slug: true },
-  })
-  console.log(`✓ Cup club: ${club.slug} (${club.id})`)
-
   // ── Group-stage fixtures (72) ─────────────────────────────────
   // Standard rotation per group:
   //   MD1: T1×T2, T3×T4

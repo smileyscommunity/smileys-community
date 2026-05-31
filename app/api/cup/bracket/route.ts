@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { getCupClubMembership, isValidTeamCode, tournamentStartAt } from '@/lib/cup'
+import { isApprovedMember, isValidTeamCode, tournamentStartAt } from '@/lib/cup'
 
 // GET /api/cup/bracket
 //
@@ -49,9 +49,8 @@ export async function POST(req: NextRequest) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const membership = await getCupClubMembership(session.id)
-  if (!membership) {
-    return NextResponse.json({ error: 'Join the Smileys Cup club to play' }, { status: 403 })
+  if (!await isApprovedMember(session.id)) {
+    return NextResponse.json({ error: 'Only approved members can play' }, { status: 403 })
   }
 
   const start = await tournamentStartAt()

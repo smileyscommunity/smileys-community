@@ -12,8 +12,6 @@
 
 import { prisma } from '@/lib/prisma'
 
-export const CUP_CLUB_SLUG = 'world-cup-2026'
-
 // Scoring per round. winnerTeam matches pickedTeam → these points
 // get written into CupPrediction.pointsAwarded by the admin result
 // route. Group stage = 1 pt × 72 matches (max 72) drives engagement
@@ -168,19 +166,15 @@ export function isPickAllowedForFixture(
   return true  // Knockout slot is still TBD — any qualified team is allowed
 }
 
-// Gate for the predictions UI + APIs. Returns the club membership
-// if the user is approved in the cup club, else null. Reused by
-// /api/cup/fixtures (to include yourPick), /api/cup/predict, and
-// /api/cup/bracket.
-export async function getCupClubMembership(userId: string) {
-  const club = await prisma.club.findUnique({
-    where:  { slug: CUP_CLUB_SLUG },
-    select: { id: true },
+// Gate for cup write endpoints (/api/cup/predict, /api/cup/bracket
+// POST). Any approved Smileys member plays — no second-level opt-in.
+// We do an inline status lookup rather than trusting the JWT's role
+// claim since pending/banned/suspended state changes mid-session
+// shouldn't leak through a stale token.
+export async function isApprovedMember(userId: string): Promise<boolean> {
+  const user = await prisma.user.findUnique({
+    where:  { id: userId },
+    select: { status: true },
   })
-  if (!club) return null
-  const membership = await prisma.clubMembership.findUnique({
-    where:  { userId_clubId: { userId, clubId: club.id } },
-    select: { status: true, role: true },
-  })
-  return membership?.status === 'approved' ? { clubId: club.id, role: membership.role } : null
+  return user?.status === 'approved'
 }
