@@ -25,9 +25,15 @@ fi
 echo "→ Checking for vulnerabilities..."
 npm audit --audit-level=high --legacy-peer-deps || { echo "✗ npm audit found high/critical vulnerabilities — fix before deploying"; exit 1; }
 
-echo "→ Building locally (release: $SENTRY_RELEASE)..."
-rm -rf "$LOCAL/.next"
-SENTRY_RELEASE="$SENTRY_RELEASE" npm run build
+if [ -z "$SKIP_BUILD" ]; then
+  echo "→ Building locally (release: $SENTRY_RELEASE)..."
+  # Preserve .next/cache (webpack incremental cache) — nuking it forces a full
+  # cold build every deploy and causes OOM kills on low-memory machines.
+  find "$LOCAL/.next" -mindepth 1 -maxdepth 1 ! -name 'cache' -exec rm -rf {} + 2>/dev/null || true
+  SENTRY_RELEASE="$SENTRY_RELEASE" npm run build
+else
+  echo "→ Skipping build (SKIP_BUILD set, using existing .next)..."
+fi
 
 # Pre-deploy smoke: start the built server locally and hit the key paths so a
 # broken build (missing chunks, runtime errors, etc.) is caught before we stop
@@ -91,5 +97,14 @@ ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-nps-dispatch.sh && (crontab -l 2>/
 # deploy into "page renders empty bracket and nobody knows why".
 echo "→ Seeding Smileys Cup 2026 fixtures..."
 ssh "$SERVER" "cd $REMOTE && npx tsx --env-file=.env scripts/seed-cup.ts"
+
+# Overlay the real FIFA schedule onto the 72 group fixtures. The
+# seed creates placeholder pairings (uniform MD rotation) and
+# synthetic times; this script rewrites them with the verified
+# Dec 6 2025 schedule. Idempotent — runs against an already-
+# corrected DB produce no-op updates (compares teams + time +
+# venue before writing).
+echo "→ Overlaying real FIFA schedule on group fixtures..."
+ssh "$SERVER" "cd $REMOTE && npx tsx --env-file=.env scripts/fix-group-fixtures.ts"
 
 echo "✓ Done (release: $SENTRY_RELEASE)"
