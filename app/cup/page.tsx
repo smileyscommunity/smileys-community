@@ -278,13 +278,19 @@ export default function CupPredictionsPage() {
       <div className="lg:max-w-3xl lg:mx-auto">
       {/* Hero banner — SVG illustration carries the title, dates,
           and tagline. Pure vector so it crisps at any density
-          without shipping a raster. Aspect ratio (2.5:1) reads
-          right on a 360px phone all the way up to desktop. The h1
-          stays in the DOM as sr-only so screen readers and search
-          engines still get a proper heading. */}
-      <div className="rounded-2xl overflow-hidden shadow-card mb-4">
+          without shipping a raster. The SVG's natural aspect is
+          2.5:1; we constrain the wrapper to 3:1 (responsive: 16/5
+          on mobile so it stays comfortable on a 360px phone, 3/1
+          on sm+) and rely on `object-cover` + the SVG's own
+          `xMidYMid slice` to crop a centered strip. Trophy (y60–
+          276) and text (y80–236) sit safely inside the kept band;
+          only some decorative confetti at the top/bottom edges
+          gets trimmed. The h1 stays in the DOM as sr-only so
+          screen readers and search engines still get a proper
+          heading. */}
+      <div className="rounded-2xl overflow-hidden shadow-card mb-4 aspect-[16/5] sm:aspect-[3/1]">
         <img src="/app/images/cup-banner.svg" alt="Smileys World Cup 2026 — Jun 11 to Jul 19, predict every match"
-          className="w-full block" loading="eager" decoding="async" />
+          className="w-full h-full object-cover block" loading="eager" decoding="async" />
       </div>
       <h1 className="sr-only">Smileys World Cup 2026 prediction game</h1>
 
@@ -402,10 +408,6 @@ export default function CupPredictionsPage() {
           <TrendingPicks />
           <Leaderboard />
 
-          {/* Share — natural after the leaderboard row "I just saw
-              my rank, want to brag at a friend." */}
-          {accessState === 'member' && <ShareButton variant="member" />}
-
           {/* Compact bracket summary — only after lock. */}
           {bracketLocked && (
             <BracketSummary
@@ -508,6 +510,10 @@ export default function CupPredictionsPage() {
           <FAQCard />
           <WatchParties />
           <PrizesSection />
+          {/* Share — lives at the bottom of the sidebar as a final
+              "spread the word" beat. Members only; visitors get the
+              embedded share row inside their apply hero instead. */}
+          {accessState === 'member' && <ShareButton variant="member" />}
         </aside>
       </div>
     </Shell>
