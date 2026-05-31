@@ -22,6 +22,22 @@ interface ClubMembership {
   user: Member
 }
 
+// Aggregate quality rollup for the club — mirrors host quality on
+// /admin/users/[id]. Null when the club has zero events. Numbers
+// stay null until at least one survey response lands. responseRate
+// is an approximation: (approved attendees - 1 host - cohosts).
+interface ClubQuality {
+  eventsHosted:    number
+  surveyResponses: number
+  wouldReturnRate: number | null
+  anomalyCount:    number
+  responseRate:    number | null
+  recent: {
+    id: string; title: string; emoji: string; date: string
+    wouldReturnRate: number | null; responses: number; anomalyCount: number; responseRate: number | null
+  }[]
+}
+
 function Avatar({ user }: { user: Member }) {
   const photo = resolveImageUrl(user.profilePhoto)
   const initials = user.name.trim().split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
@@ -40,19 +56,25 @@ export default function AdminClubDetailPage() {
 
   const [memberships, setMemberships] = useState<ClubMembership[]>([])
   const [clubName,    setClubName]    = useState('')
+  const [quality,     setQuality]     = useState<ClubQuality | null>(null)
   const [loading,     setLoading]     = useState(true)
   const [search,      setSearch]      = useState('')
   const [allUsers,    setAllUsers]    = useState<Member[]>([])
 
   useEffect(() => {
+    // The new /api/admin/clubs/[id] GET returns club + quality in
+    // one round trip; the old "fetch all clubs and find by id" path
+    // was always wasteful and gets worse as the club list grows.
     Promise.all([
       fetch(`/app/api/admin/clubs/${id}/memberships`, { credentials: 'include' }).then(r => r.json()),
-      fetch('/app/api/admin/clubs', { credentials: 'include' }).then(r => r.json()),
-      fetch('/app/api/admin/users', { credentials: 'include' }).then(r => r.json()),
-    ]).then(([mems, clubs, users]) => {
+      fetch(`/app/api/admin/clubs/${id}`,             { credentials: 'include' }).then(r => r.json()),
+      fetch('/app/api/admin/users',                   { credentials: 'include' }).then(r => r.json()),
+    ]).then(([mems, club, users]) => {
       setMemberships(Array.isArray(mems) ? mems : [])
-      const club = Array.isArray(clubs) ? clubs.find((c: any) => c.id === id) : null
-      if (club) setClubName(club.name)
+      if (club && !club.error) {
+        setClubName(club.name)
+        setQuality(club.quality ?? null)
+      }
       setAllUsers(Array.isArray(users) ? users : [])
     }).finally(() => setLoading(false))
   }, [id])
@@ -121,6 +143,101 @@ export default function AdminClubDetailPage() {
           <p className="text-sm text-zinc-400">Manage members</p>
         </div>
       </div>
+
+      {/* Club quality card — mirrors host quality on /admin/users/[id].
+          Surfaces only when the club has hosted at least one event.
+          wouldReturn = signal, responseRate = trust-the-signal.
+          Recent-6 row lets admins drill into "which event tanked
+          the rate?" without leaving the page. */}
+      {quality && quality.eventsHosted > 0 && (
+        <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-4 sm:p-5">
+          <div className="flex items-center justify-between mb-3 sm:mb-4">
+            <div>
+              <h3 className="text-sm font-bold text-white">Club quality</h3>
+              <p className="text-xs text-zinc-500 mt-0.5">
+                {quality.surveyResponses > 0
+                  ? `${quality.surveyResponses} post-event survey response${quality.surveyResponses === 1 ? '' : 's'} across ${quality.eventsHosted} event${quality.eventsHosted === 1 ? '' : 's'}`
+                  : `${quality.eventsHosted} event${quality.eventsHosted === 1 ? '' : 's'} — no survey responses yet`}
+              </p>
+            </div>
+            {quality.anomalyCount > 0 && (
+              <span className="text-xs font-bold px-2 py-1 rounded-full bg-red-500/15 text-red-400 border border-red-500/30 shrink-0">
+                ⚠ {quality.anomalyCount} anomal{quality.anomalyCount === 1 ? 'y' : 'ies'}
+              </span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+            <div className="bg-zinc-950/40 rounded-xl p-3">
+              <div className={`text-2xl sm:text-3xl font-extrabold ${
+                quality.wouldReturnRate === null  ? 'text-zinc-600'
+                  : quality.wouldReturnRate >= 80 ? 'text-green-400'
+                  : quality.wouldReturnRate >= 60 ? 'text-amber-400'
+                  : 'text-red-400'
+              }`}>
+                {quality.wouldReturnRate === null ? '—' : `${quality.wouldReturnRate}%`}
+              </div>
+              <div className="text-xs text-zinc-500 mt-1">Would attend again</div>
+            </div>
+            <div className="bg-zinc-950/40 rounded-xl p-3">
+              <div className={`text-2xl sm:text-3xl font-extrabold ${
+                quality.responseRate === null  ? 'text-zinc-600'
+                  : quality.responseRate >= 50 ? 'text-green-400'
+                  : quality.responseRate >= 25 ? 'text-amber-400'
+                  : 'text-red-400'
+              }`}>
+                {quality.responseRate === null ? '—' : `${quality.responseRate}%`}
+              </div>
+              <div className="text-xs text-zinc-500 mt-1">Response rate</div>
+            </div>
+            <div className="bg-zinc-950/40 rounded-xl p-3">
+              <div className="text-2xl sm:text-3xl font-extrabold text-white">{quality.eventsHosted}</div>
+              <div className="text-xs text-zinc-500 mt-1">Events</div>
+            </div>
+            <div className="bg-zinc-950/40 rounded-xl p-3">
+              <div className="text-2xl sm:text-3xl font-extrabold text-white">{quality.surveyResponses}</div>
+              <div className="text-xs text-zinc-500 mt-1">Responses</div>
+            </div>
+          </div>
+
+          {quality.recent.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-zinc-800">
+              <p className="text-xs font-bold text-zinc-600 uppercase tracking-wider mb-2">Recent — last {quality.recent.length}</p>
+              <div className="space-y-1.5">
+                {quality.recent.map(e => (
+                  <Link key={e.id} href={`/admin/events/${e.id}/edit`}
+                    className="flex items-center gap-3 px-3 py-2 rounded-lg bg-zinc-950/40 hover:bg-zinc-800 transition-colors">
+                    <span className="text-base shrink-0">{e.emoji}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold text-white truncate">{e.title}</p>
+                      <p className="text-[10px] text-zinc-600">{new Date(e.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</p>
+                    </div>
+                    <div className="text-right shrink-0 text-xs">
+                      {e.wouldReturnRate !== null ? (
+                        <span className={`font-bold ${
+                          e.wouldReturnRate >= 80 ? 'text-green-400'
+                            : e.wouldReturnRate >= 60 ? 'text-amber-400'
+                            : 'text-red-400'
+                        }`}>{e.wouldReturnRate}%</span>
+                      ) : (
+                        <span className="text-zinc-600">—</span>
+                      )}
+                      <span className="text-zinc-600 ml-1">
+                        {e.responses > 0
+                          ? `(${e.responses}${e.responseRate !== null ? ` · ${e.responseRate}%` : ''})`
+                          : ''}
+                      </span>
+                      {e.anomalyCount > 0 && (
+                        <span className="ml-1.5 px-1 rounded bg-red-500/20 text-red-400 font-bold">⚠{e.anomalyCount}</span>
+                      )}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Pending requests */}
       {(loading || pending.length > 0) && (

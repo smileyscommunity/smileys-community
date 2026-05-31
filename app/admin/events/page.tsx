@@ -21,7 +21,9 @@ interface AdminEvent {
   // attendee has responded yet (or surveys haven't been dispatched
   // because the event is still recent enough to be inside the 24h
   // delay). UI shows "—" in that case rather than a misleading 0%.
-  survey: { responses: number; wouldReturnRate: number; anomalyCount: number } | null
+  // responseRate is approximated as responses / (approved - 1 host -
+  // cohosts); null when the eligible pool is 0.
+  survey: { responses: number; wouldReturnRate: number; anomalyCount: number; eligibleAttendees: number; responseRate: number | null } | null
 }
 
 interface Club { id: string; name: string; emoji: string }
@@ -620,7 +622,9 @@ function AdminEventsPageInner() {
                       }`}>
                         ✓ {event.survey.wouldReturnRate}%
                       </span>
-                      <span className="text-zinc-500">{event.survey.responses} feedback</span>
+                      <span className="text-zinc-500" title={event.survey.responseRate !== null ? `${event.survey.responseRate}% of ${event.survey.eligibleAttendees} eligible attendees responded` : ''}>
+                        {event.survey.responses} feedback{event.survey.responseRate !== null ? ` · ${event.survey.responseRate}%` : ''}
+                      </span>
                       {event.survey.anomalyCount > 0 && (
                         <span className="px-1.5 rounded bg-red-500/20 text-red-400 font-bold">
                           ⚠ {event.survey.anomalyCount}
@@ -713,11 +717,13 @@ function AdminEventsPageInner() {
                           event.survey.wouldReturnRate >= 80 ? 'text-green-400'
                             : event.survey.wouldReturnRate >= 60 ? 'text-amber-400'
                             : 'text-red-400'
-                        }`} title={`${event.survey.wouldReturnRate}% would attend again — ${event.survey.responses} response${event.survey.responses === 1 ? '' : 's'}`}>
+                        }`} title={`${event.survey.wouldReturnRate}% would attend again — ${event.survey.responses} response${event.survey.responses === 1 ? '' : 's'}${event.survey.responseRate !== null ? ` (${event.survey.responseRate}% response rate)` : ''}`}>
                           {event.survey.wouldReturnRate}%
                         </span>
                         <span className="text-zinc-600">·</span>
-                        <span className="text-zinc-500">{event.survey.responses}</span>
+                        <span className="text-zinc-500" title={event.survey.responseRate !== null ? `${event.survey.responseRate}% of ${event.survey.eligibleAttendees} eligible attendees responded` : ''}>
+                          {event.survey.responses}{event.survey.responseRate !== null ? `/${event.survey.eligibleAttendees}` : ''}
+                        </span>
                         {event.survey.anomalyCount > 0 && (
                           <span className="ml-0.5 px-1 rounded bg-red-500/20 text-red-400 font-bold" title={`${event.survey.anomalyCount} anomaly flag${event.survey.anomalyCount === 1 ? '' : 's'} reported`}>
                             ⚠{event.survey.anomalyCount}

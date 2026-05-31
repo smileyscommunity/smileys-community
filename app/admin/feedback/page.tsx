@@ -31,10 +31,12 @@ interface SurveyResponse {
 }
 
 interface EventAggregate {
-  event:           { id: string; title: string; emoji: string; date: string; hostId: string | null }
-  responses:       number
-  wouldReturnRate: number | null
-  anomalyCount:    number
+  event:             { id: string; title: string; emoji: string; date: string; hostId: string | null }
+  responses:         number
+  wouldReturnRate:   number | null
+  anomalyCount:      number
+  eligibleAttendees: number
+  responseRate:      number | null
 }
 
 interface Last30  { responses: number; wouldReturnRate: number | null; anomalyRate: number | null; anomalies: number; rateTrendPp: number | null }
@@ -433,7 +435,19 @@ function EventAggRow({ row }: { row: EventAggregate }) {
           <span className="text-sm font-semibold text-white truncate">{r.event.title}</span>
           <span className="text-[10px] text-zinc-600">{new Date(r.event.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
         </div>
-        <p className="text-[10px] text-zinc-600 mt-1">{r.responses} response{r.responses === 1 ? '' : 's'}</p>
+        {/* Response rate sits right next to the response count — same
+            line gives admins instant context for "trust the signal?"
+            without committing screen real-estate to another column. */}
+        <p className="text-[10px] text-zinc-600 mt-1">
+          {r.responses} response{r.responses === 1 ? '' : 's'}
+          {r.responseRate !== null && (
+            <> · <span className={
+              r.responseRate >= 50 ? 'text-green-400'
+                : r.responseRate >= 25 ? 'text-amber-400'
+                : 'text-red-400'
+            }>{r.responseRate}% rate</span></>
+          )}
+        </p>
       </div>
       <div className="flex items-center gap-3 shrink-0">
         {r.anomalyCount > 0 && (

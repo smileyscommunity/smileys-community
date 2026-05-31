@@ -4,6 +4,7 @@ import { getSession } from '@/lib/session'
 import { isAdmin, isModerator, isClubHost, isClubHostFor } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
 import { todayIstanbul } from '@/lib/data'
+import { computeEventSurveyRollup } from '@/lib/survey'
 
 export async function GET(req: NextRequest) {
   try {
@@ -53,34 +54,10 @@ export async function GET(req: NextRequest) {
       : []
     const hostMap = Object.fromEntries(hostUsers.map(u => [u.id, u]))
 
-    // Survey rollup — three groupBys across every event in the
-    // response. Prisma's typed API doesn't allow `_sum` on Boolean
-    // columns even though Postgres SUM(bool) works, so we count
-    // matching rows per predicate instead and reconcile in JS.
-    // Cheaper than N-per-event regardless of approach.
-    const eventIds = events.map(e => e.id)
-    const [respCounts, returnCounts, anomalyCounts] = eventIds.length > 0
-      ? await Promise.all([
-          prisma.eventSurvey.groupBy({ by: ['eventId'], where: { eventId: { in: eventIds } },                          _count: { _all: true } }),
-          prisma.eventSurvey.groupBy({ by: ['eventId'], where: { eventId: { in: eventIds }, wouldReturn: true },        _count: { _all: true } }),
-          prisma.eventSurvey.groupBy({ by: ['eventId'], where: { eventId: { in: eventIds }, anomaly: true },            _count: { _all: true } }),
-        ])
-      : [[], [], []]
-    const respMap    = new Map(respCounts.map(r    => [r.eventId, r._count._all]))
-    const returnMap  = new Map(returnCounts.map(r  => [r.eventId, r._count._all]))
-    const anomalyMap = new Map(anomalyCounts.map(r => [r.eventId, r._count._all]))
-    const surveyMap  = new Map<string, { responses: number; wouldReturnRate: number; anomalyCount: number }>()
-    for (const id of respMap.keys()) {
-      const responses  = respMap.get(id)    ?? 0
-      const wouldRet   = returnMap.get(id)  ?? 0
-      const anomalies  = anomalyMap.get(id) ?? 0
-      if (responses === 0) continue
-      surveyMap.set(id, {
-        responses,
-        wouldReturnRate: Math.round((wouldRet / responses) * 100),
-        anomalyCount:    anomalies,
-      })
-    }
+    // Survey rollup — shared helper does the five-groupBy reconciliation
+    // including eligibleAttendees + responseRate. Same shape used on
+    // /admin/users/[id] host quality and /admin/clubs/[id] quality card.
+    const surveyMap = await computeEventSurveyRollup(events.map(e => e.id))
 
     const result = events.map(e => ({
       ...e,

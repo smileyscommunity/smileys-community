@@ -52,9 +52,10 @@ interface UserDetail {
     surveyResponses: number
     wouldReturnRate: number | null
     anomalyCount:    number
+    responseRate:    number | null
     recent: {
       id: string; title: string; emoji: string; date: string
-      wouldReturnRate: number | null; responses: number; anomalyCount: number
+      wouldReturnRate: number | null; responses: number; anomalyCount: number; responseRate: number | null
     }[]
   } | null
 }
@@ -466,7 +467,13 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
             )}
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
+          {/* Four tiles: 2-up on phone (text-3xl wouldn't fit 3-up on
+              360px), 4-up from sm+. Response rate quantifies *how
+              much to trust the wouldReturn signal* — a 95% return
+              rate from 2 responses out of 30 eligible is much weaker
+              than 85% from 25/30. Colour-grading mirrors return rate
+              thresholds. */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
             <div className="bg-zinc-950/40 rounded-xl p-3">
               <div className={`text-2xl sm:text-3xl font-extrabold ${
                 user.hostQuality.wouldReturnRate === null  ? 'text-zinc-600'
@@ -479,10 +486,21 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
               <div className="text-xs text-zinc-500 mt-1">Would attend again</div>
             </div>
             <div className="bg-zinc-950/40 rounded-xl p-3">
+              <div className={`text-2xl sm:text-3xl font-extrabold ${
+                user.hostQuality.responseRate === null  ? 'text-zinc-600'
+                  : user.hostQuality.responseRate >= 50 ? 'text-green-400'
+                  : user.hostQuality.responseRate >= 25 ? 'text-amber-400'
+                  : 'text-red-400'
+              }`}>
+                {user.hostQuality.responseRate === null ? '—' : `${user.hostQuality.responseRate}%`}
+              </div>
+              <div className="text-xs text-zinc-500 mt-1">Response rate</div>
+            </div>
+            <div className="bg-zinc-950/40 rounded-xl p-3">
               <div className="text-2xl sm:text-3xl font-extrabold text-white">{user.hostQuality.eventsHosted}</div>
               <div className="text-xs text-zinc-500 mt-1">Events hosted</div>
             </div>
-            <div className="bg-zinc-950/40 rounded-xl p-3 col-span-2 sm:col-span-1">
+            <div className="bg-zinc-950/40 rounded-xl p-3">
               <div className="text-2xl sm:text-3xl font-extrabold text-white">{user.hostQuality.surveyResponses}</div>
               <div className="text-xs text-zinc-500 mt-1">Responses collected</div>
             </div>
@@ -510,7 +528,11 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                       ) : (
                         <span className="text-zinc-600">—</span>
                       )}
-                      <span className="text-zinc-600 ml-1">{e.responses > 0 ? `(${e.responses})` : ''}</span>
+                      <span className="text-zinc-600 ml-1">
+                        {e.responses > 0
+                          ? `(${e.responses}${e.responseRate !== null ? ` · ${e.responseRate}%` : ''})`
+                          : ''}
+                      </span>
                       {e.anomalyCount > 0 && (
                         <span className="ml-1.5 px-1 rounded bg-red-500/20 text-red-400 font-bold">⚠{e.anomalyCount}</span>
                       )}

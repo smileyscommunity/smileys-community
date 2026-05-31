@@ -135,13 +135,28 @@ export async function GET(req: NextRequest) {
     // aggregate, which Postgres can do but Prisma's typed API can't
     // express cleanly).
     const eventIds = respGroups.map(g => g.eventId)
-    const events = eventIds.length > 0
-      ? await prisma.event.findMany({
-          where: { id: { in: eventIds } },
-          select: { id: true, title: true, emoji: true, date: true, hostId: true },
-        })
-      : []
-    const evMap = new Map(events.map(e => [e.id, e]))
+    const [events, attendeeGroups, cohostGroups] = await Promise.all([
+      eventIds.length > 0
+        ? prisma.event.findMany({
+            where: { id: { in: eventIds } },
+            select: { id: true, title: true, emoji: true, date: true, hostId: true },
+          })
+        : Promise.resolve([]),
+      // eligibleAttendees is filter-independent: it's the event's
+      // approved attendee pool minus 1 host minus cohosts. Filters
+      // narrow which responses count toward the numerator, but the
+      // denominator should stay stable so a "last 7 days" filter
+      // reads as "% of eligible who responded within window".
+      eventIds.length > 0
+        ? prisma.eventAttendee.groupBy({ by: ['eventId'], where: { eventId: { in: eventIds }, status: 'approved' }, _count: { _all: true } })
+        : Promise.resolve([]),
+      eventIds.length > 0
+        ? prisma.eventCoHost.groupBy({ by: ['eventId'], where: { eventId: { in: eventIds } }, _count: { _all: true } })
+        : Promise.resolve([]),
+    ])
+    const evMap       = new Map(events.map(e => [e.id, e]))
+    const attendeeMap = new Map(attendeeGroups.map(r => [r.eventId, r._count._all]))
+    const cohostMap   = new Map(cohostGroups.map(r   => [r.eventId, r._count._all]))
 
     const rows = respGroups
       .map(g => {
@@ -149,11 +164,16 @@ export async function GET(req: NextRequest) {
         const wouldRet  = retMap.get(g.eventId)  ?? 0
         const anomalies = anomMap.get(g.eventId) ?? 0
         const ev = evMap.get(g.eventId)
+        const attendees = attendeeMap.get(g.eventId) ?? 0
+        const cohosts   = cohostMap.get(g.eventId)   ?? 0
+        const eligible  = Math.max(0, attendees - 1 - cohosts)
         return ev ? {
           event:           ev,
           responses,
           wouldReturnRate: responses > 0 ? Math.round((wouldRet / responses) * 100) : null,
           anomalyCount:    anomalies,
+          eligibleAttendees: eligible,
+          responseRate:    eligible > 0 ? Math.round((responses / eligible) * 100) : null,
         } : null
       })
       .filter((r): r is NonNullable<typeof r> => !!r)
