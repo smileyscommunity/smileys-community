@@ -299,6 +299,10 @@ export default function AdminClubsPage() {
   }
 
   async function handleMembership(clubId: string, userId: string, status: 'approved' | 'rejected') {
+    // Read the prior status before mutating so the optimistic
+    // memberCount update mirrors the server-side count-delta logic
+    // (only approved↔non-approved transitions move the count).
+    const prior = allMembers.find(m => m.userId === userId)?.status ?? null
     const res = await fetch(`/app/api/admin/clubs/${clubId}/memberships`, {
       method: 'PATCH',
       credentials: 'include',
@@ -306,11 +310,14 @@ export default function AdminClubsPage() {
       body: JSON.stringify({ userId, status }),
     })
     if (res.ok) {
+      const delta = (status === 'approved' ? 1 : 0) - (prior === 'approved' ? 1 : 0)
       if (status === 'rejected') {
         setAllMembers(prev => prev.filter(m => m.userId !== userId))
       } else {
         setAllMembers(prev => prev.map(m => m.userId === userId ? { ...m, status } : m))
-        setClubList(prev => prev.map(c => c.id === clubId ? { ...c, memberCount: c.memberCount + 1 } : c))
+      }
+      if (delta !== 0) {
+        setClubList(prev => prev.map(c => c.id === clubId ? { ...c, memberCount: c.memberCount + delta } : c))
       }
       toast.success(status === 'approved' ? 'Approved ✓' : 'Rejected')
     }
@@ -330,6 +337,12 @@ export default function AdminClubsPage() {
   }
 
   async function handleRemoveMember(clubId: string, userId: string) {
+    // Capture prior status so we can decrement memberCount
+    // optimistically when an approved member is removed. Previous
+    // code never decremented, so the card showed a stale count
+    // until next refresh — visible drift even though the server
+    // was correct.
+    const prior = allMembers.find(m => m.userId === userId)?.status ?? null
     const res = await fetch(`/app/api/admin/clubs/${clubId}/memberships`, {
       method: 'DELETE',
       credentials: 'include',
@@ -338,7 +351,24 @@ export default function AdminClubsPage() {
     })
     if (res.ok) {
       setAllMembers(prev => prev.filter(m => m.userId !== userId))
+      if (prior === 'approved') {
+        setClubList(prev => prev.map(c => c.id === clubId ? { ...c, memberCount: Math.max(0, c.memberCount - 1) } : c))
+      }
       toast('Member removed')
+    }
+  }
+
+  async function handleRecount(clubId: string) {
+    const res = await fetch(`/app/api/admin/clubs/${clubId}/recount`, {
+      method: 'POST', credentials: 'include',
+    })
+    if (!res.ok) { toast.error('Recount failed'); return }
+    const { memberCount, drift } = await res.json()
+    setClubList(prev => prev.map(c => c.id === clubId ? { ...c, memberCount } : c))
+    if (drift === 0) {
+      toast.success(`Count is already correct (${memberCount})`)
+    } else {
+      toast.success(`Corrected by ${drift > 0 ? '+' : ''}${drift} → ${memberCount}`)
     }
   }
 
@@ -433,7 +463,21 @@ export default function AdminClubsPage() {
                 <div className="pt-3 border-t border-zinc-800 space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <span className="text-xs text-zinc-500">👥 {club.memberCount} members</span>
+                      <span className="text-xs text-zinc-500 flex items-center gap-1">
+                        👥 {club.memberCount} members
+                        {/* Recount — recovery hatch for any drift left
+                            over from before B1/B3 were fixed. Quiet
+                            icon button next to the count so it
+                            doesn't shout for attention. */}
+                        <button onClick={() => handleRecount(club.id)}
+                          className="text-zinc-700 hover:text-amber-400 transition-colors p-0.5"
+                          title="Recount approved memberships">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                        </button>
+                      </span>
                       {club._count != null && <span className="text-xs text-zinc-500">🗓 {club._count.events} events</span>}
                     </div>
                     <button onClick={() => deleteClub(club)} className="text-xs text-red-400 hover:text-red-300 transition-colors font-medium px-2 py-1">
