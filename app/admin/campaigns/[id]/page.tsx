@@ -23,10 +23,12 @@ import { toast } from 'sonner'
 
 import { type AdminCampaign, CAMPAIGN_STATUS_PILL, CAMPAIGN_STATUSES, type CampaignStatus } from '@/lib/admin/campaigns'
 import { type AdminDonation } from '@/lib/admin/donations'
-import DonationRow      from '@/components/admin/DonationRow'
-import CupFixturesPanel from '@/components/admin/CupFixturesPanel'
+import DonationRow         from '@/components/admin/DonationRow'
+import CupFixturesPanel    from '@/components/admin/CupFixturesPanel'
+import CampaignBoardPanel  from '@/components/admin/CampaignBoardPanel'
+import CampaignAuditPanel  from '@/components/admin/CampaignAuditPanel'
 
-type Tab = 'donations' | 'fixtures'
+type Tab = 'donations' | 'board' | 'fixtures' | 'audit'
 
 export default function AdminCampaignDetailPage() {
   const { id }       = useParams<{ id: string }>()
@@ -44,7 +46,9 @@ export default function AdminCampaignDetailPage() {
   // via shallow router.replace so the browser back button doesn't
   // get polluted with one history entry per tab switch.
   const tabParam = searchParams.get('tab')
-  const tab: Tab = tabParam === 'fixtures' ? 'fixtures' : 'donations'
+  const tab: Tab = (tabParam === 'board' || tabParam === 'fixtures' || tabParam === 'audit')
+    ? tabParam
+    : 'donations'
   function setTab(t: Tab) {
     const next = new URLSearchParams(searchParams.toString())
     if (t === 'donations') next.delete('tab')
@@ -107,7 +111,7 @@ export default function AdminCampaignDetailPage() {
   // to the donations tab so the admin sees a populated pane
   // instead of a blank one. Only matters AFTER campaign loads —
   // before that the skeleton below hides everything anyway.
-  const effectiveTab: Tab = (tab === 'fixtures' && campaign?.hasFixtures) ? 'fixtures' : 'donations'
+  const effectiveTab: Tab = (tab === 'fixtures' && !campaign?.hasFixtures) ? 'donations' : tab
 
   if (!campaign) {
     return (
@@ -190,16 +194,22 @@ export default function AdminCampaignDetailPage() {
           by the seed for world-cup-2026 and any future tournament).
           For donation-only campaigns the donations pane is the only
           thing surfaced — no tab chrome at all. */}
-      {campaign.hasFixtures ? (
-        <div className="flex gap-1 bg-zinc-900 border border-zinc-800 rounded-xl p-1 w-fit">
-          <TabButton active={effectiveTab === 'donations'} onClick={() => setTab('donations')}>
-            Donations {pending.length > 0 && <span className="ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold rounded-full bg-amber-500/20 text-amber-300">{pending.length}</span>}
-          </TabButton>
+      <div className="flex gap-1 bg-zinc-900 border border-zinc-800 rounded-xl p-1 w-fit flex-wrap">
+        <TabButton active={effectiveTab === 'donations'} onClick={() => setTab('donations')}>
+          Donations {pending.length > 0 && <span className="ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold rounded-full bg-amber-500/20 text-amber-300">{pending.length}</span>}
+        </TabButton>
+        <TabButton active={effectiveTab === 'board'} onClick={() => setTab('board')}>
+          Sponsors + prizes
+        </TabButton>
+        {campaign.hasFixtures && (
           <TabButton active={effectiveTab === 'fixtures'} onClick={() => setTab('fixtures')}>
             Fixtures + results
           </TabButton>
-        </div>
-      ) : null}
+        )}
+        <TabButton active={effectiveTab === 'audit'} onClick={() => setTab('audit')}>
+          Audit log
+        </TabButton>
+      </div>
 
       {effectiveTab === 'donations' && (
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
@@ -239,7 +249,9 @@ export default function AdminCampaignDetailPage() {
         </div>
       )}
 
+      {effectiveTab === 'board'    && <CampaignBoardPanel campaignId={campaign.id} />}
       {effectiveTab === 'fixtures' && <CupFixturesPanel />}
+      {effectiveTab === 'audit'    && <CampaignAuditPanel campaignId={campaign.id} />}
     </div>
   )
 }
@@ -275,6 +287,7 @@ function EditPanel({ campaign, onSaved, onCancel }: {
     description: campaign.description ?? '',
     status:      campaign.status as CampaignStatus,
     routeSlug:   campaign.routeSlug,
+    coverImage:  campaign.coverImage ?? '',
     startsAt:    campaign.startsAt ? campaign.startsAt.slice(0, 10) : '',
     endsAt:      campaign.endsAt   ? campaign.endsAt.slice(0, 10)   : '',
   })
@@ -299,6 +312,7 @@ function EditPanel({ campaign, onSaved, onCancel }: {
       description: draft.description.trim(),
       status:      draft.status,
       routeSlug:   draft.routeSlug.trim() || campaign.slug,
+      coverImage:  draft.coverImage.trim() || null,
       startsAt:    draft.startsAt || null,
       endsAt:      draft.endsAt   || null,
     }
@@ -365,6 +379,11 @@ function EditPanel({ campaign, onSaved, onCancel }: {
         <EditField label="Route slug">
           <input className={editInputCls} value={draft.routeSlug} onChange={e => setDraft({ ...draft, routeSlug: e.target.value })} />
         </EditField>
+        <div className="sm:col-span-2">
+          <EditField label="Cover image URL">
+            <input className={editInputCls} value={draft.coverImage} onChange={e => setDraft({ ...draft, coverImage: e.target.value })} placeholder="https://… (used on the public campaign page when set)" />
+          </EditField>
+        </div>
         <EditField label="Starts at">
           <input type="date" className={editInputCls} value={draft.startsAt} onChange={e => setDraft({ ...draft, startsAt: e.target.value })} />
         </EditField>

@@ -49,6 +49,11 @@ export async function POST(req: NextRequest) {
   if (!p.name)                                   return NextResponse.json({ error: 'name required' }, { status: 400 })
   if (!p.slug || !SLUG_RE.test(p.slug))          return NextResponse.json({ error: 'slug must be lowercase letters, digits, hyphens' }, { status: 400 })
 
+  // Optional campaignId — when admin creates from the campaign-
+  // detail Board panel the row is scoped to that campaign. When
+  // omitted (legacy callers, the historical global form) it stays
+  // null and the seed script backfills any orphans on next deploy.
+  const campaignId = typeof body.campaignId === 'string' && body.campaignId.trim() ? body.campaignId.trim() : null
   try {
     const sponsor = await prisma.cupSponsor.create({
       data: {
@@ -56,6 +61,7 @@ export async function POST(req: NextRequest) {
         logoUrl: p.logoUrl, websiteUrl: p.websiteUrl, instagramUrl: p.instagramUrl,
         status: p.status ?? 'active',
         addedByUserId: session.id,
+        campaignId,
       },
     })
     writeAudit(session.id, session.name, 'cup.sponsor_create', sponsor.id, 'cup_sponsor',

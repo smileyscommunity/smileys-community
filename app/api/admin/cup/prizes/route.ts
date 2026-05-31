@@ -51,6 +51,10 @@ export async function POST(req: NextRequest) {
   const p = parsePayload(body)
   if (!p.title) return NextResponse.json({ error: 'title required' }, { status: 400 })
 
+  // Optional campaignId — when admin creates from the campaign-
+  // detail Board panel, scoped to that campaign. Omitted from
+  // legacy / global callers stays null; seed script backfills.
+  const campaignId = typeof body.campaignId === 'string' && body.campaignId.trim() ? body.campaignId.trim() : null
   const prize = await prisma.cupPrize.create({
     data: {
       title:       p.title,
@@ -59,6 +63,7 @@ export async function POST(req: NextRequest) {
       rank:        p.rank === undefined ? null : p.rank,
       status:      p.status ?? 'draft',
       sponsorId:   p.sponsorId === undefined ? null : p.sponsorId,
+      campaignId,
     },
   })
   writeAudit(session.id, session.name, 'cup.prize_create', prize.id, 'cup_prize',
