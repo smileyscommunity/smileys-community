@@ -253,32 +253,74 @@ export default function CupPredictionsPage() {
 
   return (
     <Shell>
-      {/* Title — standalone page, no parent breadcrumb. The cup IS
-          the destination; nothing to navigate back to except the
-          rest of the app, which the global nav handles. */}
-      <div className="mb-4">
-        <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">🏆 FIFA World Cup 2026</h1>
-        <p className="text-xs text-gray-500 mt-0.5">Pick a champion. Pick every knockout. Win the trophy.</p>
+      {/* Hero banner — SVG illustration carries the title, dates,
+          and tagline. Pure vector so it crisps at any density
+          without shipping a raster. Aspect ratio (2.5:1) reads
+          right on a 360px phone all the way up to desktop. The h1
+          stays in the DOM as sr-only so screen readers and search
+          engines still get a proper heading. */}
+      <div className="rounded-2xl overflow-hidden shadow-card mb-4">
+        <img src="/app/images/cup-banner.svg" alt="Smileys World Cup 2026 — Jun 11 to Jul 19, predict every match"
+          className="w-full block" loading="eager" decoding="async" />
       </div>
+      <h1 className="sr-only">Smileys World Cup 2026 prediction game</h1>
 
-      {/* Logged-out / pending — Apply CTA. The cup is the only
-          page on the platform a non-member can land on and see
-          real members playing in real time, so the Apply pitch
-          rides the highest-intent surface we have. */}
+      {/* Visitor hero — 3-step path to play. Replaces the old
+          two-line "Want to play?" tile because a visitor needs to
+          see the *shape* of joining (it's curated, not instant)
+          before they tap Apply. Mobile-first: stacked steps with
+          generous tap targets and a big primary CTA. Pending
+          members get their own state below — same shell, different
+          status to set expectations on timing. */}
       {accessState === 'unauthenticated' && (
-        <div className="bg-white border border-amber-200 rounded-2xl p-5 mb-4 shadow-sm">
-          <p className="font-bold text-gray-900 mb-1">Want to play?</p>
-          <p className="text-sm text-gray-600 mb-3">The Smileys Cup is for members. Apply to join — once you&apos;re accepted you can lock in your bracket and start picking matches.</p>
-          <button onClick={() => router.push('/apply')}
-            className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
-            Apply to Smileys
-          </button>
+        <div className="bg-white rounded-2xl shadow-card mb-4 overflow-hidden">
+          <div className="bg-gradient-to-br from-amber-400 to-amber-600 px-5 py-5 text-white">
+            <p className="text-[10px] font-bold uppercase tracking-widest opacity-90 mb-1">Free to play · members only</p>
+            <p className="text-lg sm:text-xl font-extrabold leading-snug">Predict every match. Climb the board. Win the trophy.</p>
+          </div>
+          <div className="p-5">
+            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-3">How to join</p>
+            <ol className="space-y-3">
+              <li className="flex items-start gap-3">
+                <span className="w-7 h-7 rounded-full bg-amber-100 text-amber-700 font-bold text-sm flex items-center justify-center shrink-0">1</span>
+                <div className="flex-1 min-w-0 pt-0.5">
+                  <p className="text-sm font-bold text-gray-900 leading-tight">Apply to Smileys</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Quick form. We&apos;re curated — tell us about you.</p>
+                </div>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="w-7 h-7 rounded-full bg-amber-100 text-amber-700 font-bold text-sm flex items-center justify-center shrink-0">2</span>
+                <div className="flex-1 min-w-0 pt-0.5">
+                  <p className="text-sm font-bold text-gray-900 leading-tight">Get accepted</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Usually 1–3 days. Watch your inbox.</p>
+                </div>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="w-7 h-7 rounded-full bg-amber-100 text-amber-700 font-bold text-sm flex items-center justify-center shrink-0">3</span>
+                <div className="flex-1 min-w-0 pt-0.5">
+                  <p className="text-sm font-bold text-gray-900 leading-tight">Come back &amp; play</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Lock in your bracket, pick each match, climb the board.</p>
+                </div>
+              </li>
+            </ol>
+            <button onClick={() => router.push('/apply')}
+              className="w-full py-3.5 mt-5 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-base font-bold rounded-xl transition-colors shadow-sm">
+              Apply to play →
+            </button>
+            <p className="text-[11px] text-gray-400 text-center mt-2">Free · no payment · ~5 min to apply</p>
+          </div>
         </div>
       )}
       {accessState === 'not-member' && (
-        <div className="bg-white border border-amber-200 rounded-2xl p-5 mb-4 shadow-sm">
-          <p className="font-bold text-gray-900 mb-1">Your application is still under review</p>
-          <p className="text-sm text-gray-600">You&apos;ll be able to play once your membership is approved. Check back soon.</p>
+        <div className="bg-white rounded-2xl shadow-card mb-4 overflow-hidden">
+          <div className="bg-gradient-to-br from-amber-100 to-amber-200 px-5 py-4">
+            <p className="text-[10px] font-bold text-amber-800 uppercase tracking-widest mb-1">Step 2 of 3</p>
+            <p className="text-base font-extrabold text-amber-900 leading-snug">You&apos;re in the queue 🙌</p>
+          </div>
+          <div className="p-5">
+            <p className="text-sm text-gray-700 leading-relaxed">Your application is being reviewed. Most decisions land within 1–3 days. As soon as you&apos;re in, this page unlocks and you can pick your bracket and matches.</p>
+            <p className="text-xs text-gray-400 mt-3">Want to nudge it? Check your email — we may have written.</p>
+          </div>
         </div>
       )}
 
@@ -303,7 +345,11 @@ export default function CupPredictionsPage() {
               leaderboard. The reader doesn't need to stare at
               their semifinalist picks every visit — they need to
               see if they're climbing or falling. */}
-      {!bracketLocked && (
+      {/* Bracket card only renders for approved members. Visitors
+          and pending applicants don't need to stare at a card
+          they can't interact with — the visitor hero above is
+          already telling them how to get in. */}
+      {!bracketLocked && accessState === 'member' && (
         <BracketCard
           bracket={bracket?.bracket ?? null}
           locked={bracketLocked}
@@ -752,11 +798,14 @@ function FixturePickButton({ label, team, isPicked, isWinner, disabled, onClick 
     : isPicked ? 'bg-amber-500 text-white border-amber-500'
     : disabled  ? 'bg-gray-50 text-gray-400 border-gray-100 cursor-not-allowed'
     : 'bg-white text-gray-700 border-gray-200 hover:border-amber-300'
+  // min-w-0 + truncate so long names ("Bosnia-Herzegovina",
+  // "United States") don't push the 2-column grid wider than the
+  // viewport on small phones.
   return (
     <button onClick={onClick} disabled={disabled}
-      className={`flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-sm font-bold border transition-colors ${cls}`}>
-      {label}
-      {isPicked && !isWinner && <span className="text-xs opacity-80">✓</span>}
+      className={`flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-2.5 rounded-xl text-xs sm:text-sm font-bold border transition-colors min-w-0 ${cls}`}>
+      <span className="truncate">{label}</span>
+      {isPicked && !isWinner && <span className="text-xs opacity-80 shrink-0">✓</span>}
     </button>
   )
 }

@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 320" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Smileys Cup 2026 hero banner">
+  <defs>
+    <!-- Amber gradient matching the brand palette in tailwind.config.js
+         (brand.400 → brand.600 → brand.700 stops). -->
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"  stop-color="#fbbf24"/>
+      <stop offset="55%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#b45309"/>
+    </linearGradient>
+    <radialGradient id="spot" cx="0.78" cy="0.18" r="0.6">
+      <stop offset="0%"  stop-color="#fef3c7" stop-opacity="0.55"/>
+      <stop offset="60%" stop-color="#fef3c7" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="trophy" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#fef3c7"/>
+      <stop offset="100%" stop-color="#fcd34d"/>
+    </linearGradient>
+    <pattern id="dots" width="22" height="22" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.4" fill="#fef3c7" opacity="0.18"/>
+    </pattern>
+  </defs>
+
+  <!-- Background gradient + soft sun spot top-right + dot texture. -->
+  <rect width="800" height="320" fill="url(#bg)"/>
+  <rect width="800" height="320" fill="url(#spot)"/>
+  <rect width="800" height="320" fill="url(#dots)"/>
+
+  <!-- Stadium silhouette along the bottom. -->
+  <path d="M0 280 Q200 250 400 270 T800 260 L800 320 L0 320 Z" fill="#92400e" opacity="0.42"/>
+  <path d="M0 295 Q200 270 400 285 T800 280 L800 320 L0 320 Z" fill="#78350f" opacity="0.55"/>
+
+  <!-- Floor line under the trophy. -->
+  <ellipse cx="260" cy="232" rx="105" ry="9" fill="#78350f" opacity="0.32"/>
+
+  <!-- Trophy cup. Stacked shapes drawn in pixel-style geometry so the
+       silhouette stays crisp at any scale. -->
+  <g transform="translate(160 60)">
+    <!-- Left handle -->
+    <path d="M22 60 Q-6 60 -6 96 Q-6 134 28 134"
+          fill="none" stroke="url(#trophy)" stroke-width="14" stroke-linecap="round"/>
+    <!-- Right handle -->
+    <path d="M178 60 Q206 60 206 96 Q206 134 172 134"
+          fill="none" stroke="url(#trophy)" stroke-width="14" stroke-linecap="round"/>
+    <!-- Cup body -->
+    <path d="M22 30 L178 30 L170 138 Q165 168 100 168 Q35 168 30 138 Z"
+          fill="url(#trophy)" stroke="#fef3c7" stroke-width="2"/>
+    <!-- Cup rim highlight -->
+    <rect x="22" y="22" width="156" height="16" rx="3" fill="#fef9c3" stroke="#fef3c7" stroke-width="2"/>
+    <!-- Star in the middle -->
+    <path d="M100 76 L108 96 L130 96 L112 110 L120 130 L100 118 L80 130 L88 110 L70 96 L92 96 Z"
+          fill="#b45309" opacity="0.42"/>
+    <!-- Stem -->
+    <rect x="86" y="168" width="28" height="14" fill="#fcd34d"/>
+    <!-- Base -->
+    <rect x="60" y="180" width="80" height="14" rx="3" fill="#fef3c7"/>
+    <rect x="48" y="194" width="104" height="22" rx="4" fill="#fcd34d" stroke="#b45309" stroke-width="1.5" opacity="0.85"/>
+  </g>
+
+  <!-- Football, bottom-right of the trophy area. -->
+  <g transform="translate(380 196)">
+    <circle cx="0" cy="0" r="34" fill="#fef3c7" stroke="#78350f" stroke-width="2"/>
+    <polygon points="0,-18 16,-7 11,11 -11,11 -16,-7" fill="#78350f" opacity="0.85"/>
+    <line x1="0" y1="-18" x2="0" y2="-34" stroke="#78350f" stroke-width="2"/>
+    <line x1="16" y1="-7" x2="32" y2="-12" stroke="#78350f" stroke-width="2"/>
+    <line x1="11" y1="11" x2="22" y2="26" stroke="#78350f" stroke-width="2"/>
+    <line x1="-11" y1="11" x2="-22" y2="26" stroke="#78350f" stroke-width="2"/>
+    <line x1="-16" y1="-7" x2="-32" y2="-12" stroke="#78350f" stroke-width="2"/>
+  </g>
+
+  <!-- Text block right of the trophy. "Smileys" sits as a small
+       overline above the tournament name, signalling this is our
+       prediction game on top of the official competition. -->
+  <g transform="translate(420 80)" font-family="'Plus Jakarta Sans', Inter, system-ui, sans-serif">
+    <text x="0" y="0" fill="#fef3c7" font-size="20" font-weight="800" letter-spacing="0.18em" opacity="0.95">SMILEYS</text>
+    <text x="0" y="58" fill="#ffffff" font-size="62" font-weight="900" letter-spacing="-0.02em">WORLD CUP</text>
+    <text x="0" y="120" fill="#ffffff" font-size="78" font-weight="900" letter-spacing="-0.02em">2026</text>
+    <text x="0" y="156" fill="#fef3c7" font-size="17" font-weight="700" letter-spacing="0.04em" opacity="0.95">Jun 11 → Jul 19 · Predict every match</text>
+  </g>
+
+  <!-- Confetti -->
+  <g opacity="0.85">
+    <rect x="80"  y="36"  width="8" height="4" rx="1" fill="#fef3c7" transform="rotate(28 84 38)"/>
+    <rect x="120" y="22"  width="8" height="4" rx="1" fill="#fde68a" transform="rotate(-14 124 24)"/>
+    <rect x="68"  y="92"  width="6" height="3" rx="1" fill="#fff7ed" transform="rotate(45 71 94)"/>
+    <rect x="700" y="68"  width="10" height="4" rx="1" fill="#fef3c7" transform="rotate(18 705 70)"/>
+    <rect x="744" y="32"  width="8" height="4" rx="1" fill="#fde68a" transform="rotate(-30 748 34)"/>
+    <rect x="720" y="116" width="6" height="3" rx="1" fill="#fff7ed" transform="rotate(60 723 118)"/>
+  </g>
+</svg>
