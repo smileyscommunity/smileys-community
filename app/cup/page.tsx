@@ -270,30 +270,33 @@ export default function CupPredictionsPage() {
 
   return (
     <Shell>
-      {/* Above-the-fold compact area — banner, countdown, visitor
-          hero. Capped at max-w-3xl on lg+ so the banner (a
-          2.5:1 SVG) doesn't read as a billboard on a wide screen
-          while the 2-col grid below still uses the full container
-          width for content. Centered. */}
-      <div className="lg:max-w-3xl lg:mx-auto">
       {/* Hero banner — SVG illustration carries the title, dates,
           and tagline. Pure vector so it crisps at any density
           without shipping a raster. The SVG's natural aspect is
-          2.5:1; we constrain the wrapper to 3:1 (responsive: 16/5
-          on mobile so it stays comfortable on a 360px phone, 3/1
-          on sm+) and rely on `object-cover` + the SVG's own
-          `xMidYMid slice` to crop a centered strip. Trophy (y60–
-          276) and text (y80–236) sit safely inside the kept band;
-          only some decorative confetti at the top/bottom edges
-          gets trimmed. The h1 stays in the DOM as sr-only so
-          screen readers and search engines still get a proper
-          heading. */}
-      <div className="rounded-2xl overflow-hidden shadow-card mb-4 aspect-[16/5] sm:aspect-[3/1]">
+          2.5:1; we crop progressively wider as the viewport grows
+          (16:5 on mobile, 3:1 on sm, 4:1 on lg+) so the banner
+          spans the full shell width on desktop without becoming a
+          billboard — at lg+ the box is 1024×256, same height as
+          the old narrower lg:max-w-3xl crop but page-wide. The
+          SVG's own `xMidYMid slice` rule keeps the trophy + text
+          centered in the kept band; only some decorative confetti
+          at the very top/bottom edges gets trimmed. The h1 stays
+          in the DOM as sr-only so screen readers and search
+          engines still get a proper heading. Lives OUTSIDE the
+          narrow above-the-fold wrapper below so the banner can
+          match the page width while Countdown + visitor hero
+          stay at a comfortable reading width. */}
+      <div className="rounded-2xl overflow-hidden shadow-card mb-4 aspect-[16/5] sm:aspect-[3/1] lg:aspect-[4/1]">
         <img src="/app/images/cup-banner.svg" alt="Smileys World Cup 2026 — Jun 11 to Jul 19, predict every match"
           className="w-full h-full object-cover block" loading="eager" decoding="async" />
       </div>
       <h1 className="sr-only">Smileys World Cup 2026 prediction game</h1>
 
+      {/* Above-the-fold reading area — countdown + visitor hero.
+          Capped at max-w-3xl on lg+ so the long-form content
+          doesn't span the full wide column (banner above does);
+          keeps line lengths comfortable. Centered. */}
+      <div className="lg:max-w-3xl lg:mx-auto">
       {/* Countdown strip — drives urgency. Pre-kickoff shows the
           time until brackets lock. Post-kickoff shows time to the
           next upcoming match. Hidden when the tournament is over
