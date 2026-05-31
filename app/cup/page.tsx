@@ -988,51 +988,83 @@ function FixturePickButton({ label, team, isPicked, isWinner, disabled, onClick 
   )
 }
 
-// Share affordance — Web Share API on mobile (opens the native
-// sheet → WhatsApp, iMessage, etc.), clipboard fallback elsewhere.
-// Two variants because the contexts read differently:
-//   • visitor: a small text-style nudge under the apply CTA
-//   • member:  a wider tile after the leaderboard, "show off" tone
-// Both share the same URL + copy so the OG preview is consistent.
-function ShareButton({ variant }: { variant: 'visitor' | 'member' }) {
-  const [copied, setCopied] = useState(false)
-  async function share() {
-    const url   = typeof window !== 'undefined' ? window.location.href : ''
-    const title = 'Smileys World Cup 2026'
-    const text  = 'Predicting every match. Trophy + dinner + a year of VIP for the winner. Worth a look?'
-    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
-      try { await navigator.share({ title, text, url }) } catch { /* user cancelled — fine */ }
-      return
-    }
+// Share affordance — explicit per-platform buttons (WhatsApp, X,
+// Telegram, Copy link) so the share path is obvious and one tap
+// each. On mobile, the platform deep-links open the app directly;
+// on desktop the same URLs open the platform web composer.
+//
+// Variants tune the surrounding copy + chrome:
+//   • visitor: minimal row beneath the apply CTA
+//   • member:  full tile after the leaderboard with "show off" tone
+//   • compact: bare row of icons, no surrounding card (used inside
+//              the Prizes section)
+function ShareButton({ variant }: { variant: 'visitor' | 'member' | 'compact' }) {
+  const url  = typeof window !== 'undefined' ? window.location.href : 'https://smileyscommunity.com/app/cup'
+  const text = 'Smileys World Cup 2026 — predict every match. Trophy + prizes for the winner. Worth a look?'
+
+  const u = encodeURIComponent(url)
+  const t = encodeURIComponent(text)
+  const links = {
+    // wa.me on mobile opens WhatsApp directly, on desktop opens web.
+    whatsapp: `https://wa.me/?text=${t}%20${u}`,
+    x:        `https://twitter.com/intent/tweet?text=${t}&url=${u}`,
+    telegram: `https://t.me/share/url?url=${u}&text=${t}`,
+  }
+
+  async function copyLink() {
     try {
       await navigator.clipboard.writeText(url)
-      setCopied(true)
-      toast.success('Link copied')
-      setTimeout(() => setCopied(false), 2000)
+      toast.success('Link copied — paste into your story or DM')
     } catch {
       toast.error('Could not copy — long-press the URL bar')
     }
   }
+
+  const iconBtn = 'w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center transition-colors shrink-0'
+  const buttons = (
+    <div className="flex items-center justify-center gap-2">
+      <a href={links.whatsapp} target="_blank" rel="noopener noreferrer"
+        aria-label="Share on WhatsApp"
+        className={`${iconBtn} bg-[#25D366] hover:bg-[#1ebd58] text-white`}>
+        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.5 14.4c-.3-.1-1.7-.8-2-.9-.3-.1-.5-.1-.7.1-.2.3-.7.9-.9 1.1-.2.2-.3.2-.6.1-.3-.1-1.2-.5-2.3-1.4-.9-.8-1.4-1.7-1.6-2-.2-.3 0-.5.1-.6.1-.1.3-.3.4-.5.1-.2.2-.3.3-.5.1-.2.1-.4 0-.5 0-.1-.7-1.6-.9-2.2-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.7.4-.2.3-1 .9-1 2.2 0 1.3 1 2.6 1.1 2.7.1.2 1.9 3.1 4.7 4.2.7.3 1.2.5 1.6.6.7.2 1.3.2 1.8.1.5-.1 1.7-.7 1.9-1.4.2-.7.2-1.2.1-1.3-.1-.1-.2-.2-.5-.3zM12 2C6.5 2 2 6.5 2 12c0 1.9.5 3.6 1.4 5.1L2 22l5-1.4c1.4.8 3.1 1.3 5 1.3 5.5 0 10-4.5 10-10S17.5 2 12 2zm0 18.2c-1.6 0-3.2-.4-4.5-1.2l-.3-.2-3.3.9.9-3.2-.2-.3C3.7 14.9 3.3 13.5 3.3 12c0-4.8 3.9-8.7 8.7-8.7 4.8 0 8.7 3.9 8.7 8.7 0 4.8-3.9 8.7-8.7 8.7z"/></svg>
+      </a>
+      <a href={links.x} target="_blank" rel="noopener noreferrer"
+        aria-label="Share on X"
+        className={`${iconBtn} bg-black hover:bg-zinc-800 text-white`}>
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+      </a>
+      <a href={links.telegram} target="_blank" rel="noopener noreferrer"
+        aria-label="Share on Telegram"
+        className={`${iconBtn} bg-[#229ED9] hover:bg-[#1c8bbf] text-white`}>
+        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z"/></svg>
+      </a>
+      <button onClick={copyLink}
+        aria-label="Copy link"
+        className={`${iconBtn} bg-amber-500 hover:bg-amber-600 text-white`}>
+        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+        </svg>
+      </button>
+    </div>
+  )
+
+  if (variant === 'compact') {
+    return <div className="mt-3">{buttons}</div>
+  }
   if (variant === 'visitor') {
     return (
-      <button onClick={share}
-        className="mt-3 w-full text-xs text-gray-500 hover:text-amber-600 transition-colors py-1">
-        Know someone who&apos;d fit? Share the cup →
-      </button>
+      <div className="mt-4 pt-4 border-t border-amber-100">
+        <p className="text-[10px] text-gray-500 text-center mb-2 uppercase tracking-widest font-bold">Know someone who&apos;d fit? Share →</p>
+        {buttons}
+      </div>
     )
   }
   return (
-    <button onClick={share}
-      className="w-full bg-white rounded-2xl shadow-card mb-4 px-5 py-4 flex items-center gap-3 hover:bg-amber-50 transition-colors text-left">
-      <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center text-xl shrink-0">
-        🔗
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-bold text-gray-900">{copied ? 'Link copied ✓' : 'Share the cup'}</p>
-        <p className="text-xs text-gray-500 mt-0.5">Drop it in your group chat. Friends who&apos;d fit Smileys can apply through this page.</p>
-      </div>
-      <span className="text-amber-600 font-bold text-sm shrink-0">→</span>
-    </button>
+    <div className="bg-white rounded-2xl shadow-card mb-4 px-5 py-4">
+      <p className="text-sm font-bold text-gray-900 text-center mb-1">Share the cup</p>
+      <p className="text-[11px] text-gray-500 text-center mb-3">Drop it in your group chat. Friends who&apos;d fit Smileys apply through this page.</p>
+      {buttons}
+    </div>
   )
 }
 
@@ -1116,6 +1148,7 @@ function PrizesSection() {
         + Donate a prize
       </button>
       <p className="text-[10px] text-gray-400 text-center mt-2">Anyone can offer one. Sponsors get a credit on the cup page.</p>
+      <ShareButton variant="compact" />
       {showDonate && <DonateModal onClose={() => setShowDonate(false)} />}
     </div>
   )
