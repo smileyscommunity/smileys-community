@@ -67,7 +67,7 @@ export default function CupPromoBanner() {
             Smileys World Cup 2026
           </p>
           <p className="text-[11px] sm:text-xs text-gray-500 leading-snug mt-0.5 truncate">
-            Predict every match · Prizes from sponsors · Starts Jun 11
+            Predict every match · Win prizes · Bracket locks Jun 11
           </p>
         </div>
         {/* Play pill — full button label on sm+, just an arrow on
