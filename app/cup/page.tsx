@@ -405,6 +405,12 @@ export default function CupPredictionsPage() {
             />
           )}
 
+          {/* Push opt-in — only renders for members on devices that
+              support web push, haven't already subscribed, and
+              haven't dismissed the strip. Single-tap enable; dismiss
+              persists in localStorage so we don't nag. */}
+          {accessState === 'member' && <PushOptInStrip />}
+
           <TrendingPicks />
           <Leaderboard />
 
@@ -930,9 +936,27 @@ function FixtureRow({ fixture, saving, canPick, onPick }: { fixture: Fixture; sa
   // validator in /api/cup/predict.
   const locked = isFixtureLocked(fixture.kickoffAt)
 
+  // Live window — kickoff has happened, the 90-minute match plus
+  // ~15-min half-time / stoppage hasn't ended yet, and the admin
+  // hasn't recorded a result. Ticks every 30s so a fixture flips
+  // to LIVE without a page reload. We skip the tick entirely for
+  // fixtures clearly outside the window (avoids 100+ timers on a
+  // mostly-static list of past + far-future matches).
+  const kickoffMs   = Date.parse(fixture.kickoffAt)
+  const liveEndsMs  = kickoffMs + 105 * 60 * 1000
+  const [nowMs, setNowMs] = useState(() => Date.now())
+  const couldTransition = !fixture.winnerTeam && nowMs >= kickoffMs - 60 * 60_000 && nowMs < liveEndsMs
+  useEffect(() => {
+    if (!couldTransition) return
+    const t = setInterval(() => setNowMs(Date.now()), 30_000)
+    return () => clearInterval(t)
+  }, [couldTransition])
+  const isLive = !fixture.winnerTeam && nowMs >= kickoffMs && nowMs < liveEndsMs
+
   return (
     <div className={`bg-white rounded-2xl border p-3.5 shadow-sm ${
-      correct ? 'border-green-200 bg-green-50/40'
+      isLive ? 'border-red-300 ring-2 ring-red-100'
+        : correct ? 'border-green-200 bg-green-50/40'
         : wrong ? 'border-red-200 bg-red-50/40'
         : 'border-gray-100'
     }`}>
@@ -942,6 +966,15 @@ function FixtureRow({ fixture, saving, canPick, onPick }: { fixture: Fixture; sa
           context to the by-group view for free. */}
       <div className="flex items-center justify-between mb-2 text-[10px] text-gray-500 font-semibold uppercase tracking-wider gap-2">
         <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+          {isLive && (
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-red-500 text-white rounded-full text-[9px] font-extrabold uppercase tracking-wider">
+              <span className="relative flex w-1.5 h-1.5">
+                <span className="absolute inset-0 rounded-full bg-white opacity-75 animate-ping" />
+                <span className="relative w-1.5 h-1.5 rounded-full bg-white" />
+              </span>
+              LIVE
+            </span>
+          )}
           <span>{kickoff}</span>
           {fixture.group && <span className="text-amber-600">· Group {fixture.group}</span>}
         </div>
@@ -950,7 +983,7 @@ function FixtureRow({ fixture, saving, canPick, onPick }: { fixture: Fixture; sa
             {fixture.homeScore}–{fixture.awayScore} · Winner: {teamLabel(fixture.winnerTeam)}
           </span>
         )}
-        {locked && !fixture.winnerTeam && <span className="text-gray-400">Locked</span>}
+        {locked && !fixture.winnerTeam && !isLive && <span className="text-gray-400">Locked</span>}
       </div>
 
       <div className="grid grid-cols-2 gap-2">
@@ -1678,6 +1711,114 @@ interface LeaderRow {
 interface LeaderResponse {
   rows: LeaderRow[]; yourRank: number | null; yourScore: number | null
   total: number; eligible: number; lastUpdated: string
+}
+
+// VAPID public key for web-push subscription. Mirrors the settings
+// page implementation; exposed as NEXT_PUBLIC_ so the client can
+// pass it as applicationServerKey when calling pushManager.subscribe.
+const CUP_VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ''
+
+function cupUrlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const raw = atob(base64)
+  const bytes = new Uint8Array(raw.length)
+  for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i)
+  return bytes
+}
+
+// Push opt-in strip — small dismissible card under the Bracket
+// asking members to enable match reminders. Highest-ROI re-
+// engagement lever for a 5-week prediction game (kickoff times
+// fall in the user's evening; without push, weekday matches
+// quietly slip past the pick lock and people lose interest).
+//
+// Rendering rules — strip hides itself when:
+//   • the device doesn't support Notification + PushManager + SW
+//   • the user already granted + subscribed (state === 'on')
+//   • the user previously denied permission (state === 'denied')
+//   • the user dismissed this strip (localStorage flag)
+//
+// On enable we reuse the same /api/push/subscribe contract the
+// settings page uses, so opting in here covers all push channels
+// — not just match reminders — which is what we want anyway.
+function PushOptInStrip() {
+  const [state, setState] = useState<'loading' | 'hidden' | 'off'>('loading')
+  const [busy,  setBusy]  = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (!('Notification' in window) || !('PushManager' in window) || !('serviceWorker' in navigator)) {
+      setState('hidden'); return
+    }
+    if (localStorage.getItem('cup-push-dismissed') === '1') { setState('hidden'); return }
+    if (Notification.permission === 'denied') { setState('hidden'); return }
+    navigator.serviceWorker.ready
+      .then(reg => reg.pushManager.getSubscription())
+      .then(sub => setState(sub ? 'hidden' : 'off'))
+      .catch(() => setState('hidden'))
+  }, [])
+
+  if (state !== 'off') return null
+
+  async function enable() {
+    if (!CUP_VAPID_PUBLIC_KEY) {
+      toast.error('Push is not configured. Try again later.')
+      return
+    }
+    setBusy(true)
+    try {
+      const permission = await Notification.requestPermission()
+      if (permission !== 'granted') {
+        // User declined the OS prompt — hide the strip so we don't
+        // re-prompt every page load. They can still opt in via
+        // /settings.
+        setState('hidden')
+        return
+      }
+      const reg = await navigator.serviceWorker.ready
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: cupUrlBase64ToUint8Array(CUP_VAPID_PUBLIC_KEY) as BufferSource,
+      })
+      await fetch('/app/api/push/subscribe', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sub.toJSON()),
+      })
+      toast.success('Match reminders on — we\'ll ping you before kickoffs')
+      setState('hidden')
+    } catch (e) {
+      toast.error(`Could not enable: ${(e as Error).message}`)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function dismiss() {
+    localStorage.setItem('cup-push-dismissed', '1')
+    setState('hidden')
+  }
+
+  return (
+    <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-4 flex items-start gap-3 shadow-sm">
+      <span className="text-2xl shrink-0" aria-hidden>🔔</span>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-bold text-amber-900 leading-snug">Get match reminders</p>
+        <p className="text-[11px] text-amber-800/80 mt-0.5 leading-snug">A heads-up before each kickoff so you don&apos;t miss a pick.</p>
+      </div>
+      <div className="flex flex-col items-end gap-1 shrink-0">
+        <button onClick={enable} disabled={busy}
+          className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-xs font-bold rounded-lg disabled:opacity-50 transition-colors">
+          {busy ? 'Enabling…' : 'Enable'}
+        </button>
+        <button onClick={dismiss}
+          className="px-2 py-0.5 text-amber-700 hover:text-amber-900 text-[10px] font-semibold transition-colors">
+          Not now
+        </button>
+      </div>
+    </div>
+  )
 }
 
 // Compact rank card — desktop-only. Pairs with the full Leaderboard
