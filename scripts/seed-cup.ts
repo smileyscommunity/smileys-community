@@ -56,22 +56,29 @@ async function main() {
     { start: '2026-06-24', days: 2, baseHour: 21, spacingMin: 180 }, // MD3 — last 2 simultaneous
   ]
 
+  // One day in milliseconds — used to advance day-by-day inside a
+  // matchday window without doing month/year arithmetic ourselves.
+  const DAY_MS = 24 * 60 * 60 * 1000
+
   for (let md = 0; md < 3; md++) {
     const window = MD_WINDOWS[md]
     const start = new Date(`${window.start}T${String(window.baseHour).padStart(2, '0')}:00:00+03:00`)
     let matchIndex = 0
     // Iterate by pairing slot then by group so MD1's "A1×A2" lands
     // before "A3×A4", giving a more natural ordering on the page.
+    // For each match, decide which day of the window it falls on
+    // (24 matches spread across `window.days` days) and then offset
+    // within that day by spacingMin minutes per slot. All arithmetic
+    // in milliseconds so the resulting Date is always valid.
+    const matchesPerDay = Math.ceil(24 / window.days)
     for (const pairing of PAIRINGS[md]) {
       for (const letter of groupLetters) {
         const teams = CUP_GROUPS[letter]
-        const home = teams[pairing[0]]
-        const away = teams[pairing[1]]
-        const minutes = (matchIndex * window.spacingMin)
-        // MD3's 2 matches per group play simultaneously — same kickoff
-        // for both pairings in the same group. We approximate by
-        // collapsing the inner-pairing offset on the last matchday.
-        const offset = md === 2 ? Math.floor(matchIndex / groupLetters.length) * (60 * 24) : minutes * 60 * 1000
+        const home  = teams[pairing[0]]
+        const away  = teams[pairing[1]]
+        const dayIndex = Math.floor(matchIndex / matchesPerDay)
+        const slotInDay = matchIndex % matchesPerDay
+        const offset = dayIndex * DAY_MS + slotInDay * window.spacingMin * 60 * 1000
         const kickoffAt = new Date(start.getTime() + offset).toISOString()
         fixtures.push({
           id:        `2026-WC-G-${letter}-MD${md + 1}-${pairing[0] + 1}v${pairing[1] + 1}`,
@@ -92,12 +99,17 @@ async function main() {
   // standard bracket map; admin can edit them and fill in homeTeam/
   // awayTeam in /admin/cup once group standings firm up.
   for (let i = 0; i < 16; i++) {
+    // 4 slots/day × 4 days. Hours 15, 17, 19, 21 — the previous
+    // formula (15, 18, 21, 24) overflowed at slot 3 (hour 24 is
+    // not a valid ISO time) which broke the seed.
+    const day  = 27 + Math.floor(i / 4)
+    const hour = 15 + (i % 4) * 2
     fixtures.push({
       id:        `2026-WC-R32-${i + 1}`,
       round:     'r32',
       homeLabel: `R32 ${String.fromCharCode(65 + (i * 2) % 12)} winner`,
       awayLabel: `R32 ${String.fromCharCode(65 + (i * 2 + 1) % 12)} runner-up`,
-      kickoffAt: new Date(`2026-06-${27 + Math.floor(i / 4)}T${15 + (i % 4) * 3}:00:00+03:00`).toISOString(),
+      kickoffAt: new Date(`2026-06-${day}T${String(hour).padStart(2, '0')}:00:00+03:00`).toISOString(),
       points:    ROUND_POINTS.r32,
     })
   }
