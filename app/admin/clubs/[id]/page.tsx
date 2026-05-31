@@ -86,9 +86,16 @@ export default function AdminClubDetailPage() {
       body: JSON.stringify({ userId, ...data }),
     })
     if (!res.ok) { toast.error('Something went wrong'); return }
-    setMemberships(prev => prev.map(m =>
-      m.user.id === userId ? { ...m, ...data } : m
-    ))
+    // Rejection deletes the row server-side now, so we filter it
+    // out of local state too. Previously the row stayed in the
+    // array as status='rejected' and blocked re-adds because the
+    // user ended up in `memberIds`, which excluded them from the
+    // "Add a member" search results.
+    if (data.status === 'rejected') {
+      setMemberships(prev => prev.filter(m => m.user.id !== userId))
+    } else {
+      setMemberships(prev => prev.map(m => m.user.id === userId ? { ...m, ...data } : m))
+    }
     if (data.status === 'approved') toast.success('Approved ✓')
     else if (data.status === 'rejected') toast('Request declined')
     else if (data.role === 'host') toast.success('Host assigned ✓')

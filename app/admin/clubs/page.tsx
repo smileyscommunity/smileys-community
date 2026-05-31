@@ -342,7 +342,9 @@ export default function AdminClubsPage() {
                 <div className="flex items-start gap-4 mb-4">
                   <div className={`w-12 h-12 rounded-xl overflow-hidden shrink-0 ${!club.coverImage ? club.bgColor : ''} flex items-center justify-center text-2xl`}>
                     {club.coverImage
-                      ? <img src={resolveImageUrl(club.coverImage)} alt={club.name} className="w-full h-full object-cover" />
+                      ? <img src={resolveImageUrl(club.coverImage)} alt={club.name}
+                          className="w-full h-full object-cover"
+                          style={{ objectPosition: `center ${club.coverImagePosition ?? 50}%` }} />
                       : club.emoji}
                   </div>
                   <div className="flex-1 min-w-0">

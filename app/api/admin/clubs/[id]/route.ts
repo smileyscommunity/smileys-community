@@ -8,6 +8,19 @@ import { CLUB_CATEGORIES } from '@/lib/data'
 
 type Params = { params: Promise<{ id: string }> }
 
+// Color values used to be free-form strings — anything could land
+// in the DB and any unrecognised value would silently render as
+// no-style. Restrict to either a Tailwind utility (must match the
+// shape tailwind.config.js safelists) or a hex code.
+const HEX_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
+function isValidColorString(v: string, prefix: 'text' | 'bg'): boolean {
+  if (HEX_RE.test(v)) return true
+  // Allow text-<color>-<shade> / bg-<color>-<shade>. Pre/post hyphen
+  // shape matches Tailwind utility naming. The safelist in
+  // tailwind.config.js ensures these survive the build.
+  return new RegExp(`^${prefix}-[a-z]+-[0-9]{2,3}$`).test(v)
+}
+
 // GET /api/admin/clubs/[id]
 //
 // Returns the club row plus an aggregated quality rollup mirroring
@@ -122,6 +135,23 @@ export async function PUT(req: NextRequest, { params }: Params) {
         return NextResponse.json({ error: `Category must be one of: ${CLUB_CATEGORIES.join(', ')}` }, { status: 400 })
       }
       allowed.category = cat
+    }
+
+    // Color / bgColor guard — these hit the DB as raw strings and
+    // get injected into className across ~15 consumers. The schema
+    // doesn't constrain them, so an unrecognised Tailwind class
+    // would silently render as no-style after a Tailwind purge or
+    // major-version upgrade. Restrict writes to one of:
+    //   • A known Tailwind utility shape (text-<color>-<shade> /
+    //     bg-<color>-<shade>) the build is configured to keep
+    //   • A hex code (#rgb or #rrggbb) for the inline-style path
+    // Anything else is rejected loudly so the admin can correct
+    // before the DB receives a value that won't render.
+    if (typeof allowed.color === 'string' && !isValidColorString(allowed.color, 'text')) {
+      return NextResponse.json({ error: 'color must be like text-amber-600 or a #hex code' }, { status: 400 })
+    }
+    if (typeof allowed.bgColor === 'string' && !isValidColorString(allowed.bgColor, 'bg')) {
+      return NextResponse.json({ error: 'bgColor must be like bg-amber-50 or a #hex code' }, { status: 400 })
     }
 
     const club = await prisma.club.update({ where: { id }, data: allowed })

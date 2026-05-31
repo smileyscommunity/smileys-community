@@ -68,6 +68,15 @@ export async function POST(req: NextRequest) {
     })
     return NextResponse.json(club, { status: 201 })
   } catch (e) {
+    // P2002 = unique-constraint violation. The only realistic
+    // hit here is the slug unique constraint, since name comes
+    // from the admin's input and we slugify it deterministically.
+    // Tell them that explicitly instead of returning a generic 500
+    // — previously a duplicate name silently failed with no usable
+    // error in the toast.
+    if ((e as { code?: string })?.code === 'P2002') {
+      return NextResponse.json({ error: 'A club with this name already exists — pick a different name' }, { status: 409 })
+    }
     console.error(e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }

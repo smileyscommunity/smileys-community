@@ -123,20 +123,31 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     })
     if (!prior) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-    const data: Record<string, string> = {}
-    if (status) data.status = status
-    if (role)   data.role   = role
+    // Rejection deletes the row outright — the prior behaviour was
+    // to keep a status='rejected' row in DB, which silently jammed
+    // re-adds (P2002 on the unique constraint) and stranded the row
+    // in a state the admin UI couldn't reach. The audit log
+    // (written below) preserves the "this person was rejected"
+    // history without keeping the dead row.
+    const isReject  = status === 'rejected'
+    const nextStatus = isReject ? null : (status ?? prior.status)
+    const delta     = countDelta(prior.status, nextStatus)
 
-    const nextStatus = status ?? prior.status
-    const delta      = countDelta(prior.status, nextStatus)
-
-    const ops: Promise<unknown>[] = [
-      prisma.clubMembership.update({ where: { userId_clubId: { userId, clubId: id } }, data }),
-    ]
+    const ops: Promise<unknown>[] = []
+    let membership: unknown
+    if (isReject) {
+      ops.push(prisma.clubMembership.delete({ where: { userId_clubId: { userId, clubId: id } } }))
+    } else {
+      const data: Record<string, string> = {}
+      if (status) data.status = status
+      if (role)   data.role   = role
+      ops.push(prisma.clubMembership.update({ where: { userId_clubId: { userId, clubId: id } }, data }))
+    }
     if (delta !== 0) {
       ops.push(prisma.club.update({ where: { id }, data: { memberCount: { increment: delta } } }))
     }
-    const [membership] = await prisma.$transaction(ops as never)
+    const result = await prisma.$transaction(ops as never)
+    membership = (result as unknown[])[0]
 
     // Notifications + audit are fire-and-forget (no rollback needed
     // if they fail). The club + user lookups run out of the
