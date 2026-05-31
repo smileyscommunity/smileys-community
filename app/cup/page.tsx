@@ -507,6 +507,12 @@ export default function CupPredictionsPage() {
             then community (watch parties + prizes). */}
         <aside className="space-y-4 mt-4 lg:mt-0 lg:sticky lg:top-4 min-w-0">
           <RulesCard defaultOpen={accessState !== 'member'} />
+          {/* Your rank — desktop-only compact card showing your row
+              ±2. Pairs with the full Leaderboard in the main column:
+              that one stays high in the reading order on mobile, this
+              one is the always-visible "where am I" glance for
+              desktop users scrolling through 103 fixtures. */}
+          {accessState === 'member' && <MiniRankCard />}
           <FAQCard />
           <WatchParties />
           <PrizesSection />
@@ -1672,6 +1678,133 @@ interface LeaderRow {
 interface LeaderResponse {
   rows: LeaderRow[]; yourRank: number | null; yourScore: number | null
   total: number; eligible: number; lastUpdated: string
+}
+
+// Compact rank card — desktop-only. Pairs with the full Leaderboard
+// in the main column: that one stays high in the reading order
+// (right after the Bracket) so mobile users see it without scroll.
+// This one is the always-visible "where am I" glance for desktop
+// users scrolling 103 fixtures. Slices ±2 around your row when
+// you're in the top 50, falls back to top 3 + pinned-you row when
+// you're outside that slice. Independent poll from the main board
+// — the 304 short-circuit (single Prisma aggregate when the
+// fixture watermark hasn't moved) makes the duplicate request
+// effectively free.
+function MiniRankCard() {
+  const [data, setData] = useState<LeaderResponse | null>(null)
+  const [loading, setLoading] = useState(true)
+  const sinceRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    async function load() {
+      const url = sinceRef.current
+        ? `/app/api/cup/leaderboard?take=50&since=${encodeURIComponent(sinceRef.current)}`
+        : '/app/api/cup/leaderboard?take=50'
+      try {
+        const res = await fetch(url, { credentials: 'include' })
+        if (res.status === 304) return
+        if (!res.ok) return
+        const d: LeaderResponse = await res.json()
+        if (!alive) return
+        setData(d)
+        sinceRef.current = d.lastUpdated ?? null
+      } finally {
+        if (alive) setLoading(false)
+      }
+    }
+    load()
+    const t = setInterval(load, 30_000)
+    return () => { alive = false; clearInterval(t) }
+  }, [])
+
+  // hidden lg:block — mobile users already see the full Leaderboard
+  // in the main column, so this card would be redundant there.
+  const wrapper = 'hidden lg:block bg-white rounded-2xl shadow-card overflow-hidden'
+
+  if (loading && !data) {
+    return (
+      <div className={`${wrapper} p-4`}>
+        <p className="text-sm font-bold text-gray-900 mb-3">Your rank</p>
+        <div className="space-y-2">
+          {[...Array(3)].map((_, i) => <div key={i} className="h-8 bg-gray-100 rounded animate-pulse" />)}
+        </div>
+      </div>
+    )
+  }
+  if (!data) return null
+  if (data.yourRank === null) {
+    // No bracket locked yet — small nudge, mirrors the main-column
+    // empty-state copy without competing with it.
+    return (
+      <div className={`${wrapper} p-4`}>
+        <p className="text-sm font-bold text-gray-900 mb-1">Your rank</p>
+        <p className="text-xs text-gray-500">Lock in your bracket to enter the leaderboard.</p>
+      </div>
+    )
+  }
+
+  const yourRank = data.yourRank
+  const idx = data.rows.findIndex(r => r.rank === yourRank)
+  // In-slice: show ±2 around your row (5 rows). Outside: top 3 +
+  // pinned-you below — the pinned strip uses the same amber accent
+  // as the main board so the visual language matches.
+  let visible: LeaderRow[]
+  let showPinned = false
+  if (idx === -1) {
+    visible = data.rows.slice(0, 3)
+    showPinned = true
+  } else {
+    const start = Math.max(0, idx - 2)
+    const end   = Math.min(data.rows.length, idx + 3)
+    visible = data.rows.slice(start, end)
+  }
+
+  return (
+    <div className={wrapper}>
+      <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+        <p className="text-sm font-bold text-gray-900">Your rank</p>
+        <p className="text-[10px] text-gray-400 tabular-nums">#{yourRank} of {data.total}</p>
+      </div>
+      <div className="divide-y divide-gray-100">
+        {visible.map((r, i) => (
+          <MiniRankRow key={`${r.rank}-${i}`} row={r} isYou={r.rank === yourRank} />
+        ))}
+      </div>
+      {showPinned && data.yourScore !== null && (
+        <div className="border-t-2 border-amber-200 bg-amber-50 px-4 py-2.5 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-amber-700 tabular-nums">#{yourRank}</span>
+            <span className="text-sm font-semibold text-amber-900">You</span>
+          </div>
+          <span className="text-sm font-extrabold text-amber-700 tabular-nums">{data.yourScore}</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MiniRankRow({ row, isYou }: { row: LeaderRow; isYou: boolean }) {
+  const medal = row.rank === 1 ? '🥇' : row.rank === 2 ? '🥈' : row.rank === 3 ? '🥉' : null
+  return (
+    <div className={`px-4 py-2 flex items-center gap-2.5 ${isYou ? 'bg-amber-50' : ''}`}>
+      <span className="text-[11px] font-bold text-gray-500 tabular-nums w-6 text-right">
+        {medal ?? `#${row.rank}`}
+      </span>
+      {row.profilePhoto ? (
+        <img src={row.profilePhoto} alt="" className="w-6 h-6 rounded-full object-cover shrink-0" />
+      ) : (
+        <div className="w-6 h-6 rounded-full shrink-0 flex items-center justify-center text-white text-[9px] font-bold"
+          style={{ backgroundColor: row.color }}>
+          {row.name.split(' ').map(p => p[0]).join('').toUpperCase().slice(0, 2)}
+        </div>
+      )}
+      <span className={`flex-1 min-w-0 text-xs truncate ${isYou ? 'font-bold text-amber-900' : 'font-semibold text-gray-800'}`}>
+        {isYou ? 'You' : row.name}
+      </span>
+      <span className={`text-xs font-extrabold tabular-nums ${isYou ? 'text-amber-700' : 'text-gray-700'}`}>{row.score}</span>
+    </div>
+  )
 }
 
 function Leaderboard() {
