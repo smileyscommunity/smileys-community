@@ -20,6 +20,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { CUP_TEAMS as TEAMS, TEAM_BY_CODE, teamLabel, ROUND_LABEL } from '@/lib/cup-data'
 
 interface Fixture {
   id:        string
@@ -53,71 +54,9 @@ interface BracketResponse {
   locked:            boolean
 }
 
-// Mirrors lib/cup.ts CUP_TEAMS — duplicated client-side so the
-// picker doesn't need a server round-trip just to list teams.
-// Order matches the server-side constant so codes line up exactly.
-// The 48 confirmed qualifiers from the Dec 5 2025 draw.
-const TEAMS: { code: string; name: string; flag: string; confederation: string }[] = [
-  { code: 'ARG', name: 'Argentina',          flag: '🇦🇷', confederation: 'CONMEBOL' },
-  { code: 'BRA', name: 'Brazil',             flag: '🇧🇷', confederation: 'CONMEBOL' },
-  { code: 'URU', name: 'Uruguay',            flag: '🇺🇾', confederation: 'CONMEBOL' },
-  { code: 'COL', name: 'Colombia',           flag: '🇨🇴', confederation: 'CONMEBOL' },
-  { code: 'ECU', name: 'Ecuador',            flag: '🇪🇨', confederation: 'CONMEBOL' },
-  { code: 'PAR', name: 'Paraguay',           flag: '🇵🇾', confederation: 'CONMEBOL' },
-  { code: 'FRA', name: 'France',             flag: '🇫🇷', confederation: 'UEFA' },
-  { code: 'ESP', name: 'Spain',              flag: '🇪🇸', confederation: 'UEFA' },
-  { code: 'GER', name: 'Germany',            flag: '🇩🇪', confederation: 'UEFA' },
-  { code: 'ENG', name: 'England',            flag: '🇬🇧', confederation: 'UEFA' },
-  { code: 'POR', name: 'Portugal',           flag: '🇵🇹', confederation: 'UEFA' },
-  { code: 'NED', name: 'Netherlands',        flag: '🇳🇱', confederation: 'UEFA' },
-  { code: 'BEL', name: 'Belgium',            flag: '🇧🇪', confederation: 'UEFA' },
-  { code: 'CRO', name: 'Croatia',            flag: '🇭🇷', confederation: 'UEFA' },
-  { code: 'SUI', name: 'Switzerland',        flag: '🇨🇭', confederation: 'UEFA' },
-  { code: 'AUT', name: 'Austria',            flag: '🇦🇹', confederation: 'UEFA' },
-  { code: 'TUR', name: 'Türkiye',            flag: '🇹🇷', confederation: 'UEFA' },
-  { code: 'NOR', name: 'Norway',             flag: '🇳🇴', confederation: 'UEFA' },
-  { code: 'SWE', name: 'Sweden',             flag: '🇸🇪', confederation: 'UEFA' },
-  { code: 'SCO', name: 'Scotland',           flag: '🏴󠁧󠁢󠁳󠁣󠁴󠁿', confederation: 'UEFA' },
-  { code: 'CZE', name: 'Czechia',            flag: '🇨🇿', confederation: 'UEFA' },
-  { code: 'BIH', name: 'Bosnia-Herzegovina', flag: '🇧🇦', confederation: 'UEFA' },
-  { code: 'USA', name: 'United States',      flag: '🇺🇸', confederation: 'CONCACAF' },
-  { code: 'MEX', name: 'Mexico',             flag: '🇲🇽', confederation: 'CONCACAF' },
-  { code: 'CAN', name: 'Canada',             flag: '🇨🇦', confederation: 'CONCACAF' },
-  { code: 'PAN', name: 'Panama',             flag: '🇵🇦', confederation: 'CONCACAF' },
-  { code: 'HAI', name: 'Haiti',              flag: '🇭🇹', confederation: 'CONCACAF' },
-  { code: 'CUW', name: 'Curaçao',            flag: '🇨🇼', confederation: 'CONCACAF' },
-  { code: 'MAR', name: 'Morocco',            flag: '🇲🇦', confederation: 'CAF' },
-  { code: 'SEN', name: 'Senegal',            flag: '🇸🇳', confederation: 'CAF' },
-  { code: 'EGY', name: 'Egypt',              flag: '🇪🇬', confederation: 'CAF' },
-  { code: 'ALG', name: 'Algeria',            flag: '🇩🇿', confederation: 'CAF' },
-  { code: 'CIV', name: 'Ivory Coast',        flag: '🇨🇮', confederation: 'CAF' },
-  { code: 'TUN', name: 'Tunisia',            flag: '🇹🇳', confederation: 'CAF' },
-  { code: 'GHA', name: 'Ghana',              flag: '🇬🇭', confederation: 'CAF' },
-  { code: 'ZAF', name: 'South Africa',       flag: '🇿🇦', confederation: 'CAF' },
-  { code: 'CPV', name: 'Cape Verde',         flag: '🇨🇻', confederation: 'CAF' },
-  { code: 'COD', name: 'DR Congo',           flag: '🇨🇩', confederation: 'CAF' },
-  { code: 'JPN', name: 'Japan',              flag: '🇯🇵', confederation: 'AFC' },
-  { code: 'KOR', name: 'South Korea',        flag: '🇰🇷', confederation: 'AFC' },
-  { code: 'IRN', name: 'Iran',               flag: '🇮🇷', confederation: 'AFC' },
-  { code: 'AUS', name: 'Australia',          flag: '🇦🇺', confederation: 'AFC' },
-  { code: 'KSA', name: 'Saudi Arabia',       flag: '🇸🇦', confederation: 'AFC' },
-  { code: 'QAT', name: 'Qatar',              flag: '🇶🇦', confederation: 'AFC' },
-  { code: 'UZB', name: 'Uzbekistan',         flag: '🇺🇿', confederation: 'AFC' },
-  { code: 'JOR', name: 'Jordan',             flag: '🇯🇴', confederation: 'AFC' },
-  { code: 'IRQ', name: 'Iraq',               flag: '🇮🇶', confederation: 'AFC' },
-  { code: 'NZL', name: 'New Zealand',        flag: '🇳🇿', confederation: 'OFC' },
-]
-const TEAM_BY_CODE = new Map(TEAMS.map(t => [t.code, t]))
-const teamLabel = (code: string | null | undefined): string => {
-  if (!code) return '—'
-  const t = TEAM_BY_CODE.get(code)
-  return t ? `${t.flag} ${t.name}` : code
-}
-
-const ROUND_LABEL: Record<string, string> = {
-  group: 'Group stage', r32: 'Round of 32', r16: 'Round of 16',
-  qf: 'Quarterfinals', sf: 'Semifinals', final: 'Final',
-}
+// TEAMS, TEAM_BY_CODE, teamLabel, ROUND_LABEL all imported from
+// @/lib/cup-data — single source so a roster correction lives in
+// one file across server + member page + admin page.
 
 export default function CupPredictionsPage() {
   const router = useRouter()
@@ -326,6 +265,9 @@ export default function CupPredictionsPage() {
               Apply to play →
             </button>
             <p className="text-[11px] text-gray-400 text-center mt-2">Free · no payment · ~5 min to apply</p>
+            {/* Visitor share — small secondary CTA. A friend who'd
+                also fit Smileys is the cleanest convert. */}
+            <ShareButton variant="visitor" />
           </div>
         </div>
       )}
@@ -402,6 +344,12 @@ export default function CupPredictionsPage() {
           leaderboard's own "you" row carries your score; the
           standalone score header above has been retired. */}
       <Leaderboard />
+
+      {/* Member-side share affordance. Lives below the leaderboard
+          because the natural moment to share is "I just saw my
+          rank and want to brag at a friend." OG metadata makes the
+          link auto-preview in WhatsApp/iMessage/X. */}
+      {accessState === 'member' && <ShareButton variant="member" />}
 
       {/* Compact bracket summary — only after lock. Replaces the
           big BracketCard above. Shows what you submitted in one
@@ -934,6 +882,54 @@ function FixturePickButton({ label, team, isPicked, isWinner, disabled, onClick 
       className={`flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-2.5 rounded-xl text-xs sm:text-sm font-bold border transition-colors min-w-0 ${cls}`}>
       <span className="truncate">{label}</span>
       {isPicked && !isWinner && <span className="text-xs opacity-80 shrink-0">✓</span>}
+    </button>
+  )
+}
+
+// Share affordance — Web Share API on mobile (opens the native
+// sheet → WhatsApp, iMessage, etc.), clipboard fallback elsewhere.
+// Two variants because the contexts read differently:
+//   • visitor: a small text-style nudge under the apply CTA
+//   • member:  a wider tile after the leaderboard, "show off" tone
+// Both share the same URL + copy so the OG preview is consistent.
+function ShareButton({ variant }: { variant: 'visitor' | 'member' }) {
+  const [copied, setCopied] = useState(false)
+  async function share() {
+    const url   = typeof window !== 'undefined' ? window.location.href : ''
+    const title = 'Smileys World Cup 2026'
+    const text  = 'Predicting every match. Trophy + dinner + a year of VIP for the winner. Worth a look?'
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+      try { await navigator.share({ title, text, url }) } catch { /* user cancelled — fine */ }
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopied(true)
+      toast.success('Link copied')
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      toast.error('Could not copy — long-press the URL bar')
+    }
+  }
+  if (variant === 'visitor') {
+    return (
+      <button onClick={share}
+        className="mt-3 w-full text-xs text-gray-500 hover:text-amber-600 transition-colors py-1">
+        Know someone who&apos;d fit? Share the cup →
+      </button>
+    )
+  }
+  return (
+    <button onClick={share}
+      className="w-full bg-white rounded-2xl shadow-card mb-4 px-5 py-4 flex items-center gap-3 hover:bg-amber-50 transition-colors text-left">
+      <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center text-xl shrink-0">
+        🔗
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-bold text-gray-900">{copied ? 'Link copied ✓' : 'Share the cup'}</p>
+        <p className="text-xs text-gray-500 mt-0.5">Drop it in your group chat. Friends who&apos;d fit Smileys can apply through this page.</p>
+      </div>
+      <span className="text-amber-600 font-bold text-sm shrink-0">→</span>
     </button>
   )
 }

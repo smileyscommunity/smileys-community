@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isApprovedMember, isValidTeamCode, tournamentStartAt } from '@/lib/cup'
+import { rateLimit } from '@/lib/rateLimit'
 
 // GET /api/cup/bracket
 //
@@ -51,6 +52,13 @@ export async function POST(req: NextRequest) {
 
   if (!await isApprovedMember(session.id)) {
     return NextResponse.json({ error: 'Only approved members can play' }, { status: 403 })
+  }
+
+  // Bracket is upsert-on-one-row, so the abuse surface is tiny —
+  // but a tight cap stops a runaway retry loop from hammering the
+  // table. 10/min is generous for "I changed my mind, edit again".
+  if (!await rateLimit(`cup-bracket:${session.id}`, 10, 60_000)) {
+    return NextResponse.json({ error: 'Saving too fast — slow down' }, { status: 429 })
   }
 
   const start = await tournamentStartAt()

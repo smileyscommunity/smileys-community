@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isApprovedMember, isFixtureLocked, isPickAllowedForFixture } from '@/lib/cup'
+import { rateLimit } from '@/lib/rateLimit'
 
 // POST /api/cup/predict
 //
@@ -33,6 +34,14 @@ export async function POST(req: NextRequest) {
   if (!await isApprovedMember(session.id)) {
     return NextResponse.json({ error: 'Only approved members can play' }, { status: 403 })
   }
+
+  // Layered rate limit. 30/min stops a buggy retry loop or a
+  // half-hearted scripted spam; 500/day caps a sustained campaign
+  // (members would normally touch ~100 fixtures over the tournament).
+  // Both keyed on userId — leaderboard fairness depends on the
+  // upsert flow staying honest, not on volume.
+  if (!await rateLimit(`cup-predict:${session.id}`,     30,  60_000))           return NextResponse.json({ error: 'Picking too fast — slow down' }, { status: 429 })
+  if (!await rateLimit(`cup-predict-day:${session.id}`, 500, 24 * 60 * 60_000)) return NextResponse.json({ error: 'Daily pick cap reached. Try tomorrow.' }, { status: 429 })
 
   const body = await req.json().catch(() => ({}))
   const fixtureId = typeof body.fixtureId === 'string' ? body.fixtureId.trim() : ''

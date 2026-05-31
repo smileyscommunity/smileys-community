@@ -17,6 +17,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
+import { CUP_TEAMS as TEAMS, teamLabel, ROUND_LABEL } from '@/lib/cup-data'
 
 interface Fixture {
   id:        string
@@ -34,69 +35,9 @@ interface Fixture {
   points:    number
 }
 
-// Mirror of lib/cup.ts CUP_TEAMS — same order, same codes. Used
-// for the team-pick dropdowns and the flag/name lookup.
-const TEAMS: { code: string; name: string; flag: string }[] = [
-  { code: 'ARG', name: 'Argentina',          flag: '🇦🇷' },
-  { code: 'BRA', name: 'Brazil',             flag: '🇧🇷' },
-  { code: 'URU', name: 'Uruguay',            flag: '🇺🇾' },
-  { code: 'COL', name: 'Colombia',           flag: '🇨🇴' },
-  { code: 'ECU', name: 'Ecuador',            flag: '🇪🇨' },
-  { code: 'PAR', name: 'Paraguay',           flag: '🇵🇾' },
-  { code: 'FRA', name: 'France',             flag: '🇫🇷' },
-  { code: 'ESP', name: 'Spain',              flag: '🇪🇸' },
-  { code: 'GER', name: 'Germany',            flag: '🇩🇪' },
-  { code: 'ENG', name: 'England',            flag: '🇬🇧' },
-  { code: 'POR', name: 'Portugal',           flag: '🇵🇹' },
-  { code: 'NED', name: 'Netherlands',        flag: '🇳🇱' },
-  { code: 'BEL', name: 'Belgium',            flag: '🇧🇪' },
-  { code: 'CRO', name: 'Croatia',            flag: '🇭🇷' },
-  { code: 'SUI', name: 'Switzerland',        flag: '🇨🇭' },
-  { code: 'AUT', name: 'Austria',            flag: '🇦🇹' },
-  { code: 'TUR', name: 'Türkiye',            flag: '🇹🇷' },
-  { code: 'NOR', name: 'Norway',             flag: '🇳🇴' },
-  { code: 'SWE', name: 'Sweden',             flag: '🇸🇪' },
-  { code: 'SCO', name: 'Scotland',           flag: '🏴󠁧󠁢󠁳󠁣󠁴󠁿' },
-  { code: 'CZE', name: 'Czechia',            flag: '🇨🇿' },
-  { code: 'BIH', name: 'Bosnia-Herzegovina', flag: '🇧🇦' },
-  { code: 'USA', name: 'United States',      flag: '🇺🇸' },
-  { code: 'MEX', name: 'Mexico',             flag: '🇲🇽' },
-  { code: 'CAN', name: 'Canada',             flag: '🇨🇦' },
-  { code: 'PAN', name: 'Panama',             flag: '🇵🇦' },
-  { code: 'HAI', name: 'Haiti',              flag: '🇭🇹' },
-  { code: 'CUW', name: 'Curaçao',            flag: '🇨🇼' },
-  { code: 'MAR', name: 'Morocco',            flag: '🇲🇦' },
-  { code: 'SEN', name: 'Senegal',            flag: '🇸🇳' },
-  { code: 'EGY', name: 'Egypt',              flag: '🇪🇬' },
-  { code: 'ALG', name: 'Algeria',            flag: '🇩🇿' },
-  { code: 'CIV', name: 'Ivory Coast',        flag: '🇨🇮' },
-  { code: 'TUN', name: 'Tunisia',            flag: '🇹🇳' },
-  { code: 'GHA', name: 'Ghana',              flag: '🇬🇭' },
-  { code: 'ZAF', name: 'South Africa',       flag: '🇿🇦' },
-  { code: 'CPV', name: 'Cape Verde',         flag: '🇨🇻' },
-  { code: 'COD', name: 'DR Congo',           flag: '🇨🇩' },
-  { code: 'JPN', name: 'Japan',              flag: '🇯🇵' },
-  { code: 'KOR', name: 'South Korea',        flag: '🇰🇷' },
-  { code: 'IRN', name: 'Iran',               flag: '🇮🇷' },
-  { code: 'AUS', name: 'Australia',          flag: '🇦🇺' },
-  { code: 'KSA', name: 'Saudi Arabia',       flag: '🇸🇦' },
-  { code: 'QAT', name: 'Qatar',              flag: '🇶🇦' },
-  { code: 'UZB', name: 'Uzbekistan',         flag: '🇺🇿' },
-  { code: 'JOR', name: 'Jordan',             flag: '🇯🇴' },
-  { code: 'IRQ', name: 'Iraq',               flag: '🇮🇶' },
-  { code: 'NZL', name: 'New Zealand',        flag: '🇳🇿' },
-]
-const TEAM_BY_CODE = new Map(TEAMS.map(t => [t.code, t]))
-const teamLabel = (code: string | null | undefined): string => {
-  if (!code) return '—'
-  const t = TEAM_BY_CODE.get(code)
-  return t ? `${t.flag} ${t.name}` : code
-}
-
-const ROUND_LABEL: Record<string, string> = {
-  group: 'Group stage', r32: 'Round of 32', r16: 'Round of 16',
-  qf: 'Quarterfinals', sf: 'Semifinals', final: 'Final',
-}
+// TEAMS, teamLabel, ROUND_LABEL all imported from @/lib/cup-data
+// (single source — server + member page + this admin page all
+// read the same constants).
 
 export default function AdminCupPage() {
   const [fixtures, setFixtures] = useState<Fixture[] | null>(null)
