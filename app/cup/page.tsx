@@ -138,6 +138,24 @@ export default function CupPredictionsPage() {
   // render the right empty state.
   const [accessState, setAccessState] = useState<'loading' | 'member' | 'not-member' | 'unauthenticated'>('loading')
 
+  // Group-stage view: collapsible by group letter (the structural
+  // mental model — useful pre-tournament for filling out 6 picks
+  // in one sit) OR chronological by day (the watching-along
+  // mental model — useful from MD1 onward when "what's today?" is
+  // the question). Smart default flips at first kickoff. User's
+  // explicit choice persists in localStorage so the toggle sticks.
+  const [groupStageView, setGroupStageView] = useState<'group' | 'date'>(() => {
+    if (typeof window === 'undefined') return 'group'
+    const stored = window.localStorage.getItem('cup-stage-view')
+    if (stored === 'group' || stored === 'date') return stored
+    const cupStart = new Date('2026-06-11T21:00:00+03:00')
+    return new Date() < cupStart ? 'group' : 'date'
+  })
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem('cup-stage-view', groupStageView)
+  }, [groupStageView])
+
   useEffect(() => {
     Promise.all([
       fetch('/app/api/cup/fixtures', { credentials: 'include' }).then(r => r.json()),
@@ -401,21 +419,47 @@ export default function CupPredictionsPage() {
           by group letter (A–L) so 72 matches don't read as one
           flat scroll. Knockouts (R32–Final) stay flat. */}
       <div className="mt-5 space-y-5">
-        {/* Group stage — sub-sectioned by group letter */}
+        {/* Group stage — view toggle: by group (structural) vs by
+            date (chronological). Smart default flips at first
+            kickoff; user's explicit choice persists in
+            localStorage. */}
         {(byRound.group?.length ?? 0) > 0 && (
           <section>
-            <div className="flex items-center justify-between mb-2 px-1">
+            <div className="flex items-center justify-between mb-2 px-1 gap-2 flex-wrap">
               <h2 className="text-sm font-bold text-gray-800">{ROUND_LABEL.group}</h2>
-              <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">
-                1 pt each · 72 matches
-              </span>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">
+                  1 pt each · 72 matches
+                </span>
+                <div className="flex gap-0.5 bg-gray-100 rounded-lg p-0.5">
+                  {(['group', 'date'] as const).map(v => (
+                    <button key={v} onClick={() => setGroupStageView(v)}
+                      className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-colors ${
+                        groupStageView === v
+                          ? 'bg-white text-gray-900 shadow-sm'
+                          : 'text-gray-500 hover:text-gray-900'
+                      }`}>
+                      By {v}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
-            <GroupStageSections
-              rows={byRound.group ?? []}
-              savingFixtureId={savingFixtureId}
-              canPick={accessState === 'member'}
-              onPick={pickFixture}
-            />
+            {groupStageView === 'group' ? (
+              <GroupStageSections
+                rows={byRound.group ?? []}
+                savingFixtureId={savingFixtureId}
+                canPick={accessState === 'member'}
+                onPick={pickFixture}
+              />
+            ) : (
+              <DateStageSections
+                rows={byRound.group ?? []}
+                savingFixtureId={savingFixtureId}
+                canPick={accessState === 'member'}
+                onPick={pickFixture}
+              />
+            )}
           </section>
         )}
 
@@ -525,6 +569,83 @@ function GroupStageSections({
                 ))}
               </div>
             )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// Group-stage rendered chronologically. Sections by Istanbul-day
+// boundary, days sorted ASC, matches within a day sorted by
+// kickoff. Headers read "Thu · Jun 11 · 4 matches" so the day is
+// the obvious unit. Today's section gets an amber highlight so
+// the "what's now" question is one glance.
+function DateStageSections({
+  rows, savingFixtureId, canPick, onPick,
+}: {
+  rows: Fixture[]
+  savingFixtureId: string | null
+  canPick: boolean
+  onPick: (fixtureId: string, team: string) => void
+}) {
+  // Bucket by Istanbul-day key so a 23:00 Istanbul kickoff doesn't
+  // bleed into the next day.
+  const byDay = useMemo(() => {
+    const map = new Map<string, Fixture[]>()
+    const fmt = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Europe/Istanbul', year: 'numeric', month: '2-digit', day: '2-digit',
+    })
+    for (const r of rows) {
+      const key = fmt.format(new Date(r.kickoffAt))
+      if (!map.has(key)) map.set(key, [])
+      map.get(key)!.push(r)
+    }
+    return Array.from(map.entries())
+      .map(([key, list]) => ({
+        dayKey: key,
+        date:   new Date(`${key}T00:00:00+03:00`),
+        list:   list.sort((a, b) => a.kickoffAt.localeCompare(b.kickoffAt)),
+      }))
+      .sort((a, b) => a.dayKey.localeCompare(b.dayKey))
+  }, [rows])
+
+  const todayKey = useMemo(() => new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Istanbul', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date()), [])
+
+  return (
+    <div className="space-y-3">
+      {byDay.map(d => {
+        const isToday = d.dayKey === todayKey
+        const isPast  = d.dayKey < todayKey
+        const dayLabel = d.date.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+        return (
+          <div key={d.dayKey} className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${
+            isToday ? 'border-amber-300 ring-1 ring-amber-200' : 'border-gray-100'
+          }`}>
+            <div className={`px-4 py-2.5 border-b flex items-center justify-between ${
+              isToday ? 'bg-amber-50 border-amber-100' : isPast ? 'bg-gray-50/40 border-gray-100' : 'border-gray-100'
+            }`}>
+              <div className="flex items-center gap-2 flex-wrap">
+                {isToday && <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Today</span>}
+                <p className={`text-sm font-bold ${isToday ? 'text-amber-900' : 'text-gray-900'}`}>{dayLabel}</p>
+              </div>
+              <p className="text-[10px] text-gray-500">
+                {d.list.length} match{d.list.length === 1 ? '' : 'es'}
+              </p>
+            </div>
+            <div className="px-3 py-3 space-y-2">
+              {d.list.map(f => (
+                <FixtureRow
+                  key={f.id}
+                  fixture={f}
+                  saving={savingFixtureId === f.id}
+                  canPick={canPick}
+                  onPick={(team) => onPick(f.id, team)}
+                />
+              ))}
+            </div>
           </div>
         )
       })}
@@ -755,10 +876,17 @@ function FixtureRow({ fixture, saving, canPick, onPick }: { fixture: Fixture; sa
         : wrong ? 'border-red-200 bg-red-50/40'
         : 'border-gray-100'
     }`}>
-      <div className="flex items-center justify-between mb-2 text-[10px] text-gray-500 font-semibold uppercase tracking-wider">
-        <span>{kickoff}</span>
+      {/* Header: kickoff + group letter on the left, lock/result
+          on the right. Group letter helps the by-date view stay
+          structural ("oh, this is a Group A match") and adds
+          context to the by-group view for free. */}
+      <div className="flex items-center justify-between mb-2 text-[10px] text-gray-500 font-semibold uppercase tracking-wider gap-2">
+        <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+          <span>{kickoff}</span>
+          {fixture.group && <span className="text-amber-600">· Group {fixture.group}</span>}
+        </div>
         {fixture.locked && fixture.winnerTeam && (
-          <span className="text-amber-600">
+          <span className="text-amber-600 text-right">
             {fixture.homeScore}–{fixture.awayScore} · Winner: {teamLabel(fixture.winnerTeam)}
           </span>
         )}
