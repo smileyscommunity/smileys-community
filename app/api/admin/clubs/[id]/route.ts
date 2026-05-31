@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { writeAudit, getDiff } from '@/lib/audit'
 import { computeEventSurveyRollup, aggregateRollup } from '@/lib/survey'
+import { CLUB_CATEGORIES } from '@/lib/data'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -109,6 +110,19 @@ export async function PUT(req: NextRequest, { params }: Params) {
     const body = await req.json()
     const allowed: Record<string, unknown> = {}
     for (const key of whitelist) { if (key in body) allowed[key] = body[key] }
+
+    // Category guard — when PUT carries a category, it must be one
+    // of the known options. Same reasoning as the POST validator:
+    // silent fallbacks make the audit trail lie. Only validate when
+    // present so other-field-only PATCHes (like the toggleActive
+    // single-field PUT) don't get rejected for missing category.
+    if (typeof allowed.category === 'string') {
+      const cat = allowed.category.trim()
+      if (!(CLUB_CATEGORIES as readonly string[]).includes(cat)) {
+        return NextResponse.json({ error: `Category must be one of: ${CLUB_CATEGORIES.join(', ')}` }, { status: 400 })
+      }
+      allowed.category = cat
+    }
 
     const club = await prisma.club.update({ where: { id }, data: allowed })
 

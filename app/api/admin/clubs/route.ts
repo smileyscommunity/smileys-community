@@ -2,6 +2,7 @@ import { canManageClubs } from '@/lib/access'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { CLUB_CATEGORIES } from '@/lib/data'
 
 export async function GET() {
   try {
@@ -33,6 +34,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 })
     }
 
+    // Category must be one of the known options — the previous
+    // `category || 'Social'` fallback silently filed unsubmitted
+    // categories into Social, which was confusing both for admins
+    // (form said "required" but submitted blank still worked) and
+    // for the audit trail. Validate explicitly here.
+    const cat = category?.trim()
+    if (!cat || !(CLUB_CATEGORIES as readonly string[]).includes(cat)) {
+      return NextResponse.json({ error: `Category must be one of: ${CLUB_CATEGORIES.join(', ')}` }, { status: 400 })
+    }
+
     const slug = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
 
     // Default new clubs to the admin's own city. Multi-city UI for
@@ -47,7 +58,7 @@ export async function POST(req: NextRequest) {
         name:        name.trim(),
         slug,
         description: description?.trim() || 'A new Smileys club.',
-        category:    category?.trim()    || 'Social',
+        category:    cat,
         emoji:       emoji               || '🎉',
         color:       'text-amber-600',
         bgColor:     'bg-amber-50',

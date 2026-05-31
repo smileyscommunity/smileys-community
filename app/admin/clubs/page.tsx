@@ -114,7 +114,7 @@ function ClubForm({
       </div>
       <div>
         <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Category *</label>
-        <select value={value.category} onChange={e => set('category', e.target.value)} className={inputCls}>
+        <select value={value.category} onChange={e => set('category', e.target.value)} required className={inputCls}>
           <option value="">Select a category…</option>
           {CLUB_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
@@ -170,13 +170,10 @@ export default function AdminClubsPage() {
 
   const [editingId,  setEditingId]  = useState<string | null>(null)
   const [editForm,   setEditForm]   = useState(emptyForm)
-
-  const [membersClubId,   setMembersClubId]   = useState<string | null>(null)
-  const [membersClubName, setMembersClubName] = useState('')
-  const [allMembers,      setAllMembers]      = useState<{ id: string; userId: string; role: string; status: string; user: { id: string; name: string; email: string; color: string; role: string } }[]>([])
-  const [userSearch,      setUserSearch]      = useState('')
-  const [userResults,     setUserResults]     = useState<{ id: string; name: string; email: string; color: string }[]>([])
-  const [addRole,         setAddRole]         = useState('member')
+  // Member management used to live here in a modal. Now everything
+  // — pending requests, role changes, add/remove — happens on the
+  // detail page (/admin/clubs/[id]) which also carries the Quality
+  // card. The "Manage" button below routes there.
 
   useEffect(() => {
     fetch('/app/api/admin/clubs', { credentials: 'include' })
@@ -231,7 +228,8 @@ export default function AdminClubsPage() {
   }
 
   async function handleCreate() {
-    if (!newForm.name.trim()) return
+    if (!newForm.name.trim())     { toast.error('Name is required');     return }
+    if (!newForm.category.trim()) { toast.error('Category is required'); return }
     setSaving(true)
     const res = await fetch('/app/api/admin/clubs', {
       method: 'POST',
@@ -255,106 +253,8 @@ export default function AdminClubsPage() {
       setNewForm(emptyForm)
       setShowCreate(false)
       toast.success(`"${data.name}" created ✓`)
-    }
-  }
-
-  async function openMembers(club: Club) {
-    setMembersClubId(club.id)
-    setMembersClubName(club.name)
-    setUserSearch('')
-    setUserResults([])
-    setAddRole('member')
-    const res = await fetch(`/app/api/admin/clubs/${club.id}/memberships`, { credentials: 'include' })
-    if (res.ok) setAllMembers(await res.json())
-  }
-
-  async function searchUsers(q: string) {
-    setUserSearch(q)
-    if (!q.trim()) { setUserResults([]); return }
-    const res = await fetch(`/app/api/admin/users?search=${encodeURIComponent(q)}`, { credentials: 'include' })
-    if (res.ok) {
-      const data = await res.json()
-      const memberIds = new Set(allMembers.map(m => m.userId))
-      setUserResults((Array.isArray(data) ? data : []).filter((u: any) => !memberIds.has(u.id)).slice(0, 5))
-    }
-  }
-
-  async function addMember(clubId: string, userId: string) {
-    const res = await fetch(`/app/api/admin/clubs/${clubId}/memberships`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, role: addRole }),
-    })
-    const data = await res.json()
-    if (res.ok) {
-      setAllMembers(prev => [...prev, data])
-      setClubList(prev => prev.map(c => c.id === clubId ? { ...c, memberCount: c.memberCount + 1 } : c))
-      setUserSearch('')
-      setUserResults([])
-      toast.success('Member added ✓')
     } else {
-      toast(data.error ?? 'Failed to add member')
-    }
-  }
-
-  async function handleMembership(clubId: string, userId: string, status: 'approved' | 'rejected') {
-    // Read the prior status before mutating so the optimistic
-    // memberCount update mirrors the server-side count-delta logic
-    // (only approved↔non-approved transitions move the count).
-    const prior = allMembers.find(m => m.userId === userId)?.status ?? null
-    const res = await fetch(`/app/api/admin/clubs/${clubId}/memberships`, {
-      method: 'PATCH',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, status }),
-    })
-    if (res.ok) {
-      const delta = (status === 'approved' ? 1 : 0) - (prior === 'approved' ? 1 : 0)
-      if (status === 'rejected') {
-        setAllMembers(prev => prev.filter(m => m.userId !== userId))
-      } else {
-        setAllMembers(prev => prev.map(m => m.userId === userId ? { ...m, status } : m))
-      }
-      if (delta !== 0) {
-        setClubList(prev => prev.map(c => c.id === clubId ? { ...c, memberCount: c.memberCount + delta } : c))
-      }
-      toast.success(status === 'approved' ? 'Approved ✓' : 'Rejected')
-    }
-  }
-
-  async function handleRoleChange(clubId: string, userId: string, role: string) {
-    const res = await fetch(`/app/api/admin/clubs/${clubId}/memberships`, {
-      method: 'PATCH',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, role }),
-    })
-    if (res.ok) {
-      setAllMembers(prev => prev.map(m => m.userId === userId ? { ...m, role } : m))
-      toast.success('Role updated ✓')
-    }
-  }
-
-  async function handleRemoveMember(clubId: string, userId: string) {
-    // Capture prior status so we can decrement memberCount
-    // optimistically when an approved member is removed. Previous
-    // code never decremented, so the card showed a stale count
-    // until next refresh — visible drift even though the server
-    // was correct.
-    const prior = allMembers.find(m => m.userId === userId)?.status ?? null
-    const res = await fetch(`/app/api/admin/clubs/${clubId}/memberships`, {
-      method: 'DELETE',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId }),
-    })
-    if (res.ok) {
-      setAllMembers(prev => prev.filter(m => m.userId !== userId))
-      if (prior === 'approved') {
-        setClubList(prev => prev.map(c => c.id === clubId ? { ...c, memberCount: Math.max(0, c.memberCount - 1) } : c))
-      }
-      toast('Member removed')
+      toast.error(data?.error ?? 'Could not create club')
     }
   }
 
@@ -484,18 +384,22 @@ export default function AdminClubsPage() {
                       Delete
                     </button>
                   </div>
-                  <div className="grid grid-cols-2 sm:flex gap-1.5 flex-wrap">
-                    <button onClick={() => openMembers(club)}
-                      className="text-xs px-3 py-2 rounded-lg bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 transition-colors font-medium text-center">
-                      Members
-                    </button>
-                    <Link href={`/admin/clubs/${club.id}`} className="text-xs px-3 py-2 rounded-lg border border-zinc-700 text-zinc-300 hover:bg-zinc-800 transition-colors font-medium text-center">
-                      Hosts
-                    </Link>
-                    <Link href={`/host/clubs/${club.slug}`} className="text-xs px-3 py-2 rounded-lg bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 transition-colors font-medium text-center">
+                  {/* Button row — collapsed from five to three:
+                      • Manage: pending requests, members, hosts,
+                        Quality card. The single admin surface for
+                        a club's people + signal.
+                      • Edit: inline form to update copy/cover.
+                      • Activate/Deactivate: visibility toggle.
+                      The old "Members" modal and the host-UI
+                      "Manage" link are gone — both folded into
+                      /admin/clubs/[id]. */}
+                  <div className="grid grid-cols-3 gap-1.5">
+                    <Link href={`/admin/clubs/${club.id}`}
+                      className="text-xs px-3 py-2 rounded-lg bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 transition-colors font-medium text-center">
                       Manage
                     </Link>
-                    <button onClick={() => startEdit(club)} className="text-xs px-3 py-2 rounded-lg border border-zinc-700 text-zinc-300 hover:bg-zinc-800 transition-colors font-medium">
+                    <button onClick={() => startEdit(club)}
+                      className="text-xs px-3 py-2 rounded-lg border border-zinc-700 text-zinc-300 hover:bg-zinc-800 transition-colors font-medium">
                       Edit
                     </button>
                     <button
@@ -516,111 +420,6 @@ export default function AdminClubsPage() {
         ))}
       </div>
 
-      {/* Members modal */}
-      {membersClubId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setMembersClubId(null)}>
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-lg mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
-              <h2 className="text-white font-bold">{membersClubName} — Members</h2>
-              <button onClick={() => setMembersClubId(null)} className="text-zinc-500 hover:text-zinc-300 text-xl leading-none">×</button>
-            </div>
-
-            {/* Add member */}
-            <div className="px-4 py-4 border-b border-zinc-800 space-y-2">
-              <p className="text-xs font-semibold text-zinc-400 mb-2">Add member</p>
-              <div className="flex gap-2">
-                <div className="flex-1 relative">
-                  <input
-                    type="text"
-                    value={userSearch}
-                    onChange={e => searchUsers(e.target.value)}
-                    placeholder="Search by name or email…"
-                    className="bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none px-3 py-2 w-full text-sm"
-                  />
-                  {userResults.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-zinc-900 border border-zinc-800 rounded-xl z-10 overflow-hidden">
-                      {userResults.map(u => {
-                        const ini = u.name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
-                        return (
-                          <div key={u.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-zinc-800/40">
-                            <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-                              style={{ backgroundColor: u.color }}>{ini}</div>
-                            <div className="flex-1 min-w-0">
-                              <div className="text-sm font-semibold text-white truncate">{u.name}</div>
-                              <div className="text-xs text-zinc-500 truncate">{u.email}</div>
-                            </div>
-                            <button
-                              onClick={() => addMember(membersClubId!, u.id)}
-                              className="text-xs px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-semibold transition-colors shrink-0"
-                            >
-                              Add
-                            </button>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-                <select value={addRole} onChange={e => setAddRole(e.target.value)}
-                  className="text-xs px-3 py-2 rounded-xl border border-zinc-700 focus:outline-none focus:ring-2 focus:ring-amber-500 text-zinc-300 bg-zinc-800">
-                  <option value="member">Member</option>
-                  <option value="host">Host</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
-            </div>
-
-            {allMembers.length === 0 ? (
-              <p className="text-sm text-zinc-500 text-center py-8">No members yet.</p>
-            ) : (
-              <div className="divide-y divide-zinc-800 max-h-[60vh] overflow-y-auto">
-                {allMembers.map(m => {
-                  const initials = m.user.name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
-                  return (
-                    <div key={m.userId} className="flex items-center gap-3 px-4 py-3">
-                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-                        style={{ backgroundColor: m.user.color }}>
-                        {initials}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-semibold text-white truncate">{m.user.name}</div>
-                        <div className="text-xs text-zinc-600 truncate">{m.user.email}</div>
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        {m.status === 'pending' && <>
-                          <button onClick={() => handleMembership(membersClubId, m.userId, 'approved')}
-                            className="text-xs px-2 py-1 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 font-semibold transition-colors">
-                            ✓
-                          </button>
-                          <button onClick={() => handleMembership(membersClubId, m.userId, 'rejected')}
-                            className="text-xs px-2 py-1 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 font-semibold transition-colors">
-                            ✕
-                          </button>
-                        </>}
-                        {m.status === 'approved' && (
-                          m.user.role === 'admin'
-                            ? <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400">Admin</span>
-                            : <select value={m.role} onChange={e => handleRoleChange(membersClubId, m.userId, e.target.value)}
-                                className="text-xs px-2 py-1 rounded-lg border border-zinc-700 text-zinc-300 bg-zinc-800 focus:outline-none">
-                                <option value="member">Member</option>
-                                <option value="host">Host</option>
-                              </select>
-                        )}
-                        {m.status === 'approved' && (
-                          <button onClick={() => handleRemoveMember(membersClubId, m.userId)}
-                            className="text-zinc-600 hover:text-red-400 transition-colors text-base leading-none p-1" title="Remove">
-                            ×
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   )
 }

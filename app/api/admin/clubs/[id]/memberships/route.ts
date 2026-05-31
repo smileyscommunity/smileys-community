@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { createNotification } from '@/lib/notify'
+import { writeAudit } from '@/lib/audit'
 
 // Club-membership admin endpoints. Two invariants the API must hold:
 //
@@ -50,9 +51,9 @@ export async function POST(req: NextRequest, { params }: Params) {
     const { id } = await params
     const { userId, role = 'member' } = await req.json()
 
-    // Adding via this endpoint always creates as approved (the modal
-    // is the "admin-curated add" path, not a join-request flow).
-    // Single transaction so the count change can't outlive a failed
+    // Adding via this endpoint always creates as approved (the
+    // admin-curated add path, not a join-request flow). Single
+    // transaction so the count change can't outlive a failed
     // membership insert.
     const delta = countDelta(null, 'approved')
     const ops: Promise<unknown>[] = [
@@ -64,7 +65,16 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (delta !== 0) {
       ops.push(prisma.club.update({ where: { id }, data: { memberCount: { increment: delta } } }))
     }
-    const [membership] = await prisma.$transaction(ops as never)
+    const [membership] = await prisma.$transaction(ops as never) as [{ user: { name: string } }]
+
+    // Audit — fire-and-forget so a transient audit-write failure
+    // never rolls back the membership. Same pattern as the rest of
+    // the admin surfaces.
+    const club = await prisma.club.findUnique({ where: { id }, select: { name: true } })
+    writeAudit(session.id, session.name, 'club.member_added', id, 'club',
+      { userId, role, status: 'approved', userName: membership.user.name, clubName: club?.name ?? id },
+      `Added ${membership.user.name} to "${club?.name ?? id}" as ${role}`,
+    )
 
     return NextResponse.json(membership)
   } catch (e) {
@@ -102,13 +112,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const { id } = await params
     const { userId, status, role } = await req.json()
 
-    // Read prior status so we can compute the count delta accurately.
-    // Without this, "approved → pending" demotions silently inflate
-    // memberCount, and "rejected → approved" promotions silently
+    // Read prior status + role so we can compute the count delta
+    // accurately AND describe the change for the audit log. Without
+    // this, "approved → pending" demotions silently inflate
+    // memberCount and "rejected → approved" promotions silently
     // double-count.
     const prior = await prisma.clubMembership.findUnique({
       where:  { userId_clubId: { userId, clubId: id } },
-      select: { status: true },
+      select: { status: true, role: true },
     })
     if (!prior) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
@@ -127,10 +138,30 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
     const [membership] = await prisma.$transaction(ops as never)
 
-    // Notifications are fire-and-forget (no rollback needed if they
-    // fail). The club lookup runs out of the transaction since it
-    // only feeds the notification copy.
-    const club = await prisma.club.findUnique({ where: { id } })
+    // Notifications + audit are fire-and-forget (no rollback needed
+    // if they fail). The club + user lookups run out of the
+    // transaction since they only feed notification copy + audit
+    // descriptions.
+    const [club, user] = await Promise.all([
+      prisma.club.findUnique({ where: { id }, select: { name: true } }),
+      prisma.user.findUnique({ where: { id: userId }, select: { name: true } }),
+    ])
+    const userName = user?.name ?? userId
+    const clubName = club?.name ?? id
+
+    if (status && status !== prior.status) {
+      writeAudit(session.id, session.name, 'club.member_status_change', id, 'club',
+        { userId, userName, clubName, from: prior.status, to: status },
+        `${status === 'approved' ? 'Approved' : status === 'rejected' ? 'Rejected' : 'Changed status of'} ${userName} for "${clubName}" (${prior.status} → ${status})`,
+      )
+    }
+    if (role && role !== prior.role) {
+      writeAudit(session.id, session.name, 'club.member_role_change', id, 'club',
+        { userId, userName, clubName, from: prior.role, to: role },
+        `Changed ${userName}'s role in "${clubName}" from ${prior.role} to ${role}`,
+      )
+    }
+
     if (status === 'approved' && prior.status !== 'approved') {
       createNotification(userId, 'club_approved', 'Membership approved! 🎉', `Your request to join ${club?.name} has been approved`, `/clubs`)
     } else if (status === 'rejected' && prior.status !== 'rejected') {
@@ -164,7 +195,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     // membership from being recreated under us.
     const prior = await prisma.clubMembership.findUnique({
       where:  { userId_clubId: { userId, clubId: id } },
-      select: { status: true },
+      select: { status: true, role: true },
     })
     if (!prior) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
@@ -176,6 +207,16 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       ops.push(prisma.club.update({ where: { id }, data: { memberCount: { increment: delta } } }))
     }
     await prisma.$transaction(ops as never)
+
+    // Audit — out-of-transaction lookups for name resolution.
+    const [club, user] = await Promise.all([
+      prisma.club.findUnique({ where: { id }, select: { name: true } }),
+      prisma.user.findUnique({ where: { id: userId }, select: { name: true } }),
+    ])
+    writeAudit(session.id, session.name, 'club.member_removed', id, 'club',
+      { userId, userName: user?.name ?? userId, clubName: club?.name ?? id, priorStatus: prior.status, priorRole: prior.role },
+      `Removed ${user?.name ?? userId} from "${club?.name ?? id}" (was ${prior.role}, ${prior.status})`,
+    )
 
     return NextResponse.json({ ok: true })
   } catch (e) {
