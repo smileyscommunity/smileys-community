@@ -43,6 +43,9 @@ interface MemberProfile {
   clubs: HostClub[]
   upcomingEvents: UpcomingEvent[]
   isConnected: boolean
+  connectionId: string | null
+  connectionStatus: string | null
+  connectionIsRequester: boolean | null
   // Hangout activity — used for the "X hosted · Y joined" counter line
   // and the "✓ N good hangouts" trust badge.
   goodHangouts?: number
@@ -60,6 +63,10 @@ export default function MemberProfilePage({ params }: { params: Promise<{ id: st
   const [loading,      setLoading]      = useState(true)
   const [blocked,      setBlocked]      = useState(false)
   const [blocking,     setBlocking]     = useState(false)
+  const [connecting,   setConnecting]   = useState(false)
+  const [connStatus,   setConnStatus]   = useState<string | null>(null)
+  const [connId,       setConnId]       = useState<string | null>(null)
+  const [connIsReq,    setConnIsReq]    = useState<boolean | null>(null)
   const [menuOpen,     setMenuOpen]     = useState(false)
   const [reporting,    setReporting]    = useState(false)
   const [reportSent,   setReportSent]   = useState(false)
@@ -70,7 +77,15 @@ export default function MemberProfilePage({ params }: { params: Promise<{ id: st
   useEffect(() => {
     fetch(`/app/api/members/${id}`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
-      .then(data => { setMember(data); setLoading(false) })
+      .then(data => {
+        setMember(data)
+        if (data) {
+          setConnStatus(data.connectionStatus)
+          setConnId(data.connectionId)
+          setConnIsReq(data.connectionIsRequester)
+        }
+        setLoading(false)
+      })
       .catch(() => setLoading(false))
   }, [id])
 
@@ -122,7 +137,81 @@ export default function MemberProfilePage({ params }: { params: Promise<{ id: st
   const initials      = getInitials(member.name)
   const flag          = countryFlag(member.nationality)
   const isOwnProfile  = me?.id === member.id
-  const canMessage    = !isOwnProfile && (member.isConnected || me?.role === 'admin' || me?.role === 'moderator' || me?.isClubHost)
+  const isAccepted       = connStatus === 'accepted'
+  // Role-based messaging — admin / moderator / club host can DM any
+  // member regardless of connection state. Used to suppress the
+  // Connect button for these roles (they don't need to send a
+  // request to reach the inbox).
+  const canMessageByRole = !isOwnProfile && (me?.role === 'admin' || me?.role === 'moderator' || me?.isClubHost === true)
+  const canMessage       = !isOwnProfile && (isAccepted || canMessageByRole)
+
+  async function handleConnect() {
+    if (connecting) return
+    setConnecting(true)
+    try {
+      if (connStatus === 'pending' && connIsReq) {
+        // Withdraw pending request
+        await fetch(`/app/api/connections/${connId}`, { method: 'DELETE', credentials: 'include' })
+        setConnStatus(null); setConnId(null); setConnIsReq(null)
+        toast.success('Request withdrawn.')
+      } else {
+        const res = await fetch('/app/api/connections', {
+          method: 'POST', credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ receiverId: member!.id }),
+        })
+        const data = await res.json()
+        if (res.ok) {
+          setConnId(data.connection.id)
+          setConnStatus(data.connection.status)
+          setConnIsReq(true)
+          if (data.connection.status === 'accepted') {
+            toast.success(`Connected with ${member!.name.split(' ')[0]}!`)
+          } else {
+            toast.success('Connection request sent!')
+          }
+        } else {
+          toast.error(data.error || 'Could not send request')
+        }
+      }
+    } finally {
+      setConnecting(false)
+    }
+  }
+
+  // Receiver-side accept/decline — the same affordance lives in the
+  // notification, but a member who lands on the profile directly
+  // (deep link, search, club page) should be able to act in place
+  // without bouncing through the inbox.
+  async function handleRespondToRequest(action: 'accept' | 'decline') {
+    if (connecting || !connId) return
+    setConnecting(true)
+    try {
+      const res = await fetch(`/app/api/connections/${connId}`, {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        toast.error(data.error || 'Could not update request')
+        return
+      }
+      if (action === 'accept') {
+        setConnStatus('accepted')
+        toast.success(`Connected with ${member!.name.split(' ')[0]}!`)
+      } else {
+        // Decline deletes the row server-side — clear local state to
+        // mirror that. The Connect button re-appears, which is
+        // intentional: declining is reversible by sending a fresh
+        // request.
+        setConnStatus(null); setConnId(null); setConnIsReq(null)
+        toast('Request declined')
+      }
+    } finally {
+      setConnecting(false)
+    }
+  }
 
   async function handleBlock() {
     if (!confirm(`Block ${member!.name}? They won't be able to see your profile or message you.`)) return
@@ -174,14 +263,10 @@ export default function MemberProfilePage({ params }: { params: Promise<{ id: st
             <Link href="/profile" className="text-xs text-amber-600 font-semibold hover:underline">Edit</Link>
           ) : (
             <div className="flex items-center gap-2">
-              {canMessage && (
-                <Link href={`/messages/${member.id}`} className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg transition-colors">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                  </svg>
-                  Message
-                </Link>
-              )}
+              {/* Connect / Message primary CTA lives in the big row
+                  below the profile card. The header keeps only the
+                  ⋯ overflow menu (report / block) so the same
+                  affordance isn't rendered in two places. */}
               {/* ⋯ actions menu */}
               <div className="relative" ref={menuRef}>
                 <button onClick={() => setMenuOpen(o => !o)}
@@ -290,7 +375,7 @@ export default function MemberProfilePage({ params }: { params: Promise<{ id: st
               {member.clubs.length > 0 && (
                 <span className="text-xs font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Host</span>
               )}
-              {!isOwnProfile && member.isConnected && (
+              {!isOwnProfile && isAccepted && (
                 <span className="text-xs font-semibold bg-green-100 text-green-700 px-2 py-0.5 rounded-full flex items-center gap-1">
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
@@ -340,6 +425,81 @@ export default function MemberProfilePage({ params }: { params: Promise<{ id: st
             )}
           </div>
         </div>
+
+        {/* Connect / Message CTA — prominent row below the profile
+            card. Three branches:
+            • Incoming pending (you're the receiver) → Accept + Decline
+            • Outgoing pending (you sent it)         → Requested · tap to withdraw
+            • No connection                          → Connect
+            Admin / moderator / club host always see Message (their
+            inbox isn't gated by connection state) — Connect is
+            suppressed because they don't need to send a request to
+            reach the DM. */}
+        {!isOwnProfile && (
+          <div className="flex gap-3">
+            {/* A — incoming pending: receiver acts in-place */}
+            {connStatus === 'pending' && connIsReq === false && (
+              <>
+                <button
+                  onClick={() => handleRespondToRequest('accept')}
+                  disabled={connecting}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-2xl transition-colors shadow-sm disabled:opacity-60">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Accept
+                </button>
+                <button
+                  onClick={() => handleRespondToRequest('decline')}
+                  disabled={connecting}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-bold rounded-2xl transition-colors shadow-sm disabled:opacity-60">
+                  Decline
+                </button>
+              </>
+            )}
+
+            {/* B — Connect / Requested — hidden for admin/mod/host
+                (they can already message), and for the receiver-pending
+                state handled above. */}
+            {!isAccepted && !canMessageByRole && (connStatus !== 'pending' || connIsReq) && (
+              <button
+                onClick={handleConnect}
+                disabled={connecting}
+                className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold rounded-2xl transition-colors shadow-sm disabled:opacity-60 ${
+                  connStatus === 'pending'
+                    ? 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                    : 'bg-amber-500 hover:bg-amber-600 text-white'
+                }`}>
+                {connStatus === 'pending' ? (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Request sent — tap to withdraw
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                    </svg>
+                    Connect
+                  </>
+                )}
+              </button>
+            )}
+
+            {/* C — Message — connected, or role-based bypass. */}
+            {(isAccepted || canMessageByRole) && (
+              <Link href={`/messages/${member.id}`}
+                className="flex-1 flex items-center justify-center gap-2 py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-2xl transition-colors shadow-sm">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+                Message
+              </Link>
+            )}
+          </div>
+        )}
 
         {/* Bio */}
         {member.bio && (

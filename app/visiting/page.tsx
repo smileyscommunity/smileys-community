@@ -96,12 +96,16 @@ export default async function VisitingPage() {
                   )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-sm font-bold text-gray-900">{a.name}</p>
+                      {a.user ? (
+                        <Link href={`/members/${a.user.id}`} className="text-sm font-bold text-gray-900 hover:text-amber-600 transition-colors">{a.name}</Link>
+                      ) : (
+                        <p className="text-sm font-bold text-gray-900">{a.name}</p>
+                      )}
                       {a.fromCity && (
                         <span className="text-xs text-gray-500">from {a.fromCity}</span>
                       )}
                       {a.user && (
-                        <span className="text-[10px] font-bold uppercase tracking-wide bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">Member</span>
+                        <Link href={`/members/${a.user.id}`} className="text-[10px] font-bold uppercase tracking-wide bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full hover:bg-amber-200 transition-colors">Member →</Link>
                       )}
                     </div>
                     <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-500">

@@ -46,13 +46,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     }),
     prisma.memberConnection.findFirst({
       where: {
-        status: 'accepted',
         OR: [
           { requesterId: session.id, receiverId: id },
           { requesterId: id, receiverId: session.id },
         ],
       },
-      select: { id: true },
+      select: { id: true, status: true, requesterId: true },
     }),
     // Hangouts hosted — exclude cancelled so a wash of cancellations
     // doesn't pad the number. Includes still-active ones.
@@ -122,7 +121,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     instagram:    user.instagram,
     clubs:        user.clubMemberships.map(cm => cm.club),
     upcomingEvents,
-    isConnected:  !!connection,
+    isConnected:     connection?.status === 'accepted',
+    connectionId:    connection?.id ?? null,
+    connectionStatus: connection?.status ?? null,
+    connectionIsRequester: connection ? connection.requesterId === session.id : null,
     // Hangout stats — for the profile counter + trust badge.
     goodHangouts: user.goodHangouts,
     hangoutsHosted,
