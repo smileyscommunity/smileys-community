@@ -270,6 +270,12 @@ export default function CupPredictionsPage() {
 
   return (
     <Shell>
+      {/* Above-the-fold compact area — banner, countdown, visitor
+          hero. Capped at max-w-3xl on lg+ so the banner (a
+          2.5:1 SVG) doesn't read as a billboard on a wide screen
+          while the 2-col grid below still uses the full container
+          width for content. Centered. */}
+      <div className="lg:max-w-3xl lg:mx-auto">
       {/* Hero banner — SVG illustration carries the title, dates,
           and tagline. Pure vector so it crisps at any density
           without shipping a raster. Aspect ratio (2.5:1) reads
@@ -349,116 +355,67 @@ export default function CupPredictionsPage() {
           </div>
         </div>
       )}
+      </div> {/* end above-the-fold compact area */}
 
-      {/* How it works — collapsible rules card. Always visible
-          (members + non-members) so the game's mental model is
-          one tap away. Defaults expanded for non-members (they
-          need it to understand what's on offer) and collapsed
-          for members (they've seen it before). */}
-      <RulesCard defaultOpen={accessState !== 'member'} />
+      {/* Two-column layout from lg+. On mobile + small tablet the
+          grid collapses to a single stack — `lg:grid` is the only
+          breakpoint switch. Right column (rules / FAQ / watch
+          parties / prizes) is the "context" sidebar; left column
+          is the active game (bracket / trending / leaderboard /
+          fixtures). On desktop the sidebar is sticky so it stays
+          visible while the long fixtures list scrolls.
+          On mobile, HTML order = visual order: gameplay first
+          (you came to play, not to read), then context below. */}
+      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-6 lg:items-start">
+        {/* ── Main column ───────────────────────────────────── */}
+        <main className="space-y-4 min-w-0">
+          {!bracketLocked && accessState === 'member' && (
+            <BracketCard
+              bracket={bracket?.bracket ?? null}
+              locked={bracketLocked}
+              editing={editingBracket}
+              draftChampion={draftChampion}
+              draftSF={draftSF}
+              savingBracket={savingBracket}
+              canEdit={accessState === 'member' && !bracketLocked}
+              onStartEdit={() => setEditingBracket(true)}
+              onCancelEdit={() => {
+                setEditingBracket(false)
+                if (bracket?.bracket) {
+                  setDraftChampion(bracket.bracket.championPick)
+                  setDraftSF(bracket.bracket.semifinalists)
+                } else {
+                  setDraftChampion(null); setDraftSF([])
+                }
+              }}
+              onSetChampion={setDraftChampion}
+              onToggleSF={(code) => {
+                setDraftSF(prev => prev.includes(code)
+                  ? prev.filter(c => c !== code)
+                  : prev.length >= 4 ? prev : [...prev, code])
+              }}
+              onSave={saveBracket}
+              tournamentStartAt={bracket?.tournamentStartAt ?? null}
+            />
+          )}
 
-      {/* FAQ — recurring questions admins shouldn't have to field
-          in DMs during peak. Static content, collapsible like the
-          rules card. Defaults closed for members (they know it),
-          closed for visitors too (rules card already serves the
-          orientation role). */}
-      <FAQCard />
+          <TrendingPicks />
+          <Leaderboard />
 
-      {/* Watch parties — Smileys events tagged "World Cup" in
-          their vibes array. Members RSVP without leaving the
-          page. Tournament-window only; hidden when there are no
-          events to surface. */}
-      <WatchParties />
+          {/* Share — natural after the leaderboard row "I just saw
+              my rank, want to brag at a friend." */}
+          {accessState === 'member' && <ShareButton variant="member" />}
 
-      {/* Prizes section — podium + sponsor logos + Donate CTA.
-          Sits between rules and bracket so members read "here's
-          what's at stake" before locking in their pick. Public
-          read; the donate form is open to anyone (rate limited
-          server-side). */}
-      <PrizesSection />
+          {/* Compact bracket summary — only after lock. */}
+          {bracketLocked && (
+            <BracketSummary
+              bracket={bracket?.bracket ?? null}
+              accessState={accessState}
+            />
+          )}
 
-      {/* Trending picks — what other members are picking for
-          champion + SF. Public; aggregates only, no user data.
-          Drives FOMO for fence-sitters and social proof for
-          visitors who scroll past the bracket card. */}
-      <TrendingPicks />
-
-      {/* Page hierarchy adapts to tournament state.
-          Pre-kickoff (bracket still editable):
-            • Bracket card prominent — locking it in is the
-              primary action and there's nothing to climb the
-              leaderboard with yet.
-            • Leaderboard rendered below for context.
-          Post-kickoff (bracket locked):
-            • Leaderboard becomes the centre of gravity — scores
-              are now accumulating and this is what the page is
-              about.
-            • Bracket shrinks to a one-line summary below the
-              leaderboard. The reader doesn't need to stare at
-              their semifinalist picks every visit — they need to
-              see if they're climbing or falling. */}
-      {/* Bracket card only renders for approved members. Visitors
-          and pending applicants don't need to stare at a card
-          they can't interact with — the visitor hero above is
-          already telling them how to get in. */}
-      {!bracketLocked && accessState === 'member' && (
-        <BracketCard
-          bracket={bracket?.bracket ?? null}
-          locked={bracketLocked}
-          editing={editingBracket}
-          draftChampion={draftChampion}
-          draftSF={draftSF}
-          savingBracket={savingBracket}
-          canEdit={accessState === 'member' && !bracketLocked}
-          onStartEdit={() => setEditingBracket(true)}
-          onCancelEdit={() => {
-            setEditingBracket(false)
-            if (bracket?.bracket) {
-              setDraftChampion(bracket.bracket.championPick)
-              setDraftSF(bracket.bracket.semifinalists)
-            } else {
-              setDraftChampion(null); setDraftSF([])
-            }
-          }}
-          onSetChampion={setDraftChampion}
-          onToggleSF={(code) => {
-            setDraftSF(prev => prev.includes(code)
-              ? prev.filter(c => c !== code)
-              : prev.length >= 4 ? prev : [...prev, code])
-          }}
-          onSave={saveBracket}
-          tournamentStartAt={bracket?.tournamentStartAt ?? null}
-        />
-      )}
-
-      {/* Leaderboard — public read so logged-out viewers see real
-          members playing, which drives the Apply CTA above. The
-          leaderboard's own "you" row carries your score; the
-          standalone score header above has been retired. */}
-      <Leaderboard />
-
-      {/* Member-side share affordance. Lives below the leaderboard
-          because the natural moment to share is "I just saw my
-          rank and want to brag at a friend." OG metadata makes the
-          link auto-preview in WhatsApp/iMessage/X. */}
-      {accessState === 'member' && <ShareButton variant="member" />}
-
-      {/* Compact bracket summary — only after lock. Replaces the
-          big BracketCard above. Shows what you submitted in one
-          row so you can verify without scrolling, but doesn't
-          dominate the page. */}
-      {bracketLocked && (
-        <BracketSummary
-          bracket={bracket?.bracket ?? null}
-          accessState={accessState}
-        />
-      )}
-
-      {/* Fixtures by round. Group stage is rendered first since
-          it's chronologically earliest; within it we sub-section
-          by group letter (A–L) so 72 matches don't read as one
-          flat scroll. Knockouts (R32–Final) stay flat. */}
-      <div className="mt-5 space-y-5">
+          {/* Fixtures by round. Group stage first; knockouts flat. */}
+          <div className="space-y-5">
         {/* Group stage — view toggle: by group (structural) vs by
             date (chronological). Smart default flips at first
             kickoff; user's explicit choice persists in
@@ -536,6 +493,22 @@ export default function CupPredictionsPage() {
             </section>
           )
         })}
+          </div>
+        </main>
+
+        {/* ── Right sidebar — context cards ──────────────────────
+            Sticky on lg+ so it doesn't scroll out of view while
+            the long fixtures list scrolls in the main column.
+            Mobile: stacks below the main column (gameplay comes
+            first). The ordering inside is the reading priority:
+            rules first (orientation), FAQ (common questions),
+            then community (watch parties + prizes). */}
+        <aside className="space-y-4 mt-4 lg:mt-0 lg:sticky lg:top-4 min-w-0">
+          <RulesCard defaultOpen={accessState !== 'member'} />
+          <FAQCard />
+          <WatchParties />
+          <PrizesSection />
+        </aside>
       </div>
     </Shell>
   )
@@ -1604,9 +1577,14 @@ function TrendingPicks() {
 }
 
 function Shell({ children }: { children: React.ReactNode }) {
+  // Wider container on lg+ so the 2-column layout has breathing
+  // room. The page body still constrains specific sections (banner,
+  // visitor hero) to a narrower inner width so they don't read as
+  // a billboard on a wide screen. Mobile + small tablet keep the
+  // existing single-column max-w-2xl shape.
   return (
     <div className="min-h-screen bg-warm pb-20">
-      <div className="max-w-2xl mx-auto px-4 pt-6">{children}</div>
+      <div className="max-w-2xl lg:max-w-5xl mx-auto px-4 pt-6">{children}</div>
     </div>
   )
 }
