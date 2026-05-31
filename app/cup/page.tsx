@@ -96,22 +96,28 @@ export default function CupPredictionsPage() {
   }, [groupStageView])
 
   useEffect(() => {
+    // Keep the raw Response objects so we can read .status directly
+    // instead of smuggling a sentinel through the JSON body. The
+    // previous shape {__status: 401} mixed transport state with
+    // payload — fine for one consumer, fragile if anyone else (a
+    // test, an unwrap helper) tried to use the payload.
     Promise.all([
-      fetch('/app/api/cup/fixtures', { credentials: 'include' }).then(r => r.json()),
-      fetch('/app/api/cup/bracket', { credentials: 'include' }).then(async r => {
-        if (r.status === 401) return { __status: 401 as const }
-        return r.json()
-      }),
+      fetch('/app/api/cup/fixtures', { credentials: 'include' }),
+      fetch('/app/api/cup/bracket',  { credentials: 'include' }),
     ])
-      .then(([fxData, brData]) => {
-        if (fxData.fixtures) setFixtures(fxData.fixtures)
-        if ('__status' in brData && brData.__status === 401) {
+      .then(async ([fxRes, brRes]) => {
+        if (fxRes.ok) {
+          const fxData = await fxRes.json()
+          if (fxData.fixtures) setFixtures(fxData.fixtures)
+        }
+        if (brRes.status === 401) {
           setAccessState('unauthenticated')
-        } else {
-          setBracket(brData)
-          // We treat any non-401 as "logged in"; the membership gate
-          // gets reflected on each write (403 from /predict and
-          // /bracket POST) rather than blocking the page render.
+        } else if (brRes.ok) {
+          setBracket(await brRes.json())
+          // Any 2xx on /bracket means we have a session. Membership
+          // gating is enforced at write time (403 from /predict +
+          // /bracket POST) — not here, so the page can still render
+          // for pending applicants.
           setAccessState('member')
         }
       })
@@ -706,18 +712,19 @@ function BracketCard({
         </div>
       )}
 
-      {/* Empty state */}
+      {/* Empty state. The page gates the entire BracketCard behind
+          `accessState === 'member' && !bracketLocked`, so `canEdit`
+          is always true when this branch renders. The previous
+          `!canEdit` fallback ("Join the cup club to play") was a
+          dead code path left over from the standalone-page
+          migration. */}
       {!editing && !hasBracket && (
         <div className="text-center py-4">
           <p className="text-sm text-gray-500 mb-3">No bracket yet. Pick your champion + 4 semifinalists before first kickoff.</p>
-          {canEdit ? (
-            <button onClick={onStartEdit}
-              className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
-              Lock in your bracket
-            </button>
-          ) : (
-            <p className="text-xs text-gray-400">Join the cup club to play</p>
-          )}
+          <button onClick={onStartEdit}
+            className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
+            Lock in your bracket
+          </button>
         </div>
       )}
 
