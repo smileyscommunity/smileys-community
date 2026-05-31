@@ -32,6 +32,21 @@ const nextConfig = {
       },
     ]
   },
+  async redirects() {
+    return [
+      // Legacy /admin/cup → consolidated into /admin/campaigns. The
+      // Smileys Cup is one campaign among many now, with fixture
+      // management surfaced as the "Fixtures + results" tab on the
+      // campaign-detail page. Permanent 308 so bookmarks and old
+      // notification links from before the deletion still land
+      // somewhere useful instead of 404'ing.
+      {
+        source:      '/admin/cup',
+        destination: '/admin/campaigns',
+        permanent:   true,
+      },
+    ]
+  },
   async headers() {
     return [
       {

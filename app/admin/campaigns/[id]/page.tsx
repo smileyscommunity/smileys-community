@@ -100,6 +100,15 @@ export default function AdminCampaignDetailPage() {
   // returned a tiny "Loading…" then jumped to the full page; the
   // skeleton mimics the eventual layout so the transition is a
   // fill-in rather than a layout shift.
+  // Defensive fallback. If the URL says `?tab=fixtures` but the
+  // resolved campaign doesn't have a fixtures admin (e.g. someone
+  // bookmarked the tab on the cup, then we later flipped
+  // hasFixtures off, or shared a URL across campaigns), normalize
+  // to the donations tab so the admin sees a populated pane
+  // instead of a blank one. Only matters AFTER campaign loads —
+  // before that the skeleton below hides everything anyway.
+  const effectiveTab: Tab = (tab === 'fixtures' && campaign?.hasFixtures) ? 'fixtures' : 'donations'
+
   if (!campaign) {
     return (
       <div className="p-4 sm:p-6 space-y-5 max-w-4xl">
@@ -183,16 +192,16 @@ export default function AdminCampaignDetailPage() {
           thing surfaced — no tab chrome at all. */}
       {campaign.hasFixtures ? (
         <div className="flex gap-1 bg-zinc-900 border border-zinc-800 rounded-xl p-1 w-fit">
-          <TabButton active={tab === 'donations'} onClick={() => setTab('donations')}>
+          <TabButton active={effectiveTab === 'donations'} onClick={() => setTab('donations')}>
             Donations {pending.length > 0 && <span className="ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold rounded-full bg-amber-500/20 text-amber-300">{pending.length}</span>}
           </TabButton>
-          <TabButton active={tab === 'fixtures'} onClick={() => setTab('fixtures')}>
+          <TabButton active={effectiveTab === 'fixtures'} onClick={() => setTab('fixtures')}>
             Fixtures + results
           </TabButton>
         </div>
       ) : null}
 
-      {tab === 'donations' && (
+      {effectiveTab === 'donations' && (
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
           <div className="px-5 py-3.5 border-b border-zinc-800 flex items-center justify-between">
             <div>
@@ -230,7 +239,7 @@ export default function AdminCampaignDetailPage() {
         </div>
       )}
 
-      {tab === 'fixtures' && campaign.hasFixtures && <CupFixturesPanel />}
+      {effectiveTab === 'fixtures' && <CupFixturesPanel />}
     </div>
   )
 }
