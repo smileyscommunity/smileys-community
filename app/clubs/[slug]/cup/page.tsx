@@ -52,58 +52,59 @@ interface BracketResponse {
   locked:            boolean
 }
 
-// Mirrors lib/cup.ts — kept duplicated client-side so the picker
-// doesn't need a server round-trip just to list teams. Order
-// matches the server-side constant so codes line up exactly.
+// Mirrors lib/cup.ts CUP_TEAMS — duplicated client-side so the
+// picker doesn't need a server round-trip just to list teams.
+// Order matches the server-side constant so codes line up exactly.
+// The 48 confirmed qualifiers from the Dec 5 2025 draw.
 const TEAMS: { code: string; name: string; flag: string; confederation: string }[] = [
-  { code: 'ARG', name: 'Argentina',     flag: '🇦🇷', confederation: 'CONMEBOL' },
-  { code: 'BRA', name: 'Brazil',        flag: '🇧🇷', confederation: 'CONMEBOL' },
-  { code: 'URU', name: 'Uruguay',       flag: '🇺🇾', confederation: 'CONMEBOL' },
-  { code: 'COL', name: 'Colombia',      flag: '🇨🇴', confederation: 'CONMEBOL' },
-  { code: 'ECU', name: 'Ecuador',       flag: '🇪🇨', confederation: 'CONMEBOL' },
-  { code: 'PAR', name: 'Paraguay',      flag: '🇵🇾', confederation: 'CONMEBOL' },
-  { code: 'FRA', name: 'France',        flag: '🇫🇷', confederation: 'UEFA' },
-  { code: 'ESP', name: 'Spain',         flag: '🇪🇸', confederation: 'UEFA' },
-  { code: 'GER', name: 'Germany',       flag: '🇩🇪', confederation: 'UEFA' },
-  { code: 'ENG', name: 'England',       flag: '🇬🇧', confederation: 'UEFA' },
-  { code: 'POR', name: 'Portugal',      flag: '🇵🇹', confederation: 'UEFA' },
-  { code: 'NED', name: 'Netherlands',   flag: '🇳🇱', confederation: 'UEFA' },
-  { code: 'ITA', name: 'Italy',         flag: '🇮🇹', confederation: 'UEFA' },
-  { code: 'BEL', name: 'Belgium',       flag: '🇧🇪', confederation: 'UEFA' },
-  { code: 'CRO', name: 'Croatia',       flag: '🇭🇷', confederation: 'UEFA' },
-  { code: 'SUI', name: 'Switzerland',   flag: '🇨🇭', confederation: 'UEFA' },
-  { code: 'AUT', name: 'Austria',       flag: '🇦🇹', confederation: 'UEFA' },
-  { code: 'DEN', name: 'Denmark',       flag: '🇩🇰', confederation: 'UEFA' },
-  { code: 'POL', name: 'Poland',        flag: '🇵🇱', confederation: 'UEFA' },
-  { code: 'TUR', name: 'Türkiye',       flag: '🇹🇷', confederation: 'UEFA' },
-  { code: 'NOR', name: 'Norway',        flag: '🇳🇴', confederation: 'UEFA' },
-  { code: 'SWE', name: 'Sweden',        flag: '🇸🇪', confederation: 'UEFA' },
-  { code: 'SRB', name: 'Serbia',        flag: '🇷🇸', confederation: 'UEFA' },
-  { code: 'UKR', name: 'Ukraine',       flag: '🇺🇦', confederation: 'UEFA' },
-  { code: 'USA', name: 'United States', flag: '🇺🇸', confederation: 'CONCACAF' },
-  { code: 'MEX', name: 'Mexico',        flag: '🇲🇽', confederation: 'CONCACAF' },
-  { code: 'CAN', name: 'Canada',        flag: '🇨🇦', confederation: 'CONCACAF' },
-  { code: 'CRC', name: 'Costa Rica',    flag: '🇨🇷', confederation: 'CONCACAF' },
-  { code: 'JAM', name: 'Jamaica',       flag: '🇯🇲', confederation: 'CONCACAF' },
-  { code: 'PAN', name: 'Panama',        flag: '🇵🇦', confederation: 'CONCACAF' },
-  { code: 'MAR', name: 'Morocco',       flag: '🇲🇦', confederation: 'CAF' },
-  { code: 'SEN', name: 'Senegal',       flag: '🇸🇳', confederation: 'CAF' },
-  { code: 'NGA', name: 'Nigeria',       flag: '🇳🇬', confederation: 'CAF' },
-  { code: 'EGY', name: 'Egypt',         flag: '🇪🇬', confederation: 'CAF' },
-  { code: 'ALG', name: 'Algeria',       flag: '🇩🇿', confederation: 'CAF' },
-  { code: 'CIV', name: 'Ivory Coast',   flag: '🇨🇮', confederation: 'CAF' },
-  { code: 'TUN', name: 'Tunisia',       flag: '🇹🇳', confederation: 'CAF' },
-  { code: 'CMR', name: 'Cameroon',      flag: '🇨🇲', confederation: 'CAF' },
-  { code: 'GHA', name: 'Ghana',         flag: '🇬🇭', confederation: 'CAF' },
-  { code: 'JPN', name: 'Japan',         flag: '🇯🇵', confederation: 'AFC' },
-  { code: 'KOR', name: 'South Korea',   flag: '🇰🇷', confederation: 'AFC' },
-  { code: 'IRN', name: 'Iran',          flag: '🇮🇷', confederation: 'AFC' },
-  { code: 'AUS', name: 'Australia',     flag: '🇦🇺', confederation: 'AFC' },
-  { code: 'KSA', name: 'Saudi Arabia',  flag: '🇸🇦', confederation: 'AFC' },
-  { code: 'QAT', name: 'Qatar',         flag: '🇶🇦', confederation: 'AFC' },
-  { code: 'UZB', name: 'Uzbekistan',    flag: '🇺🇿', confederation: 'AFC' },
-  { code: 'JOR', name: 'Jordan',        flag: '🇯🇴', confederation: 'AFC' },
-  { code: 'NZL', name: 'New Zealand',   flag: '🇳🇿', confederation: 'OFC' },
+  { code: 'ARG', name: 'Argentina',          flag: '🇦🇷', confederation: 'CONMEBOL' },
+  { code: 'BRA', name: 'Brazil',             flag: '🇧🇷', confederation: 'CONMEBOL' },
+  { code: 'URU', name: 'Uruguay',            flag: '🇺🇾', confederation: 'CONMEBOL' },
+  { code: 'COL', name: 'Colombia',           flag: '🇨🇴', confederation: 'CONMEBOL' },
+  { code: 'ECU', name: 'Ecuador',            flag: '🇪🇨', confederation: 'CONMEBOL' },
+  { code: 'PAR', name: 'Paraguay',           flag: '🇵🇾', confederation: 'CONMEBOL' },
+  { code: 'FRA', name: 'France',             flag: '🇫🇷', confederation: 'UEFA' },
+  { code: 'ESP', name: 'Spain',              flag: '🇪🇸', confederation: 'UEFA' },
+  { code: 'GER', name: 'Germany',            flag: '🇩🇪', confederation: 'UEFA' },
+  { code: 'ENG', name: 'England',            flag: '🇬🇧', confederation: 'UEFA' },
+  { code: 'POR', name: 'Portugal',           flag: '🇵🇹', confederation: 'UEFA' },
+  { code: 'NED', name: 'Netherlands',        flag: '🇳🇱', confederation: 'UEFA' },
+  { code: 'BEL', name: 'Belgium',            flag: '🇧🇪', confederation: 'UEFA' },
+  { code: 'CRO', name: 'Croatia',            flag: '🇭🇷', confederation: 'UEFA' },
+  { code: 'SUI', name: 'Switzerland',        flag: '🇨🇭', confederation: 'UEFA' },
+  { code: 'AUT', name: 'Austria',            flag: '🇦🇹', confederation: 'UEFA' },
+  { code: 'TUR', name: 'Türkiye',            flag: '🇹🇷', confederation: 'UEFA' },
+  { code: 'NOR', name: 'Norway',             flag: '🇳🇴', confederation: 'UEFA' },
+  { code: 'SWE', name: 'Sweden',             flag: '🇸🇪', confederation: 'UEFA' },
+  { code: 'SCO', name: 'Scotland',           flag: '🏴󠁧󠁢󠁳󠁣󠁴󠁿', confederation: 'UEFA' },
+  { code: 'CZE', name: 'Czechia',            flag: '🇨🇿', confederation: 'UEFA' },
+  { code: 'BIH', name: 'Bosnia-Herzegovina', flag: '🇧🇦', confederation: 'UEFA' },
+  { code: 'USA', name: 'United States',      flag: '🇺🇸', confederation: 'CONCACAF' },
+  { code: 'MEX', name: 'Mexico',             flag: '🇲🇽', confederation: 'CONCACAF' },
+  { code: 'CAN', name: 'Canada',             flag: '🇨🇦', confederation: 'CONCACAF' },
+  { code: 'PAN', name: 'Panama',             flag: '🇵🇦', confederation: 'CONCACAF' },
+  { code: 'HAI', name: 'Haiti',              flag: '🇭🇹', confederation: 'CONCACAF' },
+  { code: 'CUW', name: 'Curaçao',            flag: '🇨🇼', confederation: 'CONCACAF' },
+  { code: 'MAR', name: 'Morocco',            flag: '🇲🇦', confederation: 'CAF' },
+  { code: 'SEN', name: 'Senegal',            flag: '🇸🇳', confederation: 'CAF' },
+  { code: 'EGY', name: 'Egypt',              flag: '🇪🇬', confederation: 'CAF' },
+  { code: 'ALG', name: 'Algeria',            flag: '🇩🇿', confederation: 'CAF' },
+  { code: 'CIV', name: 'Ivory Coast',        flag: '🇨🇮', confederation: 'CAF' },
+  { code: 'TUN', name: 'Tunisia',            flag: '🇹🇳', confederation: 'CAF' },
+  { code: 'GHA', name: 'Ghana',              flag: '🇬🇭', confederation: 'CAF' },
+  { code: 'ZAF', name: 'South Africa',       flag: '🇿🇦', confederation: 'CAF' },
+  { code: 'CPV', name: 'Cape Verde',         flag: '🇨🇻', confederation: 'CAF' },
+  { code: 'COD', name: 'DR Congo',           flag: '🇨🇩', confederation: 'CAF' },
+  { code: 'JPN', name: 'Japan',              flag: '🇯🇵', confederation: 'AFC' },
+  { code: 'KOR', name: 'South Korea',        flag: '🇰🇷', confederation: 'AFC' },
+  { code: 'IRN', name: 'Iran',               flag: '🇮🇷', confederation: 'AFC' },
+  { code: 'AUS', name: 'Australia',          flag: '🇦🇺', confederation: 'AFC' },
+  { code: 'KSA', name: 'Saudi Arabia',       flag: '🇸🇦', confederation: 'AFC' },
+  { code: 'QAT', name: 'Qatar',              flag: '🇶🇦', confederation: 'AFC' },
+  { code: 'UZB', name: 'Uzbekistan',         flag: '🇺🇿', confederation: 'AFC' },
+  { code: 'JOR', name: 'Jordan',             flag: '🇯🇴', confederation: 'AFC' },
+  { code: 'IRQ', name: 'Iraq',               flag: '🇮🇶', confederation: 'AFC' },
+  { code: 'NZL', name: 'New Zealand',        flag: '🇳🇿', confederation: 'OFC' },
 ]
 const TEAM_BY_CODE = new Map(TEAMS.map(t => [t.code, t]))
 const teamLabel = (code: string | null | undefined): string => {
@@ -333,8 +334,30 @@ export default function CupPredictionsPage({ params }: { params: Promise<{ slug:
         tournamentStartAt={bracket?.tournamentStartAt ?? null}
       />
 
-      {/* Fixtures by round */}
+      {/* Fixtures by round. Group stage is rendered first since
+          it's chronologically earliest; within it we sub-section
+          by group letter (A–L) so 72 matches don't read as one
+          flat scroll. Knockouts (R32–Final) stay flat. */}
       <div className="mt-5 space-y-5">
+        {/* Group stage — sub-sectioned by group letter */}
+        {(byRound.group?.length ?? 0) > 0 && (
+          <section>
+            <div className="flex items-center justify-between mb-2 px-1">
+              <h2 className="text-sm font-bold text-gray-800">{ROUND_LABEL.group}</h2>
+              <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">
+                1 pt each · 72 matches
+              </span>
+            </div>
+            <GroupStageSections
+              rows={byRound.group ?? []}
+              savingFixtureId={savingFixtureId}
+              canPick={accessState === 'member'}
+              onPick={pickFixture}
+            />
+          </section>
+        )}
+
+        {/* Knockouts — flat lists per round */}
         {(['r32', 'r16', 'qf', 'sf', 'final'] as const).map(round => {
           const rows = byRound[round] ?? []
           if (rows.length === 0) return null
@@ -362,6 +385,88 @@ export default function CupPredictionsPage({ params }: { params: Promise<{ slug:
         })}
       </div>
     </Shell>
+  )
+}
+
+// Group stage — collapsible sections per group letter. Defaults to
+// collapsed-when-all-played, expanded-when-next-match-in-group-is-
+// upcoming. Keeps the 72-match scroll manageable without hiding
+// the actively-playable groups behind a tap.
+function GroupStageSections({
+  rows, savingFixtureId, canPick, onPick,
+}: {
+  rows: Fixture[]
+  savingFixtureId: string | null
+  canPick: boolean
+  onPick: (fixtureId: string, team: string) => void
+}) {
+  const byGroup = useMemo(() => {
+    const out: Record<string, Fixture[]> = {}
+    for (const r of rows) {
+      const g = r.group ?? '?'
+      ;(out[g] ||= []).push(r)
+    }
+    for (const key of Object.keys(out)) {
+      out[key].sort((a, b) => a.kickoffAt.localeCompare(b.kickoffAt))
+    }
+    return out
+  }, [rows])
+  const letters = Object.keys(byGroup).sort()
+  const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
+    // Initially expand groups that have at least one still-pickable
+    // match — that's where the user's attention should go.
+    const init: Record<string, boolean> = {}
+    for (const letter of Object.keys(byGroup)) {
+      init[letter] = byGroup[letter].some(f => !f.locked)
+    }
+    return init
+  })
+
+  return (
+    <div className="space-y-2">
+      {letters.map(letter => {
+        const list = byGroup[letter]
+        const teamsInGroup = Array.from(new Set(list.flatMap(f => [f.homeTeam, f.awayTeam]).filter((c): c is string => !!c)))
+        const isOpen = expanded[letter]
+        const yourPicksInGroup = list.filter(f => f.yourPick).length
+        const lockedInGroup    = list.filter(f => f.locked).length
+        return (
+          <div key={letter} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <button onClick={() => setExpanded(p => ({ ...p, [letter]: !p[letter] }))}
+              className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors text-left">
+              <div className="flex items-center gap-3 min-w-0">
+                <span className="text-sm font-bold text-amber-600 shrink-0">Group {letter}</span>
+                <span className="text-xs text-gray-500 truncate">
+                  {teamsInGroup.map(c => TEAM_BY_CODE.get(c)?.flag ?? '').join(' ')}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-[10px] text-gray-500 font-semibold">
+                  {yourPicksInGroup}/{list.length} picked · {lockedInGroup} locked
+                </span>
+                <svg className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                  fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </button>
+            {isOpen && (
+              <div className="px-3 pb-3 space-y-2 border-t border-gray-100 pt-3">
+                {list.map(f => (
+                  <FixtureRow
+                    key={f.id}
+                    fixture={f}
+                    saving={savingFixtureId === f.id}
+                    canPick={canPick}
+                    onPick={(team) => onPick(f.id, team)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
   )
 }
 

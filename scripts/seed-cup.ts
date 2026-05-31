@@ -3,34 +3,42 @@
 // Run once after deploying the cup schema:
 //   npx tsx scripts/seed-cup.ts
 //
-// Creates the "world-cup-2026" club (idempotent — upsert by slug)
-// and seeds the knockout fixture structure with placeholder team
-// labels. Group-stage fixtures are NOT seeded — they don't get
-// scored in v1, and the bracket pick covers the only thing members
-// need from groups (which 4 teams reach the SF). When group play
-// concludes (Jun 25), admin uses /admin/cup to fill in actual home/
-// away teams for the R32 matchups.
+// Three things happen, all idempotent:
+//   1. Upsert the world-cup-2026 club (slug-keyed; existing edits
+//      preserved — we never overwrite user-edited copy)
+//   2. Seed the 12 × 6 = 72 group-stage fixtures (real teams from
+//      the Dec 5 2025 draw, standard MD1–MD3 rotation)
+//   3. Seed the 31 knockout placeholders (R32 → Final with TBD
+//      labels — admin fills in country codes as group play resolves)
 //
-// Kickoff times below are placeholders aligned to the published
-// schedule shape: R32 starts Jun 27 18:00 ET, knockout rounds
-// follow ~3-day cadence, final on Jul 19 15:00 ET (Istanbul +6h).
-// Admin can adjust per-fixture as FIFA confirms exact times.
+// Schedule notes:
+//   - Group MD1: Jun 11–17 (matchday 1 spread over a week, two
+//     matches per group separated by ~3 hours)
+//   - Group MD2: Jun 18–23
+//   - Group MD3: Jun 24–25 (last two simultaneous per FIFA standard)
+//   - R32: Jun 27 – Jul 1
+//   - R16: Jul 4 – 7
+//   - QF:  Jul 9 – 12
+//   - SF:  Jul 15 – 16
+//   - Final: Jul 19
+// Times below are placeholders aligned to common kickoff slots in
+// Istanbul (UTC+3). FIFA-confirmed exact times can be edited
+// per-fixture in /admin/cup later.
 
 import { prisma } from '@/lib/prisma'
+import { CUP_GROUPS, ROUND_POINTS } from '@/lib/cup'
 
 const SLUG = 'world-cup-2026'
 
 async function main() {
-  // ── Find or pick a city for the club ───────────────────────────
-  // Istanbul is the only live city at seed time; defensive lookup
-  // in case the slug ever drifts.
+  // ── City lookup ───────────────────────────────────────────────
   const city = await prisma.city.findFirst({
     where:  { OR: [{ slug: 'istanbul' }, { name: 'Istanbul' }] },
     select: { id: true },
   })
   if (!city) throw new Error('Istanbul city not found — backfill before seeding cup')
 
-  // ── Upsert the cup club ───────────────────────────────────────
+  // ── Upsert cup club ───────────────────────────────────────────
   const club = await prisma.club.upsert({
     where:  { slug: SLUG },
     create: {
@@ -51,72 +59,119 @@ async function main() {
   })
   console.log(`✓ Cup club: ${club.slug} (${club.id})`)
 
-  // ── Knockout fixtures — seed structure with placeholder labels ─
-  // R32 = 16 matches, R16 = 8, QF = 4, SF = 2, Final = 1. We seed
-  // every slot so the page can render the bracket from day 1, even
-  // though early-round teams are TBD ("Winner Group A"). Admin fills
-  // home/awayTeam as group play resolves.
-  //
-  // Group letters span A–L in the 48-team format. R32 pairings
-  // follow the format's standard bracket map (1A vs 2B, 1B vs 1F,
-  // etc.) — placeholders here use simplified labels; admin can edit
-  // the labels in /admin/cup if FIFA's official map differs.
+  // ── Group-stage fixtures (72) ─────────────────────────────────
+  // Standard rotation per group:
+  //   MD1: T1×T2, T3×T4
+  //   MD2: T1×T3, T2×T4
+  //   MD3: T1×T4, T2×T3   (simultaneous per FIFA standard)
+  // T1..T4 follow the seed order in CUP_GROUPS (pot 1 → pot 4).
   type FixtureSeed = {
-    id: string; round: 'r32' | 'r16' | 'qf' | 'sf' | 'final'
-    homeLabel: string; awayLabel: string; kickoffAt: string; points: number
+    id: string; round: 'group' | 'r32' | 'r16' | 'qf' | 'sf' | 'final'
+    group?: string
+    homeTeam?: string; awayTeam?: string
+    homeLabel?: string; awayLabel?: string
+    kickoffAt: string; points: number
   }
-  const fixtures: FixtureSeed[] = [
-    // R32 (Jun 27 – Jul 1) — 16 matches
-    ...Array.from({ length: 16 }).map((_, i) => ({
+  const fixtures: FixtureSeed[] = []
+
+  const groupLetters = Object.keys(CUP_GROUPS).sort()
+  const PAIRINGS: [number, number][][] = [
+    [[0, 1], [2, 3]],  // MD1
+    [[0, 2], [1, 3]],  // MD2
+    [[0, 3], [1, 2]],  // MD3 (simultaneous)
+  ]
+
+  // MD1 spans Jun 11–17 (12 groups × 2 matches = 24 matches; ~3-4 per day).
+  // MD2 spans Jun 18–23. MD3 fits Jun 24–25.
+  const MD_WINDOWS: { start: string; days: number; baseHour: number; spacingMin: number }[] = [
+    { start: '2026-06-11', days: 7, baseHour: 21, spacingMin: 180 }, // MD1 — Istanbul 21:00 + 3h slots
+    { start: '2026-06-18', days: 6, baseHour: 21, spacingMin: 180 }, // MD2
+    { start: '2026-06-24', days: 2, baseHour: 21, spacingMin: 180 }, // MD3 — last 2 simultaneous
+  ]
+
+  for (let md = 0; md < 3; md++) {
+    const window = MD_WINDOWS[md]
+    const start = new Date(`${window.start}T${String(window.baseHour).padStart(2, '0')}:00:00+03:00`)
+    let matchIndex = 0
+    // Iterate by pairing slot then by group so MD1's "A1×A2" lands
+    // before "A3×A4", giving a more natural ordering on the page.
+    for (const pairing of PAIRINGS[md]) {
+      for (const letter of groupLetters) {
+        const teams = CUP_GROUPS[letter]
+        const home = teams[pairing[0]]
+        const away = teams[pairing[1]]
+        const minutes = (matchIndex * window.spacingMin)
+        // MD3's 2 matches per group play simultaneously — same kickoff
+        // for both pairings in the same group. We approximate by
+        // collapsing the inner-pairing offset on the last matchday.
+        const offset = md === 2 ? Math.floor(matchIndex / groupLetters.length) * (60 * 24) : minutes * 60 * 1000
+        const kickoffAt = new Date(start.getTime() + offset).toISOString()
+        fixtures.push({
+          id:        `2026-WC-G-${letter}-MD${md + 1}-${pairing[0] + 1}v${pairing[1] + 1}`,
+          round:     'group',
+          group:     letter,
+          homeTeam:  home,
+          awayTeam:  away,
+          kickoffAt,
+          points:    ROUND_POINTS.group,
+        })
+        matchIndex++
+      }
+    }
+  }
+
+  // ── Knockout placeholders (31) ────────────────────────────────
+  // R32 = 16, R16 = 8, QF = 4, SF = 2, Final = 1. Labels use the
+  // standard bracket map; admin can edit them and fill in homeTeam/
+  // awayTeam in /admin/cup once group standings firm up.
+  for (let i = 0; i < 16; i++) {
+    fixtures.push({
       id:        `2026-WC-R32-${i + 1}`,
-      round:     'r32' as const,
+      round:     'r32',
       homeLabel: `R32 ${String.fromCharCode(65 + (i * 2) % 12)} winner`,
       awayLabel: `R32 ${String.fromCharCode(65 + (i * 2 + 1) % 12)} runner-up`,
       kickoffAt: new Date(`2026-06-${27 + Math.floor(i / 4)}T${15 + (i % 4) * 3}:00:00+03:00`).toISOString(),
-      points:    3,
-    })),
-    // R16 (Jul 4 – 7) — 8 matches
-    ...Array.from({ length: 8 }).map((_, i) => ({
+      points:    ROUND_POINTS.r32,
+    })
+  }
+  for (let i = 0; i < 8; i++) {
+    fixtures.push({
       id:        `2026-WC-R16-${i + 1}`,
-      round:     'r16' as const,
+      round:     'r16',
       homeLabel: `Winner R32-${i * 2 + 1}`,
       awayLabel: `Winner R32-${i * 2 + 2}`,
       kickoffAt: new Date(`2026-07-${4 + Math.floor(i / 2)}T${17 + (i % 2) * 4}:00:00+03:00`).toISOString(),
-      points:    5,
-    })),
-    // QF (Jul 9 – 12) — 4 matches
-    ...Array.from({ length: 4 }).map((_, i) => ({
+      points:    ROUND_POINTS.r16,
+    })
+  }
+  for (let i = 0; i < 4; i++) {
+    fixtures.push({
       id:        `2026-WC-QF-${i + 1}`,
-      round:     'qf' as const,
+      round:     'qf',
       homeLabel: `Winner R16-${i * 2 + 1}`,
       awayLabel: `Winner R16-${i * 2 + 2}`,
       kickoffAt: new Date(`2026-07-${9 + i}T20:00:00+03:00`).toISOString(),
-      points:    10,
-    })),
-    // SF (Jul 15 – 16) — 2 matches
-    {
-      id:        '2026-WC-SF-1',
-      round:     'sf' as const,
-      homeLabel: 'Winner QF-1', awayLabel: 'Winner QF-2',
-      kickoffAt: new Date('2026-07-15T21:00:00+03:00').toISOString(),
-      points:    20,
-    },
-    {
-      id:        '2026-WC-SF-2',
-      round:     'sf' as const,
-      homeLabel: 'Winner QF-3', awayLabel: 'Winner QF-4',
-      kickoffAt: new Date('2026-07-16T21:00:00+03:00').toISOString(),
-      points:    20,
-    },
-    // Final (Jul 19) — 1 match
-    {
-      id:        '2026-WC-FINAL',
-      round:     'final' as const,
-      homeLabel: 'Winner SF-1', awayLabel: 'Winner SF-2',
-      kickoffAt: new Date('2026-07-19T22:00:00+03:00').toISOString(),
-      points:    40,
-    },
-  ]
+      points:    ROUND_POINTS.qf,
+    })
+  }
+  fixtures.push({
+    id: '2026-WC-SF-1', round: 'sf',
+    homeLabel: 'Winner QF-1', awayLabel: 'Winner QF-2',
+    kickoffAt: new Date('2026-07-15T21:00:00+03:00').toISOString(),
+    points: ROUND_POINTS.sf,
+  })
+  fixtures.push({
+    id: '2026-WC-SF-2', round: 'sf',
+    homeLabel: 'Winner QF-3', awayLabel: 'Winner QF-4',
+    kickoffAt: new Date('2026-07-16T21:00:00+03:00').toISOString(),
+    points: ROUND_POINTS.sf,
+  })
+  fixtures.push({
+    id: '2026-WC-FINAL', round: 'final',
+    homeLabel: 'Winner SF-1', awayLabel: 'Winner SF-2',
+    kickoffAt: new Date('2026-07-19T22:00:00+03:00').toISOString(),
+    points: ROUND_POINTS.final,
+  })
 
   let created = 0, skipped = 0
   for (const f of fixtures) {
@@ -126,10 +181,11 @@ async function main() {
       data: {
         id:        f.id,
         round:     f.round,
-        homeTeam:  null,
-        awayTeam:  null,
-        homeLabel: f.homeLabel,
-        awayLabel: f.awayLabel,
+        group:     f.group ?? null,
+        homeTeam:  f.homeTeam ?? null,
+        awayTeam:  f.awayTeam ?? null,
+        homeLabel: f.homeLabel ?? null,
+        awayLabel: f.awayLabel ?? null,
         kickoffAt: new Date(f.kickoffAt),
         points:    f.points,
       },

@@ -52,13 +52,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Picks for this match are locked' }, { status: 403 })
   }
 
-  // Group-stage fixtures aren't pickable in v1 — we don't score
-  // them, so the UI hides them, and the server rejects too in case
-  // someone hand-crafts a request.
-  if (fixture.round === 'group') {
-    return NextResponse.json({ error: 'Group-stage picks not supported' }, { status: 400 })
-  }
-
   if (!isPickAllowedForFixture(pickedTeam, { homeTeam: fixture.homeTeam, awayTeam: fixture.awayTeam })) {
     return NextResponse.json({ error: 'Invalid team for this fixture' }, { status: 400 })
   }
