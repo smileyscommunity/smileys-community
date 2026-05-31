@@ -73,6 +73,10 @@ const primaryLinks = [
 // Adding new content sections in the future drops in here instead of bloating
 // the top row.
 const discoverLinks = [
+  // Smileys Cup 2026 — public so logged-out viewers see the page and get
+  // an Apply CTA. Pinned to the top of the dropdown until the tournament
+  // wraps (Jul 19, 2026); we'll demote it back down or remove afterwards.
+  { label: 'Cup',           href: '/cup',           emoji: '⚽', public: true  },
   { label: 'Hangouts',      href: '/hangouts',      emoji: '☕', public: false },
   { label: 'Neighborhoods', href: '/neighborhoods', emoji: '🏘️', public: true  },
   { label: 'Board',         href: '/listings',      emoji: '🛍️', public: true  },
@@ -97,6 +101,7 @@ const pageTitles: [string, string][] = [
   ['/reviews',       'Reviews'],
   ['/perks',         'Perks'],
   ['/apply',         'Apply'],
+  ['/cup',           'Smileys Cup'],
 ]
 
 function getPageTitle(pathname: string): string {

@@ -1842,7 +1842,7 @@ function PushOptInStrip() {
       <span className="text-2xl shrink-0" aria-hidden>🔔</span>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-bold text-amber-900 leading-snug">Match reminders &amp; cup updates</p>
-        <p className="text-[11px] text-amber-800/80 mt-0.5 leading-snug">A heads-up ~30 min before each kickoff so you can lock your pick.</p>
+        <p className="text-[11px] text-amber-800/80 mt-0.5 leading-snug">A heads-up ~30 min before any match you haven&apos;t picked yet.</p>
       </div>
       {/* Side-by-side buttons rather than stacked — keeps both tap
           targets above ~36px and avoids the previous text-[10px]
@@ -1872,11 +1872,28 @@ function PushOptInStrip() {
 // fixture watermark hasn't moved) makes the duplicate request
 // effectively free.
 function MiniRankCard() {
+  // Desktop-only via matchMedia, NOT just CSS `hidden lg:block`.
+  // Doing it in JS lets us skip the entire mount + 30s polling loop
+  // on phones where the card never renders anyway. Re-evaluates on
+  // resize so a user crossing the 1024 lg breakpoint (e.g., tablet
+  // rotate, browser window resize) still gets the card with a
+  // correct fetch lifecycle.
+  const [isDesktop, setIsDesktop] = useState(false)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mql = window.matchMedia('(min-width: 1024px)')
+    const update = () => setIsDesktop(mql.matches)
+    update()
+    mql.addEventListener('change', update)
+    return () => mql.removeEventListener('change', update)
+  }, [])
+
   const [data, setData] = useState<LeaderResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const sinceRef = useRef<string | null>(null)
 
   useEffect(() => {
+    if (!isDesktop) return
     let alive = true
     async function load() {
       const url = sinceRef.current
@@ -1897,11 +1914,14 @@ function MiniRankCard() {
     load()
     const t = setInterval(load, 30_000)
     return () => { alive = false; clearInterval(t) }
-  }, [])
+  }, [isDesktop])
 
-  // hidden lg:block — mobile users already see the full Leaderboard
-  // in the main column, so this card would be redundant there.
-  const wrapper = 'hidden lg:block bg-white rounded-2xl shadow-card overflow-hidden'
+  // Mobile → no DOM at all. Full Leaderboard above handles the
+  // ranking story; this card is purely a "while you scroll fixtures"
+  // glance for sticky desktop sidebars.
+  if (!isDesktop) return null
+
+  const wrapper = 'bg-white rounded-2xl shadow-card overflow-hidden'
 
   if (loading && !data) {
     return (

@@ -39,6 +39,13 @@ async function authorize(req: NextRequest): Promise<NextResponse | null> {
   return null
 }
 
+// Push fan-out batch size. Web Push providers (Apple/FCM/etc.) handle
+// large bursts well, but issuing 1000 simultaneous sendNotification
+// calls makes timeouts murky and ties up the Node event loop. 50 is a
+// pragmatic ceiling — keeps each batch under a second on a healthy
+// link without serializing the cron tail.
+const PUSH_BATCH_SIZE = 50
+
 async function runSweep() {
   const now     = new Date()
   // [T-35, T-25] — every kickoff lands in this 10-min window
@@ -57,16 +64,29 @@ async function runSweep() {
   let totalSent      = 0
   let fixturesPushed = 0
   const skipped: string[] = []
+  let claimMissed    = 0
 
   for (const fx of fixtures) {
+    // Atomically CLAIM the fixture by stamping reminderSentAt before
+    // we do any work. updateMany with the same `reminderSentAt: null`
+    // predicate means a concurrent runSweep that already claimed
+    // this row sees `count: 0` here — exactly one worker proceeds,
+    // the others skip silently. Without this guard, an overlapping
+    // run (slow batch, request retry) could re-send the same push
+    // round to every subscriber.
+    const claim = await prisma.cupFixture.updateMany({
+      where: { id: fx.id, reminderSentAt: null },
+      data:  { reminderSentAt: new Date() },
+    })
+    if (claim.count !== 1) {
+      claimMissed += 1
+      continue
+    }
+
     // TBD fixtures (knockout slots before the prior round resolves)
-    // have no teams yet. Stamp them so the cron doesn't reconsider
-    // them every 5 min until T-25 passes; no actual push is sent.
+    // have no teams yet. The claim above already stamped, so the
+    // cron won't reconsider them every 5 min; no push is sent.
     if (!fx.homeTeam || !fx.awayTeam) {
-      await prisma.cupFixture.update({
-        where: { id: fx.id },
-        data:  { reminderSentAt: new Date() },
-      })
       skipped.push(fx.id)
       continue
     }
@@ -85,11 +105,7 @@ async function runSweep() {
     })
 
     if (candidates.length === 0) {
-      // Nobody to ping. Still stamp so we skip this row next run.
-      await prisma.cupFixture.update({
-        where: { id: fx.id },
-        data:  { reminderSentAt: new Date() },
-      })
+      // Nobody to ping — claim already stamped, nothing to do.
       continue
     }
 
@@ -97,17 +113,18 @@ async function runSweep() {
     const body  = 'Kicks off in 30 min — lock your pick'
     const link  = '/app/cup'
 
-    // sendPushToUser handles per-subscription error recovery (stale
-    // 404/410 endpoints get cleaned up automatically). Promise.all
-    // — we want one stamp per fixture, after all sends settle.
-    await Promise.allSettled(
-      candidates.map(u => sendPushToUser(u.id, { title, body, link })),
-    )
-
-    await prisma.cupFixture.update({
-      where: { id: fx.id },
-      data:  { reminderSentAt: new Date() },
-    })
+    // Batched fan-out: chunks of PUSH_BATCH_SIZE in parallel,
+    // sequential between chunks. sendPushToUser handles per-
+    // subscription error recovery (stale 404/410 endpoints get
+    // cleaned up automatically). The claim already stamped, so a
+    // crash partway through means some subscribers miss this one
+    // reminder — but they won't get double-sent on retry either.
+    for (let i = 0; i < candidates.length; i += PUSH_BATCH_SIZE) {
+      const batch = candidates.slice(i, i + PUSH_BATCH_SIZE)
+      await Promise.allSettled(
+        batch.map(u => sendPushToUser(u.id, { title, body, link })),
+      )
+    }
 
     totalSent      += candidates.length
     fixturesPushed += 1
@@ -117,6 +134,7 @@ async function runSweep() {
     fixturesScanned:  fixtures.length,
     fixturesPushed,
     fixturesSkippedTbd: skipped.length,
+    fixturesClaimMissed: claimMissed,
     pushesSent:       totalSent,
   }
 }
