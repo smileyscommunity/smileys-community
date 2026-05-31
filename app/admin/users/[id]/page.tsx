@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface AttendedEvent {
   id: string
@@ -81,7 +82,9 @@ const membershipBadge: Record<string, string> = {
 
 export default function UserProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
-  const router = useRouter()
+  const router  = useRouter()
+  const { user: me } = useAuth()
+  const isAdmin = me?.role === 'admin'
 
   const [user,       setUser]       = useState<UserDetail | null>(null)
   const [loading,    setLoading]    = useState(true)
@@ -385,7 +388,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
               Warn
             </button>
           )}
-          {user.status !== 'banned' && user.role !== 'admin' && (
+          {isAdmin && user.status !== 'banned' && user.role !== 'admin' && (
             <button onClick={() => setSuspendConfirm(true)} className="text-xs px-3 py-1.5 rounded-xl bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 border border-violet-500/20 font-semibold transition-colors">
               Suspend
             </button>

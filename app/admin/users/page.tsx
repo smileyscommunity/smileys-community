@@ -6,6 +6,7 @@ import { useState, useEffect, useMemo, useCallback, Suspense } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { getInitials } from '@/lib/data'
+import { useAuth } from '@/contexts/AuthContext'
 
 type TabKey = 'all' | 'member' | 'moderator' | 'admin' | 'unverified' | 'banned' | 'suspended' | 'inactive' | 'warned'
 
@@ -114,9 +115,11 @@ export default function AdminUsersPage() {
 }
 
 function AdminUsersPageInner() {
-  const searchParams = useSearchParams()
-  const router       = useRouter()
-  const pathname     = usePathname()
+  const searchParams  = useSearchParams()
+  const router        = useRouter()
+  const pathname      = usePathname()
+  const { user: me }  = useAuth()
+  const isAdmin       = me?.role === 'admin'
   const [users,       setUsers]       = useState<DBUser[]>([])
   const [loading,     setLoading]     = useState(true)
   const [tab,         setTab]         = useState<TabKey>('all')
@@ -666,9 +669,9 @@ function AdminUsersPageInner() {
           }} disabled={bulkSaving} className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 border border-orange-500/30 disabled:opacity-50 transition-colors">
             ⚠ Warn
           </button>
-          <button onClick={() => bulkSuspend(7)} disabled={bulkSaving} className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 border border-orange-500/30 disabled:opacity-50 transition-colors">
+          {isAdmin && <button onClick={() => bulkSuspend(7)} disabled={bulkSaving} className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 border border-orange-500/30 disabled:opacity-50 transition-colors">
             Suspend 7d
-          </button>
+          </button>}
           <button onClick={() => {
             const reason = window.prompt('Ban reason:') ?? 'Banned by admin'
             bulkBan(reason)
@@ -747,7 +750,7 @@ function AdminUsersPageInner() {
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                   </button>
                 )}
-                {u.role !== 'admin' && u.status !== 'banned' && !isSuspended(u) && (
+                {isAdmin && u.role !== 'admin' && u.status !== 'banned' && !isSuspended(u) && (
                   <SuspendMenu u={u} onSuspend={suspendUser} onBan={banUser} />
                 )}
                 {/* Reverse-moderation buttons — only appear on the row that

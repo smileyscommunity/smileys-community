@@ -59,7 +59,7 @@ const roleBadge: Record<string, string> = {
   admin:     'bg-amber-100 text-amber-700',
   moderator: 'bg-violet-100 text-violet-700',
   host:      'bg-blue-100 text-blue-700',
-  member:    'bg-gray-100 text-gray-600',
+  member:    'bg-gray-100 text-gray-700',
 }
 
 // Primary nav — the three things people do most. Stay flat in the bar.

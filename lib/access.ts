@@ -79,11 +79,9 @@ export function canBanUsers(session: SessionUser): boolean {
   return session.role === 'admin'
 }
 
-// Suspending (soft action — admin and moderator). Moderators only
-// suspend users in their own city.
-export function canSuspendUsers(session: SessionUser, targetCityId?: string | null): boolean {
-  if (session.role !== 'admin' && session.role !== 'moderator') return false
-  return targetCityId === undefined ? true : canActInCity(session, targetCityId)
+// Suspending — admin only. Moderators must escalate to an admin.
+export function canSuspendUsers(session: SessionUser): boolean {
+  return session.role === 'admin'
 }
 
 // User management (Admin only: roles, bans, delete)

@@ -138,7 +138,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     // Re-engagement notification shortcut
     if (body._reengage) {
-      if (!canManageUsers(session) && !canSuspendUsers(session, target.cityId)) {
+      if (!canManageUsers(session) && !canSuspendUsers(session)) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
       const { createNotification } = await import('@/lib/notify')
@@ -150,7 +150,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // Berlin mod can't suspend an Istanbul user via a direct API call
     // even if they hold the id.
     const adminPrivilege = canManageUsers(session)
-    const modPrivilege   = canSuspendUsers(session, target.cityId)
+    const modPrivilege   = canSuspendUsers(session)
 
     if (!adminPrivilege && !modPrivilege) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
