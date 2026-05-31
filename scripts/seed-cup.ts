@@ -113,23 +113,29 @@ async function main() {
       points:    ROUND_POINTS.r32,
     })
   }
+  // Helper: pad both day and hour. ISO 8601 strict-mode parsers
+  // reject "2026-07-4" — the day component must be two digits.
+  const pad2 = (n: number) => String(n).padStart(2, '0')
   for (let i = 0; i < 8; i++) {
+    const day  = 4 + Math.floor(i / 2)
+    const hour = 17 + (i % 2) * 4
     fixtures.push({
       id:        `2026-WC-R16-${i + 1}`,
       round:     'r16',
       homeLabel: `Winner R32-${i * 2 + 1}`,
       awayLabel: `Winner R32-${i * 2 + 2}`,
-      kickoffAt: new Date(`2026-07-${4 + Math.floor(i / 2)}T${17 + (i % 2) * 4}:00:00+03:00`).toISOString(),
+      kickoffAt: new Date(`2026-07-${pad2(day)}T${pad2(hour)}:00:00+03:00`).toISOString(),
       points:    ROUND_POINTS.r16,
     })
   }
   for (let i = 0; i < 4; i++) {
+    const day = 9 + i
     fixtures.push({
       id:        `2026-WC-QF-${i + 1}`,
       round:     'qf',
       homeLabel: `Winner R16-${i * 2 + 1}`,
       awayLabel: `Winner R16-${i * 2 + 2}`,
-      kickoffAt: new Date(`2026-07-${9 + i}T20:00:00+03:00`).toISOString(),
+      kickoffAt: new Date(`2026-07-${pad2(day)}T20:00:00+03:00`).toISOString(),
       points:    ROUND_POINTS.qf,
     })
   }
