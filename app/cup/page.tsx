@@ -259,7 +259,7 @@ export default function CupPredictionsPage() {
           the destination; nothing to navigate back to except the
           rest of the app, which the global nav handles. */}
       <div className="mb-4">
-        <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">🏆 Smileys Cup 2026</h1>
+        <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">🏆 FIFA World Cup 2026</h1>
         <p className="text-xs text-gray-500 mt-0.5">Pick a champion. Pick every knockout. Win the trophy.</p>
       </div>
 
@@ -284,6 +284,13 @@ export default function CupPredictionsPage() {
         </div>
       )}
 
+      {/* How it works — collapsible rules card. Always visible
+          (members + non-members) so the game's mental model is
+          one tap away. Defaults expanded for non-members (they
+          need it to understand what's on offer) and collapsed
+          for members (they've seen it before). */}
+      <RulesCard defaultOpen={accessState !== 'member'} />
+
       {/* Your score header — only meaningful when something exists. */}
       {accessState === 'member' && (bracket?.bracket || (fixtures?.some(f => f.yourPick))) && (
         <div className="bg-white rounded-2xl shadow-card p-4 mb-4 flex items-center justify-between">
@@ -294,10 +301,14 @@ export default function CupPredictionsPage() {
           <div className="text-right">
             <p className="text-xs text-gray-500">Picks locked</p>
             <p className="text-sm font-bold text-gray-700">{picksLocked} / {picksTotal}</p>
-            <p className="text-[10px] text-gray-400 mt-1">Leaderboard arrives tomorrow</p>
           </div>
         </div>
       )}
+
+      {/* Leaderboard — public read so logged-out viewers see real
+          members playing, which drives the Apply CTA above. */}
+      <Leaderboard />
+
 
       {/* Bracket pick — champion + 4 semifinalists */}
       <BracketCard
@@ -699,6 +710,181 @@ function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-warm pb-20">
       <div className="max-w-2xl mx-auto px-4 pt-6">{children}</div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Rules card — answers "how do I play?" inline on the page.
+// Defaults open for first-time viewers (non-members), collapsed
+// for members who've seen it before. Members can re-open anytime.
+// ─────────────────────────────────────────────────────────────────
+function RulesCard({ defaultOpen }: { defaultOpen: boolean }) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <div className="bg-white rounded-2xl shadow-card mb-4 overflow-hidden">
+      <button onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-gray-50 transition-colors">
+        <div>
+          <p className="text-sm font-bold text-gray-900">How it works</p>
+          <p className="text-xs text-gray-500 mt-0.5">Pick a champion, pick every match, win the trophy.</p>
+        </div>
+        <svg className={`w-5 h-5 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`}
+          fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && (
+        <div className="px-5 pb-5 space-y-4 border-t border-gray-100 pt-4">
+          <div>
+            <p className="text-xs font-bold text-amber-600 uppercase tracking-wider mb-1.5">1 · Lock in your bracket</p>
+            <p className="text-sm text-gray-700 leading-relaxed">
+              Before the tournament starts (Jun 11), pick your <strong>champion</strong> (100 pts) and the <strong>4 teams</strong> you think will reach the semifinals (25 pts each).
+            </p>
+          </div>
+          <div>
+            <p className="text-xs font-bold text-amber-600 uppercase tracking-wider mb-1.5">2 · Pick every match</p>
+            <p className="text-sm text-gray-700 leading-relaxed">
+              From Day 1 onward, pick the winner of each match before kickoff. Group stage is 1 pt per correct pick. Knockouts scale up:
+            </p>
+            <div className="mt-2 grid grid-cols-5 gap-1.5 text-center">
+              {[
+                { round: 'R32',   pts: 3  },
+                { round: 'R16',   pts: 5  },
+                { round: 'QF',    pts: 10 },
+                { round: 'SF',    pts: 20 },
+                { round: 'Final', pts: 40 },
+              ].map(r => (
+                <div key={r.round} className="bg-amber-50 rounded-lg py-2">
+                  <div className="text-[10px] font-bold text-amber-700 uppercase">{r.round}</div>
+                  <div className="text-base font-extrabold text-amber-600">{r.pts}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-xs font-bold text-amber-600 uppercase tracking-wider mb-1.5">3 · Climb the leaderboard</p>
+            <p className="text-sm text-gray-700 leading-relaxed">
+              Max possible: ~480 pts. Top of the board at the Final wins the <strong>Smileys Cup trophy</strong> + a partner dinner + a year of VIP membership.
+            </p>
+          </div>
+          <div className="text-[11px] text-gray-500 bg-gray-50 rounded-lg p-3 leading-relaxed">
+            <strong>Picks lock at kickoff</strong> — no last-minute changes. Bracket locks at the first whistle of the tournament. Tiebreaker on leaderboard ties: earlier bracket submission wins.
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Leaderboard — public, auto-refreshes every 30s (cheap groupBy
+// query). Top 50 surfaced; the caller's row pinned at the bottom
+// when ranked outside the visible slice. Logged-out viewers see
+// the real list — that's the social proof that turns "looks fun"
+// into "where do I apply?"
+// ─────────────────────────────────────────────────────────────────
+interface LeaderRow {
+  rank: number; name: string; color: string; profilePhoto: string | null
+  score: number; matchScore: number; bracketScore: number
+}
+interface LeaderResponse {
+  rows: LeaderRow[]; yourRank: number | null; yourScore: number | null
+  total: number; lastUpdated: string
+}
+
+function Leaderboard() {
+  const [data, setData] = useState<LeaderResponse | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let alive = true
+    function load() {
+      fetch('/app/api/cup/leaderboard?take=50', { credentials: 'include' })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (alive && d) setData(d) })
+        .finally(() => alive && setLoading(false))
+    }
+    load()
+    // Refresh every 30 seconds while the page is open. Tournament
+    // pace gives a natural rhythm — results lag the broadcast, so
+    // anything tighter doesn't get fresher data.
+    const t = setInterval(load, 30_000)
+    return () => { alive = false; clearInterval(t) }
+  }, [])
+
+  if (loading && !data) {
+    return (
+      <div className="bg-white rounded-2xl shadow-card p-5 mb-4">
+        <p className="text-sm font-bold text-gray-900 mb-3">Leaderboard</p>
+        <div className="space-y-2">
+          {[...Array(5)].map((_, i) => <div key={i} className="h-10 bg-gray-100 rounded-lg animate-pulse" />)}
+        </div>
+      </div>
+    )
+  }
+  if (!data || data.total === 0) {
+    return (
+      <div className="bg-white rounded-2xl shadow-card p-5 mb-4">
+        <p className="text-sm font-bold text-gray-900 mb-1">Leaderboard</p>
+        <p className="text-xs text-gray-500">No picks yet — be the first to lock in your bracket and you&apos;ll lead by default.</p>
+      </div>
+    )
+  }
+
+  const youInSlice = data.yourRank !== null && data.rows.some(r => r.rank === data.yourRank)
+
+  return (
+    <div className="bg-white rounded-2xl shadow-card mb-4 overflow-hidden">
+      <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+        <p className="text-sm font-bold text-gray-900">Leaderboard</p>
+        <p className="text-[10px] text-gray-400">{data.total} playing</p>
+      </div>
+      <div className="divide-y divide-gray-100">
+        {data.rows.map((r, idx) => (
+          <LeaderRow key={`${r.rank}-${idx}`} row={r} isYou={r.rank === data.yourRank} />
+        ))}
+      </div>
+      {/* Pin "you" at the bottom if outside the visible slice. */}
+      {data.yourRank !== null && data.yourScore !== null && !youInSlice && (
+        <div className="border-t-2 border-amber-200 bg-amber-50">
+          <div className="px-5 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-bold text-amber-700 tabular-nums">#{data.yourRank}</span>
+              <span className="text-sm font-semibold text-amber-900">You</span>
+            </div>
+            <span className="text-sm font-extrabold text-amber-700 tabular-nums">{data.yourScore}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function LeaderRow({ row, isYou }: { row: LeaderRow; isYou: boolean }) {
+  const medal = row.rank === 1 ? '🥇' : row.rank === 2 ? '🥈' : row.rank === 3 ? '🥉' : null
+  return (
+    <div className={`px-5 py-2.5 flex items-center gap-3 ${isYou ? 'bg-amber-50' : ''}`}>
+      <span className="text-xs font-bold text-gray-500 tabular-nums w-6 text-right">
+        {medal ?? `#${row.rank}`}
+      </span>
+      {row.profilePhoto ? (
+        <img src={row.profilePhoto} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
+      ) : (
+        <div className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-white text-[10px] font-bold"
+          style={{ backgroundColor: row.color }}>
+          {row.name.split(' ').map(p => p[0]).join('').toUpperCase().slice(0, 2)}
+        </div>
+      )}
+      <span className={`flex-1 min-w-0 text-sm truncate ${isYou ? 'font-bold text-amber-900' : 'font-medium text-gray-800'}`}>
+        {row.name} {isYou && <span className="text-[10px] text-amber-700 ml-1">(you)</span>}
+      </span>
+      <div className="text-right shrink-0">
+        <div className={`text-sm font-extrabold tabular-nums ${isYou ? 'text-amber-700' : 'text-gray-900'}`}>{row.score}</div>
+        <div className="text-[9px] text-gray-400">
+          {row.bracketScore > 0 ? `${row.bracketScore} bkt · ` : ''}{row.matchScore} pks
+        </div>
+      </div>
     </div>
   )
 }

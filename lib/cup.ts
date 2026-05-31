@@ -178,3 +178,62 @@ export async function isApprovedMember(userId: string): Promise<boolean> {
   })
   return user?.status === 'approved'
 }
+
+// Score every prediction for one fixture against its winnerTeam.
+// Called by the admin result-entry route in a transaction with the
+// fixture write so the leaderboard never observes a fixture whose
+// winnerTeam is set but whose predictions haven't been scored.
+// pickedTeam === winnerTeam earns the fixture's `points`; everyone
+// else earns 0. When winnerTeam is null (admin cleared the result)
+// every pointsAwarded resets to 0 too.
+export async function scoreFixture(fixtureId: string) {
+  const fixture = await prisma.cupFixture.findUnique({
+    where:  { id: fixtureId },
+    select: { winnerTeam: true, points: true },
+  })
+  if (!fixture) return { scored: 0, points: 0 }
+  if (!fixture.winnerTeam) {
+    const cleared = await prisma.cupPrediction.updateMany({
+      where: { fixtureId },
+      data:  { pointsAwarded: 0 },
+    })
+    return { scored: cleared.count, points: 0 }
+  }
+  const [winners, losers] = await Promise.all([
+    prisma.cupPrediction.updateMany({
+      where: { fixtureId, pickedTeam: fixture.winnerTeam },
+      data:  { pointsAwarded: fixture.points },
+    }),
+    prisma.cupPrediction.updateMany({
+      where: { fixtureId, pickedTeam: { not: fixture.winnerTeam } },
+      data:  { pointsAwarded: 0 },
+    }),
+  ])
+  return { scored: winners.count + losers.count, points: fixture.points }
+}
+
+// Recompute bracket scores for every user. Cheap (one row per
+// user, max a few hundred) so we just run it whenever any SF/Final
+// fixture result changes. Champion = winner of the Final (100 pts);
+// semifinalists = the 4 teams that won the QFs (25 pts each, max
+// 100). Earlier rounds don't move the bracket score.
+export async function rescoreAllBrackets() {
+  const [qfs, final, brackets] = await Promise.all([
+    prisma.cupFixture.findMany({ where: { round: 'qf' },    select: { winnerTeam: true } }),
+    prisma.cupFixture.findFirst({ where: { round: 'final' }, select: { winnerTeam: true } }),
+    prisma.cupBracketPick.findMany({ select: { id: true, championPick: true, semifinalists: true } }),
+  ])
+  const semifinalists = new Set(qfs.map(q => q.winnerTeam).filter((t): t is string => !!t))
+  const champion      = final?.winnerTeam ?? null
+
+  await prisma.$transaction(brackets.map(b => {
+    const sfMatches = b.semifinalists.filter(s => semifinalists.has(s)).length
+    const championCorrect = champion !== null && b.championPick === champion
+    const points = (championCorrect ? CHAMPION_POINTS : 0) + sfMatches * SEMIFINALIST_POINTS
+    return prisma.cupBracketPick.update({
+      where: { id: b.id },
+      data:  { pointsAwarded: points },
+    })
+  }))
+  return { brackets: brackets.length, semifinalists: semifinalists.size, championKnown: champion !== null }
+}

@@ -47,6 +47,8 @@ const ICONS: Record<string, JSX.Element> = {
   feedback:     <Icon d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />,
   // Hand-thumbs-up — reads as "would recommend," matches NPS.
   nps:          <Icon d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2l-4 9v11m7-10h-7m-7 10h2a2 2 0 002-2v-7a2 2 0 00-2-2H3m0 7v-7a2 2 0 012-2h2" />,
+  // Trophy — for the Smileys Cup admin surface.
+  cup:          <Icon d="M5 4h14v3a4 4 0 01-4 4h-6a4 4 0 01-4-4V4zM12 11v4m-3 4h6a1 1 0 011 1v1H8v-1a1 1 0 011-1zM4 4h1a3 3 0 003 3M20 4h-1a3 3 0 00-3 3" />,
 }
 
 const NAV_GROUPS = [
@@ -90,6 +92,11 @@ const NAV_GROUPS = [
       // responder's perspective; admins see scores + comments, not
       // who wrote them.
       { label: 'NPS',          href: '/admin/nps',           exact: false, roles: ['admin', 'moderator'],       icon: 'nps'          },
+      // Smileys Cup admin — fixture management + result entry.
+      // Lives in EVENTS because it IS an event series (the
+      // tournament). Visible to mods so they can also enter
+      // results during peak load.
+      { label: 'Cup',          href: '/admin/cup',           exact: false, roles: ['admin', 'moderator'],       icon: 'cup'          },
     ],
   },
   {
@@ -165,6 +172,7 @@ export const ICON_PATHS: Record<string, { d: string; d2?: string }> = {
   board:        { d: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4' },
   feedback:     { d: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z' },
   nps:          { d: 'M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2l-4 9v11m7-10h-7m-7 10h2a2 2 0 002-2v-7a2 2 0 00-2-2H3m0 7v-7a2 2 0 012-2h2' },
+  cup:          { d: 'M5 4h14v3a4 4 0 01-4 4h-6a4 4 0 01-4-4V4zM12 11v4m-3 4h6a1 1 0 011 1v1H8v-1a1 1 0 011-1zM4 4h1a3 3 0 003 3M20 4h-1a3 3 0 00-3 3' },
 }
 
 interface Props {
