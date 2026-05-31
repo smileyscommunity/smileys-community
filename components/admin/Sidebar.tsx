@@ -49,6 +49,8 @@ const ICONS: Record<string, JSX.Element> = {
   nps:          <Icon d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2l-4 9v11m7-10h-7m-7 10h2a2 2 0 002-2v-7a2 2 0 00-2-2H3m0 7v-7a2 2 0 012-2h2" />,
   // Trophy — for the Smileys Cup admin surface.
   cup:          <Icon d="M5 4h14v3a4 4 0 01-4 4h-6a4 4 0 01-4-4V4zM12 11v4m-3 4h6a1 1 0 011 1v1H8v-1a1 1 0 011-1zM4 4h1a3 3 0 003 3M20 4h-1a3 3 0 00-3 3" />,
+  // Megaphone for campaigns — sponsorship drives, fundraisers.
+  campaigns:    <Icon d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />,
 }
 
 const NAV_GROUPS = [
@@ -97,6 +99,10 @@ const NAV_GROUPS = [
       // tournament). Visible to mods so they can also enter
       // results during peak load.
       { label: 'Cup',          href: '/admin/cup',           exact: false, roles: ['admin', 'moderator'],       icon: 'cup'          },
+      // Campaigns — sponsorship + fundraising drives. The Smileys
+      // Cup is the first one; future tournaments and non-tournament
+      // pushes (anniversary, referral) get their own row.
+      { label: 'Campaigns',    href: '/admin/campaigns',     exact: false, roles: ['admin', 'moderator'],       icon: 'campaigns'    },
     ],
   },
   {
@@ -173,6 +179,7 @@ export const ICON_PATHS: Record<string, { d: string; d2?: string }> = {
   feedback:     { d: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z' },
   nps:          { d: 'M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2l-4 9v11m7-10h-7m-7 10h2a2 2 0 002-2v-7a2 2 0 00-2-2H3m0 7v-7a2 2 0 012-2h2' },
   cup:          { d: 'M5 4h14v3a4 4 0 01-4 4h-6a4 4 0 01-4-4V4zM12 11v4m-3 4h6a1 1 0 011 1v1H8v-1a1 1 0 011-1zM4 4h1a3 3 0 003 3M20 4h-1a3 3 0 00-3 3' },
+  campaigns:    { d: 'M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z' },
 }
 
 interface Props {

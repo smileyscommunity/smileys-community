@@ -600,9 +600,47 @@ model CupBracketPick {
   @@map("cup_bracket_picks")
 }
 
+// Campaign — the container for any sponsored / fundraising drive.
+// The Smileys Cup is the first one (slug: 'world-cup-2026'). Future
+// tournaments (Euros 2028, Champions League final, etc.) or
+// non-tournament drives (anniversary parties, referral pushes) get
+// their own Campaign row + reuse the Sponsor/Prize/Donation
+// machinery below.
+//
+// routeSlug is the URL alias — 'cup' for the cup (so links stay at
+// /cup), or a normal slug that resolves under /campaigns/<slug>.
+model Campaign {
+  id          String   @id @default(cuid())
+  slug        String   @unique  // 'world-cup-2026', 'euros-2028', etc.
+  name        String
+  emoji       String?
+  tagline     String?
+  description String?
+  coverImage  String?
+  status      String   @default("active")  // 'draft' | 'active' | 'wrapped' | 'archived'
+  startsAt    DateTime?
+  endsAt      DateTime?
+  // Public URL alias. 'cup' keeps the existing /cup URL for the
+  // World Cup; future campaigns resolve at /campaigns/<routeSlug>.
+  routeSlug   String   @default("cup")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  sponsors    CupSponsor[]
+  prizes      CupPrize[]
+  donations   CupPrizeDonation[]
+
+  @@index([status])
+  @@map("campaigns")
+}
+
 // Cup prizes + sponsors. Three thin models for a public-facing
 // prize board on /cup, with a member/visitor "donate a prize"
-// form that admins triage in /admin/cup.
+// form that admins triage in /admin/cup. All three carry a
+// campaignId so the machinery generalizes to future Campaign rows
+// — the names keep the Cup* prefix for migration safety (table
+// names + existing imports), but conceptually these are
+// Campaign-scoped.
 //
 // Display vs back-of-house:
 //   • CupSponsor + CupPrize are display state — the visible board
@@ -614,6 +652,13 @@ model CupBracketPick {
 //     The donation row stays as audit history.
 model CupSponsor {
   id          String   @id @default(cuid())
+  // campaignId is nullable for migration safety — fresh installs
+  // and existing rows get populated by the seed/backfill script
+  // (scripts/seed-cup.ts upserts the world-cup-2026 Campaign).
+  // Routes always filter by campaign so the column is
+  // operationally required even though the FK is nullable.
+  campaignId  String?
+  campaign    Campaign? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   slug        String   @unique  // url-safe, used in CSS targeting / future detail pages
   name        String
   blurb       String?  // 1–2 sentences for the prize card
@@ -629,12 +674,16 @@ model CupSponsor {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   prizes      CupPrize[]
-  @@index([status])
+  @@index([campaignId, status])
   @@map("cup_sponsors")
 }
 
 model CupPrize {
   id          String   @id @default(cuid())
+  // Campaign FK — same nullable-for-migration pattern as
+  // CupSponsor. Seed populates.
+  campaignId  String?
+  campaign    Campaign? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   title       String
   description String?
   imageUrl    String?
@@ -653,12 +702,17 @@ model CupPrize {
   awardedAt       DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  @@index([status, rank])
+  @@index([campaignId, status, rank])
   @@map("cup_prizes")
 }
 
 model CupPrizeDonation {
   id          String   @id @default(cuid())
+  // Campaign FK — same nullable-for-migration pattern. Public
+  // donate form will set this from the URL slug (or default to
+  // the cup campaign when posted from /cup).
+  campaignId  String?
+  campaign    Campaign? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   // Donor identity. We collect name + email so admin can follow
   // up. Phone optional. Organization optional (individual donors
   // are welcome).
@@ -682,7 +736,7 @@ model CupPrizeDonation {
   linkedPrizeId    String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  @@index([status, createdAt])
+  @@index([campaignId, status, createdAt])
   @@map("cup_prize_donations")
 }
 

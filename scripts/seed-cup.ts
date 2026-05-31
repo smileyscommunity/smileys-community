@@ -26,6 +26,38 @@ import { prisma } from '@/lib/prisma'
 import { CUP_GROUPS, ROUND_POINTS } from '@/lib/cup'
 
 async function main() {
+  // ── Campaign — the world-cup-2026 row + backfill ──────────────
+  // Every Sponsor/Prize/Donation belongs to a Campaign. The cup
+  // is the first one. Idempotent: upsert by slug, then sweep any
+  // pre-existing prize/sponsor/donation rows with NULL campaignId
+  // into this campaign.
+  const cupCampaign = await prisma.campaign.upsert({
+    where:  { slug: 'world-cup-2026' },
+    create: {
+      slug:       'world-cup-2026',
+      name:       'Smileys World Cup 2026',
+      emoji:      '🏆',
+      tagline:    'Predict every match. Win the trophy.',
+      description: 'Predictions, sponsored prizes, and the trophy. Open to every approved Smileys member. Jun 11 → Jul 19.',
+      status:     'active',
+      startsAt:   new Date('2026-06-11T19:00:00+03:00'),
+      endsAt:     new Date('2026-07-19T22:00:00+03:00'),
+      routeSlug:  'cup',
+    },
+    update: {},  // never clobber admin-edited copy
+    select: { id: true, slug: true },
+  })
+  console.log(`✓ Campaign: ${cupCampaign.slug} (${cupCampaign.id})`)
+
+  const [sweptSponsors, sweptPrizes, sweptDonations] = await Promise.all([
+    prisma.cupSponsor.updateMany({         where: { campaignId: null }, data: { campaignId: cupCampaign.id } }),
+    prisma.cupPrize.updateMany({           where: { campaignId: null }, data: { campaignId: cupCampaign.id } }),
+    prisma.cupPrizeDonation.updateMany({   where: { campaignId: null }, data: { campaignId: cupCampaign.id } }),
+  ])
+  if (sweptSponsors.count || sweptPrizes.count || sweptDonations.count) {
+    console.log(`✓ Backfilled campaignId: ${sweptSponsors.count} sponsors · ${sweptPrizes.count} prizes · ${sweptDonations.count} donations`)
+  }
+
   // ── Group-stage fixtures (72) ─────────────────────────────────
   // Standard rotation per group:
   //   MD1: T1×T2, T3×T4

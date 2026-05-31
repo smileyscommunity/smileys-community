@@ -64,10 +64,19 @@ export async function POST(req: NextRequest) {
   if (!prizeTitle)       return NextResponse.json({ error: 'What you\'re donating is required' }, { status: 400 })
   if (!prizeDescription) return NextResponse.json({ error: 'A short description is required' }, { status: 400 })
 
+  // Stamp the donation with the world-cup-2026 campaignId so the
+  // admin queue can filter cleanly across campaigns once we add
+  // more. Lookup is cheap (one indexed row).
+  const campaign = await prisma.campaign.findUnique({
+    where:  { slug: 'world-cup-2026' },
+    select: { id: true },
+  })
+
   await prisma.cupPrizeDonation.create({
     data: {
       donorName, donorEmail, donorOrganization, donorPhone,
       prizeTitle, prizeDescription, estimatedValue, notes,
+      campaignId: campaign?.id ?? null,
     },
   })
 
