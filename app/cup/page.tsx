@@ -16,7 +16,7 @@
 // Render disables submit buttons when membership is missing so the
 // state is obvious before the user clicks.
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
@@ -269,6 +269,7 @@ export default function CupPredictionsPage() {
   // row (see component below) so we don't duplicate the number.
 
   return (
+    <LeaderboardProvider>
     <Shell>
       {/* Hero banner — SVG illustration carries the title, dates,
           and tagline. Pure vector so it crisps at any density
@@ -566,6 +567,7 @@ export default function CupPredictionsPage() {
         </section>
       </div>
     </Shell>
+    </LeaderboardProvider>
   )
 }
 
@@ -1750,6 +1752,76 @@ interface LeaderResponse {
   total: number; eligible: number; lastUpdated: string
 }
 
+// Leaderboard data is consumed by two components: the full
+// Leaderboard in the main column and the sticky MiniRankCard in
+// the desktop sidebar. Before this provider they each ran their
+// own setInterval + fetch — same endpoint, same 30s cadence —
+// which doubled requests for no benefit (304 short-circuit made
+// the second one cheap, but it was still an unnecessary round-trip
+// and an extra setState pulse on every interval).
+//
+// Provider lifts the polling once into a single timer that mounts
+// when CupPage renders; both components consume via
+// `useLeaderboard()`. The provider survives Leaderboard /
+// MiniRankCard mounts and unmounts because it lives on CupPage.
+//
+// One non-trivial detail: the `since` watermark needs to track
+// across all consumers, so it lives in the provider's ref rather
+// than in either component's state.
+
+interface LeaderboardContextValue {
+  data:    LeaderResponse | null
+  loading: boolean
+}
+
+const LeaderboardContext = createContext<LeaderboardContextValue | null>(null)
+
+function LeaderboardProvider({ children }: { children: React.ReactNode }) {
+  const [data,    setData]    = useState<LeaderResponse | null>(null)
+  const [loading, setLoading] = useState(true)
+  const sinceRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    async function load() {
+      const url = sinceRef.current
+        ? `/app/api/cup/leaderboard?take=50&since=${encodeURIComponent(sinceRef.current)}`
+        : '/app/api/cup/leaderboard?take=50'
+      try {
+        const res = await fetch(url, { credentials: 'include' })
+        if (res.status === 304) return
+        if (!res.ok) return
+        const d: LeaderResponse = await res.json()
+        if (!alive) return
+        setData(d)
+        sinceRef.current = d.lastUpdated ?? null
+      } finally {
+        if (alive) setLoading(false)
+      }
+    }
+    load()
+    // Refresh every 30 seconds while the page is open. Tournament
+    // pace gives a natural rhythm — results lag the broadcast, so
+    // anything tighter doesn't get fresher data. The ?since= guard
+    // means most of these polls are a single Prisma aggregate +
+    // a 304 with no body.
+    const t = setInterval(load, 30_000)
+    return () => { alive = false; clearInterval(t) }
+  }, [])
+
+  return (
+    <LeaderboardContext.Provider value={{ data, loading }}>
+      {children}
+    </LeaderboardContext.Provider>
+  )
+}
+
+function useLeaderboard(): LeaderboardContextValue {
+  const ctx = useContext(LeaderboardContext)
+  if (!ctx) throw new Error('useLeaderboard must be used inside <LeaderboardProvider>')
+  return ctx
+}
+
 // VAPID public key for web-push subscription. Mirrors the settings
 // page implementation; exposed as NEXT_PUBLIC_ so the client can
 // pass it as applicationServerKey when calling pushManager.subscribe.
@@ -1873,11 +1945,11 @@ function PushOptInStrip() {
 // effectively free.
 function MiniRankCard() {
   // Desktop-only via matchMedia, NOT just CSS `hidden lg:block`.
-  // Doing it in JS lets us skip the entire mount + 30s polling loop
-  // on phones where the card never renders anyway. Re-evaluates on
-  // resize so a user crossing the 1024 lg breakpoint (e.g., tablet
-  // rotate, browser window resize) still gets the card with a
-  // correct fetch lifecycle.
+  // Re-evaluates on resize so a viewport crossing 1024 (tablet
+  // rotate, window resize) renders the card with a correct
+  // lifecycle. Polling now lives in LeaderboardProvider — this
+  // card just subscribes; no extra fetches happen for being on
+  // desktop vs mobile.
   const [isDesktop, setIsDesktop] = useState(false)
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -1888,33 +1960,7 @@ function MiniRankCard() {
     return () => mql.removeEventListener('change', update)
   }, [])
 
-  const [data, setData] = useState<LeaderResponse | null>(null)
-  const [loading, setLoading] = useState(true)
-  const sinceRef = useRef<string | null>(null)
-
-  useEffect(() => {
-    if (!isDesktop) return
-    let alive = true
-    async function load() {
-      const url = sinceRef.current
-        ? `/app/api/cup/leaderboard?take=50&since=${encodeURIComponent(sinceRef.current)}`
-        : '/app/api/cup/leaderboard?take=50'
-      try {
-        const res = await fetch(url, { credentials: 'include' })
-        if (res.status === 304) return
-        if (!res.ok) return
-        const d: LeaderResponse = await res.json()
-        if (!alive) return
-        setData(d)
-        sinceRef.current = d.lastUpdated ?? null
-      } finally {
-        if (alive) setLoading(false)
-      }
-    }
-    load()
-    const t = setInterval(load, 30_000)
-    return () => { alive = false; clearInterval(t) }
-  }, [isDesktop])
+  const { data, loading } = useLeaderboard()
 
   // Mobile → no DOM at all. Full Leaderboard above handles the
   // ranking story; this card is purely a "while you scroll fixtures"
@@ -2009,40 +2055,11 @@ function MiniRankRow({ row, isYou }: { row: LeaderRow; isYou: boolean }) {
 }
 
 function Leaderboard() {
-  const [data, setData] = useState<LeaderResponse | null>(null)
-  const [loading, setLoading] = useState(true)
-  // Track the latest known fixture-watermark separately from the
-  // displayed data so we can short-circuit the next poll cheaply.
-  // The server uses ?since= as a If-Modified-Since equivalent.
-  const sinceRef = useRef<string | null>(null)
-
-  useEffect(() => {
-    let alive = true
-    async function load() {
-      const url = sinceRef.current
-        ? `/app/api/cup/leaderboard?take=50&since=${encodeURIComponent(sinceRef.current)}`
-        : '/app/api/cup/leaderboard?take=50'
-      try {
-        const res = await fetch(url, { credentials: 'include' })
-        if (res.status === 304) return  // unchanged since last fetch
-        if (!res.ok) return
-        const d: LeaderResponse = await res.json()
-        if (!alive) return
-        setData(d)
-        sinceRef.current = d.lastUpdated ?? null
-      } finally {
-        if (alive) setLoading(false)
-      }
-    }
-    load()
-    // Refresh every 30 seconds while the page is open. Tournament
-    // pace gives a natural rhythm — results lag the broadcast, so
-    // anything tighter doesn't get fresher data. The ?since= guard
-    // means most of these polls are a single Prisma aggregate +
-    // a 304 with no body.
-    const t = setInterval(load, 30_000)
-    return () => { alive = false; clearInterval(t) }
-  }, [])
+  // Data + polling lifecycle now live in LeaderboardProvider above
+  // on CupPage; this component just renders. Same useLeaderboard()
+  // hook backs the desktop sidebar MiniRankCard so the two views
+  // share a single fetch / setInterval, halving the request rate.
+  const { data, loading } = useLeaderboard()
 
   if (loading && !data) {
     return (
