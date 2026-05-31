@@ -247,11 +247,9 @@ export default function CupPredictionsPage() {
   }
 
   const bracketLocked = bracket?.locked ?? false
-  const totalScore =
-    (bracket?.bracket?.pointsAwarded ?? 0) +
-    (fixtures?.reduce((s, f) => s + (f.yourPick?.pointsAwarded ?? 0), 0) ?? 0)
-  const picksLocked = fixtures?.filter(f => f.locked).length ?? 0
-  const picksTotal  = fixtures?.length ?? 0
+  // Score + pick-progress used to live in a standalone header
+  // here; both are now carried by the Leaderboard's pinned "you"
+  // row (see component below) so we don't duplicate the number.
 
   return (
     <Shell>
@@ -291,53 +289,66 @@ export default function CupPredictionsPage() {
           for members (they've seen it before). */}
       <RulesCard defaultOpen={accessState !== 'member'} />
 
-      {/* Your score header — only meaningful when something exists. */}
-      {accessState === 'member' && (bracket?.bracket || (fixtures?.some(f => f.yourPick))) && (
-        <div className="bg-white rounded-2xl shadow-card p-4 mb-4 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Your score</p>
-            <p className="text-3xl font-extrabold text-amber-600 mt-0.5">{totalScore}</p>
-          </div>
-          <div className="text-right">
-            <p className="text-xs text-gray-500">Picks locked</p>
-            <p className="text-sm font-bold text-gray-700">{picksLocked} / {picksTotal}</p>
-          </div>
-        </div>
+      {/* Page hierarchy adapts to tournament state.
+          Pre-kickoff (bracket still editable):
+            • Bracket card prominent — locking it in is the
+              primary action and there's nothing to climb the
+              leaderboard with yet.
+            • Leaderboard rendered below for context.
+          Post-kickoff (bracket locked):
+            • Leaderboard becomes the centre of gravity — scores
+              are now accumulating and this is what the page is
+              about.
+            • Bracket shrinks to a one-line summary below the
+              leaderboard. The reader doesn't need to stare at
+              their semifinalist picks every visit — they need to
+              see if they're climbing or falling. */}
+      {!bracketLocked && (
+        <BracketCard
+          bracket={bracket?.bracket ?? null}
+          locked={bracketLocked}
+          editing={editingBracket}
+          draftChampion={draftChampion}
+          draftSF={draftSF}
+          savingBracket={savingBracket}
+          canEdit={accessState === 'member' && !bracketLocked}
+          onStartEdit={() => setEditingBracket(true)}
+          onCancelEdit={() => {
+            setEditingBracket(false)
+            if (bracket?.bracket) {
+              setDraftChampion(bracket.bracket.championPick)
+              setDraftSF(bracket.bracket.semifinalists)
+            } else {
+              setDraftChampion(null); setDraftSF([])
+            }
+          }}
+          onSetChampion={setDraftChampion}
+          onToggleSF={(code) => {
+            setDraftSF(prev => prev.includes(code)
+              ? prev.filter(c => c !== code)
+              : prev.length >= 4 ? prev : [...prev, code])
+          }}
+          onSave={saveBracket}
+          tournamentStartAt={bracket?.tournamentStartAt ?? null}
+        />
       )}
 
       {/* Leaderboard — public read so logged-out viewers see real
-          members playing, which drives the Apply CTA above. */}
+          members playing, which drives the Apply CTA above. The
+          leaderboard's own "you" row carries your score; the
+          standalone score header above has been retired. */}
       <Leaderboard />
 
-
-      {/* Bracket pick — champion + 4 semifinalists */}
-      <BracketCard
-        bracket={bracket?.bracket ?? null}
-        locked={bracketLocked}
-        editing={editingBracket}
-        draftChampion={draftChampion}
-        draftSF={draftSF}
-        savingBracket={savingBracket}
-        canEdit={accessState === 'member' && !bracketLocked}
-        onStartEdit={() => setEditingBracket(true)}
-        onCancelEdit={() => {
-          setEditingBracket(false)
-          if (bracket?.bracket) {
-            setDraftChampion(bracket.bracket.championPick)
-            setDraftSF(bracket.bracket.semifinalists)
-          } else {
-            setDraftChampion(null); setDraftSF([])
-          }
-        }}
-        onSetChampion={setDraftChampion}
-        onToggleSF={(code) => {
-          setDraftSF(prev => prev.includes(code)
-            ? prev.filter(c => c !== code)
-            : prev.length >= 4 ? prev : [...prev, code])
-        }}
-        onSave={saveBracket}
-        tournamentStartAt={bracket?.tournamentStartAt ?? null}
-      />
+      {/* Compact bracket summary — only after lock. Replaces the
+          big BracketCard above. Shows what you submitted in one
+          row so you can verify without scrolling, but doesn't
+          dominate the page. */}
+      {bracketLocked && (
+        <BracketSummary
+          bracket={bracket?.bracket ?? null}
+          accessState={accessState}
+        />
+      )}
 
       {/* Fixtures by round. Group stage is rendered first since
           it's chronologically earliest; within it we sub-section
@@ -471,6 +482,50 @@ function GroupStageSections({
           </div>
         )
       })}
+    </div>
+  )
+}
+
+// Post-lock bracket summary — one row. Surfaces the champion +
+// 4 semifinalists you submitted without the full picker visual.
+// Lives below the leaderboard since once results are landing the
+// leaderboard is what you want to read; bracket is reference.
+function BracketSummary({ bracket, accessState }: { bracket: BracketPick | null; accessState: 'loading' | 'member' | 'not-member' | 'unauthenticated' }) {
+  // Members who didn't submit a bracket: surface that explicitly
+  // so they know what they missed (or so it nudges them to
+  // remember next time).
+  if (accessState === 'member' && !bracket) {
+    return (
+      <div className="bg-white rounded-2xl shadow-card p-3.5 mb-4 flex items-center justify-between">
+        <div>
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Your bracket</p>
+          <p className="text-sm text-gray-700 mt-0.5">Didn&apos;t submit · bracket points locked at 0</p>
+        </div>
+        <span className="text-xs text-gray-400">0 / 200 pts</span>
+      </div>
+    )
+  }
+  if (!bracket) return null
+  return (
+    <div className="bg-white rounded-2xl shadow-card p-3.5 mb-4">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3 flex-wrap min-w-0">
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Your bracket</p>
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-base shrink-0">🏆</span>
+            <span className="font-bold text-gray-900">{teamLabel(bracket.championPick)}</span>
+          </div>
+          <div className="flex items-center gap-1 text-xs">
+            {bracket.semifinalists.map(code => {
+              const t = TEAM_BY_CODE.get(code)
+              return <span key={code} title={t?.name ?? code} className="text-base">{t?.flag ?? code}</span>
+            })}
+          </div>
+        </div>
+        <span className="text-xs font-bold text-amber-600 tabular-nums whitespace-nowrap">
+          {bracket.pointsAwarded} / 200 pts
+        </span>
+      </div>
     </div>
   )
 }
