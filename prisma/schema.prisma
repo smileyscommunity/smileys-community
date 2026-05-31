@@ -140,6 +140,12 @@ model User {
   // Smileys Cup 2026 — predictions, pre-tournament bracket pick.
   cupPredictions   CupPrediction[]
   cupBracketPick   CupBracketPick?
+  // Cup prize/sponsor relations — attribution + history. All
+  // SetNull on delete: removing a user shouldn't erase prize or
+  // sponsor records.
+  cupSponsorsAdded   CupSponsor[]       @relation("CupSponsorAddedBy")
+  cupPrizesAwardedTo CupPrize[]         @relation("CupPrizeAwardedTo")
+  cupDonationsReviewed CupPrizeDonation[] @relation("CupDonationReviewer")
 
   @@map("users")
 }
@@ -592,6 +598,92 @@ model CupBracketPick {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("cup_bracket_picks")
+}
+
+// Cup prizes + sponsors. Three thin models for a public-facing
+// prize board on /cup, with a member/visitor "donate a prize"
+// form that admins triage in /admin/cup.
+//
+// Display vs back-of-house:
+//   • CupSponsor + CupPrize are display state — the visible board
+//     on /cup reads from these. Active rows render; archived
+//     rows are kept for history.
+//   • CupPrizeDonation is the submission queue. Anyone (auth not
+//     required) can POST one. Admin reviews and on approval
+//     creates the corresponding Sponsor + Prize via /admin/cup.
+//     The donation row stays as audit history.
+model CupSponsor {
+  id          String   @id @default(cuid())
+  slug        String   @unique  // url-safe, used in CSS targeting / future detail pages
+  name        String
+  blurb       String?  // 1–2 sentences for the prize card
+  logoUrl     String?  // /app/api/files/... or external https
+  websiteUrl  String?
+  instagramUrl String?
+  status      String   @default("active")  // 'pending' | 'active' | 'archived'
+  // Optional FK to the User who first added them — handy for
+  // attribution when a member proposes a sponsor via the donate
+  // form.
+  addedByUserId String?
+  addedBy       User?    @relation("CupSponsorAddedBy", fields: [addedByUserId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  prizes      CupPrize[]
+  @@index([status])
+  @@map("cup_sponsors")
+}
+
+model CupPrize {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  imageUrl    String?
+  // rank: 1, 2, 3 for the podium positions. null = "spot prize"
+  // (anything outside the top 3 — runners-up, raffles, etc.).
+  rank        Int?
+  status      String   @default("draft")  // 'draft' | 'active' | 'awarded' | 'archived'
+  // Optional sponsor link. Some prizes (e.g. a year of VIP from
+  // Smileys itself) don't have an external sponsor — left null.
+  sponsorId   String?
+  sponsor     CupSponsor? @relation(fields: [sponsorId], references: [id], onDelete: SetNull)
+  // Awarded-to: filled when the prize is handed out. Lets us show
+  // a "won by ___" line on archived prizes for history.
+  awardedToUserId String?
+  awardedTo       User?   @relation("CupPrizeAwardedTo", fields: [awardedToUserId], references: [id], onDelete: SetNull)
+  awardedAt       DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  @@index([status, rank])
+  @@map("cup_prizes")
+}
+
+model CupPrizeDonation {
+  id          String   @id @default(cuid())
+  // Donor identity. We collect name + email so admin can follow
+  // up. Phone optional. Organization optional (individual donors
+  // are welcome).
+  donorName        String
+  donorEmail       String
+  donorOrganization String?
+  donorPhone       String?
+  // What they're offering.
+  prizeTitle       String
+  prizeDescription String
+  estimatedValue   Int?     // in TRY (or whatever currency, label in UI)
+  notes            String?
+  // Review state. Linked rows are stamped when an admin clicks
+  // "convert to prize" so we can trace prize ↔ donation history.
+  status           String   @default("pending")  // 'pending' | 'approved' | 'declined'
+  reviewedByUserId String?
+  reviewedBy       User?    @relation("CupDonationReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  reviewedAt       DateTime?
+  reviewNote       String?  // optional admin note (private)
+  linkedSponsorId  String?
+  linkedPrizeId    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  @@index([status, createdAt])
+  @@map("cup_prize_donations")
 }
 
 // Quarterly Net Promoter Score survey. One row per (userId, period)

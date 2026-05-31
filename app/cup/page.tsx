@@ -351,6 +351,13 @@ export default function CupPredictionsPage() {
           for members (they've seen it before). */}
       <RulesCard defaultOpen={accessState !== 'member'} />
 
+      {/* Prizes section — podium + sponsor logos + Donate CTA.
+          Sits between rules and bracket so members read "here's
+          what's at stake" before locking in their pick. Public
+          read; the donate form is open to anyone (rate limited
+          server-side). */}
+      <PrizesSection />
+
       {/* Page hierarchy adapts to tournament state.
           Pre-kickoff (bracket still editable):
             • Bracket card prominent — locking it in is the
@@ -1026,6 +1033,257 @@ function ShareButton({ variant }: { variant: 'visitor' | 'member' }) {
       </div>
       <span className="text-amber-600 font-bold text-sm shrink-0">→</span>
     </button>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Prizes section + Donate modal.
+// Renders the active prize board (podium ranks 1/2/3 + spot prizes
+// below) and exposes a CTA to submit a prize donation. Public —
+// the modal opens for anyone, members or visitors.
+// ─────────────────────────────────────────────────────────────────
+interface PrizeRow {
+  id: string; title: string; description: string | null
+  imageUrl: string | null; rank: number | null; status: string
+  sponsor: { id: string; slug: string; name: string; blurb: string | null
+    logoUrl: string | null; websiteUrl: string | null; instagramUrl: string | null
+  } | null
+}
+
+const RANK_LABEL: Record<number, string> = { 1: '🥇 1st', 2: '🥈 2nd', 3: '🥉 3rd' }
+
+function PrizesSection() {
+  const [prizes, setPrizes] = useState<PrizeRow[] | null>(null)
+  const [showDonate, setShowDonate] = useState(false)
+
+  useEffect(() => {
+    let alive = true
+    fetch('/app/api/cup/prizes', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (alive && d?.prizes) setPrizes(d.prizes) })
+    return () => { alive = false }
+  }, [])
+
+  if (prizes === null) {
+    return (
+      <div className="bg-white rounded-2xl shadow-card p-5 mb-4">
+        <div className="h-5 w-1/3 bg-gray-100 rounded animate-pulse mb-3" />
+        <div className="space-y-2">
+          {[...Array(3)].map((_, i) => <div key={i} className="h-14 bg-gray-100 rounded-xl animate-pulse" />)}
+        </div>
+      </div>
+    )
+  }
+
+  // Empty state — still show the section because the Donate CTA is
+  // the whole point. Calls for offers explicitly.
+  if (prizes.length === 0) {
+    return (
+      <div className="bg-white rounded-2xl shadow-card p-5 mb-4">
+        <h2 className="text-sm font-bold text-gray-900 mb-1">🎁 Prizes</h2>
+        <p className="text-xs text-gray-500 mb-4">
+          No prizes yet — be the first to donate one. Sponsors get a credit on every cup page until the trophy is awarded.
+        </p>
+        <button onClick={() => setShowDonate(true)}
+          className="w-full py-3 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-sm font-bold rounded-xl transition-colors shadow-sm">
+          Donate a prize →
+        </button>
+        {showDonate && <DonateModal onClose={() => setShowDonate(false)} />}
+      </div>
+    )
+  }
+
+  const podium = prizes.filter(p => p.rank !== null).slice(0, 3)
+  const spot   = prizes.filter(p => p.rank === null)
+
+  return (
+    <div className="bg-white rounded-2xl shadow-card p-5 mb-4">
+      <div className="flex items-center justify-between mb-3 gap-2">
+        <h2 className="text-sm font-bold text-gray-900">🎁 Prizes</h2>
+        <span className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">{prizes.length} on the board</span>
+      </div>
+      <div className="space-y-2 mb-4">
+        {podium.map(p => <PrizeRow key={p.id} prize={p} />)}
+        {spot.length > 0 && (
+          <>
+            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider pt-2 px-1">Spot prizes</p>
+            {spot.map(p => <PrizeRow key={p.id} prize={p} />)}
+          </>
+        )}
+      </div>
+      <button onClick={() => setShowDonate(true)}
+        className="w-full py-2.5 bg-amber-50 hover:bg-amber-100 active:bg-amber-200 text-amber-700 text-sm font-bold rounded-xl border border-amber-200 transition-colors">
+        + Donate a prize
+      </button>
+      <p className="text-[10px] text-gray-400 text-center mt-2">Anyone can offer one. Sponsors get a credit on the cup page.</p>
+      {showDonate && <DonateModal onClose={() => setShowDonate(false)} />}
+    </div>
+  )
+}
+
+function PrizeRow({ prize }: { prize: PrizeRow }) {
+  const rankLabel = prize.rank ? RANK_LABEL[prize.rank] : null
+  return (
+    <div className="flex items-start gap-3 px-3 py-3 rounded-xl bg-gray-50/50 border border-gray-100">
+      {prize.imageUrl ? (
+        <img src={prize.imageUrl} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0" />
+      ) : prize.sponsor?.logoUrl ? (
+        <img src={prize.sponsor.logoUrl} alt={prize.sponsor.name} className="w-12 h-12 rounded-lg object-contain bg-white border border-gray-100 shrink-0" />
+      ) : (
+        <div className="w-12 h-12 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center text-xl shrink-0">🎁</div>
+      )}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          {rankLabel && <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">{rankLabel}</span>}
+          <p className="text-sm font-bold text-gray-900 truncate">{prize.title}</p>
+        </div>
+        {prize.description && <p className="text-xs text-gray-600 mt-0.5">{prize.description}</p>}
+        {prize.sponsor && (
+          <p className="text-[10px] text-gray-500 mt-1">
+            sponsored by{' '}
+            {prize.sponsor.websiteUrl ? (
+              <a href={prize.sponsor.websiteUrl} target="_blank" rel="noopener noreferrer"
+                className="text-amber-600 font-semibold hover:underline">
+                {prize.sponsor.name}
+              </a>
+            ) : (
+              <span className="text-amber-600 font-semibold">{prize.sponsor.name}</span>
+            )}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function DonateModal({ onClose }: { onClose: () => void }) {
+  const [form, setForm] = useState({
+    donorName: '', donorEmail: '', donorOrganization: '', donorPhone: '',
+    prizeTitle: '', prizeDescription: '', estimatedValue: '',
+    notes: '',
+  })
+  const [submitting, setSubmitting] = useState(false)
+  const [done, setDone] = useState(false)
+
+  function set<K extends keyof typeof form>(key: K, value: typeof form[K]) {
+    setForm(prev => ({ ...prev, [key]: value }))
+  }
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault()
+    setSubmitting(true)
+    try {
+      const value = form.estimatedValue.trim()
+      const res = await fetch('/app/api/cup/donate', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...form,
+          estimatedValue: value ? Number(value) : null,
+        }),
+      })
+      const d = await res.json()
+      if (res.ok) {
+        setDone(true)
+      } else {
+        toast.error(d.error ?? 'Could not submit')
+      }
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm px-4 pb-4 sm:pb-0"
+      onClick={onClose}>
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto"
+        onClick={e => e.stopPropagation()}>
+        {done ? (
+          <div className="p-6 text-center">
+            <p className="text-3xl mb-3">🙏</p>
+            <h2 className="text-lg font-bold text-gray-900 mb-1">Thanks!</h2>
+            <p className="text-sm text-gray-600 mb-5">We&apos;ll review your offer within a day or two and get back to you at <strong>{form.donorEmail}</strong>. If accepted, your name (or organisation) shows up under the prize on the cup page.</p>
+            <button onClick={onClose}
+              className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl">
+              Close
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={submit} className="p-5 space-y-4">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">Donate a prize</h2>
+              <p className="text-xs text-gray-500 mt-1">Offer something — anything — and we&apos;ll add it to the cup board. Sponsors get a credit + a link on every page view.</p>
+            </div>
+
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 gap-3">
+                <Field label="Your name" required>
+                  <input type="text" required value={form.donorName} onChange={e => set('donorName', e.target.value)}
+                    className={inputCls} placeholder="Ayşe Kaya" />
+                </Field>
+                <Field label="Email" required>
+                  <input type="email" required value={form.donorEmail} onChange={e => set('donorEmail', e.target.value)}
+                    className={inputCls} placeholder="you@example.com" />
+                </Field>
+                <Field label="Organisation" hint="Optional — leave blank if it&apos;s personal">
+                  <input type="text" value={form.donorOrganization} onChange={e => set('donorOrganization', e.target.value)}
+                    className={inputCls} placeholder="e.g. Mikla Restaurant" />
+                </Field>
+                <Field label="Phone" hint="Optional">
+                  <input type="tel" value={form.donorPhone} onChange={e => set('donorPhone', e.target.value)}
+                    className={inputCls} placeholder="+90 5xx xxx xx xx" />
+                </Field>
+              </div>
+
+              <div className="border-t border-gray-100 pt-3 space-y-3">
+                <Field label="What you&apos;re donating" required>
+                  <input type="text" required value={form.prizeTitle} onChange={e => set('prizeTitle', e.target.value)}
+                    className={inputCls} placeholder="Dinner for two" />
+                </Field>
+                <Field label="Description" required hint="One or two sentences">
+                  <textarea required rows={3} value={form.prizeDescription} onChange={e => set('prizeDescription', e.target.value)}
+                    className={`${inputCls} resize-none`} placeholder="A tasting menu at Mikla, valid through the end of the year." />
+                </Field>
+                <Field label="Estimated value (TRY)" hint="Optional — helps us rank it">
+                  <input type="number" min={0} step={1} value={form.estimatedValue} onChange={e => set('estimatedValue', e.target.value)}
+                    className={inputCls} placeholder="e.g. 2500" />
+                </Field>
+                <Field label="Notes" hint="Optional — anything we should know">
+                  <textarea rows={2} value={form.notes} onChange={e => set('notes', e.target.value)}
+                    className={`${inputCls} resize-none`} placeholder="Pickup details, expiry, restrictions…" />
+                </Field>
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button type="button" onClick={onClose} disabled={submitting}
+                className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-bold rounded-xl">
+                Cancel
+              </button>
+              <button type="submit" disabled={submitting}
+                className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl disabled:opacity-60">
+                {submitting ? 'Sending…' : 'Submit'}
+              </button>
+            </div>
+            <p className="text-[10px] text-gray-400 text-center">We review every offer. No payment required.</p>
+          </form>
+        )}
+      </div>
+    </div>
+  )
+}
+
+const inputCls = 'w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400'
+
+function Field({ label, hint, required, children }: { label: string; hint?: string; required?: boolean; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="block text-xs font-bold text-gray-700 mb-1">
+        {label}{required && <span className="text-amber-600 ml-0.5">*</span>}
+        {hint && <span className="text-gray-400 font-normal ml-1.5">· {hint}</span>}
+      </label>
+      {children}
+    </div>
   )
 }
 
