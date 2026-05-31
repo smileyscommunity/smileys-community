@@ -32,12 +32,32 @@ export async function GET(req: Request) {
   const url     = new URL(req.url)
   const take    = Math.min(Math.max(parseInt(url.searchParams.get('take') ?? `${DEFAULT_TAKE}`), 1), 200)
 
-  // Pull every prediction's points + bracket aggregate in parallel.
-  // groupBy + a separate findMany is much cheaper than a join here
-  // (Prisma typed _sum doesn't compose with the bracket's per-row
-  // metadata; one groupBy + one findMany keeps the queries
-  // index-friendly).
-  const [predGroups, brackets] = await Promise.all([
+  // Cheap short-circuit: the leaderboard only changes when an
+  // admin records a fixture result (which updates CupFixture +
+  // re-scores CupPrediction.pointsAwarded). If the caller passes
+  // ?since=<iso> and the highest fixture updatedAt is at or before
+  // that, the leaderboard is byte-for-byte the same as what they
+  // already have — return 304 instead of recomputing + shipping a
+  // ~30KB payload every 30 seconds during finals. Safe to ignore:
+  // older clients just omit the param and get the full payload.
+  const sinceParam = url.searchParams.get('since')
+  if (sinceParam) {
+    const sinceMs = Date.parse(sinceParam)
+    if (!Number.isNaN(sinceMs)) {
+      const watermark = await prisma.cupFixture.aggregate({ _max: { updatedAt: true } })
+      const maxMs = watermark._max.updatedAt?.getTime() ?? 0
+      if (maxMs <= sinceMs) return new Response(null, { status: 304 })
+    }
+  }
+
+  // Pull every prediction's points + bracket aggregate + eligible
+  // member count in parallel. groupBy + a separate findMany is
+  // much cheaper than a join here (Prisma typed _sum doesn't
+  // compose with the bracket's per-row metadata; one groupBy + one
+  // findMany keeps the queries index-friendly). Eligible count is
+  // surfaced to the empty-state copy on /cup ("0 of 47 members
+  // playing — nobody has locked in yet").
+  const [predGroups, brackets, eligibleCount] = await Promise.all([
     prisma.cupPrediction.groupBy({
       by: ['userId'],
       _sum: { pointsAwarded: true },
@@ -45,6 +65,7 @@ export async function GET(req: Request) {
     prisma.cupBracketPick.findMany({
       select: { userId: true, pointsAwarded: true, submittedAt: true },
     }),
+    prisma.user.count({ where: { status: 'approved' } }),
   ])
 
   // Build a per-user accumulator.
@@ -125,6 +146,7 @@ export async function GET(req: Request) {
     yourRank:  youRow?.rank ?? null,
     yourScore: youRow?.score ?? null,
     total:     ranked.length,
+    eligible:  eligibleCount,
     lastUpdated: new Date().toISOString(),
   })
 }

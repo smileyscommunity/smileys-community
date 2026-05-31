@@ -67,8 +67,22 @@ export default function CupPredictionsPage() {
   // Bracket draft — separate from the saved bracket so the user can
   // edit + cancel without losing the current state. Initialised
   // from server on first load and on save.
-  const [draftChampion, setDraftChampion] = useState<string | null>(null)
-  const [draftSF,       setDraftSF]       = useState<string[]>([])
+  // Bracket draft persisted to localStorage. A page refresh mid-
+  // bracket used to drop the picks; now it survives. Cleared on
+  // successful save (the saved bracket itself is the source of
+  // truth after that).
+  const [draftChampion, setDraftChampion] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null
+    return window.localStorage.getItem('cup-bracket-draft-champion')
+  })
+  const [draftSF,       setDraftSF]       = useState<string[]>(() => {
+    if (typeof window === 'undefined') return []
+    try {
+      const raw = window.localStorage.getItem('cup-bracket-draft-sf')
+      const parsed = raw ? JSON.parse(raw) : []
+      return Array.isArray(parsed) ? parsed.filter((s: unknown): s is string => typeof s === 'string') : []
+    } catch { return [] }
+  })
   const [editingBracket, setEditingBracket] = useState(false)
   const [savingBracket,  setSavingBracket]  = useState(false)
   const [savingFixtureId, setSavingFixtureId] = useState<string | null>(null)
@@ -129,6 +143,8 @@ export default function CupPredictionsPage() {
   // future re-fetch) can't overwrite a draft the user is mid-typing.
   // The cancel flow explicitly resets the draft via onCancelEdit
   // when the user backs out, so the one-shot init is enough.
+  // When the saved bracket primes, it overwrites any localStorage
+  // draft — saved truth wins over in-progress edit.
   const draftPrimedRef = useRef(false)
   useEffect(() => {
     if (bracket?.bracket && !draftPrimedRef.current) {
@@ -137,6 +153,19 @@ export default function CupPredictionsPage() {
       draftPrimedRef.current = true
     }
   }, [bracket])
+
+  // Persist the draft to localStorage on every change so a refresh
+  // mid-bracket doesn't drop the picks. Both keys cleared on
+  // successful save (see saveBracket below).
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (draftChampion) window.localStorage.setItem('cup-bracket-draft-champion', draftChampion)
+    else window.localStorage.removeItem('cup-bracket-draft-champion')
+  }, [draftChampion])
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem('cup-bracket-draft-sf', JSON.stringify(draftSF))
+  }, [draftSF])
 
   async function saveBracket() {
     if (!draftChampion || draftSF.length !== 4) {
@@ -158,6 +187,12 @@ export default function CupPredictionsPage() {
       if (res.ok) {
         setBracket(prev => prev ? { ...prev, bracket: d.bracket } : prev)
         setEditingBracket(false)
+        // Drop the localStorage draft now that the saved bracket
+        // is the source of truth.
+        if (typeof window !== 'undefined') {
+          window.localStorage.removeItem('cup-bracket-draft-champion')
+          window.localStorage.removeItem('cup-bracket-draft-sf')
+        }
         toast.success('Bracket locked in 🏆')
       } else if (res.status === 403 && /approved/i.test(d.error)) {
         setAccessState('not-member')
@@ -183,6 +218,10 @@ export default function CupPredictionsPage() {
         setFixtures(prev => prev?.map(f => f.id === fixtureId
           ? { ...f, yourPick: { pickedTeam: team, submittedAt: new Date().toISOString(), pointsAwarded: 0 } }
           : f) ?? null)
+        // Tiny haptic on mobile — makes the pick feel more tactile.
+        // navigator.vibrate is a no-op on desktop and on iOS Safari,
+        // so guarded but harmless.
+        if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') navigator.vibrate(15)
         toast.success(`Picked ${teamLabel(team)}`)
       } else if (res.status === 403 && /approved/i.test(d.error)) {
         setAccessState('not-member')
@@ -206,11 +245,20 @@ export default function CupPredictionsPage() {
   }, [fixtures])
 
   if (loading) {
+    // Skeleton sized to match the final layout (banner aspect ~2.5:1,
+    // rules card, bracket card, leaderboard rows) so the page
+    // doesn't jolt when content arrives — a fixed-shape skeleton
+    // gives the eye an anchor.
     return <Shell>
-      <div className="space-y-3">
-        <div className="h-8 w-2/3 rounded bg-gray-100 animate-pulse" />
-        <div className="h-32 rounded-2xl bg-gray-100 animate-pulse" />
-        <div className="h-24 rounded-2xl bg-gray-100 animate-pulse" />
+      <div className="space-y-4">
+        <div className="rounded-2xl bg-gray-100 animate-pulse" style={{ aspectRatio: '2.5 / 1' }} />
+        <div className="h-16 rounded-2xl bg-gray-100 animate-pulse" />
+        <div className="h-44 rounded-2xl bg-gray-100 animate-pulse" />
+        <div className="bg-gray-100 rounded-2xl p-3 animate-pulse">
+          <div className="space-y-2">
+            {[...Array(5)].map((_, i) => <div key={i} className="h-8 bg-white/40 rounded" />)}
+          </div>
+        </div>
       </div>
     </Shell>
   }
@@ -391,9 +439,16 @@ export default function CupPredictionsPage() {
                 <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">
                   1 pt each · 72 matches
                 </span>
-                <div className="flex gap-0.5 bg-gray-100 rounded-lg p-0.5">
+                {/* ARIA radiogroup so assistive tech reads this as
+                    a mutually-exclusive choice, not two unrelated
+                    buttons. Each option carries aria-checked so the
+                    current selection is announced when focused. */}
+                <div role="radiogroup" aria-label="Group stage view"
+                  className="flex gap-0.5 bg-gray-100 rounded-lg p-0.5">
                   {(['group', 'date'] as const).map(v => (
                     <button key={v} onClick={() => setGroupStageView(v)}
+                      role="radio" aria-checked={groupStageView === v}
+                      aria-label={`Sort group stage by ${v}`}
                       className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-colors ${
                         groupStageView === v
                           ? 'bg-white text-gray-900 shadow-sm'
@@ -574,14 +629,32 @@ function DateStageSections({
     timeZone: 'Europe/Istanbul', year: 'numeric', month: '2-digit', day: '2-digit',
   }).format(new Date()), [])
 
+  // Show the "Today" shortcut only when today's date matches one
+  // of the seeded match days. Outside the tournament window
+  // (pre-Jun 11, post-Jun 27) the button would just scroll into
+  // empty space, so we hide it.
+  const todayInWindow = byDay.some(d => d.dayKey === todayKey)
+  function scrollToToday() {
+    const el = document.getElementById(`cup-day-${todayKey}`)
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
   return (
     <div className="space-y-3">
+      {todayInWindow && (
+        <div className="flex justify-end -mt-1 mb-1">
+          <button onClick={scrollToToday}
+            className="text-[10px] font-bold uppercase tracking-wider text-amber-600 hover:text-amber-700 px-2 py-1 rounded-lg hover:bg-amber-50 transition-colors">
+            ↓ Today
+          </button>
+        </div>
+      )}
       {byDay.map(d => {
         const isToday = d.dayKey === todayKey
         const isPast  = d.dayKey < todayKey
         const dayLabel = d.date.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
         return (
-          <div key={d.dayKey} className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${
+          <div key={d.dayKey} id={`cup-day-${d.dayKey}`} className={`bg-white rounded-2xl border shadow-sm overflow-hidden scroll-mt-4 ${
             isToday ? 'border-amber-300 ring-1 ring-amber-200' : 'border-gray-100'
           }`}>
             <div className={`px-4 py-2.5 border-b flex items-center justify-between ${
@@ -1040,25 +1113,41 @@ interface LeaderRow {
 }
 interface LeaderResponse {
   rows: LeaderRow[]; yourRank: number | null; yourScore: number | null
-  total: number; lastUpdated: string
+  total: number; eligible: number; lastUpdated: string
 }
 
 function Leaderboard() {
   const [data, setData] = useState<LeaderResponse | null>(null)
   const [loading, setLoading] = useState(true)
+  // Track the latest known fixture-watermark separately from the
+  // displayed data so we can short-circuit the next poll cheaply.
+  // The server uses ?since= as a If-Modified-Since equivalent.
+  const sinceRef = useRef<string | null>(null)
 
   useEffect(() => {
     let alive = true
-    function load() {
-      fetch('/app/api/cup/leaderboard?take=50', { credentials: 'include' })
-        .then(r => r.ok ? r.json() : null)
-        .then(d => { if (alive && d) setData(d) })
-        .finally(() => alive && setLoading(false))
+    async function load() {
+      const url = sinceRef.current
+        ? `/app/api/cup/leaderboard?take=50&since=${encodeURIComponent(sinceRef.current)}`
+        : '/app/api/cup/leaderboard?take=50'
+      try {
+        const res = await fetch(url, { credentials: 'include' })
+        if (res.status === 304) return  // unchanged since last fetch
+        if (!res.ok) return
+        const d: LeaderResponse = await res.json()
+        if (!alive) return
+        setData(d)
+        sinceRef.current = d.lastUpdated ?? null
+      } finally {
+        if (alive) setLoading(false)
+      }
     }
     load()
     // Refresh every 30 seconds while the page is open. Tournament
     // pace gives a natural rhythm — results lag the broadcast, so
-    // anything tighter doesn't get fresher data.
+    // anything tighter doesn't get fresher data. The ?since= guard
+    // means most of these polls are a single Prisma aggregate +
+    // a 304 with no body.
     const t = setInterval(load, 30_000)
     return () => { alive = false; clearInterval(t) }
   }, [])
@@ -1074,10 +1163,19 @@ function Leaderboard() {
     )
   }
   if (!data || data.total === 0) {
+    // Eligible count (when present) puts the empty state in
+    // context: "0 of 47 members playing" reads as a community
+    // moment, not a broken page. Falls back to a generic line if
+    // the count isn't there yet (older API).
+    const eligible = data?.eligible ?? null
     return (
       <div className="bg-white rounded-2xl shadow-card p-5 mb-4">
         <p className="text-sm font-bold text-gray-900 mb-1">Leaderboard</p>
-        <p className="text-xs text-gray-500">No picks yet — be the first to lock in your bracket and you&apos;ll lead by default.</p>
+        <p className="text-xs text-gray-500">
+          {eligible !== null
+            ? `0 of ${eligible} member${eligible === 1 ? '' : 's'} playing. Be the first to lock in a bracket — you'll lead by default.`
+            : 'No picks yet — be the first to lock in a bracket and you’ll lead by default.'}
+        </p>
       </div>
     )
   }
