@@ -414,8 +414,27 @@ export default function CupPredictionsPage() {
               persists in localStorage so we don't nag. */}
           {accessState === 'member' && <PushOptInStrip />}
 
-          <TrendingPicks />
-          <Leaderboard />
+          {/* Trending vs Leaderboard ordering flips at first kickoff
+              (bracketLocked === true → tournament is running).
+              Pre-tournament: Trending first — "what are people
+              picking?" is the most interesting thing while everyone
+              is still locking in brackets and the leaderboard is all
+              zeros. Post-kickoff: Leaderboard first — the live
+              competitive signal ("who's ahead, where am I?") is
+              what people are checking, and Trending becomes context
+              for upcoming matches. Same components either way; only
+              the order swaps. */}
+          {bracketLocked ? (
+            <>
+              <Leaderboard />
+              <TrendingPicks />
+            </>
+          ) : (
+            <>
+              <TrendingPicks />
+              <Leaderboard />
+            </>
+          )}
 
           {/* Compact bracket summary — only after lock. */}
           {bracketLocked && (
