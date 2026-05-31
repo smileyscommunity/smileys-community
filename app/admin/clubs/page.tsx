@@ -86,6 +86,16 @@ interface Club {
   location:           string | null
   foundedAt:          string | null
   createdAt:          string | null
+  // List-card signal additions — populated by GET /api/admin/clubs.
+  // Both null-safe when API not yet returning them (older clients).
+  pendingCount?: number
+  quality?: {
+    eventsTracked:   number
+    totalResponses:  number
+    wouldReturnRate: number | null
+    anomalyCount:    number
+    responseRate:    number | null
+  } | null
 }
 
 const emptyForm = {
@@ -174,6 +184,23 @@ export default function AdminClubsPage() {
   // — pending requests, role changes, add/remove — happens on the
   // detail page (/admin/clubs/[id]) which also carries the Quality
   // card. The "Manage" button below routes there.
+
+  // Search + filter — mirrors the pattern from /admin/users,
+  // /admin/feedback, /admin/neighborhoods so admin UX stays
+  // consistent. URL-sync skipped here for v1 since the page state
+  // is bounded enough that landing on it cold doesn't lose much.
+  const [search,       setSearch]       = useState('')
+  const [categoryFilter, setCategoryFilter] = useState<string>('')
+  const [statusFilter,   setStatusFilter]   = useState<'all' | 'active' | 'inactive' | 'with-pending'>('all')
+
+  // Two-stage destructive confirms — Delete is permanent (cascades
+  // to events), Deactivate is recoverable but notifies members.
+  // Both open as a small inline dialog over the card rather than a
+  // full modal so admin context stays visible.
+  const [deletingClub, setDeletingClub] = useState<Club | null>(null)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [deactivatingClub, setDeactivatingClub] = useState<Club | null>(null)
+  const [deactivateReason, setDeactivateReason] = useState('')
 
   useEffect(() => {
     fetch('/app/api/admin/clubs', { credentials: 'include' })
@@ -272,26 +299,95 @@ export default function AdminClubsPage() {
     }
   }
 
+  // Reactivation is one-click (the club's coming back online — no
+  // friction needed). Deactivation routes through the inline
+  // dialog so admin can leave a reason for members. The body is
+  // sent with _deactivateReason which the API treats as a notify
+  // side-channel.
   async function toggleActive(club: Club) {
+    if (club.isActive) {
+      setDeactivatingClub(club)
+      setDeactivateReason('')
+      return
+    }
     const res = await fetch(`/app/api/admin/clubs/${club.id}`, {
       method: 'PUT',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ isActive: !club.isActive }),
+      body: JSON.stringify({ isActive: true }),
     })
     if (res.ok) {
-      setClubList(prev => prev.map(c => c.id === club.id ? { ...c, isActive: !club.isActive } : c))
-      toast.success(`"${club.name}" ${!club.isActive ? 'activated' : 'deactivated'} ✓`)
+      setClubList(prev => prev.map(c => c.id === club.id ? { ...c, isActive: true } : c))
+      toast.success(`"${club.name}" reactivated · members notified`)
+    } else {
+      toast.error('Could not reactivate')
     }
   }
 
-  async function deleteClub(club: Club) {
-    const res = await fetch(`/app/api/admin/clubs/${club.id}`, { method: 'DELETE', credentials: 'include' })
+  async function confirmDeactivate() {
+    if (!deactivatingClub) return
+    const res = await fetch(`/app/api/admin/clubs/${deactivatingClub.id}`, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isActive: false, _deactivateReason: deactivateReason.trim() }),
+    })
     if (res.ok) {
-      setClubList(prev => prev.filter(c => c.id !== club.id))
-      toast(`"${club.name}" deleted`)
+      const id = deactivatingClub.id
+      const name = deactivatingClub.name
+      setClubList(prev => prev.map(c => c.id === id ? { ...c, isActive: false } : c))
+      setDeactivatingClub(null)
+      setDeactivateReason('')
+      toast.success(`"${name}" deactivated · ${deactivateReason.trim() ? 'reason sent to members' : 'members notified'}`)
+    } else {
+      toast.error('Could not deactivate')
     }
   }
+
+  // Delete is irreversible (FK cascade nukes events). Require the
+  // admin to type the club name to confirm — same pattern GitHub
+  // uses for repo deletion. Stops fat-finger accidents cold.
+  function openDeleteConfirm(club: Club) {
+    setDeletingClub(club)
+    setDeleteConfirmText('')
+  }
+  async function confirmDelete() {
+    if (!deletingClub || deleteConfirmText !== deletingClub.name) return
+    const res = await fetch(`/app/api/admin/clubs/${deletingClub.id}`, { method: 'DELETE', credentials: 'include' })
+    if (res.ok) {
+      const id = deletingClub.id
+      const name = deletingClub.name
+      setClubList(prev => prev.filter(c => c.id !== id))
+      setDeletingClub(null)
+      setDeleteConfirmText('')
+      toast(`"${name}" deleted`)
+    } else {
+      toast.error('Could not delete')
+    }
+  }
+
+  // Aggregate signals for the stats header. Computed from clubList
+  // each render — clubList is bounded enough (tens, not thousands)
+  // that re-running these is cheaper than memoising.
+  const totalClubs   = clubList.length
+  const activeCount  = clubList.filter(c => c.isActive).length
+  const pendingTotal = clubList.reduce((s, c) => s + (c.pendingCount ?? 0), 0)
+
+  // Filtered list — search hits name + description + slug; category
+  // dropdown filters exactly; status pills filter active/inactive/
+  // with-pending. All three composable.
+  const filtered = clubList.filter(c => {
+    if (categoryFilter && c.category !== categoryFilter) return false
+    if (statusFilter === 'active'       && !c.isActive)              return false
+    if (statusFilter === 'inactive'     &&  c.isActive)              return false
+    if (statusFilter === 'with-pending' && (c.pendingCount ?? 0) === 0) return false
+    if (search.trim()) {
+      const q = search.trim().toLowerCase()
+      const hay = `${c.name} ${c.description} ${c.slug}`.toLowerCase()
+      if (!hay.includes(q)) return false
+    }
+    return true
+  })
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
@@ -299,12 +395,39 @@ export default function AdminClubsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-white text-2xl font-extrabold tracking-tight">Clubs</h1>
-          <p className="text-sm text-zinc-500 mt-1">{clubList.length} clubs</p>
+          <p className="text-sm text-zinc-500 mt-1">
+            {totalClubs} clubs · {filtered.length === totalClubs ? 'all shown' : `${filtered.length} shown`}
+          </p>
         </div>
         <button onClick={() => { setShowCreate(!showCreate); setEditingId(null) }} className="bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl px-4 py-2 text-sm">
           + Create club
         </button>
       </div>
+
+      {/* Stats header — same shape as /admin/feedback, /admin/users
+          etc. 2-up on mobile, 3-up sm+. Pending tile is a link-y
+          shortcut: click and the list filters to clubs with
+          outstanding join requests. */}
+      {!loading && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
+            <div className="text-xs text-zinc-500 mb-1">Total</div>
+            <div className="text-2xl font-extrabold text-white">{totalClubs}</div>
+          </div>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
+            <div className="text-xs text-zinc-500 mb-1">Active</div>
+            <div className="text-2xl font-extrabold text-emerald-400">{activeCount}</div>
+          </div>
+          <button onClick={() => setStatusFilter(statusFilter === 'with-pending' ? 'all' : 'with-pending')}
+            className={`bg-zinc-900 border rounded-2xl p-4 text-left transition-colors col-span-2 sm:col-span-1 ${
+              statusFilter === 'with-pending' ? 'border-amber-500' : 'border-zinc-800 hover:border-zinc-700'
+            }`}>
+            <div className="text-xs text-zinc-500 mb-1">Pending requests</div>
+            <div className={`text-2xl font-extrabold ${pendingTotal > 0 ? 'text-amber-400' : 'text-zinc-600'}`}>{pendingTotal}</div>
+            {pendingTotal > 0 && <div className="text-[10px] text-zinc-600 mt-1">Tap to filter</div>}
+          </button>
+        </div>
+      )}
 
       {/* Create form */}
       {showCreate && (
@@ -320,11 +443,52 @@ export default function AdminClubsPage() {
         </div>
       )}
 
+      {/* Search + filter bar */}
+      {!loading && totalClubs > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative flex-1 min-w-[200px]">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Search clubs by name, slug, or description…"
+              className="w-full pl-10 pr-3 py-2 text-sm rounded-xl bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500" />
+          </div>
+          <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}
+            className="px-3 py-2 text-sm rounded-xl bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:ring-2 focus:ring-amber-500">
+            <option value="">All categories</option>
+            {CLUB_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <div className="flex gap-1 bg-zinc-800 rounded-xl p-1 border border-zinc-700">
+            {(['all', 'active', 'inactive', 'with-pending'] as const).map(s => (
+              <button key={s} onClick={() => setStatusFilter(s)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors ${
+                  statusFilter === s ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-white'
+                }`}>
+                {s === 'with-pending' ? 'Pending' : s.charAt(0).toUpperCase() + s.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {loading && <div className="text-center text-zinc-500 py-12 text-sm">Loading…</div>}
-      {!loading && clubList.length === 0 && <div className="text-center text-zinc-500 py-12 text-sm">No clubs yet.</div>}
+      {!loading && totalClubs === 0 && (
+        <div className="text-center py-16 bg-zinc-900 border border-dashed border-zinc-800 rounded-2xl">
+          <p className="text-3xl mb-3">🪴</p>
+          <p className="text-white font-semibold mb-1">No clubs yet</p>
+          <p className="text-sm text-zinc-500 mb-5">Clubs group events, hosts, and members around a shared interest.</p>
+          <button onClick={() => setShowCreate(true)} className="bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl px-4 py-2 text-sm">
+            + Create your first club
+          </button>
+        </div>
+      )}
+      {!loading && totalClubs > 0 && filtered.length === 0 && (
+        <div className="text-center text-zinc-500 py-12 text-sm">No clubs match your filters.</div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {clubList.map((club) => (
+        {filtered.map((club) => (
           <div key={club.id} className="bg-zinc-900 rounded-2xl border border-zinc-800 p-6">
             {editingId === club.id ? (
               <>
@@ -353,8 +517,22 @@ export default function AdminClubsPage() {
                       <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400">{club.category}</span>
                       {club.isPrivate && <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-400">Private</span>}
                       {!club.isActive && <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-500/10 text-red-400">Inactive</span>}
+                      {/* Pending badge — the difference between
+                          "missed 5 join requests for a week" and
+                          "I saw that, I'll triage it now." */}
+                      {(club.pendingCount ?? 0) > 0 && (
+                        <Link href={`/admin/clubs/${club.id}`}
+                          className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 hover:bg-amber-500/25 transition-colors"
+                          title="Pending join requests · tap to review">
+                          {club.pendingCount} pending
+                        </Link>
+                      )}
                     </div>
-                    <p className="text-xs text-zinc-500 mt-1 leading-relaxed line-clamp-2">{club.description}</p>
+                    {/* Slug under name — the URL identity admins
+                        need when sharing or linking. text-[10px]
+                        keeps it out of the way. */}
+                    <p className="text-[10px] text-zinc-600 mt-0.5 font-mono">/{club.slug}</p>
+                    <p className="text-xs text-zinc-500 mt-1.5 leading-relaxed line-clamp-2">{club.description}</p>
                     <div className="flex flex-wrap gap-3 mt-2 text-xs text-zinc-500">
                       {club.location     && <span>📍 {club.location}</span>}
                       {club.whatsappUrl  && <span>💬 WhatsApp</span>}
@@ -381,8 +559,24 @@ export default function AdminClubsPage() {
                         </button>
                       </span>
                       {club._count != null && <span className="text-xs text-zinc-500">🗓 {club._count.events} events</span>}
+                      {/* Quality pill — at-a-glance health check.
+                          Surfaces only when there's enough signal
+                          (≥1 survey response). Green ≥80%, amber
+                          60–79%, red <60% wouldReturn. Tracks
+                          /admin/feedback colour bands. */}
+                      {club.quality && club.quality.totalResponses > 0 && club.quality.wouldReturnRate !== null && (
+                        <Link href={`/admin/clubs/${club.id}`}
+                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border transition-colors ${
+                            club.quality.wouldReturnRate >= 80 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
+                              : club.quality.wouldReturnRate >= 60 ? 'bg-amber-500/10 text-amber-400 border-amber-500/30 hover:bg-amber-500/20'
+                              : 'bg-red-500/10 text-red-400 border-red-500/30 hover:bg-red-500/20'
+                          }`}
+                          title={`${club.quality.wouldReturnRate}% would attend again · ${club.quality.totalResponses} response${club.quality.totalResponses === 1 ? '' : 's'}${club.quality.responseRate !== null ? ` (${club.quality.responseRate}% response rate)` : ''}`}>
+                          {club.quality.wouldReturnRate}%
+                        </Link>
+                      )}
                     </div>
-                    <button onClick={() => deleteClub(club)} className="text-xs text-red-400 hover:text-red-300 transition-colors font-medium px-2 py-1">
+                    <button onClick={() => openDeleteConfirm(club)} className="text-xs text-red-400 hover:text-red-300 transition-colors font-medium px-2 py-1">
                       Delete
                     </button>
                   </div>
@@ -422,6 +616,69 @@ export default function AdminClubsPage() {
         ))}
       </div>
 
+      {/* Deactivate confirm — captures an optional reason to send
+          to members. Keeps members in the loop when a club is being
+          wound down rather than letting it silently go quiet. */}
+      {deactivatingClub && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setDeactivatingClub(null)}>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
+            <h2 className="text-white font-bold text-base mb-1">Deactivate &ldquo;{deactivatingClub.name}&rdquo;?</h2>
+            <p className="text-sm text-zinc-500 mb-4">
+              Members keep their membership but new events stop. They&apos;ll get a notification — add a reason if you want them to know why.
+            </p>
+            <textarea value={deactivateReason} onChange={e => setDeactivateReason(e.target.value)}
+              placeholder="Optional · e.g. Host is on sabbatical until October"
+              rows={3}
+              className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none mb-4" />
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setDeactivatingClub(null)}
+                className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-semibold transition-colors">
+                Cancel
+              </button>
+              <button onClick={confirmDeactivate}
+                className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors">
+                Deactivate
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirm — type-the-name pattern. Stops fat-finger
+          accidents on a destructive op that also cascades FK
+          deletes to events. Activate/Deactivate is the safe path
+          for "I want this hidden for a bit". */}
+      {deletingClub && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setDeletingClub(null)}>
+          <div className="bg-zinc-900 border border-red-500/30 rounded-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-start gap-3 mb-4">
+              <span className="text-2xl shrink-0">⚠️</span>
+              <div>
+                <h2 className="text-white font-bold text-base">Delete &ldquo;{deletingClub.name}&rdquo;?</h2>
+                <p className="text-sm text-zinc-400 mt-1">
+                  This deletes the club <strong>and every event under it</strong>. Memberships and posts go with it. You can&apos;t undo this.
+                </p>
+                <p className="text-sm text-zinc-400 mt-2">
+                  If you just want to hide it, use <strong>Deactivate</strong> instead.
+                </p>
+              </div>
+            </div>
+            <p className="text-xs text-zinc-500 mb-1.5">Type <code className="text-amber-400 font-mono">{deletingClub.name}</code> to confirm:</p>
+            <input type="text" value={deleteConfirmText} onChange={e => setDeleteConfirmText(e.target.value)}
+              className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-red-500 mb-4" />
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setDeletingClub(null)}
+                className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-semibold transition-colors">
+                Cancel
+              </button>
+              <button onClick={confirmDelete} disabled={deleteConfirmText !== deletingClub.name}
+                className="px-4 py-2 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                Delete permanently
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

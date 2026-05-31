@@ -3,6 +3,25 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { CLUB_CATEGORIES } from '@/lib/data'
+import { computeEventSurveyRollup, aggregateRollup } from '@/lib/survey'
+
+// GET /api/admin/clubs
+//
+// Returns every club plus three at-a-glance signals admins need
+// without drilling in:
+//   • pendingCount  — count of pending join requests, so the
+//     list-card pending-badge surfaces work that's been sitting
+//     in the queue.
+//   • quality       — aggregated post-event survey rollup
+//     (wouldReturnRate + responseRate + eventsTracked). Same
+//     shape and helper that /admin/clubs/[id] uses, computed in
+//     one batch across every club so the list call stays O(1)
+//     in DB round-trips.
+//   • _count.events — already there; left untouched.
+//
+// All three derived in a single pass so the response is
+// consistent and the list page can render the full picture
+// without follow-up requests.
 
 export async function GET() {
   try {
@@ -10,11 +29,48 @@ export async function GET() {
     if (!session || !canManageClubs(session)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
+
     const clubs = await prisma.club.findMany({
       orderBy: { name: 'asc' },
       include: { _count: { select: { events: true } } },
     })
-    return NextResponse.json(clubs)
+    const clubIds = clubs.map(c => c.id)
+
+    // Pending join requests grouped by club. One query covers
+    // every club (vs one-per-club drift).
+    const pendingByClub = clubIds.length === 0 ? [] : await prisma.clubMembership.groupBy({
+      by: ['clubId'],
+      where: { clubId: { in: clubIds }, status: 'pending' },
+      _count: { _all: true },
+    })
+    const pendingMap = new Map(pendingByClub.map(r => [r.clubId, r._count._all]))
+
+    // Quality rollup. Pull every published/archived event id in
+    // one go, batch through computeEventSurveyRollup, then
+    // aggregate per-club via the same helper /admin/clubs/[id]
+    // uses so behaviour stays in lockstep.
+    const events = clubIds.length === 0 ? [] : await prisma.event.findMany({
+      where:  { clubId: { in: clubIds }, status: { in: ['published', 'archived'] } },
+      select: { id: true, clubId: true },
+    })
+    const eventRollups = await computeEventSurveyRollup(events.map(e => e.id))
+    const eventsByClub = new Map<string, string[]>()
+    for (const e of events) {
+      if (!e.clubId) continue
+      if (!eventsByClub.has(e.clubId)) eventsByClub.set(e.clubId, [])
+      eventsByClub.get(e.clubId)!.push(e.id)
+    }
+    const qualityByClub = new Map<string, ReturnType<typeof aggregateRollup>>()
+    for (const [clubId, eventIds] of eventsByClub) {
+      const rows = eventIds.map(id => eventRollups.get(id)).filter((r): r is NonNullable<typeof r> => !!r)
+      qualityByClub.set(clubId, aggregateRollup(rows))
+    }
+
+    return NextResponse.json(clubs.map(c => ({
+      ...c,
+      pendingCount: pendingMap.get(c.id) ?? 0,
+      quality:      qualityByClub.get(c.id) ?? null,
+    })))
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

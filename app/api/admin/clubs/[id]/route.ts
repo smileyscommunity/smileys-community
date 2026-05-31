@@ -5,6 +5,7 @@ import { getSession } from '@/lib/session'
 import { writeAudit, getDiff } from '@/lib/audit'
 import { computeEventSurveyRollup, aggregateRollup } from '@/lib/survey'
 import { CLUB_CATEGORIES } from '@/lib/data'
+import { createNotification } from '@/lib/notify'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -96,7 +97,31 @@ export async function GET(_: NextRequest, { params }: Params) {
       }
     }
 
-    return NextResponse.json({ ...club, quality })
+    // Events for the drill-down list — the same scope used for the
+    // quality rollup so the numbers reconcile by inspection. Slice
+    // is generous (up to 30) since a club doing one event/month
+    // for two years still fits cleanly.
+    const events = await prisma.event.findMany({
+      where:   { clubId: id },
+      select:  { id: true, title: true, date: true, emoji: true, status: true, totalSpots: true, spotsLeft: true },
+      orderBy: { date: 'desc' },
+      take:    30,
+    })
+
+    // Audit trail for this club. Both `club.*` actions on the club
+    // itself and `club.member_*` actions on its memberships fall
+    // under targetId === club.id (per the audit writes in
+    // /api/admin/clubs/[id]/memberships). Cap at 50 — most clubs
+    // accumulate audit events slowly; admins doing deep dives can
+    // query the global audit feed.
+    const auditLog = await prisma.auditLog.findMany({
+      where:   { targetId: id, targetType: 'club' },
+      orderBy: { createdAt: 'desc' },
+      take:    50,
+      select:  { id: true, action: true, adminName: true, description: true, meta: true, createdAt: true },
+    })
+
+    return NextResponse.json({ ...club, quality, events, auditLog })
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
@@ -114,10 +139,13 @@ export async function PUT(req: NextRequest, { params }: Params) {
                        'whatsappUrl', 'instagramUrl', 'rules', 'isPrivate', 'coverImage', 'coverImagePosition',
                        'location', 'foundedAt', 'isActive']
 
+    // `slug` is selected outside the whitelist because we need it
+    // to build the notification deep-link when isActive flips —
+    // but it's not editable by PUT.
     const before = await prisma.club.findUnique({
       where: { id },
-      select: Object.fromEntries(whitelist.map(k => [k, true]))
-    })
+      select: { ...Object.fromEntries(whitelist.map(k => [k, true])), slug: true } as never,
+    }) as (Record<string, unknown> & { slug: string }) | null
     if (!before) return NextResponse.json({ error: 'Club not found' }, { status: 404 })
 
     const body = await req.json()
@@ -162,6 +190,33 @@ export async function PUT(req: NextRequest, { params }: Params) {
         { diff, name: String(before.name ?? '') },
         `Updated club "${before.name}"`
       )
+    }
+
+    // Inactive ≠ deleted communication. Deactivation is recoverable
+    // and members deserve to know the club is being wound down
+    // (otherwise the club just goes quiet and they wonder).
+    // _deactivateReason is intentionally outside the whitelist —
+    // it's a side-channel that triggers notifications rather than a
+    // stored field. Notifications fire only on a real true → false
+    // transition, so a no-op PUT or a reactivation won't spam.
+    const goingInactive = allowed.isActive === false && before.isActive === true
+    const goingActive   = allowed.isActive === true  && before.isActive === false
+    const reasonRaw     = typeof body._deactivateReason === 'string' ? body._deactivateReason.trim() : ''
+    if (goingInactive || goingActive) {
+      ;(async () => {
+        const members = await prisma.clubMembership.findMany({
+          where:  { clubId: id, status: 'approved' },
+          select: { userId: true },
+        })
+        const clubName = String(before.name ?? 'this club')
+        const title = goingInactive ? `${clubName} is being wound down` : `${clubName} is back open 🎉`
+        const body  = goingInactive
+          ? (reasonRaw ? `From the admins: ${reasonRaw}` : 'Activity is paused for now. We\'ll let you know if anything changes.')
+          : 'The club is active again. New events should be back soon.'
+        await Promise.all(members.map(m =>
+          createNotification(m.userId, 'announcement', title, body, `/clubs/${before.slug}`),
+        ))
+      })().catch(() => {})
     }
 
     return NextResponse.json(club)

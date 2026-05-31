@@ -38,6 +38,16 @@ interface ClubQuality {
   }[]
 }
 
+interface ClubEvent {
+  id: string; title: string; date: string; emoji: string
+  status: string; totalSpots: number; spotsLeft: number
+}
+
+interface AuditEntry {
+  id: string; action: string; adminName: string
+  description: string | null; meta: unknown; createdAt: string
+}
+
 function Avatar({ user }: { user: Member }) {
   const photo = resolveImageUrl(user.profilePhoto)
   const initials = user.name.trim().split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
@@ -56,7 +66,14 @@ export default function AdminClubDetailPage() {
 
   const [memberships, setMemberships] = useState<ClubMembership[]>([])
   const [clubName,    setClubName]    = useState('')
+  const [clubIsActive, setClubIsActive] = useState<boolean | null>(null)
   const [quality,     setQuality]     = useState<ClubQuality | null>(null)
+  const [events,      setEvents]      = useState<ClubEvent[]>([])
+  const [auditLog,    setAuditLog]    = useState<AuditEntry[]>([])
+  const [showAudit,   setShowAudit]   = useState(false)
+  const [archiving,   setArchiving]   = useState(false)
+  const [archiveReason, setArchiveReason] = useState('')
+  const [showArchiveDialog, setShowArchiveDialog] = useState(false)
   const [loading,     setLoading]     = useState(true)
   const [search,      setSearch]      = useState('')
   const [allUsers,    setAllUsers]    = useState<Member[]>([])
@@ -73,11 +90,48 @@ export default function AdminClubDetailPage() {
       setMemberships(Array.isArray(mems) ? mems : [])
       if (club && !club.error) {
         setClubName(club.name)
+        setClubIsActive(typeof club.isActive === 'boolean' ? club.isActive : null)
         setQuality(club.quality ?? null)
+        setEvents(Array.isArray(club.events)   ? club.events   : [])
+        setAuditLog(Array.isArray(club.auditLog) ? club.auditLog : [])
       }
       setAllUsers(Array.isArray(users) ? users : [])
     }).finally(() => setLoading(false))
   }, [id])
+
+  async function archiveClub() {
+    if (!clubName) return
+    setArchiving(true)
+    const res = await fetch(`/app/api/admin/clubs/${id}`, {
+      method: 'PUT', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isActive: false, _deactivateReason: archiveReason.trim() }),
+    })
+    setArchiving(false)
+    if (res.ok) {
+      setClubIsActive(false)
+      setShowArchiveDialog(false)
+      setArchiveReason('')
+      toast.success(`"${clubName}" archived · members notified`)
+    } else {
+      toast.error('Could not archive')
+    }
+  }
+
+  async function reactivateClub() {
+    if (!clubName) return
+    setArchiving(true)
+    const res = await fetch(`/app/api/admin/clubs/${id}`, {
+      method: 'PUT', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isActive: true }),
+    })
+    setArchiving(false)
+    if (res.ok) {
+      setClubIsActive(true)
+      toast.success(`"${clubName}" reactivated`)
+    }
+  }
 
   async function patch(userId: string, data: { status?: string; role?: string }) {
     const res = await fetch(`/app/api/admin/clubs/${id}/memberships`, {
@@ -374,6 +428,130 @@ export default function AdminClubDetailPage() {
         <p className="text-xs text-zinc-500 mt-2">Manually add any approved member to this club.</p>
       </div>
 
+      {/* Events list — drill-down from "club quality is dipping"
+          straight to "which events tanked it". Status badges so the
+          admin spots drafts/archived without filtering. */}
+      {events.length > 0 && (
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
+          <h2 className="text-sm font-semibold text-white mb-3">
+            Events <span className="text-zinc-500 font-normal">({events.length})</span>
+          </h2>
+          <div className="space-y-1.5">
+            {events.slice(0, 10).map(e => (
+              <Link key={e.id} href={`/admin/events/${e.id}/edit`}
+                className="flex items-center gap-3 px-3 py-2 rounded-lg bg-zinc-950/40 hover:bg-zinc-800 transition-colors">
+                <span className="text-base shrink-0">{e.emoji}</span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold text-white truncate">{e.title}</p>
+                  <p className="text-[10px] text-zinc-600">{new Date(e.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} · {e.totalSpots - e.spotsLeft}/{e.totalSpots} RSVPs</p>
+                </div>
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${
+                  e.status === 'published' ? 'bg-emerald-500/15 text-emerald-400'
+                    : e.status === 'archived' ? 'bg-zinc-700 text-zinc-400'
+                    : e.status === 'pending'  ? 'bg-amber-500/15 text-amber-400'
+                    : 'bg-red-500/15 text-red-400'
+                }`}>
+                  {e.status}
+                </span>
+              </Link>
+            ))}
+            {events.length > 10 && (
+              <p className="text-[10px] text-zinc-600 text-center pt-2">+ {events.length - 10} older events</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Audit trail — every club.* and club.member_* action
+          targeted at this club, newest first. Collapsed by default
+          since most viewing sessions don't need it; one tap to
+          expand. */}
+      {auditLog.length > 0 && (
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
+          <button onClick={() => setShowAudit(s => !s)}
+            className="w-full flex items-center justify-between text-left">
+            <h2 className="text-sm font-semibold text-white">
+              Audit trail <span className="text-zinc-500 font-normal">({auditLog.length})</span>
+            </h2>
+            <svg className={`w-4 h-4 text-zinc-500 transition-transform ${showAudit ? 'rotate-180' : ''}`}
+              fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          {showAudit && (
+            <div className="mt-3 space-y-1.5 max-h-96 overflow-y-auto">
+              {auditLog.map(a => (
+                <div key={a.id} className="px-3 py-2 rounded-lg bg-zinc-950/40">
+                  <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                    <span className="text-[10px] font-bold text-amber-400 font-mono">{a.action}</span>
+                    <span className="text-[10px] text-zinc-600">·</span>
+                    <span className="text-[10px] text-zinc-500">{a.adminName}</span>
+                    <span className="text-[10px] text-zinc-600">·</span>
+                    <span className="text-[10px] text-zinc-600">{new Date(a.createdAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                  </div>
+                  {a.description && <p className="text-xs text-zinc-400">{a.description}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Soft archive — the recoverable destructive action. Hard
+          delete still lives on the list page (with the type-name
+          confirm) because it's a destination, not an in-context
+          action. Reactivation is one-click since coming back online
+          shouldn't be friction. */}
+      {clubIsActive !== null && (
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
+          <h2 className="text-sm font-semibold text-white mb-1">
+            {clubIsActive ? 'Archive this club' : 'Club is archived'}
+          </h2>
+          <p className="text-xs text-zinc-500 mb-3">
+            {clubIsActive
+              ? 'Members keep their memberships, the club stops accepting new events, and everyone gets a notification with your reason.'
+              : 'Members were notified. Reactivate anytime — they\'ll be notified the club is back.'}
+          </p>
+          {clubIsActive ? (
+            <button onClick={() => setShowArchiveDialog(true)}
+              className="px-4 py-2 rounded-xl bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 text-sm font-semibold transition-colors">
+              Archive club
+            </button>
+          ) : (
+            <button onClick={reactivateClub} disabled={archiving}
+              className="px-4 py-2 rounded-xl bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 text-sm font-semibold transition-colors disabled:opacity-50">
+              {archiving ? 'Reactivating…' : 'Reactivate'}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Archive confirm dialog — same reason-capture pattern as
+          /admin/clubs list page for consistency. */}
+      {showArchiveDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowArchiveDialog(false)}>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
+            <h2 className="text-white font-bold text-base mb-1">Archive &ldquo;{clubName}&rdquo;?</h2>
+            <p className="text-sm text-zinc-500 mb-4">
+              Members keep their membership but new events stop. They&apos;ll get a notification — add a reason if you want them to know why.
+            </p>
+            <textarea value={archiveReason} onChange={e => setArchiveReason(e.target.value)}
+              placeholder="Optional · e.g. Host is on sabbatical until October"
+              rows={3}
+              className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none mb-4" />
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setShowArchiveDialog(false)}
+                className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-semibold transition-colors">
+                Cancel
+              </button>
+              <button onClick={archiveClub} disabled={archiving}
+                className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors disabled:opacity-60">
+                {archiving ? 'Archiving…' : 'Archive'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
