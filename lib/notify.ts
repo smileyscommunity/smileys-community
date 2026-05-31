@@ -46,6 +46,11 @@ const PREF_KEY: Record<string, 'newEvents' | 'reminders' | 'eventUpdates' | 'joi
   new_hangout:        'newEvents',
   visitor_announced:  null,
   listing_new:        null,
+  // Survey nudges — transactional in spirit (quarterly, low volume,
+  // signal-bearing). Always delivered so a muted "newEvents" pref
+  // doesn't silently swallow the community-pulse signal.
+  event_survey:       null,
+  nps_survey:         null,
 }
 
 function istanbulHour(): number {

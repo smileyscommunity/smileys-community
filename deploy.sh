@@ -75,4 +75,12 @@ ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-hangouts.sh && (crontab -l 2>/dev/
 echo "→ Registering event-survey sweeper crontab..."
 ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-event-surveys.sh && (crontab -l 2>/dev/null | grep -v 'sweep-event-surveys' ; echo '5 * * * * $REMOTE/scripts/sweep-event-surveys.sh >> /var/log/sweep-event-surveys.log 2>&1') | crontab -"
 
+# Install the quarterly NPS dispatch cron. Daily — the sweeper itself
+# is a no-op outside the first 14 days of each quarter, so the cost
+# of a daily ping is negligible. Daily cadence (vs. weekly) lets
+# latecomers whose joinedAt crosses the 30d eligibility threshold
+# mid-window still get nudged in their first eligible quarter.
+echo "→ Registering NPS sweeper crontab..."
+ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-nps-dispatch.sh && (crontab -l 2>/dev/null | grep -v 'sweep-nps-dispatch' ; echo '10 9 * * * $REMOTE/scripts/sweep-nps-dispatch.sh >> /var/log/sweep-nps.log 2>&1') | crontab -"
+
 echo "✓ Done (release: $SENTRY_RELEASE)"

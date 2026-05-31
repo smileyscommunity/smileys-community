@@ -135,6 +135,8 @@ model User {
   cityHostings     CityHost[]
   // Post-event survey responses this user has submitted.
   eventSurveys     EventSurvey[]
+  // Quarterly NPS responses — one row per (userId, period).
+  npsResponses     MemberNPS[]
 
   @@map("users")
 }
@@ -504,6 +506,35 @@ model EventSurvey {
   @@index([eventId])
   @@index([anomaly])
   @@map("event_surveys")
+}
+
+// Quarterly Net Promoter Score survey. One row per (userId, period)
+// — the unique constraint prevents a user from double-responding in
+// the same quarter. Period is "YYYY-Qn" (e.g. "2026-Q2"), computed
+// at dispatch time in lib/nps.ts.
+//
+// userId stays server-side: admin endpoints never expose it. Same
+// anonymity wedge as EventSurvey — honest responses depend on the
+// member trusting nothing is traceable to their face. Soft outreach
+// to detractors (admin → "anything we can do better?") goes via
+// notification by score band, not by name.
+//
+// score is 0–10. Promoter = 9–10, Passive = 7–8, Detractor = 0–6.
+// NPS = %promoters − %detractors (range −100 to +100).
+model MemberNPS {
+  id        String   @id @default(cuid())
+  userId    String
+  score     Int      // 0–10
+  comment   String?  // optional free-text
+  period    String   // "YYYY-Qn", e.g. "2026-Q2"
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, period])
+  @@index([period, createdAt])
+  @@index([score])
+  @@map("member_nps")
 }
 
 model TagGroup {
