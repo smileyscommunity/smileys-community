@@ -320,6 +320,14 @@ export default async function DashboardPage() {
                   </span>
                 </div>
               )}
+              {/* Smileys Cup 2026 — compact pill sitting next to the
+                  "Next: <event>" pill (when present) so it shares the
+                  same row of action affordances under the member's
+                  name instead of taking its own full-width row below
+                  the stats strip. Saves significant vertical space
+                  above the fold on mobile. Dismissible per-browser
+                  and auto-hides post-tournament. */}
+              <CupPromoBanner />
             </div>
             <div className="shrink-0 flex flex-col items-end gap-2">
               {userProfile?.profilePhoto ? (
@@ -343,13 +351,6 @@ export default async function DashboardPage() {
               </div>
             ))}
           </div>
-
-          {/* Smileys Cup 2026 promo — fills the empty space inside
-              the hero with a high-contrast white card so the campaign
-              is the first thing a returning member sees on login
-              during the tournament window. Dismissible per-browser
-              and auto-hides post-tournament (see CupPromoBanner). */}
-          <CupPromoBanner />
         </div>
       </div>
 

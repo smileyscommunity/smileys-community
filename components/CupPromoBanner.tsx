@@ -3,23 +3,24 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 
-// Dashboard hero banner promoting the Smileys Cup 2026 prediction
-// game. Lives INSIDE the amber/orange gradient hero on /dashboard
-// — fills the previously-empty space below the quick-stats strip
-// with a high-contrast white card so the campaign is the first
-// thing a member sees on login during the tournament window.
+// Compact promo pill for Smileys Cup 2026. Lives in the dashboard
+// welcome column, right after the member's name (and beside the
+// "Next: <event>" pill when there's an upcoming RSVP). White on
+// amber-gradient hero so it pops without taking its own row —
+// the previous full-width card iteration ate vertical space that
+// pushed every other widget below the fold on mobile.
 //
-// Dismissible per-browser via localStorage. Also auto-hides post-
-// tournament (final match Jul 19, 2026) so the dashboard cleans
-// itself up without needing a code change.
+// Dismissible per-browser via localStorage. Also auto-hides after
+// the tournament wraps (final match Jul 19, 2026) so the
+// dashboard cleans itself up without a code change.
 //
-// Bumping DISMISS_KEY (v1 → v2 etc.) re-shows the banner to
-// members who previously dismissed — handy if we run a follow-up
-// campaign on the same surface.
+// Bumping DISMISS_KEY (v1 → v2 etc.) re-shows the pill to members
+// who previously dismissed — handy if we run a follow-up campaign
+// on this surface.
 
 const DISMISS_KEY    = 'smileys_cup_promo_v1'
 // Final match kicks off Jul 19, 2026 ~22:00 Istanbul. Hide the
-// banner from the next day onwards regardless of dismiss state.
+// pill from the next day onwards regardless of dismiss state.
 const TOURNAMENT_END = Date.parse('2026-07-20T00:00:00+03:00')
 
 export default function CupPromoBanner() {
@@ -39,8 +40,8 @@ export default function CupPromoBanner() {
   }, [])
 
   function dismiss(e: React.MouseEvent) {
-    // Stop the click bubbling into the Link so the dismiss button
-    // doesn't double-fire a navigation to /cup.
+    // Stop the click bubbling into the Link so dismiss doesn't
+    // double-fire a navigation to /cup.
     e.preventDefault()
     e.stopPropagation()
     try { localStorage.setItem(DISMISS_KEY, '1') } catch {}
@@ -50,41 +51,25 @@ export default function CupPromoBanner() {
   if (!visible) return null
 
   return (
-    <div className="mt-4 relative">
+    // mt-3 matches the "Next: <event>" pill above it (when both
+    // are present, they sit on the same row separated by a JSX
+    // whitespace and wrap to two rows on narrow viewports).
+    // align-middle keeps the inline pill + × button aligned with
+    // the nextEvent pill baseline.
+    <div className="mt-3 inline-flex items-center gap-1.5 align-middle">
       <Link href="/cup"
-        className="flex items-center gap-3 bg-white/95 backdrop-blur-sm hover:bg-white rounded-2xl p-3 sm:p-4 shadow-lg group transition-all">
-        {/* Ball emoji as the visual anchor — keeps the "this is a
-            football tournament" signal without implying a literal
-            trophy prize (prizes are sponsor-donated; see /cup
-            Prizes section). Scale-on-hover gives the card
-            tactility without an animation library. */}
-        <span className="text-3xl shrink-0 transform group-hover:scale-110 transition-transform" aria-hidden>⚽</span>
-        <div className="flex-1 min-w-0">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-amber-600 leading-none mb-1">
-            New · Free to play
-          </p>
-          <p className="text-sm sm:text-base font-extrabold text-gray-900 leading-tight truncate">
-            Smileys World Cup 2026
-          </p>
-          <p className="text-[11px] sm:text-xs text-gray-500 leading-snug mt-0.5 truncate">
-            Predict every match · Win prizes · Bracket locks Jun 11
-          </p>
-        </div>
-        {/* Play pill — full button label on sm+, just an arrow on
-            the tightest phones so the row never wraps. */}
-        <span className="bg-amber-500 text-white text-xs font-bold px-3 py-2 rounded-xl shrink-0 group-hover:bg-amber-600 transition-colors hidden sm:inline-flex items-center">
-          Play →
-        </span>
-        <span className="bg-amber-500 text-white text-base font-bold w-9 h-9 rounded-xl shrink-0 group-hover:bg-amber-600 transition-colors inline-flex items-center justify-center sm:hidden" aria-label="Play">
-          →
-        </span>
+        className="inline-flex items-center gap-2 bg-white text-amber-700 hover:bg-amber-50 px-3 py-1.5 rounded-full text-xs font-bold shadow-md transition-all group">
+        <span aria-hidden className="text-sm leading-none transform group-hover:scale-110 transition-transform">⚽</span>
+        <span className="leading-none">Play Smileys World Cup 2026</span>
+        <span className="text-amber-500 leading-none group-hover:translate-x-0.5 transition-transform">→</span>
       </Link>
-      {/* Dismiss × — absolutely positioned so it sits over the card's
-          top-right corner without affecting the Link's flex layout.
-          z-10 lifts it above the Link's hit area. */}
+      {/* Dismiss × — small but ≥24px tap target via the w-6 h-6
+          container (24px on the cross axis, comfortable for thumbs).
+          White/transparent so it reads as part of the orange hero
+          chrome rather than a button "on" the pill. */}
       <button
         onClick={dismiss}
-        className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors text-base leading-none z-10"
+        className="w-6 h-6 rounded-full flex items-center justify-center text-white/70 hover:text-white hover:bg-white/20 transition-colors text-sm leading-none"
         title="Dismiss"
         aria-label="Dismiss cup banner"
       >
