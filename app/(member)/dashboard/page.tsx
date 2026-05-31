@@ -15,6 +15,7 @@ import ReferralImpact from '@/components/ReferralImpact'
 import InviteBanner from '@/components/InviteBanner'
 import AnnouncementBanner from '@/components/AnnouncementBanner'
 import OnboardingCard from '@/components/OnboardingCard'
+import CupPromoBanner from '@/components/CupPromoBanner'
 import CommunityPollWidget from '@/components/CommunityPollWidget'
 import PendingConnectionsWidget from '@/components/PendingConnectionsWidget'
 import PartnersBanner from '@/components/PartnersBanner'
@@ -342,6 +343,13 @@ export default async function DashboardPage() {
               </div>
             ))}
           </div>
+
+          {/* Smileys Cup 2026 promo — fills the empty space inside
+              the hero with a high-contrast white card so the campaign
+              is the first thing a returning member sees on login
+              during the tournament window. Dismissible per-browser
+              and auto-hides post-tournament (see CupPromoBanner). */}
+          <CupPromoBanner />
         </div>
       </div>
 

@@ -6,8 +6,11 @@ import Link from 'next/link'
 // Dismissible "what's new in Smileys" card. Renders once on the dashboard for
 // members who haven't dismissed it yet. localStorage-backed so the dismiss
 // state is per-browser — fine for an informational card, no schema cost.
-// Bump the suffix to v2 etc. to re-show after a future feature drop.
-const DISMISS_KEY = 'smileys_onboarding_v1'
+// Bump the suffix to v2 etc. to re-show after a future feature drop. Bumped
+// to v2 when Smileys Cup 2026 was added — previous dismissers see the
+// refreshed list once so the new item gets discovery; if they dismiss again
+// the v2 flag silences it.
+const DISMISS_KEY = 'smileys_onboarding_v2'
 
 interface Item {
   emoji:       string
@@ -17,6 +20,12 @@ interface Item {
 }
 
 const ITEMS: Item[] = [
+  {
+    emoji:       '⚽',
+    title:       'Smileys World Cup 2026',
+    description: 'Predict every match. Trophy + prizes for the winner. Free to play.',
+    href:        '/cup',
+  },
   {
     emoji:       '☕',
     title:       'Hangouts',
@@ -74,7 +83,7 @@ export default function OnboardingCard() {
       </button>
 
       <p className="text-xs font-bold uppercase tracking-widest text-amber-700 mb-1">New in Smileys</p>
-      <h3 className="text-base font-extrabold text-gray-900 mb-3">Four ways to connect</h3>
+      <h3 className="text-base font-extrabold text-gray-900 mb-3">What&apos;s here this week</h3>
 
       <div className="space-y-2">
         {ITEMS.map(it => (
