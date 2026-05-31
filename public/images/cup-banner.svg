@@ -69,12 +69,18 @@
 
   <!-- Text block right of the trophy. "Smileys" sits as a small
        overline above the tournament name, signalling this is our
-       prediction game on top of the official competition. -->
-  <g transform="translate(420 80)" font-family="'Plus Jakarta Sans', Inter, system-ui, sans-serif">
+       prediction game on top of the official competition. Title is
+       a single line "WORLD CUP 2026" at fs=46 so the line ends at
+       x≈793 inside the 800-unit viewBox; collapsing the previous
+       two-line stack (fs62 + fs78) into one line at smaller font
+       trades vertical drama for a tighter, more legible header
+       that reads cleanly at the 4:1 wide-banner crop on desktop.
+       Block translate moves to y=110 so the shorter stack stays
+       vertically centered in the visible band. -->
+  <g transform="translate(420 110)" font-family="'Plus Jakarta Sans', Inter, system-ui, sans-serif">
     <text x="0" y="0" fill="#fef3c7" font-size="20" font-weight="800" letter-spacing="0.18em" opacity="0.95">SMILEYS</text>
-    <text x="0" y="58" fill="#ffffff" font-size="62" font-weight="900" letter-spacing="-0.02em">WORLD CUP</text>
-    <text x="0" y="120" fill="#ffffff" font-size="78" font-weight="900" letter-spacing="-0.02em">2026</text>
-    <text x="0" y="156" fill="#fef3c7" font-size="17" font-weight="700" letter-spacing="0.04em" opacity="0.95">Jun 11 → Jul 19 · Predict every match</text>
+    <text x="0" y="58" fill="#ffffff" font-size="46" font-weight="900" letter-spacing="-0.02em">WORLD CUP 2026</text>
+    <text x="0" y="98" fill="#fef3c7" font-size="17" font-weight="700" letter-spacing="0.04em" opacity="0.95">Jun 11 → Jul 19 · Predict every match</text>
   </g>
 
   <!-- Confetti -->
