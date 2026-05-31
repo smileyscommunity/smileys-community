@@ -25,16 +25,24 @@
   <rect width="800" height="320" fill="url(#spot)"/>
   <rect width="800" height="320" fill="url(#dots)"/>
 
-  <!-- Stadium silhouette along the bottom. -->
+  <!-- Stadium silhouette along the bottom. Cropped at lg+ aspect-[4/1]
+       (visible band ends at y=260) but that's fine — it reads as
+       horizon depth at narrower aspect ratios. -->
   <path d="M0 280 Q200 250 400 270 T800 260 L800 320 L0 320 Z" fill="#92400e" opacity="0.42"/>
   <path d="M0 295 Q200 270 400 285 T800 280 L800 320 L0 320 Z" fill="#78350f" opacity="0.55"/>
 
-  <!-- Floor line under the trophy. -->
-  <ellipse cx="260" cy="232" rx="105" ry="9" fill="#78350f" opacity="0.32"/>
+  <!-- Floor shadow under the trophy. Repositioned to sit beneath the
+       new trophy at translate(60 70) scale(0.85). -->
+  <ellipse cx="145" cy="252" rx="85" ry="7" fill="#78350f" opacity="0.32"/>
 
-  <!-- Trophy cup. Stacked shapes drawn in pixel-style geometry so the
-       silhouette stays crisp at any scale. -->
-  <g transform="translate(160 60)">
+  <!-- Trophy cup. Shrunk to 0.85× and shifted left so the title block
+       on the right has comfortable horizontal margin (the earlier
+       single-line fs=46 title was clipping "2026" at the viewBox
+       edge — fs=60 needs ~486 viewBox units which the original
+       trophy at translate(160 60) didn't leave). Stacked shapes drawn
+       in pixel-style geometry so the silhouette stays crisp at any
+       scale. -->
+  <g transform="translate(60 70) scale(0.85)">
     <!-- Left handle -->
     <path d="M22 60 Q-6 60 -6 96 Q-6 134 28 134"
           fill="none" stroke="url(#trophy)" stroke-width="14" stroke-linecap="round"/>
@@ -56,40 +64,30 @@
     <rect x="48" y="194" width="104" height="22" rx="4" fill="#fcd34d" stroke="#b45309" stroke-width="1.5" opacity="0.85"/>
   </g>
 
-  <!-- Football, bottom-right of the trophy area. -->
-  <g transform="translate(380 196)">
-    <circle cx="0" cy="0" r="34" fill="#fef3c7" stroke="#78350f" stroke-width="2"/>
-    <polygon points="0,-18 16,-7 11,11 -11,11 -16,-7" fill="#78350f" opacity="0.85"/>
-    <line x1="0" y1="-18" x2="0" y2="-34" stroke="#78350f" stroke-width="2"/>
-    <line x1="16" y1="-7" x2="32" y2="-12" stroke="#78350f" stroke-width="2"/>
-    <line x1="11" y1="11" x2="22" y2="26" stroke="#78350f" stroke-width="2"/>
-    <line x1="-11" y1="11" x2="-22" y2="26" stroke="#78350f" stroke-width="2"/>
-    <line x1="-16" y1="-7" x2="-32" y2="-12" stroke="#78350f" stroke-width="2"/>
+  <!-- Text block right of the trophy. Single-line "WORLD CUP 2026" at
+       fs=60 starting at x=270 gives a rendered width of ~486 viewBox
+       units (right edge ~x=756) — 44 units of margin to the viewBox
+       edge, comfortably clear of any font-substitution width drift.
+       SMILEYS overline + date tagline keep the three-line vertical
+       structure so the block stays balanced inside the visible band
+       (y≈93–225 → center y=159, matches the y=160 band center at
+       aspect-[4/1] crop). -->
+  <g transform="translate(270 110)" font-family="'Plus Jakarta Sans', Inter, system-ui, sans-serif">
+    <text x="0" y="0" fill="#fef3c7" font-size="22" font-weight="800" letter-spacing="0.18em" opacity="0.95">SMILEYS</text>
+    <text x="0" y="68" fill="#ffffff" font-size="60" font-weight="900" letter-spacing="-0.02em">WORLD CUP 2026</text>
+    <text x="0" y="112" fill="#fef3c7" font-size="18" font-weight="700" letter-spacing="0.04em" opacity="0.95">Jun 11 → Jul 19 · Predict every match</text>
   </g>
 
-  <!-- Text block right of the trophy. "Smileys" sits as a small
-       overline above the tournament name, signalling this is our
-       prediction game on top of the official competition. Title is
-       a single line "WORLD CUP 2026" at fs=46 so the line ends at
-       x≈793 inside the 800-unit viewBox; collapsing the previous
-       two-line stack (fs62 + fs78) into one line at smaller font
-       trades vertical drama for a tighter, more legible header
-       that reads cleanly at the 4:1 wide-banner crop on desktop.
-       Block translate moves to y=110 so the shorter stack stays
-       vertically centered in the visible band. -->
-  <g transform="translate(420 110)" font-family="'Plus Jakarta Sans', Inter, system-ui, sans-serif">
-    <text x="0" y="0" fill="#fef3c7" font-size="20" font-weight="800" letter-spacing="0.18em" opacity="0.95">SMILEYS</text>
-    <text x="0" y="58" fill="#ffffff" font-size="46" font-weight="900" letter-spacing="-0.02em">WORLD CUP 2026</text>
-    <text x="0" y="98" fill="#fef3c7" font-size="17" font-weight="700" letter-spacing="0.04em" opacity="0.95">Jun 11 → Jul 19 · Predict every match</text>
-  </g>
-
-  <!-- Confetti -->
+  <!-- Confetti. Reduced from the original set and repositioned away
+       from the new title block. The old top-left cluster around x=120
+       y=22 sat under the bigger overline and got trimmed at narrower
+       aspect ratios; the kept pieces are above the trophy and far
+       right where they decorate without competing with the title. -->
   <g opacity="0.85">
-    <rect x="80"  y="36"  width="8" height="4" rx="1" fill="#fef3c7" transform="rotate(28 84 38)"/>
-    <rect x="120" y="22"  width="8" height="4" rx="1" fill="#fde68a" transform="rotate(-14 124 24)"/>
-    <rect x="68"  y="92"  width="6" height="3" rx="1" fill="#fff7ed" transform="rotate(45 71 94)"/>
+    <rect x="60"  y="42"  width="8" height="4" rx="1" fill="#fef3c7" transform="rotate(28 64 44)"/>
+    <rect x="180" y="36"  width="8" height="4" rx="1" fill="#fde68a" transform="rotate(-14 184 38)"/>
     <rect x="700" y="68"  width="10" height="4" rx="1" fill="#fef3c7" transform="rotate(18 705 70)"/>
-    <rect x="744" y="32"  width="8" height="4" rx="1" fill="#fde68a" transform="rotate(-30 748 34)"/>
+    <rect x="744" y="42"  width="8" height="4" rx="1" fill="#fde68a" transform="rotate(-30 748 44)"/>
     <rect x="720" y="116" width="6" height="3" rx="1" fill="#fff7ed" transform="rotate(60 723 118)"/>
   </g>
 </svg>
