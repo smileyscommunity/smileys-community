@@ -235,6 +235,24 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
               isLoggedIn={!!session}
             />
 
+            {/* Smileys Cup — predictions sub-route. Only on the cup
+                club so the rest of the clubs list stays untouched.
+                Members tap through to /clubs/world-cup-2026/cup to
+                lock in a bracket and pick matches. */}
+            {club.slug === 'world-cup-2026' && (
+              <Link
+                href={`/clubs/${club.slug}/cup`}
+                className="block bg-gradient-to-br from-amber-400 to-amber-600 rounded-2xl shadow-card p-6 text-white hover:from-amber-500 hover:to-amber-700 transition-colors"
+              >
+                <div className="text-3xl mb-2">🏆</div>
+                <p className="font-extrabold text-lg leading-tight">Play the predictions</p>
+                <p className="text-sm text-amber-50 mt-1">Pick your champion + 4 semifinalists. Pick each knockout match. Win the trophy.</p>
+                <p className="text-xs font-bold mt-3 inline-flex items-center gap-1">
+                  Go to predictions →
+                </p>
+              </Link>
+            )}
+
             <SocialShare
               title={club.name}
               url={`${APP_URL}/clubs/${club.slug}`}

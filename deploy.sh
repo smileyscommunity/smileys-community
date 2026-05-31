@@ -83,4 +83,11 @@ ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-event-surveys.sh && (crontab -l 2>
 echo "→ Registering NPS sweeper crontab..."
 ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-nps-dispatch.sh && (crontab -l 2>/dev/null | grep -v 'sweep-nps-dispatch' ; echo '10 9 * * * $REMOTE/scripts/sweep-nps-dispatch.sh >> /var/log/sweep-nps.log 2>&1') | crontab -"
 
+# Seed the Smileys Cup 2026 club + knockout fixture structure.
+# Idempotent — the club upsert and per-fixture findUnique guards
+# mean re-runs are safe. Runs on every deploy until the cup is
+# archived; cost is two queries when there's nothing to do.
+echo "→ Seeding Smileys Cup 2026..."
+ssh "$SERVER" "cd $REMOTE && npx tsx scripts/seed-cup.ts" || echo "  (cup seed skipped — likely already present or schema not yet pushed)"
+
 echo "✓ Done (release: $SENTRY_RELEASE)"

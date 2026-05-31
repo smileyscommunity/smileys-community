@@ -137,6 +137,9 @@ model User {
   eventSurveys     EventSurvey[]
   // Quarterly NPS responses — one row per (userId, period).
   npsResponses     MemberNPS[]
+  // Smileys Cup 2026 — predictions, pre-tournament bracket pick.
+  cupPredictions   CupPrediction[]
+  cupBracketPick   CupBracketPick?
 
   @@map("users")
 }
@@ -506,6 +509,89 @@ model EventSurvey {
   @@index([eventId])
   @@index([anomaly])
   @@map("event_surveys")
+}
+
+// Smileys Cup 2026 — fixtures + member predictions.
+//
+// CupFixture is the canonical match record, seeded once for the group
+// stage and topped up as knockout matchups firm up. Group-stage rows
+// carry points=0 (we don't score them in v1 — too much data entry,
+// low signal). Knockouts run R32 → R16 → QF → SF → Final because the
+// 2026 expansion to 48 teams put the first knockout round at 32, not
+// 16. Points scale with stakes:
+//   R32  3   ·   R16  5   ·   QF  10   ·   SF  20   ·   Final  40
+//
+// homeTeam / awayTeam are nullable so we can seed knockout placeholders
+// before group results are in: a row can have homeLabel "Winner Group
+// A" with homeTeam null, then admin fills in the country code once
+// the group concludes. ISO-3 codes throughout ("BRA", "ARG").
+//
+// winnerTeam is the trigger column — when admin sets it, the scoring
+// route runs in the same transaction, awarding `points` to every
+// matching CupPrediction.
+model CupFixture {
+  id           String   @id          // "2026-WC-R32-1", "2026-WC-G-A-1"
+  round        String                 // "group" | "r32" | "r16" | "qf" | "sf" | "final"
+  group        String?                // "A"–"L" (12 groups in the 48-team format), null for knockouts
+  homeTeam     String?                // ISO-3, e.g. "BRA". Null when TBD
+  awayTeam     String?
+  homeLabel    String?                // Human label when team TBD ("Winner Group A")
+  awayLabel    String?
+  kickoffAt    DateTime
+  venue        String?
+  winnerTeam   String?                // Set by admin; triggers scoring of related predictions
+  homeScore    Int?
+  awayScore    Int?
+  points       Int      @default(0)   // 0 (group) | 3 (R32) | 5 (R16) | 10 (QF) | 20 (SF) | 40 (F)
+  updatedAt    DateTime @updatedAt
+  createdAt    DateTime @default(now())
+
+  predictions  CupPrediction[]
+
+  @@index([round, kickoffAt])
+  @@map("cup_fixtures")
+}
+
+// One row per (user, fixture). Upsert semantics: re-submitting before
+// the fixture's kickoffAt overwrites. pointsAwarded is cached so the
+// leaderboard query is a single SUM without joining CupFixture every
+// time — written by the admin result-entry endpoint when winnerTeam
+// is set.
+model CupPrediction {
+  id            String   @id @default(cuid())
+  userId        String
+  fixtureId     String
+  pickedTeam    String                 // ISO-3
+  submittedAt   DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  pointsAwarded Int      @default(0)
+
+  user    User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fixture CupFixture @relation(fields: [fixtureId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, fixtureId])
+  @@index([userId])
+  @@index([fixtureId])
+  @@map("cup_predictions")
+}
+
+// Pre-tournament bracket — one row per user, locked at first kickoff.
+// championPick must appear in semifinalists[]. semifinalists must be
+// exactly 4 distinct ISO codes. Scoring: champion 100, each correct
+// semifinalist 25 (max 100). Tiebreaker on the leaderboard is earlier
+// submittedAt.
+model CupBracketPick {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  championPick  String                 // ISO-3
+  semifinalists String[]               // exactly 4 ISO-3 codes
+  submittedAt   DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  pointsAwarded Int      @default(0)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("cup_bracket_picks")
 }
 
 // Quarterly Net Promoter Score survey. One row per (userId, period)
