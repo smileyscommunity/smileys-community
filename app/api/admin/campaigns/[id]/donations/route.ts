@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
+import { convertDonationToPrize, type SponsorPayload, type PrizePayload } from '@/lib/cup-prize-conversion'
 
 // GET   /api/admin/campaigns/[id]/donations  — donations for one campaign
 // PATCH /api/admin/campaigns/[id]/donations  — { id, action, reviewNote }
@@ -56,6 +57,33 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     select: { id: true, status: true, donorName: true, prizeTitle: true },
   })
   if (!prior) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // Approve-with-conversion path: when admin provides a `prize`
+  // payload (and optionally `sponsor`), publish atomically. See
+  // /api/admin/cup/donations for the matching shape.
+  if (action === 'approve' && body.prize) {
+    const sponsorPayload: SponsorPayload | undefined = body.sponsor ?? undefined
+    const prizePayload:   PrizePayload  = body.prize
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        return convertDonationToPrize(tx, {
+          donationId:       id,
+          campaignId,
+          sponsor:          sponsorPayload,
+          prize:            prizePayload,
+          reviewedByUserId: session.id,
+          reviewNote,
+        })
+      })
+      writeAudit(session.id, session.name, 'campaign.donation_published', id, 'cup_prize_donation',
+        { campaignId, from: prior.status, donorName: prior.donorName, prizeTitle: prior.prizeTitle, sponsorId: result.sponsorId, prizeId: result.prizeId },
+        `Published prize "${prior.prizeTitle}" from donation by ${prior.donorName}`,
+      )
+      return NextResponse.json({ ok: true, status: 'approved', ...result })
+    } catch (e) {
+      return NextResponse.json({ error: (e as Error).message }, { status: 400 })
+    }
+  }
 
   const status = action === 'approve' ? 'approved' : 'declined'
   await prisma.cupPrizeDonation.update({

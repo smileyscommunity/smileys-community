@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
+import { convertDonationToPrize, type SponsorPayload, type PrizePayload } from '@/lib/cup-prize-conversion'
 
 // GET  /api/admin/cup/donations         — list (default: pending first)
 // PATCH /api/admin/cup/donations        — body: { id, action, reviewNote? }
@@ -60,9 +61,38 @@ export async function PATCH(req: NextRequest) {
 
   const prior = await prisma.cupPrizeDonation.findUnique({
     where:  { id },
-    select: { id: true, status: true, donorName: true, prizeTitle: true },
+    select: { id: true, status: true, donorName: true, prizeTitle: true, campaignId: true },
   })
   if (!prior) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // Approve-with-conversion: when admin provides `sponsor` and/or
+  // `prize` payloads alongside action='approve', publish in one
+  // atomic step — create sponsor (or reuse existing), create the
+  // prize, link the donation. Without payloads, just flip status
+  // (manual conversion path remains available).
+  if (action === 'approve' && body.prize) {
+    const sponsorPayload: SponsorPayload | undefined = body.sponsor ?? undefined
+    const prizePayload:   PrizePayload  = body.prize
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        return convertDonationToPrize(tx, {
+          donationId:       id,
+          campaignId:       prior.campaignId,
+          sponsor:          sponsorPayload,
+          prize:            prizePayload,
+          reviewedByUserId: session.id,
+          reviewNote,
+        })
+      })
+      writeAudit(session.id, session.name, 'cup.donation_published', id, 'cup_prize_donation',
+        { from: prior.status, donorName: prior.donorName, prizeTitle: prior.prizeTitle, sponsorId: result.sponsorId, prizeId: result.prizeId },
+        `Published prize "${prior.prizeTitle}" from donation by ${prior.donorName}`,
+      )
+      return NextResponse.json({ ok: true, status: 'approved', ...result })
+    } catch (e) {
+      return NextResponse.json({ error: (e as Error).message }, { status: 400 })
+    }
+  }
 
   const status = action === 'approve' ? 'approved' : 'declined'
   await prisma.cupPrizeDonation.update({
