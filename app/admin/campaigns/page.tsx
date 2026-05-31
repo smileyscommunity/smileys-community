@@ -11,25 +11,10 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
-
-interface Campaign {
-  id: string; slug: string; name: string
-  emoji: string | null; tagline: string | null; description: string | null
-  coverImage: string | null; status: string; routeSlug: string
-  startsAt: string | null; endsAt: string | null
-  createdAt: string; updatedAt: string
-  _count: { sponsors: number; prizes: number; donations: number }
-}
-
-const STATUS_PILL: Record<string, string> = {
-  draft:    'bg-zinc-700 text-zinc-400',
-  active:   'bg-emerald-500/10 text-emerald-400',
-  wrapped:  'bg-amber-500/10 text-amber-400',
-  archived: 'bg-zinc-800 text-zinc-500',
-}
+import { type AdminCampaign, CAMPAIGN_STATUS_PILL } from '@/lib/admin/campaigns'
 
 export default function AdminCampaignsPage() {
-  const [campaigns, setCampaigns] = useState<Campaign[] | null>(null)
+  const [campaigns, setCampaigns] = useState<AdminCampaign[] | null>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [saving, setSaving] = useState(false)
   const [draft, setDraft] = useState({ slug: '', name: '', emoji: '', tagline: '', routeSlug: '' })
@@ -114,16 +99,20 @@ export default function AdminCampaignsPage() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className="text-sm font-bold text-white truncate">{c.name}</p>
-                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${STATUS_PILL[c.status] ?? STATUS_PILL.draft}`}>{c.status}</span>
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${CAMPAIGN_STATUS_PILL[c.status] ?? CAMPAIGN_STATUS_PILL.draft}`}>{c.status}</span>
                 </div>
                 <p className="text-[10px] text-zinc-600 mt-0.5 font-mono">/{c.slug}</p>
                 {c.tagline && <p className="text-xs text-zinc-500 mt-1 line-clamp-2">{c.tagline}</p>}
               </div>
             </div>
             <div className="flex items-center gap-3 text-[10px] text-zinc-500 border-t border-zinc-800 pt-2.5 font-semibold">
-              <span>🤝 {c._count.sponsors} sponsor{c._count.sponsors === 1 ? '' : 's'}</span>
-              <span>🎁 {c._count.prizes} prize{c._count.prizes === 1 ? '' : 's'}</span>
-              <span>📥 {c._count.donations} donation{c._count.donations === 1 ? '' : 's'}</span>
+              {/* _count is always returned by the collection GET, but
+                  the shared AdminCampaign type leaves it optional so
+                  the dedicated GET can omit it. ?? 0 keeps both
+                  surfaces type-safe. */}
+              <span>🤝 {c._count?.sponsors  ?? 0} sponsor{(c._count?.sponsors  ?? 0) === 1 ? '' : 's'}</span>
+              <span>🎁 {c._count?.prizes    ?? 0} prize{(c._count?.prizes      ?? 0) === 1 ? '' : 's'}</span>
+              <span>📥 {c._count?.donations ?? 0} donation{(c._count?.donations ?? 0) === 1 ? '' : 's'}</span>
             </div>
           </Link>
         ))}

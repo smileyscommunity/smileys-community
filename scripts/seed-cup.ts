@@ -36,15 +36,20 @@ async function main() {
     create: {
       slug:       'world-cup-2026',
       name:       'Smileys World Cup 2026',
-      emoji:      '🏆',
-      tagline:    'Predict every match. Win the trophy.',
-      description: 'Predictions, sponsored prizes, and the trophy. Open to every approved Smileys member. Jun 11 → Jul 19.',
+      emoji:      '⚽',
+      tagline:    'Predict every match. Win prizes.',
+      description: 'Predictions, sponsored prizes, and bragging rights. Open to every approved Smileys member. Jun 11 → Jul 19.',
       status:     'active',
       startsAt:   new Date('2026-06-11T19:00:00+03:00'),
       endsAt:     new Date('2026-07-19T22:00:00+03:00'),
       routeSlug:  'cup',
+      hasFixtures: true,
     },
-    update: {},  // never clobber admin-edited copy
+    // Idempotent backfill: only sets fields the admin couldn't have
+    // changed (hasFixtures is a "this campaign has a fixtures admin
+    // surface" structural flag, not editorial copy). Existing copy
+    // — name, emoji, tagline, description — is left intact.
+    update: { hasFixtures: true },
     select: { id: true, slug: true },
   })
   console.log(`✓ Campaign: ${cupCampaign.slug} (${cupCampaign.id})`)

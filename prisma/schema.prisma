@@ -631,6 +631,12 @@ model Campaign {
   // Public URL alias. 'cup' keeps the existing /cup URL for the
   // World Cup; future campaigns resolve at /campaigns/<routeSlug>.
   routeSlug   String   @default("cup")
+  // Whether this campaign has a fixtures/results admin surface
+  // (currently /admin/cup; future tournaments would get their own).
+  // Drives the "Fixtures + results →" pill on the campaign-detail
+  // admin page so we don't have to hardcode `slug === 'world-cup-2026'`
+  // every time a new tournament campaign lands.
+  hasFixtures Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
