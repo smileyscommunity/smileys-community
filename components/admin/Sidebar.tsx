@@ -97,10 +97,10 @@ const NAV_GROUPS = [
       // Campaigns — sponsorship + fundraising drives. The Smileys
       // Cup 2026 is the first one; future tournaments and non-
       // tournament pushes (anniversary, referral) get their own row.
-      // The legacy /admin/cup surface (fixture management + result
-      // entry) is reachable from the World Cup campaign-detail page
-      // via the "Fixtures + results →" link, so it doesn't need its
-      // own top-level sidebar entry.
+      // Fixture management + result entry live on the campaign's
+      // own detail page as the "Fixtures + results" tab; the old
+      // standalone /admin/cup route was deleted as part of the
+      // campaign consolidation.
       { label: 'Campaigns',    href: '/admin/campaigns',     exact: false, roles: ['admin', 'moderator'],       icon: 'campaigns'    },
     ],
   },

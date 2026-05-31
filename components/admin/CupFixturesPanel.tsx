@@ -1,6 +1,8 @@
 'use client'
 
-// /admin/cup — fixture management for the Smileys Cup.
+// Fixture management + result entry for the Smileys Cup. Extracted
+// from the old /admin/cup page so it can mount as a tab inside the
+// campaign-detail page (/admin/campaigns/[id]).
 //
 // Two things admin does here:
 //   1. Fill in knockout slots with real teams once a prior round
@@ -10,41 +12,33 @@
 //      every CupBracketPick too.
 //
 // Group fixtures already have teams baked in (the Dec 5 draw was
-// settled at seed time), so the group section here is read-only
-// for teams and only takes result entry. Knockouts get team-set
+// settled at seed time), so the group section is read-only for
+// teams and only takes result entry. Knockouts get team-set
 // affordances.
-//
-// Donation review used to live on this page too — it now belongs
-// exclusively to the campaign-detail surface
-// (/admin/campaigns/<world-cup-2026-id>), where the same queue
-// renders via the shared <DonationRow /> component. Having it in
-// two places created the same pending donation appearing in two
-// admin lists with no visible sync.
 
 import { useEffect, useState, useMemo } from 'react'
-import Link from 'next/link'
 import { toast } from 'sonner'
 import { CUP_TEAMS as TEAMS, teamLabel, ROUND_LABEL } from '@/lib/cup-data'
 
 interface Fixture {
-  id:        string
-  round:     'group' | 'r32' | 'r16' | 'qf' | 'sf' | 'final'
-  group:     string | null
-  homeTeam:  string | null
-  awayTeam:  string | null
-  homeLabel: string | null
-  awayLabel: string | null
-  kickoffAt: string
-  venue:     string | null
+  id:         string
+  round:      'group' | 'r32' | 'r16' | 'qf' | 'sf' | 'final'
+  group:      string | null
+  homeTeam:   string | null
+  awayTeam:   string | null
+  homeLabel:  string | null
+  awayLabel:  string | null
+  kickoffAt:  string
+  venue:      string | null
   winnerTeam: string | null
-  homeScore: number | null
-  awayScore: number | null
-  points:    number
+  homeScore:  number | null
+  awayScore:  number | null
+  points:     number
 }
 
-export default function AdminCupPage() {
-  const [fixtures, setFixtures] = useState<Fixture[] | null>(null)
-  const [loading,  setLoading]  = useState(true)
+export default function CupFixturesPanel() {
+  const [fixtures,    setFixtures]    = useState<Fixture[] | null>(null)
+  const [loading,     setLoading]     = useState(true)
   const [roundFilter, setRoundFilter] = useState<string>('all')
 
   function load() {
@@ -56,7 +50,7 @@ export default function AdminCupPage() {
 
   useEffect(() => { load() }, [])
 
-  // Stats — at-a-glance "how much of the tournament has resolved."
+  // At-a-glance "how much of the tournament has resolved."
   const stats = useMemo(() => {
     if (!fixtures) return null
     const total      = fixtures.length
@@ -74,22 +68,7 @@ export default function AdminCupPage() {
   }, [fixtures])
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 max-w-4xl">
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-extrabold text-white tracking-tight">⚽ Cup admin</h1>
-          <p className="text-sm text-zinc-500 mt-0.5">
-            Fill in knockout slots as group play resolves · record results · scoring runs in the same transaction
-          </p>
-          <p className="text-[11px] text-zinc-600 mt-1">
-            Donation review lives on the <Link href="/admin/campaigns" className="text-amber-500 hover:underline">campaign page</Link>.
-          </p>
-        </div>
-        <Link href="/cup" className="text-xs font-semibold px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700">
-          View /cup →
-        </Link>
-      </div>
-
+    <div className="space-y-5">
       {stats && (
         <div className="grid grid-cols-3 gap-3">
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
@@ -129,7 +108,7 @@ export default function AdminCupPage() {
             return (
               <section key={round}>
                 <div className="flex items-center justify-between mb-2 px-1">
-                  <h2 className="text-sm font-bold text-white">{ROUND_LABEL[round]}</h2>
+                  <h3 className="text-sm font-bold text-white">{ROUND_LABEL[round]}</h3>
                   <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wider">
                     {rows[0].points} pt{rows[0].points === 1 ? '' : 's'} each · {rows.length} match{rows.length === 1 ? '' : 'es'}
                   </span>
@@ -147,15 +126,15 @@ export default function AdminCupPage() {
 }
 
 function FixtureRow({ fixture, onSaved }: { fixture: Fixture; onSaved: () => void }) {
-  const [home,       setHome]       = useState(fixture.homeTeam  ?? '')
-  const [away,       setAway]       = useState(fixture.awayTeam  ?? '')
+  const [home,       setHome]       = useState(fixture.homeTeam   ?? '')
+  const [away,       setAway]       = useState(fixture.awayTeam   ?? '')
   const [winner,     setWinner]     = useState(fixture.winnerTeam ?? '')
   const [homeScore,  setHomeScore]  = useState(fixture.homeScore != null ? String(fixture.homeScore) : '')
   const [awayScore,  setAwayScore]  = useState(fixture.awayScore != null ? String(fixture.awayScore) : '')
   const [saving,     setSaving]     = useState(false)
   const [editing,    setEditing]    = useState(false)
 
-  const isGroup = fixture.round === 'group'
+  const isGroup       = fixture.round === 'group'
   // Group fixtures came pre-populated with real teams from the
   // draw; knockouts started as TBD labels. We only let admins
   // edit teams on knockouts since editing a group team would
@@ -193,7 +172,7 @@ function FixtureRow({ fixture, onSaved }: { fixture: Fixture; onSaved: () => voi
       const d = await res.json()
       if (!res.ok) { toast.error(d.error ?? 'Save failed'); return }
 
-      const scored = d.predScored ?? 0
+      const scored   = d.predScored ?? 0
       const brackets = d.bracketsRescored ?? 0
       toast.success(
         `Saved${scored ? ` · ${scored} prediction${scored === 1 ? '' : 's'} scored` : ''}${brackets ? ` · ${brackets} bracket${brackets === 1 ? '' : 's'} rescored` : ''}`,

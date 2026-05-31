@@ -2,30 +2,56 @@
 
 // /admin/campaigns/[id] — single campaign detail. Header with
 // status + dates, inline Edit panel (name/emoji/tagline/status/
-// dates/routeSlug), embedded donations queue scoped to this
-// campaign, and quick links to the related admin surfaces.
+// dates/routeSlug), then a tab pane:
+//   - Donations: queue of pending/reviewed CupPrizeDonations
+//     scoped to this campaign, with the shared <DonationRow />
+//     publish form
+//   - Fixtures + results (only when campaign.hasFixtures): the
+//     full cup-fixture admin extracted from the now-deleted
+//     /admin/cup page
 //
-// Donations and the publish form render via the shared
-// <DonationRow /> component so /admin/cup and this page stay in
-// sync without copy-paste. The "Fixtures + results →" link surfaces
-// when campaign.hasFixtures is true (a structural model flag),
-// replacing the previous slug === 'world-cup-2026' hardcode.
+// Active tab is mirrored to ?tab= so refreshes + bookmarks land
+// where the admin left off. Pre-consolidation the fixtures tab
+// was a standalone /admin/cup page with its own nav row; folding
+// both surfaces into the same campaign-detail page kills the
+// last bit of admin nav duplication.
 
 import { useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams, useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
 
 import { type AdminCampaign, CAMPAIGN_STATUS_PILL, CAMPAIGN_STATUSES, type CampaignStatus } from '@/lib/admin/campaigns'
 import { type AdminDonation } from '@/lib/admin/donations'
-import DonationRow from '@/components/admin/DonationRow'
+import DonationRow      from '@/components/admin/DonationRow'
+import CupFixturesPanel from '@/components/admin/CupFixturesPanel'
+
+type Tab = 'donations' | 'fixtures'
 
 export default function AdminCampaignDetailPage() {
-  const { id } = useParams<{ id: string }>()
+  const { id }       = useParams<{ id: string }>()
+  const searchParams = useSearchParams()
+  const router       = useRouter()
+  const pathname     = usePathname()
+
   const [campaign,  setCampaign]  = useState<AdminCampaign | null>(null)
   const [donations, setDonations] = useState<AdminDonation[] | null>(null)
   const [showResolved, setShowResolved] = useState(false)
   const [editing,   setEditing]   = useState(false)
+
+  // Active tab from URL. Defaults to donations (matches the
+  // pre-tab behavior of the page). Setter writes back to ?tab=
+  // via shallow router.replace so the browser back button doesn't
+  // get polluted with one history entry per tab switch.
+  const tabParam = searchParams.get('tab')
+  const tab: Tab = tabParam === 'fixtures' ? 'fixtures' : 'donations'
+  function setTab(t: Tab) {
+    const next = new URLSearchParams(searchParams.toString())
+    if (t === 'donations') next.delete('tab')
+    else                   next.set('tab', t)
+    const qs = next.toString()
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+  }
 
   function load() {
     Promise.all([
@@ -91,15 +117,6 @@ export default function AdminCampaignDetailPage() {
           </button>
         </div>
         <div className="border-t border-zinc-800 pt-3 mt-3 flex flex-wrap gap-2">
-          {/* hasFixtures replaces the previous hardcoded
-              `slug === 'world-cup-2026'` check. A future Euros
-              campaign with its own fixtures admin would set the
-              same flag and get the same link surfaced. */}
-          {campaign.hasFixtures && (
-            <Link href="/admin/cup" className="text-xs px-3 py-1.5 rounded-lg bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 font-semibold">
-              Fixtures + results →
-            </Link>
-          )}
           <Link href={`/${campaign.routeSlug}`} className="text-xs px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-semibold">
             View public page →
           </Link>
@@ -110,42 +127,73 @@ export default function AdminCampaignDetailPage() {
         <EditPanel campaign={campaign} onSaved={c => { setCampaign(c); setEditing(false) }} onCancel={() => setEditing(false)} />
       )}
 
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
-        <div className="px-5 py-3.5 border-b border-zinc-800 flex items-center justify-between">
-          <div>
-            <h2 className="text-sm font-bold text-white">Prize donations</h2>
-            <p className="text-[10px] text-zinc-500 mt-0.5">
-              {pending.length} pending · {resolved.length} reviewed
-            </p>
+      {/* Tab nav. Only renders the Fixtures tab when the campaign
+          carries a fixtures admin surface (hasFixtures = true; set
+          by the seed for world-cup-2026 and any future tournament).
+          For donation-only campaigns the donations pane is the only
+          thing surfaced — no tab chrome at all. */}
+      {campaign.hasFixtures ? (
+        <div className="flex gap-1 bg-zinc-900 border border-zinc-800 rounded-xl p-1 w-fit">
+          <TabButton active={tab === 'donations'} onClick={() => setTab('donations')}>
+            Donations {pending.length > 0 && <span className="ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold rounded-full bg-amber-500/20 text-amber-300">{pending.length}</span>}
+          </TabButton>
+          <TabButton active={tab === 'fixtures'} onClick={() => setTab('fixtures')}>
+            Fixtures + results
+          </TabButton>
+        </div>
+      ) : null}
+
+      {tab === 'donations' && (
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-zinc-800 flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-bold text-white">Prize donations</h2>
+              <p className="text-[10px] text-zinc-500 mt-0.5">
+                {pending.length} pending · {resolved.length} reviewed
+              </p>
+            </div>
           </div>
+
+          {donations === null && (
+            <p className="px-5 py-4 text-sm text-zinc-500">Loading donations…</p>
+          )}
+          {donations !== null && pending.length === 0 && resolved.length === 0 && (
+            <p className="px-5 py-4 text-sm text-zinc-500">No donations yet.</p>
+          )}
+
+          <div className="divide-y divide-zinc-800">
+            {pending.map(d => <DonationRow key={d.id} d={d} onAction={act} />)}
+          </div>
+
+          {resolved.length > 0 && (
+            <>
+              <button onClick={() => setShowResolved(s => !s)}
+                className="w-full px-5 py-3 text-left border-t border-zinc-800 text-xs font-semibold text-zinc-500 hover:text-white transition-colors">
+                {showResolved ? '↑ Hide' : '↓ Show'} {resolved.length} reviewed
+              </button>
+              {showResolved && (
+                <div className="divide-y divide-zinc-800 border-t border-zinc-800">
+                  {resolved.map(d => <DonationRow key={d.id} d={d} onAction={act} />)}
+                </div>
+              )}
+            </>
+          )}
         </div>
+      )}
 
-        {donations === null && (
-          <p className="px-5 py-4 text-sm text-zinc-500">Loading donations…</p>
-        )}
-        {donations !== null && pending.length === 0 && resolved.length === 0 && (
-          <p className="px-5 py-4 text-sm text-zinc-500">No donations yet.</p>
-        )}
-
-        <div className="divide-y divide-zinc-800">
-          {pending.map(d => <DonationRow key={d.id} d={d} onAction={act} />)}
-        </div>
-
-        {resolved.length > 0 && (
-          <>
-            <button onClick={() => setShowResolved(s => !s)}
-              className="w-full px-5 py-3 text-left border-t border-zinc-800 text-xs font-semibold text-zinc-500 hover:text-white transition-colors">
-              {showResolved ? '↑ Hide' : '↓ Show'} {resolved.length} reviewed
-            </button>
-            {showResolved && (
-              <div className="divide-y divide-zinc-800 border-t border-zinc-800">
-                {resolved.map(d => <DonationRow key={d.id} d={d} onAction={act} />)}
-              </div>
-            )}
-          </>
-        )}
-      </div>
+      {tab === 'fixtures' && campaign.hasFixtures && <CupFixturesPanel />}
     </div>
+  )
+}
+
+function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button onClick={onClick}
+      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors inline-flex items-center ${
+        active ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-white'
+      }`}>
+      {children}
+    </button>
   )
 }
 

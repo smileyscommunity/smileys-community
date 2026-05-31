@@ -13,8 +13,9 @@ import { createNotification } from '@/lib/notify'
 // can't spam the queue.
 //
 // Stored as a CupPrizeDonation with status='pending'. Admin
-// triages in /admin/cup; on approval they convert it into a
-// CupSponsor + CupPrize via separate routes.
+// triages in /admin/campaigns/<cup-id> (Donations tab); on
+// approval the shared <DonationRow /> publish form converts it
+// into a CupSponsor + CupPrize in one transaction.
 //
 // Notifications: all admins get a notification on each new
 // donation so a polite-but-firm review window can be hit (donors
@@ -82,14 +83,17 @@ export async function POST(req: NextRequest) {
 
   // Notify admins — fire-and-forget so a notify outage doesn't
   // block a donor's submission. Capped to admin role; moderators
-  // can see the queue via the page but don't need a ping.
+  // can see the queue via the page but don't need a ping. The
+  // notification URL deep-links into the cup campaign's Donations
+  // tab so a single tap lands the admin on the row to review.
+  const adminUrl = campaign?.id ? `/admin/campaigns/${campaign.id}` : '/admin/campaigns'
   ;(async () => {
     const admins = await prisma.user.findMany({ where: { role: 'admin' }, select: { id: true } })
     await Promise.all(admins.map(a =>
       createNotification(a.id, 'host_message',
         '🎁 New cup prize donation',
         `${donorName} offered "${prizeTitle}" — review the queue`,
-        '/admin/cup',
+        adminUrl,
       ),
     ))
   })().catch(() => {})
