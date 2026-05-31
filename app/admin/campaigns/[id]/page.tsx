@@ -198,13 +198,17 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
 }
 
 // Inline edit panel. Hits PATCH /api/admin/campaigns with the
-// fields the admin changed. Only re-renders when the admin opens
-// it so the form state resets cleanly between sessions.
+// fields the admin changed, plus exposes a destructive Delete
+// button (cascades to sponsors/prizes/donations server-side; the
+// API refuses the deletion for the protected world-cup-2026 slug
+// so the cup row stays live). Only re-renders when the admin
+// opens it so the form state resets cleanly between sessions.
 function EditPanel({ campaign, onSaved, onCancel }: {
   campaign: AdminCampaign
   onSaved:  (c: AdminCampaign) => void
   onCancel: () => void
 }) {
+  const router = useRouter()
   const isCupSlug = campaign.slug === 'world-cup-2026'
   const [draft, setDraft] = useState({
     name:        campaign.name,
@@ -216,7 +220,15 @@ function EditPanel({ campaign, onSaved, onCancel }: {
     startsAt:    campaign.startsAt ? campaign.startsAt.slice(0, 10) : '',
     endsAt:      campaign.endsAt   ? campaign.endsAt.slice(0, 10)   : '',
   })
-  const [saving, setSaving] = useState(false)
+  const [saving,    setSaving]    = useState(false)
+  const [deleting,  setDeleting]  = useState(false)
+  // Two-step delete confirm — first click reveals the typed-name
+  // gate, second click (after the name matches) actually fires.
+  // window.confirm is too easy to dismiss without reading; a
+  // type-the-name-to-confirm makes the destructive action
+  // deliberate without needing a modal library.
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
 
   async function save() {
     if (!draft.name.trim()) { toast.error('Name required'); return }
@@ -244,6 +256,24 @@ function EditPanel({ campaign, onSaved, onCancel }: {
     // The PATCH response returns the campaign without _count + hasFixtures
     // (the GET endpoint adds those). Preserve those from current state.
     onSaved({ ...campaign, ...d.campaign })
+  }
+
+  async function destroy() {
+    if (deleteConfirmText.trim() !== campaign.name.trim()) {
+      toast.error('Name doesn\'t match — type the exact campaign name to confirm')
+      return
+    }
+    setDeleting(true)
+    const res = await fetch('/app/api/admin/campaigns', {
+      method: 'DELETE', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: campaign.id }),
+    })
+    const d = await res.json().catch(() => ({}))
+    setDeleting(false)
+    if (!res.ok) { toast.error(d.error ?? 'Delete failed'); return }
+    toast.success(`Deleted "${campaign.name}"`)
+    router.push('/admin/campaigns')
   }
 
   return (
@@ -284,16 +314,64 @@ function EditPanel({ campaign, onSaved, onCancel }: {
           <input type="date" className={editInputCls} value={draft.endsAt} onChange={e => setDraft({ ...draft, endsAt: e.target.value })} />
         </EditField>
       </div>
-      <div className="flex gap-2 justify-end">
-        <button onClick={onCancel} disabled={saving}
-          className="text-xs px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-400 font-semibold disabled:opacity-60">
-          Cancel
-        </button>
-        <button onClick={save} disabled={saving}
-          className="text-xs px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold disabled:opacity-60">
-          {saving ? 'Saving…' : 'Save'}
-        </button>
+      <div className="flex items-center justify-between gap-2 pt-1">
+        {/* Delete lives on the left so it doesn't sit between Cancel
+            and Save (no accidental clicks). Hidden for the protected
+            cup row — the server refuses the call there anyway, but
+            no point surfacing a button that always errors. */}
+        <div>
+          {!isCupSlug && !showDeleteConfirm && (
+            <button onClick={() => setShowDeleteConfirm(true)} disabled={saving}
+              className="text-xs px-3 py-2 rounded-lg bg-zinc-800 hover:bg-red-500/15 hover:text-red-400 text-zinc-500 font-semibold disabled:opacity-60">
+              Delete campaign…
+            </button>
+          )}
+          {isCupSlug && (
+            <span className="text-[10px] text-zinc-600">Protected campaign · cannot delete</span>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <button onClick={onCancel} disabled={saving || deleting}
+            className="text-xs px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-400 font-semibold disabled:opacity-60">
+            Cancel
+          </button>
+          <button onClick={save} disabled={saving || deleting || showDeleteConfirm}
+            className="text-xs px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold disabled:opacity-60">
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
       </div>
+
+      {/* Two-step destructive confirm. Cascades to sponsors / prizes
+          / donations server-side, so we ask the admin to type the
+          name back to gate the action. Stays in the EditPanel
+          rather than a modal so the muscle memory of "open edit →
+          click delete" doesn't suddenly involve a portal. */}
+      {showDeleteConfirm && (
+        <div className="border border-red-500/30 bg-red-500/5 rounded-xl p-4 space-y-3">
+          <div>
+            <p className="text-sm font-bold text-red-300">Delete &ldquo;{campaign.name}&rdquo;?</p>
+            <p className="text-[11px] text-red-400/80 mt-1 leading-snug">
+              This cascades — every sponsor, prize, and donation tied to this campaign goes with it. Cannot be undone.
+            </p>
+          </div>
+          <EditField label={`Type "${campaign.name}" to confirm`}>
+            <input className={editInputCls} value={deleteConfirmText}
+              onChange={e => setDeleteConfirmText(e.target.value)}
+              placeholder={campaign.name} />
+          </EditField>
+          <div className="flex gap-2 justify-end">
+            <button onClick={() => { setShowDeleteConfirm(false); setDeleteConfirmText('') }} disabled={deleting}
+              className="text-xs px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-400 font-semibold disabled:opacity-60">
+              Back
+            </button>
+            <button onClick={destroy} disabled={deleting || deleteConfirmText.trim() !== campaign.name.trim()}
+              className="text-xs px-3 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white font-bold disabled:opacity-40 disabled:cursor-not-allowed">
+              {deleting ? 'Deleting…' : 'Delete permanently'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

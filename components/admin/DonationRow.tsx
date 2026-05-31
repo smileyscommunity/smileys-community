@@ -14,7 +14,11 @@
 
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { type AdminDonation, slugifyDonor, isMaybeValidUrl } from '@/lib/admin/donations'
+import { type AdminDonation, isMaybeValidUrl } from '@/lib/admin/donations'
+// Canonical slug helper lives in lib/cup-prize-conversion.ts — same
+// rules the server enforces when it writes the row, so the preview
+// in this form matches the slug allocated at publish time.
+import { slugifyForCup } from '@/lib/cup-prize-conversion'
 
 interface Props {
   d:        AdminDonation
@@ -31,7 +35,7 @@ export default function DonationRow({ d, onAction }: Props) {
   const defaultSponsorName = d.donorOrganization?.trim() || d.donorName
   const [form,      setForm]      = useState({
     sponsorName:       defaultSponsorName,
-    sponsorSlug:       slugifyDonor(defaultSponsorName),
+    sponsorSlug:       slugifyForCup(defaultSponsorName),
     sponsorBlurb:      '',
     sponsorLogoUrl:    '',
     sponsorWebsiteUrl: '',
@@ -56,7 +60,7 @@ export default function DonationRow({ d, onAction }: Props) {
     if (form.sponsorName.trim()) {
       body.sponsor = {
         name:        form.sponsorName.trim(),
-        slug:        form.sponsorSlug.trim() || slugifyDonor(form.sponsorName),
+        slug:        form.sponsorSlug.trim() || slugifyForCup(form.sponsorName),
         blurb:       form.sponsorBlurb.trim()      || null,
         logoUrl:     form.sponsorLogoUrl.trim()    || null,
         websiteUrl:  form.sponsorWebsiteUrl.trim() || null,
@@ -155,7 +159,7 @@ function PublishForm({ form, setForm, publishing, onCancel, onPublish }: {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <Field label="Name">
             <input type="text" value={form.sponsorName}
-              onChange={e => { const v = e.target.value; setForm({ ...form, sponsorName: v, sponsorSlug: form.sponsorSlug === slugifyDonor(form.sponsorName) ? slugifyDonor(v) : form.sponsorSlug }) }}
+              onChange={e => { const v = e.target.value; setForm({ ...form, sponsorName: v, sponsorSlug: form.sponsorSlug === slugifyForCup(form.sponsorName) ? slugifyForCup(v) : form.sponsorSlug }) }}
               className={inputCls} />
           </Field>
           <Field label="Slug">

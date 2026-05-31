@@ -22,16 +22,6 @@ export interface AdminDonation {
   createdAt:         string
 }
 
-// Sponsor-slug suggestion derived from the donor name or org. Same
-// rules the server enforces in lib/cup-prize-conversion.ts so the
-// preview matches the canonical slug at write time.
-export function slugifyDonor(input: string): string {
-  return input.trim().toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 60)
-}
-
 // Light URL sanity for the publish form. Empty string is allowed
 // (treated as "no link given"); non-empty must parse and be
 // http(s). Catches typos like "smileys.com" (no protocol) before
