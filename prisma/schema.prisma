@@ -549,12 +549,20 @@ model CupFixture {
   homeScore    Int?
   awayScore    Int?
   points       Int      @default(0)   // 0 (group) | 3 (R32) | 5 (R16) | 10 (QF) | 20 (SF) | 40 (F)
+  // Stamp set by the cup-reminders sweeper (~30 min before kickoff)
+  // once it has pushed "lock your pick" to subscribed members. Null
+  // = not yet notified. Idempotency: once stamped, sweeper skips
+  // the row on subsequent runs so a fixture only triggers one push
+  // round, even if the cron fires multiple times inside the [T-35,
+  // T-25] window.
+  reminderSentAt DateTime?
   updatedAt    DateTime @updatedAt
   createdAt    DateTime @default(now())
 
   predictions  CupPrediction[]
 
   @@index([round, kickoffAt])
+  @@index([reminderSentAt, kickoffAt])
   @@map("cup_fixtures")
 }
 

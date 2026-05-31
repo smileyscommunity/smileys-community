@@ -89,6 +89,15 @@ ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-event-surveys.sh && (crontab -l 2>
 echo "→ Registering NPS sweeper crontab..."
 ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-nps-dispatch.sh && (crontab -l 2>/dev/null | grep -v 'sweep-nps-dispatch' ; echo '10 9 * * * $REMOTE/scripts/sweep-nps-dispatch.sh >> /var/log/sweep-nps.log 2>&1') | crontab -"
 
+# Install the cup match-reminder cron — fires every 5 minutes during
+# the tournament window and is a no-op otherwise (the sweeper's query
+# returns zero rows when no fixture is in the [T-35, T-25] window).
+# 5-min cadence is the precision we need to land in the T-30 window
+# exactly once per fixture; tighter would burn idle CPU, looser would
+# miss fixtures.
+echo "→ Registering cup-reminders sweeper crontab..."
+ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-cup-reminders.sh && (crontab -l 2>/dev/null | grep -v 'sweep-cup-reminders' ; echo '*/5 * * * * $REMOTE/scripts/sweep-cup-reminders.sh >> /var/log/sweep-cup-reminders.log 2>&1') | crontab -"
+
 # Seed the Smileys Cup 2026 fixtures (knockouts + group stage).
 # Idempotent — per-fixture findUnique guards mean re-runs are safe.
 # `--env-file=.env` is required so tsx loads DATABASE_URL (PM2's

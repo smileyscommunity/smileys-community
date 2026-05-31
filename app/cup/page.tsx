@@ -375,9 +375,18 @@ export default function CupPredictionsPage() {
           visible while the long fixtures list scrolls.
           On mobile, HTML order = visual order: gameplay first
           (you came to play, not to read), then context below. */}
+      {/* Three grid children on lg+:
+            (1) main = bracket / leaderboard / etc.  (col 1, row 1)
+            (2) aside = context cards              (col 2, rows 1–2, sticky)
+            (3) fixtures section                    (col 1, row 2)
+          On mobile the wrapper is a plain block stack so the DOM
+          order — main → aside → fixtures — IS the visual order.
+          That lifts the sidebar above the 100+ row fixtures list so
+          new visitors don't have to scroll past every match to find
+          the Rules / FAQ / Watch parties / Prizes cards. */}
       <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-6 lg:items-start">
         {/* ── Main column ───────────────────────────────────── */}
-        <main className="space-y-4 min-w-0">
+        <main className="space-y-4 min-w-0 lg:col-start-1 lg:row-start-1">
           {!bracketLocked && accessState === 'member' && (
             <BracketCard
               bracket={bracket?.bracket ?? null}
@@ -443,9 +452,40 @@ export default function CupPredictionsPage() {
               accessState={accessState}
             />
           )}
+        </main>
 
-          {/* Fixtures by round. Group stage first; knockouts flat. */}
-          <div className="space-y-5">
+        {/* ── Right sidebar — context cards ──────────────────────
+            Sticky on lg+ (sits within col 2, spans both rows so
+            sticky tracks the full main+fixtures scroll). On mobile
+            this aside is the SECOND child of the wrapper, so it
+            renders between the main column and the fixtures section
+            — Rules / FAQ / Prizes are no longer buried under 100+
+            fixture rows. Ordering inside is the reading priority:
+            rules first (orientation), FAQ (common questions), then
+            community (watch parties + prizes), share at the end. */}
+        <aside className="space-y-4 mt-4 lg:mt-0 lg:sticky lg:top-4 min-w-0 lg:col-start-2 lg:row-start-1 lg:row-span-2">
+          <RulesCard defaultOpen={accessState !== 'member'} />
+          {/* Your rank — desktop-only compact card showing your row
+              ±2. Pairs with the full Leaderboard in the main column:
+              that one stays high in the reading order on mobile, this
+              one is the always-visible "where am I" glance for
+              desktop users scrolling through 103 fixtures. */}
+          {accessState === 'member' && <MiniRankCard />}
+          <FAQCard />
+          <WatchParties />
+          <PrizesSection />
+          {/* Share — lives at the bottom of the sidebar as a final
+              "spread the word" beat. Members only; visitors get the
+              embedded share row inside their apply hero instead. */}
+          {accessState === 'member' && <ShareButton variant="member" />}
+        </aside>
+
+        {/* ── Fixtures ─────────────────────────────────────────
+            Separate grid child so the sidebar can slot between the
+            main column and this list on mobile. On desktop it
+            lives in row 2 of column 1, directly under the main
+            content; the sticky aside in column 2 tracks both rows. */}
+        <section className="space-y-5 mt-4 lg:mt-0 min-w-0 lg:col-start-1 lg:row-start-2">
         {/* Group stage — view toggle: by group (structural) vs by
             date (chronological). Smart default flips at first
             kickoff; user's explicit choice persists in
@@ -523,32 +563,7 @@ export default function CupPredictionsPage() {
             </section>
           )
         })}
-          </div>
-        </main>
-
-        {/* ── Right sidebar — context cards ──────────────────────
-            Sticky on lg+ so it doesn't scroll out of view while
-            the long fixtures list scrolls in the main column.
-            Mobile: stacks below the main column (gameplay comes
-            first). The ordering inside is the reading priority:
-            rules first (orientation), FAQ (common questions),
-            then community (watch parties + prizes). */}
-        <aside className="space-y-4 mt-4 lg:mt-0 lg:sticky lg:top-4 min-w-0">
-          <RulesCard defaultOpen={accessState !== 'member'} />
-          {/* Your rank — desktop-only compact card showing your row
-              ±2. Pairs with the full Leaderboard in the main column:
-              that one stays high in the reading order on mobile, this
-              one is the always-visible "where am I" glance for
-              desktop users scrolling through 103 fixtures. */}
-          {accessState === 'member' && <MiniRankCard />}
-          <FAQCard />
-          <WatchParties />
-          <PrizesSection />
-          {/* Share — lives at the bottom of the sidebar as a final
-              "spread the word" beat. Members only; visitors get the
-              embedded share row inside their apply hero instead. */}
-          {accessState === 'member' && <ShareButton variant="member" />}
-        </aside>
+        </section>
       </div>
     </Shell>
   )
@@ -1826,17 +1841,20 @@ function PushOptInStrip() {
     <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-4 flex items-start gap-3 shadow-sm">
       <span className="text-2xl shrink-0" aria-hidden>🔔</span>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-bold text-amber-900 leading-snug">Get match reminders</p>
-        <p className="text-[11px] text-amber-800/80 mt-0.5 leading-snug">A heads-up before each kickoff so you don&apos;t miss a pick.</p>
+        <p className="text-sm font-bold text-amber-900 leading-snug">Match reminders &amp; cup updates</p>
+        <p className="text-[11px] text-amber-800/80 mt-0.5 leading-snug">A heads-up ~30 min before each kickoff so you can lock your pick.</p>
       </div>
-      <div className="flex flex-col items-end gap-1 shrink-0">
-        <button onClick={enable} disabled={busy}
-          className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-xs font-bold rounded-lg disabled:opacity-50 transition-colors">
-          {busy ? 'Enabling…' : 'Enable'}
-        </button>
+      {/* Side-by-side buttons rather than stacked — keeps both tap
+          targets above ~36px and avoids the previous text-[10px]
+          dismiss button that was too small for mobile thumbs. */}
+      <div className="flex items-center gap-2 shrink-0">
         <button onClick={dismiss}
-          className="px-2 py-0.5 text-amber-700 hover:text-amber-900 text-[10px] font-semibold transition-colors">
+          className="px-3 py-2 text-amber-700 hover:bg-amber-100 active:bg-amber-200 text-xs font-semibold rounded-lg transition-colors">
           Not now
+        </button>
+        <button onClick={enable} disabled={busy}
+          className="px-3 py-2 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-xs font-bold rounded-lg disabled:opacity-50 transition-colors">
+          {busy ? 'Enabling…' : 'Enable'}
         </button>
       </div>
     </div>
