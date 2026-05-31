@@ -19,9 +19,15 @@ export interface AdminCampaign {
   createdAt?:  string
   updatedAt?:  string
   _count?: {
-    sponsors:  number
-    prizes:    number
-    donations: number
+    sponsors:          number
+    prizes:            number
+    donations:         number
+    // Pending = status='pending' subset of donations. Merged into
+    // the collection GET via a parallel groupBy (Prisma doesn't
+    // accept a where filter on individual _count fields). Detail
+    // GET omits this — the page computes it from the donations
+    // list it already loads.
+    pendingDonations?: number
   }
 }
 

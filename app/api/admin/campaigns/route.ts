@@ -34,16 +34,34 @@ export async function GET() {
   const session = await getSession()
   if (!session || !isAdminOrModerator(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const campaigns = await prisma.campaign.findMany({
-    orderBy: [{ status: 'asc' }, { startsAt: 'desc' }, { createdAt: 'desc' }],
-    select: {
-      id: true, slug: true, name: true, emoji: true, tagline: true, description: true,
-      coverImage: true, status: true, routeSlug: true,
-      startsAt: true, endsAt: true, createdAt: true, updatedAt: true,
-      _count: { select: { sponsors: true, prizes: true, donations: true } },
-    },
-  })
-  return NextResponse.json({ campaigns })
+  // Prisma's `_count` select doesn't accept a where filter per
+  // relation. To surface "X donations (Y pending)" on each card
+  // we run a parallel groupBy on pending donations and merge by
+  // campaignId — one extra round-trip, indexed lookup.
+  const [campaigns, pendingByCamp] = await Promise.all([
+    prisma.campaign.findMany({
+      orderBy: [{ status: 'asc' }, { startsAt: 'desc' }, { createdAt: 'desc' }],
+      select: {
+        id: true, slug: true, name: true, emoji: true, tagline: true, description: true,
+        coverImage: true, status: true, routeSlug: true, hasFixtures: true,
+        startsAt: true, endsAt: true, createdAt: true, updatedAt: true,
+        _count: { select: { sponsors: true, prizes: true, donations: true } },
+      },
+    }),
+    prisma.cupPrizeDonation.groupBy({
+      by: ['campaignId'],
+      where:  { status: 'pending' },
+      _count: { _all: true },
+    }),
+  ])
+  const pendingMap = new Map<string | null, number>(
+    pendingByCamp.map(p => [p.campaignId, p._count._all]),
+  )
+  const enriched = campaigns.map(c => ({
+    ...c,
+    _count: { ...c._count, pendingDonations: pendingMap.get(c.id) ?? 0 },
+  }))
+  return NextResponse.json({ campaigns: enriched })
 }
 
 export async function POST(req: NextRequest) {

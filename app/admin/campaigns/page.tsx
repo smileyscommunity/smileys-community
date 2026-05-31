@@ -91,31 +91,57 @@ export default function AdminCampaignsPage() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {campaigns?.map(c => (
-          <Link key={c.id} href={`/admin/campaigns/${c.id}`}
-            className="bg-zinc-900 border border-zinc-800 hover:border-amber-500/40 rounded-2xl p-5 transition-colors">
-            <div className="flex items-start gap-3 mb-3">
-              <div className="text-2xl shrink-0">{c.emoji ?? '📢'}</div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-sm font-bold text-white truncate">{c.name}</p>
-                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${CAMPAIGN_STATUS_PILL[c.status] ?? CAMPAIGN_STATUS_PILL.draft}`}>{c.status}</span>
+        {campaigns?.map(c => {
+          // _count optional in the shared type (dedicated GET can
+          // omit it); on this list endpoint it's always returned.
+          const sponsors  = c._count?.sponsors         ?? 0
+          const prizes    = c._count?.prizes           ?? 0
+          const donations = c._count?.donations        ?? 0
+          const pending   = c._count?.pendingDonations ?? 0
+          return (
+            // Wrapper is a plain div instead of <Link> so the "View
+            // public →" link below can be a real <a> without nesting
+            // anchors (HTML invalid + browsers handle it
+            // inconsistently). The visible "Manage" link makes the
+            // primary action explicit.
+            <div key={c.id}
+              className="bg-zinc-900 border border-zinc-800 hover:border-amber-500/40 rounded-2xl p-5 transition-colors">
+              <Link href={`/admin/campaigns/${c.id}`} className="flex items-start gap-3 mb-3 group">
+                <div className="text-2xl shrink-0">{c.emoji ?? '📢'}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-bold text-white truncate group-hover:text-amber-300 transition-colors">{c.name}</p>
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${CAMPAIGN_STATUS_PILL[c.status] ?? CAMPAIGN_STATUS_PILL.draft}`}>{c.status}</span>
+                  </div>
+                  <p className="text-[10px] text-zinc-600 mt-0.5 font-mono">/{c.slug}</p>
+                  {c.tagline && <p className="text-xs text-zinc-500 mt-1 line-clamp-2">{c.tagline}</p>}
                 </div>
-                <p className="text-[10px] text-zinc-600 mt-0.5 font-mono">/{c.slug}</p>
-                {c.tagline && <p className="text-xs text-zinc-500 mt-1 line-clamp-2">{c.tagline}</p>}
+              </Link>
+              <div className="flex items-center gap-3 text-[10px] text-zinc-500 border-t border-zinc-800 pt-2.5 font-semibold">
+                <span>🤝 {sponsors} sponsor{sponsors === 1 ? '' : 's'}</span>
+                <span>🎁 {prizes} prize{prizes === 1 ? '' : 's'}</span>
+                {/* Pending count lifted out so admins can scan queue
+                    depth without drilling in. Suppressed when zero
+                    so the chips stay quiet during low-activity
+                    periods. */}
+                <span>
+                  📥 {donations} donation{donations === 1 ? '' : 's'}
+                  {pending > 0 && <span className="ml-1 text-amber-400">· {pending} pending</span>}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-2 mt-3 pt-2.5 border-t border-zinc-800/60">
+                <Link href={`/admin/campaigns/${c.id}`}
+                  className="text-[11px] font-semibold text-amber-400 hover:text-amber-300">
+                  Manage →
+                </Link>
+                <Link href={`/${c.routeSlug}`} target="_blank" rel="noopener noreferrer"
+                  className="text-[11px] font-semibold text-zinc-500 hover:text-white">
+                  View public ↗
+                </Link>
               </div>
             </div>
-            <div className="flex items-center gap-3 text-[10px] text-zinc-500 border-t border-zinc-800 pt-2.5 font-semibold">
-              {/* _count is always returned by the collection GET, but
-                  the shared AdminCampaign type leaves it optional so
-                  the dedicated GET can omit it. ?? 0 keeps both
-                  surfaces type-safe. */}
-              <span>🤝 {c._count?.sponsors  ?? 0} sponsor{(c._count?.sponsors  ?? 0) === 1 ? '' : 's'}</span>
-              <span>🎁 {c._count?.prizes    ?? 0} prize{(c._count?.prizes      ?? 0) === 1 ? '' : 's'}</span>
-              <span>📥 {c._count?.donations ?? 0} donation{(c._count?.donations ?? 0) === 1 ? '' : 's'}</span>
-            </div>
-          </Link>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

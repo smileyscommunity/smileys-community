@@ -72,16 +72,65 @@ export default function AdminCampaignDetailPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: donationId, action, ...(body ?? {}) }),
     })
+    const d = await res.json().catch(() => ({}))
     if (!res.ok) {
-      const d = await res.json().catch(() => ({}))
       toast.error(d.error ?? 'Could not update')
       return
     }
     toast.success(action === 'approve' ? (body ? 'Published 🎉' : 'Approved') : 'Declined')
-    load()
+    // Optimistic local update — flip just the row that changed
+    // rather than refetching the full donations list. For rapid
+    // review of 10+ pending donations this turns 10+ full fetches
+    // into 10+ no-network state updates. reviewedBy stays null
+    // until the next mount; the missing byline is acceptable
+    // given the admin just performed the action themselves.
+    const nowIso = new Date().toISOString()
+    setDonations(prev => prev?.map(row =>
+      row.id !== donationId ? row : {
+        ...row,
+        status:          (d.status as AdminDonation['status']) ?? row.status,
+        reviewedAt:      nowIso,
+        linkedSponsorId: d.sponsorId ?? row.linkedSponsorId,
+        linkedPrizeId:   d.prizeId   ?? row.linkedPrizeId,
+      },
+    ) ?? null)
   }
 
-  if (!campaign) return <div className="p-6 text-zinc-500 text-sm">Loading…</div>
+  // Page-shape skeleton (campaign hasn't loaded yet). Previously
+  // returned a tiny "Loading…" then jumped to the full page; the
+  // skeleton mimics the eventual layout so the transition is a
+  // fill-in rather than a layout shift.
+  if (!campaign) {
+    return (
+      <div className="p-4 sm:p-6 space-y-5 max-w-4xl">
+        <div className="bg-zinc-800 rounded h-3 w-32 animate-pulse" />
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 bg-zinc-800 rounded animate-pulse" />
+            <div className="flex-1 space-y-2">
+              <div className="bg-zinc-800 rounded h-5 w-1/2 animate-pulse" />
+              <div className="bg-zinc-800 rounded h-3 w-3/4 animate-pulse" />
+              <div className="bg-zinc-800 rounded h-3 w-1/3 animate-pulse" />
+            </div>
+          </div>
+        </div>
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-zinc-800 space-y-1.5">
+            <div className="bg-zinc-800 rounded h-4 w-32 animate-pulse" />
+            <div className="bg-zinc-800 rounded h-3 w-40 animate-pulse" />
+          </div>
+          <div className="divide-y divide-zinc-800">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="px-5 py-4 space-y-2">
+                <div className="bg-zinc-800 rounded h-4 w-2/3 animate-pulse" />
+                <div className="bg-zinc-800 rounded h-3 w-full animate-pulse" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   const pending  = (donations ?? []).filter(d => d.status === 'pending')
   const resolved = (donations ?? []).filter(d => d.status !== 'pending')
