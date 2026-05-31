@@ -357,12 +357,31 @@ export default function CupPredictionsPage() {
           for members (they've seen it before). */}
       <RulesCard defaultOpen={accessState !== 'member'} />
 
+      {/* FAQ — recurring questions admins shouldn't have to field
+          in DMs during peak. Static content, collapsible like the
+          rules card. Defaults closed for members (they know it),
+          closed for visitors too (rules card already serves the
+          orientation role). */}
+      <FAQCard />
+
+      {/* Watch parties — Smileys events tagged "World Cup" in
+          their vibes array. Members RSVP without leaving the
+          page. Tournament-window only; hidden when there are no
+          events to surface. */}
+      <WatchParties />
+
       {/* Prizes section — podium + sponsor logos + Donate CTA.
           Sits between rules and bracket so members read "here's
           what's at stake" before locking in their pick. Public
           read; the donate form is open to anyone (rate limited
           server-side). */}
       <PrizesSection />
+
+      {/* Trending picks — what other members are picking for
+          champion + SF. Public; aggregates only, no user data.
+          Drives FOMO for fence-sitters and social proof for
+          visitors who scroll past the bracket card. */}
+      <TrendingPicks />
 
       {/* Page hierarchy adapts to tournament state.
           Pre-kickoff (bracket still editable):
@@ -1397,6 +1416,193 @@ function Field({ label, hint, required, children }: { label: string; hint?: stri
   )
 }
 
+// ─────────────────────────────────────────────────────────────────
+// FAQ card — collapsible, hardcoded Q&As. Cuts inbound DMs to
+// admins during peak. Same shape as the rules card so it reads
+// as a sibling, not a competing section.
+// ─────────────────────────────────────────────────────────────────
+const FAQS: { q: string; a: string }[] = [
+  { q: 'What if I miss a match?',
+    a: 'Picks lock at kickoff. If you miss one, you forfeit the points for that match — but your bracket and other match picks keep scoring. There\'s no penalty beyond the lost match points.' },
+  { q: 'Can I edit my bracket after submitting?',
+    a: 'Yes — any time before first kickoff (Jun 11 22:00 Istanbul). Once the first match starts, your champion + 4 semifinalists lock for the rest of the tournament.' },
+  { q: 'How are ties broken?',
+    a: 'If two members finish on identical points, the earlier bracket submission wins. Submit early — it rewards commitment.' },
+  { q: 'Where are the watch parties?',
+    a: 'Smileys events tagged with "World Cup" appear in the Watch parties section above. Hosts open them up to club members and friends. RSVP normally.' },
+  { q: 'Do I have to pick every match?',
+    a: 'No — group-stage picks are 1 pt each, skip as many as you like. Knockouts (R32 → Final) scale up to 40 pts for the Final winner; that\'s where the real movement happens.' },
+  { q: 'How are predictions kept fair?',
+    a: 'Picks lock server-side at the second of kickoff. Score-after-the-fact is impossible. Identical-pick collusion between accounts is monitored.' },
+  { q: 'What does the winner actually get?',
+    a: 'The Smileys Cup trophy + a partner dinner + a year of VIP membership. See the Prizes section above for what else is on the board — sponsors can donate via the form there.' },
+]
+
+function FAQCard() {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="bg-white rounded-2xl shadow-card mb-4 overflow-hidden">
+      <button onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-gray-50 transition-colors">
+        <div>
+          <p className="text-sm font-bold text-gray-900">Common questions</p>
+          <p className="text-xs text-gray-500 mt-0.5">{FAQS.length} answers — most of what people ask in DMs.</p>
+        </div>
+        <svg className={`w-5 h-5 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`}
+          fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && (
+        <div className="divide-y divide-gray-100 border-t border-gray-100">
+          {FAQS.map((f, i) => <FAQRow key={i} q={f.q} a={f.a} />)}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function FAQRow({ q, a }: { q: string; a: string }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div>
+      <button onClick={() => setOpen(o => !o)}
+        className="w-full px-5 py-3 text-left flex items-start justify-between gap-3 hover:bg-gray-50 transition-colors">
+        <span className="text-sm font-semibold text-gray-800 flex-1">{q}</span>
+        <span className={`text-gray-400 text-base shrink-0 transition-transform ${open ? 'rotate-90' : ''}`}>›</span>
+      </button>
+      {open && (
+        <p className="px-5 pb-4 text-xs text-gray-600 leading-relaxed">{a}</p>
+      )}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Watch parties — Smileys events tagged "World Cup". Section is
+// hidden when there are none; renders compact rows linking to
+// the individual event detail pages where RSVPs happen.
+// ─────────────────────────────────────────────────────────────────
+interface WatchPartyEvent {
+  id: string; title: string; emoji: string; date: string; time: string
+  neighborhood: string; location: string; coverImage: string | null
+  totalSpots: number; spotsLeft: number
+  _count: { attendees: number }
+}
+
+function WatchParties() {
+  const [events, setEvents] = useState<WatchPartyEvent[] | null>(null)
+  useEffect(() => {
+    fetch('/app/api/cup/watch-parties', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.events) setEvents(d.events) })
+  }, [])
+  if (!events || events.length === 0) return null
+
+  return (
+    <div className="bg-white rounded-2xl shadow-card mb-4 overflow-hidden">
+      <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+        <p className="text-sm font-bold text-gray-900">🍻 Watch parties</p>
+        <Link href="/events" className="text-[10px] text-amber-600 font-semibold hover:underline">all events →</Link>
+      </div>
+      <div className="divide-y divide-gray-100">
+        {events.map(e => <WatchPartyRow key={e.id} e={e} />)}
+      </div>
+    </div>
+  )
+}
+
+function WatchPartyRow({ e }: { e: WatchPartyEvent }) {
+  const dateLabel = new Date(`${e.date}T${e.time || '00:00'}:00+03:00`).toLocaleDateString('en-GB', {
+    weekday: 'short', day: 'numeric', month: 'short',
+  })
+  const fill = e.totalSpots > 0 ? Math.round(((e.totalSpots - e.spotsLeft) / e.totalSpots) * 100) : 0
+  return (
+    <Link href={`/events/${e.id}`} className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50 transition-colors">
+      <span className="text-lg shrink-0">{e.emoji}</span>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-bold text-gray-900 truncate">{e.title}</p>
+        <p className="text-[10px] text-gray-500">
+          {dateLabel}{e.time && ` · ${e.time}`}{e.neighborhood && ` · ${e.neighborhood}`}
+        </p>
+      </div>
+      <div className="text-right shrink-0">
+        <p className="text-[10px] text-gray-500 font-semibold">{e._count.attendees}/{e.totalSpots}</p>
+        <div className="w-12 h-1 bg-gray-100 rounded-full overflow-hidden mt-1">
+          <div className={`h-full rounded-full ${fill >= 80 ? 'bg-red-400' : 'bg-amber-400'}`} style={{ width: `${fill}%` }} />
+        </div>
+      </div>
+    </Link>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Trending picks — top champion + semifinalist aggregates from
+// every CupBracketPick. Compact tile that drives FOMO. Public.
+// ─────────────────────────────────────────────────────────────────
+interface TrendingRow { code: string; count: number; pct: number }
+interface TrendingResponse {
+  total: number
+  champions: TrendingRow[]
+  semifinalists: TrendingRow[]
+  lastUpdated: string
+}
+
+function TrendingPicks() {
+  const [data, setData] = useState<TrendingResponse | null>(null)
+  useEffect(() => {
+    fetch('/app/api/cup/trending', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setData(d) })
+  }, [])
+
+  if (!data || data.total === 0) return null
+
+  const topChamps = data.champions.slice(0, 3)
+  return (
+    <div className="bg-white rounded-2xl shadow-card mb-4 p-5">
+      <div className="flex items-center justify-between mb-3 gap-2">
+        <p className="text-sm font-bold text-gray-900">📈 Trending picks</p>
+        <span className="text-[10px] text-gray-500 font-semibold">{data.total} bracket{data.total === 1 ? '' : 's'} so far</span>
+      </div>
+      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Champion call</p>
+      <div className="space-y-1.5">
+        {topChamps.map(row => (
+          <div key={row.code} className="flex items-center gap-2.5">
+            <span className="text-sm font-bold text-gray-900 shrink-0 w-12 tabular-nums text-right">{row.pct}%</span>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-xs font-semibold text-gray-700 truncate">{teamLabel(row.code)}</p>
+                <span className="text-[10px] text-gray-500">{row.count}</span>
+              </div>
+              <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-full rounded-full bg-amber-400" style={{ width: `${row.pct}%` }} />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+      {data.semifinalists.length > 0 && (
+        <>
+          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mt-4 mb-1.5">Most-picked semifinalists</p>
+          <div className="flex flex-wrap gap-1.5">
+            {data.semifinalists.slice(0, 6).map(row => {
+              const t = TEAM_BY_CODE.get(row.code)
+              return (
+                <span key={row.code} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-50 text-amber-800 text-[11px] font-bold">
+                  <span>{t?.flag}</span>
+                  <span>{t?.code ?? row.code}</span>
+                  <span className="text-amber-600 text-[10px] font-semibold ml-0.5">{row.pct}%</span>
+                </span>
+              )
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-warm pb-20">
@@ -1549,6 +1755,11 @@ function Leaderboard() {
   }
 
   const youInSlice = data.yourRank !== null && data.rows.some(r => r.rank === data.yourRank)
+  // Member spotlight — top of the board, with a "top dog" treatment.
+  // Hidden when no one has scored yet (top.score === 0); only
+  // surfaces once there's actual movement to celebrate.
+  const top = data.rows[0]
+  const hasScores = !!top && top.score > 0
 
   return (
     <div className="bg-white rounded-2xl shadow-card mb-4 overflow-hidden">
@@ -1556,6 +1767,23 @@ function Leaderboard() {
         <p className="text-sm font-bold text-gray-900">Leaderboard</p>
         <p className="text-[10px] text-gray-400">{data.total} playing</p>
       </div>
+      {/* Spotlight strip — featured top row pulled out above the
+          list. Only renders once someone has accumulated points
+          (pre-tournament the leaderboard is all zeros — no
+          spotlight worth giving). */}
+      {hasScores && (
+        <div className="px-5 py-3 bg-gradient-to-r from-amber-50 to-amber-100/60 border-b border-amber-100 flex items-center gap-3">
+          <span className="text-xl shrink-0">🏆</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] font-bold text-amber-700 uppercase tracking-widest">Top of the table</p>
+            <p className="text-sm font-extrabold text-amber-900 truncate">{top.name}</p>
+          </div>
+          <div className="text-right shrink-0">
+            <p className="text-lg font-extrabold text-amber-700 tabular-nums leading-none">{top.score}</p>
+            <p className="text-[10px] text-amber-700/70 font-semibold">pts</p>
+          </div>
+        </div>
+      )}
       <div className="divide-y divide-gray-100">
         {data.rows.map((r, idx) => (
           <LeaderRow key={`${r.rank}-${idx}`} row={r} isYou={r.rank === data.yourRank} />
