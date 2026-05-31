@@ -94,14 +94,13 @@ const NAV_GROUPS = [
       // responder's perspective; admins see scores + comments, not
       // who wrote them.
       { label: 'NPS',          href: '/admin/nps',           exact: false, roles: ['admin', 'moderator'],       icon: 'nps'          },
-      // Smileys Cup admin — fixture management + result entry.
-      // Lives in EVENTS because it IS an event series (the
-      // tournament). Visible to mods so they can also enter
-      // results during peak load.
-      { label: 'Cup',          href: '/admin/cup',           exact: false, roles: ['admin', 'moderator'],       icon: 'cup'          },
       // Campaigns — sponsorship + fundraising drives. The Smileys
-      // Cup is the first one; future tournaments and non-tournament
-      // pushes (anniversary, referral) get their own row.
+      // Cup 2026 is the first one; future tournaments and non-
+      // tournament pushes (anniversary, referral) get their own row.
+      // The legacy /admin/cup surface (fixture management + result
+      // entry) is reachable from the World Cup campaign-detail page
+      // via the "Fixtures + results →" link, so it doesn't need its
+      // own top-level sidebar entry.
       { label: 'Campaigns',    href: '/admin/campaigns',     exact: false, roles: ['admin', 'moderator'],       icon: 'campaigns'    },
     ],
   },
