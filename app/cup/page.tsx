@@ -282,6 +282,12 @@ export default function CupPredictionsPage() {
       </div>
       <h1 className="sr-only">Smileys World Cup 2026 prediction game</h1>
 
+      {/* Countdown strip — drives urgency. Pre-kickoff shows the
+          time until brackets lock. Post-kickoff shows time to the
+          next upcoming match. Hidden when the tournament is over
+          or fixtures haven't loaded yet. */}
+      <Countdown fixtures={fixtures} />
+
       {/* Visitor hero — 3-step path to play. Replaces the old
           two-line "Want to play?" tile because a visitor needs to
           see the *shape* of joining (it's curated, not instant)
@@ -1066,6 +1072,77 @@ function ShareButton({ variant }: { variant: 'visitor' | 'member' | 'compact' })
       {buttons}
     </div>
   )
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Countdown strip — small banner directly under the hero. Two
+// modes:
+//   • Pre-kickoff: time until the first fixture (= bracket lock).
+//   • Tournament running: time until the next upcoming match.
+// Hidden when fixtures haven't loaded or every match has kicked
+// off. Source of truth is the fixtures payload (public), so the
+// countdown works for visitors too.
+// ─────────────────────────────────────────────────────────────────
+function Countdown({ fixtures }: { fixtures: Fixture[] | null }) {
+  // Tick once a second so the readout stays current. Mounted only
+  // when fixtures are available — otherwise the interval doesn't
+  // fire and the component renders null.
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [])
+
+  if (!fixtures || fixtures.length === 0) return null
+
+  // First kickoff = tournament start = bracket lock.
+  const firstMs = Math.min(...fixtures.map(f => new Date(f.kickoffAt).getTime()))
+  // Next upcoming match — used after tournament starts.
+  const nextMatch = fixtures
+    .filter(f => new Date(f.kickoffAt).getTime() > now)
+    .sort((a, b) => new Date(a.kickoffAt).getTime() - new Date(b.kickoffAt).getTime())[0]
+
+  const preKickoff = now < firstMs
+  if (!preKickoff && !nextMatch) return null  // Tournament complete
+
+  const target = preKickoff ? firstMs : new Date(nextMatch!.kickoffAt).getTime()
+  const label = preKickoff
+    ? 'Brackets lock at first whistle'
+    : nextMatch!.homeTeam && nextMatch!.awayTeam
+      ? `Next: ${teamLabel(nextMatch!.homeTeam)} vs ${teamLabel(nextMatch!.awayTeam)}`
+      : 'Next match'
+
+  const tone = preKickoff ? 'amber' : 'sky'
+  const icon = preKickoff ? '⏱️' : '⚽'
+
+  return (
+    <div className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl mb-4 border ${
+      tone === 'amber'
+        ? 'bg-amber-50 border-amber-200'
+        : 'bg-sky-50 border-sky-200'
+    }`}>
+      <span className="text-base shrink-0" aria-hidden="true">{icon}</span>
+      <p className={`text-xs font-bold ${tone === 'amber' ? 'text-amber-900' : 'text-sky-900'} text-center`}>
+        {label} <span className={`tabular-nums ${tone === 'amber' ? 'text-amber-700' : 'text-sky-700'} ml-1`}>{formatRemaining(target - now)}</span>
+      </p>
+    </div>
+  )
+}
+
+function formatRemaining(ms: number): string {
+  if (ms <= 0) return 'now'
+  const sec   = Math.floor(ms / 1000)
+  const days  = Math.floor(sec / 86400)
+  const hours = Math.floor((sec % 86400) / 3600)
+  const mins  = Math.floor((sec % 3600) / 60)
+  const s     = sec % 60
+  // Granularity scales down as the deadline approaches: days +
+  // hours + minutes when far out, seconds only in the final
+  // minute. Reads as "11d 4h 12m" → "4h 12m" → "12m 34s" → "34s".
+  if (days  >= 1) return `${days}d ${hours}h ${mins}m`
+  if (hours >= 1) return `${hours}h ${mins}m`
+  if (mins  >= 1) return `${mins}m ${s}s`
+  return `${s}s`
 }
 
 // ─────────────────────────────────────────────────────────────────
