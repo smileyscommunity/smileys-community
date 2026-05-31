@@ -760,7 +760,7 @@ function BracketCard({
     : 'Locks at first kickoff'
 
   return (
-    <div className="bg-white rounded-2xl shadow-card p-5">
+    <div className="bg-white rounded-2xl shadow-card p-5 mb-4">
       <div className="flex items-start justify-between mb-3 gap-2">
         <div>
           <h2 className="text-sm font-bold text-gray-900">Your bracket</h2>
