@@ -193,7 +193,7 @@ export default function CupPredictionsPage() {
           window.localStorage.removeItem('cup-bracket-draft-champion')
           window.localStorage.removeItem('cup-bracket-draft-sf')
         }
-        toast.success('Bracket locked in 🏆')
+        toast.success('Bracket locked in ⚽')
       } else if (res.status === 403 && /approved/i.test(d.error)) {
         setAccessState('not-member')
         toast.error(d.error)
@@ -315,7 +315,7 @@ export default function CupPredictionsPage() {
         <div className="bg-white rounded-2xl shadow-card mb-4 overflow-hidden">
           <div className="bg-gradient-to-br from-amber-400 to-amber-600 px-5 py-5 text-white">
             <p className="text-[10px] font-bold uppercase tracking-widest opacity-90 mb-1">Free to play · members only</p>
-            <p className="text-lg sm:text-xl font-extrabold leading-snug">Predict every match. Climb the board. Win the trophy.</p>
+            <p className="text-lg sm:text-xl font-extrabold leading-snug">Predict every match. Climb the board. Win prizes.</p>
           </div>
           <div className="p-5">
             <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-3">How to join</p>
@@ -774,7 +774,7 @@ function BracketSummary({ bracket, accessState }: { bracket: BracketPick | null;
         <div className="flex items-center gap-3 flex-wrap min-w-0">
           <p className="text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Your bracket</p>
           <div className="flex items-center gap-2 text-sm">
-            <span className="text-base shrink-0">🏆</span>
+            <span className="text-base shrink-0">👑</span>
             <span className="font-bold text-gray-900">{teamLabel(bracket.championPick)}</span>
           </div>
           <div className="flex items-center gap-1 text-xs">
@@ -834,7 +834,7 @@ function BracketCard({
           <div>
             <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Champion · 100 pts</p>
             <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl">
-              <span className="text-lg">🏆</span>
+              <span className="text-lg">👑</span>
               <span className="text-sm font-bold text-gray-900">{teamLabel(row.championPick)}</span>
             </div>
           </div>
@@ -900,7 +900,7 @@ function BracketCard({
                         ? 'bg-amber-500 text-white border-amber-500'
                         : 'bg-white text-gray-700 border-gray-200 hover:border-amber-300'
                     }`}>
-                    🏆 {teamLabel(code)}
+                    👑 {teamLabel(code)}
                   </button>
                 ))}
               </div>
@@ -1082,7 +1082,7 @@ function FixturePickButton({ label, team, isPicked, isWinner, disabled, onClick 
 //              the Prizes section)
 function ShareButton({ variant }: { variant: 'visitor' | 'member' | 'compact' }) {
   const url  = typeof window !== 'undefined' ? window.location.href : 'https://smileyscommunity.com/app/cup'
-  const text = 'Smileys World Cup 2026 — predict every match. Trophy + prizes for the winner. Worth a look?'
+  const text = 'Smileys World Cup 2026 — predict every match. Prizes for the winner. Worth a look?'
 
   const u = encodeURIComponent(url)
   const t = encodeURIComponent(text)
@@ -1267,7 +1267,7 @@ function PrizesSection() {
       <div className="bg-white rounded-2xl shadow-card p-5 mb-4">
         <h2 className="text-sm font-bold text-gray-900 mb-1">🎁 Prizes</h2>
         <p className="text-xs text-gray-500 mb-4">
-          No prizes yet — be the first to donate one. Sponsors get a credit on every cup page until the trophy is awarded.
+          No prizes yet — be the first to donate one. Sponsors get a credit on every cup page until the final.
         </p>
         <button onClick={() => setShowDonate(true)}
           className="w-full py-3 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-sm font-bold rounded-xl transition-colors shadow-sm">
@@ -1492,7 +1492,7 @@ const FAQS: { q: string; a: string }[] = [
   { q: 'How are predictions kept fair?',
     a: 'Picks lock server-side at the second of kickoff. Score-after-the-fact is impossible. Identical-pick collusion between accounts is monitored.' },
   { q: 'What does the winner actually get?',
-    a: 'The Smileys Cup trophy + a partner dinner + a year of VIP membership. See the Prizes section above for what else is on the board — sponsors can donate via the form there.' },
+    a: 'Check the Prizes section above for what\'s currently on the board — donated by sponsors and Smileys members. Top of the leaderboard at the Final takes home the headline prize; spot prizes go to other top finishers. Have something to offer? Tap "Donate a prize" in the same section.' },
 ]
 
 function FAQCard() {
@@ -1686,7 +1686,7 @@ function RulesCard({ defaultOpen }: { defaultOpen: boolean }) {
         className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-gray-50 transition-colors">
         <div>
           <p className="text-sm font-bold text-gray-900">How it works</p>
-          <p className="text-xs text-gray-500 mt-0.5">Pick a champion, pick every match, win the trophy.</p>
+          <p className="text-xs text-gray-500 mt-0.5">Pick a champion, pick every match, win prizes.</p>
         </div>
         <svg className={`w-5 h-5 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`}
           fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1724,7 +1724,7 @@ function RulesCard({ defaultOpen }: { defaultOpen: boolean }) {
           <div>
             <p className="text-xs font-bold text-amber-600 uppercase tracking-wider mb-1.5">3 · Climb the leaderboard</p>
             <p className="text-sm text-gray-700 leading-relaxed">
-              Max possible: ~480 pts. Top of the board at the Final wins the <strong>Smileys Cup trophy</strong> + a partner dinner + a year of VIP membership.
+              Max possible: ~480 pts. Top of the board at the Final takes the headline prize from the Prizes section above; spot prizes go to other top finishers.
             </p>
           </div>
           <div className="text-[11px] text-gray-500 bg-gray-50 rounded-lg p-3 leading-relaxed">
@@ -2108,7 +2108,7 @@ function Leaderboard() {
           spotlight worth giving). */}
       {hasScores && (
         <div className="px-5 py-3 bg-gradient-to-r from-amber-50 to-amber-100/60 border-b border-amber-100 flex items-center gap-3">
-          <span className="text-xl shrink-0">🏆</span>
+          <span className="text-xl shrink-0">🥇</span>
           <div className="flex-1 min-w-0">
             <p className="text-[10px] font-bold text-amber-700 uppercase tracking-widest">Top of the table</p>
             <p className="text-sm font-extrabold text-amber-900 truncate">{top.name}</p>

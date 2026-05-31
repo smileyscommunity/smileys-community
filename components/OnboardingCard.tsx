@@ -23,7 +23,7 @@ const ITEMS: Item[] = [
   {
     emoji:       '⚽',
     title:       'Smileys World Cup 2026',
-    description: 'Predict every match. Trophy + prizes for the winner. Free to play.',
+    description: 'Predict every match. Prizes for top finishers. Free to play.',
     href:        '/cup',
   },
   {

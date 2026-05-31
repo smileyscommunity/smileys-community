@@ -53,20 +53,21 @@ export default function CupPromoBanner() {
     <div className="mt-4 relative">
       <Link href="/cup"
         className="flex items-center gap-3 bg-white/95 backdrop-blur-sm hover:bg-white rounded-2xl p-3 sm:p-4 shadow-lg group transition-all">
-        {/* Trophy + ball stacked emojis read as "World Cup" without
-            needing the SVG banner here. text-3xl is the largest
-            visual unit; the slight scale-on-hover gives the card
+        {/* Ball emoji as the visual anchor — keeps the "this is a
+            football tournament" signal without implying a literal
+            trophy prize (prizes are sponsor-donated; see /cup
+            Prizes section). Scale-on-hover gives the card
             tactility without an animation library. */}
-        <span className="text-3xl shrink-0 transform group-hover:scale-110 transition-transform" aria-hidden>🏆</span>
+        <span className="text-3xl shrink-0 transform group-hover:scale-110 transition-transform" aria-hidden>⚽</span>
         <div className="flex-1 min-w-0">
           <p className="text-[10px] font-bold uppercase tracking-widest text-amber-600 leading-none mb-1">
             New · Free to play
           </p>
           <p className="text-sm sm:text-base font-extrabold text-gray-900 leading-tight truncate">
-            Smileys World Cup 2026 ⚽
+            Smileys World Cup 2026
           </p>
           <p className="text-[11px] sm:text-xs text-gray-500 leading-snug mt-0.5 truncate">
-            Predict every match · Trophy + prizes · Starts Jun 11
+            Predict every match · Prizes from sponsors · Starts Jun 11
           </p>
         </div>
         {/* Play pill — full button label on sm+, just an arrow on
