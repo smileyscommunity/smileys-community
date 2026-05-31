@@ -111,6 +111,19 @@ export function isValidTeamCode(code: string): boolean {
   return TEAM_BY_CODE.has(code)
 }
 
+// Lock check — shared between the server (POST /api/cup/predict
+// rejects post-kickoff writes) and the client (UI disables pick
+// buttons in real time). Previously the server returned a static
+// `locked: boolean` and the client recomputed inline from
+// kickoffAt; same logic, two implementations, and the server's
+// `locked` flag went stale as the page sat open. The client now
+// calls this helper at render time so a fixture flips to locked
+// the moment its kickoff passes.
+export function isFixtureLocked(kickoffAt: Date | string | number, now: Date = new Date()): boolean {
+  const ms = typeof kickoffAt === 'object' ? kickoffAt.getTime() : new Date(kickoffAt).getTime()
+  return ms <= now.getTime()
+}
+
 // Group-stage assignments from the draw on Dec 5, 2025. Each entry
 // is ordered [seed1, seed2, seed3, seed4] following FIFA's pot
 // allocation (Pot 1 → Pot 4). Used by scripts/seed-cup.ts for the

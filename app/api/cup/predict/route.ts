@@ -24,6 +24,12 @@ import { rateLimit } from '@/lib/rateLimit'
 // Server-side anti-tamper: pointsAwarded is NEVER read from the
 // request body. It's set by the admin result-entry route when
 // winnerTeam is recorded.
+//
+// CSRF: the session cookie is SameSite=Lax (see lib/session.ts),
+// so cross-site POSTs from a malicious page don't carry the
+// cookie — the auth check below 401s and the route refuses
+// before reading the body. No additional token needed for this
+// endpoint.
 
 export const dynamic = 'force-dynamic'
 
@@ -48,6 +54,20 @@ export async function POST(req: NextRequest) {
   const pickedTeam = typeof body.pickedTeam === 'string' ? body.pickedTeam.trim().toUpperCase() : ''
   if (!fixtureId || !pickedTeam) {
     return NextResponse.json({ error: 'fixtureId + pickedTeam required' }, { status: 400 })
+  }
+  // Defence-in-depth: shape-check pickedTeam against the ISO-3
+  // pattern before the dictionary lookup. isPickAllowedForFixture
+  // below would catch an unknown code, but rejecting non-conforming
+  // strings here means malformed input doesn't even reach the
+  // fixture lookup.
+  if (!/^[A-Z]{3}$/.test(pickedTeam)) {
+    return NextResponse.json({ error: 'pickedTeam must be a 3-letter ISO code' }, { status: 400 })
+  }
+  // Same shape guard for fixtureId — IDs are constructed by the
+  // seed in a fixed shape, so anything else is an obvious tamper
+  // attempt.
+  if (!/^2026-WC-[A-Z0-9-]{1,40}$/.test(fixtureId)) {
+    return NextResponse.json({ error: 'invalid fixtureId' }, { status: 400 })
   }
 
   const fixture = await prisma.cupFixture.findUnique({

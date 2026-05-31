@@ -4,6 +4,7 @@ import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
 import { isValidTeamCode, scoreFixture, rescoreAllBrackets } from '@/lib/cup'
 import { writeAudit } from '@/lib/audit'
+import { rateLimit } from '@/lib/rateLimit'
 
 // PUT /api/admin/cup/fixtures/[id]
 //
@@ -34,6 +35,15 @@ export async function PUT(req: NextRequest, { params }: Params) {
   const session = await getSession()
   if (!session || !isAdminOrModerator(session)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  // Defence-in-depth rate limit. Trusted admins don't normally
+  // exceed a handful of result entries per match window, but if an
+  // admin account were compromised the leaderboard could be mass-
+  // rewritten in seconds otherwise. Audit log already catches the
+  // writes; this prevents the runaway loop.
+  if (!await rateLimit(`cup-admin-fixture:${session.id}`, 60, 60_000)) {
+    return NextResponse.json({ error: 'Saving too fast — slow down' }, { status: 429 })
   }
 
   const { id } = await params

@@ -21,6 +21,7 @@ import {
   SEMIFINALIST_POINTS,
   teamLabel,
   isValidTeamCode,
+  isFixtureLocked,
   type CupRound,
 } from '@/lib/cup-data'
 
@@ -37,6 +38,7 @@ export {
   SEMIFINALIST_POINTS,
   teamLabel,
   isValidTeamCode,
+  isFixtureLocked,
 }
 export type { CupRound }
 
@@ -50,13 +52,6 @@ export async function tournamentStartAt(): Promise<Date | null> {
     select:  { kickoffAt: true },
   })
   return first?.kickoffAt ?? null
-}
-
-// Locks the pick UI when the fixture is about to start or already
-// has. Mirrored on the server in the predict POST so a client that
-// ignores `locked` still can't submit.
-export function isFixtureLocked(kickoffAt: Date, now: Date = new Date()): boolean {
-  return kickoffAt.getTime() <= now.getTime()
 }
 
 // Helpers for the predict POST validator. The fixture may have

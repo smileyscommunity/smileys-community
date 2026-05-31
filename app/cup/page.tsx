@@ -16,11 +16,11 @@
 // Render disables submit buttons when membership is missing so the
 // state is obvious before the user clicks.
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { CUP_TEAMS as TEAMS, TEAM_BY_CODE, teamLabel, ROUND_LABEL } from '@/lib/cup-data'
+import { CUP_TEAMS as TEAMS, TEAM_BY_CODE, teamLabel, ROUND_LABEL, isFixtureLocked } from '@/lib/cup-data'
 
 interface Fixture {
   id:        string
@@ -124,11 +124,17 @@ export default function CupPredictionsPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  // When bracket arrives, prime the draft so "edit" reflects what's saved.
+  // Prime the draft once when the saved bracket first arrives. A
+  // ref gates this so any later background bracket update (poll, a
+  // future re-fetch) can't overwrite a draft the user is mid-typing.
+  // The cancel flow explicitly resets the draft via onCancelEdit
+  // when the user backs out, so the one-shot init is enough.
+  const draftPrimedRef = useRef(false)
   useEffect(() => {
-    if (bracket?.bracket) {
+    if (bracket?.bracket && !draftPrimedRef.current) {
       setDraftChampion(bracket.bracket.championPick)
       setDraftSF(bracket.bracket.semifinalists)
+      draftPrimedRef.current = true
     }
   }, [bracket])
 
@@ -477,7 +483,7 @@ function GroupStageSections({
     // match — that's where the user's attention should go.
     const init: Record<string, boolean> = {}
     for (const letter of Object.keys(byGroup)) {
-      init[letter] = byGroup[letter].some(f => !f.locked)
+      init[letter] = byGroup[letter].some(f => !isFixtureLocked(f.kickoffAt))
     }
     return init
   })
@@ -489,7 +495,7 @@ function GroupStageSections({
         const teamsInGroup = Array.from(new Set(list.flatMap(f => [f.homeTeam, f.awayTeam]).filter((c): c is string => !!c)))
         const isOpen = expanded[letter]
         const yourPicksInGroup = list.filter(f => f.yourPick).length
-        const lockedInGroup    = list.filter(f => f.locked).length
+        const lockedInGroup    = list.filter(f => isFixtureLocked(f.kickoffAt)).length
         return (
           <div key={letter} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <button onClick={() => setExpanded(p => ({ ...p, [letter]: !p[letter] }))}
@@ -664,7 +670,11 @@ function BracketCard({
   onSave: () => void
   tournamentStartAt: string | null
 }) {
-  const hasBracket = bracket !== null
+  // Hoist the row to a non-null local so the JSX doesn't repeat
+  // `bracket?.x` / `bracket!.x` six times. Cleaner read, and the
+  // non-null assertions go away.
+  const row     = bracket
+  const hasRow  = row !== null
   const lockMsg = tournamentStartAt
     ? `Locks at first kickoff · ${new Date(tournamentStartAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`
     : 'Locks at first kickoff'
@@ -679,24 +689,24 @@ function BracketCard({
           </p>
         </div>
         <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider shrink-0">
-          {(bracket?.pointsAwarded ?? 0)} / 200 pts
+          {(row?.pointsAwarded ?? 0)} / 200 pts
         </span>
       </div>
 
       {/* Read-only state */}
-      {!editing && hasBracket && (
+      {!editing && hasRow && row && (
         <div className="space-y-3">
           <div>
             <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Champion · 100 pts</p>
             <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl">
               <span className="text-lg">🏆</span>
-              <span className="text-sm font-bold text-gray-900">{teamLabel(bracket!.championPick)}</span>
+              <span className="text-sm font-bold text-gray-900">{teamLabel(row.championPick)}</span>
             </div>
           </div>
           <div>
             <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Semifinalists · 25 pts each</p>
             <div className="grid grid-cols-2 gap-2">
-              {bracket!.semifinalists.map(code => (
+              {row.semifinalists.map(code => (
                 <div key={code} className="flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl">
                   <span className="text-sm font-semibold text-gray-700">{teamLabel(code)}</span>
                 </div>
@@ -718,7 +728,7 @@ function BracketCard({
           `!canEdit` fallback ("Join the cup club to play") was a
           dead code path left over from the standalone-page
           migration. */}
-      {!editing && !hasBracket && (
+      {!editing && !hasRow && (
         <div className="text-center py-4">
           <p className="text-sm text-gray-500 mb-3">No bracket yet. Pick your champion + 4 semifinalists before first kickoff.</p>
           <button onClick={onStartEdit}
@@ -824,6 +834,11 @@ function FixtureRow({ fixture, saving, canPick, onPick }: { fixture: Fixture; sa
   const yourPick = fixture.yourPick?.pickedTeam ?? null
   const correct = fixture.winnerTeam && yourPick === fixture.winnerTeam
   const wrong   = fixture.winnerTeam && yourPick && yourPick !== fixture.winnerTeam
+  // Recompute locked at render time via the shared helper rather
+  // than trusting the server's `fixture.locked` flag (which goes
+  // stale as the page sits open). Same predicate as the server
+  // validator in /api/cup/predict.
+  const locked = isFixtureLocked(fixture.kickoffAt)
 
   return (
     <div className={`bg-white rounded-2xl border p-3.5 shadow-sm ${
@@ -840,12 +855,12 @@ function FixtureRow({ fixture, saving, canPick, onPick }: { fixture: Fixture; sa
           <span>{kickoff}</span>
           {fixture.group && <span className="text-amber-600">· Group {fixture.group}</span>}
         </div>
-        {fixture.locked && fixture.winnerTeam && (
+        {locked && fixture.winnerTeam && (
           <span className="text-amber-600 text-right">
             {fixture.homeScore}–{fixture.awayScore} · Winner: {teamLabel(fixture.winnerTeam)}
           </span>
         )}
-        {fixture.locked && !fixture.winnerTeam && <span className="text-gray-400">Locked</span>}
+        {locked && !fixture.winnerTeam && <span className="text-gray-400">Locked</span>}
       </div>
 
       <div className="grid grid-cols-2 gap-2">
@@ -854,7 +869,7 @@ function FixtureRow({ fixture, saving, canPick, onPick }: { fixture: Fixture; sa
           team={fixture.homeTeam}
           isPicked={yourPick === fixture.homeTeam}
           isWinner={fixture.winnerTeam === fixture.homeTeam}
-          disabled={!canPick || fixture.locked || saving || tbd}
+          disabled={!canPick || locked || saving || tbd}
           onClick={() => fixture.homeTeam && onPick(fixture.homeTeam)}
         />
         <FixturePickButton
@@ -862,12 +877,12 @@ function FixtureRow({ fixture, saving, canPick, onPick }: { fixture: Fixture; sa
           team={fixture.awayTeam}
           isPicked={yourPick === fixture.awayTeam}
           isWinner={fixture.winnerTeam === fixture.awayTeam}
-          disabled={!canPick || fixture.locked || saving || tbd}
+          disabled={!canPick || locked || saving || tbd}
           onClick={() => fixture.awayTeam && onPick(fixture.awayTeam)}
         />
       </div>
 
-      {tbd && !fixture.locked && (
+      {tbd && !locked && (
         <p className="text-[10px] text-gray-400 mt-2 italic">Teams confirmed once the prior round resolves</p>
       )}
     </div>
