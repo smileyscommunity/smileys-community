@@ -695,14 +695,23 @@ function AdminApplicationsPageInner() {
           <span>Auto-assign on approval:</span>
           <select value={defaultClubId}
             onChange={async e => {
-              const val = e.target.value
+              const val  = e.target.value
+              const prev = defaultClubId
+              // Optimistic UI flip; roll back on failure so the
+              // dropdown doesn't drift from the server's truth.
               setDefaultClubId(val)
               const res = await fetch('/app/api/admin/settings', {
                 method: 'POST', credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ defaultClubId: val }),
               })
-              if (res.ok) toast.success(val ? `Default club saved ✓` : 'Default club cleared')
+              if (!res.ok) {
+                setDefaultClubId(prev)
+                const d = await res.json().catch(() => ({}))
+                toast.error(d?.error ?? 'Could not save default club')
+                return
+              }
+              toast.success(val ? `Default club saved ✓` : 'Default club cleared')
             }}
             className="px-2 py-1 rounded-lg border border-zinc-700 text-xs text-zinc-300 bg-zinc-800 focus:outline-none">
             <option value="">No default club</option>
@@ -1246,7 +1255,7 @@ function AdminApplicationsPageInner() {
                         <button
                           onClick={async () => {
                             if (!confirm('Blacklist this device/IP? Future applications from same device will be auto-rejected.')) return
-                            await fetch('/app/api/admin/blacklist', {
+                            const res = await fetch('/app/api/admin/blacklist', {
                               method: 'POST', credentials: 'include',
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({
@@ -1256,6 +1265,11 @@ function AdminApplicationsPageInner() {
                                 reason: `Blacklisted device/IP from application by ${selected.fullName} (${selected.email})`,
                               }),
                             })
+                            if (!res.ok) {
+                              const d = await res.json().catch(() => ({}))
+                              toast.error(d?.error ?? 'Could not blacklist')
+                              return
+                            }
                             toast.success('Device blacklisted — future attempts auto-rejected')
                           }}
                           className="w-full py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-red-400 font-semibold rounded-xl text-xs transition-colors border border-zinc-700">
