@@ -2027,6 +2027,15 @@ function useLeaderboard(): LeaderboardContextValue {
 // pass it as applicationServerKey when calling pushManager.subscribe.
 const CUP_VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ''
 
+// localStorage key for the PushOptInStrip dismissal flag. Bump
+// the version when we want previously-dismissed members to see
+// the strip again — most recently bumped to v2 after the VAPID
+// keypair was rotated on 2026-05-31, which invalidated every
+// existing browser subscription. Members who'd tapped "Not now"
+// before would otherwise never re-see the prompt and would
+// silently stop getting push reminders.
+const CUP_PUSH_DISMISS_KEY = 'cup-push-dismissed-v2'
+
 function cupUrlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
@@ -2060,7 +2069,7 @@ function PushOptInStrip() {
     if (!('Notification' in window) || !('PushManager' in window) || !('serviceWorker' in navigator)) {
       setState('hidden'); return
     }
-    if (localStorage.getItem('cup-push-dismissed') === '1') { setState('hidden'); return }
+    if (localStorage.getItem(CUP_PUSH_DISMISS_KEY) === '1') { setState('hidden'); return }
     if (Notification.permission === 'denied') { setState('hidden'); return }
     navigator.serviceWorker.ready
       .then(reg => reg.pushManager.getSubscription())
@@ -2105,7 +2114,7 @@ function PushOptInStrip() {
   }
 
   function dismiss() {
-    localStorage.setItem('cup-push-dismissed', '1')
+    localStorage.setItem(CUP_PUSH_DISMISS_KEY, '1')
     setState('hidden')
   }
 
