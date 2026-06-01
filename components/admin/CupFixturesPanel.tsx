@@ -50,6 +50,7 @@ export default function CupFixturesPanel() {
   const [fixtures,    setFixtures]    = useState<Fixture[] | null>(null)
   const [loading,     setLoading]     = useState(true)
   const [roundFilter, setRoundFilter] = useState<string>('all')
+  const [refreshing,  setRefreshing]  = useState(false)
 
   function load() {
     fetch('/app/api/cup/fixtures', { credentials: 'include' })
@@ -59,6 +60,28 @@ export default function CupFixturesPanel() {
   }
 
   useEffect(() => { load() }, [])
+
+  // Admin-triggered refresh — same sweeper body the system crontab
+  // runs every 5 min. Useful when a result lands mid-cycle and
+  // admin wants to commit without waiting up to 5 minutes.
+  async function refreshSuggestions() {
+    setRefreshing(true)
+    try {
+      const res = await fetch('/app/api/admin/cup/results/refresh', {
+        method: 'POST', credentials: 'include',
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) { toast.error(d.error ?? 'Refresh failed'); return }
+      toast.success(
+        d.suggested
+          ? `Suggested ${d.suggested} new result${d.suggested === 1 ? '' : 's'} · scanned ${d.matchesScanned}`
+          : `No new suggestions · scanned ${d.matchesScanned} match${d.matchesScanned === 1 ? '' : 'es'}`,
+      )
+      load()
+    } finally {
+      setRefreshing(false)
+    }
+  }
 
   // At-a-glance "how much of the tournament has resolved."
   const stats = useMemo(() => {
@@ -96,15 +119,28 @@ export default function CupFixturesPanel() {
         </div>
       )}
 
-      <div className="flex gap-1 bg-zinc-800 rounded-xl p-1 border border-zinc-700 w-fit">
-        {(['all', 'group', 'r32', 'r16', 'qf', 'sf', 'final'] as const).map(r => (
-          <button key={r} onClick={() => setRoundFilter(r)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-              roundFilter === r ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-white'
-            }`}>
-            {r === 'all' ? 'All' : ROUND_LABEL[r]}
-          </button>
-        ))}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex gap-1 bg-zinc-800 rounded-xl p-1 border border-zinc-700 w-fit">
+          {(['all', 'group', 'r32', 'r16', 'qf', 'sf', 'final'] as const).map(r => (
+            <button key={r} onClick={() => setRoundFilter(r)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                roundFilter === r ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-white'
+              }`}>
+              {r === 'all' ? 'All' : ROUND_LABEL[r]}
+            </button>
+          ))}
+        </div>
+        {/* Refresh suggestions — forces the same sweeper the
+            crontab fires every 5 minutes. Disabled while in
+            flight so a click doesn't queue a second call before
+            the first finishes (the API call typically takes <2s
+            but football-data slow nights it can stretch). */}
+        <button onClick={refreshSuggestions} disabled={refreshing}
+          title="Pull fresh results from football-data.org now (the crontab does this every 5 minutes; this button skips the wait)."
+          className="text-xs px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 font-semibold disabled:opacity-50 inline-flex items-center gap-1.5">
+          <span className={refreshing ? 'animate-spin inline-block' : 'inline-block'}>⟳</span>
+          {refreshing ? 'Refreshing…' : 'Refresh suggestions'}
+        </button>
       </div>
 
       {loading && <div className="text-center text-zinc-500 py-12 text-sm">Loading…</div>}
@@ -263,7 +299,7 @@ function FixtureRow({ fixture, onSaved }: { fixture: Fixture; onSaved: () => voi
                 once admin commits, the suggestion stops mattering
                 and would just add visual noise. */}
             {hasAppliableSuggestion && (
-              <p className="text-xs text-amber-400 mt-1 font-semibold inline-flex items-center gap-1.5">
+              <p className="text-xs text-amber-400 mt-1 font-semibold inline-flex items-center gap-1.5 flex-wrap">
                 <span className="text-[10px] uppercase tracking-wider bg-amber-500/10 px-1.5 py-0.5 rounded">⚡ Auto</span>
                 <span>
                   {fixture.suggestedHomeScore}–{fixture.suggestedAwayScore}
@@ -271,6 +307,15 @@ function FixtureRow({ fixture, onSaved }: { fixture: Fixture; onSaved: () => voi
                     ? <> · Winner: {teamLabel(fixture.suggestedWinnerTeam)}</>
                     : <> · Draw</>}
                 </span>
+                {/* Age stamped at render — refreshes whenever the
+                    parent reloads (Apply / Refresh / re-mount).
+                    Computed inline rather than via a 30s tick so
+                    we don't re-render 103 rows constantly. */}
+                {fixture.suggestedAt && (
+                  <span className="text-[10px] text-amber-500/70 font-normal">
+                    · {formatAge(fixture.suggestedAt, Date.now())}
+                  </span>
+                )}
               </p>
             )}
           </div>
@@ -338,6 +383,25 @@ function FixtureRow({ fixture, onSaved }: { fixture: Fixture; onSaved: () => voi
       )}
     </div>
   )
+}
+
+// Human-friendly age. The sweeper writes suggestedAt on every
+// update so admin can tell stale-from-network-outage suggestions
+// apart from fresh ones. Anything beyond a day is overkill for
+// this surface; the rolling 7-week tournament means a suggestion
+// hanging around for >1d means something is wrong upstream.
+function formatAge(iso: string | null | undefined, now: number): string {
+  if (!iso) return ''
+  const ms = now - Date.parse(iso)
+  if (!Number.isFinite(ms) || ms < 0) return 'just now'
+  const sec = Math.floor(ms / 1000)
+  if (sec < 30)    return 'just now'
+  if (sec < 60)    return `${sec}s ago`
+  const min = Math.floor(sec / 60)
+  if (min < 60)    return `${min}m ago`
+  const hr = Math.floor(min / 60)
+  if (hr < 24)     return `${hr}h ago`
+  return `${Math.floor(hr / 24)}d ago`
 }
 
 function TeamSelect({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
