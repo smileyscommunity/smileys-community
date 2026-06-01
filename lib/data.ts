@@ -32,7 +32,7 @@ export const ISTANBUL_NEIGHBORHOODS = [
 
 export const CLUB_CATEGORIES = [
   'Outdoor', 'Social', 'Food & Drinks', 'Nightlife', 'Networking', 'Business',
-  'Learning', 'Creative', 'Wellness', 'Sports', 'Newcomers', 'Singles',
+  'Learning', 'Creative', 'Wellness', 'Sports', 'Singles',
   'Family', 'Travel', 'Culture', 'Exclusive', 'Volunteering',
 ] as const
 
