@@ -32,8 +32,8 @@ export const ISTANBUL_NEIGHBORHOODS = [
 
 export const CLUB_CATEGORIES = [
   'Outdoor', 'Social', 'Food & Drinks', 'Nightlife', 'Networking', 'Business',
-  'Learning', 'Creative', 'Wellness', 'Sports', 'Singles',
-  'Family', 'Travel', 'Culture', 'Exclusive', 'Volunteering',
+  'Learning', 'Creative', 'Wellness', 'Sports',
+  'Travel', 'Culture', 'Exclusive', 'Volunteering',
 ] as const
 
 export type ClubCategory = typeof CLUB_CATEGORIES[number]
