@@ -213,12 +213,13 @@ function FixtureRow({ fixture, onSaved }: { fixture: Fixture; onSaved: () => voi
     fixture.suggestedAwayScore !== null && fixture.suggestedAwayScore !== undefined
 
   // Knockout team suggestion. Shown when the fixture is a TBD
-  // knockout slot (no admin-committed teams yet) and the sweeper
-  // has matched it to a resolved fdMatch. Applying writes the
-  // teams; the next sweep cycle then picks up the score
+  // knockout slot (BOTH home and away null — half-set fixtures are
+  // partial admin work and we shouldn't overwrite them) and the
+  // sweeper has matched it to a resolved fdMatch. Applying writes
+  // the teams; the next sweep cycle then picks up the score
   // suggestion via the (home, away, date) path.
   const hasAppliableTeamSuggestion =
-    (!fixture.homeTeam || !fixture.awayTeam) &&
+    !fixture.homeTeam && !fixture.awayTeam &&
     !!fixture.suggestedHomeTeam &&
     !!fixture.suggestedAwayTeam
 

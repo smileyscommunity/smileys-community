@@ -59,33 +59,54 @@ export async function runCupResultsSweep(): Promise<SweepResult> {
     const lo  = new Date(utc.getTime() - 2 * 60 * 60 * 1000)
     const hi  = new Date(utc.getTime() + 2 * 60 * 60 * 1000)
 
+    // Pass 1 — by team codes. ±2h is wide enough to cover
+    // kickoff overlay drift while still being narrow enough that
+    // two different (home, away) matchups can't collide. orderBy
+    // makes the result deterministic when two rows would match
+    // (shouldn't happen, but defensive).
     let fixture = await prisma.cupFixture.findFirst({
-      where:  {
+      where:   {
         homeTeam:  home,
         awayTeam:  away,
         kickoffAt: { gte: lo, lte: hi },
       },
-      select: { id: true, winnerTeam: true, homeTeam: true, awayTeam: true, round: true },
+      orderBy: { kickoffAt: 'asc' },
+      select:  {
+        id: true, winnerTeam: true, homeTeam: true, awayTeam: true, round: true,
+        suggestedHomeScore: true, suggestedAwayScore: true, suggestedWinnerTeam: true,
+        suggestedStatus: true, suggestedHomeTeam: true, suggestedAwayTeam: true,
+      },
     })
 
-    // Fallback for TBD knockout slots: once football-data resolves
-    // the teams upstream (after the prior round wraps), our R32/
-    // R16/QF/SF/F fixtures are still seeded with null home/away.
-    // The team-coded lookup above misses them. Match by (round,
-    // date window, no teams set) instead and let admin commit the
-    // resolved teams via the Apply teams button in the admin UI.
+    // Pass 2 — fallback for TBD knockout slots. Once football-data
+    // resolves the teams upstream (after the prior round wraps),
+    // our R32/R16/QF/SF/F fixtures are still seeded with null
+    // home/away. The team-coded lookup above misses them.
+    //
+    // Window tightened to ±1h here (vs ±2h on Pass 1): without
+    // team codes the only thing pinning a TBD fixture to its
+    // football-data counterpart is the kickoff time. FIFA spaces
+    // knockouts ≥3h apart, so ±1h won't collide. orderBy gives
+    // deterministic resolution if two would somehow tie.
     let isTeamSuggestion = false
     if (!fixture) {
       const round = fdStageToCupRound(m.stage)
       if (round && round !== 'group') {
+        const tightLo = new Date(utc.getTime() - 60 * 60 * 1000)
+        const tightHi = new Date(utc.getTime() + 60 * 60 * 1000)
         fixture = await prisma.cupFixture.findFirst({
           where: {
             round,
-            homeTeam: null,
-            awayTeam: null,
-            kickoffAt: { gte: lo, lte: hi },
+            homeTeam:  null,
+            awayTeam:  null,
+            kickoffAt: { gte: tightLo, lte: tightHi },
           },
-          select: { id: true, winnerTeam: true, homeTeam: true, awayTeam: true, round: true },
+          orderBy: { kickoffAt: 'asc' },
+          select:  {
+            id: true, winnerTeam: true, homeTeam: true, awayTeam: true, round: true,
+            suggestedHomeScore: true, suggestedAwayScore: true, suggestedWinnerTeam: true,
+            suggestedStatus: true, suggestedHomeTeam: true, suggestedAwayTeam: true,
+          },
         })
         if (fixture) isTeamSuggestion = true
       }
@@ -97,11 +118,32 @@ export async function runCupResultsSweep(): Promise<SweepResult> {
     if (fixture.winnerTeam) continue
 
     const suggestedWinner = fdWinnerCode(m)
+    const newHomeScore  = m.score.fullTime.home ?? null
+    const newAwayScore  = m.score.fullTime.away ?? null
+    const newStatus     = m.status as string
+    const newHomeTeam   = isTeamSuggestion ? home : (fixture.suggestedHomeTeam ?? null)
+    const newAwayTeam   = isTeamSuggestion ? away : (fixture.suggestedAwayTeam ?? null)
+
+    // Skip-if-unchanged. Every fixture write bumps updatedAt,
+    // which is the leaderboard's ?since= watermark — so an
+    // identical suggestion re-written every 5 min would
+    // invalidate every connected member's cached leaderboard
+    // for no actual change. Comparing against the current row
+    // first avoids that.
+    const unchanged =
+      fixture.suggestedHomeScore  === newHomeScore  &&
+      fixture.suggestedAwayScore  === newAwayScore  &&
+      (fixture.suggestedWinnerTeam ?? null) === (suggestedWinner ?? null) &&
+      (fixture.suggestedStatus ?? null)     === newStatus &&
+      (fixture.suggestedHomeTeam ?? null)   === newHomeTeam &&
+      (fixture.suggestedAwayTeam ?? null)   === newAwayTeam
+    if (unchanged) continue
+
     const data: Record<string, unknown> = {
-      suggestedHomeScore:  m.score.fullTime.home ?? null,
-      suggestedAwayScore:  m.score.fullTime.away ?? null,
+      suggestedHomeScore:  newHomeScore,
+      suggestedAwayScore:  newAwayScore,
       suggestedWinnerTeam: suggestedWinner,
-      suggestedStatus:     m.status,
+      suggestedStatus:     newStatus,
       suggestedAt:         new Date(),
     }
     if (isTeamSuggestion) {
