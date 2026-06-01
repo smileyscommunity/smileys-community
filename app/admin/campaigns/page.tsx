@@ -13,6 +13,7 @@ import Link from 'next/link'
 import { toast } from 'sonner'
 import { type AdminCampaign, CAMPAIGN_STATUS_PILL } from '@/lib/admin/campaigns'
 import { useAdminLoad } from '@/lib/admin/useAdminLoad'
+import { slugify } from '@/lib/slug'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 
 interface CampaignsResponse { campaigns: AdminCampaign[] }
@@ -62,7 +63,7 @@ export default function AdminCampaignsPage() {
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-3">
           <p className="text-sm font-bold text-white">Create campaign</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Input label="Slug (url-safe)*" value={draft.slug} onChange={v => setDraft({ ...draft, slug: v.toLowerCase().replace(/[^a-z0-9-]/g, '-') })} placeholder="euros-2028" />
+            <Input label="Slug (url-safe)*" value={draft.slug} onChange={v => setDraft({ ...draft, slug: slugify(v) })} placeholder="euros-2028" />
             <Input label="Name*" value={draft.name} onChange={v => setDraft({ ...draft, name: v })} placeholder="Smileys Euros 2028" />
             <Input label="Emoji" value={draft.emoji} onChange={v => setDraft({ ...draft, emoji: v })} placeholder="🇪🇺" />
             <Input label="Route slug" value={draft.routeSlug} onChange={v => setDraft({ ...draft, routeSlug: v })} placeholder="(defaults to slug)" />

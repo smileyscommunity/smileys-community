@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { CLUB_CATEGORIES } from '@/lib/data'
+import { slugify } from '@/lib/slug'
 import { computeEventSurveyRollup, aggregateRollup } from '@/lib/survey'
 
 // GET /api/admin/clubs
@@ -100,7 +101,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Category must be one of: ${CLUB_CATEGORIES.join(', ')}` }, { status: 400 })
     }
 
-    const slug = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+    const slug = slugify(name)
 
     // Default new clubs to the admin's own city. Multi-city UI for
     // creating clubs across cities is a later phase; for now the

@@ -2,16 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { canManagePosts } from '@/lib/access'
-
-function slugify(text: string) {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .trim()
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .slice(0, 80)
-}
+import { slugify } from '@/lib/slug'
 
 export async function GET() {
   const session = await getSession()
@@ -33,7 +24,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Title and body are required' }, { status: 400 })
   }
 
-  const base = slugify(title)
+  const base = slugify(title).slice(0, 80)
   let slug = base
   let i = 1
   while (await prisma.post.findUnique({ where: { slug } })) {
