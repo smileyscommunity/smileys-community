@@ -173,6 +173,7 @@ function ClubForm({
 export default function AdminClubsPage() {
   const [clubList,   setClubList]   = useState<Club[]>([])
   const [loading,    setLoading]    = useState(true)
+  const [loadError,  setLoadError]  = useState<string | null>(null)
   const [saving,     setSaving]     = useState(false)
 
   const [showCreate, setShowCreate] = useState(false)
@@ -202,12 +203,24 @@ export default function AdminClubsPage() {
   const [deactivatingClub, setDeactivatingClub] = useState<Club | null>(null)
   const [deactivateReason, setDeactivateReason] = useState('')
 
-  useEffect(() => {
+  // Extracted so the Retry button below can re-fire the same load
+  // without dragging in `useEffect`'s captured deps.
+  function loadClubs() {
+    setLoading(true)
+    setLoadError(null)
     fetch('/app/api/admin/clubs', { credentials: 'include' })
-      .then(r => r.json())
-      .then(data => { setClubList(Array.isArray(data) ? data : []); setLoading(false) })
-      .catch(() => setLoading(false))
-  }, [])
+      .then(async r => {
+        if (!r.ok) {
+          const text = await r.text().catch(() => '')
+          throw new Error(`${r.status}${text ? `: ${text.slice(0, 200)}` : ''}`)
+        }
+        return r.json()
+      })
+      .then(data => setClubList(Array.isArray(data) ? data : []))
+      .catch((e: Error) => setLoadError(e?.message ?? 'Failed to load'))
+      .finally(() => setLoading(false))
+  }
+  useEffect(loadClubs, [])
 
 
   function startEdit(club: Club) {
@@ -246,12 +259,19 @@ export default function AdminClubsPage() {
       }),
     })
     setSaving(false)
-    if (res.ok) {
-      const updated = await res.json()
-      setClubList(prev => prev.map(c => c.id === id ? { ...c, ...updated } : c))
-      setEditingId(null)
-      toast.success('Club updated ✓')
+    if (!res.ok) {
+      // Previously a 403 / 500 silently left the admin in inline-
+      // edit mode with no feedback. They'd retry, get the same
+      // result, and be unable to tell which field the server
+      // rejected. Surface the message instead.
+      const d = await res.json().catch(() => ({}))
+      toast.error(d?.error ?? 'Could not save club')
+      return
     }
+    const updated = await res.json()
+    setClubList(prev => prev.map(c => c.id === id ? { ...c, ...updated } : c))
+    setEditingId(null)
+    toast.success('Club updated ✓')
   }
 
   async function handleCreate() {
@@ -472,7 +492,43 @@ export default function AdminClubsPage() {
         </div>
       )}
 
-      {loading && <div className="text-center text-zinc-500 py-12 text-sm">Loading…</div>}
+      {/* Load error banner — replaces the silent empty-state when
+          the initial fetch fails. Retry re-fires loadClubs(). */}
+      {loadError && (
+        <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 flex items-start gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-red-300">Couldn&apos;t load clubs</p>
+            <p className="text-xs text-red-400/80 mt-1 break-all">{loadError}</p>
+          </div>
+          <button onClick={loadClubs}
+            className="text-xs px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 font-semibold shrink-0">
+            Retry
+          </button>
+        </div>
+      )}
+
+      {/* Page-shape skeleton — mirrors the actual card grid so the
+          jump-from-Loading-text-to-cards transition is a fill-in
+          rather than a layout shift. */}
+      {loading && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="bg-zinc-900 rounded-2xl border border-zinc-800 p-6">
+              <div className="flex items-start gap-4 mb-4">
+                <div className="w-12 h-12 rounded-xl bg-zinc-800 animate-pulse shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 w-1/2 rounded bg-zinc-800 animate-pulse" />
+                  <div className="h-3 w-1/3 rounded bg-zinc-800/60 animate-pulse" />
+                  <div className="h-3 w-3/4 rounded bg-zinc-800/60 animate-pulse" />
+                </div>
+              </div>
+              <div className="pt-3 border-t border-zinc-800 grid grid-cols-3 gap-1.5">
+                {[0, 1, 2].map(j => <div key={j} className="h-8 rounded-lg bg-zinc-800 animate-pulse" />)}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       {!loading && totalClubs === 0 && (
         <div className="text-center py-16 bg-zinc-900 border border-dashed border-zinc-800 rounded-2xl">
           <p className="text-3xl mb-3">🪴</p>
