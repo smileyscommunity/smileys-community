@@ -1,9 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { resolveImageUrl } from '@/lib/data'
+import { useAdminLoad } from '@/lib/admin/useAdminLoad'
+import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 
 interface PartnerUser { id: string; name: string; email: string }
 interface Partner {
@@ -39,36 +41,38 @@ const FIELDS = [
 const inputCls = 'w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2 text-white text-sm focus:outline-none focus:border-amber-500'
 
 export default function AdminPartnersPage() {
-  const [partners,   setPartners]   = useState<Partner[]>([])
-  const [allMembers, setAllMembers] = useState<Member[]>([])
-  const [loading,    setLoading]    = useState(true)
-  const [loadError,  setLoadError]  = useState<string | null>(null)
+  // Two parallel useAdminLoad calls in place of a hand-rolled
+  // Promise.all + setState dance. Each one r.ok-gates + shape-
+  // validates its response, and a combined load() retries both.
+  // Was previously using .then(r => r.json()) with no r.ok check —
+  // a 401/500 fell through unchecked, Array.isArray filtered the
+  // error JSON into [], and the page rendered "No partners yet"
+  // indistinct from a real empty result.
+  const {
+    data: partnersData, loading: partnersLoading, error: partnersError, retry: retryPartners, setData: setPartnersData,
+  } = useAdminLoad<Partner[]>(
+    '/app/api/admin/partners',
+    (v): v is Partner[] => Array.isArray(v),
+  )
+  const {
+    data: membersData, loading: membersLoading, error: membersError, retry: retryMembers,
+  } = useAdminLoad<Member[]>(
+    '/app/api/admin/users',
+    (v): v is Member[] => Array.isArray(v),
+  )
+  const partners   = partnersData ?? []
+  const allMembers = membersData  ?? []
+  const loading    = partnersLoading || membersLoading
+  const loadError  = partnersError || membersError
+  const load = () => { retryPartners(); retryMembers() }
+  const setPartners = (next: Partner[] | ((prev: Partner[]) => Partner[])) => {
+    setPartnersData(typeof next === 'function' ? next(partnersData ?? []) : next)
+  }
+
   const [panel,      setPanel]      = useState<{ id: string; mode: PanelMode }>({ id: '', mode: null })
   const [searches,   setSearches]   = useState<Record<string, string>>({})
   const [editForms,  setEditForms]  = useState<Record<string, Partial<Partner>>>({})
   const [saving,     setSaving]     = useState<string | null>(null)
-
-  // Extracted so a Retry button on the error banner can re-fire
-  // it. Was using .then(r => r.json()) with no r.ok check — a
-  // 401/500 fell through unchecked, Array.isArray filtered the
-  // error JSON into [], and the page rendered "No partners yet"
-  // indistinct from a real empty result.
-  function load() {
-    setLoading(true)
-    setLoadError(null)
-    Promise.all([
-      fetch('/app/api/admin/partners', { credentials: 'include' })
-        .then(async r => { if (!r.ok) throw new Error(`partners ${r.status}`); return r.json() }),
-      fetch('/app/api/admin/users',    { credentials: 'include' })
-        .then(async r => { if (!r.ok) throw new Error(`users ${r.status}`); return r.json() }),
-    ]).then(([p, u]) => {
-      setPartners(Array.isArray(p) ? p : [])
-      setAllMembers(Array.isArray(u) ? u : [])
-    }).catch((e: Error) => {
-      setLoadError(e?.message ?? 'Failed to load')
-    }).finally(() => setLoading(false))
-  }
-  useEffect(load, [])
 
   function openEdit(p: Partner) {
     setEditForms(prev => ({ ...prev, [p.id]: { ...p } }))
@@ -178,19 +182,9 @@ export default function AdminPartnersPage() {
       </div>
 
       {/* Error banner — was silently rendering "No partners yet."
-          on load failures. Retry re-fires the same load(). */}
-      {loadError && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 flex items-start gap-3">
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-red-300">Couldn&apos;t load partners</p>
-            <p className="text-xs text-red-400/80 mt-1 break-all">{loadError}</p>
-          </div>
-          <button onClick={load}
-            className="text-xs px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 font-semibold shrink-0">
-            Retry
-          </button>
-        </div>
-      )}
+          on load failures. Retry re-fires both underlying hook
+          loads (partners + users). */}
+      <LoadErrorBanner message={loadError} onRetry={load} title="Couldn't load partners" />
 
       {loading ? (
         // Page-shape skeleton matching the partner row layout so
