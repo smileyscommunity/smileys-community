@@ -479,9 +479,14 @@ export default function CupPredictionsPage() {
               teams in FIFA seed order at 0-0-0; once results land
               the order updates with each Apply. */}
           <GroupsCard fixtures={fixtures} />
-          <FAQCard />
           <WatchParties />
           <PrizesSection />
+          {/* Common questions — moved below Prizes so the
+              "what's in this for me?" content (rules, standings,
+              watch parties, prizes) leads, and the meta-q-and-a
+              section sits closer to the share-with-a-friend CTA
+              where lingering questions naturally surface. */}
+          <FAQCard />
           {/* Share — lives at the bottom of the sidebar as a final
               "spread the word" beat. Members only; visitors get the
               embedded share row inside their apply hero instead. */}
