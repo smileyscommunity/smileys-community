@@ -23,12 +23,22 @@ interface Host {
 }
 
 type ActivityFilter = 'all' | 'active' | 'inactive'
+type SortKey        = 'activity' | 'events' | 'attendees' | 'last' | 'name'
+
+const SORT_LABEL: Record<SortKey, string> = {
+  activity:  'Active in 90d',
+  events:    'Total events',
+  attendees: 'Attendees',
+  last:      'Last event',
+  name:      'Name (A–Z)',
+}
 
 export default function AdminHostsPage() {
   const [hosts,     setHosts]     = useState<Host[] | null>(null)
   const [error,     setError]     = useState<string | null>(null)
   const [search,    setSearch]    = useState('')
   const [activity,  setActivity]  = useState<ActivityFilter>('all')
+  const [sortKey,   setSortKey]   = useState<SortKey>('activity')
   const [promoting, setPromoting] = useState(false)
 
   const load = useCallback(() => {
@@ -50,18 +60,44 @@ export default function AdminHostsPage() {
   }, [])
   useEffect(load, [load])
 
-  // Filtered + searched view. Recomputed on each render — cheap
-  // for a list of dozens.
+  // Filtered + searched + sorted view. All client-side — the API
+  // returns the full list and we have everything we need to sort
+  // any of the six orderings without another fetch.
   const visible = useMemo<Host[]>(() => {
     if (!hosts) return []
     const q = search.trim().toLowerCase()
-    return hosts.filter(h => {
+    const filtered = hosts.filter(h => {
       if (q && !h.user.name.toLowerCase().includes(q) && !h.user.email.toLowerCase().includes(q)) return false
       if (activity === 'active'   && h.eventCount90d === 0) return false
       if (activity === 'inactive' && h.eventCount90d  >  0) return false
       return true
     })
-  }, [hosts, search, activity])
+    const tieBreaker = (a: Host, b: Host) => a.user.name.localeCompare(b.user.name)
+    const sorted = [...filtered]
+    switch (sortKey) {
+      case 'activity':
+        sorted.sort((a, b) => b.eventCount90d - a.eventCount90d || b.eventCount - a.eventCount || tieBreaker(a, b))
+        break
+      case 'events':
+        sorted.sort((a, b) => b.eventCount - a.eventCount || tieBreaker(a, b))
+        break
+      case 'attendees':
+        sorted.sort((a, b) => b.totalAttendees - a.totalAttendees || tieBreaker(a, b))
+        break
+      case 'last': {
+        // Hosts with no events sink to the bottom (lastEventAt
+        // null → -Infinity). Most-recent first within those who
+        // have any.
+        const t = (h: Host) => h.lastEventAt ? new Date(h.lastEventAt).getTime() : -Infinity
+        sorted.sort((a, b) => t(b) - t(a) || tieBreaker(a, b))
+        break
+      }
+      case 'name':
+        sorted.sort(tieBreaker)
+        break
+    }
+    return sorted
+  }, [hosts, search, activity, sortKey])
 
   const inactiveCount = useMemo(() => hosts?.filter(h => h.eventCount90d === 0).length ?? 0, [hosts])
 
@@ -107,6 +143,17 @@ export default function AdminHostsPage() {
             </button>
           ))}
         </div>
+        {/* Sort dropdown. Kept as a <select> rather than another
+            pill row so the filter+sort affordances are visually
+            distinct (one is "which subset", the other is "what
+            order"). */}
+        <select value={sortKey} onChange={e => setSortKey(e.target.value as SortKey)}
+          aria-label="Sort hosts"
+          className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-300 font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500">
+          {(Object.keys(SORT_LABEL) as SortKey[]).map(k => (
+            <option key={k} value={k}>Sort: {SORT_LABEL[k]}</option>
+          ))}
+        </select>
       </div>
 
       {/* ── Body ────────────────────────────────────────────────── */}
