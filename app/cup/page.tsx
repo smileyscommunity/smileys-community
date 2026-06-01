@@ -20,7 +20,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { CUP_TEAMS as TEAMS, TEAM_BY_CODE, teamLabel, ROUND_LABEL, isFixtureLocked } from '@/lib/cup-data'
+import { CUP_TEAMS as TEAMS, TEAM_BY_CODE, teamLabel, ROUND_LABEL, isFixtureLocked, CUP_GROUPS } from '@/lib/cup-data'
 
 interface Fixture {
   id:        string
@@ -472,6 +472,13 @@ export default function CupPredictionsPage() {
               one is the always-visible "where am I" glance for
               desktop users scrolling through 103 fixtures. */}
           {accessState === 'member' && <MiniRankCard />}
+          {/* Live group standings — 12 groups, each with its 4 teams
+              ranked by points → GD → GF. Computed from the same
+              fixtures the main column renders so the cards stay in
+              sync without a separate fetch. Pre-tournament: shows
+              teams in FIFA seed order at 0-0-0; once results land
+              the order updates with each Apply. */}
+          <GroupsCard fixtures={fixtures} />
           <FAQCard />
           <WatchParties />
           <PrizesSection />
@@ -1678,6 +1685,194 @@ function Shell({ children }: { children: React.ReactNode }) {
 // Defaults open for first-time viewers (non-members), collapsed
 // for members who've seen it before. Members can re-open anytime.
 // ─────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────
+// Group standings — sidebar card
+// 12 groups × 4 teams, ranked by points → goal difference → goals
+// for. Top 2 in each group are highlighted as advancing (the FIFA
+// 48-team format actually advances top 2 + the 8 best third-place
+// teams, but the third-place comparison spans groups — out of
+// scope for a sidebar card). Each group collapses by default to
+// keep the sidebar scannable; tap a group header to expand.
+// ─────────────────────────────────────────────────────────────────
+
+interface TeamStanding {
+  code:    string
+  played:  number
+  wins:    number
+  draws:   number
+  losses:  number
+  gf:      number
+  ga:      number
+  gd:      number
+  points:  number
+}
+
+function computeStandings(groupLetter: string, fixtures: Fixture[]): TeamStanding[] {
+  // Seed the standings table from CUP_GROUPS so pre-tournament we
+  // show all four teams (rather than an empty table). Each team
+  // starts at 0-0-0; the loop below adds match-by-match deltas.
+  const seedOrder = CUP_GROUPS[groupLetter] ?? []
+  const rows: Record<string, TeamStanding> = {}
+  for (const code of seedOrder) {
+    rows[code] = { code, played: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, gd: 0, points: 0 }
+  }
+
+  for (const f of fixtures) {
+    if (f.group !== groupLetter) continue
+    if (!f.homeTeam || !f.awayTeam) continue
+    // Result is recorded only when BOTH scores are non-null. A
+    // fixture with a winnerTeam set but no scores is malformed —
+    // safer to ignore than to inflate Pts off zero-zero data.
+    if (f.homeScore === null || f.awayScore === null) continue
+
+    const home = rows[f.homeTeam]
+    const away = rows[f.awayTeam]
+    if (!home || !away) continue
+
+    home.played += 1; away.played += 1
+    home.gf += f.homeScore; home.ga += f.awayScore
+    away.gf += f.awayScore; away.ga += f.homeScore
+
+    if (f.winnerTeam === f.homeTeam) {
+      home.wins   += 1; home.points += 3
+      away.losses += 1
+    } else if (f.winnerTeam === f.awayTeam) {
+      away.wins   += 1; away.points += 3
+      home.losses += 1
+    } else {
+      // No winner set + scores recorded → draw. The schema doesn't
+      // carry an explicit draw flag; this is the conventional
+      // representation (winnerTeam null with scores).
+      home.draws += 1; home.points += 1
+      away.draws += 1; away.points += 1
+    }
+  }
+
+  // Compute GD and rank.
+  for (const r of Object.values(rows)) r.gd = r.gf - r.ga
+  const list = Object.values(rows)
+
+  // If nothing has been played yet, preserve seed order (already in
+  // the array). Once any match has played, sort by points → GD →
+  // GF → seed-order as final tiebreaker (stable through indexed lookup).
+  const anyPlayed = list.some(r => r.played > 0)
+  if (!anyPlayed) return list
+
+  const seedRank = (code: string) => seedOrder.indexOf(code)
+  return [...list].sort((a, b) => {
+    if (a.points !== b.points) return b.points - a.points
+    if (a.gd     !== b.gd)     return b.gd     - a.gd
+    if (a.gf     !== b.gf)     return b.gf     - a.gf
+    return seedRank(a.code) - seedRank(b.code)
+  })
+}
+
+function GroupsCard({ fixtures }: { fixtures: Fixture[] | null }) {
+  const [openLetter, setOpenLetter] = useState<string | null>(null)
+
+  const safeFixtures = fixtures ?? []
+  const totalPlayed  = useMemo(
+    () => safeFixtures.filter(f => f.round === 'group' && f.homeScore !== null && f.awayScore !== null).length,
+    [safeFixtures],
+  )
+
+  // Group letters in order. Object.keys preserves insertion order
+  // for CUP_GROUPS (A..L), which matches the natural display.
+  const letters = Object.keys(CUP_GROUPS)
+
+  return (
+    <div className="bg-white rounded-2xl shadow-card overflow-hidden mb-4">
+      <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+        <p className="text-sm font-bold text-gray-900">Groups</p>
+        <p className="text-[10px] text-gray-400 tabular-nums">{totalPlayed}/72 played</p>
+      </div>
+      <div className="divide-y divide-gray-100">
+        {letters.map(letter => (
+          <GroupRow key={letter}
+            letter={letter}
+            fixtures={safeFixtures}
+            isOpen={openLetter === letter}
+            onToggle={() => setOpenLetter(prev => prev === letter ? null : letter)}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function GroupRow({ letter, fixtures, isOpen, onToggle }: {
+  letter:   string
+  fixtures: Fixture[]
+  isOpen:   boolean
+  onToggle: () => void
+}) {
+  const standings = useMemo(() => computeStandings(letter, fixtures), [letter, fixtures])
+  const played    = standings.reduce((acc, r) => acc + r.played, 0) / 2   // each match counted twice
+  // Collapsed-header preview: top 2 codes so admin can scan the
+  // qualification picture without expanding every group.
+  const top2 = standings.slice(0, 2).map(r => r.code).join(', ')
+
+  return (
+    <div>
+      <button onClick={onToggle}
+        className="w-full px-5 py-2.5 flex items-center justify-between hover:bg-gray-50 transition-colors text-left"
+        aria-expanded={isOpen}>
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-xs font-bold text-gray-900 shrink-0">Group {letter}</span>
+          <span className="text-[10px] text-gray-500 truncate">{top2}</span>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-[10px] text-gray-400 tabular-nums">{played}/6</span>
+          <span className={`text-gray-400 text-[10px] transition-transform ${isOpen ? 'rotate-90' : ''}`}>▶</span>
+        </div>
+      </button>
+
+      {isOpen && (
+        <div className="px-3 pb-3">
+          {/* Compact table. The 4 columns stay narrow enough for
+              the 320px sidebar without horizontal scroll. */}
+          <table className="w-full text-[10px] tabular-nums">
+            <thead className="text-gray-400 uppercase tracking-wider">
+              <tr>
+                <th className="text-left pl-1.5 pb-1 font-semibold">#</th>
+                <th className="text-left pb-1 font-semibold">Team</th>
+                <th className="text-center pb-1 font-semibold">P</th>
+                <th className="text-center pb-1 font-semibold">GD</th>
+                <th className="text-right pr-1.5 pb-1 font-semibold">Pts</th>
+              </tr>
+            </thead>
+            <tbody>
+              {standings.map((row, idx) => {
+                const advancing = idx < 2  // top 2 advance
+                const t = TEAM_BY_CODE.get(row.code)
+                return (
+                  <tr key={row.code} className={advancing ? 'bg-amber-50/60' : ''}>
+                    <td className="pl-1.5 py-1 text-gray-400">{idx + 1}</td>
+                    <td className="py-1">
+                      <span className="inline-flex items-center gap-1">
+                        <span aria-hidden>{t?.flag ?? '🏳️'}</span>
+                        <span className={`font-semibold ${advancing ? 'text-amber-900' : 'text-gray-700'} truncate`}>{row.code}</span>
+                      </span>
+                    </td>
+                    <td className="text-center py-1 text-gray-600">{row.played}</td>
+                    <td className="text-center py-1 text-gray-600">
+                      {row.gd > 0 ? `+${row.gd}` : row.gd}
+                    </td>
+                    <td className={`text-right pr-1.5 py-1 font-bold ${advancing ? 'text-amber-700' : 'text-gray-900'}`}>{row.points}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+          {played === 0 && (
+            <p className="text-[10px] text-gray-400 italic mt-2 px-1.5">No matches played yet — order shown is FIFA seed.</p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function RulesCard({ defaultOpen }: { defaultOpen: boolean }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
