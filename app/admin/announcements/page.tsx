@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { toast } from 'sonner'
 
 // This page used to live at /admin/engagement but the name was misleading —
 // it's not analytics at all, it's comms tooling (top-of-page announcement
@@ -36,7 +37,6 @@ interface Poll {
 function AnnouncementTab() {
   const [data, setData]       = useState<Announcement>({ text: '', link: '', active: false })
   const [saving, setSaving]   = useState(false)
-  const [saved, setSaved]     = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -48,18 +48,48 @@ function AnnouncementTab() {
 
   async function save() {
     setSaving(true)
-    await fetch('/app/api/admin/announcement', {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    })
-    setSaving(false)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+    try {
+      // Was awaiting fetch with no res.ok check, then
+      // unconditionally flashing "✓ Saved" for 2 seconds — admin
+      // believed every save landed, even when the server 500'd.
+      const res = await fetch('/app/api/admin/announcement', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        toast.error(d?.error ?? 'Failed to save announcement')
+        return
+      }
+      toast.success(data.active ? 'Announcement published' : 'Announcement hidden')
+    } finally {
+      setSaving(false)
+    }
   }
 
-  if (loading) return <div className="text-zinc-500 text-sm p-6">Loading…</div>
+  if (loading) {
+    // Page-shape skeleton matching the form layout — preview pill,
+    // two fields, footer row with toggle + Save button.
+    return (
+      <div className="max-w-xl space-y-5">
+        <div className="h-3 w-3/4 rounded bg-zinc-800 animate-pulse" />
+        <div className="space-y-2">
+          <div className="h-3 w-20 rounded bg-zinc-800/60 animate-pulse" />
+          <div className="h-12 rounded-xl bg-zinc-800 animate-pulse" />
+        </div>
+        <div className="space-y-2">
+          <div className="h-3 w-16 rounded bg-zinc-800/60 animate-pulse" />
+          <div className="h-12 rounded-xl bg-zinc-800 animate-pulse" />
+        </div>
+        <div className="flex items-center justify-between pt-1">
+          <div className="h-6 w-32 rounded bg-zinc-800 animate-pulse" />
+          <div className="h-9 w-20 rounded-xl bg-zinc-800 animate-pulse" />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-xl space-y-5">
@@ -115,7 +145,7 @@ function AnnouncementTab() {
           disabled={saving}
           className="px-5 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-colors"
         >
-          {saved ? '✓ Saved' : saving ? 'Saving…' : 'Save'}
+          {saving ? 'Saving…' : 'Save'}
         </button>
       </div>
     </div>
@@ -154,23 +184,34 @@ function PollsTab() {
     const filled = options.filter(o => o.trim())
     if (filled.length < 2) { setError('At least 2 options required'); return }
     setCreating(true)
-    const res = await fetch('/app/api/admin/community-poll', {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question, options: filled }),
-    })
-    const data = await res.json()
-    if (res.ok) {
+    try {
+      const res = await fetch('/app/api/admin/community-poll', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question, options: filled }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        // Keep the inline error pill for validation-shaped messages
+        // (already useful here), and also toast for server-side
+        // failures so the feedback isn't trapped inside the form.
+        setError(data.error || 'Failed to create poll')
+        toast.error(data?.error ?? 'Failed to create poll')
+        return
+      }
       setPolls(p => [data, ...p.map(pp => ({ ...pp, active: false }))])
       setQ('')
       setOpts(['', ''])
-    } else {
-      setError(data.error || 'Failed to create poll')
+      toast.success('Poll published')
+    } finally {
+      setCreating(false)
     }
-    setCreating(false)
   }
 
+  // Was a one-armed if (res.ok) — server failure just made the
+  // ✕ click do nothing with no feedback at all. Now an error
+  // toast surfaces the failure and the row stays put.
   async function deletePoll(pollId: string) {
     if (!confirm('Delete this poll? This cannot be undone.')) return
     const res = await fetch('/app/api/admin/community-poll', {
@@ -179,19 +220,35 @@ function PollsTab() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pollId }),
     })
-    if (res.ok) setPolls(p => p.filter(poll => poll.id !== pollId))
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}))
+      toast.error(d?.error ?? 'Failed to delete poll')
+      return
+    }
+    setPolls(p => p.filter(poll => poll.id !== pollId))
+    toast.success('Poll deleted')
   }
 
+  // Was mutating state regardless of res.ok — admin clicked
+  // End/Reactivate, the UI flipped, but the server may have
+  // 500'd and the DB stayed in the old state. Worst-kind-of-lie.
+  // Now the state flip waits for the server's OK.
   async function toggleActive(pollId: string, active: boolean) {
-    await fetch('/app/api/admin/community-poll', {
+    const res = await fetch('/app/api/admin/community-poll', {
       method: 'PATCH',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pollId, active }),
     })
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}))
+      toast.error(d?.error ?? 'Failed to toggle poll')
+      return
+    }
     setPolls(p => p.map(poll =>
       poll.id === pollId ? { ...poll, active } : { ...poll, active: active ? false : poll.active }
     ))
+    toast.success(active ? 'Poll reactivated' : 'Poll ended')
   }
 
   const totalVotes = (poll: Poll) => poll.options.reduce((s, o) => s + o._count.votes, 0)
@@ -254,7 +311,25 @@ function PollsTab() {
 
       {/* Existing polls */}
       {loading ? (
-        <div className="text-zinc-500 text-sm">Loading polls…</div>
+        // Page-shape skeleton — Previous polls header + two card
+        // silhouettes mirroring the eventual row layout.
+        <div className="space-y-3">
+          <div className="h-3 w-32 rounded bg-zinc-800/60 animate-pulse" />
+          {[0, 1].map(i => (
+            <div key={i} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="h-4 w-2/3 rounded bg-zinc-800 animate-pulse" />
+                <div className="flex gap-2">
+                  <div className="h-6 w-12 rounded-lg bg-zinc-800 animate-pulse" />
+                  <div className="h-6 w-16 rounded-lg bg-zinc-800 animate-pulse" />
+                </div>
+              </div>
+              {[0, 1, 2].map(j => (
+                <div key={j} className="h-3 w-full rounded bg-zinc-800/60 animate-pulse" />
+              ))}
+            </div>
+          ))}
+        </div>
       ) : polls.length === 0 ? (
         <p className="text-zinc-500 text-sm">No polls created yet.</p>
       ) : (
