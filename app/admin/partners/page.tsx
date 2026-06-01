@@ -42,20 +42,33 @@ export default function AdminPartnersPage() {
   const [partners,   setPartners]   = useState<Partner[]>([])
   const [allMembers, setAllMembers] = useState<Member[]>([])
   const [loading,    setLoading]    = useState(true)
+  const [loadError,  setLoadError]  = useState<string | null>(null)
   const [panel,      setPanel]      = useState<{ id: string; mode: PanelMode }>({ id: '', mode: null })
   const [searches,   setSearches]   = useState<Record<string, string>>({})
   const [editForms,  setEditForms]  = useState<Record<string, Partial<Partner>>>({})
   const [saving,     setSaving]     = useState<string | null>(null)
 
-  useEffect(() => {
+  // Extracted so a Retry button on the error banner can re-fire
+  // it. Was using .then(r => r.json()) with no r.ok check — a
+  // 401/500 fell through unchecked, Array.isArray filtered the
+  // error JSON into [], and the page rendered "No partners yet"
+  // indistinct from a real empty result.
+  function load() {
+    setLoading(true)
+    setLoadError(null)
     Promise.all([
-      fetch('/app/api/admin/partners', { credentials: 'include' }).then(r => r.json()),
-      fetch('/app/api/admin/users',    { credentials: 'include' }).then(r => r.json()),
+      fetch('/app/api/admin/partners', { credentials: 'include' })
+        .then(async r => { if (!r.ok) throw new Error(`partners ${r.status}`); return r.json() }),
+      fetch('/app/api/admin/users',    { credentials: 'include' })
+        .then(async r => { if (!r.ok) throw new Error(`users ${r.status}`); return r.json() }),
     ]).then(([p, u]) => {
       setPartners(Array.isArray(p) ? p : [])
       setAllMembers(Array.isArray(u) ? u : [])
+    }).catch((e: Error) => {
+      setLoadError(e?.message ?? 'Failed to load')
     }).finally(() => setLoading(false))
-  }, [])
+  }
+  useEffect(load, [])
 
   function openEdit(p: Partner) {
     setEditForms(prev => ({ ...prev, [p.id]: { ...p } }))
@@ -89,16 +102,32 @@ export default function AdminPartnersPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id }),
     })
-    if (res.ok) { setPartners(prev => prev.filter(p => p.id !== id)); toast.success('Deleted') }
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}))
+      toast.error(d?.error ?? 'Failed to delete partner')
+      return
+    }
+    setPartners(prev => prev.filter(p => p.id !== id))
+    toast.success('Deleted')
   }
 
   async function toggleActive(p: Partner) {
+    const next = !p.isActive
     const res = await fetch(`/app/api/admin/partners/${p.id}`, {
       method: 'PATCH', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ isActive: !p.isActive }),
+      body: JSON.stringify({ isActive: next }),
     })
-    if (res.ok) setPartners(prev => prev.map(x => x.id === p.id ? { ...x, isActive: !p.isActive } : x))
+    if (!res.ok) {
+      // Was completely silent — admin clicked "Activate" or
+      // "Deactivate" and had no way to tell whether the click
+      // landed. Worse: even on success there was no toast.
+      const d = await res.json().catch(() => ({}))
+      toast.error(d?.error ?? `Failed to ${next ? 'activate' : 'deactivate'} partner`)
+      return
+    }
+    setPartners(prev => prev.map(x => x.id === p.id ? { ...x, isActive: next } : x))
+    toast.success(`${p.name} ${next ? 'activated' : 'deactivated'}`)
   }
 
   async function assignUser(partnerId: string, user: Member) {
@@ -111,7 +140,10 @@ export default function AdminPartnersPage() {
       setPartners(prev => prev.map(p => p.id === partnerId ? { ...p, users: [...p.users, user] } : p))
       setSearches(s => ({ ...s, [partnerId]: '' }))
       toast.success(`${user.name} assigned ✓`)
-    } else toast.error('Failed to assign')
+    } else {
+      const d = await res.json().catch(() => ({}))
+      toast.error(d?.error ?? 'Failed to assign')
+    }
   }
 
   async function removeUser(partnerId: string, userId: string) {
@@ -120,10 +152,13 @@ export default function AdminPartnersPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId }),
     })
-    if (res.ok) {
-      setPartners(prev => prev.map(p => p.id === partnerId ? { ...p, users: p.users.filter(u => u.id !== userId) } : p))
-      toast('User unassigned')
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}))
+      toast.error(d?.error ?? 'Failed to remove user')
+      return
     }
+    setPartners(prev => prev.map(p => p.id === partnerId ? { ...p, users: p.users.filter(u => u.id !== userId) } : p))
+    toast('User unassigned')
   }
 
   return (
@@ -142,7 +177,39 @@ export default function AdminPartnersPage() {
         </Link>
       </div>
 
-      {loading ? <p className="text-zinc-500 text-sm">Loading…</p>
+      {/* Error banner — was silently rendering "No partners yet."
+          on load failures. Retry re-fires the same load(). */}
+      {loadError && (
+        <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 flex items-start gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-red-300">Couldn&apos;t load partners</p>
+            <p className="text-xs text-red-400/80 mt-1 break-all">{loadError}</p>
+          </div>
+          <button onClick={load}
+            className="text-xs px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 font-semibold shrink-0">
+            Retry
+          </button>
+        </div>
+      )}
+
+      {loading ? (
+        // Page-shape skeleton matching the partner row layout so
+        // the moment data lands is a fill-in rather than a jump.
+        <div className="space-y-3">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="bg-zinc-900 border border-zinc-800 rounded-2xl px-5 py-4 flex items-center gap-4">
+              <div className="w-10 h-10 rounded-xl bg-zinc-800 animate-pulse shrink-0" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 w-1/3 rounded bg-zinc-800 animate-pulse" />
+                <div className="h-3 w-1/2 rounded bg-zinc-800/60 animate-pulse" />
+              </div>
+              <div className="hidden sm:flex gap-2">
+                {[0, 1, 2, 3].map(j => <div key={j} className="h-8 w-16 rounded-lg bg-zinc-800 animate-pulse" />)}
+              </div>
+            </div>
+          ))}
+        </div>
+      )
       : partners.length === 0 ? <div className="text-center py-16 text-zinc-600">No partners yet.</div>
       : (
         <div className="space-y-3">
