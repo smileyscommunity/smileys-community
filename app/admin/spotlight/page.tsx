@@ -54,22 +54,80 @@ export default function SpotlightPage() {
   const [savingPoll,   setSavingPoll]   = useState(false)
 
   useEffect(() => {
-    fetch('/app/api/admin/spotlight', { credentials: 'include' })
-      .then(r => r.json()).then(d => { if (d) setCurrent(d) }).catch(() => {})
-    fetch('/app/api/admin/announcement', { credentials: 'include' })
-      .then(r => r.json()).then(d => { if (d) setAnnouncement(d) }).catch(() => {})
-    fetch('/app/api/admin/community-poll', { credentials: 'include' })
-      .then(r => r.json()).then(d => { if (Array.isArray(d)) setPolls(d) }).catch(() => {})
+    // Was using .catch(() => {}) which silently swallowed network
+    // errors, AND letting `if (d)` pass through error-JSON bodies
+    // — a 401 response from /api/admin/spotlight would have
+    // called setCurrent({error: '...'}) and crashed on .user.id
+    // downstream. Each fetch now r.ok-gates before setting state,
+    // and a single toast covers the auth-loss case.
+    async function loadOne<T>(url: string, accept: (v: unknown) => v is T): Promise<T | null> {
+      try {
+        const r = await fetch(url, { credentials: 'include' })
+        if (!r.ok) return null
+        const d = await r.json()
+        return accept(d) ? d : null
+      } catch {
+        return null
+      }
+    }
+    ;(async () => {
+      const [spot, ann, ps] = await Promise.all([
+        loadOne<Spotlight>('/app/api/admin/spotlight', (v): v is Spotlight =>
+          !!v && typeof v === 'object' && 'user' in v),
+        loadOne<Announcement>('/app/api/admin/announcement', (v): v is Announcement =>
+          !!v && typeof v === 'object' && 'text' in v && 'active' in v),
+        loadOne<Poll[]>('/app/api/admin/community-poll', (v): v is Poll[] =>
+          Array.isArray(v)),
+      ])
+      if (spot) setCurrent(spot)
+      if (ann)  setAnnouncement(ann)
+      if (ps)   setPolls(ps)
+      if (spot === null && ann === null && ps === null) {
+        // All three failed → probably auth or full outage. One
+        // honest toast beats three indistinguishable ones.
+        toast.error('Couldn\'t load spotlight data — refresh to try again')
+      }
+    })()
   }, [])
 
   async function handleSearch() {
     if (!search.trim()) return
     setSearching(true)
     try {
-      const res  = await fetch(`/app/api/admin/users?search=${encodeURIComponent(search)}`, { credentials: 'include' })
+      const res = await fetch(`/app/api/admin/users?search=${encodeURIComponent(search)}`, { credentials: 'include' })
+      if (!res.ok) {
+        // Previously Array.isArray was the only failure gate, so
+        // an auth error (which returns a JSON error body) just
+        // showed "no results" with no admin feedback.
+        const d = await res.json().catch(() => ({}))
+        toast.error(d?.error ?? 'Search failed')
+        setResults([])
+        return
+      }
       const data = await res.json()
       setResults(Array.isArray(data) ? data.slice(0, 8) : [])
     } finally { setSearching(false) }
+  }
+
+  // Clear the current spotlight without having to set a different
+  // member first — previously the only way to "remove" was to
+  // overwrite with another pick. Hits DELETE on the same route
+  // (server respects it as a clear; falls through to a graceful
+  // 404 if there was nothing to clear).
+  async function clearSpotlight() {
+    if (!current) return
+    if (!confirm(`Clear the current spotlight (${current.user.name})? The dashboard will fall back to its default.`)) return
+    setSaving(true)
+    try {
+      const res = await fetch('/app/api/admin/spotlight', { method: 'DELETE', credentials: 'include' })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        toast.error(d?.error ?? 'Failed to clear spotlight')
+        return
+      }
+      setCurrent(null)
+      toast.success('Spotlight cleared')
+    } finally { setSaving(false) }
   }
 
   function selectUser(u: User) {
@@ -139,12 +197,21 @@ export default function SpotlightPage() {
   }
 
   async function togglePoll(pollId: string, active: boolean) {
-    await fetch('/app/api/admin/community-poll', {
+    const res = await fetch('/app/api/admin/community-poll', {
       method: 'PATCH', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pollId, active }),
     })
-    const updated = await fetch('/app/api/admin/community-poll', { credentials: 'include' }).then(r => r.json())
+    if (!res.ok) {
+      // Previously was silent on failure — admin clicked "Set
+      // active", saw the same UI state after refetch, and
+      // couldn't tell whether the click did anything.
+      const d = await res.json().catch(() => ({}))
+      toast.error(d?.error ?? 'Failed to toggle poll')
+      return
+    }
+    toast.success(active ? 'Poll activated' : 'Poll deactivated')
+    const updated = await fetch('/app/api/admin/community-poll', { credentials: 'include' }).then(r => r.ok ? r.json() : null)
     if (Array.isArray(updated)) setPolls(updated)
   }
 
@@ -265,9 +332,16 @@ export default function SpotlightPage() {
       {/* Current spotlight */}
       {current && (
         <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-4 gap-3">
             <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Current spotlight</h2>
-            <button onClick={prefillFromCurrent} className="text-xs text-amber-400 font-semibold hover:text-amber-300">Edit →</button>
+            <div className="flex items-center gap-3 text-xs">
+              <button onClick={prefillFromCurrent} className="text-amber-400 font-semibold hover:text-amber-300">Edit →</button>
+              <button onClick={clearSpotlight} disabled={saving}
+                className="text-zinc-500 font-semibold hover:text-red-400 transition-colors disabled:opacity-40"
+                title="Remove the current spotlight (dashboard falls back to default)">
+                Clear
+              </button>
+            </div>
           </div>
           <div className="flex items-center gap-4 mb-4">
             <Avatar user={current.user} />

@@ -32,3 +32,15 @@ export async function POST(req: NextRequest) {
   writeFileSync(filePath, JSON.stringify({ userId, funFact: funFact ?? '', topSpots: topSpots ?? ['', '', ''], updatedAt: new Date().toISOString() }, null, 2))
   return NextResponse.json({ ok: true })
 }
+
+// DELETE — clear the current spotlight. Writes a minimal
+// shape with userId=null so the GET handler treats it as
+// "no spotlight set" and the dashboard renders its fallback.
+export async function DELETE() {
+  const session = await getSession()
+  if (!session || !isAdminOrModerator(session)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+  writeFileSync(filePath, JSON.stringify({ userId: null, funFact: '', topSpots: ['', '', ''], updatedAt: new Date().toISOString() }, null, 2))
+  return NextResponse.json({ ok: true })
+}
