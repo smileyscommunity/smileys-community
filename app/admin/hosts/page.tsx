@@ -7,10 +7,12 @@
 // payload from /api/admin/hosts (server-side groupBy) so the
 // page loads in one round trip regardless of club count.
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { getInitials } from '@/lib/data'
+import { useAdminLoad } from '@/lib/admin/useAdminLoad'
+import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 
 interface Host {
   userId:         string
@@ -33,32 +35,23 @@ const SORT_LABEL: Record<SortKey, string> = {
   name:      'Name (A–Z)',
 }
 
+interface HostsResponse { hosts: Host[] }
+
 export default function AdminHostsPage() {
-  const [hosts,     setHosts]     = useState<Host[] | null>(null)
-  const [error,     setError]     = useState<string | null>(null)
+  // Replaces the per-page load + error + retry scaffold with the
+  // shared hook from lib/admin/useAdminLoad. ~20 lines of
+  // boilerplate down to one line; same behavior end-to-end.
+  const { data, loading, error, retry } = useAdminLoad<HostsResponse>(
+    '/app/api/admin/hosts',
+    (v): v is HostsResponse => !!v && typeof v === 'object' && Array.isArray((v as HostsResponse).hosts),
+  )
+  const hosts = data?.hosts ?? null
+
   const [search,    setSearch]    = useState('')
   const [activity,  setActivity]  = useState<ActivityFilter>('all')
   const [sortKey,   setSortKey]   = useState<SortKey>('activity')
   const [promoting, setPromoting] = useState(false)
-
-  const load = useCallback(() => {
-    setError(null)
-    fetch('/app/api/admin/hosts', { credentials: 'include' })
-      .then(async r => {
-        // Real error handling — was silently treating 401/403/500
-        // as "no hosts" because the unchecked .json() let the
-        // error body slip through as data and fail Array.isArray
-        // downstream.
-        if (!r.ok) {
-          const text = await r.text().catch(() => '')
-          throw new Error(`${r.status}: ${text.slice(0, 200) || r.statusText}`)
-        }
-        return r.json() as Promise<{ hosts: Host[] }>
-      })
-      .then(d => setHosts(d.hosts))
-      .catch(e => setError(e.message ?? 'Failed to load'))
-  }, [])
-  useEffect(load, [load])
+  const load = retry
 
   // Filtered + searched + sorted view. All client-side — the API
   // returns the full list and we have everything we need to sort
@@ -157,20 +150,11 @@ export default function AdminHostsPage() {
       </div>
 
       {/* ── Body ────────────────────────────────────────────────── */}
-      {error && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4">
-          <p className="text-sm font-bold text-red-300">Couldn&apos;t load hosts</p>
-          <p className="text-xs text-red-400/80 mt-1 break-all">{error}</p>
-          <button onClick={load}
-            className="mt-3 text-xs px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 font-semibold">
-            Retry
-          </button>
-        </div>
-      )}
+      <LoadErrorBanner message={error} onRetry={retry} title="Couldn't load hosts" />
 
-      {!error && hosts === null && <HostSkeleton />}
+      {!error && loading && <HostSkeleton />}
 
-      {!error && hosts !== null && hosts.length === 0 && (
+      {!error && !loading && hosts !== null && hosts.length === 0 && (
         <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-10 text-center">
           <div className="text-3xl mb-2">👤</div>
           <p className="text-zinc-400 text-sm">No club hosts yet.</p>
@@ -178,7 +162,7 @@ export default function AdminHostsPage() {
         </div>
       )}
 
-      {!error && hosts !== null && hosts.length > 0 && visible.length === 0 && (
+      {!error && !loading && hosts !== null && hosts.length > 0 && visible.length === 0 && (
         <p className="text-sm text-zinc-500 px-1">No matches for the current search/filter.</p>
       )}
 

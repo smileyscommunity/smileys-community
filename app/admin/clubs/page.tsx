@@ -6,6 +6,8 @@ import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import ImageUpload from '@/components/ImageUpload'
 import { resolveImageUrl, CLUB_CATEGORIES } from '@/lib/data'
+import { useAdminLoad } from '@/lib/admin/useAdminLoad'
+import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 
 const EMOJI_GROUPS = [
   { label: 'Water & Sailing', emojis: ['⛵','🚢','🛥️','⚓','🏄','🤿','🎣','🌊','🐬','🐳','🚤','🛶'] },
@@ -171,9 +173,19 @@ function ClubForm({
 }
 
 export default function AdminClubsPage() {
-  const [clubList,   setClubList]   = useState<Club[]>([])
-  const [loading,    setLoading]    = useState(true)
-  const [loadError,  setLoadError]  = useState<string | null>(null)
+  // Shared admin-load hook replaces the per-page load + error +
+  // retry scaffold. Same behavior end-to-end; ~15 fewer lines.
+  const { data, loading, error: loadError, retry: loadClubs, setData } = useAdminLoad<Club[]>(
+    '/app/api/admin/clubs',
+    (v): v is Club[] => Array.isArray(v),
+  )
+  const clubList = data ?? []
+  // Local mutations (PATCH / POST / DELETE handlers below) call
+  // setData to patch the cached list without re-fetching.
+  const setClubList = (next: Club[] | ((prev: Club[]) => Club[])) => {
+    setData(typeof next === 'function' ? next(data ?? []) : next)
+  }
+
   const [saving,     setSaving]     = useState(false)
 
   const [showCreate, setShowCreate] = useState(false)
@@ -202,26 +214,6 @@ export default function AdminClubsPage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const [deactivatingClub, setDeactivatingClub] = useState<Club | null>(null)
   const [deactivateReason, setDeactivateReason] = useState('')
-
-  // Extracted so the Retry button below can re-fire the same load
-  // without dragging in `useEffect`'s captured deps.
-  function loadClubs() {
-    setLoading(true)
-    setLoadError(null)
-    fetch('/app/api/admin/clubs', { credentials: 'include' })
-      .then(async r => {
-        if (!r.ok) {
-          const text = await r.text().catch(() => '')
-          throw new Error(`${r.status}${text ? `: ${text.slice(0, 200)}` : ''}`)
-        }
-        return r.json()
-      })
-      .then(data => setClubList(Array.isArray(data) ? data : []))
-      .catch((e: Error) => setLoadError(e?.message ?? 'Failed to load'))
-      .finally(() => setLoading(false))
-  }
-  useEffect(loadClubs, [])
-
 
   function startEdit(club: Club) {
     setEditingId(club.id)
@@ -492,20 +484,7 @@ export default function AdminClubsPage() {
         </div>
       )}
 
-      {/* Load error banner — replaces the silent empty-state when
-          the initial fetch fails. Retry re-fires loadClubs(). */}
-      {loadError && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 flex items-start gap-3">
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-red-300">Couldn&apos;t load clubs</p>
-            <p className="text-xs text-red-400/80 mt-1 break-all">{loadError}</p>
-          </div>
-          <button onClick={loadClubs}
-            className="text-xs px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 font-semibold shrink-0">
-            Retry
-          </button>
-        </div>
-      )}
+      <LoadErrorBanner message={loadError} onRetry={loadClubs} title="Couldn't load clubs" />
 
       {/* Page-shape skeleton — mirrors the actual card grid so the
           jump-from-Loading-text-to-cards transition is a fill-in
