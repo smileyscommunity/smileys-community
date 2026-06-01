@@ -8,23 +8,25 @@
 // The Smileys Cup is the first one (slug: world-cup-2026); future
 // tournaments and non-tournament drives get new rows here.
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { type AdminCampaign, CAMPAIGN_STATUS_PILL } from '@/lib/admin/campaigns'
+import { useAdminLoad } from '@/lib/admin/useAdminLoad'
+import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
+
+interface CampaignsResponse { campaigns: AdminCampaign[] }
 
 export default function AdminCampaignsPage() {
-  const [campaigns, setCampaigns] = useState<AdminCampaign[] | null>(null)
+  const { data, loading, error: loadError, retry: load } = useAdminLoad<CampaignsResponse>(
+    '/app/api/admin/campaigns',
+    (v): v is CampaignsResponse =>
+      !!v && typeof v === 'object' && Array.isArray((v as CampaignsResponse).campaigns),
+  )
+  const campaigns = data?.campaigns ?? null
   const [showCreate, setShowCreate] = useState(false)
   const [saving, setSaving] = useState(false)
   const [draft, setDraft] = useState({ slug: '', name: '', emoji: '', tagline: '', routeSlug: '' })
-
-  function load() {
-    fetch('/app/api/admin/campaigns', { credentials: 'include' })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.campaigns) setCampaigns(d.campaigns) })
-  }
-  useEffect(() => { load() }, [])
 
   async function create() {
     if (!draft.slug.trim() || !draft.name.trim()) { toast.error('slug + name required'); return }
@@ -81,7 +83,9 @@ export default function AdminCampaignsPage() {
         </div>
       )}
 
-      {!campaigns && <div className="text-zinc-500 text-sm py-8 text-center">Loading…</div>}
+      <LoadErrorBanner message={loadError} onRetry={load} title="Couldn't load campaigns" />
+
+      {loading && <div className="text-zinc-500 text-sm py-8 text-center">Loading…</div>}
       {campaigns?.length === 0 && (
         <div className="bg-zinc-900 border border-dashed border-zinc-800 rounded-2xl py-12 text-center">
           <p className="text-2xl mb-2">📦</p>

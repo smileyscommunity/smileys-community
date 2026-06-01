@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { useState, useEffect, useMemo, useCallback, Suspense } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { formatTime, resolveImageUrl, todayIstanbul, getInitials } from '@/lib/data'
+import { useAdminLoad } from '@/lib/admin/useAdminLoad'
+import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 
 type TabKey = 'all' | 'upcoming' | 'pending' | 'archived'
 const TAB_KEYS: TabKey[] = ['all', 'upcoming', 'pending', 'archived']
@@ -149,10 +151,33 @@ function AdminEventsPageInner() {
   const initialFrom   = searchParams.get('from')   ?? ''
   const initialTo     = searchParams.get('to')     ?? ''
 
-  const [events,     setEvents]     = useState<AdminEvent[]>([])
-  const [clubs,      setClubs]      = useState<Club[]>([])
-  const [loading,    setLoading]    = useState(true)
-  const [error,      setError]      = useState<string | null>(null)
+  // Two parallel useAdminLoad calls instead of a hand-rolled
+  // Promise.all + setState dance. Each one r.ok-gates + shape-
+  // validates its response independently, and the page-level
+  // `loading` / `error` derives from both.
+  const {
+    data: eventsData, loading: eventsLoading, error: eventsError, retry: retryEvents, setData: setEventsData,
+  } = useAdminLoad<AdminEvent[]>(
+    '/app/api/admin/events?archived=1',
+    (v): v is AdminEvent[] => Array.isArray(v),
+  )
+  const {
+    data: clubsData, loading: clubsLoading, error: clubsError, retry: retryClubs,
+  } = useAdminLoad<Club[]>(
+    '/app/api/admin/clubs',
+    (v): v is Club[] => Array.isArray(v),
+  )
+  const events = eventsData ?? []
+  const clubs  = clubsData  ?? []
+  const loading = eventsLoading || clubsLoading
+  const error   = eventsError || clubsError
+  const load = useCallback(() => { retryEvents(); retryClubs() }, [retryEvents, retryClubs])
+  // setEvents bridges existing function-form mutations to the
+  // hook's value-only setData escape hatch.
+  const setEvents = (next: AdminEvent[] | ((prev: AdminEvent[]) => AdminEvent[])) => {
+    setEventsData(typeof next === 'function' ? next(eventsData ?? []) : next)
+  }
+
   const [search,     setSearch]     = useState(initialSearch)
   const [tabStatus,  setTabStatus]  = useState<TabKey>(initialTab)
   const [clubFilter, setClubFilter] = useState(initialClub)
@@ -186,36 +211,18 @@ function AdminEventsPageInner() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabStatus, debouncedSearch, clubFilter, dateFrom, dateTo, pathname, router])
 
-  // Single fetch covering ALL statuses including archived. Tab counts
-  // and tab views are then derived client-side from one consistent
-  // dataset — was using three separate fetches keyed off tabStatus,
-  // which left "Past/Archived" tab showing 0 when admin was on
-  // "Upcoming" (archived events were filtered out server-side), and
-  // similarly hid pending events from the other tabs' counts.
+  // Note: data loading itself is owned by the two useAdminLoad
+  // hooks above. Single fetch (per resource) covers ALL statuses
+  // including archived. Tab counts + views are then derived
+  // client-side from one consistent dataset — was using three
+  // separate fetches keyed off tabStatus, which left "Past/Archived"
+  // tab showing 0 when admin was on "Upcoming" (archived events
+  // were filtered out server-side), and similarly hid pending
+  // events from the other tabs' counts.
   //
-  // Tradeoff: the initial payload is bigger. At ~hundreds of events
-  // it's fine; if event volume becomes a problem we'd add server-side
-  // tab-aware counts to the response.
-  const load = useCallback(() => {
-    setLoading(true)
-    setError(null)
-    Promise.all([
-      fetch('/app/api/admin/events?archived=1', { credentials: 'include' })
-        .then(async r => { if (!r.ok) throw new Error(`events ${r.status}`); return r.json() }),
-      fetch('/app/api/admin/clubs', { credentials: 'include' })
-        .then(async r => { if (!r.ok) throw new Error(`clubs ${r.status}`); return r.json() }),
-    ]).then(([evData, clData]) => {
-      setEvents(Array.isArray(evData) ? evData : [])
-      setClubs(Array.isArray(clData) ? clData : [])
-    }).catch(e => {
-      // Was silently treating 401/403/500 as "no events" because
-      // unchecked .json() let the error body fail Array.isArray and
-      // the page rendered "No events match your filters." indistinct
-      // from an empty actual result.
-      setError(e?.message ?? 'Failed to load')
-    }).finally(() => setLoading(false))
-  }, [])
-  useEffect(load, [load])
+  // Tradeoff: the initial payload is bigger. At ~hundreds of
+  // events it's fine; if event volume becomes a problem we'd add
+  // server-side tab-aware counts to the response.
 
   async function toggleFeatured(event: AdminEvent) {
     const next = !event.featured
@@ -504,20 +511,9 @@ function AdminEventsPageInner() {
       </div>
 
       {/* Error banner — replaces the silent "no events match" state
-          when the initial load actually failed. Retry re-fires the
-          same load() the page mounts with. */}
-      {error && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 flex items-start gap-3">
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-red-300">Couldn&apos;t load events</p>
-            <p className="text-xs text-red-400/80 mt-1 break-all">{error}</p>
-          </div>
-          <button onClick={load}
-            className="text-xs px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 font-semibold shrink-0">
-            Retry
-          </button>
-        </div>
-      )}
+          when the initial load actually failed. Retry re-fires both
+          underlying hook loads (events + clubs). */}
+      <LoadErrorBanner message={error} onRetry={load} title="Couldn't load events" />
 
       {/* Bulk bar */}
       {selected.size > 0 && (

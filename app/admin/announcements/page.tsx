@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
+import { useAdminLoad } from '@/lib/admin/useAdminLoad'
+import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 
 // Just the announcement banner editor. The polls editor lives at
 // /admin/polls — the two used to share this route behind a ?tab=
@@ -16,17 +18,18 @@ interface Announcement {
   active: boolean
 }
 
-export default function AnnouncementsPage() {
-  const [data, setData]       = useState<Announcement>({ text: '', link: '', active: false })
-  const [saving, setSaving]   = useState(false)
-  const [loading, setLoading] = useState(true)
+const EMPTY: Announcement = { text: '', link: '', active: false }
 
-  useEffect(() => {
-    fetch('/app/api/admin/announcement', { credentials: 'include' })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d) setData(d) })
-      .finally(() => setLoading(false))
-  }, [])
+export default function AnnouncementsPage() {
+  // Shared admin-load hook handles the GET + r.ok + retry. We
+  // hydrate the form's editable copy from `loaded` once it lands.
+  const { data: loaded, loading, error, retry } = useAdminLoad<Announcement>(
+    '/app/api/admin/announcement',
+    (v): v is Announcement => !!v && typeof v === 'object' && 'text' in v && 'active' in v,
+  )
+  const [data, setData]       = useState<Announcement>(EMPTY)
+  const [saving, setSaving]   = useState(false)
+  useEffect(() => { if (loaded) setData(loaded) }, [loaded])
 
   async function save() {
     setSaving(true)
@@ -54,6 +57,8 @@ export default function AnnouncementsPage() {
         <h1 className="text-2xl font-bold text-white">Announcements</h1>
         <p className="text-sm text-zinc-500 mt-0.5">Top-of-page banner shown to every logged-in member.</p>
       </div>
+
+      <LoadErrorBanner message={error} onRetry={retry} title="Couldn't load announcement" className="mb-6" />
 
       {loading ? (
         // Page-shape skeleton matching the form layout.

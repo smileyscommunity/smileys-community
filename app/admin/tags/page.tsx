@@ -1,7 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { toast } from 'sonner'
+import { useAdminLoad } from '@/lib/admin/useAdminLoad'
+import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 
 interface Tag      { id: string; name: string; emoji: string; groupId: string }
 interface TagGroup { id: string; name: string; emoji: string; sortOrder: number; tags: Tag[] }
@@ -9,9 +11,16 @@ interface TagGroup { id: string; name: string; emoji: string; sortOrder: number;
 const inputCls = 'px-3 py-2 text-sm border border-zinc-700 rounded-xl bg-zinc-800 text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500'
 
 export default function TagsPage() {
-  const [groups,    setGroups]    = useState<TagGroup[]>([])
-  const [loading,   setLoading]   = useState(true)
-  const [loadError, setLoadError] = useState<string | null>(null)
+  // Shared admin-load hook replaces the per-page load + error +
+  // retry scaffold.
+  const { data, loading, error: loadError, retry: loadGroups, setData } = useAdminLoad<TagGroup[]>(
+    '/app/api/admin/tag-groups',
+    (v): v is TagGroup[] => Array.isArray(v),
+  )
+  const groups = data ?? []
+  const setGroups = (next: TagGroup[] | ((prev: TagGroup[]) => TagGroup[])) => {
+    setData(typeof next === 'function' ? next(data ?? []) : next)
+  }
 
   // New group form
   const [newGroupName,  setNewGroupName]  = useState('')
@@ -28,27 +37,6 @@ export default function TagsPage() {
   const [editGroupVal, setEditGroupVal] = useState({ name: '', emoji: '' })
   const [editingTag,   setEditingTag]   = useState<string | null>(null)
   const [editTagVal,   setEditTagVal]   = useState({ name: '', emoji: '' })
-
-  // Extracted so the Retry button can re-fire the same call.
-  // Was using .then(setGroups) directly — error-JSON would have
-  // been set as the typed Tag[] state and crashed on the first
-  // .map() in render.
-  function loadGroups() {
-    setLoading(true)
-    setLoadError(null)
-    fetch('/app/api/admin/tag-groups', { credentials: 'include' })
-      .then(async r => {
-        if (!r.ok) {
-          const text = await r.text().catch(() => '')
-          throw new Error(`${r.status}${text ? `: ${text.slice(0, 200)}` : ''}`)
-        }
-        return r.json()
-      })
-      .then(d => setGroups(Array.isArray(d) ? d : []))
-      .catch((e: Error) => setLoadError(e?.message ?? 'Failed to load'))
-      .finally(() => setLoading(false))
-  }
-  useEffect(loadGroups, [])
 
   async function addGroup() {
     if (!newGroupName.trim()) return
@@ -183,20 +171,7 @@ export default function TagsPage() {
         </div>
       </div>
 
-      {/* Error banner — was silently rendering the empty state
-          when the load failed. Retry re-fires loadGroups(). */}
-      {loadError && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 flex items-start gap-3">
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-red-300">Couldn&apos;t load tag groups</p>
-            <p className="text-xs text-red-400/80 mt-1 break-all">{loadError}</p>
-          </div>
-          <button onClick={loadGroups}
-            className="text-xs px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 font-semibold shrink-0">
-            Retry
-          </button>
-        </div>
-      )}
+      <LoadErrorBanner message={loadError} onRetry={loadGroups} title="Couldn't load tag groups" />
 
       {loading ? (
         // Page-shape skeleton matching the group + tag-chip layout

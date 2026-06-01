@@ -1,9 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { resolveImageUrl } from '@/lib/data'
 import { toast } from 'sonner'
+import { useAdminLoad } from '@/lib/admin/useAdminLoad'
+import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 
 // This page used to host editors for the announcement banner and
 // the community poll as well. Both moved to /admin/announcements
@@ -43,7 +45,13 @@ function Avatar({ user }: { user: Pick<User, 'name' | 'color' | 'profilePhoto'> 
 }
 
 export default function SpotlightPage() {
-  const [current,   setCurrent]   = useState<Spotlight | null>(null)
+  // Shared admin-load hook gives us r.ok + shape-validation +
+  // a Retry button via LoadErrorBanner. The escape hatch
+  // setData lets the clear/save flows mutate the cached value.
+  const { data: current, error: loadError, retry: loadCurrent, setData: setCurrent } = useAdminLoad<Spotlight>(
+    '/app/api/admin/spotlight',
+    (v): v is Spotlight => !!v && typeof v === 'object' && 'user' in (v as Record<string, unknown>),
+  )
   const [search,    setSearch]    = useState('')
   const [results,   setResults]   = useState<User[]>([])
   const [selected,  setSelected]  = useState<User | null>(null)
@@ -51,26 +59,6 @@ export default function SpotlightPage() {
   const [topSpots,  setTopSpots]  = useState(['', '', ''])
   const [searching,    setSearching]    = useState(false)
   const [saving,       setSaving]       = useState(false)
-
-  useEffect(() => {
-    // r.ok-gate + shape-validate the response before setting
-    // state. Without this, error-JSON bodies (e.g. {error: '...'}
-    // on a 401) would pass through truthy `if (d)` and crash on
-    // .user.id downstream.
-    ;(async () => {
-      try {
-        const r = await fetch('/app/api/admin/spotlight', { credentials: 'include' })
-        if (!r.ok) {
-          toast.error('Couldn\'t load spotlight — refresh to try again')
-          return
-        }
-        const d = await r.json()
-        if (d && typeof d === 'object' && 'user' in d) setCurrent(d)
-      } catch {
-        toast.error('Couldn\'t load spotlight — refresh to try again')
-      }
-    })()
-  }, [])
 
   async function handleSearch() {
     if (!search.trim()) return
@@ -130,9 +118,9 @@ export default function SpotlightPage() {
       })
       if (!res.ok) throw new Error()
       toast.success('Spotlight updated!')
-      // Refresh current
-      const updated = await fetch('/app/api/admin/spotlight', { credentials: 'include' }).then(r => r.json())
-      if (updated) setCurrent(updated)
+      // Refresh through the shared hook so the response is
+      // r.ok-gated + shape-validated like the initial load.
+      loadCurrent()
       setSelected(null)
       setFunFact('')
       setTopSpots(['', '', ''])
@@ -172,6 +160,8 @@ export default function SpotlightPage() {
           Announcement &amp; poll →
         </Link>
       </div>
+
+      <LoadErrorBanner message={loadError} onRetry={loadCurrent} title="Couldn't load spotlight" />
 
       {/* Current spotlight */}
       {current && (

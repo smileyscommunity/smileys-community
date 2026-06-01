@@ -1,7 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { toast } from 'sonner'
+import { useAdminLoad } from '@/lib/admin/useAdminLoad'
+import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 
 // Polls live on /admin/polls and the announcement banner lives
 // on /admin/announcements. Both used to share /admin/announcements
@@ -26,30 +28,19 @@ interface Poll {
 }
 
 export default function PollsPage() {
-  const [polls, setPolls]       = useState<Poll[]>([])
-  const [loading, setLoading]   = useState(true)
-  const [loadError, setLoadError] = useState<string | null>(null)
+  const { data, loading, error: loadError, retry: load, setData } = useAdminLoad<Poll[]>(
+    '/app/api/admin/community-poll',
+    (v): v is Poll[] => Array.isArray(v),
+  )
+  const polls = data ?? []
+  const setPolls = (next: Poll[] | ((prev: Poll[]) => Poll[])) => {
+    setData(typeof next === 'function' ? next(data ?? []) : next)
+  }
+
   const [question, setQ]        = useState('')
   const [options, setOpts]      = useState(['', ''])
   const [creating, setCreating] = useState(false)
   const [error, setError]       = useState('')
-
-  function load() {
-    setLoading(true)
-    setLoadError(null)
-    fetch('/app/api/admin/community-poll', { credentials: 'include' })
-      .then(async r => {
-        if (!r.ok) {
-          const text = await r.text().catch(() => '')
-          throw new Error(`${r.status}${text ? `: ${text.slice(0, 200)}` : ''}`)
-        }
-        return r.json()
-      })
-      .then(d => setPolls(Array.isArray(d) ? d : []))
-      .catch((e: Error) => setLoadError(e?.message ?? 'Failed to load'))
-      .finally(() => setLoading(false))
-  }
-  useEffect(load, [])
 
   function addOption() {
     if (options.length < 10) setOpts(o => [...o, ''])
@@ -137,19 +128,7 @@ export default function PollsPage() {
         </p>
       </div>
 
-      {/* Load error banner */}
-      {loadError && (
-        <div className="mb-6 bg-red-500/10 border border-red-500/30 rounded-2xl p-4 flex items-start gap-3">
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-red-300">Couldn&apos;t load polls</p>
-            <p className="text-xs text-red-400/80 mt-1 break-all">{loadError}</p>
-          </div>
-          <button onClick={load}
-            className="text-xs px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 font-semibold shrink-0">
-            Retry
-          </button>
-        </div>
-      )}
+      <LoadErrorBanner message={loadError} onRetry={load} title="Couldn't load polls" className="mb-6" />
 
       <div className="space-y-6 max-w-2xl">
 
