@@ -21,6 +21,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { CUP_TEAMS as TEAMS, TEAM_BY_CODE, teamLabel, ROUND_LABEL, isFixtureLocked, CUP_GROUPS } from '@/lib/cup-data'
+import { avatarUrl } from '@/lib/data'
 
 interface Fixture {
   id:        string
@@ -2248,7 +2249,12 @@ function MiniRankRow({ row, isYou }: { row: LeaderRow; isYou: boolean }) {
         {medal ?? `#${row.rank}`}
       </span>
       {row.profilePhoto ? (
-        <img src={row.profilePhoto} alt="" className="w-6 h-6 rounded-full object-cover shrink-0" />
+        // avatarUrl rewrites legacy `/uploads/...` paths AND asks
+        // the file route for a 64-wide thumbnail (~3 KB instead of
+        // ~250 KB at the source). Rendering the raw DB value used
+        // to ship the full 1200×1200 JPEG for every row.
+        <img src={avatarUrl(row.profilePhoto)} alt="" loading="lazy" decoding="async"
+          className="w-6 h-6 rounded-full object-cover shrink-0" />
       ) : (
         <div className="w-6 h-6 rounded-full shrink-0 flex items-center justify-center text-white text-[9px] font-bold"
           style={{ backgroundColor: row.color }}>
@@ -2357,7 +2363,9 @@ function LeaderRow({ row, isYou }: { row: LeaderRow; isYou: boolean }) {
         {medal ?? `#${row.rank}`}
       </span>
       {row.profilePhoto ? (
-        <img src={row.profilePhoto} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
+        // See MiniRankRow comment — same legacy-URL + perf treatment.
+        <img src={avatarUrl(row.profilePhoto)} alt="" loading="lazy" decoding="async"
+          className="w-7 h-7 rounded-full object-cover shrink-0" />
       ) : (
         <div className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-white text-[10px] font-bold"
           style={{ backgroundColor: row.color }}>

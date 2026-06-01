@@ -48,6 +48,19 @@ export function resolveImageUrl(url: string | null | undefined): string {
   return url
 }
 
+// Sized variant for avatars / small icons. The file route (see
+// app/api/files/[...path]/route.ts) accepts `?w=64|128|256` and
+// returns a sharp-resized JPEG. Original 1200×1200 uploads are
+// ~150–300 KB; the 64-wide thumb is ~2–4 KB. Falls through to the
+// original URL when the source is external (Unsplash, etc.) —
+// those already use their own optimization.
+const SIZED_PATH = /^\/app\/api\/files\//
+export function avatarUrl(url: string | null | undefined, size: 64 | 128 | 256 = 64): string {
+  const resolved = resolveImageUrl(url)
+  if (!resolved || !SIZED_PATH.test(resolved)) return resolved
+  return `${resolved}?w=${size}`
+}
+
 export interface Club {
   id: string
   slug: string
