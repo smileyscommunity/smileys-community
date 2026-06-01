@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
 import { toast } from 'sonner'
 
 const CATEGORIES = [
@@ -88,6 +89,7 @@ export default function AdminListingsPage() {
   const [total, setTotal]         = useState(0)
   const [hasMore, setHasMore]     = useState(false)
   const [loading, setLoading]     = useState(true)
+  const [error, setError]         = useState<string | null>(null)
   const [search, setSearch]       = useState('')
   const [category, setCategory]   = useState('all')
   const [status, setStatus]       = useState('active')
@@ -111,30 +113,49 @@ export default function AdminListingsPage() {
 
   async function saveSettings() {
     setSettingsSaving(true)
-    const res = await fetch('/app/api/admin/settings', {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ listingSettings: settings }),
-    })
-    setSettingsSaving(false)
-    res.ok ? toast.success('Board settings saved ✓') : toast.error('Failed to save')
+    try {
+      const res = await fetch('/app/api/admin/settings', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ listingSettings: settings }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        toast.error(d.error ?? 'Failed to save')
+        return
+      }
+      toast.success('Board settings saved ✓')
+    } finally {
+      setSettingsSaving(false)
+    }
   }
 
-  const fetch_ = useCallback(async (q: string, cat: string, st: string, offset: number, append = false) => {
+  // `append` is used by Load more; without it, the call replaces
+  // the list. The error path bubbles up through the .catch() in the
+  // useEffect below so a 401/403/500 lands in the red banner instead
+  // of silently rendering "No listings found."
+  const loadListings = useCallback(async (q: string, cat: string, st: string, offset: number, append = false) => {
     const params = new URLSearchParams({ offset: String(offset), status: st })
     if (cat !== 'all') params.set('category', cat)
     if (q) params.set('search', q)
-    const res  = await fetch(`/app/api/admin/listings?${params}`, { credentials: 'include' })
+    const res = await fetch(`/app/api/admin/listings?${params}`, { credentials: 'include' })
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      throw new Error(`${res.status}${text ? `: ${text.slice(0, 200)}` : ''}`)
+    }
     const data = await res.json()
-    setListings(prev => append ? [...prev, ...data.listings] : data.listings)
-    setTotal(data.total)
-    setHasMore(data.hasMore)
+    setListings(prev => append ? [...prev, ...(data.listings ?? [])] : (data.listings ?? []))
+    setTotal(data.total ?? 0)
+    setHasMore(!!data.hasMore)
   }, [])
 
   useEffect(() => {
     setLoading(true)
-    fetch_(query, category, status, 0).finally(() => setLoading(false))
-  }, [query, category, status, fetch_])
+    setError(null)
+    loadListings(query, category, status, 0)
+      .catch(e => setError(e?.message ?? 'Failed to load'))
+      .finally(() => setLoading(false))
+  }, [query, category, status, loadListings])
 
   // Debounce search
   useEffect(() => {
@@ -142,22 +163,54 @@ export default function AdminListingsPage() {
     return () => clearTimeout(t)
   }, [search])
 
+  // Was mutating local state BEFORE the await — meaning a 403/500
+  // would still remove the row from the table while the DB row
+  // stayed. Now we wait for res.ok before touching state. Plus
+  // we keep the row visible (with status='deleted') when the
+  // current filter could show it — the previous unconditional
+  // .filter() vanished restored items mid-list on the "all" view.
   async function handleDelete(id: string) {
     if (!confirm('Remove this listing?')) return
-    await fetch(`/app/api/admin/listings/${id}`, { method: 'DELETE', credentials: 'include' })
-    setListings(prev => prev.filter(l => l.id !== id))
-    setTotal(t => t - 1)
+    const res = await fetch(`/app/api/admin/listings/${id}`, { method: 'DELETE', credentials: 'include' })
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}))
+      toast.error(d.error ?? 'Failed to delete')
+      return
+    }
+    // Row only disappears from the current view if the filter
+    // wouldn't include deleted rows. On 'all' or 'deleted', keep
+    // it visible with the new status so admin can still Restore.
+    if (status === 'all' || status === 'deleted') {
+      setListings(prev => prev.map(l => l.id === id ? { ...l, status: 'deleted' } : l))
+    } else {
+      setListings(prev => prev.filter(l => l.id !== id))
+      setTotal(t => Math.max(0, t - 1))
+    }
+    toast.success('Removed')
   }
 
   async function handleRestore(id: string) {
-    await fetch(`/app/api/admin/listings/${id}`, {
+    const res = await fetch(`/app/api/admin/listings/${id}`, {
       method: 'PATCH',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'active' }),
     })
-    setListings(prev => prev.filter(l => l.id !== id))
-    setTotal(t => t - 1)
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}))
+      toast.error(d.error ?? 'Failed to restore')
+      return
+    }
+    // Mirror of handleDelete: if the current view includes the
+    // restored status (active or all), keep it visible with the
+    // new status. Otherwise drop it from the visible list.
+    if (status === 'all' || status === 'active') {
+      setListings(prev => prev.map(l => l.id === id ? { ...l, status: 'active' } : l))
+    } else {
+      setListings(prev => prev.filter(l => l.id !== id))
+      setTotal(t => Math.max(0, t - 1))
+    }
+    toast.success('Restored')
   }
 
   function openEdit(l: Listing) {
@@ -167,18 +220,23 @@ export default function AdminListingsPage() {
 
   async function handleSaveEdit() {
     if (!editing) return
+    const title       = editForm.title.trim()
+    const description = editForm.description.trim()
+    const price       = editForm.price.trim() || null
+    if (!title) { toast.error('Title required'); return }
     const res = await fetch(`/app/api/admin/listings/${editing.id}`, {
       method: 'PATCH', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: editForm.title.trim(), description: editForm.description.trim(), price: editForm.price.trim() || null }),
+      body: JSON.stringify({ title, description, price }),
     })
-    if (res.ok) {
-      setListings(prev => prev.map(l => l.id === editing.id
-        ? { ...l, title: editForm.title.trim(), description: editForm.description.trim(), price: editForm.price.trim() || null }
-        : l
-      ))
-      setEditing(null)
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}))
+      toast.error(d.error ?? 'Failed to save')
+      return
     }
+    setListings(prev => prev.map(l => l.id === editing.id ? { ...l, title, description, price } : l))
+    setEditing(null)
+    toast.success('Saved')
   }
 
   return (
@@ -325,6 +383,27 @@ export default function AdminListingsPage() {
         </div>
       )}
 
+      {/* Error banner — load() failures used to silently render
+          "No listings found" indistinct from an empty real result.
+          Now surfaces with a Retry button. */}
+      {error && (
+        <div className="mb-6 bg-red-500/10 border border-red-500/30 rounded-2xl p-4 flex items-start gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-red-300">Couldn&apos;t load listings</p>
+            <p className="text-xs text-red-400/80 mt-1 break-all">{error}</p>
+          </div>
+          <button onClick={() => {
+              setError(null); setLoading(true)
+              loadListings(query, category, status, 0)
+                .catch(e => setError(e?.message ?? 'Failed to load'))
+                .finally(() => setLoading(false))
+            }}
+            className="text-xs px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 font-semibold shrink-0">
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Filters */}
       <div className="flex flex-wrap gap-3 mb-6">
         {/* Search */}
@@ -362,7 +441,28 @@ export default function AdminListingsPage() {
       {/* Table */}
       <div className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
         {loading ? (
-          <div className="p-12 text-center text-zinc-500">Loading…</div>
+          // Page-shape skeleton — matches the eventual table layout
+          // so the moment data lands is a fill-in rather than a
+          // jump from a centered "Loading…" string.
+          <div className="divide-y divide-zinc-800/60">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="px-5 py-4 flex items-center gap-4">
+                <div className="flex-1 space-y-2">
+                  <div className="h-3.5 w-2/3 rounded bg-zinc-800 animate-pulse" />
+                  <div className="h-3 w-1/2 rounded bg-zinc-800/60 animate-pulse" />
+                </div>
+                <div className="hidden md:flex items-center gap-2 w-40">
+                  <div className="w-7 h-7 rounded-full bg-zinc-800 animate-pulse" />
+                  <div className="space-y-1 flex-1">
+                    <div className="h-3 w-3/4 rounded bg-zinc-800 animate-pulse" />
+                    <div className="h-3 w-full rounded bg-zinc-800/60 animate-pulse" />
+                  </div>
+                </div>
+                <div className="hidden lg:block h-5 w-16 rounded-lg bg-zinc-800 animate-pulse" />
+                <div className="h-7 w-16 rounded-lg bg-zinc-800 animate-pulse" />
+              </div>
+            ))}
+          </div>
         ) : listings.length === 0 ? (
           <div className="p-12 text-center text-zinc-500">No listings found</div>
         ) : (
@@ -387,15 +487,19 @@ export default function AdminListingsPage() {
                     {l.price && <span className="text-xs text-amber-400 font-semibold">{l.price}</span>}
                   </td>
 
-                  {/* Member */}
+                  {/* Member — click-through to /admin/users/[id] so
+                      admin can see this member's other listings,
+                      moderation history, contact, etc. without
+                      copy-pasting the id. */}
                   <td className="px-4 py-4 hidden md:table-cell">
-                    <div className="flex items-center gap-2">
+                    <Link href={`/admin/users/${l.user.id}`}
+                      className="flex items-center gap-2 hover:text-amber-400 transition-colors group/m">
                       <Avatar name={l.user.name} color={l.user.color} />
                       <div className="min-w-0">
-                        <p className="text-xs font-semibold text-zinc-200 truncate">{l.user.name}</p>
+                        <p className="text-xs font-semibold text-zinc-200 truncate group-hover/m:text-amber-400">{l.user.name}</p>
                         <p className="text-xs text-zinc-500 truncate">{l.user.email}</p>
                       </div>
-                    </div>
+                    </Link>
                   </td>
 
                   {/* Category */}
@@ -450,7 +554,7 @@ export default function AdminListingsPage() {
         {hasMore && (
           <div className="px-5 py-4 border-t border-zinc-800">
             <button
-              onClick={() => fetch_(query, category, status, listings.length, true)}
+              onClick={() => loadListings(query, category, status, listings.length, true).catch(e => toast.error(e?.message ?? 'Failed to load more'))}
               className="text-sm text-amber-400 hover:text-amber-300 font-semibold transition-colors"
             >
               Load more
