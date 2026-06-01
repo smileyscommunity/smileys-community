@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
 
 interface Tag      { id: string; name: string; emoji: string; groupId: string }
 interface TagGroup { id: string; name: string; emoji: string; sortOrder: number; tags: Tag[] }
@@ -8,8 +9,9 @@ interface TagGroup { id: string; name: string; emoji: string; sortOrder: number;
 const inputCls = 'px-3 py-2 text-sm border border-zinc-700 rounded-xl bg-zinc-800 text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500'
 
 export default function TagsPage() {
-  const [groups,  setGroups]  = useState<TagGroup[]>([])
-  const [loading, setLoading] = useState(true)
+  const [groups,    setGroups]    = useState<TagGroup[]>([])
+  const [loading,   setLoading]   = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   // New group form
   const [newGroupName,  setNewGroupName]  = useState('')
@@ -27,25 +29,48 @@ export default function TagsPage() {
   const [editingTag,   setEditingTag]   = useState<string | null>(null)
   const [editTagVal,   setEditTagVal]   = useState({ name: '', emoji: '' })
 
-  useEffect(() => {
+  // Extracted so the Retry button can re-fire the same call.
+  // Was using .then(setGroups) directly — error-JSON would have
+  // been set as the typed Tag[] state and crashed on the first
+  // .map() in render.
+  function loadGroups() {
+    setLoading(true)
+    setLoadError(null)
     fetch('/app/api/admin/tag-groups', { credentials: 'include' })
-      .then(r => r.json()).then(setGroups).finally(() => setLoading(false))
-  }, [])
+      .then(async r => {
+        if (!r.ok) {
+          const text = await r.text().catch(() => '')
+          throw new Error(`${r.status}${text ? `: ${text.slice(0, 200)}` : ''}`)
+        }
+        return r.json()
+      })
+      .then(d => setGroups(Array.isArray(d) ? d : []))
+      .catch((e: Error) => setLoadError(e?.message ?? 'Failed to load'))
+      .finally(() => setLoading(false))
+  }
+  useEffect(loadGroups, [])
 
   async function addGroup() {
     if (!newGroupName.trim()) return
     setSavingGroup(true)
-    const res = await fetch('/app/api/admin/tag-groups', {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: newGroupName.trim(), emoji: newGroupEmoji || '🏷️' }),
-    })
-    if (res.ok) {
+    try {
+      const res = await fetch('/app/api/admin/tag-groups', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newGroupName.trim(), emoji: newGroupEmoji || '🏷️' }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        toast.error(d?.error ?? 'Failed to create group')
+        return
+      }
       const g = await res.json()
       setGroups(prev => [...prev, { ...g, tags: [] }])
       setNewGroupName(''); setNewGroupEmoji('')
+      toast.success(`Group "${g.name}" added`)
+    } finally {
+      setSavingGroup(false)
     }
-    setSavingGroup(false)
   }
 
   async function saveGroup(id: string) {
@@ -54,34 +79,54 @@ export default function TagsPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(editGroupVal),
     })
-    if (res.ok) {
-      setGroups(prev => prev.map(g => g.id === id ? { ...g, ...editGroupVal } : g))
-      setEditingGroup(null)
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}))
+      toast.error(d?.error ?? 'Failed to save group')
+      return
     }
+    setGroups(prev => prev.map(g => g.id === id ? { ...g, ...editGroupVal } : g))
+    setEditingGroup(null)
+    toast.success('Group updated')
   }
 
+  // Was mutating state regardless of res.ok — admin clicked
+  // Delete, server 500'd, the group was gone from the UI but
+  // stayed in the DB. State now waits for confirmation.
   async function deleteGroup(id: string) {
     if (!confirm('Delete this group and all its tags?')) return
-    await fetch(`/app/api/admin/tag-groups/${id}`, { method: 'DELETE', credentials: 'include' })
+    const res = await fetch(`/app/api/admin/tag-groups/${id}`, { method: 'DELETE', credentials: 'include' })
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}))
+      toast.error(d?.error ?? 'Failed to delete group')
+      return
+    }
     setGroups(prev => prev.filter(g => g.id !== id))
+    toast.success('Group deleted')
   }
 
   async function addTag(groupId: string) {
     const name = newTagName[groupId]?.trim()
     if (!name) return
     setSavingTag(prev => ({ ...prev, [groupId]: true }))
-    const res = await fetch('/app/api/admin/tags', {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, emoji: newTagEmoji[groupId] || '🏷️', groupId }),
-    })
-    if (res.ok) {
+    try {
+      const res = await fetch('/app/api/admin/tags', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, emoji: newTagEmoji[groupId] || '🏷️', groupId }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        toast.error(d?.error ?? 'Failed to add tag')
+        return
+      }
       const tag = await res.json()
       setGroups(prev => prev.map(g => g.id === groupId ? { ...g, tags: [...g.tags, tag].sort((a, b) => a.name.localeCompare(b.name)) } : g))
       setNewTagName(prev => ({ ...prev, [groupId]: '' }))
       setNewTagEmoji(prev => ({ ...prev, [groupId]: '' }))
+      toast.success(`Tag "${tag.name}" added`)
+    } finally {
+      setSavingTag(prev => ({ ...prev, [groupId]: false }))
     }
-    setSavingTag(prev => ({ ...prev, [groupId]: false }))
   }
 
   async function saveTag(id: string, groupId: string) {
@@ -90,17 +135,29 @@ export default function TagsPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(editTagVal),
     })
-    if (res.ok) {
-      setGroups(prev => prev.map(g => g.id === groupId
-        ? { ...g, tags: g.tags.map(t => t.id === id ? { ...t, ...editTagVal } : t) } : g))
-      setEditingTag(null)
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}))
+      toast.error(d?.error ?? 'Failed to save tag')
+      return
     }
+    setGroups(prev => prev.map(g => g.id === groupId
+      ? { ...g, tags: g.tags.map(t => t.id === id ? { ...t, ...editTagVal } : t) } : g))
+    setEditingTag(null)
+    toast.success('Tag updated')
   }
 
+  // Same fix as deleteGroup — was lying about success on
+  // server failures.
   async function deleteTag(id: string, groupId: string) {
     if (!confirm('Delete this tag?')) return
-    await fetch(`/app/api/admin/tags/${id}`, { method: 'DELETE', credentials: 'include' })
+    const res = await fetch(`/app/api/admin/tags/${id}`, { method: 'DELETE', credentials: 'include' })
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}))
+      toast.error(d?.error ?? 'Failed to delete tag')
+      return
+    }
     setGroups(prev => prev.map(g => g.id === groupId ? { ...g, tags: g.tags.filter(t => t.id !== id) } : g))
+    toast.success('Tag deleted')
   }
 
   return (
@@ -126,8 +183,41 @@ export default function TagsPage() {
         </div>
       </div>
 
+      {/* Error banner — was silently rendering the empty state
+          when the load failed. Retry re-fires loadGroups(). */}
+      {loadError && (
+        <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 flex items-start gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-red-300">Couldn&apos;t load tag groups</p>
+            <p className="text-xs text-red-400/80 mt-1 break-all">{loadError}</p>
+          </div>
+          <button onClick={loadGroups}
+            className="text-xs px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 font-semibold shrink-0">
+            Retry
+          </button>
+        </div>
+      )}
+
       {loading ? (
-        <div className="text-zinc-500 text-sm">Loading…</div>
+        // Page-shape skeleton matching the group + tag-chip layout
+        // so the data-arrival moment is a fill-in rather than a
+        // jump from a bare "Loading…" string.
+        <div className="space-y-4">
+          {[...Array(2)].map((_, i) => (
+            <div key={i} className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
+              <div className="px-5 py-4 border-b border-zinc-800 bg-zinc-800/40 flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-zinc-800 animate-pulse" />
+                <div className="flex-1 space-y-1.5">
+                  <div className="h-3.5 w-1/4 rounded bg-zinc-800 animate-pulse" />
+                  <div className="h-3 w-16 rounded bg-zinc-800/60 animate-pulse" />
+                </div>
+              </div>
+              <div className="p-5 flex flex-wrap gap-2">
+                {[0, 1, 2, 3].map(j => <div key={j} className="h-7 w-20 rounded-xl bg-zinc-800 animate-pulse" />)}
+              </div>
+            </div>
+          ))}
+        </div>
       ) : groups.length === 0 ? (
         <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-10 text-center">
           <div className="text-3xl mb-2">🏷️</div>
