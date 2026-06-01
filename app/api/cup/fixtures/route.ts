@@ -36,9 +36,12 @@ export async function GET() {
       // the admin UI so admin can one-click apply. Members /
       // visitors will see them too via the same endpoint, but
       // the member-side /cup page doesn't render them — saves
-      // doing a separate query.
+      // doing a separate query. suggestedHomeTeam / awayTeam
+      // appear on TBD knockout fixtures once the prior round
+      // wraps and football-data.org resolves the matchup.
       suggestedHomeScore: true, suggestedAwayScore: true,
       suggestedWinnerTeam: true, suggestedStatus: true, suggestedAt: true,
+      suggestedHomeTeam: true, suggestedAwayTeam: true,
     },
   })
 

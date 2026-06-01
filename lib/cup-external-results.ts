@@ -34,12 +34,39 @@ export interface FdMatch {
   id:        number
   utcDate:   string         // ISO timestamp
   status:    FdMatchStatus
+  // Bracket round identifier. We map it to our internal round
+  // values via fdStageToCupRound() so the sweeper can pick up
+  // resolved knockout teams once the prior round wraps.
+  stage?:    string         // 'GROUP_STAGE' | 'ROUND_OF_32' | 'LAST_16' | 'QUARTER_FINALS' | 'SEMI_FINALS' | 'FINAL' | ...
   homeTeam:  { id: number; name: string; shortName: string | null; tla: string | null }
   awayTeam:  { id: number; name: string; shortName: string | null; tla: string | null }
   score: {
     winner:   'HOME_TEAM' | 'AWAY_TEAM' | 'DRAW' | null
     duration: string                                       // 'REGULAR' | 'EXTRA_TIME' | 'PENALTY_SHOOTOUT'
     fullTime: { home: number | null; away: number | null }
+  }
+}
+
+// Our internal round identifiers. Keep this list in sync with the
+// CupFixture.round column values in schema.prisma.
+export type CupRound = 'group' | 'r32' | 'r16' | 'qf' | 'sf' | 'final'
+
+// football-data.org's `stage` value → our internal round name.
+// 'LAST_16' is the historically common code for the round of 16;
+// FIFA 2026's 48-team format adds a round of 32 between group
+// stage and last 16. Either ROUND_OF_16 or LAST_16 may appear in
+// the wild depending on the competition season; map both.
+export function fdStageToCupRound(stage?: string): CupRound | null {
+  switch (stage) {
+    case 'GROUP_STAGE':       return 'group'
+    case 'ROUND_OF_32':       return 'r32'
+    case 'ROUND_OF_16':       return 'r16'
+    case 'LAST_16':           return 'r16'
+    case 'QUARTER_FINALS':    return 'qf'
+    case 'SEMI_FINALS':       return 'sf'
+    case 'FINAL':             return 'final'
+    case 'THIRD_PLACE':       return null  // we don't model the third-place playoff
+    default:                  return null
   }
 }
 

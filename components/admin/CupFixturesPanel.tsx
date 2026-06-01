@@ -44,6 +44,13 @@ interface Fixture {
   suggestedWinnerTeam?: string | null
   suggestedStatus?:     string | null
   suggestedAt?:         string | null
+  // Suggested team assignments for TBD knockout slots. Written by
+  // the sweeper after a prior round resolves and football-data
+  // has filled in the matchup. Surfaces an "Apply teams" affordance
+  // on the row; committing them then lets the score-suggestion
+  // path take over for that fixture.
+  suggestedHomeTeam?:   string | null
+  suggestedAwayTeam?:   string | null
 }
 
 export default function CupFixturesPanel() {
@@ -72,9 +79,13 @@ export default function CupFixturesPanel() {
       })
       const d = await res.json().catch(() => ({}))
       if (!res.ok) { toast.error(d.error ?? 'Refresh failed'); return }
+      // Differentiate team-only suggestions (TBD knockout slots
+      // resolving) from result suggestions (scores landing) so
+      // admin knows what's actually new on this refresh.
+      const teamsBit = d.suggestedTeams ? ` · ${d.suggestedTeams} team set${d.suggestedTeams === 1 ? '' : 's'}` : ''
       toast.success(
         d.suggested
-          ? `Suggested ${d.suggested} new result${d.suggested === 1 ? '' : 's'} · scanned ${d.matchesScanned}`
+          ? `Suggested ${d.suggested} new result${d.suggested === 1 ? '' : 's'}${teamsBit} · scanned ${d.matchesScanned}`
           : `No new suggestions · scanned ${d.matchesScanned} match${d.matchesScanned === 1 ? '' : 'es'}`,
       )
       load()
@@ -201,6 +212,37 @@ function FixtureRow({ fixture, onSaved }: { fixture: Fixture; onSaved: () => voi
     fixture.suggestedHomeScore !== null && fixture.suggestedHomeScore !== undefined &&
     fixture.suggestedAwayScore !== null && fixture.suggestedAwayScore !== undefined
 
+  // Knockout team suggestion. Shown when the fixture is a TBD
+  // knockout slot (no admin-committed teams yet) and the sweeper
+  // has matched it to a resolved fdMatch. Applying writes the
+  // teams; the next sweep cycle then picks up the score
+  // suggestion via the (home, away, date) path.
+  const hasAppliableTeamSuggestion =
+    (!fixture.homeTeam || !fixture.awayTeam) &&
+    !!fixture.suggestedHomeTeam &&
+    !!fixture.suggestedAwayTeam
+
+  async function applyTeams() {
+    if (!hasAppliableTeamSuggestion) return
+    setSaving(true)
+    try {
+      const res = await fetch(`/app/api/admin/cup/fixtures/${fixture.id}`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          homeTeam: fixture.suggestedHomeTeam,
+          awayTeam: fixture.suggestedAwayTeam,
+        }),
+      })
+      const d = await res.json()
+      if (!res.ok) { toast.error(d.error ?? 'Apply teams failed'); return }
+      toast.success(`Teams set · ${teamLabel(fixture.suggestedHomeTeam)} vs ${teamLabel(fixture.suggestedAwayTeam)}`)
+      onSaved()
+    } finally {
+      setSaving(false)
+    }
+  }
+
   async function applySuggestion() {
     if (!hasAppliableSuggestion) return
     setSaving(true)
@@ -318,6 +360,17 @@ function FixtureRow({ fixture, onSaved }: { fixture: Fixture; onSaved: () => voi
                 )}
               </p>
             )}
+            {hasAppliableTeamSuggestion && !hasAppliableSuggestion && (
+              <p className="text-xs text-sky-400 mt-1 font-semibold inline-flex items-center gap-1.5 flex-wrap">
+                <span className="text-[10px] uppercase tracking-wider bg-sky-500/10 px-1.5 py-0.5 rounded">⚡ Auto teams</span>
+                <span>{teamLabel(fixture.suggestedHomeTeam)} vs {teamLabel(fixture.suggestedAwayTeam)}</span>
+                {fixture.suggestedAt && (
+                  <span className="text-[10px] text-sky-500/70 font-normal">
+                    · {formatAge(fixture.suggestedAt, Date.now())}
+                  </span>
+                )}
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
             {hasAppliableSuggestion && (
@@ -326,9 +379,21 @@ function FixtureRow({ fixture, onSaved }: { fixture: Fixture; onSaved: () => voi
                 {saving ? 'Applying…' : 'Apply →'}
               </button>
             )}
+            {hasAppliableTeamSuggestion && !hasAppliableSuggestion && (
+              <button onClick={applyTeams} disabled={saving}
+                className="text-xs px-3 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-600 text-white font-bold disabled:opacity-60">
+                {saving ? 'Setting…' : 'Apply teams →'}
+              </button>
+            )}
             <button onClick={() => setEditing(true)}
               className="text-xs px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700">
-              {hasResult ? 'Edit' : hasAppliableSuggestion ? 'Override' : 'Enter result'}
+              {hasResult
+                ? 'Edit'
+                : hasAppliableSuggestion
+                  ? 'Override'
+                  : hasAppliableTeamSuggestion
+                    ? 'Override'
+                    : 'Enter result'}
             </button>
           </div>
         </div>

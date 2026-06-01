@@ -573,6 +573,14 @@ model CupFixture {
   suggestedWinnerTeam String?
   suggestedStatus     String?
   suggestedAt         DateTime?
+  // Suggested team assignments for TBD knockout slots. Written by
+  // the sweeper when football-data.org has resolved the home/away
+  // teams for a R32/R16/QF/SF/F fixture upstream (i.e., once the
+  // prior round wrapped). Admin clicks "Apply teams" in the admin
+  // UI to commit them; once committed the fixture has homeTeam +
+  // awayTeam set and the standard score-suggestion path takes over.
+  suggestedHomeTeam   String?
+  suggestedAwayTeam   String?
   updatedAt    DateTime @updatedAt
   createdAt    DateTime @default(now())
 

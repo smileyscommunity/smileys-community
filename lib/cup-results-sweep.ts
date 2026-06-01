@@ -9,11 +9,15 @@
 // going through the CRON_SECRET-gated endpoint.
 
 import { prisma } from './prisma'
-import { fetchCupMatches, fdTlaToCupCode, fdWinnerCode } from './cup-external-results'
+import { fetchCupMatches, fdTlaToCupCode, fdWinnerCode, fdStageToCupRound } from './cup-external-results'
 
 export interface SweepResult {
   matchesScanned:      number
   suggested:           number
+  // How many of the suggestions also wrote team assignments for
+  // a TBD knockout slot. Separate counter so admin can tell at a
+  // glance whether the sweep filled in a new R32/R16/QF/SF/F row.
+  suggestedTeams:      number
   skippedTeamMismatch: number
   skippedNoFixture:    number
   window:              { from: string; to: string }
@@ -38,6 +42,7 @@ export async function runCupResultsSweep(): Promise<SweepResult> {
   const fdMatches = await fetchCupMatches(dateFrom, dateTo)
 
   let suggested           = 0
+  let suggestedTeams      = 0
   let skippedTeamMismatch = 0
   let skippedNoFixture    = 0
 
@@ -54,36 +59,65 @@ export async function runCupResultsSweep(): Promise<SweepResult> {
     const lo  = new Date(utc.getTime() - 2 * 60 * 60 * 1000)
     const hi  = new Date(utc.getTime() + 2 * 60 * 60 * 1000)
 
-    const fixture = await prisma.cupFixture.findFirst({
+    let fixture = await prisma.cupFixture.findFirst({
       where:  {
         homeTeam:  home,
         awayTeam:  away,
         kickoffAt: { gte: lo, lte: hi },
       },
-      select: { id: true, winnerTeam: true },
+      select: { id: true, winnerTeam: true, homeTeam: true, awayTeam: true, round: true },
     })
+
+    // Fallback for TBD knockout slots: once football-data resolves
+    // the teams upstream (after the prior round wraps), our R32/
+    // R16/QF/SF/F fixtures are still seeded with null home/away.
+    // The team-coded lookup above misses them. Match by (round,
+    // date window, no teams set) instead and let admin commit the
+    // resolved teams via the Apply teams button in the admin UI.
+    let isTeamSuggestion = false
+    if (!fixture) {
+      const round = fdStageToCupRound(m.stage)
+      if (round && round !== 'group') {
+        fixture = await prisma.cupFixture.findFirst({
+          where: {
+            round,
+            homeTeam: null,
+            awayTeam: null,
+            kickoffAt: { gte: lo, lte: hi },
+          },
+          select: { id: true, winnerTeam: true, homeTeam: true, awayTeam: true, round: true },
+        })
+        if (fixture) isTeamSuggestion = true
+      }
+    }
+
     if (!fixture) { skippedNoFixture += 1; continue }
 
     // Already committed — admin's truth is final, no overwrite.
     if (fixture.winnerTeam) continue
 
     const suggestedWinner = fdWinnerCode(m)
-    await prisma.cupFixture.update({
-      where: { id: fixture.id },
-      data:  {
-        suggestedHomeScore:  m.score.fullTime.home ?? null,
-        suggestedAwayScore:  m.score.fullTime.away ?? null,
-        suggestedWinnerTeam: suggestedWinner,
-        suggestedStatus:     m.status,
-        suggestedAt:         new Date(),
-      },
-    })
+    const data: Record<string, unknown> = {
+      suggestedHomeScore:  m.score.fullTime.home ?? null,
+      suggestedAwayScore:  m.score.fullTime.away ?? null,
+      suggestedWinnerTeam: suggestedWinner,
+      suggestedStatus:     m.status,
+      suggestedAt:         new Date(),
+    }
+    if (isTeamSuggestion) {
+      data.suggestedHomeTeam = home
+      data.suggestedAwayTeam = away
+      suggestedTeams += 1
+    }
+
+    await prisma.cupFixture.update({ where: { id: fixture.id }, data })
     suggested += 1
   }
 
   return {
     matchesScanned: fdMatches.length,
     suggested,
+    suggestedTeams,
     skippedTeamMismatch,
     skippedNoFixture,
     window: { from: dateFrom, to: dateTo },
