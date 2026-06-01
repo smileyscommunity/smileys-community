@@ -125,10 +125,12 @@ const NAV_GROUPS = [
     label: 'Content',
     items: [
       { label: 'Notifications', href: '/admin/notifications',                 exact: false, roles: ['admin', 'moderator'],  icon: 'notifications' },
-      // Was /admin/engagement (misnamed as analytics); now /admin/announcements
-      // and lives in this Content group alongside the other comms surfaces.
-      { label: 'Announcements', href: '/admin/announcements?tab=announcement', exact: false, roles: ['admin', 'moderator'],  icon: 'banners'    },
-      { label: 'Polls',         href: '/admin/announcements?tab=polls',        exact: false, roles: ['admin', 'moderator'],  icon: 'engagement' },
+      // Announcements + Polls used to share /admin/announcements behind a ?tab=
+      // query (a single-page tab nav). That left both tabs visible from either
+      // sidebar entry, so clicking "Polls" still showed an "Announcements" tab
+      // and vice versa — confusing. Split into focused routes now.
+      { label: 'Announcements', href: '/admin/announcements', exact: false, roles: ['admin', 'moderator'],  icon: 'banners'    },
+      { label: 'Polls',         href: '/admin/polls',         exact: false, roles: ['admin', 'moderator'],  icon: 'engagement' },
       { label: 'Stories',       href: '/admin/stories',                     exact: false, roles: ['admin', 'moderator'],  icon: 'stories'       },
       { label: 'Articles',      href: '/admin/posts',         exact: false, roles: ['admin', 'moderator'],  icon: 'articles'      },
       { label: 'Neighborhoods', href: '/admin/neighborhoods', exact: false, roles: ['admin', 'moderator'],  icon: 'tags'          },
@@ -232,10 +234,9 @@ export default function Sidebar({ open, onClose }: Props) {
       const [key, val] = hrefQuery.split('=')
       return params.get(key) === val
     }
-    // For tab-routed pages without a query specifier, don't false-match
-    // tab-specific links (otherwise both Announcements + Polls would
-    // highlight at /admin/announcements with no ?tab=).
-    if (hrefPath === '/admin/announcements') return false
+    // Legacy /admin/engagement → /admin/announcements redirect still
+    // works via the rewrite; skip it here so the sidebar doesn't
+    // double-highlight on the destination route.
     if (hrefPath === '/admin/engagement')    return false  // legacy redirect
     return true
   }
