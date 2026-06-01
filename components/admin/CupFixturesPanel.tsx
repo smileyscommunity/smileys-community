@@ -60,7 +60,11 @@ export default function CupFixturesPanel() {
   const [refreshing,  setRefreshing]  = useState(false)
 
   function load() {
-    fetch('/app/api/cup/fixtures', { credentials: 'include' })
+    // Admin-only endpoint — same shape as /api/cup/fixtures plus
+    // the suggested* columns the public endpoint intentionally
+    // omits. Without the admin endpoint the Apply / Apply teams
+    // affordances have nothing to render off of.
+    fetch('/app/api/admin/cup/fixtures', { credentials: 'include' })
       .then(r => r.json())
       .then(d => { if (Array.isArray(d.fixtures)) setFixtures(d.fixtures) })
       .finally(() => setLoading(false))

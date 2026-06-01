@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
+import { rateLimit } from '@/lib/rateLimit'
 import { runCupResultsSweep } from '@/lib/cup-results-sweep'
 
 // POST /api/admin/cup/results/refresh
@@ -22,6 +23,16 @@ export async function POST() {
   const session = await getSession()
   if (!session || !isAdminOrModerator(session)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+  // Per-admin rate limit. The system crontab already pulls every
+  // 5 minutes, so a manual click is for "I don't want to wait the
+  // current minute" not "I want to poll." 6/min/admin gives
+  // ~one click per 10 seconds with headroom; rapid clicks (or
+  // accidental script loops on a compromised admin session) hit
+  // 429 before they can exhaust the football-data.org free-tier
+  // ceiling of 10 req/min.
+  if (!await rateLimit(`cup-results-refresh:${session.id}`, 6, 60_000)) {
+    return NextResponse.json({ error: 'Refreshing too fast — slow down' }, { status: 429 })
   }
   if (!process.env.FOOTBALL_DATA_API_KEY) {
     return NextResponse.json({ error: 'FOOTBALL_DATA_API_KEY not configured on server' }, { status: 503 })

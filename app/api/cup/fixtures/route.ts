@@ -31,17 +31,12 @@ export async function GET() {
       kickoffAt: true, venue: true,
       winnerTeam: true, homeScore: true, awayScore: true,
       points: true,
-      // Auto-scoring suggestion fields. Written by the
-      // sweep-cup-results cron. Surfaced on every fixture row in
-      // the admin UI so admin can one-click apply. Members /
-      // visitors will see them too via the same endpoint, but
-      // the member-side /cup page doesn't render them — saves
-      // doing a separate query. suggestedHomeTeam / awayTeam
-      // appear on TBD knockout fixtures once the prior round
-      // wraps and football-data.org resolves the matchup.
-      suggestedHomeScore: true, suggestedAwayScore: true,
-      suggestedWinnerTeam: true, suggestedStatus: true, suggestedAt: true,
-      suggestedHomeTeam: true, suggestedAwayTeam: true,
+      // suggested* fields intentionally NOT selected here. They're
+      // visible only to admin/moderator via /api/admin/cup/fixtures.
+      // The data ultimately comes from public football-data.org,
+      // but we don't want our intermediate-state copy to leak
+      // "FRA wins 2-1" to members through this endpoint before
+      // admin commits the result.
     },
   })
 
