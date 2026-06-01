@@ -152,6 +152,7 @@ function AdminEventsPageInner() {
   const [events,     setEvents]     = useState<AdminEvent[]>([])
   const [clubs,      setClubs]      = useState<Club[]>([])
   const [loading,    setLoading]    = useState(true)
+  const [error,      setError]      = useState<string | null>(null)
   const [search,     setSearch]     = useState(initialSearch)
   const [tabStatus,  setTabStatus]  = useState<TabKey>(initialTab)
   const [clubFilter, setClubFilter] = useState(initialClub)
@@ -159,6 +160,7 @@ function AdminEventsPageInner() {
   const [dateTo,     setDateTo]     = useState(initialTo)
   const [selected,   setSelected]   = useState<Set<string>>(new Set())
   const [bulkBusy,   setBulkBusy]   = useState(false)
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null)
 
   // Debounced version of `search` — keeps typing from spamming
   // history with intermediate URLs.
@@ -184,21 +186,36 @@ function AdminEventsPageInner() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabStatus, debouncedSearch, clubFilter, dateFrom, dateTo, pathname, router])
 
-  useEffect(() => {
-    // Previously setLoading(true) was only called on mount, so clicking
-    // a tab left the previous tab's data on screen until the new fetch
-    // landed — looked instant but was actually stale.
+  // Single fetch covering ALL statuses including archived. Tab counts
+  // and tab views are then derived client-side from one consistent
+  // dataset — was using three separate fetches keyed off tabStatus,
+  // which left "Past/Archived" tab showing 0 when admin was on
+  // "Upcoming" (archived events were filtered out server-side), and
+  // similarly hid pending events from the other tabs' counts.
+  //
+  // Tradeoff: the initial payload is bigger. At ~hundreds of events
+  // it's fine; if event volume becomes a problem we'd add server-side
+  // tab-aware counts to the response.
+  const load = useCallback(() => {
     setLoading(true)
-    const archived = tabStatus === 'archived' ? '?archived=1' : ''
-    const pending  = tabStatus === 'pending'  ? '?status=pending' : ''
+    setError(null)
     Promise.all([
-      fetch(`/app/api/admin/events${archived || pending}`, { credentials: 'include' }).then(r => r.json()),
-      fetch('/app/api/admin/clubs', { credentials: 'include' }).then(r => r.json()),
+      fetch('/app/api/admin/events?archived=1', { credentials: 'include' })
+        .then(async r => { if (!r.ok) throw new Error(`events ${r.status}`); return r.json() }),
+      fetch('/app/api/admin/clubs', { credentials: 'include' })
+        .then(async r => { if (!r.ok) throw new Error(`clubs ${r.status}`); return r.json() }),
     ]).then(([evData, clData]) => {
       setEvents(Array.isArray(evData) ? evData : [])
       setClubs(Array.isArray(clData) ? clData : [])
+    }).catch(e => {
+      // Was silently treating 401/403/500 as "no events" because
+      // unchecked .json() let the error body fail Array.isArray and
+      // the page rendered "No events match your filters." indistinct
+      // from an empty actual result.
+      setError(e?.message ?? 'Failed to load')
     }).finally(() => setLoading(false))
-  }, [tabStatus])
+  }, [])
+  useEffect(load, [load])
 
   async function toggleFeatured(event: AdminEvent) {
     const next = !event.featured
@@ -207,10 +224,13 @@ function AdminEventsPageInner() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ featured: next }),
     })
-    if (res.ok) {
-      setEvents(prev => prev.map(e => e.id === event.id ? { ...e, featured: next } : e))
-      toast(next ? '★ Featured' : 'Unfeatured')
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}))
+      toast.error(d.error ?? 'Failed to toggle featured')
+      return
     }
+    setEvents(prev => prev.map(e => e.id === event.id ? { ...e, featured: next } : e))
+    toast(next ? '★ Featured' : 'Unfeatured')
   }
 
   async function approveEvent(event: AdminEvent) {
@@ -219,19 +239,25 @@ function AdminEventsPageInner() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'published' }),
     })
-    if (res.ok) {
-      setEvents(prev => prev.map(e => e.id === event.id ? { ...e, status: 'published' } : e))
-      toast.success(`"${event.title}" published`)
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}))
+      toast.error(d.error ?? 'Failed to approve')
+      return
     }
+    setEvents(prev => prev.map(e => e.id === event.id ? { ...e, status: 'published' } : e))
+    toast.success(`"${event.title}" published`)
   }
 
   async function handleDelete(event: AdminEvent) {
     if (!window.confirm(`Delete "${event.title}"?`)) return
     const res = await fetch(`/app/api/admin/events/${event.id}`, { method: 'DELETE', credentials: 'include' })
-    if (res.ok) {
-      setEvents(prev => prev.filter(e => e.id !== event.id))
-      toast.success('Deleted')
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}))
+      toast.error(d.error ?? 'Failed to delete')
+      return
     }
+    setEvents(prev => prev.filter(e => e.id !== event.id))
+    toast.success('Deleted')
   }
 
   // PATCH allowlist on the server is `published / flagged / unpublished
@@ -260,20 +286,28 @@ function AdminEventsPageInner() {
   }
 
   async function handleDuplicate(event: AdminEvent) {
-    // Real server-side duplicate now — the old impl just inserted a
-    // client-only row with id `dup-${Date.now()}` that vanished on
-    // reload and 404'd on any subsequent Edit/Delete. New endpoint
-    // clones the source as a fresh draft with today's date.
-    const res = await fetch(`/app/api/admin/events/${event.id}/duplicate`, {
-      method: 'POST', credentials: 'include',
-    })
-    if (res.ok) {
-      const copy = await res.json()
-      setEvents(prev => [copy, ...prev])
-      toast.success('Duplicated ✓')
-    } else {
-      const d = await res.json().catch(() => ({}))
-      toast.error(d.error ?? 'Failed to duplicate')
+    // Per-event busy guard. Without it a double-tap on the ⋯ menu
+    // Duplicate item would fire two POSTs and create two clones.
+    if (duplicatingId) return
+    setDuplicatingId(event.id)
+    try {
+      // Real server-side duplicate — the old impl just inserted a
+      // client-only row with id `dup-${Date.now()}` that vanished on
+      // reload and 404'd on any subsequent Edit/Delete. New endpoint
+      // clones the source as a fresh draft with today's date.
+      const res = await fetch(`/app/api/admin/events/${event.id}/duplicate`, {
+        method: 'POST', credentials: 'include',
+      })
+      if (res.ok) {
+        const copy = await res.json()
+        setEvents(prev => [copy, ...prev])
+        toast.success('Duplicated ✓')
+      } else {
+        const d = await res.json().catch(() => ({}))
+        toast.error(d.error ?? 'Failed to duplicate')
+      }
+    } finally {
+      setDuplicatingId(null)
     }
   }
 
@@ -292,6 +326,30 @@ function AdminEventsPageInner() {
     setBulkBusy(false)
     if (ok.size) toast.success(`${label}: ${ok.size} done`)
     if (fail)    toast.error(`${label}: ${fail} failed`)
+  }
+
+  async function bulkApprove() {
+    // Only act on selected events that are actually pending. Passing
+    // an already-published event through PATCH would still 200 but
+    // the toast count would lie about how many were promoted.
+    const pendingIds = [...selected].filter(id => events.find(e => e.id === id)?.status === 'pending')
+    if (pendingIds.length === 0) { toast('No pending events selected'); return }
+    if (!window.confirm(`Approve ${pendingIds.length} event${pendingIds.length === 1 ? '' : 's'}?`)) return
+    setBulkBusy(true)
+    const results = await Promise.all(pendingIds.map(async id => ({
+      id,
+      ok: await fetch(`/app/api/admin/events/${id}`, {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'published' }),
+      }).then(r => r.ok).catch(() => false),
+    })))
+    const ok = new Set(results.filter(r => r.ok).map(r => r.id))
+    setEvents(prev => prev.map(e => ok.has(e.id) ? { ...e, status: 'published' } : e))
+    setSelected(new Set())
+    setBulkBusy(false)
+    if (ok.size)                    toast.success(`Approve: ${ok.size} done`)
+    if (results.length - ok.size)   toast.error(`Approve: ${results.length - ok.size} failed`)
   }
 
   async function bulkCancel() {
@@ -445,10 +503,36 @@ function AdminEventsPageInner() {
         </div>
       </div>
 
+      {/* Error banner — replaces the silent "no events match" state
+          when the initial load actually failed. Retry re-fires the
+          same load() the page mounts with. */}
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 flex items-start gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-red-300">Couldn&apos;t load events</p>
+            <p className="text-xs text-red-400/80 mt-1 break-all">{error}</p>
+          </div>
+          <button onClick={load}
+            className="text-xs px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 font-semibold shrink-0">
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Bulk bar */}
       {selected.size > 0 && (
         <div className="flex flex-wrap items-center gap-2 px-4 py-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
           <span className="text-xs font-bold text-amber-400">{selected.size} selected</span>
+          {/* Bulk approve — only visible when at least one selected
+              event is currently pending. Saves admin from clicking
+              individual Approve buttons on a burst of new
+              submissions. */}
+          {[...selected].some(id => events.find(e => e.id === id)?.status === 'pending') && (
+            <button onClick={bulkApprove} disabled={bulkBusy}
+              className="px-3 py-1.5 text-xs font-semibold bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/20 rounded-lg transition-colors disabled:opacity-40">
+              Approve all
+            </button>
+          )}
           <button onClick={bulkCancel} disabled={bulkBusy}
             className="px-3 py-1.5 text-xs font-semibold bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 rounded-lg transition-colors disabled:opacity-40">
             Cancel all
