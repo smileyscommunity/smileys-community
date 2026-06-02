@@ -1,4 +1,12 @@
-const CACHE = 'smileys-v3'
+// Bump this version any time the JS/CSS bundle changes in a way
+// returning members need to see immediately (UI bug fixes, copy
+// fixes with legal implications, etc.). The activate handler
+// below deletes any cache key that doesn't match, which evicts
+// the old bundle the moment the new SW activates.
+//
+// v4: 2026-06-02 — RSVPButton modal z-index fix (cancel-spot
+//                  buttons hidden under BottomNav on mobile).
+const CACHE = 'smileys-v4'
 
 // API endpoints to cache for offline use (network-first, cache fallback)
 const OFFLINE_APIS = ['/app/api/events/attending']
