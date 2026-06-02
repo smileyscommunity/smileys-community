@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 
 const REASONS = [
   { value: 'inappropriate_behavior', label: 'Inappropriate behavior',            desc: 'Made others uncomfortable at an event or online' },
@@ -29,7 +30,13 @@ export default function ReportButton({ reportedId, reportedName, eventId }: Prop
   const [loading,    setLoading]    = useState(false)
   const [done,       setDone]       = useState(false)
   const [error,      setError]      = useState('')
+  const [mounted,    setMounted]    = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  // Portal mount gate — modal renders to document.body to escape any
+  // ancestor with backdrop-filter / transform / etc. that would otherwise
+  // become the containing block for `position: fixed` and trap the overlay.
+  useEffect(() => { setMounted(true) }, [])
 
   function reset() {
     setOpen(false); setStep(1); setReason(''); setDetails('')
@@ -81,8 +88,10 @@ export default function ReportButton({ reportedId, reportedName, eventId }: Prop
         Report
       </button>
 
-      {open && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={reset}>
+      {open && mounted && createPortal(
+        <div className="fixed inset-0 flex items-center justify-center p-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
+          style={{ zIndex: 9999 }}
+          onClick={reset}>
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
           <div
             className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
@@ -274,7 +283,8 @@ export default function ReportButton({ reportedId, reportedName, eventId }: Prop
               </>
             )}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   )

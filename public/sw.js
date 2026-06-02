@@ -20,7 +20,14 @@
 // v7: 2026-06-02 — Notifications page header actions stacked on
 //                  mobile (was wrapping into 3 lines + clipping
 //                  the Settings label next to the 4xl heading).
-const CACHE = 'smileys-v7'
+// v8: 2026-06-02 — Preemptive containing-block-trap audit. Portal
+//                  ReportButton and EventPhotos lightbox to
+//                  document.body (same fix that solved RSVPButton
+//                  cancel modal). Both are reusable components
+//                  that can be dropped anywhere — portaling makes
+//                  them immune to any future ancestor with
+//                  backdrop-filter / transform / filter.
+const CACHE = 'smileys-v8'
 
 // API endpoints to cache for offline use (network-first, cache fallback)
 const OFFLINE_APIS = ['/app/api/events/attending']

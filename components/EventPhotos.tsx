@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { resolveImageUrl } from '@/lib/data'
 
 interface Photo {
@@ -27,7 +28,13 @@ export default function EventPhotos({ eventId, photos: initial, canUpload, curre
   const [uploading, setUploading] = useState(false)
   const [error,     setError]     = useState<string | null>(null)
   const [lightbox,  setLightbox]  = useState<Photo | null>(null)
+  const [mounted,   setMounted]   = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  // Portal mount gate — lightbox renders to document.body to escape any
+  // ancestor with backdrop-filter / transform that would otherwise become
+  // the containing block for `position: fixed` and trap the overlay.
+  useEffect(() => { setMounted(true) }, [])
 
   async function handleUpload(file: File) {
     if (!file.type.startsWith('image/')) { setError('Only image files are allowed.'); return }
@@ -128,8 +135,9 @@ export default function EventPhotos({ eventId, photos: initial, canUpload, curre
       )}
 
       {/* Lightbox */}
-      {lightbox && (
-        <div className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-4"
+      {lightbox && mounted && createPortal(
+        <div className="fixed inset-0 bg-black/90 flex flex-col items-center justify-center p-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
+          style={{ zIndex: 9999 }}
           onClick={() => setLightbox(null)}>
           <button className="absolute top-4 right-4 w-10 h-10 bg-black/50 hover:bg-black/80 rounded-full flex items-center justify-center text-white text-lg transition-colors">✕</button>
           <img
@@ -148,7 +156,8 @@ export default function EventPhotos({ eventId, photos: initial, canUpload, curre
             <span className="text-white/80 text-sm">{lightbox.user.name}</span>
             {lightbox.caption && <span className="text-white/50 text-sm">· {lightbox.caption}</span>}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )
