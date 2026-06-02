@@ -299,6 +299,15 @@ export default function CupPredictionsPage() {
           doesn't span the full wide column (banner above does);
           keeps line lengths comfortable. Centered. */}
       <div className="lg:max-w-3xl lg:mx-auto">
+      {/* Defensive disclaimer banner. Turkey's Law 7258 takes a
+          broad view of "facilitating sports prediction" — even
+          free contests have drawn scrutiny when the framing
+          looked betting-adjacent. This banner makes the
+          community-game / no-money-flow nature explicit in both
+          languages so anyone landing on the page (BTK reviewer
+          included) sees the framing before the prizes section.
+          Static text, no behaviour — pure framing. */}
+      <DisclaimerBanner />
       {/* Countdown strip — drives urgency. Pre-kickoff shows the
           time until brackets lock. Post-kickoff shows time to the
           next upcoming match. Hidden when the tournament is over
@@ -315,8 +324,11 @@ export default function CupPredictionsPage() {
       {accessState === 'unauthenticated' && (
         <div className="bg-white rounded-2xl shadow-card mb-4 overflow-hidden">
           <div className="bg-gradient-to-br from-amber-400 to-amber-600 px-5 py-5 text-white">
-            <p className="text-[10px] font-bold uppercase tracking-widest opacity-90 mb-1">Free to play · members only</p>
-            <p className="text-lg sm:text-xl font-extrabold leading-snug">Predict every match. Climb the board. Win prizes.</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest opacity-90 mb-1">Free community game · members only</p>
+            {/* Softened from "Win prizes" to "appreciation gifts" —
+                Law 7258 framing risk (see DisclaimerBanner above).
+                Same engagement signal, less bet-adjacent vocabulary. */}
+            <p className="text-lg sm:text-xl font-extrabold leading-snug">Predict every match. Climb the board. Earn appreciation gifts.</p>
           </div>
           <div className="p-5">
             <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-3">How to join</p>
@@ -1095,7 +1107,11 @@ function FixturePickButton({ label, team, isPicked, isWinner, disabled, onClick 
 //              the Prizes section)
 function ShareButton({ variant }: { variant: 'visitor' | 'member' | 'compact' }) {
   const url  = typeof window !== 'undefined' ? window.location.href : 'https://smileyscommunity.com/app/cup'
-  const text = 'Smileys World Cup 2026 — predict every match. Prizes for the winner. Worth a look?'
+  // Softened from "Prizes for the winner" — the share text travels
+  // freely (WhatsApp, Telegram, etc.) where it could be screenshotted
+  // out of context; bet-adjacent vocabulary in a one-liner is the
+  // worst spot for it. Same hook, less regulatory surface.
+  const text = 'Smileys World Cup 2026 — predict every match. Free community game with sponsor gifts. Worth a look?'
 
   const u = encodeURIComponent(url)
   const t = encodeURIComponent(text)
@@ -1168,6 +1184,40 @@ function ShareButton({ variant }: { variant: 'visitor' | 'member' | 'compact' })
 // modes:
 //   • Pre-kickoff: time until the first fixture (= bracket lock).
 //   • Tournament running: time until the next upcoming match.
+// Disclaimer banner — bilingual (EN/TR) defensive copy that
+// makes the community-game framing explicit at the top of the
+// page. Turkey's Law 7258 covers sports betting + games of
+// chance under a state monopoly (Spor Toto / İddaa); the
+// statutory definition is broad enough to occasionally reach
+// even free prediction contests when the framing looks bet-
+// adjacent. The banner clarifies four points before any reader
+// reaches the prizes section:
+//   1. free to play — no entry fee
+//   2. members-only community game (private, gated)
+//   3. prizes are appreciation gifts from sponsors, not winnings
+//   4. no money flows from players into the game
+// Pure copy, no state. Renders on every visit regardless of
+// auth so visitors, members, and any BTK reviewer all see it.
+// Quiet styling so it reads as fine print, not panic.
+function DisclaimerBanner() {
+  return (
+    <div className="bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 mb-3 text-[11px] text-gray-500 leading-relaxed">
+      <p>
+        <span className="font-semibold text-gray-700">Smileys Cup is a free community game</span> for approved Smileys members.
+        No entry fee, no money flows from players, no payouts.
+        Top players receive <span className="font-medium text-gray-700">appreciation gifts</span> contributed by sponsors and community members.
+        This is not a betting service.
+      </p>
+      <p className="mt-1.5" lang="tr">
+        Smileys Cup, onaylı Smileys üyeleri için <span className="font-medium text-gray-700">ücretsiz bir topluluk oyunudur</span>.
+        Katılım ücreti yoktur, oyunculardan para alınmaz ve para ödemesi yapılmaz.
+        En başarılı oyunculara sponsorlar ve topluluk üyeleri tarafından sağlanan <span className="font-medium text-gray-700">teşekkür hediyeleri</span> verilir.
+        Bu bir bahis hizmeti değildir.
+      </p>
+    </div>
+  )
+}
+
 // Hidden when fixtures haven't loaded or every match has kicked
 // off. Source of truth is the fixtures payload (public), so the
 // countdown works for visitors too.
@@ -1504,8 +1554,8 @@ const FAQS: { q: string; a: string }[] = [
     a: 'No — group-stage picks are 1 pt each, skip as many as you like. Knockouts (R32 → Final) scale up to 40 pts for the Final winner; that\'s where the real movement happens.' },
   { q: 'How are predictions kept fair?',
     a: 'Picks lock server-side at the second of kickoff. Score-after-the-fact is impossible. Identical-pick collusion between accounts is monitored.' },
-  { q: 'What does the winner actually get?',
-    a: 'Check the Prizes section above for what\'s currently on the board — donated by sponsors and Smileys members. Top of the leaderboard at the Final takes home the headline prize; spot prizes go to other top finishers. Have something to offer? Tap "Donate a prize" in the same section.' },
+  { q: 'What do top players actually receive?',
+    a: 'Check the Prizes section above for what\'s currently on the board — appreciation gifts contributed by sponsors and Smileys members. The top of the leaderboard at the Final receives the headline gift; spot gifts go to other top finishers. Smileys Cup is a free community game, not a betting service. Have something to offer? Tap "Contribute a gift" in the same section.' },
 ]
 
 function FAQCard() {
@@ -1887,7 +1937,7 @@ function RulesCard({ defaultOpen }: { defaultOpen: boolean }) {
         className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-gray-50 transition-colors">
         <div>
           <p className="text-sm font-bold text-gray-900">How it works</p>
-          <p className="text-xs text-gray-500 mt-0.5">Pick a champion, pick every match, win prizes.</p>
+          <p className="text-xs text-gray-500 mt-0.5">Pick a champion, pick every match, earn appreciation gifts.</p>
         </div>
         <svg className={`w-5 h-5 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`}
           fill="none" stroke="currentColor" viewBox="0 0 24 24">
