@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
+import { writeAudit } from '@/lib/audit'
 import { ALLOWED_CATEGORIES } from '../constants'
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -39,6 +40,13 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   const { id } = await params
+  const snapshot = await prisma.testimonial.findUnique({ where: { id },
+    select: { memberName: true, role: true, quote: true, category: true, active: true } })
+  if (!snapshot) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   await prisma.testimonial.delete({ where: { id } })
+  writeAudit(session.id, session.name, 'testimonial.delete', id, 'testimonial',
+    { memberName: snapshot.memberName, role: snapshot.role, category: snapshot.category, active: snapshot.active, quotePreview: snapshot.quote.slice(0, 100) },
+    `Deleted testimonial from "${snapshot.memberName}" (${snapshot.category})`,
+  )
   return NextResponse.json({ ok: true })
 }

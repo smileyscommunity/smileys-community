@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { createNotification } from '@/lib/notify'
+import { writeAudit } from '@/lib/audit'
 
 async function canManage(session: { id: string; role: string } | null, eventId: string) {
   if (!session) return false
@@ -59,6 +60,16 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   if (!await canManage(session, id)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { userId } = await req.json()
+  const [user, event] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId }, select: { name: true } }),
+    prisma.event.findUnique({ where: { id }, select: { title: true } }),
+  ])
   await prisma.eventCoHost.deleteMany({ where: { eventId: id, userId } })
+  if (session) {
+    writeAudit(session.id, session.name, 'event.cohost_remove', userId, 'user',
+      { eventId: id, eventTitle: event?.title, userName: user?.name },
+      `Removed ${user?.name ?? userId} as co-host of "${event?.title ?? id}"`,
+    )
+  }
   return NextResponse.json({ ok: true })
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
+import { writeAudit } from '@/lib/audit'
 import { readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 
@@ -41,6 +42,11 @@ export async function DELETE() {
   if (!session || !isAdminOrModerator(session)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
+  const previous = read()
   writeFileSync(filePath, JSON.stringify({ userId: null, funFact: '', topSpots: ['', '', ''], updatedAt: new Date().toISOString() }, null, 2))
+  writeAudit(session.id, session.name, 'spotlight.clear', previous?.userId ?? null, 'spotlight',
+    { previousUserId: previous?.userId, funFact: previous?.funFact?.slice(0, 200), topSpots: previous?.topSpots },
+    `Cleared member spotlight${previous?.userId ? ` (was: user ${previous.userId})` : ''}`,
+  )
   return NextResponse.json({ ok: true })
 }

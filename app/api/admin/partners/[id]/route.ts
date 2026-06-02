@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { canManagePartners } from '@/lib/access'
+import { writeAudit } from '@/lib/audit'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -52,10 +53,23 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   const { userId } = await req.json()
   if (!userId) return NextResponse.json({ error: 'userId required' }, { status: 400 })
 
+  // Snapshot the user + partner names for the audit row so the log
+  // is self-documenting (the role demotion + partner-link removal
+  // is a meaningful access-control change).
+  const [user, partner] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true, role: true } }),
+    prisma.partner.findUnique({ where: { id }, select: { name: true } }),
+  ])
+
   await prisma.user.update({
     where: { id: userId, partnerId: id },
     data: { partnerId: null, role: 'member' },
   })
+
+  writeAudit(session.id, session.name, 'partner.unassign_user', userId, 'user',
+    { partnerId: id, partnerName: partner?.name, previousRole: user?.role, userEmail: user?.email },
+    `Unassigned ${user?.name ?? userId} (${user?.email ?? ''}) from partner "${partner?.name ?? id}" — role demoted to member`,
+  )
 
   return NextResponse.json({ ok: true })
 }

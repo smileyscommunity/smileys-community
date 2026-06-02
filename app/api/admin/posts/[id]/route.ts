@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { canManagePosts } from '@/lib/access'
+import { writeAudit } from '@/lib/audit'
 
 export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
@@ -51,6 +52,14 @@ export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id:
   if (!session || !canManagePosts(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { id } = await params
+  const snapshot = await prisma.post.findUnique({ where: { id },
+    select: { title: true, status: true, category: true, authorId: true, publishedAt: true } })
+  if (!snapshot) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   await prisma.post.delete({ where: { id } })
+  writeAudit(session.id, session.name, 'post.delete', id, 'post',
+    { title: snapshot.title, status: snapshot.status, category: snapshot.category,
+      authorId: snapshot.authorId, publishedAt: snapshot.publishedAt?.toISOString() ?? null },
+    `Deleted ${snapshot.status} post "${snapshot.title}" (${snapshot.category})`,
+  )
   return NextResponse.json({ ok: true })
 }

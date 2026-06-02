@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin, isAdminOrModerator } from '@/lib/access'
+import { writeAudit } from '@/lib/audit'
 
 export async function GET() {
   const session = await getSession()
@@ -65,7 +66,18 @@ export async function DELETE(req: NextRequest) {
   }
   const { pollId } = await req.json()
   if (!pollId) return NextResponse.json({ error: 'pollId required' }, { status: 400 })
+  const snapshot = await prisma.communityPoll.findUnique({
+    where:  { id: pollId },
+    select: { question: true, active: true, createdAt: true,
+              _count: { select: { options: true } } },
+  })
+  if (!snapshot) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   await prisma.communityPoll.delete({ where: { id: pollId } })
+  writeAudit(session.id, session.name, 'poll.delete', pollId, 'community_poll',
+    { question: snapshot.question, active: snapshot.active, optionCount: snapshot._count.options,
+      createdAt: snapshot.createdAt.toISOString() },
+    `Deleted ${snapshot.active ? 'active' : 'inactive'} community poll: "${snapshot.question}"`,
+  )
   return NextResponse.json({ ok: true })
 }
 

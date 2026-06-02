@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { createNotification } from '@/lib/notify'
+import { writeAudit } from '@/lib/audit'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -63,10 +64,20 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   const { id: clubId } = await params
   const { userId } = await req.json()
 
+  const [user, club] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId }, select: { name: true } }),
+    prisma.club.findUnique({ where: { id: clubId }, select: { name: true } }),
+  ])
+
   await prisma.clubMembership.update({
     where: { userId_clubId: { userId, clubId } },
     data: { role: 'member' },
   })
+
+  writeAudit(session.id, session.name, 'club.host_remove', userId, 'user',
+    { clubId, clubName: club?.name, userName: user?.name },
+    `Demoted ${user?.name ?? userId} from host of "${club?.name ?? clubId}" to member`,
+  )
 
   return NextResponse.json({ ok: true })
 }
