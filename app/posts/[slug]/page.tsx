@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { prisma } from '@/lib/prisma'
-import { resolveImageUrl } from '@/lib/data'
+import { resolveImageUrl, avatarUrl } from '@/lib/data'
 import { APP_URL, SITE_URL } from '@/lib/env'
 import { sanitize } from '@/lib/sanitize'
 
@@ -154,7 +154,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
             style={{ backgroundColor: post.author.color ?? '#f59e0b' }}
           >
             {post.author.profilePhoto
-              ? <img src={resolveImageUrl(post.author.profilePhoto)} alt={post.author.name} className="w-full h-full object-cover" />
+              ? <img src={avatarUrl(post.author.profilePhoto, 64)} alt={post.author.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
               : post.author.name[0].toUpperCase()}
           </div>
           <div>

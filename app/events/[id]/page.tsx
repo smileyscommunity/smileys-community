@@ -3,7 +3,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import type { Metadata } from 'next'
 import { getEventById } from '@/lib/db'
-import { formatDate, formatTime, vibeConfig, resolveImageUrl } from '@/lib/data'
+import { formatDate, formatTime, vibeConfig, resolveImageUrl, avatarUrl } from '@/lib/data'
 import { countryFlag } from '@/lib/countries'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
@@ -516,9 +516,11 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                 <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-2xl">
                   <div className="flex -space-x-2">
                     {attendees.slice(0, 5).map(a => {
-                      const photo = resolveImageUrl(a.user.profilePhoto)
+                      // #7 perf: 64-wide thumb — image is blurred + 36px CSS,
+                      // no benefit to larger sizes.
+                      const photo = avatarUrl(a.user.profilePhoto, 64)
                       return photo ? (
-                        <img key={a.user.id} src={photo} alt="" className="w-9 h-9 rounded-full object-cover border-2 border-white blur-sm" />
+                        <img key={a.user.id} src={photo} alt="" loading="lazy" decoding="async" className="w-9 h-9 rounded-full object-cover border-2 border-white blur-sm" />
                       ) : (
                         <div key={a.user.id} className="w-9 h-9 rounded-full border-2 border-white blur-sm" style={{ backgroundColor: a.user.color }} />
                       )
@@ -529,12 +531,14 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
               ) : (
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
                 {attendees.map(a => {
-                  const photo = resolveImageUrl(a.user.profilePhoto)
+                  // #7 perf: 128-wide thumb for the attendees grid
+                  // (w-12 css = 48px, retina ~96px).
+                  const photo = avatarUrl(a.user.profilePhoto, 128)
                   return (
                     <Link key={a.user.id} href={`/members/${a.user.id}`}
                       className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-gray-50 transition-colors group">
                       {photo ? (
-                        <img src={photo} alt={a.user.name} loading="lazy"
+                        <img src={photo} alt={a.user.name} loading="lazy" decoding="async"
                           className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm" />
                       ) : (
                         <div className="w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold text-white border-2 border-white shadow-sm"
@@ -574,13 +578,13 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
               </h2>
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
                 {waitlisted.map(u => {
-                  const photo = resolveImageUrl(u.profilePhoto)
+                  const photo = avatarUrl(u.profilePhoto, 128)
                   const flag  = countryFlag(u.nationality)
                   return (
                     <Link key={u.id} href={`/members/${u.id}`}
                       className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-gray-50 transition-colors group">
                       {photo ? (
-                        <img src={photo} alt={u.name} loading="lazy"
+                        <img src={photo} alt={u.name} loading="lazy" decoding="async"
                           className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm opacity-60" />
                       ) : (
                         <div className="w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold text-white border-2 border-white shadow-sm opacity-60"

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { useSearchParams } from 'next/navigation'
-import { resolveImageUrl, ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
+import { resolveImageUrl, avatarUrl, ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
 import { toast } from 'sonner'
 
 const CATEGORIES = [
@@ -98,7 +98,9 @@ function ListingModal({ listing, currentUserId, isSaved, onToggleSave, onClose, 
   const isOwner  = listing.user.id === currentUserId
   const isGuest  = !currentUserId || currentUserId === 'guest'
   const photo    = resolveImageUrl(listing.photo)
-  const avatar   = resolveImageUrl(listing.user.profilePhoto)
+  // #7 perf: 64-wide thumb for the small author avatar (w-9 css = 36px).
+  // photo (listing image) stays full-size — it's the actual content.
+  const avatar   = avatarUrl(listing.user.profilePhoto, 64)
   const cat      = CAT_META[listing.category]
   const emoji    = CAT_EMOJI[listing.category] ?? '📌'
   const daysLeft = Math.ceil((new Date(listing.expiresAt).getTime() - Date.now()) / 86400000)
@@ -274,7 +276,9 @@ function ListingCard({ listing, onClick, isSaved, onToggleSave }: {
   onToggleSave: (id: string) => void
 }) {
   const photo = resolveImageUrl(listing.photo)
-  const avatar = resolveImageUrl(listing.user.profilePhoto)
+  // #7 perf: 64-wide thumb for the avatar (w-6 css = 24px); listing
+  // photo stays full-size.
+  const avatar = avatarUrl(listing.user.profilePhoto, 64)
   const cat   = CAT_META[listing.category]
   const emoji = CAT_EMOJI[listing.category] ?? '📌'
 

@@ -3,7 +3,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { formatDate, resolveImageUrl, getInitials } from '@/lib/data'
+import { formatDate, resolveImageUrl, avatarUrl, getInitials } from '@/lib/data'
 import RecapShareButton from '@/components/RecapShareButton'
 import { APP_URL } from '@/lib/env'
 
@@ -124,12 +124,13 @@ export default async function EventRecapPage({ params }: { params: Promise<{ id:
             </p>
             <div className="flex flex-wrap gap-3">
               {(checkinCount > 0 ? checkedIn : attendees).map(a => {
-                const photo = resolveImageUrl(a.user.profilePhoto ?? null)
+                // #7 perf: 128-wide thumb for the recap attendee grid.
+                const photo = avatarUrl(a.user.profilePhoto ?? null, 128)
                 return (
                   <Link key={a.userId} href={`/members/${a.userId}`}
                     className="flex flex-col items-center gap-1 group">
                     {photo ? (
-                      <img src={photo} alt={a.user.name} className="w-12 h-12 rounded-full object-cover ring-2 ring-white shadow-sm group-hover:ring-amber-300 transition-all" />
+                      <img src={photo} alt={a.user.name} loading="lazy" decoding="async" className="w-12 h-12 rounded-full object-cover ring-2 ring-white shadow-sm group-hover:ring-amber-300 transition-all" />
                     ) : (
                       <div className="w-12 h-12 rounded-full flex items-center justify-center text-white text-xs font-bold ring-2 ring-white shadow-sm group-hover:ring-amber-300 transition-all"
                         style={{ backgroundColor: a.user.color }}>

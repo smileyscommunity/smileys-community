@@ -6,7 +6,7 @@ import { getClubBySlug, getEventsByClub } from '@/lib/db'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import { SITE_URL, APP_URL } from '@/lib/env'
-import { resolveImageUrl } from '@/lib/data'
+import { resolveImageUrl, avatarUrl } from '@/lib/data'
 import ClubJoinWidget from './ClubJoinWidget'
 import ClubTabs from './ClubTabs'
 import SocialShare from '@/components/SocialShare'
@@ -265,12 +265,13 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
                 {canSeeMemberContent ? (
                   <div className="space-y-3">
                     {hosts.map(({ user }) => {
-                      const photo = resolveImageUrl(user.profilePhoto)
+                      // #7 perf: 128-wide thumb (w-10 css = 40px, retina ~80).
+                      const photo = avatarUrl(user.profilePhoto, 128)
                       const initials = user.name.trim().split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
                       return (
                         <div key={user.id} className="flex items-center gap-3">
                           {photo ? (
-                            <img src={photo} alt={user.name} loading="lazy" className="w-10 h-10 rounded-full object-cover shrink-0" />
+                            <img src={photo} alt={user.name} loading="lazy" decoding="async" className="w-10 h-10 rounded-full object-cover shrink-0" />
                           ) : (
                             <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0" style={{ backgroundColor: user.color }}>
                               {initials}

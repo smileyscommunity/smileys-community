@@ -3,7 +3,7 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { resolveImageUrl } from '@/lib/data'
+import { resolveImageUrl, avatarUrl } from '@/lib/data'
 import { APP_URL, SITE_URL } from '@/lib/env'
 
 export const dynamic = 'force-dynamic'
@@ -86,7 +86,9 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
   const cat    = CAT_META[listing.category]
   const emoji  = CAT_EMOJI[listing.category] ?? '📌'
   const photo  = resolveImageUrl(listing.photo)
-  const avatar = resolveImageUrl(listing.user.profilePhoto)
+  // #7 perf: 128-wide thumb for the author avatar; listing photo
+  // stays full-size since it's the page's primary content.
+  const avatar = avatarUrl(listing.user.profilePhoto, 128)
 
   const waHref = listing.contact
     ? (listing.contact.startsWith('http')

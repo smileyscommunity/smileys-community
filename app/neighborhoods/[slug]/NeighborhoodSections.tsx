@@ -2,7 +2,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { prisma } from '@/lib/prisma'
 import { neighborhoodToSlug, getNeighborhoodMeta, NEIGHBORHOOD_META } from '@/lib/neighborhoods'
-import { formatShortDate, formatTime, BLUR_PLACEHOLDER, resolveImageUrl } from '@/lib/data'
+import { formatShortDate, formatTime, BLUR_PLACEHOLDER, resolveImageUrl, avatarUrl } from '@/lib/data'
 import NeighborhoodWall from '@/components/NeighborhoodWall'
 
 interface PlaceItem {
@@ -190,7 +190,8 @@ export default async function NeighborhoodSections({
               {locals.map(m => (
                 <Link key={m.id} href={`/members/${m.id}`} className="flex flex-col items-center gap-1.5 group hover:opacity-80 transition-opacity">
                   {m.profilePhoto ? (
-                    <img src={resolveImageUrl(m.profilePhoto)} alt={m.name}
+                    // #7 perf: 128-wide thumb (w-12 css = 48px, retina ~96).
+                    <img src={avatarUrl(m.profilePhoto, 128)} alt={m.name} loading="lazy" decoding="async"
                       className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm" />
                   ) : (
                     <div className="w-12 h-12 rounded-full border-2 border-white shadow-sm flex items-center justify-center text-white text-sm font-bold"
@@ -221,7 +222,7 @@ export default async function NeighborhoodSections({
                 className="group flex items-center gap-3 bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-amber-200 transition-all">
                 <div className="relative shrink-0">
                   {h.profilePhoto ? (
-                    <img src={resolveImageUrl(h.profilePhoto)} alt={h.name}
+                    <img src={avatarUrl(h.profilePhoto, 128)} alt={h.name} loading="lazy" decoding="async"
                       className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm" />
                   ) : (
                     <div className="w-12 h-12 rounded-full border-2 border-white shadow-sm flex items-center justify-center text-white text-sm font-bold"
