@@ -325,10 +325,10 @@ export default function CupPredictionsPage() {
         <div className="bg-white rounded-2xl shadow-card mb-4 overflow-hidden">
           <div className="bg-gradient-to-br from-amber-400 to-amber-600 px-5 py-5 text-white">
             <p className="text-[10px] font-bold uppercase tracking-widest opacity-90 mb-1">Free community game · members only</p>
-            {/* Softened from "Win prizes" to "appreciation gifts" —
-                Law 7258 framing risk (see DisclaimerBanner above).
-                Same engagement signal, less bet-adjacent vocabulary. */}
-            <p className="text-lg sm:text-xl font-extrabold leading-snug">Predict every match. Climb the board. Earn appreciation gifts.</p>
+            {/* Pure bragging-rights framing — no prizes/gifts mentioned
+                anywhere. Law 7258 risk is minimized by removing the
+                incentive surface entirely. */}
+            <p className="text-lg sm:text-xl font-extrabold leading-snug">Predict every match. Climb the board. Bragging rights.</p>
           </div>
           <div className="p-5">
             <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-3">How to join</p>
@@ -493,12 +493,14 @@ export default function CupPredictionsPage() {
               the order updates with each Apply. */}
           <GroupsCard fixtures={fixtures} />
           <WatchParties />
-          <PrizesSection />
-          {/* Common questions — moved below Prizes so the
-              "what's in this for me?" content (rules, standings,
-              watch parties, prizes) leads, and the meta-q-and-a
-              section sits closer to the share-with-a-friend CTA
-              where lingering questions naturally surface. */}
+          {/* PrizesSection deliberately removed — Smileys Cup is a
+              pure bragging-rights game with no prizes or gifts of
+              any kind. Removing the entire surface (UI + visible
+              donation flow) makes the Law 7258 risk profile as
+              clean as possible. The component + the underlying
+              CupPrize / CupSponsor / CupPrizeDonation models are
+              left in the codebase + schema in case the policy
+              changes later, but nothing reaches the page. */}
           <FAQCard />
           {/* Share — lives at the bottom of the sidebar as a final
               "spread the word" beat. Members only; visitors get the
@@ -1107,11 +1109,11 @@ function FixturePickButton({ label, team, isPicked, isWinner, disabled, onClick 
 //              the Prizes section)
 function ShareButton({ variant }: { variant: 'visitor' | 'member' | 'compact' }) {
   const url  = typeof window !== 'undefined' ? window.location.href : 'https://smileyscommunity.com/app/cup'
-  // Softened from "Prizes for the winner" — the share text travels
-  // freely (WhatsApp, Telegram, etc.) where it could be screenshotted
-  // out of context; bet-adjacent vocabulary in a one-liner is the
-  // worst spot for it. Same hook, less regulatory surface.
-  const text = 'Smileys World Cup 2026 — predict every match. Free community game with sponsor gifts. Worth a look?'
+  // Pure bragging-rights framing — no prizes/gifts mentioned at
+  // all. The share text travels freely to WhatsApp/Telegram where
+  // it could be screenshotted out of context, so any incentive
+  // language here is the worst regulatory surface to leave open.
+  const text = 'Smileys World Cup 2026 — predict every match with the Smileys community. Free, members-only, just for fun. Worth a look?'
 
   const u = encodeURIComponent(url)
   const t = encodeURIComponent(text)
@@ -1185,16 +1187,17 @@ function ShareButton({ variant }: { variant: 'visitor' | 'member' | 'compact' })
 //   • Pre-kickoff: time until the first fixture (= bracket lock).
 //   • Tournament running: time until the next upcoming match.
 // Disclaimer banner — bilingual (EN/TR) defensive copy that
-// makes the community-game framing explicit at the top of the
+// makes the bragging-rights framing explicit at the top of the
 // page. Turkey's Law 7258 covers sports betting + games of
 // chance under a state monopoly (Spor Toto / İddaa); the
 // statutory definition is broad enough to occasionally reach
-// even free prediction contests when the framing looks bet-
-// adjacent. The banner clarifies four points before any reader
-// reaches the prizes section:
+// even free prediction contests when *any* incentive surface
+// is visible. The decision (June 2026) was to remove all prizes
+// and gifts entirely — the game is pure bragging rights now.
+// The banner now spells out four clean points:
 //   1. free to play — no entry fee
 //   2. members-only community game (private, gated)
-//   3. prizes are appreciation gifts from sponsors, not winnings
+//   3. no prizes, no gifts, no payouts of any kind
 //   4. no money flows from players into the game
 // Pure copy, no state. Renders on every visit regardless of
 // auth so visitors, members, and any BTK reviewer all see it.
@@ -1203,16 +1206,14 @@ function DisclaimerBanner() {
   return (
     <div className="bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 mb-3 text-[11px] text-gray-500 leading-relaxed">
       <p>
-        <span className="font-semibold text-gray-700">Smileys Cup is a free community game</span> for approved Smileys members.
-        No entry fee, no money flows from players, no payouts.
-        Top players receive <span className="font-medium text-gray-700">appreciation gifts</span> contributed by sponsors and community members.
-        This is not a betting service.
+        <span className="font-semibold text-gray-700">Smileys Cup is a free community game</span> for approved Smileys members — pure bragging rights, no prizes of any kind.
+        No entry fee, no money flows from players, no payouts, no gifts.
+        Top players simply land on the leaderboard. This is not a betting service.
       </p>
       <p className="mt-1.5" lang="tr">
-        Smileys Cup, onaylı Smileys üyeleri için <span className="font-medium text-gray-700">ücretsiz bir topluluk oyunudur</span>.
-        Katılım ücreti yoktur, oyunculardan para alınmaz ve para ödemesi yapılmaz.
-        En başarılı oyunculara sponsorlar ve topluluk üyeleri tarafından sağlanan <span className="font-medium text-gray-700">teşekkür hediyeleri</span> verilir.
-        Bu bir bahis hizmeti değildir.
+        Smileys Cup, onaylı Smileys üyeleri için <span className="font-medium text-gray-700">ücretsiz bir topluluk oyunudur</span> — yalnızca eğlence amaçlıdır, hiçbir ödül verilmez.
+        Katılım ücreti yoktur, oyunculardan para alınmaz, para ödemesi veya hediye verilmez.
+        En başarılı oyuncular sadece liderlik tablosunda yer alır. Bu bir bahis hizmeti değildir.
       </p>
     </div>
   )
@@ -1555,7 +1556,7 @@ const FAQS: { q: string; a: string }[] = [
   { q: 'How are predictions kept fair?',
     a: 'Picks lock server-side at the second of kickoff. Score-after-the-fact is impossible. Identical-pick collusion between accounts is monitored.' },
   { q: 'What do top players actually receive?',
-    a: 'Check the Prizes section above for what\'s currently on the board — appreciation gifts contributed by sponsors and Smileys members. The top of the leaderboard at the Final receives the headline gift; spot gifts go to other top finishers. Smileys Cup is a free community game, not a betting service. Have something to offer? Tap "Contribute a gift" in the same section.' },
+    a: 'Nothing material — Smileys Cup is a free community game with no prizes, gifts, or payouts of any kind. Top players land on the leaderboard; that is the entire reward. The game exists because predicting matches with friends is fun, not because anything is at stake. This is not a betting service.' },
 ]
 
 function FAQCard() {
@@ -1937,7 +1938,7 @@ function RulesCard({ defaultOpen }: { defaultOpen: boolean }) {
         className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-gray-50 transition-colors">
         <div>
           <p className="text-sm font-bold text-gray-900">How it works</p>
-          <p className="text-xs text-gray-500 mt-0.5">Pick a champion, pick every match, earn appreciation gifts.</p>
+          <p className="text-xs text-gray-500 mt-0.5">Pick a champion, pick every match, climb the leaderboard.</p>
         </div>
         <svg className={`w-5 h-5 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`}
           fill="none" stroke="currentColor" viewBox="0 0 24 24">
