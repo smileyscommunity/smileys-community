@@ -17,7 +17,10 @@
 //                  that trapped the `fixed inset-0` overlay. Fix
 //                  is to portal the modal to document.body via
 //                  createPortal — escapes the containing block.
-const CACHE = 'smileys-v6'
+// v7: 2026-06-02 — Notifications page header actions stacked on
+//                  mobile (was wrapping into 3 lines + clipping
+//                  the Settings label next to the 4xl heading).
+const CACHE = 'smileys-v7'
 
 // API endpoints to cache for offline use (network-first, cache fallback)
 const OFFLINE_APIS = ['/app/api/events/attending']

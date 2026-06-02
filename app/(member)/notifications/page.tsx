@@ -86,6 +86,16 @@ export default function NotificationsPage() {
     load().finally(() => setLoading(false))
   }, [load])
 
+  // Re-fetch when the tab becomes visible again (handles back-navigation from
+  // a linked notification where the router cache would otherwise show stale state)
+  useEffect(() => {
+    function onVisible() {
+      if (document.visibilityState === 'visible') load()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [load])
+
   const { pullY, refreshing, progress, triggered } = usePullToRefresh(load)
 
   const filtered = useMemo(() => {
@@ -121,14 +131,14 @@ export default function NotificationsPage() {
     setNotifications(prev => prev.filter(n => n.id !== id))
   }
 
-  async function handleClick(n: Notification) {
+  function handleClick(n: Notification) {
     if (!n.isRead) {
-      await fetch('/app/api/notifications', {
+      setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, isRead: true } : x))
+      fetch('/app/api/notifications', {
         method: 'PATCH', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: n.id }),
-      })
-      setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, isRead: true } : x))
+      }).catch(() => {})
     }
     if (n.link) router.push(n.link)
   }
@@ -153,31 +163,38 @@ export default function NotificationsPage() {
             <span>/</span>
             <span className="text-gray-900 font-medium">Notifications</span>
           </div>
-          <div className="flex items-center justify-between">
+          {/* Stack vertically on mobile so the three header actions
+              don't crowd into a single row next to a 4xl heading
+              (which forced "Mark all read" to break to 3 lines and
+              clipped the Settings label on iPhone-width). Row layout
+              returns at sm+ where there's room. flex-wrap on the
+              actions row as a defensive belt-and-braces if a very
+              narrow viewport (320px) still can't fit them. */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">Notifications</h1>
               <p className="text-base text-gray-500 mt-1">{unread > 0 ? `${unread} unread` : 'All caught up'}</p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4 flex-wrap">
               {unread > 0 && (
-                <button onClick={markAllRead} className="text-sm text-amber-600 hover:underline font-medium">
+                <button onClick={markAllRead} className="text-sm text-amber-600 hover:underline font-medium whitespace-nowrap">
                   Mark all read
                 </button>
               )}
               {notifications.length > 0 && (
                 confirmClear ? (
-                  <span className="flex items-center gap-2 text-sm">
+                  <span className="flex items-center gap-2 text-sm whitespace-nowrap">
                     <button onClick={clearAll} className="text-red-500 hover:text-red-600 font-semibold">Confirm</button>
                     <button onClick={() => setConfirmClear(false)} className="text-gray-400 hover:text-gray-600">Cancel</button>
                   </span>
                 ) : (
-                  <button onClick={() => setConfirmClear(true)} className="text-sm text-gray-400 hover:text-gray-600 font-medium">
+                  <button onClick={() => setConfirmClear(true)} className="text-sm text-gray-400 hover:text-gray-600 font-medium whitespace-nowrap">
                     Clear all
                   </button>
                 )
               )}
-              <Link href="/settings" className="text-sm text-gray-400 hover:text-gray-600 flex items-center gap-1">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <Link href="/settings" className="text-sm text-gray-400 hover:text-gray-600 flex items-center gap-1 whitespace-nowrap">
+                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
