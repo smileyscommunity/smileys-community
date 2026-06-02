@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
                 neighborhood: true, instagram: true, emailVerified: true, partnerId: true,
                 password: true, status: true, suspendedUntil: true, suspensionNote: true,
                 totpEnabled: true, failedLoginCount: true, loginLockedUntil: true, knownIps: true,
-                tokenVersion: true } })
+                fingerprints: true, tokenVersion: true } })
     if (!user || !user.password) {
       // Burn equivalent CPU time so attackers can't distinguish "no such user"
       // from "wrong password" by measuring response latency.
@@ -122,9 +122,17 @@ export async function POST(req: NextRequest) {
       where: { userId: user.id, status: 'approved', role: 'host' },
     }) > 0
 
-    // New device / IP detection
+    // New device / IP detection. A5 fix: also maintain a rolling
+    // `fingerprints` history (last 50, deduped) so admins
+    // searching for a banned user across accounts can match on
+    // any prior device, not just the most recent one. Same
+    // shape as knownIps below — read-modify-write because
+    // Prisma's String[] push doesn't trim.
     const loginIp = getIp(req)
     const isNewIp  = loginIp && !(user.knownIps ?? []).includes(loginIp)
+    const updatedFingerprints = loginFingerprint
+      ? [...new Set([...(user.fingerprints ?? []), loginFingerprint])].slice(-50)
+      : null
     if (isNewIp) {
       const loginTime = new Date().toLocaleString('en-GB', { timeZone: 'Europe/Istanbul', dateStyle: 'medium', timeStyle: 'short' })
       sendNewDeviceLoginEmail(user.email, user.name, loginIp, `${loginTime} Istanbul`).catch(() => {})
@@ -141,12 +149,21 @@ export async function POST(req: NextRequest) {
           knownIps: updatedIps,
           // Stamp lastFingerprint on every successful login (not just new IPs)
           // so the cross-account match always reflects the most recent device.
+          // fingerprints[] gives admins the full history for cross-account match.
           ...(loginFingerprint ? { lastFingerprint: loginFingerprint } : {}),
+          ...(updatedFingerprints ? { fingerprints: updatedFingerprints } : {}),
         },
       })
     } else if (loginFingerprint) {
-      // Same-IP login from a different device — still stamp the fingerprint.
-      await prisma.user.update({ where: { id: user.id }, data: { lastFingerprint: loginFingerprint } })
+      // Same-IP login from a different device — still stamp the
+      // fingerprint + extend the history.
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          lastFingerprint: loginFingerprint,
+          ...(updatedFingerprints ? { fingerprints: updatedFingerprints } : {}),
+        },
+      })
     }
 
     await Promise.all([

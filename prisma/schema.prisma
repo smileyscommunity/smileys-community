@@ -123,6 +123,13 @@ model User {
   // admins cross-check "is this banned user back on a fresh email?" by
   // grepping for the same fingerprint across accounts. Cleared on signout.
   lastFingerprint  String?
+  // A5 fix: rolling history of recent fingerprints (last 50 logins).
+  // lastFingerprint only captured the most recent device, which meant
+  // a banned user could log in once from a "clean" device to clear the
+  // trail. The array keeps the cross-account match queryable across
+  // history. Append-on-login, slice to 50, dedupe — same shape as
+  // knownIps. Default [] so existing rows stay valid without a backfill.
+  fingerprints     String[]   @default([])
 
   // Privacy & blocking
   profileViews     ProfileView[] @relation("ViewedProfile")

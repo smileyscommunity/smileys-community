@@ -24,8 +24,13 @@ export async function POST(req: NextRequest) {
     if (!name || !email || !password || !phone || !nationality || !languages?.length || !interests?.length) {
       return NextResponse.json({ error: 'All fields are required' }, { status: 400 })
     }
-    if (password.length < 8) {
-      return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 })
+    // A4 fix: 12-char min. NIST + modern guidance moved past 8
+    // years ago — rate limit + lockout protect the online attack
+    // surface, but the DB-dump bcrypt-cracking risk falls fast
+    // past the 12-char threshold. Existing users untouched; only
+    // new + reset passwords pay this.
+    if (password.length < 12) {
+      return NextResponse.json({ error: 'Password must be at least 12 characters' }, { status: 400 })
     }
 
     const blacklisted = await prisma.blacklist.findFirst({
@@ -42,26 +47,15 @@ export async function POST(req: NextRequest) {
     })
     if (existing) {
       if (existing.emailVerified) {
-        // A2 fix: previous behaviour returned `"Email already in
-        // use"` — a clean yes/no enumeration oracle for whether an
-        // email belonged to a real account. Now we side-channel
-        // the helpful info through email (the legit owner sees a
+        // A2 full fix: both new + duplicate paths return identical
+        // 200 `{ pending: true, checkEmail: true }`. The actual
+        // outcome routes through the email — legit owner sees
         // "someone tried to register with your email — sign in
-        // here?" message) and return a generic error to the
-        // client. The 4xx response status still flows through the
-        // existing frontend error handler.
-        //
-        // Residual asymmetry: the 4xx error path differs from the
-        // 200 success path, so a sufficiently sophisticated probe
-        // could still infer duplication from response shape. Fully
-        // closing that requires moving new-registration onto an
-        // email-verification-first flow (no auto-session). UX call
-        // for later.
+        // here?" while a brand-new registrant gets the verification
+        // link. From the outside, response status + body are
+        // indistinguishable; no enumeration oracle survives.
         sendAlreadyRegisteredEmail(existing.email, existing.name).catch(() => {})
-        return NextResponse.json(
-          { error: 'Registration could not be completed. Please check your email for next steps.' },
-          { status: 409 },
-        )
+        return NextResponse.json({ pending: true, checkEmail: true })
       }
       // The previous registration never verified the email, so we can't tell whether
       // it was the real applicant or a squatter who guessed an approved email. The
@@ -158,19 +152,25 @@ export async function POST(req: NextRequest) {
       failedClubs.push(...results.filter(r => !r.ok).map(r => r.clubId))
     }
 
-    // Create verification token
+    // Create verification token. A6 fix: 24h → 7d. The 24-hour
+    // window locked out members who didn't check email same-day;
+    // the unverified account is already gated from login so a
+    // longer window doesn't widen the attack surface.
     const token     = randomBytes(32).toString('hex')
-    const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24) // 24 hours
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7) // 7 days
     await prisma.emailVerificationToken.create({ data: { userId: user.id, token, expiresAt } })
 
     // Send verification email (fire and forget — don't block registration)
     sendVerificationEmail(user.email, user.name, token).catch(console.error)
 
-    await createSession({ id: user.id, name: user.name, email: user.email, role: user.role, color: user.color })
-
-    // Identify with just enough for cohort splits; name/email/phone stay in our DB
-    // (we can join on distinctId when we need them) — keeps PostHog person profiles
-    // PII-light for GDPR.
+    // A2 full fix: no auto-session. Member must verify their email
+    // before logging in. This is what makes the new-registration
+    // response identical to the duplicate-registration response —
+    // both return { pending: true, checkEmail: true } so an
+    // attacker probing for registered emails sees the same shape
+    // either way. The PostHog identify/track still fires (the
+    // user row exists) so cohort splits and registration funnels
+    // stay accurate.
     getPostHogClient()?.identify({
       distinctId: user.id,
       properties: { role: user.role, neighborhood: user.neighborhood },
@@ -184,7 +184,12 @@ export async function POST(req: NextRequest) {
     })
 
     return NextResponse.json({
-      id: user.id, name: user.name, email: user.email, role: user.role, color, initials,
+      pending: true,
+      checkEmail: true,
+      // failedClubs surfaces only when there were club-enrollment
+      // failures the user might want to retry post-verification —
+      // it's not an enumeration vector because it's empty in the
+      // overwhelming majority of cases.
       ...(failedClubs.length ? { failedClubs } : {}),
     })
   } catch (e) {

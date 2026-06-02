@@ -245,8 +245,13 @@ function OnboardingInner() {
       const data = await res.json()
       if (!res.ok) { setError('email', { message: data.error ?? 'Registration failed' }); return }
 
-      setAccountStatus(data.status === 'approved' ? 'approved' : 'pending')
-      setUser({ id: data.id, name: data.name, initials: data.initials, color: data.color, role: data.role, joinedEvents: [], joinedAt: new Date().toISOString().split('T')[0] })
+      // A2 full fix: server no longer creates an auto-session.
+      // Both new-registration and already-registered responses
+      // come back as { pending: true, checkEmail: true } — we
+      // can't distinguish them client-side, which is the point
+      // (no enumeration). The success screen below now reads as
+      // "check your email to continue" regardless of which path
+      // ran on the server.
       setSubmitted(true)
     } catch {
       setError('email', { message: 'Something went wrong. Try again.' })
@@ -728,69 +733,47 @@ function OnboardingInner() {
           </div>
         )}
 
-        {/* ══════════════ SUCCESS ══════════════ */}
+        {/* ══════════════ SUCCESS — verify email then sign in ══════════════
+            A2 full fix: the server no longer auto-creates a session on
+            registration, so we can't differentiate new vs already-registered
+            client-side (that's the point — no enumeration). Single
+            "check your email" view covers both. The actual outcome flows
+            through the email itself (verification link for new, sign-in
+            link for already-registered). */}
         {step === 6 && submitted && (
           <div className="flex-1 flex flex-col items-center justify-center text-center py-10">
-            {accountStatus === 'approved' ? (
-              <>
-                <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-6">
-                  <svg className="w-10 h-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                  </svg>
+            <div className="w-20 h-20 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-6 text-4xl">
+              📬
+            </div>
+            <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight mb-3">
+              Check your email
+            </h1>
+            <p className="text-gray-500 mb-2 text-lg">Thanks, {formValues.name?.split(' ')[0]}.</p>
+            <p className="text-sm text-gray-400 mb-8 max-w-xs mx-auto">
+              We sent a link to <strong className="text-gray-600">{formValues.email}</strong>. Click it to confirm your account, then sign in.
+            </p>
+            {(selectedClubIds.length > 0 || selectedVibes.length > 0) && (
+              <div className="bg-amber-50 rounded-2xl p-5 w-full mb-8 text-left">
+                <p className="text-xs font-bold text-amber-700 uppercase tracking-wide mb-3">Your interests — saved for after you verify</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {selectedClubIds.map((id) => {
+                    const c = clubs.find((x) => x.id === id)
+                    if (!c) return null
+                    return <span key={id} className={`badge ${c.bgColor} ${c.color} text-xs`}>{c.emoji} {c.name}</span>
+                  })}
+                  {selectedVibes.map((v) => {
+                    const cfg = vibeConfig[v]
+                    return <span key={v} className={`badge ${cfg.bg} ${cfg.text} text-xs`}>{cfg.emoji} {v}</span>
+                  })}
                 </div>
-                <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight mb-3">
-                  Welcome, {formValues.name?.split(' ')[0]}! 🎉
-                </h1>
-                <p className="text-gray-500 mb-2 text-lg">You're in.</p>
-                <p className="text-sm text-gray-400 mb-10">
-                  You're now part of Smileys — a curated global community.
-                </p>
-                <Link
-                  href="/dashboard"
-                  className="w-full py-4 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-base transition-colors shadow-sm flex items-center justify-center gap-2"
-                >
-                  Go to my dashboard
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                  </svg>
-                </Link>
-              </>
-            ) : (
-              <>
-                <div className="w-20 h-20 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-6 text-4xl">
-                  😊
-                </div>
-                <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight mb-3">
-                  Application received!
-                </h1>
-                <p className="text-gray-500 mb-2 text-lg">Thanks, {formValues.name?.split(' ')[0]}.</p>
-                <p className="text-sm text-gray-400 mb-8 max-w-xs mx-auto">
-                  We review every application personally. You'll get an email at <strong className="text-gray-600">{formValues.email}</strong> once you're approved — usually within 24 hours.
-                </p>
-                {(selectedClubIds.length > 0 || selectedVibes.length > 0) && (
-                  <div className="bg-amber-50 rounded-2xl p-5 w-full mb-8 text-left">
-                    <p className="text-xs font-bold text-amber-700 uppercase tracking-wide mb-3">Your interests — saved for when you're approved</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {selectedClubIds.map((id) => {
-                        const c = clubs.find((x) => x.id === id)
-                        if (!c) return null
-                        return <span key={id} className={`badge ${c.bgColor} ${c.color} text-xs`}>{c.emoji} {c.name}</span>
-                      })}
-                      {selectedVibes.map((v) => {
-                        const cfg = vibeConfig[v]
-                        return <span key={v} className={`badge ${cfg.bg} ${cfg.text} text-xs`}>{cfg.emoji} {v}</span>
-                      })}
-                    </div>
-                  </div>
-                )}
-                <Link
-                  href="/events"
-                  className="w-full py-4 rounded-2xl bg-gray-900 hover:bg-gray-800 text-white font-bold text-base transition-colors shadow-sm flex items-center justify-center gap-2"
-                >
-                  Browse events while you wait
-                </Link>
-              </>
+              </div>
             )}
+            <Link
+              href="/login"
+              className="w-full py-4 rounded-2xl bg-gray-900 hover:bg-gray-800 text-white font-bold text-base transition-colors shadow-sm flex items-center justify-center gap-2"
+            >
+              Go to sign in
+            </Link>
           </div>
         )}
       </div>
