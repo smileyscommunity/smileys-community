@@ -52,17 +52,24 @@ interface PaymentsResponse {
 }
 
 // One source of truth per status — `color` for pills + log entries,
-// `next` for the cycle (null = terminal — refunded), `action` for
-// the button label. The previous three parallel maps drifted: e.g.
-// `failed` was in the colour map but missing from the filter chip
-// list. Single object stops that.
-type StatusKey = 'paid' | 'pending' | 'refunded' | 'failed'
+// `next` for the cycle (null = terminal — refunded + cancelled),
+// `action` for the button label. The previous three parallel maps
+// drifted: e.g. `failed` was in the colour map but missing from the
+// filter chip list. Single object stops that.
+//
+// `cancelled` came in via the member-side RSVP cancel flow — it's a
+// real DB value but used to fall through to the neutral fallback
+// because the admin UI didn't know about it. Coloured neutral
+// zinc (distinct from failed's red — cancelled = no money flow,
+// no problem; failed = money flow attempted and broke).
+type StatusKey = 'paid' | 'pending' | 'refunded' | 'failed' | 'cancelled'
 interface StatusMeta { color: string; next: StatusKey | null; action: string | null }
 const STATUSES: Record<StatusKey, StatusMeta> = {
-  paid:     { color: 'bg-green-500/10 text-green-400 border border-green-500/20', next: 'refunded', action: 'Mark refunded' },
-  pending:  { color: 'bg-amber-500/10 text-amber-400 border border-amber-500/20', next: 'paid',     action: 'Mark as paid' },
-  refunded: { color: 'bg-blue-500/10 text-blue-400 border border-blue-500/20',    next: null,       action: null },
-  failed:   { color: 'bg-red-500/10 text-red-400 border border-red-500/20',       next: 'pending',  action: 'Mark pending' },
+  paid:      { color: 'bg-green-500/10 text-green-400 border border-green-500/20', next: 'refunded', action: 'Mark refunded' },
+  pending:   { color: 'bg-amber-500/10 text-amber-400 border border-amber-500/20', next: 'paid',     action: 'Mark as paid' },
+  refunded:  { color: 'bg-blue-500/10 text-blue-400 border border-blue-500/20',    next: null,       action: null },
+  failed:    { color: 'bg-red-500/10 text-red-400 border border-red-500/20',       next: 'pending',  action: 'Mark pending' },
+  cancelled: { color: 'bg-zinc-500/10 text-zinc-400 border border-zinc-500/20',    next: null,       action: null },
 }
 const FALLBACK_META: StatusMeta = { color: 'bg-zinc-800 text-zinc-400', next: null, action: null }
 function statusMeta(s: string | null | undefined): StatusMeta {
@@ -70,7 +77,7 @@ function statusMeta(s: string | null | undefined): StatusMeta {
 }
 
 type FilterKey = 'all' | StatusKey
-const FILTER_KEYS: readonly FilterKey[] = ['all', 'paid', 'pending', 'refunded', 'failed'] as const
+const FILTER_KEYS: readonly FilterKey[] = ['all', 'paid', 'pending', 'refunded', 'failed', 'cancelled'] as const
 
 // Suspense wrapper because useSearchParams forces it. Mirrors the
 // pattern on /admin/events — the URL-sync filters need useSearchParams,

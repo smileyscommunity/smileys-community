@@ -152,20 +152,28 @@ export async function POST(req: NextRequest, { params }: Params) {
         }
       }
 
-      // Create as pending — host approves from the participants page.
-      // Payment record is created upfront for paid events (mirror of the
-      // auto-approve path) so paid-event commitment is captured at RSVP
-      // time; admin rejection later would trigger a refund of any
-      // payment that was actually collected, but the unpaid 'pending'
-      // record just gets cancelled.
-      await prisma.eventAttendee.create({
-        data: { userId: session.id, eventId, status: 'pending', stealth },
-      })
-      if (event.price > 0) {
-        await prisma.payment.create({
-          data: { userId: session.id, eventId, amount: event.price, currency: event.currency ?? 'TRY', status: 'pending' },
-        })
-      }
+      // P4 fix: wrap attendee + payment creation in a $transaction
+      // (the auto-approve path further down already does this). Without
+      // it, a DB blip between the two statements would leave the
+      // attendee row committed with no payment record — member appears
+      // attending but the paid-event commitment is missing.
+      //
+      // P6 fix: clamp amount non-negative as defense in depth against
+      // a misconfigured event.price. The event editor should reject
+      // negative prices upstream, but we don't want a misconfig to
+      // turn into a credit-to-the-member when admin marks the row
+      // paid downstream.
+      const safeAmount = Math.max(0, Number(event.price) || 0)
+      await prisma.$transaction([
+        prisma.eventAttendee.create({
+          data: { userId: session.id, eventId, status: 'pending', stealth },
+        }),
+        ...(safeAmount > 0 ? [
+          prisma.payment.create({
+            data: { userId: session.id, eventId, amount: safeAmount, currency: event.currency ?? 'TRY', status: 'pending' },
+          }),
+        ] : []),
+      ])
       createNotification(session.id, 'rsvp_pending', 'RSVP submitted ⏳',
         `Your request to join "${event.title}" is waiting on the host. You'll be notified once it's reviewed.`,
         `/events/${eventId}`)
@@ -219,9 +227,13 @@ export async function POST(req: NextRequest, { params }: Params) {
 
       await tx.eventAttendee.create({ data: { userId: session.id, eventId, status: 'approved', stealth } })
 
-      if (event.price > 0) {
+      // P6 defense-in-depth: clamp amount non-negative. Mirrors the
+      // approval-required path above so a misconfigured event.price
+      // can't land a negative payment row in either flow.
+      const safeAmount = Math.max(0, Number(event.price) || 0)
+      if (safeAmount > 0) {
         await tx.payment.create({
-          data: { userId: session.id, eventId, amount: event.price, currency: event.currency ?? 'TRY', status: 'pending' },
+          data: { userId: session.id, eventId, amount: safeAmount, currency: event.currency ?? 'TRY', status: 'pending' },
         })
       }
       return { kind: 'approved' as const }
