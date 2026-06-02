@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { resolveImageUrl, getInitials, todayIstanbul } from '@/lib/data'
+import { resolveImageUrl, avatarUrl, getInitials, todayIstanbul } from '@/lib/data'
 import { vibrate, useScanCheckin } from '@/lib/checkin'
 import SwipeRow from '@/components/SwipeRow'
 import ScanResultToast from '@/components/ScanResultToast'
@@ -170,7 +170,8 @@ function CheckInScanner() {
       ) : (
         <div className="space-y-2">
           {visible.map(a => {
-            const photo = resolveImageUrl(a.user.profilePhoto ?? null)
+            // #7 perf: 128-wide thumb for the check-in list row avatar.
+            const photo = avatarUrl(a.user.profilePhoto ?? null, 128)
             return (
               <SwipeRow
                 key={a.userId}

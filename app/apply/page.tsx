@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Turnstile from '@/components/Turnstile'
 import { z } from 'zod'
-import { resolveImageUrl } from '@/lib/data'
+import { resolveImageUrl, avatarUrl } from '@/lib/data'
 import { COUNTRIES } from '@/lib/countries'
 import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
 import FingerprintJS from '@fingerprintjs/fingerprintjs'
@@ -709,7 +709,7 @@ function ApplyForm() {
                 onChange={e => e.target.files?.[0] && handlePhotoUpload(e.target.files[0])} />
               {localPhoto || form.profilePhoto ? (
                 <div className="flex items-center gap-4">
-                  <img src={localPhoto || resolveImageUrl(form.profilePhoto)} alt="Profile" className="w-20 h-20 rounded-2xl object-cover border-2 border-amber-200" />
+                  <img src={localPhoto || avatarUrl(form.profilePhoto, 128)} alt="Profile" loading="lazy" decoding="async" className="w-20 h-20 rounded-2xl object-cover border-2 border-amber-200" />
                   <button type="button" onClick={() => photoInputRef.current?.click()}
                     className="text-sm text-amber-600 hover:underline font-medium">Change photo</button>
                 </div>

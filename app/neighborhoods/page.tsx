@@ -14,7 +14,7 @@ export const metadata = {
     url: 'https://smileyscommunity.com/neighborhoods',
   },
 }
-import { resolveImageUrl } from '@/lib/data'
+import { resolveImageUrl, avatarUrl } from '@/lib/data'
 import NeighborhoodGrid, { type Group } from '@/components/NeighborhoodGrid'
 import { loadContent } from '@/lib/content'
 
@@ -147,7 +147,7 @@ export default async function NeighborhoodsPage() {
                   <div className="flex -space-x-1.5">
                     {yourNeighborhoodMembers.slice(0, 4).map(m => (
                       m.profilePhoto ? (
-                        <img key={m.id} src={resolveImageUrl(m.profilePhoto)} alt={m.name}
+                        <img key={m.id} src={avatarUrl(m.profilePhoto, 64)} alt={m.name} loading="lazy" decoding="async"
                           className="w-7 h-7 rounded-full border-2 border-white object-cover" />
                       ) : (
                         <div key={m.id}

@@ -424,7 +424,7 @@ export default async function NeighborhoodSections({
                           <div className="flex -space-x-1.5">
                             {event.attendees.slice(0, 3).map(a => (
                               a.user.profilePhoto ? (
-                                <img key={a.user.id} src={resolveImageUrl(a.user.profilePhoto)} alt={a.user.name}
+                                <img key={a.user.id} src={avatarUrl(a.user.profilePhoto, 64)} alt={a.user.name} loading="lazy" decoding="async"
                                   className="w-6 h-6 rounded-full border-2 border-white object-cover" />
                               ) : (
                                 <div key={a.user.id}
@@ -533,7 +533,7 @@ export default async function NeighborhoodSections({
                            : minsToStart < 60 * 12
                              ? `Starts ${s.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
                              : s.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
-              const avatar = h.user.profilePhoto ? resolveImageUrl(h.user.profilePhoto) : null
+              const avatar = h.user.profilePhoto ? avatarUrl(h.user.profilePhoto, 64) : null
               const going  = h._count.joins + 1  // +1 = host
               return (
                 <Link key={h.id} href="/hangouts" className="group block">
