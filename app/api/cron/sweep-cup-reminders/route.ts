@@ -25,18 +25,12 @@ import { recordCronRun } from '@/lib/cronHealth'
 
 export const dynamic = 'force-dynamic'
 
+// Constant-time secret check — see lib/cronAuth.ts.
+import { checkCronAuth } from '@/lib/cronAuth'
+
 async function authorize(req: NextRequest): Promise<NextResponse | null> {
-  const expected = process.env.CRON_SECRET
-  if (!expected) {
-    return NextResponse.json(
-      { error: 'CRON_SECRET not configured on server' },
-      { status: 503 },
-    )
-  }
-  const got = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '')
-  if (got !== expected) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const fail = checkCronAuth(req)
+  if (fail) return fail
   return null
 }
 

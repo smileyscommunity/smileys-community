@@ -8,8 +8,12 @@ export async function POST(req: NextRequest, { params }: Params) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Not logged in' }, { status: 401 })
 
-  const { postId } = await params
+  const { slug, postId } = await params
   const { emoji = '❤️' } = await req.json()
+
+  // IDOR fix: scope the post by the slug in the URL.
+  const post = await prisma.neighborhoodPost.findUnique({ where: { id: postId }, select: { neighborhood: true } })
+  if (!post || post.neighborhood !== slug) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const existing = await prisma.neighborhoodPostLike.findUnique({
     where: { postId_userId: { postId, userId: session.id } },

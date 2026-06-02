@@ -8,7 +8,11 @@ import QRCode from 'qrcode'
 
 export async function GET() {
   const session = await getSession()
-  if (!session || session.role !== 'admin') {
+  // Both admins and moderators can enroll: moderators can review
+  // applications + suspend users + read event chats, so PII access is
+  // comparable. Members can't enroll (yet) — 2FA at login isn't surfaced
+  // for the member role.
+  if (!session || (session.role !== 'admin' && session.role !== 'moderator')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -35,7 +39,11 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const session = await getSession()
-  if (!session || session.role !== 'admin') {
+  // Both admins and moderators can enroll: moderators can review
+  // applications + suspend users + read event chats, so PII access is
+  // comparable. Members can't enroll (yet) — 2FA at login isn't surfaced
+  // for the member role.
+  if (!session || (session.role !== 'admin' && session.role !== 'moderator')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -68,7 +76,11 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   const session = await getSession()
-  if (!session || session.role !== 'admin') {
+  // Both admins and moderators can enroll: moderators can review
+  // applications + suspend users + read event chats, so PII access is
+  // comparable. Members can't enroll (yet) — 2FA at login isn't surfaced
+  // for the member role.
+  if (!session || (session.role !== 'admin' && session.role !== 'moderator')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

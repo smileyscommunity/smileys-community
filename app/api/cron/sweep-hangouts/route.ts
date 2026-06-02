@@ -23,19 +23,13 @@ import { recordCronRun } from '@/lib/cronHealth'
 
 export const dynamic = 'force-dynamic'
 
+// Cron secret check delegated to lib/cronAuth.ts so the comparison is
+// constant-time (timingSafeEqual) instead of `!==`. See that file for
+// the rationale.
+import { checkCronAuth } from '@/lib/cronAuth'
+
 async function authorize(req: NextRequest): Promise<NextResponse | null> {
-  const expected = process.env.CRON_SECRET
-  if (!expected) {
-    return NextResponse.json(
-      { error: 'CRON_SECRET not configured on server' },
-      { status: 503 },
-    )
-  }
-  const got = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '')
-  if (got !== expected) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-  return null
+  return checkCronAuth(req)
 }
 
 async function runSweep() {
@@ -173,8 +167,12 @@ export async function GET(req: NextRequest) {
       { status: 503 },
     )
   }
-  const key = req.nextUrl.searchParams.get('key')
-  if (key !== expected) {
+  const key = req.nextUrl.searchParams.get('key') ?? ''
+  // Constant-time comparison — see lib/cronAuth.ts.
+  const a = Buffer.from(key)
+  const b = Buffer.from(expected)
+  const { timingSafeEqual } = await import('crypto')
+  if (a.length !== b.length || !timingSafeEqual(a, b)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   try {

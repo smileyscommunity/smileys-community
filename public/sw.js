@@ -33,12 +33,40 @@
 //                  </script> escape, URL protocol allowlist on
 //                  banners/sponsors/partners, contact-form auto-
 //                  reply removed, HSTS header added.
-const CACHE = 'smileys-v9'
+// v10: 2026-06-02 — Round 3: moderator city scope on broadcast +
+//                  events POST + approval queue + messages list,
+//                  cross-neighborhood reply/like scoping, cron
+//                  timingSafeEqual, 2FA enrollment opened to
+//                  moderators, SW clears auth-bearing cache on
+//                  logout (shared-device cross-user leak).
+const CACHE = 'smileys-v10'
 
 // API endpoints to cache for offline use (network-first, cache fallback)
 const OFFLINE_APIS = ['/app/api/events/attending']
 
 self.addEventListener('install', () => self.skipWaiting())
+
+// Auth-scoped cache eviction on logout. The fetch handler below caches
+// /app/api/events/attending for offline use, but that response is
+// user-specific — on a shared device, after user A signs out and user B
+// signs in, B's first offline-mode load would otherwise return A's events.
+// The AuthContext.logout() handler posts `{ type: 'clear-auth-cache' }`
+// to the active SW; we drop every cached entry under OFFLINE_APIS here.
+self.addEventListener('message', e => {
+  if (e.data?.type === 'clear-auth-cache') {
+    e.waitUntil(
+      caches.open(CACHE).then(async cache => {
+        const keys = await cache.keys()
+        for (const req of keys) {
+          const url = new URL(req.url)
+          if (OFFLINE_APIS.some(p => url.pathname === p)) {
+            await cache.delete(req)
+          }
+        }
+      })
+    )
+  }
+})
 
 self.addEventListener('activate', e => {
   e.waitUntil(

@@ -12,7 +12,13 @@ export async function GET(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
   }
 
-  const { postId } = await params
+  const { slug, postId } = await params
+  // IDOR fix: scope post lookup so the slug in the URL has to match the
+  // post's neighborhood. Neighborhoods are public but the slug becomes
+  // purely cosmetic otherwise.
+  const post = await prisma.neighborhoodPost.findUnique({ where: { id: postId }, select: { neighborhood: true } })
+  if (!post || post.neighborhood !== slug) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
   const replies = await prisma.neighborhoodPostReply.findMany({
     where: { postId },
     orderBy: { createdAt: 'asc' },
@@ -32,9 +38,9 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Too many replies' }, { status: 429 })
   }
 
-  const { postId } = await params
-  const post = await prisma.neighborhoodPost.findUnique({ where: { id: postId }, select: { id: true } })
-  if (!post) return NextResponse.json({ error: 'Post not found' }, { status: 404 })
+  const { slug, postId } = await params
+  const post = await prisma.neighborhoodPost.findUnique({ where: { id: postId }, select: { id: true, neighborhood: true } })
+  if (!post || post.neighborhood !== slug) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const { content } = await req.json()
   const trimmed = content?.trim() ?? ''

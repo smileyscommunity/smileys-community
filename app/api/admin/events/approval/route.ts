@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { canModerateEventQueue } from '@/lib/access'
+import { canModerateEventQueue, isAdmin } from '@/lib/access'
 
 export async function GET() {
   try {
@@ -10,8 +10,13 @@ export async function GET() {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
+    // City-scope: moderators only see events in their own city. Admins
+    // see the global queue. Matches the pattern already used in
+    // /api/admin/applications and /api/admin/users.
+    const cityFilter = isAdmin(session) ? {} : { cityId: session.cityId ?? '__none__' }
+
     const events = await prisma.event.findMany({
-      where: { approvalRequired: true },
+      where: { approvalRequired: true, ...cityFilter },
       orderBy: { createdAt: 'desc' },
       take: 100,
       select: {

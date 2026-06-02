@@ -210,6 +210,11 @@ export async function POST(req: NextRequest) {
     if (!parentClub?.cityId) {
       return NextResponse.json({ error: 'Parent club has no city — cannot create event' }, { status: 400 })
     }
+    // City-scope check for moderators (admins act globally, club hosts are
+    // already constrained to their own clubs via isClubHostFor above).
+    if (!admin && isModerator(session) && session.cityId !== parentClub.cityId) {
+      return NextResponse.json({ error: 'Cross-city event creation is admin-only' }, { status: 403 })
+    }
 
     const event = await prisma.event.create({
       data: {

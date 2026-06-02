@@ -46,6 +46,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function logout() {
     await fetch('/app/api/auth/logout', { method: 'POST' })
+    // Drop the auth-scoped SW cache (/app/api/events/attending) so on a
+    // shared device, the next user signing in doesn't get the previous
+    // user's offline-cached events. See public/sw.js message handler.
+    if (typeof navigator !== 'undefined' && navigator.serviceWorker?.controller) {
+      navigator.serviceWorker.controller.postMessage({ type: 'clear-auth-cache' })
+    }
     // Clear the cached distinctId so subsequent events on this browser don't
     // attribute to the previous user. Also opt back in — if the prior session
     // was staff we opted out at login, and reset() doesn't undo that.

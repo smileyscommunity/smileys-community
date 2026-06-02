@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { canModerateMessages } from '@/lib/access'
+import { canModerateMessages, isAdmin } from '@/lib/access'
 
 export async function GET(req: NextRequest) {
   try {
@@ -13,8 +13,16 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const eventId = searchParams.get('eventId')
 
+    // City-scope for moderators — admins see everything. Without this a
+    // moderator could read every event's chat across every city, even though
+    // the per-message DELETE handler at /admin/messages/[id] already does
+    // re-check the event's cityId.
+    const cityFilter = isAdmin(session)
+      ? {}
+      : { event: { cityId: session.cityId ?? '__none__' } }
+
     const messages = await prisma.eventMessage.findMany({
-      where: eventId ? { eventId } : undefined,
+      where: { ...(eventId ? { eventId } : {}), ...cityFilter },
       orderBy: { createdAt: 'desc' },
       take: 200,
       include: {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { canSendBroadcasts } from '@/lib/access'
+import { canSendBroadcasts, isAdmin } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
 import { sendBroadcastEmail } from '@/lib/email'
 
@@ -25,6 +25,29 @@ export async function POST(req: NextRequest) {
   const notifType = type === 'alert' ? 'system_alert' : 'announcement'
   const link      = eventId ? `/events/${eventId}` : clubId ? `/clubs/${clubId}` : undefined
   const isEmail   = channel === 'email'
+
+  // City-scope check for non-admins. Previously a moderator could broadcast
+  // to *every* approved user across *every* city. Now we derive the target
+  // city from the audience:
+  //   - `audience === 'all'`     → admins only
+  //   - `audience === 'event'`   → must match the event's cityId
+  //   - `audience === 'club'`    → must match the club's cityId
+  if (!isAdmin(session)) {
+    if (audience === 'event' && eventId) {
+      const ev = await prisma.event.findUnique({ where: { id: eventId }, select: { cityId: true } })
+      if (!ev || !canSendBroadcasts(session, ev.cityId)) {
+        return NextResponse.json({ error: 'Cross-city broadcast is admin-only' }, { status: 403 })
+      }
+    } else if (audience === 'club' && clubId) {
+      const cl = await prisma.club.findUnique({ where: { id: clubId }, select: { cityId: true } })
+      if (!cl || !canSendBroadcasts(session, cl.cityId)) {
+        return NextResponse.json({ error: 'Cross-city broadcast is admin-only' }, { status: 403 })
+      }
+    } else {
+      // Global broadcast — admin-only.
+      return NextResponse.json({ error: 'Global broadcast is admin-only' }, { status: 403 })
+    }
+  }
 
   // Fetch users with email + unsubscribe preference
   let users: { id: string; name: string; email: string; emailMarketing: boolean }[] = []
