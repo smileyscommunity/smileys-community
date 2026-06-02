@@ -11,7 +11,13 @@
 //                  Belt-and-braces: inline style zIndex 9999 +
 //                  items-start on mobile so the modal anchors
 //                  high in the viewport regardless.
-const CACHE = 'smileys-v5'
+// v6: 2026-06-02 — Actual root cause found: the cancel modal is
+//                  rendered inside the sticky RSVP bar which uses
+//                  backdrop-filter, creating a containing block
+//                  that trapped the `fixed inset-0` overlay. Fix
+//                  is to portal the modal to document.body via
+//                  createPortal — escapes the containing block.
+const CACHE = 'smileys-v6'
 
 // API endpoints to cache for offline use (network-first, cache fallback)
 const OFFLINE_APIS = ['/app/api/events/attending']

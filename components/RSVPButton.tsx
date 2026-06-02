@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRSVP } from '@/hooks/useRSVP'
@@ -24,6 +25,11 @@ export default function RSVPButton({ eventId, hostId, spotsLeft, price, memberPr
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [stealth,       setStealth]       = useState(false)
   const [showStealth,   setShowStealth]   = useState(false)
+  // mounted gate so createPortal(..., document.body) doesn't run
+  // during SSR (document is undefined server-side). Flips true on
+  // first client render via useEffect.
+  const [mounted,       setMounted]       = useState(false)
+  useEffect(() => { setMounted(true) }, [])
 
   function handleLeave() {
     if (price > 0 && status === 'joined') {
@@ -149,27 +155,30 @@ export default function RSVPButton({ eventId, hostId, spotsLeft, price, memberPr
         )}
       </AnimatePresence>
 
-      {confirmCancel && (
-        // Belt-and-braces fix after the z-[70] version still hit the
-        // same complaint:
-        //   1. Inline style z-index instead of Tailwind arbitrary-value
-        //      class — bypasses any JIT-compilation edge case where
-        //      `z-[70]` might not be in the generated CSS, and bumps
-        //      to 9999 so absolutely nothing in the app can sit above
-        //      it (BottomNav z-50, Discover sheet z-[61], any future
-        //      overlay).
-        //   2. Anchor the wrapper to the TOP of the viewport on
-        //      mobile (items-start pt-20). Even if all the z-index
-        //      logic failed, the modal would physically sit in the
-        //      upper third of the screen — nowhere near the bottom
-        //      nav. Switches to items-center on sm+ so desktop keeps
-        //      the centered look.
-        //   3. Darker backdrop (bg-black/60) so it's unmistakeable
-        //      that the page beneath is overlaid. Earlier report
-        //      described the modal as looking inline because the
-        //      bg-black/40 read as just "subtle off-tint".
+      {confirmCancel && mounted && createPortal(
+        // *** The real fix ***
+        //
+        // On mobile this component is rendered inside the sticky RSVP
+        // bar at the bottom of /events/[id] (see app/events/[id]/page.tsx
+        // line ~762), which uses `backdrop-blur-sm`. In CSS, any element
+        // with `backdrop-filter` set becomes a containing block for
+        // `position: fixed` descendants. So this modal's `fixed inset-0`
+        // was being positioned relative to the sticky bar, not the
+        // viewport — which meant the "overlay" only covered the bottom
+        // strip of the screen and the modal card itself was trapped
+        // inside that strip. Three previous rounds of z-index +
+        // items-start + safe-area tweaks were physically impossible to
+        // see because the modal was anchored to a 60px-tall parent.
+        //
+        // Portaling to document.body escapes the containing block
+        // entirely — the modal now lives at the document root with
+        // no transformed/blurred ancestors, so `fixed inset-0`
+        // actually covers the viewport.
+        //
+        // mounted guard: createPortal only runs after first paint,
+        // not during SSR (document is undefined server-side).
         <div
-          className="fixed inset-0 flex items-start sm:items-center justify-center p-4 pt-20 sm:pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] bg-black/60 backdrop-blur-sm"
+          className="fixed inset-0 flex items-center justify-center p-4 pb-[max(1rem,env(safe-area-inset-bottom))] bg-black/60 backdrop-blur-sm"
           style={{ zIndex: 9999 }}
           onClick={() => setConfirmCancel(false)}>
           <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full" onClick={e => e.stopPropagation()}>
@@ -189,7 +198,8 @@ export default function RSVPButton({ eventId, hostId, spotsLeft, price, memberPr
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   )
