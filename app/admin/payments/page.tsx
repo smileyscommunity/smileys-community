@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
 
 interface Payment {
   id: string
@@ -30,18 +31,21 @@ const STATUS_COLORS: Record<string, string> = {
   failed:   'bg-red-500/10   text-red-400   border border-red-500/20',
 }
 
+// Refunded is intentionally absent — terminal state. Previously
+// the cycle `refunded → pending → paid` let a stray double-click
+// undo a refund after the member had already received the email.
+// Server now rejects transitions out of refunded with 409; UI
+// hides the button so admins can't try.
 const STATUS_NEXT: Record<string, string> = {
-  pending:  'paid',
-  paid:     'refunded',
-  refunded: 'pending',
-  failed:   'pending',
+  pending: 'paid',
+  paid:    'refunded',
+  failed:  'pending',
 }
 
 const STATUS_ACTION: Record<string, string> = {
-  pending:  'Mark as paid',
-  paid:     'Mark refunded',
-  refunded: 'Mark pending',
-  failed:   'Mark pending',
+  pending: 'Mark as paid',
+  paid:    'Mark refunded',
+  failed:  'Mark pending',
 }
 
 export default function AdminPaymentsPage() {
@@ -72,7 +76,11 @@ export default function AdminPaymentsPage() {
   }
 
   async function updateStatus(p: Payment, overrideNote?: string) {
-    const next = STATUS_NEXT[p.status] ?? 'pending'
+    // STATUS_NEXT now omits terminal states — guard at the
+    // call-site so we don't fire a doomed request that the server
+    // would reject with 409 anyway.
+    const next = STATUS_NEXT[p.status]
+    if (!next) { toast.error(`Cannot change status from ${p.status}`); return }
     setBusy(p.id)
     const res = await fetch('/app/api/admin/payments', {
       method: 'PATCH',
@@ -83,11 +91,21 @@ export default function AdminPaymentsPage() {
     if (res.ok) {
       const updated = await res.json()
       setPayments(prev => prev.map(x => x.id === p.id ? updated : x))
-      setLogs(prev => ({ ...prev, [p.id]: [] }))
+      // Drop the cached log entirely (was setting to []; an
+      // empty array is truthy, so the toggleLog `!logs[id]` check
+      // would skip the refetch and admins would see a stale
+      // "no changes" view even though a fresh log just landed).
+      setLogs(prev => { const n = { ...prev }; delete n[p.id]; return n })
       if (expandedLog === p.id) {
         const fresh = await fetch(`/app/api/admin/payments/${p.id}/logs`, { credentials: 'include' }).then(r => r.ok ? r.json() : [])
         setLogs(prev => ({ ...prev, [p.id]: Array.isArray(fresh) ? fresh : [] }))
       }
+      toast.success(`Status → ${next}`)
+    } else {
+      // Surface 400 / 409 reasons (terminal-state guard, invalid
+      // status, notes too long) instead of silently doing nothing.
+      const err = await res.json().catch(() => ({}))
+      toast.error(err?.error ?? 'Update failed')
     }
     setBusy(null)
     setRefundConfirm(null)
@@ -115,13 +133,21 @@ export default function AdminPaymentsPage() {
     if (res.ok) {
       const updated = await res.json()
       setPayments(prev => prev.map(x => x.id === id ? updated : x))
+      // Same cache-drop as updateStatus — notes edits also write
+      // a PaymentLog row now, so any expanded log view needs the
+      // fresh entry on next open.
+      setLogs(prev => { const n = { ...prev }; delete n[id]; return n })
+      toast.success('Notes saved')
+    } else {
+      const err = await res.json().catch(() => ({}))
+      toast.error(err?.error ?? 'Save failed')
     }
     setEditNotes(null)
     setBusy(null)
   }
 
   async function deletePayment(id: string) {
-    if (!confirm('Delete this payment record?')) return
+    if (!confirm('Delete this payment record?\n\nThis writes a snapshot to the audit log before deleting — the action is logged and visible to other admins.')) return
     setBusy(id)
     const res = await fetch('/app/api/admin/payments', {
       method: 'DELETE',
@@ -129,7 +155,13 @@ export default function AdminPaymentsPage() {
       credentials: 'include',
       body: JSON.stringify({ id }),
     })
-    if (res.ok) setPayments(prev => prev.filter(x => x.id !== id))
+    if (res.ok) {
+      setPayments(prev => prev.filter(x => x.id !== id))
+      toast.success('Deleted (audit logged)')
+    } else {
+      const err = await res.json().catch(() => ({}))
+      toast.error(err?.error ?? 'Delete failed')
+    }
     setBusy(null)
   }
 
@@ -254,14 +286,19 @@ export default function AdminPaymentsPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-zinc-600">{new Date(p.createdAt).toLocaleDateString()}</span>
                   <div className="flex gap-1.5">
-                    <button onClick={() => handleStatusClick(p)} disabled={busy === p.id}
-                      className={`text-xs px-3 py-2 rounded-lg font-semibold transition-colors disabled:opacity-50 ${
-                        p.status === 'pending' ? 'bg-green-500/10 text-green-400 hover:bg-green-500/20'
-                        : p.status === 'paid'  ? 'bg-blue-500/10 text-blue-400 hover:bg-blue-500/20'
-                        : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
-                      }`}>
-                      {busy === p.id ? '…' : STATUS_ACTION[p.status] ?? 'Update'}
-                    </button>
+                    {/* Status-change button hidden for terminal
+                        states (refunded) — STATUS_NEXT omits them
+                        on purpose; server returns 409 too. */}
+                    {STATUS_NEXT[p.status] && (
+                      <button onClick={() => handleStatusClick(p)} disabled={busy === p.id}
+                        className={`text-xs px-3 py-2 rounded-lg font-semibold transition-colors disabled:opacity-50 ${
+                          p.status === 'pending' ? 'bg-green-500/10 text-green-400 hover:bg-green-500/20'
+                          : p.status === 'paid'  ? 'bg-blue-500/10 text-blue-400 hover:bg-blue-500/20'
+                          : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                        }`}>
+                        {busy === p.id ? '…' : STATUS_ACTION[p.status]}
+                      </button>
+                    )}
                     <button onClick={() => toggleLog(p.id)}
                       className={`text-xs px-2.5 py-2 rounded-lg transition-colors ${expandedLog === p.id ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-white hover:bg-zinc-800'}`}>
                       log
@@ -342,14 +379,17 @@ export default function AdminPaymentsPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
-                          <button onClick={() => handleStatusClick(p)} disabled={busy === p.id}
-                            className={`text-xs px-2.5 py-1 rounded-lg font-semibold transition-colors disabled:opacity-50 ${
-                              p.status === 'pending' ? 'bg-green-500/10 text-green-400 hover:bg-green-500/20'
-                              : p.status === 'paid'  ? 'bg-blue-500/10 text-blue-400 hover:bg-blue-500/20'
-                              : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
-                            }`}>
-                            {busy === p.id ? '…' : STATUS_ACTION[p.status] ?? 'Update'}
-                          </button>
+                          {/* Same terminal-state hide as mobile. */}
+                          {STATUS_NEXT[p.status] && (
+                            <button onClick={() => handleStatusClick(p)} disabled={busy === p.id}
+                              className={`text-xs px-2.5 py-1 rounded-lg font-semibold transition-colors disabled:opacity-50 ${
+                                p.status === 'pending' ? 'bg-green-500/10 text-green-400 hover:bg-green-500/20'
+                                : p.status === 'paid'  ? 'bg-blue-500/10 text-blue-400 hover:bg-blue-500/20'
+                                : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                              }`}>
+                              {busy === p.id ? '…' : STATUS_ACTION[p.status]}
+                            </button>
+                          )}
                           <button onClick={() => toggleLog(p.id)}
                             className={`text-xs px-2 py-1 rounded-lg transition-colors ${expandedLog === p.id ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-white hover:bg-zinc-800'}`}
                             title="View audit log">
