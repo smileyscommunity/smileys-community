@@ -25,6 +25,10 @@ const PROTECTED_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 function checkOrigin(req: NextRequest): NextResponse | null {
   if (!PROTECTED_METHODS.has(req.method)) return null
   if (!req.nextUrl.pathname.startsWith('/api/')) return null
+  // CSP violation reports are POSTed by the browser to this public endpoint;
+  // some browsers omit the Origin header on report-uri requests, and there's
+  // no session to forge across origins anyway. Skip the CSRF gate here.
+  if (req.nextUrl.pathname === '/api/csp-report') return null
 
   const host = req.headers.get('host')
   if (!host) {
@@ -73,6 +77,13 @@ function buildCsp(nonce: string): string {
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
+    // Tell the browser where to POST violation reports. Catches silent CSP
+    // regressions — if a future deploy stops applying nonces correctly, every
+    // page load fires a burst of reports we can grep out of PM2 logs:
+    //   grep '\[csp-violation\]' /root/.pm2/logs/smileys-out.log
+    // Browsers strip query params and credentials from reporting POSTs, so
+    // the receiver at /api/csp-report stays public + rate-limited.
+    "report-uri /app/api/csp-report",
   ].join('; ')
 }
 

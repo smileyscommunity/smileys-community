@@ -44,7 +44,10 @@
 //                  injected inline <script> without a valid
 //                  per-request nonce — closes the unsafe-inline
 //                  XSS-bypass gap.
-const CACHE = 'smileys-v11'
+// v12: 2026-06-02 — CSP report-uri added — browsers POST blocked-
+//                  resource reports to /api/csp-report so we catch
+//                  silent CSP regressions before users notice.
+const CACHE = 'smileys-v12'
 
 // API endpoints to cache for offline use (network-first, cache fallback)
 const OFFLINE_APIS = ['/app/api/events/attending']
