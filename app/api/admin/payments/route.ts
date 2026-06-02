@@ -101,6 +101,15 @@ export async function PATCH(req: NextRequest) {
   // now write a PaymentLog too — previously these slipped through
   // with no trail, which meant an admin could rewrite "fraud" →
   // "approved manually" silently.
+  //
+  // refundEmailSent is the C5 fix — when status flips to refunded
+  // we now AWAIT the send and surface the result in the response
+  // so the client can show a distinct toast ("Refund processed
+  // but email failed — notify member manually"). PR 1 only
+  // upgraded the swallow to a console.error, which is necessary
+  // but not sufficient: admins still saw "Status → refunded" with
+  // no signal that the member never heard.
+  let refundEmailSent: boolean | undefined
   if (status !== undefined && current.status !== status) {
     await prisma.paymentLog.create({
       data: {
@@ -117,20 +126,21 @@ export async function PATCH(req: NextRequest) {
       `Payment status changed from ${current.status} to ${status}${notes ? ` — ${notes}` : ''}`,
     )
 
-    // Email member when refunded. Surface the failure into the
-    // server log instead of swallowing silently — admins assumed
-    // the email landed and chased members who never heard.
     if (status === 'refunded') {
-      sendRefundEmail(
-        updated.user.email,
-        updated.user.name ?? 'Member',
-        updated.event.title,
-        current.amount,
-        current.currency ?? 'TRY',
-        notes,
-      ).catch(err => {
+      try {
+        await sendRefundEmail(
+          updated.user.email,
+          updated.user.name ?? 'Member',
+          updated.event.title,
+          current.amount,
+          current.currency ?? 'TRY',
+          notes,
+        )
+        refundEmailSent = true
+      } catch (err) {
+        refundEmailSent = false
         console.error('[payments PATCH] refund email failed', { paymentId: id, err: String(err) })
-      })
+      }
     }
   } else if (notes !== undefined && (current.notes ?? '') !== (notes ?? '')) {
     // Notes-only edit. Use the existing PaymentLog shape — both
@@ -155,7 +165,12 @@ export async function PATCH(req: NextRequest) {
     )
   }
 
-  return NextResponse.json(updated)
+  // Pass-through with a sidecar `_refundEmail` field on refund
+  // requests so the client can show the right toast. Absent on
+  // every other PATCH so we don't bloat the shape needlessly.
+  return NextResponse.json(
+    refundEmailSent === undefined ? updated : { ...updated, _refundEmail: { sent: refundEmailSent } },
+  )
 }
 
 export async function DELETE(req: NextRequest) {

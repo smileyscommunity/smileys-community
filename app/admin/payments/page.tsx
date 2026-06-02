@@ -1,7 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, Fragment, Suspense } from 'react'
+import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { toast } from 'sonner'
+import { useAdminLoad } from '@/lib/admin/useAdminLoad'
+import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 
 interface Payment {
   id: string
@@ -48,23 +51,71 @@ const STATUS_ACTION: Record<string, string> = {
   failed:  'Mark pending',
 }
 
-export default function AdminPaymentsPage() {
-  const [payments,    setPayments]    = useState<Payment[]>([])
-  const [loading,     setLoading]     = useState(true)
-  const [filter,      setFilter]      = useState<'all' | 'paid' | 'pending' | 'refunded'>('all')
-  const [editNotes,      setEditNotes]      = useState<{ id: string; value: string } | null>(null)
-  const [busy,           setBusy]           = useState<string | null>(null)
-  const [expandedLog,    setExpandedLog]    = useState<string | null>(null)
-  const [logs,           setLogs]           = useState<Record<string, PaymentLog[]>>({})
-  const [refundConfirm,  setRefundConfirm]  = useState<Payment | null>(null)
-  const [refundNote,     setRefundNote]     = useState('')
+type FilterKey = 'all' | 'paid' | 'pending' | 'refunded' | 'failed'
+const FILTER_KEYS: readonly FilterKey[] = ['all', 'paid', 'pending', 'refunded', 'failed'] as const
 
+// Suspense wrapper because useSearchParams forces it. Mirrors the
+// pattern on /admin/events — the URL-sync filters need useSearchParams,
+// which can't run during static rendering.
+export default function AdminPaymentsPage() {
+  return <Suspense><AdminPaymentsPageInner /></Suspense>
+}
+
+function AdminPaymentsPageInner() {
+  const searchParams = useSearchParams()
+  const router       = useRouter()
+  const pathname     = usePathname()
+
+  // Hydrate every filter from the URL so reload + deep links land on
+  // the same view. Whitelist the filter against FILTER_KEYS so a
+  // junk query string can't leave the chip bar with no button looking
+  // selected.
+  const initialFilter = (FILTER_KEYS as readonly string[]).includes(searchParams.get('filter') ?? '')
+    ? (searchParams.get('filter') as FilterKey) : 'all'
+  const initialSearch = searchParams.get('search') ?? ''
+
+  // Shared admin-load hook gives r.ok + retry banner + cancellation
+  // for free. Was using an unguarded fetch that treated 401/403/500
+  // as "no payments" — admin couldn't tell the difference between
+  // a real empty list and a failed load.
+  const { data, loading, error: loadError, retry, setData } = useAdminLoad<Payment[]>(
+    '/app/api/admin/payments',
+    (v): v is Payment[] => Array.isArray(v),
+  )
+  const payments = data ?? []
+  // Bridge function-form mutations (setPayments(prev => ...)) to the
+  // hook's value-only setData escape hatch.
+  const setPayments = (next: Payment[] | ((prev: Payment[]) => Payment[])) => {
+    setData(typeof next === 'function' ? next(data ?? []) : next)
+  }
+
+  const [filter,        setFilter]        = useState<FilterKey>(initialFilter)
+  const [search,        setSearch]        = useState(initialSearch)
+  const [editNotes,     setEditNotes]     = useState<{ id: string; value: string } | null>(null)
+  const [busy,          setBusy]          = useState<string | null>(null)
+  const [expandedLog,   setExpandedLog]   = useState<string | null>(null)
+  const [logs,          setLogs]          = useState<Record<string, PaymentLog[]>>({})
+  const [refundConfirm, setRefundConfirm] = useState<Payment | null>(null)
+  const [refundNote,    setRefundNote]    = useState('')
+
+  // Debounce search so typing doesn't spam history.
+  const [debouncedSearch, setDebouncedSearch] = useState(initialSearch)
   useEffect(() => {
-    fetch('/app/api/admin/payments', { credentials: 'include' })
-      .then(r => r.ok ? r.json() : [])
-      .then(d => setPayments(Array.isArray(d) ? d : []))
-      .finally(() => setLoading(false))
-  }, [])
+    const t = setTimeout(() => setDebouncedSearch(search), 250)
+    return () => clearTimeout(t)
+  }, [search])
+
+  // URL-sync filter + search. Replace (not push) so back-button
+  // doesn't dump intermediate states. searchParams excluded from
+  // deps to avoid feedback loop on the URL we just wrote.
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams.toString())
+    if (filter !== 'all')   params.set('filter', filter);          else params.delete('filter')
+    if (debouncedSearch)    params.set('search', debouncedSearch); else params.delete('search')
+    const q = params.toString()
+    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter, debouncedSearch, pathname, router])
 
   async function toggleLog(id: string) {
     if (expandedLog === id) { setExpandedLog(null); return }
@@ -90,7 +141,15 @@ export default function AdminPaymentsPage() {
     })
     if (res.ok) {
       const updated = await res.json()
-      setPayments(prev => prev.map(x => x.id === p.id ? updated : x))
+      // Server returns `_refundEmail.sent` on refund requests so we
+      // can split the toast — was "Status → refunded" regardless of
+      // whether the email actually landed, which led admins to
+      // assume SMTP was healthy when it wasn't. Strip the sidecar
+      // field before storing the row.
+      const refundEmail = updated?._refundEmail as { sent: boolean } | undefined
+      const cleaned: Payment = { ...updated }
+      delete (cleaned as { _refundEmail?: unknown })._refundEmail
+      setPayments(prev => prev.map(x => x.id === p.id ? cleaned : x))
       // Drop the cached log entirely (was setting to []; an
       // empty array is truthy, so the toggleLog `!logs[id]` check
       // would skip the refetch and admins would see a stale
@@ -100,7 +159,13 @@ export default function AdminPaymentsPage() {
         const fresh = await fetch(`/app/api/admin/payments/${p.id}/logs`, { credentials: 'include' }).then(r => r.ok ? r.json() : [])
         setLogs(prev => ({ ...prev, [p.id]: Array.isArray(fresh) ? fresh : [] }))
       }
-      toast.success(`Status → ${next}`)
+      if (refundEmail) {
+        refundEmail.sent
+          ? toast.success('Refund processed — confirmation email sent')
+          : toast.error('Refund processed, but email failed to send. Notify the member manually.')
+      } else {
+        toast.success(`Status → ${next}`)
+      }
     } else {
       // Surface 400 / 409 reasons (terminal-state guard, invalid
       // status, notes too long) instead of silently doing nothing.
@@ -165,7 +230,20 @@ export default function AdminPaymentsPage() {
     setBusy(null)
   }
 
-  const filtered  = filter === 'all' ? payments : payments.filter(p => p.status === filter)
+  // Search across the fields admin most often hunts by — member
+  // name + email + event title. Case-insensitive substring match,
+  // applied after status filter so the counts in the summary cards
+  // and chips stay anchored to the unfiltered totals.
+  const filtered = useMemo(() => {
+    const q = debouncedSearch.trim().toLowerCase()
+    return payments.filter(p => {
+      if (filter !== 'all' && p.status !== filter) return false
+      if (q && !p.user.name.toLowerCase().includes(q)
+            && !p.user.email.toLowerCase().includes(q)
+            && !p.event.title.toLowerCase().includes(q)) return false
+      return true
+    })
+  }, [payments, filter, debouncedSearch])
   const totalPaid = payments.filter(p => p.status === 'paid').reduce((s, p) => s + p.amount, 0)
   const pending   = payments.filter(p => p.status === 'pending').length
 
@@ -229,17 +307,63 @@ export default function AdminPaymentsPage() {
         </div>
       )}
 
-      <div className="flex gap-1 bg-zinc-900 rounded-xl p-1 w-fit">
-        {(['all', 'paid', 'pending', 'refunded'] as const).map(f => (
-          <button key={f} onClick={() => setFilter(f)}
-            className={`px-4 py-2 rounded-lg text-xs font-semibold capitalize transition-colors ${filter === f ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-white'}`}>
-            {f}
-          </button>
-        ))}
+      {/* Load-error banner — replaces the silent 401/403/500 "no
+          payments" fallthrough. Retry refires the underlying hook. */}
+      <LoadErrorBanner message={loadError} onRetry={retry} title="Couldn't load payments" />
+
+      <div className="flex flex-wrap gap-2">
+        <div className="flex gap-1 bg-zinc-900 rounded-xl p-1 w-fit">
+          {FILTER_KEYS.map(f => (
+            <button key={f} onClick={() => setFilter(f)}
+              className={`px-4 py-2 rounded-lg text-xs font-semibold capitalize transition-colors ${filter === f ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-white'}`}>
+              {f}
+            </button>
+          ))}
+        </div>
+        {/* Search across member name/email + event title — was no
+            way to find "the payment from X" without scrolling. */}
+        <div className="relative flex-1 min-w-[200px] max-w-md">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input type="text" placeholder="Search member, email, event…" value={search} onChange={e => setSearch(e.target.value)}
+            className="w-full pl-8 pr-8 py-2 text-xs rounded-xl bg-zinc-900 border border-zinc-800 text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500" />
+          {search && (
+            <button onClick={() => setSearch('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-zinc-500 hover:text-white" title="Clear search">
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          )}
+        </div>
       </div>
 
       {loading ? (
-        <p className="text-zinc-500 text-sm">Loading…</p>
+        // Page-shape skeleton — three summary cards + a few rows
+        // matching the eventual table layout so the page doesn't
+        // jump when data lands.
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {[0, 1, 2].map(i => (
+              <div key={i} className="bg-zinc-900 rounded-xl p-4 border border-zinc-800 space-y-2">
+                <div className="h-6 w-24 rounded bg-zinc-800 animate-pulse" />
+                <div className="h-3 w-20 rounded bg-zinc-800/60 animate-pulse" />
+              </div>
+            ))}
+          </div>
+          <div className="bg-zinc-900 rounded-2xl border border-zinc-800 divide-y divide-zinc-800">
+            {[0, 1, 2, 3].map(i => (
+              <div key={i} className="px-4 py-4 flex items-center gap-4">
+                <div className="flex-1 space-y-1.5">
+                  <div className="h-3.5 w-1/3 rounded bg-zinc-800 animate-pulse" />
+                  <div className="h-3 w-1/4 rounded bg-zinc-800/60 animate-pulse" />
+                </div>
+                <div className="h-4 w-16 rounded bg-zinc-800 animate-pulse" />
+                <div className="h-6 w-20 rounded-full bg-zinc-800 animate-pulse" />
+                <div className="h-7 w-24 rounded-lg bg-zinc-800 animate-pulse" />
+              </div>
+            ))}
+          </div>
+        </div>
       ) : filtered.length === 0 ? (
         <div className="bg-zinc-900 rounded-2xl p-10 text-center">
           <div className="text-3xl mb-2">💳</div>
@@ -343,8 +467,13 @@ export default function AdminPaymentsPage() {
               </thead>
               <tbody className="divide-y divide-zinc-800">
                 {filtered.map(p => (
-                  <>
-                    <tr key={p.id} className="hover:bg-zinc-800/40 transition-colors">
+                  // Fragment was un-keyed (`<>`) which React warns
+                  // about under StrictMode and silently breaks the
+                  // reconciler's reuse of these two rows. Each map
+                  // iteration now yields a keyed Fragment wrapping
+                  // the data row + the expanded-log row.
+                  <Fragment key={p.id}>
+                    <tr className="hover:bg-zinc-800/40 transition-colors">
                       <td className="px-4 py-3">
                         <div className="text-white font-medium">{p.user.name}</div>
                         <div className="text-zinc-500 text-xs">{p.user.email}</div>
@@ -404,7 +533,7 @@ export default function AdminPaymentsPage() {
                       </td>
                     </tr>
                     {expandedLog === p.id && (
-                      <tr key={`${p.id}-log`} className="bg-zinc-800/30">
+                      <tr className="bg-zinc-800/30">
                         <td colSpan={7} className="px-6 py-3">
                           {!logs[p.id] ? (
                             <p className="text-zinc-500 text-xs">Loading…</p>
@@ -430,7 +559,7 @@ export default function AdminPaymentsPage() {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 ))}
               </tbody>
             </table>
