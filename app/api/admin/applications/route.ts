@@ -7,6 +7,7 @@ import { sendActivationEmail, sendApplicationRejectedEmail, sendRequestMoreInfoE
 import { createNotification } from '@/lib/notify'
 import { writeAudit } from '@/lib/audit'
 import { randomBytes } from 'crypto'
+import { hashToken } from '@/lib/tokenHash'
 
 function normalizeName(name: string): string {
   if (!name) return name
@@ -144,7 +145,8 @@ export async function PATCH(req: NextRequest) {
             // Generate activation token (7 days)
             const token     = randomBytes(32).toString('hex')
             const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-            await prisma.passwordResetToken.create({ data: { userId: user.id, token, expiresAt } })
+            // Email plaintext, store hash — see lib/tokenHash.ts.
+            await prisma.passwordResetToken.create({ data: { userId: user.id, token: hashToken(token), expiresAt } })
             await sendActivationEmail(application.email, application.fullName, token, welcomeMessage || undefined)
           } else {
             // User already exists — fill in any missing profile fields from the application

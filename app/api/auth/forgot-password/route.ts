@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { sendPasswordResetEmail } from '@/lib/email'
 import { rateLimit, getIp } from '@/lib/rateLimit'
 import { verifyTurnstile } from '@/lib/turnstile'
+import { hashToken } from '@/lib/tokenHash'
 
 export async function POST(req: NextRequest) {
   try {
@@ -33,7 +34,8 @@ export async function POST(req: NextRequest) {
     const token     = randomBytes(32).toString('hex')
     const expiresAt = new Date(Date.now() + 1000 * 60 * 60) // 1 hour
 
-    await prisma.passwordResetToken.create({ data: { userId: user.id, token, expiresAt } })
+    // Email the plaintext, store the SHA-256 hash. See lib/tokenHash.ts.
+    await prisma.passwordResetToken.create({ data: { userId: user.id, token: hashToken(token), expiresAt } })
 
     await sendPasswordResetEmail(user.email, user.name, token)
 

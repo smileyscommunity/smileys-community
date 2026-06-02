@@ -3,6 +3,7 @@ import { randomBytes } from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { sendVerificationEmail } from '@/lib/email'
 import { rateLimit, getIp } from '@/lib/rateLimit'
+import { hashToken } from '@/lib/tokenHash'
 
 export async function POST(req: NextRequest) {
   try {
@@ -21,7 +22,8 @@ export async function POST(req: NextRequest) {
 
     const token     = randomBytes(32).toString('hex')
     const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24)
-    await prisma.emailVerificationToken.create({ data: { userId: user.id, token, expiresAt } })
+    // Email plaintext, store hash — see lib/tokenHash.ts.
+    await prisma.emailVerificationToken.create({ data: { userId: user.id, token: hashToken(token), expiresAt } })
 
     sendVerificationEmail(user.email, user.name, token).catch(console.error)
 

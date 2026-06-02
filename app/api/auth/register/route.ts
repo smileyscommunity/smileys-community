@@ -6,6 +6,7 @@ import { createSession } from '@/lib/session'
 import { sendVerificationEmail, sendAlreadyRegisteredEmail, recordEmailFailure } from '@/lib/email'
 import { rateLimit, getIp } from '@/lib/rateLimit'
 import { verifyTurnstile } from '@/lib/turnstile'
+import { hashToken } from '@/lib/tokenHash'
 import { getPostHogClient, trackServer } from '@/lib/posthog-server'
 
 const COLORS = ['#f472b6','#60a5fa','#fbbf24','#f87171','#fb923c','#e879f9','#34d399','#a78bfa','#22d3ee','#4ade80']
@@ -165,7 +166,8 @@ export async function POST(req: NextRequest) {
     // longer window doesn't widen the attack surface.
     const token     = randomBytes(32).toString('hex')
     const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7) // 7 days
-    await prisma.emailVerificationToken.create({ data: { userId: user.id, token, expiresAt } })
+    // Email plaintext, store hash — see lib/tokenHash.ts.
+    await prisma.emailVerificationToken.create({ data: { userId: user.id, token: hashToken(token), expiresAt } })
 
     // Send verification email (fire and forget — don't block registration)
     sendVerificationEmail(user.email, user.name, token).catch(async err => {

@@ -4,6 +4,7 @@ import { getSession } from '@/lib/session'
 import { canManageUsers } from '@/lib/access'
 import { sendActivationEmail } from '@/lib/email'
 import { randomBytes } from 'crypto'
+import { hashToken } from '@/lib/tokenHash'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -30,7 +31,8 @@ export async function POST(_: NextRequest, { params }: Params) {
     // Generate new activation token (7 days)
     const token     = randomBytes(32).toString('hex')
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-    await prisma.passwordResetToken.create({ data: { userId: id, token, expiresAt } })
+    // Email plaintext, store hash — see lib/tokenHash.ts.
+    await prisma.passwordResetToken.create({ data: { userId: id, token: hashToken(token), expiresAt } })
 
     await sendActivationEmail(user.email, user.name ?? 'Member', token)
 

@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 import { createSession } from '@/lib/session'
 import { rateLimit, getIp } from '@/lib/rateLimit'
+import { hashToken } from '@/lib/tokenHash'
 
 // A1 fix: every other auth route is rate-limited; activate was
 // the lone exception. Token is 256-bit so brute force is
@@ -17,7 +18,9 @@ export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get('token')
   if (!token) return NextResponse.json({ error: 'Missing token' }, { status: 400 })
 
-  const record = await prisma.passwordResetToken.findUnique({ where: { token } })
+  // Tokens are stored as SHA-256 hashes — see lib/tokenHash.ts.
+  const hashed = hashToken(token)
+  const record = await prisma.passwordResetToken.findUnique({ where: { token: hashed } })
 
   if (!record || record.used || record.expiresAt < new Date()) {
     return NextResponse.json({ error: 'This activation link is invalid or has expired.' }, { status: 400 })
@@ -56,7 +59,9 @@ export async function POST(req: NextRequest) {
     // A4 fix: 12-char min — mirror the register route.
     if (password.length < 12) return NextResponse.json({ error: 'Password must be at least 12 characters' }, { status: 400 })
 
-    const record = await prisma.passwordResetToken.findUnique({ where: { token } })
+    // Tokens are stored as SHA-256 hashes — see lib/tokenHash.ts.
+    const hashedToken = hashToken(token)
+    const record = await prisma.passwordResetToken.findUnique({ where: { token: hashedToken } })
 
     if (!record || record.used || record.expiresAt < new Date()) {
       return NextResponse.json({ error: 'This activation link is invalid or has expired.' }, { status: 400 })
@@ -80,7 +85,7 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    await prisma.passwordResetToken.update({ where: { token }, data: { used: true } })
+    await prisma.passwordResetToken.update({ where: { token: hashedToken }, data: { used: true } })
 
     await createSession({
       id:            user.id,

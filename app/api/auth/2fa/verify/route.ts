@@ -4,6 +4,7 @@ import { createSession } from '@/lib/session'
 import { jwtVerify } from 'jose'
 import { verifySync } from 'otplib/functional'
 import { rateLimit, getIp } from '@/lib/rateLimit'
+import { decryptTotpSecret } from '@/lib/totpCrypto'
 
 if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET environment variable is not set')
 const SECRET = new TextEncoder().encode(process.env.JWT_SECRET)
@@ -38,7 +39,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Session expired — please log in again' }, { status: 401 })
   }
 
-  const result = verifySync({ token: String(code), secret: user.totpSecret, strategy: 'totp' } as any)
+  const secret = decryptTotpSecret(user.totpSecret)
+  const result = verifySync({ token: String(code), secret, strategy: 'totp' } as any)
   if (!(result as any).valid) {
     return NextResponse.json({ error: 'Invalid code — check your authenticator app' }, { status: 400 })
   }

@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession, createSession } from '@/lib/session'
 import { sendVerificationEmail } from '@/lib/email'
 import { rateLimit } from '@/lib/rateLimit'
+import { hashToken } from '@/lib/tokenHash'
 
 export async function POST(req: NextRequest) {
   try {
@@ -43,7 +44,8 @@ export async function POST(req: NextRequest) {
     await prisma.emailVerificationToken.deleteMany({ where: { userId: session.id } })
     const token     = randomBytes(32).toString('hex')
     const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24)
-    await prisma.emailVerificationToken.create({ data: { userId: session.id, token, expiresAt } })
+    // Email plaintext, store hash — see lib/tokenHash.ts.
+    await prisma.emailVerificationToken.create({ data: { userId: session.id, token: hashToken(token), expiresAt } })
     sendVerificationEmail(newEmail, session.name, token).catch(console.error)
 
     // Re-issue session for this device with new email + new tokenVersion
