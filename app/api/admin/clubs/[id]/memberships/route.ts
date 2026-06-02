@@ -36,6 +36,14 @@ import { writeAudit } from '@/lib/audit'
 
 type Params = { params: Promise<{ id: string }> }
 
+// C2-style allowlists. Without these, the PATCH and POST bodies
+// were forwarded into prisma.update / prisma.create with whatever
+// string the client sent — admin tooling typo or compromised
+// session could write `status: 'frzn'` or `role: 'godmode'` into
+// the DB. Locking both fields here is the only enforcement spot.
+const ALLOWED_STATUSES = new Set(['pending', 'approved', 'rejected'])
+const ALLOWED_ROLES    = new Set(['member', 'host'])
+
 function countDelta(prior: string | null, next: string | null): number {
   const wasApproved = prior === 'approved'
   const isApproved  = next  === 'approved'
@@ -50,6 +58,9 @@ export async function POST(req: NextRequest, { params }: Params) {
     }
     const { id } = await params
     const { userId, role = 'member' } = await req.json()
+    if (!ALLOWED_ROLES.has(role)) {
+      return NextResponse.json({ error: `Invalid role. Allowed: ${[...ALLOWED_ROLES].join(', ')}` }, { status: 400 })
+    }
 
     // Adding via this endpoint always creates as approved (the
     // admin-curated add path, not a join-request flow). Single
@@ -111,6 +122,15 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
     const { id } = await params
     const { userId, status, role } = await req.json()
+
+    // Allowlist gates — same C2 protection as the payments PATCH.
+    // Both status and role must validate before any DB writes.
+    if (status !== undefined && !ALLOWED_STATUSES.has(status)) {
+      return NextResponse.json({ error: `Invalid status. Allowed: ${[...ALLOWED_STATUSES].join(', ')}` }, { status: 400 })
+    }
+    if (role !== undefined && !ALLOWED_ROLES.has(role)) {
+      return NextResponse.json({ error: `Invalid role. Allowed: ${[...ALLOWED_ROLES].join(', ')}` }, { status: 400 })
+    }
 
     // Read prior status + role so we can compute the count delta
     // accurately AND describe the change for the audit log. Without
