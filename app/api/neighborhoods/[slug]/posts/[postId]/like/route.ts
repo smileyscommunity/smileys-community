@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { REACTION_EMOJIS } from '@/lib/posts'
 
 type Params = { params: Promise<{ slug: string; postId: string }> }
 
@@ -9,7 +10,10 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (!session) return NextResponse.json({ error: 'Not logged in' }, { status: 401 })
 
   const { slug, postId } = await params
-  const { emoji = '❤️' } = await req.json()
+  const body = await req.json().catch(() => ({}))
+  // Allowlist match — same shape as the club like route. Without this a caller
+  // could store arbitrary strings (or zero-width chars) as a "reaction".
+  const emoji: string = REACTION_EMOJIS.includes(body.emoji) ? body.emoji : '❤️'
 
   // IDOR fix: scope the post by the slug in the URL.
   const post = await prisma.neighborhoodPost.findUnique({ where: { id: postId }, select: { neighborhood: true } })

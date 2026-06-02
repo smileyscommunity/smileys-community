@@ -201,6 +201,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (allowed.status !== undefined && !['approved', 'pending', 'banned'].includes(allowed.status as string)) {
       return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
     }
+    // membershipType is currently a free-form column with a UI offering
+    // 'free' | 'premium' | 'vip'. The audit flagged it as the only field
+    // in this whitelist with no enum validation. Locking it down now so a
+    // future capability check that reads it can't be bypassed by an admin
+    // typo (or a compromised admin session writing junk).
+    if (allowed.membershipType !== undefined && !['free', 'premium', 'vip'].includes(allowed.membershipType as string)) {
+      return NextResponse.json({ error: 'Invalid membershipType' }, { status: 400 })
+    }
 
     // Prevent demoting/banning/suspending yourself
     if (id === session.id) {

@@ -53,7 +53,7 @@ export async function getSession(): Promise<SessionUser | null> {
     // Real-time check: ban/suspension + tokenVersion (logout invalidates all sessions)
     const dbUser = await prisma.user.findUnique({
       where: { id: user.id },
-      select: { status: true, suspendedUntil: true, tokenVersion: true, cityId: true },
+      select: { status: true, suspendedUntil: true, tokenVersion: true, cityId: true, email: true },
     })
     if (!dbUser || dbUser.status === 'banned') {
       await deleteSession()
@@ -71,10 +71,10 @@ export async function getSession(): Promise<SessionUser | null> {
       return null
     }
 
-    // Inject the live cityId from the DB so capability checks have a
-    // fresh value even for sessions issued before the multi-city
-    // scaffolding landed. Avoids forcing every member to re-login.
-    return { ...user, cityId: dbUser.cityId }
+    // Inject the live cityId + email from the DB so capability checks
+    // and audit-log attribution have fresh values even for sessions
+    // issued before later edits. Avoids forcing every member to re-login.
+    return { ...user, cityId: dbUser.cityId, email: dbUser.email }
   } catch {
     return null
   }

@@ -49,3 +49,56 @@ if grep -qE "Cannot find module.*chunks|MODULE_NOT_FOUND" "$LOG"; then
 fi
 
 echo "  ✓ no chunk/module errors after rendering 5 pages"
+
+# ── Security-header regression checks ──────────────────────────────────────
+# These exist because the CSP migration (commit 9016ef7) and HSTS header
+# (commit 18ca349) are easy to silently regress if next.config.js or
+# middleware.ts is restructured. The smoke test catches that pre-deploy.
+HDR=/tmp/smoke-headers.txt
+BODY=/tmp/smoke-body.html
+curl -sD "$HDR" "http://localhost:$PORT/app/login" -o "$BODY"
+
+# CSP must be present, must include a per-request nonce, and the nonce on
+# the response header must match the one Next.js applied to its <script>
+# tags. If middleware ever stops setting the request-side CSP header,
+# Next.js silently skips the nonce-on-script step and modern browsers
+# block every script.
+CSP_NONCE=$(grep -i "content-security-policy" "$HDR" | grep -oE "nonce-[a-f0-9]+" | head -1 | sed 's/nonce-//')
+if [ -z "$CSP_NONCE" ]; then
+  echo "  ✗ CSP header missing or has no nonce — middleware regression?"
+  grep -i "content-security-policy" "$HDR" | head -1
+  exit 1
+fi
+BODY_NONCE=$(grep -oE 'nonce="[a-f0-9]+"' "$BODY" | head -1 | sed 's/nonce="//;s/"//')
+if [ -z "$BODY_NONCE" ]; then
+  echo "  ✗ rendered HTML has no nonce on any <script> tag — Next.js auto-nonce broken"
+  exit 1
+fi
+if [ "$CSP_NONCE" != "$BODY_NONCE" ]; then
+  echo "  ✗ CSP nonce ($CSP_NONCE) doesn't match script nonce ($BODY_NONCE)"
+  exit 1
+fi
+echo "  ✓ CSP nonce wired ($CSP_NONCE)"
+
+# Any unnonced <script> tags would be blocked by 'strict-dynamic' in modern browsers.
+UNNONCED=$(grep -oE '<script[^>]*>' "$BODY" | grep -cv "nonce=" || true)
+if [ "${UNNONCED:-0}" -gt 0 ]; then
+  echo "  ✗ $UNNONCED <script> tag(s) without a nonce attribute — would be CSP-blocked in prod"
+  grep -oE '<script[^>]*>' "$BODY" | grep -v "nonce=" | head -3
+  exit 1
+fi
+echo "  ✓ every rendered <script> tag has a nonce"
+
+if ! grep -qi "strict-transport-security" "$HDR"; then
+  echo "  ✗ HSTS header missing — next.config.js regression?"
+  exit 1
+fi
+echo "  ✓ HSTS header present"
+
+# /login must 200 — it's the entry point for unauthenticated users.
+STATUS=$(grep -E "^HTTP/" "$HDR" | tail -1 | awk '{print $2}')
+if [ "$STATUS" != "200" ]; then
+  echo "  ✗ /app/login returned HTTP $STATUS (expected 200)"
+  exit 1
+fi
+echo "  ✓ /app/login returns 200"
