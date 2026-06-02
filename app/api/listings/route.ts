@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { sendListingAlertEmail } from '@/lib/email'
+import { sendListingAlertEmail, recordEmailFailure } from '@/lib/email'
 import { createNotification } from '@/lib/notify'
+import { rateLimit } from '@/lib/rateLimit'
 import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
 
 const PAGE_SIZE = 20
@@ -71,6 +72,13 @@ export async function POST(req: NextRequest) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  // Rate limit. Without this, a member could spam-create listings
+  // (and trigger the alert-email fan-out below) at script speed.
+  // 5/min is generous for legit posting; abusers hit the wall fast.
+  if (!await rateLimit(`listings-create:${session.id}`, 5, 60_000)) {
+    return NextResponse.json({ error: 'Too many listings. Try again in a minute.' }, { status: 429 })
+  }
+
   const { category, title, description, price, photo, contact, neighborhood } = await req.json()
 
   const VALID_CATEGORIES = ['ROOMS', 'JOBS', 'BUY_SELL', 'SERVICES', 'FREE', 'RECO']
@@ -108,7 +116,11 @@ export async function POST(req: NextRequest) {
     },
   })
 
-  // Fire alert emails + push in background — don't await
+  // Fire alert emails + push in background — don't await. Each
+  // delivery failure now lands in email_failures (via #4's
+  // recordEmailFailure) so a flapping SMTP shows up on the
+  // dashboard tile, instead of silently dropping listing
+  // alerts to dozens of subscribed members.
   const categoryLabel = CAT_LABELS[category] ?? category
   prisma.user.findMany({
     where: { listingAlerts: { has: category }, id: { not: session.id } },
@@ -116,16 +128,19 @@ export async function POST(req: NextRequest) {
   }).then(alertees => {
     for (const u of alertees) {
       sendListingAlertEmail(u.email, u.name, categoryLabel, { title: listing.title, description: listing.description })
-        .catch(() => {})
+        .catch(async err => {
+          console.error('[listings POST] sendListingAlertEmail failed', { listingId: listing.id, userId: u.id, err: String(err) })
+          await recordEmailFailure({ helper: 'sendListingAlertEmail', recipient: u.email, error: err, context: { listingId: listing.id, userId: u.id, category } })
+        })
       createNotification(
         u.id,
         'listing_new',
         `New ${categoryLabel.toLowerCase()} listing`,
         listing.title,
         `/listings/${listing.id}`,
-      ).catch(() => {})
+      ).catch(err => console.error('[listings POST] createNotification failed', { listingId: listing.id, userId: u.id, err: String(err) }))
     }
-  }).catch(() => {})
+  }).catch(err => console.error('[listings POST] alert fan-out failed', { listingId: listing.id, err: String(err) }))
 
   return NextResponse.json(listing, { status: 201 })
 }

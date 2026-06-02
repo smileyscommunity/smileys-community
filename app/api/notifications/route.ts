@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { rateLimit } from '@/lib/rateLimit'
 
 export async function GET() {
   try {
@@ -23,6 +24,13 @@ export async function PATCH(req: NextRequest) {
   try {
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    // Lightweight per-user limit. PATCH only touches the caller's
+    // own notifications so the abuse ceiling is low, but a
+    // misbehaving client could still hammer the route.
+    if (!await rateLimit(`notif-patch:${session.id}`, 60, 60_000)) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+    }
 
     const { id, markAll } = await req.json()
 
@@ -48,6 +56,12 @@ export async function DELETE(req: NextRequest) {
   try {
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    // Same per-user gate as PATCH — DELETE is just as cheap to
+    // spam and just as easy to misbehave.
+    if (!await rateLimit(`notif-delete:${session.id}`, 60, 60_000)) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+    }
 
     if (req.nextUrl.searchParams.get('clearAll') === 'true') {
       await prisma.notification.deleteMany({ where: { userId: session.id } })
