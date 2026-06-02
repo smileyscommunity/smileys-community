@@ -256,7 +256,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     `${session.name} posted in ${club.name}`,
     trimmed.slice(0, 120) + (trimmed.length > 120 ? '…' : ''),
     `/clubs/${slug}`,
-  ).catch(() => {})
+  ).catch(err => console.error('[clubs posts] notifyAllMembers failed', { clubId: club.id, userId: session.id, err: String(err) }))
 
   if (trimmed) {
     notifyMentions(
@@ -265,7 +265,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       session.id,
       `${session.name} mentioned you in ${club.name}`,
       `/clubs/${slug}`,
-    ).catch(() => {})
+    ).catch(err => console.error('[clubs posts] notifyMentions failed', { clubId: club.id, userId: session.id, err: String(err) }))
   }
 
   return NextResponse.json({

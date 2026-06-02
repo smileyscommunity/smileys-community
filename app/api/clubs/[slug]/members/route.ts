@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
+import { rateLimit } from '@/lib/rateLimit'
 
 type Params = { params: Promise<{ slug: string }> }
 
@@ -96,6 +97,13 @@ export async function GET(req: NextRequest, { params }: Params) {
 export async function PATCH(req: NextRequest, { params }: Params) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  // Rate limit — approve/reject path fires a notification on each
+  // call, and a runaway batch script would notification-spam
+  // affected members. 30/min is generous for legit moderation.
+  if (!await rateLimit(`club-members-patch:${session.id}`, 30, 60_000)) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+  }
 
   const { slug } = await params
   const { userId, action } = await req.json() as { userId: string; action: 'approve' | 'reject' }

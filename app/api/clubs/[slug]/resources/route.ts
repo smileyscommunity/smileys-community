@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
+import { rateLimit } from '@/lib/rateLimit'
 
 type Params = { params: Promise<{ slug: string }> }
 
@@ -20,6 +21,13 @@ export async function GET(_: NextRequest, { params }: Params) {
 export async function POST(req: NextRequest, { params }: Params) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Not logged in' }, { status: 401 })
+
+  // Rate limit per-user. Host-only mutation downstream, but
+  // resources are member-visible content so a runaway client
+  // shouldn't be able to fan them out at script speed.
+  if (!await rateLimit(`club-resources:${session.id}`, 30, 60_000)) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+  }
 
   const { slug } = await params
   const club = await prisma.club.findUnique({ where: { slug }, select: { id: true } })

@@ -2,12 +2,18 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
+import { rateLimit } from '@/lib/rateLimit'
 
 type Params = { params: Promise<{ slug: string }> }
 
 export async function PUT(req: NextRequest, { params }: Params) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Not logged in' }, { status: 401 })
+
+  // Rate limit per-user — club rules are visible to all members.
+  if (!await rateLimit(`club-rules:${session.id}`, 10, 60_000)) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+  }
 
   const { slug } = await params
   const club = await prisma.club.findUnique({ where: { slug }, select: { id: true } })

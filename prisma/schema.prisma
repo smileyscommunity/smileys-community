@@ -457,6 +457,12 @@ model Event {
   @@index([status])
   @@index([hostId])
   @@index([cityId])
+  // The events feed query filters by status + date and (optionally)
+  // cityId. Singles on each column let Postgres bitmap-and them, but
+  // a composite avoids the intersect step. (cityId, status, date)
+  // matches both "upcoming in my city" (default feed) and
+  // "all upcoming" (cross-city traveler view).
+  @@index([cityId, status, date])
   @@map("events")
 }
 
@@ -865,6 +871,10 @@ model EventAttendee {
   @@index([eventId])
   @@index([userId])
   @@index([status])
+  // The participants page + RSVP gender-quota counts both hit
+  // (eventId, status='approved'). Composite makes the count query
+  // an index-only scan instead of a heap fetch.
+  @@index([eventId, status])
   @@map("event_attendees")
 }
 
@@ -914,6 +924,18 @@ model Payment {
   @@index([userId])
   @@index([eventId])
   @@index([status])
+  // The admin payments page orders by createdAt desc and pages
+  // 500 rows at a time (PR 3 cap). Index on createdAt avoids a
+  // full-table sort once the table grows past a few thousand rows.
+  @@index([createdAt])
+  // The "revenue by event" groupBy in the admin stats hits
+  // (eventId, status) — composite avoids two separate index reads
+  // intersected via bitmap-and.
+  @@index([eventId, status])
+  // The member-side RSVP cancel + admin participant-remove flows
+  // hit (userId, eventId, status='pending'). Same composite serves
+  // both, since the leading (userId, eventId) is the natural prefix.
+  @@index([userId, eventId, status])
   @@map("payments")
 }
 
@@ -1027,6 +1049,10 @@ model Notification {
 
   @@index([userId])
   @@index([isRead])
+  // The per-user notification feed sorts by createdAt desc on a
+  // single-user filter. Composite lets Postgres skip the sort step
+  // for the typical "last 30 for me" query in app/api/notifications.
+  @@index([userId, createdAt])
   @@map("notifications")
 }
 
