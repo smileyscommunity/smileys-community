@@ -39,7 +39,12 @@
 //                  timingSafeEqual, 2FA enrollment opened to
 //                  moderators, SW clears auth-bearing cache on
 //                  logout (shared-device cross-user leak).
-const CACHE = 'smileys-v10'
+// v11: 2026-06-02 — Round 4: CSP migrated to nonce + strict-dynamic
+//                  via middleware. Modern browsers now block any
+//                  injected inline <script> without a valid
+//                  per-request nonce — closes the unsafe-inline
+//                  XSS-bypass gap.
+const CACHE = 'smileys-v11'
 
 // API endpoints to cache for offline use (network-first, cache fallback)
 const OFFLINE_APIS = ['/app/api/events/attending']

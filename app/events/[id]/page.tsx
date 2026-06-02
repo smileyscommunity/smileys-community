@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation'
+import { headers } from 'next/headers'
 import Link from 'next/link'
 import Image from 'next/image'
 import type { Metadata } from 'next'
@@ -65,6 +66,9 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function AppEventDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  // Read the per-request CSP nonce set by middleware. Without this, the
+  // JSON-LD <script> tag below would be blocked by the nonce-based CSP.
+  const nonce = (await headers()).get('x-nonce') ?? undefined
   const event = await getEventById(id)
   if (!event) notFound()
 
@@ -221,6 +225,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
     <div className="min-h-screen bg-warm pb-36 md:pb-28 lg:pb-10">
       <script
         type="application/ld+json"
+        nonce={nonce}
         // JSON.stringify does NOT escape `<` so a host putting
         // `</script><script>alert(1)` in event.title (or any other
         // user-controlled field that lands in jsonLd above) would

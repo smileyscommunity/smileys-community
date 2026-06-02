@@ -61,21 +61,9 @@ const nextConfig = {
           // No `preload` because that's a one-way commitment that needs a separate
           // submission to hstspreload.org; add it later if you want.
           { key: 'Strict-Transport-Security',  value: 'max-age=63072000; includeSubDomains' },
-          {
-            key:   'Content-Security-Policy',
-            value: [
-              "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com",
-              "style-src 'self' 'unsafe-inline'",
-              "img-src 'self' data: blob: https://images.unsplash.com https://smileyscommunity.com https://*.tile.openstreetmap.org https://unpkg.com",
-              "connect-src 'self' https://challenges.cloudflare.com https://*.tile.openstreetmap.org https://*.ingest.sentry.io https://*.ingest.us.sentry.io",
-              "font-src 'self' data:",
-              "frame-src https://challenges.cloudflare.com",
-              "object-src 'none'",
-              "base-uri 'self'",
-              "form-action 'self'",
-            ].join('; '),
-          },
+          // CSP is set per-request by middleware.ts with a fresh nonce so
+          // injected/inline scripts without the nonce are blocked by modern
+          // browsers (strict-dynamic). Not configured here.
         ],
       },
     ]

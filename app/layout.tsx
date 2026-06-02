@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next'
+import { headers } from 'next/headers'
 import './globals.css'
 import { Toaster } from 'sonner'
 import Navbar from '@/components/Navbar'
@@ -49,7 +50,15 @@ export const viewport: Viewport = {
   themeColor: '#f59e0b',
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+// `headers()` call below forces every page in the app to be dynamically
+// rendered. This is required for the nonce-based CSP set by middleware.ts
+// to work — static pages would pre-render the HTML at build time with
+// no nonce on the inline <script> tags, and modern browsers would block
+// them under `'strict-dynamic'`. The trade-off is per-request rendering
+// cost, but the app is mostly authenticated/data-driven so the static
+// rendering savings were already small.
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  await headers()
   return (
     <html lang="en">
       <head>
