@@ -882,9 +882,21 @@ model Payment {
   eventId        String
   amount         Float
   currency       String   @default("TRY")
+  // RESERVED FIELDS — kept for future processor integration but currently
+  // unused by any code path. Don't trust the default — every payment today
+  // is collected manually (cash / wire / iyzilink) and admin reconciles via
+  // /admin/payments. The "card" default is historic; new rows will keep it
+  // until someone integrates a real processor and starts writing this
+  // field properly. CSV export + audit snapshot both surface it as-is.
   method         String   @default("card")
+  // RESERVED — never written by any code path. Future: 'iyzico' / 'stripe'
+  // / 'manual' when a processor is wired up. Reading this today returns
+  // null for every row; don't gate logic on it.
   provider       String?
   status         String   @default("pending")
+  // RESERVED — never written by any code path. Future: processor's
+  // transaction id for reconciliation. Reading this today returns null
+  // for every row.
   transactionRef String?
   notes          String?
   createdAt      DateTime @default(now())

@@ -353,6 +353,48 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       ] : []),
     ])
 
+    // P8 fix: if this member had ALREADY PAID for the event, the
+    // transaction above only voided their pending rows — paid rows
+    // stay paid because the money is actually collected. Admin needs
+    // a heads-up so they can process a refund (or not, per event
+    // refund policy). Fan out a notification + write an
+    // informational PaymentLog (fromStatus/toStatus null = "this is
+    // a note, not a state change") so the admin payments page
+    // surfaces the cancel context on the row.
+    const paidPayments = await prisma.payment.findMany({
+      where:  { userId: session.id, eventId, status: 'paid' },
+      select: { id: true, amount: true, currency: true },
+    })
+    if (paidPayments.length > 0) {
+      const [admins, evForNotify] = await Promise.all([
+        prisma.user.findMany({ where: { role: 'admin' }, select: { id: true } }),
+        prisma.event.findUnique({ where: { id: eventId }, select: { title: true } }),
+      ])
+      const eventTitle = evForNotify?.title ?? 'an event'
+      const totalPaid  = paidPayments.reduce((s, p) => s + p.amount, 0)
+      await prisma.paymentLog.createMany({
+        data: paidPayments.map(p => ({
+          paymentId:  p.id,
+          adminId:    session.id,
+          adminName:  session.name,
+          fromStatus: null,
+          toStatus:   null,
+          note:       `Member cancelled RSVP — payment still 'paid', refund pending admin review (₺${p.amount} ${p.currency})`,
+        })),
+      })
+      // Notifications fire-and-forget — a transient notify failure
+      // shouldn't block the member's cancel response.
+      for (const a of admins) {
+        createNotification(
+          a.id,
+          'payment_attention',
+          'Paid attendee cancelled — refund?',
+          `${session.name} cancelled their RSVP for "${eventTitle}" — ₺${totalPaid.toLocaleString()} was already paid. Review for refund.`,
+          `/admin/payments?search=${encodeURIComponent(session.email)}`,
+        ).catch(() => {})
+      }
+    }
+
     // Promote first person on waitlist (spot stays filled — no net change to spotsLeft)
     const [next, eventRow] = await Promise.all([
       wasApproved ? prisma.waitlistEntry.findFirst({ where: { eventId }, orderBy: { createdAt: 'asc' } }) : Promise.resolve(null),
