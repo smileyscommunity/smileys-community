@@ -6,6 +6,7 @@ import { randomBytes } from 'crypto'
 import sharp from 'sharp'
 import { rateLimit, getIp } from '@/lib/rateLimit'
 import { prisma } from '@/lib/prisma'
+import { detectImageFormat } from '@/lib/imageMagic'
 
 export const runtime = 'nodejs'
 
@@ -66,8 +67,19 @@ export async function POST(req: NextRequest) {
 
     const raw = Buffer.from(await file.arrayBuffer())
 
+    // Magic-byte sniff — reject anything whose content doesn't match an
+    // allowed image format, regardless of the filename extension. Defense-
+    // in-depth before Sharp's decoder, and fast-fails on PHP/script
+    // payloads with image extensions.
+    if (!detectImageFormat(raw)) {
+      return NextResponse.json({ error: 'File is not a valid image (JPG, PNG, WebP, GIF)' }, { status: 400 })
+    }
+
     let buffer: Buffer
     try {
+      // Sharp's .jpeg() re-encode strips EXIF (including any GPS coords from
+      // mobile photos) by default — the output buffer has no metadata. Don't
+      // call .withMetadata() unless you intentionally want to keep it.
       buffer = await sharp(raw).rotate().resize(1200, 1200, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 82 }).toBuffer()
     } catch {
       return NextResponse.json({ error: 'Could not process image. Please upload a valid JPG, PNG, WebP, or GIF.' }, { status: 400 })

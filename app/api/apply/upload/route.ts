@@ -4,6 +4,7 @@ import { join, extname } from 'path'
 import { randomBytes } from 'crypto'
 import sharp from 'sharp'
 import { rateLimit, getIp } from '@/lib/rateLimit'
+import { detectImageFormat } from '@/lib/imageMagic'
 
 export const runtime = 'nodejs'
 
@@ -27,8 +28,20 @@ export async function POST(req: NextRequest) {
     const filename  = `${Date.now()}-${randomBytes(6).toString('hex')}.jpg`
     const uploadDir = join(process.cwd(), 'public', 'uploads', 'applications')
     mkdirSync(uploadDir, { recursive: true })
-    const raw    = Buffer.from(await file.arrayBuffer())
-    const buffer = await sharp(raw).rotate().resize(1200, 1200, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 82 }).toBuffer()
+    const raw = Buffer.from(await file.arrayBuffer())
+
+    // Magic-byte sniff before Sharp — see lib/imageMagic.ts.
+    if (!detectImageFormat(raw)) {
+      return NextResponse.json({ error: 'File is not a valid image' }, { status: 400 })
+    }
+
+    let buffer: Buffer
+    try {
+      // Sharp's .jpeg() re-encode strips EXIF (incl. GPS) by default.
+      buffer = await sharp(raw).rotate().resize(1200, 1200, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 82 }).toBuffer()
+    } catch {
+      return NextResponse.json({ error: 'Could not process image' }, { status: 400 })
+    }
     writeFileSync(join(uploadDir, filename), buffer)
 
     return NextResponse.json({ url: `/app/api/files/applications/${filename}` })
