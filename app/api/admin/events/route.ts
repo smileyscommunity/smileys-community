@@ -120,7 +120,70 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const spots = parseInt(totalSpots) || 20
+    // #3 fix: numeric + range validation. P6 in the payment audit
+    // was defense-in-depth at the payment-creation site; this is
+    // the upstream gate. A negative price or impossible quota now
+    // gets a 400 instead of silently corrupting the event row.
+    //
+    // Bounds are intentionally generous — we're catching admin
+    // typos and bad client state, not enforcing brand rules.
+    const numField = (v: unknown, label: string, opts: { min?: number; max?: number; allowNull?: boolean } = {}) => {
+      const { min = 0, max = Infinity, allowNull = false } = opts
+      if (v === undefined || v === null || v === '') {
+        if (allowNull) return null
+        return { error: `${label} required` }
+      }
+      const n = Number(v)
+      if (!Number.isFinite(n)) return { error: `${label} must be a number` }
+      if (n < min) return { error: `${label} must be >= ${min}` }
+      if (n > max) return { error: `${label} must be <= ${max}` }
+      return n
+    }
+
+    const parsedPrice       = numField(price,       'price',       { min: 0, max: 100000 })
+    const parsedMemberPrice = numField(memberPrice, 'memberPrice', { min: 0, max: 100000, allowNull: true })
+    // totalSpots historically defaulted to 20 when omitted — preserve
+    // that contract by treating undefined/null/empty as nullable here
+    // and falling back below. Non-numeric / negative / > 10000 still
+    // 400s so we catch the actual bug surface (admin typos).
+    const parsedTotalSpots  = numField(totalSpots,  'totalSpots',  { min: 1, max: 10000, allowNull: true })
+    const parsedMinAge      = numField(minAge,      'minAge',      { min: 0, max: 120, allowNull: true })
+    const parsedMaxAge      = numField(maxAge,      'maxAge',      { min: 0, max: 120, allowNull: true })
+    const parsedMaleQuota   = numField(maleQuota,        'maleQuota',        { min: 0, max: 10000, allowNull: true })
+    const parsedFemaleQuota = numField(femaleQuota,      'femaleQuota',      { min: 0, max: 10000, allowNull: true })
+    const parsedTrMaleQuota = numField(turkishMaleQuota, 'turkishMaleQuota', { min: 0, max: 10000, allowNull: true })
+
+    for (const v of [parsedPrice, parsedMemberPrice, parsedTotalSpots, parsedMinAge, parsedMaxAge,
+                     parsedMaleQuota, parsedFemaleQuota, parsedTrMaleQuota]) {
+      if (v && typeof v === 'object' && 'error' in v) {
+        return NextResponse.json({ error: v.error }, { status: 400 })
+      }
+    }
+
+    // Cross-field checks — only meaningful after the per-field
+    // checks succeed (so we know each value is a number / null).
+    const N = (x: unknown) => typeof x === 'number' ? x : null
+    if (N(parsedMinAge) !== null && N(parsedMaxAge) !== null && (parsedMaxAge as number) < (parsedMinAge as number)) {
+      return NextResponse.json({ error: 'maxAge must be >= minAge' }, { status: 400 })
+    }
+    const spotsForQuotaCheck = (parsedTotalSpots as number) || 0
+    for (const [name, val] of [['maleQuota', parsedMaleQuota], ['femaleQuota', parsedFemaleQuota], ['turkishMaleQuota', parsedTrMaleQuota]] as const) {
+      const num = N(val)
+      if (num !== null && num > spotsForQuotaCheck) {
+        return NextResponse.json({ error: `${name} (${num}) cannot exceed totalSpots (${spotsForQuotaCheck})` }, { status: 400 })
+      }
+    }
+
+    // Date sanity — YYYY-MM-DD parse + registration deadline must
+    // come before the event date when both are set.
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date))) {
+      return NextResponse.json({ error: 'date must be YYYY-MM-DD' }, { status: 400 })
+    }
+    if (registrationDeadline && /^\d{4}-\d{2}-\d{2}$/.test(String(registrationDeadline)) && String(registrationDeadline) > String(date)) {
+      return NextResponse.json({ error: 'registrationDeadline cannot be after the event date' }, { status: 400 })
+    }
+
+    const spots = (parsedTotalSpots as number | null) ?? 20
 
     // Resolve tagIds: accept either explicit IDs or tag names (vibes)
     let resolvedTagIds: string[] = tagIds ?? []
@@ -160,8 +223,12 @@ export async function POST(req: NextRequest) {
         description:          description?.trim() ?? '',
         totalSpots:           spots,
         spotsLeft:            spots,
-        price:                parseInt(price) || 0,
-        memberPrice:          memberPrice ? parseInt(memberPrice) : null,
+        // Use the validated numbers from the #3 guard above —
+        // parsedPrice / parsedMemberPrice are already known to be
+        // in-range (or the request 400'd). parsedMemberPrice can
+        // be null (when memberPrice was omitted) but never NaN.
+        price:                parsedPrice as number,
+        memberPrice:          parsedMemberPrice as number | null,
         emoji:                emoji || '🎉',
         isPremium:            isPremium ?? false,
         membersOnly:          membersOnly ?? false,
@@ -172,8 +239,8 @@ export async function POST(req: NextRequest) {
         coverImagePosition:   coverImagePosition   ?? 50,
         meetingUrl:           meetingUrl           ?? null,
         whatsappUrl:          whatsappUrl ?? null,
-        minAge:               minAge ? parseInt(minAge) : null,
-        maxAge:               maxAge ? parseInt(maxAge) : null,
+        minAge:               parsedMinAge as number | null,
+        maxAge:               parsedMaxAge as number | null,
         language:             language ?? null,
         difficulty:           difficulty ?? null,
         refundPolicy:         refundPolicy ?? null,
@@ -185,9 +252,9 @@ export async function POST(req: NextRequest) {
         // get coerced to 0. Cast numbers explicitly since the form ships
         // them as strings from <input type=number>.
         genderBalance:        genderBalance ?? false,
-        maleQuota:            maleQuota        ? parseInt(maleQuota)        : null,
-        femaleQuota:          femaleQuota      ? parseInt(femaleQuota)      : null,
-        turkishMaleQuota:     turkishMaleQuota ? parseInt(turkishMaleQuota) : null,
+        maleQuota:            parsedMaleQuota   as number | null,
+        femaleQuota:          parsedFemaleQuota as number | null,
+        turkishMaleQuota:     parsedTrMaleQuota as number | null,
         isRecurring:          isRecurring ?? false,
         seriesId:             seriesId    ?? null,
         lat:                  lat != null && lat !== '' ? parseFloat(lat) : null,

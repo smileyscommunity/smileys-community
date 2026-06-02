@@ -104,25 +104,87 @@ export async function PUT(req: NextRequest, { params }: Params) {
     }
 
     const data: Record<string, unknown> = { ...rest }
-    const toInt = (v: unknown) => parseInt(String(v))
-    if (data.totalSpots  !== undefined) data.totalSpots  = toInt(data.totalSpots)  || 0
-    if (data.spotsLeft   !== undefined) data.spotsLeft   = toInt(data.spotsLeft)   || 0
-    if (data.price       !== undefined) data.price       = toInt(data.price)       || 0
-    if (data.memberPrice !== undefined && data.memberPrice !== null && data.memberPrice !== '')
-      data.memberPrice = toInt(data.memberPrice)
-    else if (data.memberPrice === '') data.memberPrice = null
-    if (data.minAge !== undefined && data.minAge !== null && data.minAge !== '')
-      data.minAge = toInt(data.minAge)
-    else if (data.minAge === '') data.minAge = null
-    if (data.maxAge !== undefined && data.maxAge !== null && data.maxAge !== '')
-      data.maxAge = toInt(data.maxAge)
-    else if (data.maxAge === '') data.maxAge = null
-    if (data.lat !== undefined && data.lat !== null && data.lat !== '')
-      data.lat = parseFloat(String(data.lat))
-    else if (data.lat === '' || data.lat === null) data.lat = null
-    if (data.lng !== undefined && data.lng !== null && data.lng !== '')
-      data.lng = parseFloat(String(data.lng))
-    else if (data.lng === '' || data.lng === null) data.lng = null
+
+    // #3 fix: same numeric + range validation as the POST handler.
+    // Was using `parseInt(v) || 0` which silently coerced
+    // negatives and non-numeric inputs to 0 — admin typo like
+    // 'twenty' became 0 spots, '-100' became -100 price. Now
+    // each numeric field carries an explicit bound and 400s on
+    // out-of-range.
+    const numField = (v: unknown, label: string, opts: { min?: number; max?: number; allowNull?: boolean } = {}):
+      number | null | { error: string } => {
+      const { min = 0, max = Infinity, allowNull = false } = opts
+      if (v === undefined || v === null || v === '') {
+        if (allowNull) return null
+        return { error: `${label} required` }
+      }
+      const n = Number(v)
+      if (!Number.isFinite(n)) return { error: `${label} must be a number` }
+      if (n < min) return { error: `${label} must be >= ${min}` }
+      if (n > max) return { error: `${label} must be <= ${max}` }
+      return n
+    }
+
+    const coerced: Array<[string, ReturnType<typeof numField>, { min?: number; max?: number; allowNull?: boolean }]> = [
+      ['totalSpots',       numField(data.totalSpots,       'totalSpots',       { min: 1, max: 10000, allowNull: true }),  { min: 1, max: 10000 }],
+      ['spotsLeft',        numField(data.spotsLeft,        'spotsLeft',        { min: 0, max: 10000, allowNull: true }),  { min: 0, max: 10000 }],
+      ['price',            numField(data.price,            'price',            { min: 0, max: 100000, allowNull: true }), { min: 0, max: 100000 }],
+      ['memberPrice',      numField(data.memberPrice,      'memberPrice',      { min: 0, max: 100000, allowNull: true }), { min: 0, max: 100000 }],
+      ['minAge',           numField(data.minAge,           'minAge',           { min: 0, max: 120, allowNull: true }),    { min: 0, max: 120 }],
+      ['maxAge',           numField(data.maxAge,           'maxAge',           { min: 0, max: 120, allowNull: true }),    { min: 0, max: 120 }],
+      ['maleQuota',        numField(data.maleQuota,        'maleQuota',        { min: 0, max: 10000, allowNull: true }),  { min: 0, max: 10000 }],
+      ['femaleQuota',      numField(data.femaleQuota,      'femaleQuota',      { min: 0, max: 10000, allowNull: true }),  { min: 0, max: 10000 }],
+      ['turkishMaleQuota', numField(data.turkishMaleQuota, 'turkishMaleQuota', { min: 0, max: 10000, allowNull: true }),  { min: 0, max: 10000 }],
+    ]
+    for (const [key, val] of coerced) {
+      if (val && typeof val === 'object' && 'error' in val) {
+        return NextResponse.json({ error: val.error }, { status: 400 })
+      }
+      if (key in data) data[key] = val
+    }
+
+    // Cross-field checks.
+    const N = (x: unknown) => typeof x === 'number' ? x : null
+    if (N(data.minAge) !== null && N(data.maxAge) !== null && (data.maxAge as number) < (data.minAge as number)) {
+      return NextResponse.json({ error: 'maxAge must be >= minAge' }, { status: 400 })
+    }
+    // Quota vs totalSpots — use the new value if it's being changed,
+    // otherwise the existing value from `before`.
+    const effectiveSpots = (data.totalSpots as number | null | undefined) ?? before.totalSpots
+    for (const q of ['maleQuota', 'femaleQuota', 'turkishMaleQuota'] as const) {
+      const v = N(data[q])
+      if (v !== null && v > effectiveSpots) {
+        return NextResponse.json({ error: `${q} (${v}) cannot exceed totalSpots (${effectiveSpots})` }, { status: 400 })
+      }
+    }
+    // spotsLeft can't exceed totalSpots when both are present.
+    if (N(data.spotsLeft) !== null && (data.spotsLeft as number) > effectiveSpots) {
+      return NextResponse.json({ error: 'spotsLeft cannot exceed totalSpots' }, { status: 400 })
+    }
+    // Date sanity if being changed.
+    if (data.date !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(String(data.date))) {
+      return NextResponse.json({ error: 'date must be YYYY-MM-DD' }, { status: 400 })
+    }
+    if (data.registrationDeadline && data.date &&
+        /^\d{4}-\d{2}-\d{2}$/.test(String(data.registrationDeadline)) &&
+        String(data.registrationDeadline) > String(data.date)) {
+      return NextResponse.json({ error: 'registrationDeadline cannot be after the event date' }, { status: 400 })
+    }
+
+    // lat / lng — keep float parsing but reject out-of-range.
+    const parseCoord = (v: unknown, label: string, lo: number, hi: number) => {
+      if (v === undefined) return undefined
+      if (v === null || v === '') return null
+      const n = parseFloat(String(v))
+      if (!Number.isFinite(n) || n < lo || n > hi) return { error: `${label} must be between ${lo} and ${hi}` }
+      return n
+    }
+    const latParsed = parseCoord(data.lat, 'lat', -90, 90)
+    const lngParsed = parseCoord(data.lng, 'lng', -180, 180)
+    if (latParsed && typeof latParsed === 'object' && 'error' in latParsed) return NextResponse.json({ error: latParsed.error }, { status: 400 })
+    if (lngParsed && typeof lngParsed === 'object' && 'error' in lngParsed) return NextResponse.json({ error: lngParsed.error }, { status: 400 })
+    if (latParsed !== undefined) data.lat = latParsed
+    if (lngParsed !== undefined) data.lng = lngParsed
 
     // Handle tag updates
     if (Array.isArray(tagIds)) {
