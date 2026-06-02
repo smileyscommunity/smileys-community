@@ -36,6 +36,38 @@ export async function sendVerificationEmail(email: string, name: string, token: 
   })
 }
 
+// Sent when someone tries to re-register an already-verified
+// account. Lets the legit owner act on it (sign in or rotate
+// password) without the register endpoint having to reveal
+// "this email is already in use" — which was an enumeration
+// vector. See app/api/auth/register/route.ts.
+export async function sendAlreadyRegisteredEmail(email: string, name: string) {
+  const loginUrl  = `${APP_URL}/login`
+  const forgotUrl = `${APP_URL}/forgot-password`
+  await getResend().emails.send({
+    from: FROM, to: email,
+    subject: 'Someone tried to register with your Smileys email',
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <div style="text-align:center;margin-bottom:24px">
+          <span style="font-size:40px">😊</span>
+          <h1 style="font-size:22px;font-weight:800;color:#111;margin:8px 0 4px">Hi ${name},</h1>
+          <p style="color:#6b7280;font-size:14px;margin:0">Someone just tried to register a Smileys account with this email — but you already have one.</p>
+        </div>
+        <a href="${loginUrl}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:12px">
+          Sign in
+        </a>
+        <p style="color:#6b7280;font-size:13px;text-align:center;margin:0 0 24px">
+          Forgot your password? <a href="${forgotUrl}" style="color:#f59e0b;font-weight:600;text-decoration:none">Reset it here</a>.
+        </p>
+        <p style="color:#9ca3af;font-size:12px;text-align:center">
+          If that wasn't you, you can safely ignore this email — your account is unchanged.
+        </p>
+      </div>
+    `,
+  })
+}
+
 export async function sendPasswordResetEmail(email: string, name: string, token: string) {
   const url = `${APP_URL}/reset-password?token=${token}`
   await getResend().emails.send({

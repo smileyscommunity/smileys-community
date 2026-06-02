@@ -2,8 +2,18 @@ import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 import { createSession } from '@/lib/session'
+import { rateLimit, getIp } from '@/lib/rateLimit'
 
+// A1 fix: every other auth route is rate-limited; activate was
+// the lone exception. Token is 256-bit so brute force is
+// infeasible, but a leaked activation link in a forwarded email
+// or compromised inbox could otherwise be replayed without
+// limit. Matches the verify-email cadence (10/min) — generous
+// because GET fires on every page render of the activation form.
 export async function GET(req: NextRequest) {
+  if (!await rateLimit(`activate:${getIp(req)}`, 10, 60_000)) {
+    return NextResponse.json({ error: 'Too many requests. Try again in a minute.' }, { status: 429 })
+  }
   const token = req.nextUrl.searchParams.get('token')
   if (!token) return NextResponse.json({ error: 'Missing token' }, { status: 400 })
 
@@ -35,6 +45,11 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  // Same rate limit as GET — protects the final activation step
+  // against brute-force replay of a leaked token URL.
+  if (!await rateLimit(`activate:${getIp(req)}`, 10, 60_000)) {
+    return NextResponse.json({ error: 'Too many requests. Try again in a minute.' }, { status: 429 })
+  }
   try {
     const { token, password, bio } = await req.json()
     if (!token || !password) return NextResponse.json({ error: 'All fields are required' }, { status: 400 })

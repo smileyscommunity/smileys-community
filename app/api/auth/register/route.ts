@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs'
 import { randomBytes } from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { createSession } from '@/lib/session'
-import { sendVerificationEmail } from '@/lib/email'
+import { sendVerificationEmail, sendAlreadyRegisteredEmail } from '@/lib/email'
 import { rateLimit, getIp } from '@/lib/rateLimit'
 import { verifyTurnstile } from '@/lib/turnstile'
 import { getPostHogClient, trackServer } from '@/lib/posthog-server'
@@ -38,11 +38,30 @@ export async function POST(req: NextRequest) {
     const normalizedEmail = email.toLowerCase().trim()
     const existing = await prisma.user.findUnique({
       where:  { email: normalizedEmail },
-      select: { id: true, emailVerified: true },
+      select: { id: true, name: true, email: true, emailVerified: true },
     })
     if (existing) {
       if (existing.emailVerified) {
-        return NextResponse.json({ error: 'Email already in use' }, { status: 409 })
+        // A2 fix: previous behaviour returned `"Email already in
+        // use"` — a clean yes/no enumeration oracle for whether an
+        // email belonged to a real account. Now we side-channel
+        // the helpful info through email (the legit owner sees a
+        // "someone tried to register with your email — sign in
+        // here?" message) and return a generic error to the
+        // client. The 4xx response status still flows through the
+        // existing frontend error handler.
+        //
+        // Residual asymmetry: the 4xx error path differs from the
+        // 200 success path, so a sufficiently sophisticated probe
+        // could still infer duplication from response shape. Fully
+        // closing that requires moving new-registration onto an
+        // email-verification-first flow (no auto-session). UX call
+        // for later.
+        sendAlreadyRegisteredEmail(existing.email, existing.name).catch(() => {})
+        return NextResponse.json(
+          { error: 'Registration could not be completed. Please check your email for next steps.' },
+          { status: 409 },
+        )
       }
       // The previous registration never verified the email, so we can't tell whether
       // it was the real applicant or a squatter who guessed an approved email. The

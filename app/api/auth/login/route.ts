@@ -51,10 +51,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
     }
 
-    // Account lockout check
+    // Account lockout check. A3 fix: the message used to read
+    // "Account locked due to too many failed attempts" which
+    // confirmed the email belonged to a real account. An attacker
+    // who probed past the 10-attempt threshold got a free yes/no
+    // answer on whether each email was registered. Now we return
+    // the same generic 429 we use for the IP-level rate limit so
+    // the two states are indistinguishable from the outside.
     if (user.loginLockedUntil && user.loginLockedUntil > new Date()) {
-      const until = user.loginLockedUntil.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
-      return NextResponse.json({ error: `Account locked due to too many failed attempts. Try again after ${until}.` }, { status: 429 })
+      return NextResponse.json({ error: 'Too many attempts. Try again later.' }, { status: 429 })
     }
 
     const valid = await bcrypt.compare(password, user.password)
