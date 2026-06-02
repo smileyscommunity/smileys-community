@@ -158,34 +158,13 @@ export async function POST(req: NextRequest) {
       `,
     })
 
-    // Auto-reply to the sender
-    await getResend().emails.send({
-      from:    `Smileys Community <${CONTACT_EMAIL}>`,
-      to:      email,
-      subject: "We've received your message 😊",
-      html: `
-        <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto;background:#fff;border-radius:12px;padding:32px;border:1px solid #e5e7eb">
-          <div style="text-align:center;margin-bottom:28px">
-            <span style="font-size:40px">😊</span>
-            <h2 style="color:#111827;margin:8px 0 0">Thanks, ${esc(name.split(' ')[0])}!</h2>
-          </div>
-          <p style="color:#374151;font-size:14px;line-height:1.6">
-            We've received your message and will get back to you within 24–48 hours.
-          </p>
-          <div style="background:#f9fafb;border-radius:8px;padding:16px 20px;margin:20px 0">
-            <p style="font-size:12px;font-weight:600;color:#6b7280;margin:0 0 4px">Your message</p>
-            <p style="font-size:13px;color:#374151;margin:0;white-space:pre-wrap">${message.trim().slice(0, 300)}${message.length > 300 ? '…' : ''}</p>
-          </div>
-          <p style="color:#6b7280;font-size:13px">
-            In the meantime, explore our upcoming events at
-            <a href="https://smileyscommunity.com/app/events" style="color:#f59e0b">smileyscommunity.com</a>
-          </p>
-          <p style="color:#9ca3af;font-size:12px;margin-top:24px">
-            Smileys Community · Istanbul, Turkey
-          </p>
-        </div>
-      `,
-    })
+    // No auto-reply. Sending one to whatever `email` was supplied turns this
+    // endpoint into a reflective email tool: an attacker could DOS or phish
+    // a victim by submitting `victim@example.com` and a crafted "Your message"
+    // that we'd then dutifully forward from our own domain (1/h/IP limit
+    // doesn't stop a distributed sender). The form's UI shows
+    // "Message received — we'll get back to you" so the sender doesn't need
+    // an email to feel acknowledged.
 
     return NextResponse.json({ ok: true })
   } catch (e) {

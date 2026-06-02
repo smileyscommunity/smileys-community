@@ -18,10 +18,18 @@ export async function POST(req: NextRequest, { params }: Params) {
   const body = await req.json().catch(() => ({}))
   const emoji: string = REACTION_EMOJIS.includes(body.emoji) ? body.emoji : '❤️'
 
+  // IDOR fix: scope the post by the slug's clubId so a member of a public
+  // club cannot react to a post in a private club they aren't approved for.
+  const [club, post] = await Promise.all([
+    prisma.club.findUnique({ where: { slug }, select: { id: true } }),
+    prisma.clubPost.findUnique({ where: { id: postId }, select: { id: true, clubId: true } }),
+  ])
+  if (!club || !post || post.clubId !== club.id) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
   // Verify club membership (or admin)
   if (session.role !== 'admin') {
-    const club = await prisma.club.findUnique({ where: { slug }, select: { id: true } })
-    if (!club) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     const membership = await prisma.clubMembership.findUnique({
       where: { userId_clubId: { userId: session.id, clubId: club.id } },
       select: { status: true },
@@ -30,9 +38,6 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Join this club to react' }, { status: 403 })
     }
   }
-
-  const post = await prisma.clubPost.findUnique({ where: { id: postId }, select: { id: true } })
-  if (!post) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const existing = await prisma.clubPostLike.findUnique({
     where: { postId_userId: { postId, userId: session.id } },

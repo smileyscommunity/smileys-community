@@ -73,8 +73,17 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const { slug, postId } = await params
 
-  const club = await prisma.club.findUnique({ where: { slug }, select: { id: true, name: true } })
-  if (!club) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  // IDOR fix: scope the post by the slug's clubId so a member of club A
+  // cannot reply to a post in private club B by passing
+  // `/api/clubs/A/posts/<B-post-id>` (which would then fan notifications
+  // out to club B's full membership).
+  const [club, post] = await Promise.all([
+    prisma.club.findUnique({ where: { slug }, select: { id: true, name: true } }),
+    prisma.clubPost.findUnique({ where: { id: postId }, select: { id: true, clubId: true } }),
+  ])
+  if (!club || !post || post.clubId !== club.id) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
 
   if (session.role !== 'admin' && session.role !== 'moderator') {
     const membership = await prisma.clubMembership.findUnique({
@@ -85,12 +94,6 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Join this club to reply' }, { status: 403 })
     }
   }
-
-  const post = await prisma.clubPost.findUnique({
-    where: { id: postId },
-    select: { id: true },
-  })
-  if (!post) return NextResponse.json({ error: 'Post not found' }, { status: 404 })
 
   const { content } = await req.json()
   if (!content?.trim()) return NextResponse.json({ error: 'Content is required' }, { status: 400 })

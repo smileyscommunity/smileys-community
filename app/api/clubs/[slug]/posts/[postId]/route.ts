@@ -13,11 +13,20 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const { slug, postId } = await params
   const { isPinned } = await req.json()
 
+  // IDOR fix: scope the post lookup by the slug's clubId so a host of club
+  // A cannot pin a post in club B by passing `/api/clubs/A/posts/<B-post-id>`.
+  // We fetch club + post + (conditionally) membership in parallel.
+  const [club, post] = await Promise.all([
+    prisma.club.findUnique({ where: { slug }, select: { id: true } }),
+    prisma.clubPost.findUnique({ where: { id: postId }, select: { id: true, clubId: true } }),
+  ])
+  if (!club || !post || post.clubId !== club.id) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
   // Only club hosts, admins, or moderators can pin
   const isPrivilegedPin = isAdminOrModerator(session)
   if (!isPrivilegedPin) {
-    const club = await prisma.club.findUnique({ where: { slug }, select: { id: true } })
-    if (!club) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     const membership = await prisma.clubMembership.findUnique({
       where: { userId_clubId: { userId: session.id, clubId: club.id } },
       select: { role: true, status: true },
@@ -27,12 +36,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
   }
 
-  const post = await prisma.clubPost.update({
+  const updated = await prisma.clubPost.update({
     where: { id: postId },
     data: { isPinned: !!isPinned, pinnedAt: isPinned ? new Date() : null },
     select: { id: true, isPinned: true },
   })
-  return NextResponse.json(post)
+  return NextResponse.json(updated)
 }
 
 export async function DELETE(req: NextRequest, { params }: Params) {
@@ -43,8 +52,14 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   }
 
   const { slug, postId } = await params
-  const post = await prisma.clubPost.findUnique({ where: { id: postId }, select: { userId: true, clubId: true } })
-  if (!post) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  // IDOR fix: scope the post lookup by the slug's clubId — see PATCH above.
+  const [club, post] = await Promise.all([
+    prisma.club.findUnique({ where: { slug }, select: { id: true } }),
+    prisma.clubPost.findUnique({ where: { id: postId }, select: { userId: true, clubId: true } }),
+  ])
+  if (!club || !post || post.clubId !== club.id) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
 
   const isOwner      = post.userId === session.id
   const isPrivileged = isAdminOrModerator(session)

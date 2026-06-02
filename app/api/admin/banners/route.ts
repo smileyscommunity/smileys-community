@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
+import { isSafeHref } from '@/lib/safeUrl'
 import { readFileSync, writeFileSync, mkdirSync } from 'fs'
 import { join } from 'path'
 
@@ -71,7 +72,9 @@ export async function POST(req: NextRequest) {
   }
 
   // Validate and sanitize each banner
-  const sanitized = banners.map((b: any, index: number) => {
+  const sanitized: any[] = []
+  for (let index = 0; index < banners.length; index++) {
+    const b = banners[index]
     const headline = String(b.headline ?? '').trim().slice(0, 100)
     const subtitle = String(b.subtitle ?? '').trim().slice(0, 160)
     const cta      = String(b.cta ?? '').trim().slice(0, 40)
@@ -80,13 +83,23 @@ export async function POST(req: NextRequest) {
     const active   = !!b.active
     const link     = String(b.link ?? '').trim().slice(0, 2000)
 
-    return {
+    // Reject `javascript:` / `data:` URLs — banners render directly as
+    // <a href={link}> on dashboard, guide, neighborhoods, and the ad strip.
+    // Empty link is allowed (non-clickable banner).
+    if (link && !isSafeHref(link)) {
+      return NextResponse.json(
+        { error: `Banner ${index + 1}: link must be https:// or a /relative path` },
+        { status: 400 },
+      )
+    }
+
+    sanitized.push({
       id: b.id || `${page}_${Date.now()}_${index}`,
       page, type, active, headline, subtitle, emoji, link, cta,
       bg: b.bg || '',
       updatedAt: new Date().toISOString(),
-    }
-  })
+    })
+  }
 
   const all = read()
   all[page as BannerPage] = sanitized

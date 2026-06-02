@@ -19,11 +19,17 @@ export async function DELETE(_: NextRequest, { params }: Params) {
 
     const { id } = await params
 
-    if (clubHost) {
-      const event = await prisma.event.findUnique({ where: { id }, select: { hostId: true } })
-      if (!event || event.hostId !== session.id) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-      }
+    // City-scope check for non-admins (moderators + club hosts both need it
+    // here — the previous DELETE handler gated only on hostId for club hosts
+    // and let any moderator delete any event in any city).
+    const eventScope = await prisma.event.findUnique({ where: { id }, select: { hostId: true, cityId: true } })
+    if (!eventScope) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+    if (clubHost && eventScope.hostId !== session.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+    if (!isAdmin(session) && session.cityId !== eventScope.cityId) {
+      return NextResponse.json({ error: 'Cross-city moderation is admin-only' }, { status: 403 })
     }
 
     await prisma.$transaction([
@@ -53,7 +59,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
     const before = await prisma.event.findUnique({
       where: { id },
       select: {
-        hostId: true, clubId: true, date: true, time: true, location: true, title: true,
+        hostId: true, clubId: true, cityId: true, date: true, time: true, location: true, title: true,
         neighborhood: true, price: true, memberPrice: true, totalSpots: true,
         emoji: true, isPremium: true, membersOnly: true, limitedSpots: true, status: true,
         seriesId: true,
@@ -63,6 +69,12 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
     if (clubHost && before.hostId !== session.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+    // City-scope check for non-admins. Previously a moderator could edit
+    // events in any city — including emailing cancellation notices to
+    // every attendee. Admins act globally.
+    if (!isAdmin(session) && session.cityId !== before.cityId) {
+      return NextResponse.json({ error: 'Cross-city moderation is admin-only' }, { status: 403 })
     }
 
     const body = await req.json()

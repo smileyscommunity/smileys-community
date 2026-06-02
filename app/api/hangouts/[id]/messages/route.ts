@@ -8,11 +8,28 @@ import { createNotification } from '@/lib/notify'
 // "we're at the back table"). Host + everyone who tapped "I'm in" gets a
 // push on each new message (except the sender).
 
+// Helper: chat is private to the host + everyone who tapped "I'm in".
+// Any other logged-in member would otherwise be able to read coordination
+// chat ("we're at the back table") and post into it (which fan-pushes
+// notifications to the whole party).
+async function callerInHangout(hangoutId: string, userId: string): Promise<boolean> {
+  const [host, join] = await Promise.all([
+    prisma.hangout.findUnique({ where: { id: hangoutId }, select: { userId: true } }),
+    prisma.hangoutJoin.findUnique({ where: { hangoutId_userId: { hangoutId, userId } }, select: { userId: true } }),
+  ])
+  if (!host) return false
+  return host.userId === userId || !!join
+}
+
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { id: hangoutId } = await params
+  if (!await callerInHangout(hangoutId, session.id)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
   const messages = await prisma.hangoutMessage.findMany({
     where:   { hangoutId },
     orderBy: { createdAt: 'asc' },
@@ -44,6 +61,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!hangout) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (hangout.status !== 'active' || hangout.endsAt < new Date()) {
     return NextResponse.json({ error: 'Hangout already ended' }, { status: 400 })
+  }
+  // Membership gate — host or a joiner only. Without this, any logged-in
+  // member could post into another party's chat and fan a push to the
+  // host + every joiner.
+  if (hangout.userId !== session.id) {
+    const join = await prisma.hangoutJoin.findUnique({
+      where: { hangoutId_userId: { hangoutId, userId: session.id } },
+      select: { userId: true },
+    })
+    if (!join) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const message = await prisma.hangoutMessage.create({

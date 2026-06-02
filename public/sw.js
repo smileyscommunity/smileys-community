@@ -27,7 +27,13 @@
 //                  that can be dropped anywhere — portaling makes
 //                  them immune to any future ancestor with
 //                  backdrop-filter / transform / filter.
-const CACHE = 'smileys-v8'
+// v9: 2026-06-02 — Security audit round 2: cross-club post IDOR
+//                  fixes, admin events city scope, hangout chat
+//                  membership gate, email HTML-escape, JSON-LD
+//                  </script> escape, URL protocol allowlist on
+//                  banners/sponsors/partners, contact-form auto-
+//                  reply removed, HSTS header added.
+const CACHE = 'smileys-v9'
 
 // API endpoints to cache for offline use (network-first, cache fallback)
 const OFFLINE_APIS = ['/app/api/events/attending']

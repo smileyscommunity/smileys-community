@@ -17,10 +17,18 @@ export async function POST(req: NextRequest, { params }: Params) {
   const { optionId } = await req.json()
   if (!optionId) return NextResponse.json({ error: 'optionId required' }, { status: 400 })
 
+  // IDOR fix: scope the post by the slug's clubId so a non-member of the
+  // poll's actual club cannot vote in (or toggle) its options.
+  const [club, post] = await Promise.all([
+    prisma.club.findUnique({ where: { slug }, select: { id: true } }),
+    prisma.clubPost.findUnique({ where: { id: postId }, select: { clubId: true } }),
+  ])
+  if (!club || !post || post.clubId !== club.id) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
   // Verify user is a member of this club (or admin)
   if (session.role !== 'admin') {
-    const club = await prisma.club.findUnique({ where: { slug }, select: { id: true } })
-    if (!club) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     const membership = await prisma.clubMembership.findUnique({
       where: { userId_clubId: { userId: session.id, clubId: club.id } },
       select: { status: true },

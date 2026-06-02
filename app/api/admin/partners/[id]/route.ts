@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { canManagePartners } from '@/lib/access'
+import { isSafeHref } from '@/lib/safeUrl'
 import { writeAudit } from '@/lib/audit'
 
 type Params = { params: Promise<{ id: string }> }
@@ -17,6 +18,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const data: Record<string, unknown> = {}
   for (const key of allowed) {
     if (key in body) data[key] = body[key]
+  }
+
+  // URL fields render as <a href> on /partner and /perks — reject
+  // `javascript:` / `data:` schemes. Empty string is allowed (unset).
+  for (const urlKey of ['website', 'instagram'] as const) {
+    if (urlKey in data && data[urlKey] && !isSafeHref(String(data[urlKey]))) {
+      return NextResponse.json({ error: `${urlKey} must be https:// or a /relative path` }, { status: 400 })
+    }
   }
 
   const partner = await prisma.partner.update({ where: { id }, data })

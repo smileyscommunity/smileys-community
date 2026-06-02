@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
+import { isSafeHref } from '@/lib/safeUrl'
 import { writeAudit } from '@/lib/audit'
 
 // Mirror of the prizes admin route but for CupSponsor. Same auth,
@@ -48,6 +49,11 @@ export async function POST(req: NextRequest) {
   const p = parsePayload(body)
   if (!p.name)                                   return NextResponse.json({ error: 'name required' }, { status: 400 })
   if (!p.slug || !SLUG_RE.test(p.slug))          return NextResponse.json({ error: 'slug must be lowercase letters, digits, hyphens' }, { status: 400 })
+  // Reject `javascript:` / `data:` in URL fields — these render as <a href>/<img src>
+  // on the cup page. Defense-in-depth even though the route is admin-only.
+  if (p.websiteUrl  && !isSafeHref(p.websiteUrl))  return NextResponse.json({ error: 'websiteUrl must be https:// or mailto:' }, { status: 400 })
+  if (p.logoUrl     && !isSafeHref(p.logoUrl))     return NextResponse.json({ error: 'logoUrl must be https:// or a /relative path' }, { status: 400 })
+  if (p.instagramUrl && !isSafeHref(p.instagramUrl)) return NextResponse.json({ error: 'instagramUrl must be https://' }, { status: 400 })
 
   // Optional campaignId — when admin creates from the campaign-
   // detail Board panel the row is scoped to that campaign. When
@@ -88,6 +94,10 @@ export async function PATCH(req: NextRequest) {
 
   const p = parsePayload(body)
   if (p.slug && !SLUG_RE.test(p.slug)) return NextResponse.json({ error: 'slug must be lowercase letters, digits, hyphens' }, { status: 400 })
+  // Same scheme allowlist as POST.
+  if (p.websiteUrl  && !isSafeHref(p.websiteUrl))  return NextResponse.json({ error: 'websiteUrl must be https:// or mailto:' }, { status: 400 })
+  if (p.logoUrl     && !isSafeHref(p.logoUrl))     return NextResponse.json({ error: 'logoUrl must be https:// or a /relative path' }, { status: 400 })
+  if (p.instagramUrl && !isSafeHref(p.instagramUrl)) return NextResponse.json({ error: 'instagramUrl must be https://' }, { status: 400 })
 
   const data: Record<string, unknown> = {}
   if (p.name)                                                   data.name         = p.name

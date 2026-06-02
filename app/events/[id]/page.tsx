@@ -221,7 +221,18 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
     <div className="min-h-screen bg-warm pb-36 md:pb-28 lg:pb-10">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        // JSON.stringify does NOT escape `<` so a host putting
+        // `</script><script>alert(1)` in event.title (or any other
+        // user-controlled field that lands in jsonLd above) would
+        // break out of this script tag — stored XSS. Escape `<`
+        // and the unicode line separators U+2028 / U+2029 (which
+        // terminate JS string literals).
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(jsonLd)
+            .replace(/</g, '\\u003c')
+            .replace(/\u2028/g, '\\u2028')
+            .replace(/\u2029/g, '\\u2029'),
+        }}
       />
       {/* Back */}
       <div className="bg-white border-b border-gray-100 sticky top-0 z-10">
