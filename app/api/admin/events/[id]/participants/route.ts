@@ -7,6 +7,86 @@ import { sendEventApprovedEmail, sendEventRejectedEmail } from '@/lib/email'
 import { autoJoinClub } from '@/lib/autoJoinClub'
 import { sendPushToUser } from '@/lib/push'
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
+import { writeAudit } from '@/lib/audit'
+
+// AD2 helper: when an admin removes an attendee, handle their
+// payments the same way the member-cancel flow does. Pending
+// payments → cancelled with a PaymentLog (note: "Admin removed
+// attendee"). Paid payments → stay paid (money was actually
+// collected) but write an informational PaymentLog flagging
+// refund-pending. Plus a global audit entry on the user level
+// so cross-event admin actions are queryable.
+//
+// Returns nothing — fire-and-forget shape. The caller has
+// already removed the attendee row; this just cleans up the
+// financial trail.
+async function auditAttendeeRemoval(opts: {
+  session: { id: string; name: string }
+  userId: string
+  eventId: string
+  reason: 'delete' | 'reject'
+  eventTitle?: string | null
+}) {
+  const { session, userId, eventId, reason, eventTitle } = opts
+  const reasonLabel = reason === 'reject' ? 'Admin rejected RSVP' : 'Admin removed attendee'
+
+  const [pending, paid] = await Promise.all([
+    prisma.payment.findMany({
+      where:  { userId, eventId, status: 'pending' },
+      select: { id: true, amount: true, currency: true },
+    }),
+    prisma.payment.findMany({
+      where:  { userId, eventId, status: 'paid' },
+      select: { id: true, amount: true, currency: true },
+    }),
+  ])
+
+  if (pending.length > 0) {
+    await prisma.$transaction([
+      prisma.payment.updateMany({
+        where: { userId, eventId, status: 'pending' },
+        data: { status: 'cancelled' },
+      }),
+      prisma.paymentLog.createMany({
+        data: pending.map(p => ({
+          paymentId:  p.id,
+          adminId:    session.id,
+          adminName:  session.name,
+          fromStatus: 'pending',
+          toStatus:   'cancelled',
+          note:       `${reasonLabel} (₺${p.amount} ${p.currency})`,
+        })),
+      }),
+    ])
+  }
+
+  if (paid.length > 0) {
+    await prisma.paymentLog.createMany({
+      data: paid.map(p => ({
+        paymentId:  p.id,
+        adminId:    session.id,
+        adminName:  session.name,
+        fromStatus: null,
+        toStatus:   null,
+        note:       `${reasonLabel} — payment still 'paid', refund pending review (₺${p.amount} ${p.currency})`,
+      })),
+    })
+  }
+
+  writeAudit(session.id, session.name, `attendee.${reason}`, eventId, 'event',
+    {
+      userId,
+      pendingCount: pending.length,
+      paidCount:    paid.length,
+      paidTotal:    paid.reduce((s, p) => s + p.amount, 0),
+    },
+    `${reasonLabel}${eventTitle ? ` for "${eventTitle}"` : ''} (member: ${userId}${
+      pending.length || paid.length
+        ? ` — payments: ${pending.length} pending → cancelled, ${paid.length} paid still need refund review`
+        : ''
+    })`,
+  )
+}
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -98,6 +178,19 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       prisma.event.findUnique({ where: { id: eventId }, select: { title: true, approvalRequired: true, totalSpots: true } }),
     ])
     await prisma.eventAttendee.deleteMany({ where: { eventId, userId } })
+
+    // AD2 fix: handle the member's payments + write an audit row.
+    // Previously the admin path silently deleted attendees and
+    // left pending payment rows hanging in 'pending' forever +
+    // paid rows with no record that the underlying RSVP was
+    // gone. Now matches the member-cancel flow (PR-A / P2 / P8).
+    await auditAttendeeRemoval({
+      session,
+      userId,
+      eventId,
+      reason:     'delete',
+      eventTitle: eventRow?.title,
+    })
 
     if (entry?.status === 'approved') {
       // Promote first person on waitlist, or free the spot
@@ -219,6 +312,17 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       }
     } else if (action === 'reject') {
       await prisma.eventAttendee.delete({ where: { userId_eventId: { userId, eventId } } })
+      // AD2 fix: reject path needs the same payment-aware audit
+      // as DELETE. A rejected RSVP is functionally identical to
+      // an admin-removed attendee from the payment side — pending
+      // rows get cancelled, paid rows need refund review.
+      await auditAttendeeRemoval({
+        session,
+        userId,
+        eventId,
+        reason:     'reject',
+        eventTitle: event?.title,
+      })
       createNotification(userId, 'rsvp_pending', 'Request not approved', `Unfortunately your request for "${event?.title}" was not approved this time.`, `/events/${eventId}`)
       if (user?.email && event) {
         sendEventRejectedEmail(user.email, user.name, event.title).catch(() => {})
