@@ -12,15 +12,21 @@ import { rateLimit } from '@/lib/rateLimit'
 // UI would silently fall back to default styles, leaving the
 // row unfilterable. Locking the set here is the only place the
 // state machine is enforced server-side.
-const ALLOWED_STATUSES = new Set(['paid', 'pending', 'refunded', 'failed'])
+//
+// `cancelled` is a real DB value (member self-cancel via the RSVP
+// route writes it). Adding it here means admin can also mark
+// rows as cancelled manually when the RSVP/payment pair gets out
+// of sync. Like refunded it's terminal — see TERMINAL_STATUSES.
+const ALLOWED_STATUSES = new Set(['paid', 'pending', 'refunded', 'failed', 'cancelled'])
 
-// Refunded is terminal at the API level. The previous cycle
-// (refunded → pending → paid) meant a stray double-click could
-// quietly "un-refund" a payment after the member had already
-// received the refund email. Un-refunding now requires a
-// deliberate out-of-band action (DB edit or a future dedicated
-// admin tool), not an accidental button press.
-const TERMINAL_STATUSES = new Set(['refunded'])
+// Refunded + cancelled are terminal at the API level. Refunded
+// meant a stray double-click could quietly "un-refund" a payment
+// after the member had already received the refund email; cancelled
+// is the same shape on the negative side — reverting back to pending
+// could re-charge a member who already moved on. Un-doing either
+// now requires a deliberate out-of-band action (DB edit or a future
+// dedicated admin tool), not an accidental button press.
+const TERMINAL_STATUSES = new Set(['refunded', 'cancelled'])
 
 // Notes have no length cap on the schema; cap here so a 50 KB
 // note can't land on a single PATCH. Matches the rough length of

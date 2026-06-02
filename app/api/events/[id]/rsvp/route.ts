@@ -304,6 +304,17 @@ export async function DELETE(req: NextRequest, { params }: Params) {
 
     const wasApproved = existing.status === 'approved'
 
+    // P2 fix: capture which pending payments will get cancelled so we
+    // can write a PaymentLog row for each one. Previously the
+    // updateMany flipped status to 'cancelled' silently — admin
+    // viewing the audit trail on a cancelled row saw "no changes
+    // recorded" because the PR 1 audit work only covered admin-
+    // initiated mutations from the payments route.
+    const pendingToCancel = await prisma.payment.findMany({
+      where:  { userId: session.id, eventId, status: 'pending' },
+      select: { id: true, amount: true, currency: true },
+    })
+
     await prisma.$transaction([
       prisma.eventAttendee.delete({ where: { userId_eventId: { userId: session.id, eventId } } }),
       // Void any pending payment so no orphaned records remain
@@ -311,6 +322,23 @@ export async function DELETE(req: NextRequest, { params }: Params) {
         where: { userId: session.id, eventId, status: 'pending' },
         data: { status: 'cancelled' },
       }),
+      ...(pendingToCancel.length > 0 ? [
+        // PaymentLog uses the member's session id/name in the actor
+        // slot — the column is just a String, not a FK to admin role.
+        // The note prefix "Member self-cancel" lets the admin payments
+        // page distinguish these from admin-initiated cancellations at
+        // a glance.
+        prisma.paymentLog.createMany({
+          data: pendingToCancel.map(p => ({
+            paymentId:  p.id,
+            adminId:    session.id,
+            adminName:  session.name,
+            fromStatus: 'pending',
+            toStatus:   'cancelled',
+            note:       `Member self-cancel via RSVP cancellation (₺${p.amount} ${p.currency})`,
+          })),
+        }),
+      ] : []),
     ])
 
     // Promote first person on waitlist (spot stays filled — no net change to spotsLeft)

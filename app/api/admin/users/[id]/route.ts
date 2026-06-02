@@ -304,7 +304,41 @@ export async function DELETE(_: NextRequest, { params }: Params) {
 
     const target = await prisma.user.findUnique({ where: { id }, select: { name: true, email: true } })
 
+    // P1 fix: snapshot every payment row + write a per-payment
+    // "deletion" PaymentLog before the user.delete cascade vaporises
+    // them. Previously a single user-delete blew away all of that
+    // user's payment history with no financial trail at all — the
+    // PR 1 audit work on the admin payments page was undermined here
+    // because there was no per-payment record left to query.
+    //
+    // PaymentLog has no FK relation in the schema, so the rows
+    // survive the cascade and remain queryable by paymentId. The
+    // global audit row aggregates the financial impact so the
+    // user-removal event in the audit log self-documents.
+    const payments = await prisma.payment.findMany({
+      where:  { userId: id },
+      select: { id: true, amount: true, currency: true, status: true, eventId: true, createdAt: true },
+    })
+
+    // PaymentLog inserts live inside the $transaction so they roll
+    // back together with the cascade if any step fails — admin
+    // retrying after a partial failure won't see ghost "deleted"
+    // log entries pointing at payments that are actually still
+    // present. Spread conditionally so the array stays empty when
+    // there are no payments to record.
     await prisma.$transaction([
+      ...(payments.length > 0 ? [
+        prisma.paymentLog.createMany({
+          data: payments.map(p => ({
+            paymentId:  p.id,
+            adminId:    session.id,
+            adminName:  session.name,
+            fromStatus: p.status,
+            toStatus:   'deleted',
+            note:       `Payment deleted as part of user removal (₺${p.amount}, ${p.currency}, was ${p.status})`,
+          })),
+        }),
+      ] : []),
       prisma.eventAttendee.deleteMany({ where: { userId: id } }),
       prisma.clubMembership.deleteMany({ where: { userId: id } }),
       prisma.notification.deleteMany({ where: { userId: id } }),
@@ -319,9 +353,23 @@ export async function DELETE(_: NextRequest, { params }: Params) {
       prisma.user.delete({ where: { id } }),
     ])
 
+    // Roll the payment impact into the user.remove audit entry so the
+    // audit log row is self-documenting (no need to cross-reference
+    // payment_logs to know what was lost).
+    const paymentSummary = payments.length === 0 ? null : {
+      count:       payments.length,
+      totalAmount: payments.reduce((s, p) => s + p.amount, 0),
+      byStatus:    payments.reduce<Record<string, number>>((acc, p) => {
+        acc[p.status] = (acc[p.status] ?? 0) + 1
+        return acc
+      }, {}),
+      ids:         payments.map(p => p.id),
+    }
     writeAudit(session.id, session.name, 'user.remove', id, 'user',
-      { name: target?.name, email: target?.email },
-      `User ${target?.name ?? id} (${target?.email ?? ''}) permanently removed`,
+      { name: target?.name, email: target?.email, payments: paymentSummary },
+      `User ${target?.name ?? id} (${target?.email ?? ''}) permanently removed${
+        paymentSummary ? ` — ${paymentSummary.count} payment${paymentSummary.count === 1 ? '' : 's'} destroyed (₺${paymentSummary.totalAmount.toLocaleString()} across ${Object.entries(paymentSummary.byStatus).map(([s, n]) => `${n} ${s}`).join(', ')})` : ''
+      }`,
     )
 
     return NextResponse.json({ ok: true })
