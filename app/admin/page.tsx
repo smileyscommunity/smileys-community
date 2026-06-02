@@ -16,6 +16,11 @@ interface Stats {
   newMembersThisMonth: number
   revenueCollected: number; revenuePending: number; pendingPayments: number
   pendingApplications: number; pendingReports: number
+  // #4 monitoring — count of email_failures rows in the last 24h.
+  // Anything > 0 means SMTP/Resend is probably broken and members
+  // are missing transactional emails. Surfaced as a red alert pill
+  // so admin sees it before they hear from confused members.
+  emailFailures24h: number
   trends: { members: number; rsvps: number; revenue: number }
   hangouts:   {
     active: number; today: number; referencesWeek: number
@@ -183,6 +188,14 @@ export default function AdminPage() {
     stats.pendingReports > 0 && {
       icon: '🚨', label: `${stats.pendingReports} report${stats.pendingReports !== 1 ? 's' : ''} to review`,
       href: '/admin/moderation', color: 'border-red-500/30 bg-red-500/5 text-red-400',
+    },
+    // #4 monitoring — sits at the high-severity end of the alerts row
+    // because a broken SMTP means refunds + verifications + lockout
+    // alerts are all silently dropping. Links to the audit page where
+    // the underlying failures are queryable.
+    stats.emailFailures24h > 0 && {
+      icon: '📭', label: `${stats.emailFailures24h} email failure${stats.emailFailures24h !== 1 ? 's' : ''} (24h)`,
+      href: '/admin/audit?action=email', color: 'border-red-500/30 bg-red-500/5 text-red-400',
     },
     // Visitors pill — soft signal, not a "do something" alert. Sits in the
     // same row so admins see "what's happening" + "what needs me" together.

@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { createSession } from '@/lib/session'
 import { rateLimit, getIp } from '@/lib/rateLimit'
 import { verifyTurnstile } from '@/lib/turnstile'
-import { sendNewDeviceLoginEmail, sendAccountLockedEmail } from '@/lib/email'
+import { sendNewDeviceLoginEmail, sendAccountLockedEmail, recordEmailFailure } from '@/lib/email'
 import { sendPushToUser } from '@/lib/push'
 import { SignJWT } from 'jose'
 
@@ -76,7 +76,10 @@ export async function POST(req: NextRequest) {
         // forcing their account; silent swallow means they don't
         // know to rotate their password.
         sendAccountLockedEmail(user.email, user.name)
-          .catch(err => console.error('[auth login] sendAccountLockedEmail failed', { userId: user.id, err: String(err) }))
+          .catch(async err => {
+            console.error('[auth login] sendAccountLockedEmail failed', { userId: user.id, err: String(err) })
+            await recordEmailFailure({ helper: 'sendAccountLockedEmail', recipient: user.email, error: err, context: { userId: user.id } })
+          })
       }
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
     }
@@ -143,7 +146,10 @@ export async function POST(req: NextRequest) {
       // EM5 fix: new-device email is a security signal — silent
       // SMTP failure means a compromised login goes un-noticed.
       sendNewDeviceLoginEmail(user.email, user.name, loginIp, `${loginTime} Istanbul`)
-        .catch(err => console.error('[auth login] sendNewDeviceLoginEmail failed', { userId: user.id, loginIp, err: String(err) }))
+        .catch(async err => {
+          console.error('[auth login] sendNewDeviceLoginEmail failed', { userId: user.id, loginIp, err: String(err) })
+          await recordEmailFailure({ helper: 'sendNewDeviceLoginEmail', recipient: user.email, error: err, context: { userId: user.id, loginIp } })
+        })
       sendPushToUser(user.id, {
         title: '🔐 New login detected',
         body: `Your account was accessed from a new IP: ${loginIp}`,

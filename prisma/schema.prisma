@@ -1141,6 +1141,33 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+// #4 monitoring: every send*Email .catch path that previously
+// went silent now also writes a row here. Lets the admin
+// dashboard alert when SMTP/Resend is broken instead of waiting
+// for members to complain. Auto-pruned by the existing
+// retention sweeper (see /admin/retention).
+model EmailFailure {
+  id         String   @id @default(cuid())
+  // The function name from lib/email.ts, e.g. 'sendRefundEmail'
+  // — used for grouping in the dashboard ("X failures of type Y").
+  helper     String
+  // The recipient email (already in our DB; this column is for
+  // quick eyeballing without joining back through context).
+  recipient  String
+  // Error message from the helper. Capped at 500 to bound row
+  // size — full stack lives in the server console.
+  error      String
+  // Whatever context the caller had (paymentId, eventId, userId,
+  // etc.) so an admin investigating can grep their way to the
+  // specific record without leaving the dashboard.
+  context    Json?
+  createdAt  DateTime @default(now())
+
+  @@index([helper])
+  @@index([createdAt])
+  @@map("email_failures")
+}
+
 model ClubPost {
   id        String    @id @default(cuid())
   clubId    String

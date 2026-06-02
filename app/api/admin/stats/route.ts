@@ -143,10 +143,18 @@ export async function GET() {
   const firstEvent   = groups.length
   const repeatEvent  = groups.filter(g => g._count._all >= 2).length
 
+  // #4: email-failure count in the last 24h, surfaced on the
+  // dashboard alerts row. Anything > 0 means SMTP/Resend is
+  // probably broken and members are missing transactional emails.
+  // Cheap query — indexed on createdAt.
+  const emailFailures24h = await prisma.emailFailure.count({
+    where: { createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
+  })
+
   return NextResponse.json({
     totalAccounts, members, hosts, events, upcoming, rsvps,
     newMembersThisMonth, revenueCollected, revenuePending, pendingPayments,
-    pendingApplications, pendingReports,
+    pendingApplications, pendingReports, emailFailures24h,
     trends: {
       members: calcTrend(newMembersThisMonth, prevMembersMonth),
       rsvps:   calcTrend(rsvpsThisMonth, prevRsvpsMonth),

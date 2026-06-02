@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { writeAudit } from '@/lib/audit'
-import { sendRefundEmail } from '@/lib/email'
+import { sendRefundEmail, recordEmailFailure } from '@/lib/email'
 import { rateLimit } from '@/lib/rateLimit'
 
 // Allowlist of statuses the API accepts on PATCH. Previously the
@@ -230,6 +230,7 @@ export async function PATCH(req: NextRequest) {
       } catch (err) {
         refundEmailSent = false
         console.error('[payments PATCH] refund email failed', { paymentId: id, err: String(err) })
+        await recordEmailFailure({ helper: 'sendRefundEmail', recipient: updated.user.email, error: err, context: { paymentId: id, userId: updated.user.email } })
       }
     }
   } else if (notes !== undefined && (current.notes ?? '') !== (notes ?? '')) {

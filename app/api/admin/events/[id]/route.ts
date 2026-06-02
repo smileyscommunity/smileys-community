@@ -4,7 +4,7 @@ import { getSession } from '@/lib/session'
 import { isAdmin, isAdminOrModerator, isClubHost, isClubHostFor } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
 import { writeAudit, getDiff } from '@/lib/audit'
-import { sendEventCancelledEmail } from '@/lib/email'
+import { sendEventCancelledEmail, recordEmailFailure } from '@/lib/email'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -260,8 +260,11 @@ export async function PUT(req: NextRequest, { params }: Params) {
         // able by eventId.
         const emailResults = await Promise.all(attendees.map(a =>
           sendEventCancelledEmail(a.user.email, a.user.name ?? 'Member', before.title, before.date)
-            .then(() => ({ ok: true }))
-            .catch(err => ({ ok: false, err: String(err), email: a.user.email })),
+            .then(() => ({ ok: true as const }))
+            .catch(async err => {
+              await recordEmailFailure({ helper: 'sendEventCancelledEmail', recipient: a.user.email, error: err, context: { eventId: id, userId: a.userId } })
+              return { ok: false as const, err: String(err), email: a.user.email }
+            }),
         ))
         const failures = emailResults.filter(r => !r.ok)
         if (failures.length > 0) {

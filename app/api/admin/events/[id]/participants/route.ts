@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin, isClubHost } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
-import { sendEventApprovedEmail, sendEventRejectedEmail } from '@/lib/email'
+import { sendEventApprovedEmail, sendEventRejectedEmail, recordEmailFailure } from '@/lib/email'
 import { autoJoinClub } from '@/lib/autoJoinClub'
 import { sendPushToUser } from '@/lib/push'
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
@@ -314,7 +314,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         // it landed. Surface via server log so it's at least
         // grep-able by eventId/userId when complaints come in.
         sendEventApprovedEmail(user.email, user.name, event.title, event.date, event.neighborhood ?? '', eventId)
-          .catch(err => console.error('[participants PATCH approve] sendEventApprovedEmail failed', { eventId, userId, err: String(err) }))
+          .catch(err => {
+            console.error('[participants PATCH approve] sendEventApprovedEmail failed', { eventId, userId, err: String(err) })
+            return recordEmailFailure({ helper: 'sendEventApprovedEmail', recipient: user.email, error: err, context: { eventId, userId } })
+          })
       }
     } else if (action === 'reject') {
       await prisma.eventAttendee.delete({ where: { userId_eventId: { userId, eventId } } })
@@ -333,7 +336,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       if (user?.email && event) {
         // EM1 fix: same logging treatment as the approve path.
         sendEventRejectedEmail(user.email, user.name, event.title)
-          .catch(err => console.error('[participants PATCH reject] sendEventRejectedEmail failed', { eventId, userId, err: String(err) }))
+          .catch(err => {
+            console.error('[participants PATCH reject] sendEventRejectedEmail failed', { eventId, userId, err: String(err) })
+            return recordEmailFailure({ helper: 'sendEventRejectedEmail', recipient: user.email, error: err, context: { eventId, userId } })
+          })
       }
     }
 

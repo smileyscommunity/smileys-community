@@ -5,7 +5,7 @@ import { readdirSync, statSync, unlinkSync } from 'fs'
 import { join } from 'path'
 import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notify'
-import { sendReviewRequestEmail, sendListingExpiryEmail } from '@/lib/email'
+import { sendReviewRequestEmail, sendListingExpiryEmail, recordEmailFailure } from '@/lib/email'
 import { sendPushToUser } from '@/lib/push'
 import { getSession } from '@/lib/session'
 import { todayIstanbul } from '@/lib/data'
@@ -85,7 +85,10 @@ export async function GET(req: NextRequest) {
     // every listing-expiry reminder vanish without trace. Cron
     // is automated — there's no admin in the loop to notice.
     sendListingExpiryEmail(listing.user.email, listing.user.name, listing.title, daysLeft)
-      .catch(err => console.error('[cron reminders] sendListingExpiryEmail failed', { listingId: listing.id, userId: listing.userId, err: String(err) }))
+      .catch(async err => {
+        console.error('[cron reminders] sendListingExpiryEmail failed', { listingId: listing.id, userId: listing.userId, err: String(err) })
+        await recordEmailFailure({ helper: 'sendListingExpiryEmail', recipient: listing.user.email, error: err, context: { listingId: listing.id, userId: listing.userId } })
+      })
   }
 
   // Post-event connection suggestions — send to attendees of events that just archived (yesterday)

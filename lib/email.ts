@@ -1,6 +1,8 @@
 import { Resend } from 'resend'
 import { unsubscribeUrl } from '@/lib/unsubscribe'
 import { APP_URL as ENV_APP_URL } from '@/lib/env'
+import { prisma } from '@/lib/prisma'
+import type { Prisma } from '@prisma/client'
 
 const FROM    = process.env.EMAIL_FROM ?? 'Smileys Community <info@smileyscommunity.com>'
 const APP_URL = ENV_APP_URL
@@ -9,6 +11,38 @@ function getResend() {
   const key = process.env.RESEND_API_KEY
   if (!key) throw new Error('RESEND_API_KEY is not set')
   return new Resend(key)
+}
+
+// #4 monitoring: every send*Email .catch in the app now also
+// calls this. It writes a row to email_failures + logs to console
+// so the admin dashboard tile can flag "X email failures in last
+// 24h" instead of waiting for members to complain. Caller stays
+// responsible for the console.error so the route-prefixed log
+// line stays grep-able; this helper handles the persistent
+// side of the trail.
+//
+// Wrapped in its own try/catch — if the failure-recording itself
+// fails (DB down, schema migration in progress), don't bubble it
+// up into the email-sending caller's flow.
+export async function recordEmailFailure(opts: {
+  helper:    string
+  recipient: string
+  error:     unknown
+  context?:  Record<string, unknown>
+}): Promise<void> {
+  try {
+    const errMsg = opts.error instanceof Error ? opts.error.message : String(opts.error)
+    await prisma.emailFailure.create({
+      data: {
+        helper:    opts.helper,
+        recipient: opts.recipient.slice(0, 320),
+        error:     errMsg.slice(0, 500),
+        context:   opts.context ? (opts.context as Prisma.InputJsonValue) : undefined,
+      },
+    })
+  } catch (recordErr) {
+    console.error('[recordEmailFailure] failed to persist failure row', { recordErr: String(recordErr) })
+  }
 }
 
 export async function sendVerificationEmail(email: string, name: string, token: string) {

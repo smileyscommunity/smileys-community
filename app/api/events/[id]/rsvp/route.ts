@@ -4,7 +4,7 @@ import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
 import { getAvailableSpots } from '@/lib/db'
-import { sendRsvpConfirmationEmail, sendWaitlistPromotedEmail } from '@/lib/email'
+import { sendRsvpConfirmationEmail, sendWaitlistPromotedEmail, recordEmailFailure } from '@/lib/email'
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 import { autoJoinClub } from '@/lib/autoJoinClub'
 import { sendPushToUser } from '@/lib/push'
@@ -266,7 +266,10 @@ export async function POST(req: NextRequest, { params }: Params) {
           event.title, event.date,
           event.location ?? event.neighborhood ?? 'Istanbul',
           eventId,
-        ).catch(() => {})
+        ).catch(async err => {
+          console.error('[rsvp POST] sendRsvpConfirmationEmail failed', { userId: session.id, eventId, err: String(err) })
+          await recordEmailFailure({ helper: 'sendRsvpConfirmationEmail', recipient: user.email, error: err, context: { userId: session.id, eventId } })
+        })
       }
       if (event.hostId) {
         createNotification(
@@ -417,7 +420,10 @@ export async function DELETE(req: NextRequest, { params }: Params) {
           // promoted member who never got their "you're in" email
           // can be traced via server logs.
           sendWaitlistPromotedEmail(promoted.email, promoted.name ?? 'Member', eventRow.title, ev?.date ?? '', eventId)
-            .catch(err => console.error('[rsvp DELETE waitlist-promote] sendWaitlistPromotedEmail failed', { promotedUserId: next.userId, eventId, err: String(err) }))
+            .catch(async err => {
+              console.error('[rsvp DELETE waitlist-promote] sendWaitlistPromotedEmail failed', { promotedUserId: next.userId, eventId, err: String(err) })
+              await recordEmailFailure({ helper: 'sendWaitlistPromotedEmail', recipient: promoted.email, error: err, context: { userId: next.userId, eventId } })
+            })
         }
       })()
     }

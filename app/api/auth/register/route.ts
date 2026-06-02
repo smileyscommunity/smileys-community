@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs'
 import { randomBytes } from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { createSession } from '@/lib/session'
-import { sendVerificationEmail, sendAlreadyRegisteredEmail } from '@/lib/email'
+import { sendVerificationEmail, sendAlreadyRegisteredEmail, recordEmailFailure } from '@/lib/email'
 import { rateLimit, getIp } from '@/lib/rateLimit'
 import { verifyTurnstile } from '@/lib/turnstile'
 import { getPostHogClient, trackServer } from '@/lib/posthog-server'
@@ -58,7 +58,10 @@ export async function POST(req: NextRequest) {
         // doesn't quietly leave legit owners with no signal about
         // the impostor-register attempt.
         sendAlreadyRegisteredEmail(existing.email, existing.name)
-          .catch(err => console.error('[auth register] sendAlreadyRegisteredEmail failed', { userId: existing.id, err: String(err) }))
+          .catch(async err => {
+            console.error('[auth register] sendAlreadyRegisteredEmail failed', { userId: existing.id, err: String(err) })
+            await recordEmailFailure({ helper: 'sendAlreadyRegisteredEmail', recipient: existing.email, error: err, context: { userId: existing.id } })
+          })
         return NextResponse.json({ pending: true, checkEmail: true })
       }
       // The previous registration never verified the email, so we can't tell whether
@@ -165,7 +168,10 @@ export async function POST(req: NextRequest) {
     await prisma.emailVerificationToken.create({ data: { userId: user.id, token, expiresAt } })
 
     // Send verification email (fire and forget — don't block registration)
-    sendVerificationEmail(user.email, user.name, token).catch(console.error)
+    sendVerificationEmail(user.email, user.name, token).catch(async err => {
+      console.error('[auth register] sendVerificationEmail failed', { userId: user.id, err: String(err) })
+      await recordEmailFailure({ helper: 'sendVerificationEmail', recipient: user.email, error: err, context: { userId: user.id } })
+    })
 
     // A2 full fix: no auto-session. Member must verify their email
     // before logging in. This is what makes the new-registration
