@@ -1141,6 +1141,25 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+// #5 monitoring: per-sweeper liveness. Each cron handler calls
+// recordCronRun on success/failure; the admin dashboard flags
+// any sweeper that hasn't checked in within its expected
+// cadence. Without this, a sweeper silently failing (bad
+// CRON_SECRET, crashed process, DNS blip) goes un-noticed
+// until users complain that reminders aren't firing.
+model CronRun {
+  id            String    @id @default(cuid())
+  name          String    @unique  // e.g. 'sweep-cup-reminders'
+  lastSuccessAt DateTime?
+  lastError     String?
+  lastErrorAt   DateTime?
+  totalRuns     Int       @default(0)
+  totalErrors   Int       @default(0)
+  updatedAt     DateTime  @updatedAt
+
+  @@map("cron_runs")
+}
+
 // #4 monitoring: every send*Email .catch path that previously
 // went silent now also writes a row here. Lets the admin
 // dashboard alert when SMTP/Resend is broken instead of waiting

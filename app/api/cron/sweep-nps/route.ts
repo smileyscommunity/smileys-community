@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notify'
 import { periodFor, periodStartDate, eligibilityCutoff } from '@/lib/nps'
+import { recordCronRun } from '@/lib/cronHealth'
 
 // Quarterly NPS dispatch sweeper. Sends the nudge notification to
 // approved members who:
@@ -129,9 +130,11 @@ export async function POST(req: NextRequest) {
   if (denied) return denied
   try {
     const result = await runSweep()
+    await recordCronRun('sweep-nps', true)
     return NextResponse.json({ ok: true, ...result })
   } catch (e) {
     console.error('[cron sweep-nps]', e)
+    await recordCronRun('sweep-nps', false, e)
     return NextResponse.json({ error: 'Sweep failed' }, { status: 500 })
   }
 }

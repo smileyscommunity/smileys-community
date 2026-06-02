@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notify'
+import { recordCronRun } from '@/lib/cronHealth'
 
 // Post-event survey dispatch sweeper. Picks up events that ended
 // between 24h and 7 days ago and haven't been surveyed yet, then
@@ -114,9 +115,11 @@ export async function POST(req: NextRequest) {
   if (denied) return denied
   try {
     const result = await runSweep()
+    await recordCronRun('sweep-event-surveys', true)
     return NextResponse.json({ ok: true, ...result })
   } catch (e) {
     console.error('[cron sweep-event-surveys]', e)
+    await recordCronRun('sweep-event-surveys', false, e)
     return NextResponse.json({ error: 'Sweep failed' }, { status: 500 })
   }
 }

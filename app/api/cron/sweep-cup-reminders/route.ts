@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { sendPushToUser } from '@/lib/push'
 import { teamLabel } from '@/lib/cup-data'
+import { recordCronRun } from '@/lib/cronHealth'
 
 // Cup match-reminder sweeper. Fires every 5 minutes from system
 // crontab on the prod box; finds fixtures whose kickoff is ~30
@@ -144,8 +145,10 @@ export async function POST(req: NextRequest) {
   if (auth) return auth
   try {
     const result = await runSweep()
+    await recordCronRun('sweep-cup-reminders', true)
     return NextResponse.json({ ok: true, ...result })
   } catch (e) {
+    await recordCronRun('sweep-cup-reminders', false, e)
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })
   }
 }

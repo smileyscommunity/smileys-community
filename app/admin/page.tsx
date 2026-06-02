@@ -21,6 +21,11 @@ interface Stats {
   // are missing transactional emails. Surfaced as a red alert pill
   // so admin sees it before they hear from confused members.
   emailFailures24h: number
+  // #5 monitoring — names of cron sweepers whose lastSuccessAt is
+  // older than 2× their expected cadence (or never recorded).
+  // Empty array when everything's healthy. Surfaced as a red
+  // alert pill so silent cron failures don't go un-noticed.
+  staleSweepers:    string[]
   trends: { members: number; rsvps: number; revenue: number }
   hangouts:   {
     active: number; today: number; referencesWeek: number
@@ -196,6 +201,15 @@ export default function AdminPage() {
     stats.emailFailures24h > 0 && {
       icon: '📭', label: `${stats.emailFailures24h} email failure${stats.emailFailures24h !== 1 ? 's' : ''} (24h)`,
       href: '/admin/audit?action=email', color: 'border-red-500/30 bg-red-500/5 text-red-400',
+    },
+    // #5 monitoring — cron sweeper has gone silent. Each name in
+    // the array hasn't checked in for > 2× its expected cadence.
+    // Common causes: bad CRON_SECRET, crashed process, DNS blip.
+    // Label lists the offending sweepers so admin can grep the
+    // crontab + server logs directly.
+    stats.staleSweepers && stats.staleSweepers.length > 0 && {
+      icon: '⏱️', label: `${stats.staleSweepers.length} stale cron${stats.staleSweepers.length !== 1 ? 's' : ''}: ${stats.staleSweepers.join(', ')}`,
+      href: '/admin/audit?action=cron', color: 'border-red-500/30 bg-red-500/5 text-red-400',
     },
     // Visitors pill — soft signal, not a "do something" alert. Sits in the
     // same row so admins see "what's happening" + "what needs me" together.

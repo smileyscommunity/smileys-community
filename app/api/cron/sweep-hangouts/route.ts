@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notify'
+import { recordCronRun } from '@/lib/cronHealth'
 
 // Sweeper that closes the hangout lifecycle. Without this cron, hangouts
 // silently vanish from the feed when endsAt passes — no recap, no analytics,
@@ -152,9 +153,11 @@ export async function POST(req: NextRequest) {
 
   try {
     const result = await runSweep()
+    await recordCronRun('sweep-hangouts', true)
     return NextResponse.json({ ok: true, ...result })
   } catch (e) {
     console.error('[cron sweep-hangouts]', e)
+    await recordCronRun('sweep-hangouts', false, e)
     return NextResponse.json({ error: 'Sweep failed' }, { status: 500 })
   }
 }

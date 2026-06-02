@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { canViewAnalytics } from '@/lib/access'
 import { todayIstanbul } from '@/lib/data'
+import { listStaleSweepers } from '@/lib/cronHealth'
 
 export async function GET() {
   const session = await getSession()
@@ -147,14 +148,23 @@ export async function GET() {
   // dashboard alerts row. Anything > 0 means SMTP/Resend is
   // probably broken and members are missing transactional emails.
   // Cheap query — indexed on createdAt.
-  const emailFailures24h = await prisma.emailFailure.count({
-    where: { createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
-  })
+  //
+  // #5: sweeper health. listStaleSweepers walks the registered
+  // sweeper names and returns any whose lastSuccessAt is older
+  // than 2× their expected cadence (or never recorded). Tiny
+  // table, so the read is cheap.
+  const [emailFailures24h, staleSweepers] = await Promise.all([
+    prisma.emailFailure.count({
+      where: { createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
+    }),
+    listStaleSweepers(),
+  ])
 
   return NextResponse.json({
     totalAccounts, members, hosts, events, upcoming, rsvps,
     newMembersThisMonth, revenueCollected, revenuePending, pendingPayments,
     pendingApplications, pendingReports, emailFailures24h,
+    staleSweepers: staleSweepers.map(s => s.name),
     trends: {
       members: calcTrend(newMembersThisMonth, prevMembersMonth),
       rsvps:   calcTrend(rsvpsThisMonth, prevRsvpsMonth),

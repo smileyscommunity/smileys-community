@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { runCupResultsSweep } from '@/lib/cup-results-sweep'
+import { recordCronRun } from '@/lib/cronHealth'
 
 // Cup auto-score sweeper — system-crontab entry. Calls the shared
 // runCupResultsSweep() body (see lib/cup-results-sweep.ts) which
@@ -33,8 +34,10 @@ export async function POST(req: NextRequest) {
   if (auth) return auth
   try {
     const result = await runCupResultsSweep()
+    await recordCronRun('sweep-cup-results', true)
     return NextResponse.json({ ok: true, ...result })
   } catch (e) {
+    await recordCronRun('sweep-cup-results', false, e)
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })
   }
 }
