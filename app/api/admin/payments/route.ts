@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { writeAudit } from '@/lib/audit'
 import { sendRefundEmail } from '@/lib/email'
+import { rateLimit } from '@/lib/rateLimit'
 
 // Allowlist of statuses the API accepts on PATCH. Previously the
 // server took whatever string the client sent — admin tooling
@@ -26,6 +27,20 @@ const TERMINAL_STATUSES = new Set(['refunded'])
 // a long refund-reason paragraph.
 const MAX_NOTES_LENGTH = 500
 
+// Cap on rows returned by GET so the admin page stays responsive
+// once payment volume grows past a few thousand. Summary cards
+// stay truthful regardless — they consume server-computed
+// aggregates (see GET below) rather than recomputing from the
+// row window. If the cap is hit, the client surfaces a "showing
+// 500 of N" notice and admins can use search/filter to narrow.
+const ROW_CAP = 500
+
+// Rate limits on mutations — admin endpoints, so windows are
+// generous but bounded. A compromised admin token can still
+// hammer 100 status flips per minute, not 10,000.
+const MUTATE_LIMIT_PER_MIN = 100
+const DELETE_LIMIT_PER_MIN = 30
+
 async function requireAdmin() {
   const session = await getSession()
   if (!session || !canManagePayments(session)) return null
@@ -34,19 +49,88 @@ async function requireAdmin() {
 
 export async function GET() {
   if (!await requireAdmin()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  const payments = await prisma.payment.findMany({
-    orderBy: { createdAt: 'desc' },
-    include: {
-      user:  { select: { name: true, email: true } },
-      event: { select: { title: true, emoji: true } },
+
+  // Pull the row window + the four aggregate stats in parallel.
+  // Aggregates are computed over the FULL set so the summary
+  // cards keep telling the truth once the table starts hitting
+  // ROW_CAP. Previously the page derived all stats client-side
+  // from the row list, which silently understated once the cap
+  // kicked in.
+  const [payments, totalCount, paidAgg, pendingCount, byEvent] = await Promise.all([
+    prisma.payment.findMany({
+      orderBy: { createdAt: 'desc' },
+      take:    ROW_CAP,
+      include: {
+        user:  { select: { name: true, email: true } },
+        event: { select: { title: true, emoji: true } },
+      },
+    }),
+    prisma.payment.count(),
+    prisma.payment.aggregate({
+      where: { status: 'paid' },
+      _sum:  { amount: true },
+    }),
+    prisma.payment.count({ where: { status: 'pending' } }),
+    // Per-event aggregates: paid + pending totals so the "Revenue
+    // by event" chart can show committed-but-unpaid alongside
+    // paid. Computed server-side so the breakdown matches reality
+    // regardless of row window.
+    prisma.payment.groupBy({
+      by:    ['eventId', 'status'],
+      _sum:  { amount: true },
+      _count: { _all: true },
+      where: { status: { in: ['paid', 'pending'] } },
+    }),
+  ])
+
+  // Resolve event titles + emojis for the byEvent rollup. Single
+  // findMany over the distinct eventIds keeps it cheap.
+  const eventIds   = [...new Set(byEvent.map(g => g.eventId))]
+  const eventMeta  = eventIds.length === 0 ? [] : await prisma.event.findMany({
+    where:  { id: { in: eventIds } },
+    select: { id: true, title: true, emoji: true },
+  })
+  const metaById = new Map(eventMeta.map(e => [e.id, e]))
+  const byEventStats = Object.values(
+    byEvent.reduce<Record<string, { eventId: string; title: string; emoji: string; paidTotal: number; paidCount: number; pendingTotal: number; pendingCount: number }>>((acc, g) => {
+      const meta = metaById.get(g.eventId)
+      if (!meta) return acc
+      if (!acc[g.eventId]) acc[g.eventId] = {
+        eventId: g.eventId, title: meta.title, emoji: meta.emoji,
+        paidTotal: 0, paidCount: 0, pendingTotal: 0, pendingCount: 0,
+      }
+      const row = acc[g.eventId]
+      const sum   = g._sum.amount ?? 0
+      const count = g._count._all
+      if (g.status === 'paid')    { row.paidTotal += sum;    row.paidCount += count }
+      if (g.status === 'pending') { row.pendingTotal += sum; row.pendingCount += count }
+      return acc
+    }, {}),
+  ).sort((a, b) => b.paidTotal - a.paidTotal)
+
+  return NextResponse.json({
+    payments,
+    stats: {
+      total:        totalCount,
+      paidSum:      paidAgg._sum.amount ?? 0,
+      pendingCount,
+      byEvent:      byEventStats,
+      rowCap:       ROW_CAP,
+      capped:       totalCount > ROW_CAP,
     },
   })
-  return NextResponse.json(payments)
 }
 
 export async function PATCH(req: NextRequest) {
   const session = await requireAdmin()
   if (!session) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  // Per-admin rate limit. A compromised admin token can still
+  // burst, but not at script-level throughput.
+  if (!await rateLimit(`payments-patch:${session.id}`, MUTATE_LIMIT_PER_MIN, 60_000)) {
+    return NextResponse.json({ error: 'Too many requests — slow down' }, { status: 429 })
+  }
+
   const { id, status, notes } = await req.json()
   if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
 
@@ -176,6 +260,14 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const session = await requireAdmin()
   if (!session) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  // Tighter limit on DELETE than PATCH — deletes are destructive
+  // even with the audit snapshot, and a compromised admin token
+  // shouldn't be able to wipe the whole table.
+  if (!await rateLimit(`payments-delete:${session.id}`, DELETE_LIMIT_PER_MIN, 60_000)) {
+    return NextResponse.json({ error: 'Too many delete requests — slow down' }, { status: 429 })
+  }
+
   const { id } = await req.json()
   if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
 
