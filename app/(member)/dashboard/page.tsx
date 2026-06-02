@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { formatDate, formatTime, resolveImageUrl, BLUR_PLACEHOLDER, todayIstanbul } from '@/lib/data'
+import { formatDate, formatTime, resolveImageUrl, avatarUrl, BLUR_PLACEHOLDER, todayIstanbul } from '@/lib/data'
 import { neighborhoodToSlug } from '@/lib/neighborhoods'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
@@ -331,7 +331,10 @@ export default async function DashboardPage() {
             </div>
             <div className="shrink-0 flex flex-col items-end gap-2">
               {userProfile?.profilePhoto ? (
-                <img src={resolveImageUrl(userProfile.profilePhoto)} alt={session.name}
+                // #7 perf: 128-wide thumb instead of the full 1200×1200
+                // original. ~50× smaller wire bytes for the same 14×14
+                // CSS render. lazy/async hints for the cumulative drop.
+                <img src={avatarUrl(userProfile.profilePhoto, 128)} alt={session.name} loading="lazy" decoding="async"
                   className="w-14 h-14 rounded-2xl object-cover ring-2 ring-white/40 shadow-lg" />
               ) : (
                 <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-lg font-bold ring-2 ring-white/40 shadow-lg"
@@ -378,8 +381,8 @@ export default async function DashboardPage() {
                 <div className="flex items-end justify-between mb-3">
                   <div className="relative">
                     {userProfile?.profilePhoto ? (
-                      <img src={resolveImageUrl(userProfile.profilePhoto)} alt={session.name}
-                        loading="lazy" className="w-14 h-14 rounded-xl object-cover ring-2 ring-white shadow" />
+                      <img src={avatarUrl(userProfile.profilePhoto, 128)} alt={session.name}
+                        loading="lazy" decoding="async" className="w-14 h-14 rounded-xl object-cover ring-2 ring-white shadow" />
                     ) : (
                       <div className="w-14 h-14 rounded-xl flex items-center justify-center text-white text-lg font-bold ring-2 ring-white shadow"
                         style={{ backgroundColor: userProfile?.color ?? '#f59e0b' }}>
@@ -437,7 +440,7 @@ export default async function DashboardPage() {
                     <Link key={a.user.id} href={`/events/${a.event.id}`}
                       className="flex flex-col items-center gap-1.5 shrink-0 group">
                       {a.user.profilePhoto ? (
-                        <img src={resolveImageUrl(a.user.profilePhoto)} alt={a.user.name}
+                        <img src={avatarUrl(a.user.profilePhoto, 128)} alt={a.user.name} loading="lazy" decoding="async"
                           className="w-11 h-11 rounded-full object-cover border-2 border-white shadow-sm group-hover:ring-2 group-hover:ring-amber-400 transition-all" />
                       ) : (
                         <div className="w-11 h-11 rounded-full border-2 border-white shadow-sm flex items-center justify-center text-white text-xs font-bold group-hover:ring-2 group-hover:ring-amber-400 transition-all"
@@ -466,7 +469,7 @@ export default async function DashboardPage() {
                 </div>
                 <div className="flex items-center gap-3 mb-3">
                   {spotlightUser.profilePhoto ? (
-                    <img src={resolveImageUrl(spotlightUser.profilePhoto)} alt={spotlightUser.name}
+                    <img src={avatarUrl(spotlightUser.profilePhoto, 128)} alt={spotlightUser.name} loading="lazy" decoding="async"
                       className="w-14 h-14 rounded-full object-cover shrink-0" />
                   ) : (
                     <div className="w-14 h-14 rounded-full shrink-0 flex items-center justify-center text-white font-bold text-lg"
@@ -524,14 +527,14 @@ export default async function DashboardPage() {
                 </div>
                 <div className="space-y-2.5">
                   {newMembers.map(m => {
-                    const photo = m.profilePhoto ? resolveImageUrl(m.profilePhoto) : null
+                    const photo = m.profilePhoto ? avatarUrl(m.profilePhoto, 64) : null
                     const initials = m.name.trim().split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
                     const daysAgo = Math.max(0, Math.floor((Date.now() - new Date(m.joinedAt).getTime()) / 86400000))
                     return (
                       <Link key={m.id} href={`/members/${m.id}`}
                         className="flex items-center gap-2.5 hover:bg-gray-50 rounded-xl px-1.5 py-1 -mx-1.5 transition-colors group">
                         {photo ? (
-                          <img src={photo} alt={m.name} className="w-8 h-8 rounded-full object-cover shrink-0" />
+                          <img src={photo} alt={m.name} loading="lazy" decoding="async" className="w-8 h-8 rounded-full object-cover shrink-0" />
                         ) : (
                           <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
                             style={{ backgroundColor: m.color }}>{initials}</div>
@@ -875,7 +878,7 @@ export default async function DashboardPage() {
                     <Link key={m.id} href={`/members/${m.id}`}
                       className="bg-white rounded-2xl shadow-card p-4 text-center hover:-translate-y-0.5 transition-all group">
                       {m.profilePhoto ? (
-                        <img src={resolveImageUrl(m.profilePhoto)} alt={m.name}
+                        <img src={avatarUrl(m.profilePhoto, 128)} alt={m.name} loading="lazy" decoding="async"
                           className="w-14 h-14 rounded-full object-cover mx-auto mb-2 ring-2 ring-gray-100 group-hover:ring-amber-200 transition-all" />
                       ) : (
                         <div className="w-14 h-14 rounded-full mx-auto mb-2 flex items-center justify-center text-white text-lg font-bold ring-2 ring-gray-100 group-hover:ring-amber-200 transition-all"

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { ISTANBUL_NEIGHBORHOODS, resolveImageUrl } from '@/lib/data'
+import { ISTANBUL_NEIGHBORHOODS, resolveImageUrl, avatarUrl } from '@/lib/data'
 import { toast } from 'sonner'
 
 // Spontaneous hangouts — members only (real-time, contact-required). Auto-
@@ -573,7 +573,9 @@ function HangoutCard({ h, currentUserId, onCancel, onMutated }: {
   onMutated: (h: Hangout) => void
 }) {
   const isOwner = h.user.id === currentUserId
-  const avatar  = resolveImageUrl(h.user.profilePhoto)
+  // #7 perf: 128-wide avatar thumb on hangouts feed (rendered at
+  // w-12 = 48px CSS = retina 96px).
+  const avatar  = avatarUrl(h.user.profilePhoto, 128)
   const [threadOpen, setThreadOpen]     = useState(false)
   const [messages,   setMessages]       = useState<HangoutMessage[]>([])
   const [draft,      setDraft]          = useState('')
@@ -694,7 +696,7 @@ function HangoutCard({ h, currentUserId, onCancel, onMutated }: {
           <div className="flex -space-x-1.5">
             {[h.user, ...h.joiners.filter(j => j.id !== h.user.id)].slice(0, 4).map(j => (
               j.profilePhoto
-                ? <img key={j.id} src={resolveImageUrl(j.profilePhoto)} alt="" className="w-6 h-6 rounded-full border-2 border-white object-cover" />
+                ? <img key={j.id} src={avatarUrl(j.profilePhoto, 64)} alt="" loading="lazy" decoding="async" className="w-6 h-6 rounded-full border-2 border-white object-cover" />
                 : <div key={j.id} className="w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-white text-[9px] font-bold"
                     style={{ backgroundColor: j.color }}>{j.name[0] ?? '?'}</div>
             ))}
@@ -734,7 +736,7 @@ function HangoutCard({ h, currentUserId, onCancel, onMutated }: {
             messages.map(m => (
               <div key={m.id} className="flex items-start gap-2">
                 {m.user.profilePhoto
-                  ? <img src={resolveImageUrl(m.user.profilePhoto)} alt="" className="w-6 h-6 rounded-full object-cover shrink-0" />
+                  ? <img src={avatarUrl(m.user.profilePhoto, 64)} alt="" loading="lazy" decoding="async" className="w-6 h-6 rounded-full object-cover shrink-0" />
                   : <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0"
                       style={{ backgroundColor: m.user.color }}>{m.user.name[0]}</div>}
                 <div className="flex-1 min-w-0">
@@ -762,7 +764,7 @@ function HangoutCard({ h, currentUserId, onCancel, onMutated }: {
 // PulseCard — compact card for an AvailabilityPulse. Visually lighter than a
 // hangout card so the two signal grades read differently at a glance.
 function PulseCard({ pulse, onClear }: { pulse: Pulse; onClear?: () => void }) {
-  const avatar = pulse.user.profilePhoto ? resolveImageUrl(pulse.user.profilePhoto) : null
+  const avatar = pulse.user.profilePhoto ? avatarUrl(pulse.user.profilePhoto, 64) : null
   const minsLeft = Math.max(0, Math.round((new Date(pulse.until).getTime() - Date.now()) / 60_000))
   const ttlLabel = minsLeft < 60 ? `${minsLeft}m left` : `${Math.floor(minsLeft / 60)}h ${minsLeft % 60}m left`
 

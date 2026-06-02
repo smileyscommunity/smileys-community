@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { resolveImageUrl, getInitials } from '@/lib/data'
+import { resolveImageUrl, avatarUrl, getInitials } from '@/lib/data'
 import { countryFlag } from '@/lib/countries'
 import { useAuth } from '@/contexts/AuthContext'
 import ReportButton from '@/components/ReportButton'
@@ -83,18 +83,25 @@ function displayRole(m: Member): { label: string; cls: string } {
 }
 
 function Avatar({ m, size = 'md' }: { m: Member; size?: 'md' | 'lg' }) {
-  const photo = resolveImageUrl(m.profilePhoto)
+  // #7 perf: ask the file route for a 256-wide variant for the
+  // large card (96px CSS = retina 192px) and a 128-wide for the
+  // medium card (56px CSS). Originals are 1200×1200 quality-82
+  // JPEGs (~150–300 KB); the thumbnails land at ~3–10 KB.
+  // Members directory loads dozens of these per scroll, so the
+  // wire-bytes saving is what makes the page snappy on cellular.
+  const photoLg = avatarUrl(m.profilePhoto, 256)
+  const photoMd = avatarUrl(m.profilePhoto, 128)
   if (size === 'lg') {
-    return photo ? (
-      <img src={photo} alt={m.name} loading="lazy" className="w-24 h-24 rounded-full object-cover shrink-0 border-4 border-white shadow-md" />
+    return photoLg ? (
+      <img src={photoLg} alt={m.name} loading="lazy" decoding="async" className="w-24 h-24 rounded-full object-cover shrink-0 border-4 border-white shadow-md" />
     ) : (
       <div className="w-24 h-24 rounded-full flex items-center justify-center text-white font-bold text-2xl shrink-0 border-4 border-white shadow-md" style={{ backgroundColor: m.color }}>
         {getInitials(m.name)}
       </div>
     )
   }
-  return photo ? (
-    <img src={photo} alt={m.name} loading="lazy" className="w-14 h-14 rounded-full object-cover shrink-0" />
+  return photoMd ? (
+    <img src={photoMd} alt={m.name} loading="lazy" decoding="async" className="w-14 h-14 rounded-full object-cover shrink-0" />
   ) : (
     <div className="w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-lg shrink-0" style={{ backgroundColor: m.color }}>
       {getInitials(m.name)}
@@ -879,7 +886,7 @@ function MembersPageInner() {
                     {inPage ? (
                       <button onClick={() => setSelected(inPage)} className="flex items-center gap-2 flex-1 min-w-0 text-left">
                         {u.profilePhoto ? (
-                          <img src={resolveImageUrl(u.profilePhoto)} alt={u.name} className="w-8 h-8 rounded-full object-cover shrink-0" />
+                          <img src={avatarUrl(u.profilePhoto, 64)} alt={u.name} loading="lazy" decoding="async" className="w-8 h-8 rounded-full object-cover shrink-0" />
                         ) : (
                           <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
                             style={{ backgroundColor: u.color }}>{getInitials(u.name)}</div>
@@ -889,7 +896,7 @@ function MembersPageInner() {
                     ) : (
                       <Link href={`/members/${u.id}`} className="flex items-center gap-2 flex-1 min-w-0">
                         {u.profilePhoto ? (
-                          <img src={resolveImageUrl(u.profilePhoto)} alt={u.name} className="w-8 h-8 rounded-full object-cover shrink-0" />
+                          <img src={avatarUrl(u.profilePhoto, 64)} alt={u.name} loading="lazy" decoding="async" className="w-8 h-8 rounded-full object-cover shrink-0" />
                         ) : (
                           <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
                             style={{ backgroundColor: u.color }}>{getInitials(u.name)}</div>
