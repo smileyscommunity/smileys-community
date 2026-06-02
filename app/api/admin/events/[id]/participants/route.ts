@@ -308,7 +308,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       autoJoinClub(userId, eventId).catch(() => {})
       createNotification(userId, 'rsvp', 'You\'re in! 🎉', `Your request for "${event?.title}" has been approved.`, `/events/${eventId}`)
       if (user?.email && event) {
-        sendEventApprovedEmail(user.email, user.name, event.title, event.date, event.neighborhood ?? '', eventId).catch(() => {})
+        // EM1 fix: log SMTP failures instead of swallowing. Admin
+        // who approves a member expects them to get an email; if
+        // delivery fails, member sees no signal and admin assumes
+        // it landed. Surface via server log so it's at least
+        // grep-able by eventId/userId when complaints come in.
+        sendEventApprovedEmail(user.email, user.name, event.title, event.date, event.neighborhood ?? '', eventId)
+          .catch(err => console.error('[participants PATCH approve] sendEventApprovedEmail failed', { eventId, userId, err: String(err) }))
       }
     } else if (action === 'reject') {
       await prisma.eventAttendee.delete({ where: { userId_eventId: { userId, eventId } } })
@@ -325,7 +331,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       })
       createNotification(userId, 'rsvp_pending', 'Request not approved', `Unfortunately your request for "${event?.title}" was not approved this time.`, `/events/${eventId}`)
       if (user?.email && event) {
-        sendEventRejectedEmail(user.email, user.name, event.title).catch(() => {})
+        // EM1 fix: same logging treatment as the approve path.
+        sendEventRejectedEmail(user.email, user.name, event.title)
+          .catch(err => console.error('[participants PATCH reject] sendEventRejectedEmail failed', { eventId, userId, err: String(err) }))
       }
     }
 

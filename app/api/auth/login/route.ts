@@ -71,7 +71,12 @@ export async function POST(req: NextRequest) {
         data: { failedLoginCount: newCount, loginLockedUntil: lockUntil ?? undefined },
       })
       if (newCount === 10) {
-        sendAccountLockedEmail(user.email, user.name).catch(() => {})
+        // EM5 fix: log SMTP failures. Lockout email is the only
+        // signal a legit user gets that someone tried brute-
+        // forcing their account; silent swallow means they don't
+        // know to rotate their password.
+        sendAccountLockedEmail(user.email, user.name)
+          .catch(err => console.error('[auth login] sendAccountLockedEmail failed', { userId: user.id, err: String(err) }))
       }
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
     }
@@ -135,7 +140,10 @@ export async function POST(req: NextRequest) {
       : null
     if (isNewIp) {
       const loginTime = new Date().toLocaleString('en-GB', { timeZone: 'Europe/Istanbul', dateStyle: 'medium', timeStyle: 'short' })
-      sendNewDeviceLoginEmail(user.email, user.name, loginIp, `${loginTime} Istanbul`).catch(() => {})
+      // EM5 fix: new-device email is a security signal — silent
+      // SMTP failure means a compromised login goes un-noticed.
+      sendNewDeviceLoginEmail(user.email, user.name, loginIp, `${loginTime} Istanbul`)
+        .catch(err => console.error('[auth login] sendNewDeviceLoginEmail failed', { userId: user.id, loginIp, err: String(err) }))
       sendPushToUser(user.id, {
         title: '🔐 New login detected',
         body: `Your account was accessed from a new IP: ${loginIp}`,

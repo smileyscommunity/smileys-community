@@ -81,7 +81,11 @@ export async function GET(req: NextRequest) {
       `"${listing.title}" will be removed from the Community Board soon — renew it to keep it visible.`,
       `/listings`,
     )
-    sendListingExpiryEmail(listing.user.email, listing.user.name, listing.title, daysLeft).catch(() => {})
+    // EM3 fix: log SMTP failures so a silent outage doesn't make
+    // every listing-expiry reminder vanish without trace. Cron
+    // is automated — there's no admin in the loop to notice.
+    sendListingExpiryEmail(listing.user.email, listing.user.name, listing.title, daysLeft)
+      .catch(err => console.error('[cron reminders] sendListingExpiryEmail failed', { listingId: listing.id, userId: listing.userId, err: String(err) }))
   }
 
   // Post-event connection suggestions — send to attendees of events that just archived (yesterday)

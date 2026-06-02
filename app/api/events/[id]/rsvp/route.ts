@@ -413,7 +413,11 @@ export async function DELETE(req: NextRequest, { params }: Params) {
         const promoted = await prisma.user.findUnique({ where: { id: next.userId }, select: { email: true, name: true } })
         if (promoted && eventRow?.title) {
           const ev = await prisma.event.findUnique({ where: { id: eventId }, select: { date: true } })
-          sendWaitlistPromotedEmail(promoted.email, promoted.name ?? 'Member', eventRow.title, ev?.date ?? '', eventId).catch(() => {})
+          // EM6 fix (same theme as AD-C): log SMTP failures so a
+          // promoted member who never got their "you're in" email
+          // can be traced via server logs.
+          sendWaitlistPromotedEmail(promoted.email, promoted.name ?? 'Member', eventRow.title, ev?.date ?? '', eventId)
+            .catch(err => console.error('[rsvp DELETE waitlist-promote] sendWaitlistPromotedEmail failed', { promotedUserId: next.userId, eventId, err: String(err) }))
         }
       })()
     }

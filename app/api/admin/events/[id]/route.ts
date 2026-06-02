@@ -190,14 +190,35 @@ export async function PUT(req: NextRequest, { params }: Params) {
           where: { eventId: id, status: 'approved' },
           include: { user: { select: { email: true, name: true } } },
         })
-        await Promise.all(attendees.map(a =>
-          sendEventCancelledEmail(a.user.email, a.user.name ?? 'Member', before.title, before.date).catch(() => {})
+        // EM2 fix: collect failure count instead of silently
+        // swallowing each per-attendee email. Mass-send means a
+        // misconfigured SMTP could leave dozens of members
+        // un-notified about a cancelled event they were going to
+        // show up to. Log the aggregate so the failure is grep-
+        // able by eventId.
+        const emailResults = await Promise.all(attendees.map(a =>
+          sendEventCancelledEmail(a.user.email, a.user.name ?? 'Member', before.title, before.date)
+            .then(() => ({ ok: true }))
+            .catch(err => ({ ok: false, err: String(err), email: a.user.email })),
         ))
-        // Also notify in-app
-        await Promise.all(attendees.map(a =>
-          createNotification(a.userId, 'event_cancelled', 'Event cancelled 😔', `"${before.title}" has been cancelled.`, '/events').catch(() => {})
+        const failures = emailResults.filter(r => !r.ok)
+        if (failures.length > 0) {
+          console.error('[event PATCH cancel] sendEventCancelledEmail failures', {
+            eventId: id, total: attendees.length, failed: failures.length,
+            sample: failures.slice(0, 3),
+          })
+        }
+        // Also notify in-app (same logging treatment).
+        const notifyResults = await Promise.all(attendees.map(a =>
+          createNotification(a.userId, 'event_cancelled', 'Event cancelled 😔', `"${before.title}" has been cancelled.`, '/events')
+            .then(() => ({ ok: true as const }))
+            .catch(err => ({ ok: false as const, err: String(err) })),
         ))
-      })().catch(() => {})
+        const notifyFail = notifyResults.filter(r => !r.ok).length
+        if (notifyFail > 0) {
+          console.error('[event PATCH cancel] in-app notification failures', { eventId: id, failed: notifyFail })
+        }
+      })().catch(err => console.error('[event PATCH cancel] fan-out failed', { eventId: id, err: String(err) }))
     }
 
     return NextResponse.json(event)

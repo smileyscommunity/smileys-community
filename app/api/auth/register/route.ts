@@ -54,7 +54,11 @@ export async function POST(req: NextRequest) {
         // here?" while a brand-new registrant gets the verification
         // link. From the outside, response status + body are
         // indistinguishable; no enumeration oracle survives.
-        sendAlreadyRegisteredEmail(existing.email, existing.name).catch(() => {})
+        // EM4 fix: log delivery failures so a misconfigured SMTP
+        // doesn't quietly leave legit owners with no signal about
+        // the impostor-register attempt.
+        sendAlreadyRegisteredEmail(existing.email, existing.name)
+          .catch(err => console.error('[auth register] sendAlreadyRegisteredEmail failed', { userId: existing.id, err: String(err) }))
         return NextResponse.json({ pending: true, checkEmail: true })
       }
       // The previous registration never verified the email, so we can't tell whether
