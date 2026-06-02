@@ -6,7 +6,12 @@
 //
 // v4: 2026-06-02 — RSVPButton modal z-index fix (cancel-spot
 //                  buttons hidden under BottomNav on mobile).
-const CACHE = 'smileys-v4'
+// v5: 2026-06-02 — Same bug reported again on v4 (cache hadn't
+//                  flushed or Tailwind didn't compile z-[70]).
+//                  Belt-and-braces: inline style zIndex 9999 +
+//                  items-start on mobile so the modal anchors
+//                  high in the viewport regardless.
+const CACHE = 'smileys-v5'
 
 // API endpoints to cache for offline use (network-first, cache fallback)
 const OFFLINE_APIS = ['/app/api/events/attending']

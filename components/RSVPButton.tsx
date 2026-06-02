@@ -150,13 +150,28 @@ export default function RSVPButton({ eventId, hostId, spotsLeft, price, memberPr
       </AnimatePresence>
 
       {confirmCancel && (
-        // z-[70] beats the mobile BottomNav (z-50) and its Discover
-        // bottom-sheet (z-[61]). Both sit at the bottom of the
-        // viewport on mobile, and at z-50 the modal's buttons row
-        // landed underneath the tab bar — visible as a clipped
-        // sliver in iOS Safari. pb-safe + items-center keeps the
-        // card centered above the home-indicator inset.
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 pb-[max(1rem,env(safe-area-inset-bottom))] bg-black/40 backdrop-blur-sm" onClick={() => setConfirmCancel(false)}>
+        // Belt-and-braces fix after the z-[70] version still hit the
+        // same complaint:
+        //   1. Inline style z-index instead of Tailwind arbitrary-value
+        //      class — bypasses any JIT-compilation edge case where
+        //      `z-[70]` might not be in the generated CSS, and bumps
+        //      to 9999 so absolutely nothing in the app can sit above
+        //      it (BottomNav z-50, Discover sheet z-[61], any future
+        //      overlay).
+        //   2. Anchor the wrapper to the TOP of the viewport on
+        //      mobile (items-start pt-20). Even if all the z-index
+        //      logic failed, the modal would physically sit in the
+        //      upper third of the screen — nowhere near the bottom
+        //      nav. Switches to items-center on sm+ so desktop keeps
+        //      the centered look.
+        //   3. Darker backdrop (bg-black/60) so it's unmistakeable
+        //      that the page beneath is overlaid. Earlier report
+        //      described the modal as looking inline because the
+        //      bg-black/40 read as just "subtle off-tint".
+        <div
+          className="fixed inset-0 flex items-start sm:items-center justify-center p-4 pt-20 sm:pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] bg-black/60 backdrop-blur-sm"
+          style={{ zIndex: 9999 }}
+          onClick={() => setConfirmCancel(false)}>
           <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full" onClick={e => e.stopPropagation()}>
             <h3 className="font-bold text-gray-900 text-lg mb-2">Cancel your spot?</h3>
             <p className="text-sm text-gray-500 mb-1">
