@@ -150,7 +150,13 @@ export default function RSVPButton({ eventId, hostId, spotsLeft, price, memberPr
       </AnimatePresence>
 
       {confirmCancel && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => setConfirmCancel(false)}>
+        // z-[70] beats the mobile BottomNav (z-50) and its Discover
+        // bottom-sheet (z-[61]). Both sit at the bottom of the
+        // viewport on mobile, and at z-50 the modal's buttons row
+        // landed underneath the tab bar — visible as a clipped
+        // sliver in iOS Safari. pb-safe + items-center keeps the
+        // card centered above the home-indicator inset.
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 pb-[max(1rem,env(safe-area-inset-bottom))] bg-black/40 backdrop-blur-sm" onClick={() => setConfirmCancel(false)}>
           <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full" onClick={e => e.stopPropagation()}>
             <h3 className="font-bold text-gray-900 text-lg mb-2">Cancel your spot?</h3>
             <p className="text-sm text-gray-500 mb-1">
