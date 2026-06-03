@@ -76,7 +76,7 @@ function ClaimWidget({ b, isLoggedIn }: { b: Business; isLoggedIn: boolean }) {
         href={`/login?next=${encodeURIComponent('/directory')}`}
         className="text-[10px] font-semibold text-zinc-600 hover:text-amber-700 bg-gray-50 hover:bg-amber-50 rounded-lg py-1.5 px-2 text-center transition-colors"
       >
-        Claim this
+        Is this your business?
       </Link>
     )
   }
@@ -116,7 +116,7 @@ function ClaimWidget({ b, isLoggedIn }: { b: Business; isLoggedIn: boolean }) {
   if (open) {
     return (
       <div className="absolute inset-x-2 bottom-2 bg-white border border-gray-200 rounded-xl shadow-lg p-3 z-10">
-        <p className="text-xs font-bold text-gray-900 mb-1.5">Claim "{b.name}"</p>
+        <p className="text-xs font-bold text-gray-900 mb-1.5">Verify you own "{b.name}"</p>
         <p className="text-[10px] text-gray-500 mb-2 leading-tight">
           How are you the owner? An email at the business domain, your name on the lease, or anything verifiable.
         </p>
@@ -148,7 +148,7 @@ function ClaimWidget({ b, isLoggedIn }: { b: Business; isLoggedIn: boolean }) {
     )
   }
 
-  const label = state === 'rejected' ? 'Claim rejected — try again' : 'Claim this business'
+  const label = state === 'rejected' ? 'Claim rejected — try again' : 'Is this your business?'
   return (
     <button
       onClick={() => setOpen(true)}
