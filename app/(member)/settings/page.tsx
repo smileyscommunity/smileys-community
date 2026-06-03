@@ -3,6 +3,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 import { useAuth } from '@/contexts/AuthContext'
+import ActiveDevicesSection from '@/components/settings/ActiveDevicesSection'
+import TwoFactorSection from '@/components/settings/TwoFactorSection'
+import DeleteAccountSection from '@/components/settings/DeleteAccountSection'
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!
 
@@ -297,8 +300,9 @@ export default function SettingsPage() {
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">New password</label>
-              <input type="password" value={newPw} onChange={e => setNewPw(e.target.value)} required minLength={8}
+              <input type="password" value={newPw} onChange={e => setNewPw(e.target.value)} required minLength={12}
                 className="input" />
+              <p className="text-xs text-gray-400 mt-1">At least 12 characters.</p>
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Confirm new password</label>
@@ -380,6 +384,21 @@ export default function SettingsPage() {
           {emailSaving && <p className="text-xs text-gray-400 mt-2">Saving…</p>}
         </Section>
 
+        {/* Two-factor authentication. Enrollment is admin/moderator-only
+            today, so members see no UI here. */}
+        {(user.role === 'admin' || user.role === 'moderator') && (
+          <Section title="Two-factor authentication" description="Required for admin / moderator roles">
+            <TwoFactorSection show={true} />
+          </Section>
+        )}
+
+        {/* Active devices — applies to everyone. Lets users spot a stolen
+            cookie / shared device and sign it out without forcing the
+            global tokenVersion bump. */}
+        <Section title="Active devices" description="Sign out a device if you don't recognize it">
+          <ActiveDevicesSection />
+        </Section>
+
         {/* Account */}
         <Section title="Account">
           <div className="space-y-3">
@@ -391,13 +410,12 @@ export default function SettingsPage() {
               <span className="text-gray-500">Role</span>
               <span className="capitalize text-gray-700 font-medium">{user.role}</span>
             </div>
-            <div className="pt-3 border-t border-gray-50">
-              <p className="text-xs text-gray-400">
-                To delete your account or request your data, contact{' '}
-                <a href="mailto:hello@smileyscommunity.com" className="text-amber-600 hover:underline">hello@smileyscommunity.com</a>
-              </p>
-            </div>
           </div>
+        </Section>
+
+        {/* Delete account — wired to the now-complete cascade route. */}
+        <Section title="Delete account" description="Permanent. Cannot be undone.">
+          <DeleteAccountSection />
         </Section>
       </div>
     </div>
