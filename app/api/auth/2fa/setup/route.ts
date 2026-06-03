@@ -17,6 +17,14 @@ export async function GET() {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  // Rate limit the secret-generation path. Each GET runs generateSecret +
+  // encryptTotpSecret + a DB write + a QR PNG render — without a limit an
+  // attacker with a session cookie can spray GETs to amplify DB writes
+  // and burn CPU. Same cadence as POST/DELETE on this route.
+  if (!await rateLimit(`2fa-setup:${session.id}`, 5, 15 * 60_000)) {
+    return NextResponse.json({ error: 'Too many attempts. Try again later.' }, { status: 429 })
+  }
+
   const user = await prisma.user.findUnique({
     where: { id: session.id },
     select: { totpEnabled: true, email: true },
@@ -35,7 +43,13 @@ export async function GET() {
   const otpauth = generateURI({ label: user.email, issuer: 'Smileys Community', secret, strategy: 'totp' } as any)
   const qrDataUrl = await QRCode.toDataURL(otpauth)
 
-  return NextResponse.json({ qrDataUrl })
+  // Return the plaintext secret too so the UI's "Can't scan? Enter manually"
+  // fallback works. The page was already trying to read `data.secret` but
+  // we never sent it — the manual-entry panel was always blank. The secret
+  // is no more sensitive than the QR (which encodes the same seed) and is
+  // only valid until the user either completes POST (which leaves
+  // totpEnabled=true) or re-runs GET (which overwrites with a fresh seed).
+  return NextResponse.json({ qrDataUrl, secret })
 }
 
 export async function POST(req: NextRequest) {
