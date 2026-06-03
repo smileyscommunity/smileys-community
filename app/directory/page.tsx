@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { resolveImageUrl } from '@/lib/data'
 import { BUSINESS_CATEGORIES } from '@/lib/directory'
 import { isSafeHref } from '@/lib/safeUrl'
+import DirectoryReviews from '@/components/DirectoryReviews'
 
 const CATEGORIES = [
   { id: 'all', label: 'All' },
@@ -32,6 +33,9 @@ interface Business {
   // True when an admin has approved a BusinessClaim — surfaced as a
   // "✓ Verified owner" badge and hides the Claim CTA.
   claimedById: string | null
+  // Aggregate review stats (non-hidden reviews only).
+  avgRating:   number | null
+  reviewCount: number
 }
 
 // Claim status mirrors the BusinessClaim.status DB enum plus a
@@ -157,7 +161,14 @@ function ClaimWidget({ b, isLoggedIn }: { b: Business; isLoggedIn: boolean }) {
   )
 }
 
-function BusinessCard({ b, isLoggedIn }: { b: Business; isLoggedIn: boolean }) {
+function BusinessCard({
+  b, isLoggedIn, currentUserId, onOpenReviews,
+}: {
+  b: Business
+  isLoggedIn: boolean
+  currentUserId: string | null
+  onOpenReviews: () => void
+}) {
   const logo  = resolveImageUrl(b.logo)
   const cover = resolveImageUrl(b.coverImage)
 
@@ -204,6 +215,26 @@ function BusinessCard({ b, isLoggedIn }: { b: Business; isLoggedIn: boolean }) {
           <p className="text-[11px] text-gray-400 truncate mt-0.5">
             {b.category}{b.neighborhood ? ` · ${b.neighborhood}` : ''}
           </p>
+          {/* Rating badge — clickable; opens the reviews drawer. Even
+              when there are no reviews we surface "No reviews yet" as
+              a CTA so members can be the first. Small footprint, big
+              affordance for the new feature. */}
+          <button
+            onClick={onOpenReviews}
+            className="flex items-center gap-1 text-[11px] mt-1 group/r hover:underline"
+            aria-label="See reviews"
+          >
+            {b.avgRating != null ? (
+              <>
+                <span className="text-amber-500">★</span>
+                <span className="font-bold text-gray-900">{b.avgRating.toFixed(1)}</span>
+                <span className="text-gray-400">·</span>
+                <span className="text-gray-500 group-hover/r:text-amber-700">{b.reviewCount} review{b.reviewCount === 1 ? '' : 's'}</span>
+              </>
+            ) : (
+              <span className="text-gray-400 group-hover/r:text-amber-700">No reviews yet — be the first</span>
+            )}
+          </button>
           {/* Claim trigger sits inside the info block as a small link
               right under the meta line — discoverable but visually
               quiet. Renders nothing when the business is already
@@ -272,7 +303,12 @@ function DirectoryPageInner() {
   // every other filter (category/type/search) is also state-only.
   const searchParams = useSearchParams()
   const initialNeighborhood = searchParams.get('neighborhood') ?? ''
-  const { isLoggedIn } = useAuth()
+  const { isLoggedIn, user } = useAuth()
+  const currentUserId = isLoggedIn && user.id !== 'guest' ? user.id : null
+  // Only one reviews drawer open at a time. Track open business id +
+  // a refresh tick so a write inside the drawer re-fetches the parent
+  // grid (so the rating badge on the card updates).
+  const [openReviewsFor, setOpenReviewsFor] = useState<Business | null>(null)
 
   const [businesses,   setBusinesses]   = useState<Business[]>([])
   const [loading,      setLoading]      = useState(true)
@@ -429,10 +465,34 @@ function DirectoryPageInner() {
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-            {visible.map(b => <BusinessCard key={b.id} b={b} isLoggedIn={isLoggedIn} />)}
+            {visible.map(b => (
+              <BusinessCard
+                key={b.id}
+                b={b}
+                isLoggedIn={isLoggedIn}
+                currentUserId={currentUserId}
+                onOpenReviews={() => setOpenReviewsFor(b)}
+              />
+            ))}
           </div>
         )}
       </div>
+
+      {/* Reviews drawer mounts at the page root so it overlays the grid
+          regardless of which card opened it. `onChange` reloads the
+          parent list so the rating badge on the card refreshes after
+          the member posts/edits/deletes a review. */}
+      {openReviewsFor && (
+        <DirectoryReviews
+          businessId={openReviewsFor.id}
+          businessName={openReviewsFor.name}
+          isLoggedIn={isLoggedIn}
+          currentUserId={currentUserId}
+          isOwner={currentUserId != null && openReviewsFor.claimedById === currentUserId}
+          onChange={load}
+          onClose={() => setOpenReviewsFor(null)}
+        />
+      )}
     </div>
   )
 }

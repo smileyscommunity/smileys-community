@@ -69,7 +69,32 @@ export async function GET(req: NextRequest) {
       },
     })
 
-    return NextResponse.json(businesses)
+    // Aggregate ratings — one groupBy over the visible review set rather
+    // than N+1 review fetches. Hidden reviews are excluded so the
+    // average matches what the public sees on the detail card.
+    const ids = businesses.map(b => b.id)
+    const ratingStats = ids.length === 0
+      ? []
+      : await prisma.businessReview.groupBy({
+          by: ['businessId'],
+          where: { businessId: { in: ids }, isHidden: false },
+          _avg: { rating: true },
+          _count: { _all: true },
+        })
+    const statsByBiz = new Map(
+      ratingStats.map(s => [s.businessId, {
+        avgRating:   s._avg.rating ?? null,
+        reviewCount: s._count._all,
+      }]),
+    )
+
+    const enriched = businesses.map(b => ({
+      ...b,
+      avgRating:   statsByBiz.get(b.id)?.avgRating   ?? null,
+      reviewCount: statsByBiz.get(b.id)?.reviewCount ?? 0,
+    }))
+
+    return NextResponse.json(enriched)
   } catch (e) {
     console.error('Directory GET error:', e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

@@ -156,11 +156,13 @@ model User {
   cupPrizesAwardedTo CupPrize[]         @relation("CupPrizeAwardedTo")
   cupDonationsReviewed CupPrizeDonation[] @relation("CupDonationReviewer")
 
-  businessSubmissions  Business[]        @relation("BusinessSubmissions")
-  businessReviews      Business[]        @relation("BusinessReviews")
-  businessesOwned      Business[]        @relation("BusinessOwnership")
-  businessClaims       BusinessClaim[]   @relation("BusinessClaims")
-  businessClaimReviews BusinessClaim[]   @relation("BusinessClaimReviews")
+  businessSubmissions       Business[]         @relation("BusinessSubmissions")
+  businessReviewsModerated  Business[]         @relation("BusinessReviews")
+  businessesOwned           Business[]         @relation("BusinessOwnership")
+  businessClaims            BusinessClaim[]    @relation("BusinessClaims")
+  businessClaimReviews      BusinessClaim[]    @relation("BusinessClaimReviews")
+  businessReviewsAuthored   BusinessReview[]   @relation("BusinessReviewAuthor")
+  businessReviewOwnerReplies BusinessReview[]  @relation("BusinessReviewOwnerReply")
 
   @@map("users")
 }
@@ -1854,6 +1856,7 @@ model Business {
   claimedBy       User?     @relation("BusinessOwnership", fields: [claimedById], references: [id])
   claimedAt       DateTime?
   claims          BusinessClaim[]
+  reviews         BusinessReview[]
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @default(now()) @updatedAt
 
@@ -1861,6 +1864,43 @@ model Business {
   @@index([category])
   @@index([neighborhood])
   @@map("businesses")
+}
+
+// Member ratings + short text reviews on directory entries. One row per
+// (business, author) — re-rating the same business edits the existing
+// row in place. Aggregate stats (avg rating, count) are computed on
+// read rather than denormalized; we have <200 businesses and an MVP
+// expectation of <50 reviews each, so a Prisma groupBy at list time is
+// fine and avoids the "denorm drift" class of bug.
+model BusinessReview {
+  id          String    @id @default(cuid())
+  businessId  String
+  business    Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  authorId    String
+  author      User      @relation("BusinessReviewAuthor", fields: [authorId], references: [id])
+  rating      Int       // 1..5, enforced in the API layer
+  comment     String?
+
+  // Verified-owner reply. Surfaced as an "Owner's response" nested
+  // under the review. Owners can edit/clear their reply; deleting the
+  // review (by the original author) deletes the reply with it via the
+  // FK cascade above.
+  ownerReply      String?
+  ownerReplyAt    DateTime?
+  ownerReplyById  String?
+  ownerReplyBy    User?     @relation("BusinessReviewOwnerReply", fields: [ownerReplyById], references: [id])
+
+  // Admin moderation flag. Hidden reviews don't render on the public
+  // page or count toward the aggregate, but stay in the DB so the
+  // author + admins can see the moderation history.
+  isHidden        Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @default(now()) @updatedAt
+
+  @@unique([businessId, authorId])
+  @@index([businessId, isHidden])
+  @@index([authorId])
+  @@map("business_reviews")
 }
 
 // Google-Business-style claim flow. A logged-in member asserts ownership
