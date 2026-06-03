@@ -141,7 +141,7 @@ export default function DirectoryMap({ businesses, onPinClick }: Props) {
             ${b.avgRating != null
               ? `<div style="font-size: 12px; margin-top: 4px;"><span style="color: #f59e0b;">★</span> <b>${b.avgRating.toFixed(1)}</b> <span style="color: #999;">· ${b.reviewCount} review${b.reviewCount === 1 ? '' : 's'}</span></div>`
               : '<div style="font-size: 11px; color: #aaa; margin-top: 4px;">No reviews yet</div>'}
-            <button data-biz-id="${b.id}" class="dir-map-cta" style="
+            <button data-biz-id="${escapeHtml(b.id)}" class="dir-map-cta" style="
               margin-top: 8px; padding: 5px 10px;
               background: #f59e0b; color: white;
               font-size: 11px; font-weight: 700;
