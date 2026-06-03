@@ -1868,16 +1868,22 @@ model Business {
   tags            String[] @default([])
   isApproved      Boolean   @default(false)
   isActive        Boolean   @default(true)
-  submittedById   String
-  submittedBy     User      @relation("BusinessSubmissions", fields: [submittedById], references: [id])
+  // submittedBy is nullable + SetNull so a directory entry survives the
+  // submitter's account deletion (attributionDisplay falls back to "a
+  // member"). Without this, deleting any active member with a single
+  // submission would be blocked by the FK constraint.
+  submittedById   String?
+  submittedBy     User?     @relation("BusinessSubmissions", fields: [submittedById], references: [id], onDelete: SetNull)
   reviewedById    String?
-  reviewedBy      User?     @relation("BusinessReviews", fields: [reviewedById], references: [id])
+  reviewedBy      User?     @relation("BusinessReviews", fields: [reviewedById], references: [id], onDelete: SetNull)
   reviewedAt      DateTime?
   // Verified owner (set when admin approves a BusinessClaim). Surfaced
   // on the directory card as a "Verified owner" badge. Future PRs may
   // grant the owner self-serve edit permissions on their own listing.
+  // SetNull on owner deletion — business stays in directory, claim
+  // history is the source of truth for who used to own it.
   claimedById     String?
-  claimedBy       User?     @relation("BusinessOwnership", fields: [claimedById], references: [id])
+  claimedBy       User?     @relation("BusinessOwnership", fields: [claimedById], references: [id], onDelete: SetNull)
   claimedAt       DateTime?
   claims          BusinessClaim[]
   reviews         BusinessReview[]
@@ -1902,19 +1908,23 @@ model BusinessReview {
   id          String    @id @default(cuid())
   businessId  String
   business    Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  // Cascade on author deletion — a review without its author is just
+  // unattributed text; user-content cleanup is the expected behavior
+  // when a member deletes their account.
   authorId    String
-  author      User      @relation("BusinessReviewAuthor", fields: [authorId], references: [id])
+  author      User      @relation("BusinessReviewAuthor", fields: [authorId], references: [id], onDelete: Cascade)
   rating      Int       // 1..5, enforced in the API layer
   comment     String?
 
   // Verified-owner reply. Surfaced as an "Owner's response" nested
   // under the review. Owners can edit/clear their reply; deleting the
   // review (by the original author) deletes the reply with it via the
-  // FK cascade above.
+  // FK cascade above. SetNull on owner deletion preserves the reply
+  // text but un-attributes it.
   ownerReply      String?
   ownerReplyAt    DateTime?
   ownerReplyById  String?
-  ownerReplyBy    User?     @relation("BusinessReviewOwnerReply", fields: [ownerReplyById], references: [id])
+  ownerReplyBy    User?     @relation("BusinessReviewOwnerReply", fields: [ownerReplyById], references: [id], onDelete: SetNull)
 
   // Admin moderation flag. Hidden reviews don't render on the public
   // page or count toward the aggregate, but stay in the DB so the
@@ -1939,12 +1949,12 @@ model BusinessReport {
   businessId    String
   business      Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
   reporterId    String?
-  reporter      User?     @relation("BusinessReportReporter", fields: [reporterId], references: [id])
+  reporter      User?     @relation("BusinessReportReporter", fields: [reporterId], references: [id], onDelete: SetNull)
   reason        String    // closed | wrong_info | inappropriate | other
   message       String?
   status        String    @default("pending") // pending | resolved | dismissed
   reviewedById  String?
-  reviewedBy    User?     @relation("BusinessReportReviewer", fields: [reviewedById], references: [id])
+  reviewedBy    User?     @relation("BusinessReportReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
   reviewedAt    DateTime?
   createdAt     DateTime  @default(now())
 
@@ -1959,8 +1969,10 @@ model BusinessReport {
 // "trending this week" sort can groupBy + range-filter cheaply.
 model BusinessSave {
   id         String   @id @default(cuid())
+  // Saves are personal data — cascade with the user on account
+  // deletion (alongside any other user-content cleanup).
   userId     String
-  user       User     @relation("BusinessSaves", fields: [userId], references: [id])
+  user       User     @relation("BusinessSaves", fields: [userId], references: [id], onDelete: Cascade)
   businessId String
   business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
   createdAt  DateTime @default(now())
@@ -1984,12 +1996,14 @@ model BusinessClaim {
   id            String    @id @default(cuid())
   businessId    String
   business      Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  // Cascade on claimant deletion — pending claims tied to a deleted
+  // user have no meaning anymore.
   claimantId    String
-  claimant      User      @relation("BusinessClaims", fields: [claimantId], references: [id])
+  claimant      User      @relation("BusinessClaims", fields: [claimantId], references: [id], onDelete: Cascade)
   message       String    // proof / why they're the owner
   status        String    @default("pending") // pending | approved | rejected
   reviewedById  String?
-  reviewedBy    User?     @relation("BusinessClaimReviews", fields: [reviewedById], references: [id])
+  reviewedBy    User?     @relation("BusinessClaimReviews", fields: [reviewedById], references: [id], onDelete: SetNull)
   reviewedAt    DateTime?
   createdAt     DateTime  @default(now())
 

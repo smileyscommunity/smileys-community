@@ -11,6 +11,13 @@ import {
   normalizeInstagramHandle,
   attributionDisplay,
 } from '@/lib/directory'
+import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
+
+// Allowlist for the neighborhood filter param so a garbage param
+// returns a clean 400 instead of an empty list (the previous behavior
+// silently dropped to zero rows, indistinguishable from "no
+// businesses match these filters yet").
+const NEIGHBORHOOD_SET: ReadonlySet<string> = new Set(ISTANBUL_NEIGHBORHOODS)
 
 const PAGE_SIZE = 200
 
@@ -44,8 +51,10 @@ export async function GET(req: NextRequest) {
       where.category = category
     }
     if (neighborhood) {
-      // Bound the length so a 100KB neighborhood param can't pin the DB.
-      where.neighborhood = neighborhood.slice(0, DIRECTORY_LIMITS.neighborhood)
+      if (!NEIGHBORHOOD_SET.has(neighborhood)) {
+        return NextResponse.json({ error: 'Invalid neighborhood' }, { status: 400 })
+      }
+      where.neighborhood = neighborhood
     }
     if (type === 'expat-owned')    where.isExpatOwned    = true
     if (type === 'expat-friendly') where.isExpatFriendly = true
@@ -65,9 +74,9 @@ export async function GET(req: NextRequest) {
         isExpatOwned: true, isExpatFriendly: true, languages: true,
         latitude: true, longitude: true,
         hours: true, memberDiscount: true, tags: true,
-        // claimedById is exposed (truthy/falsy) so the public card can
-        // show a "✓ Verified owner" badge; the owner's identity is NOT
-        // included to avoid a PII leak on a public endpoint.
+        // claimedById is selected for server-side computation of
+        // hasClaimedOwner + isMine; both booleans are derived below
+        // and the raw CUID is stripped from the response shape.
         claimedById: true,
         // Submitter name is exposed for the "Added by Sarah K." line.
         // attributionDisplay() truncates the surname to a single
@@ -111,17 +120,25 @@ export async function GET(req: NextRequest) {
     const saveByBiz = new Map(saveCounts.map(s => [s.businessId, s._count._all]))
     const savedSet  = new Set(mySaves.map(s => s.businessId))
 
-    // Strip the joined submittedBy row before returning — only the
-    // truncated attribution string leaves the server.
+    // Strip the joined submittedBy row + the raw claimedById before
+    // returning. The original implementation selected claimedById:true
+    // and a scraper could correlate the CUID to the owner's other
+    // public surfaces (reviews, club posts, etc.) to de-anonymize
+    // every verified business owner. We now expose:
+    //   - hasClaimedOwner: boolean   (truthy badge state)
+    //   - isMine:          boolean   (only true for the calling owner)
+    // and keep the underlying user id server-side.
     const enriched = businesses.map(b => {
-      const { submittedBy, ...rest } = b
+      const { submittedBy, claimedById, ...rest } = b
       return {
         ...rest,
-        avgRating:   statsByBiz.get(b.id)?.avgRating   ?? null,
-        reviewCount: statsByBiz.get(b.id)?.reviewCount ?? 0,
-        saveCount:   saveByBiz.get(b.id)               ?? 0,
-        isSaved:     savedSet.has(b.id),
-        addedBy:     attributionDisplay(submittedBy?.name),
+        avgRating:        statsByBiz.get(b.id)?.avgRating   ?? null,
+        reviewCount:      statsByBiz.get(b.id)?.reviewCount ?? 0,
+        saveCount:        saveByBiz.get(b.id)               ?? 0,
+        isSaved:          savedSet.has(b.id),
+        addedBy:          attributionDisplay(submittedBy?.name),
+        hasClaimedOwner:  claimedById !== null,
+        isMine:           session != null && claimedById === session.id,
       }
     })
 

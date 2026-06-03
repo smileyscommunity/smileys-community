@@ -26,9 +26,13 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     const business = await prisma.business.findUnique({
       where:  { id },
-      select: { id: true, isApproved: true },
+      select: { id: true, isApproved: true, isActive: true },
     })
-    if (!business || !business.isApproved) {
+    // Match the gate used by every other public write endpoint
+    // (reviews, save, claim). An admin-deactivated business is no
+    // longer publicly visible, so accepting reports against it
+    // pollutes the queue with reports the admin already actioned.
+    if (!business || !business.isApproved || !business.isActive) {
       return NextResponse.json({ error: 'Business not found' }, { status: 404 })
     }
 

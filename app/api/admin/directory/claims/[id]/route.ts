@@ -36,25 +36,45 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     if (action === 'approve') {
       // Refuse to overwrite a different existing owner — that would
-      // silently transfer ownership. Admin has to clear the old owner
-      // first (PATCH /admin/directory with action='unclaim', not yet
-      // implemented; for now this surfaces the conflict).
+      // silently transfer ownership. Pre-check + the conditional
+      // updateMany inside the transaction together close the race
+      // where two admins approve competing claims concurrently
+      // (without the where-guard, the second update would silently
+      // overwrite the first).
       if (claim.business.claimedById && claim.business.claimedById !== claim.claimantId) {
         return NextResponse.json(
           { error: 'This business already has a different verified owner. Clear the old owner first.' },
           { status: 409 },
         )
       }
-      await prisma.$transaction([
-        prisma.business.update({
-          where: { id: claim.businessId },
-          data:  { claimedById: claim.claimantId, claimedAt: new Date() },
-        }),
-        prisma.businessClaim.update({
-          where: { id },
-          data:  { status: 'approved', reviewedById: session.id, reviewedAt: new Date() },
-        }),
-      ])
+      try {
+        await prisma.$transaction(async (tx) => {
+          const { count } = await tx.business.updateMany({
+            where: {
+              id: claim.businessId,
+              // Guard: only succeed if the business is still unclaimed
+              // OR already claimed by THIS claimant. If a competing
+              // admin's approval slipped in between our pre-check and
+              // the transaction, count === 0 and we abort.
+              OR: [{ claimedById: null }, { claimedById: claim.claimantId }],
+            },
+            data: { claimedById: claim.claimantId, claimedAt: new Date() },
+          })
+          if (count === 0) throw new Error('CLAIM_RACED')
+          await tx.businessClaim.update({
+            where: { id },
+            data:  { status: 'approved', reviewedById: session.id, reviewedAt: new Date() },
+          })
+        })
+      } catch (e) {
+        if (e instanceof Error && e.message === 'CLAIM_RACED') {
+          return NextResponse.json(
+            { error: 'A competing claim was approved by another admin. Reload the queue.' },
+            { status: 409 },
+          )
+        }
+        throw e
+      }
       await createNotification(
         claim.claimantId, 'system',
         'Your business claim was approved',

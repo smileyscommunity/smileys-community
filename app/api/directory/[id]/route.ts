@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
+import { validateFieldUpdate } from '@/app/api/admin/directory/_lib'
 
 // PATCH /api/directory/[id] — verified-owner self-edit. Reuses the
 // same field-update validator as /api/admin/directory PATCH so the
@@ -19,10 +20,6 @@ import { writeAudit } from '@/lib/audit'
 // — owners can never approve/reject, change moderation flags, or
 // reassign ownership.
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  // Lazy-import the validator so the owner-edit and admin-edit code
-  // paths share exactly one normalize function.
-  const { validateFieldUpdate } = await import('@/app/api/admin/directory/_lib')
-
   try {
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

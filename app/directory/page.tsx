@@ -40,9 +40,12 @@ interface Business {
   isExpatOwned: boolean
   isExpatFriendly: boolean
   languages: string | null
-  // True when an admin has approved a BusinessClaim — surfaced as a
-  // "✓ Verified owner" badge and hides the Claim CTA.
-  claimedById: string | null
+  // Server-projected booleans replacing the raw claimedById CUID.
+  // The previous shape leaked the owner's user id to anonymous
+  // scrapers; the API now derives these two flags server-side and
+  // hides the underlying id.
+  hasClaimedOwner: boolean
+  isMine: boolean
   // Aggregate review stats (non-hidden reviews only).
   avgRating:   number | null
   reviewCount: number
@@ -80,7 +83,7 @@ function ClaimWidget({ b, isLoggedIn }: { b: Business; isLoggedIn: boolean }) {
   useEffect(() => {
     let cancelled = false
     if (!isLoggedIn) { setState('none'); return }
-    if (b.claimedById) { setState('owned'); return }
+    if (b.hasClaimedOwner) { setState('owned'); return }
     fetch(`/app/api/directory/${b.id}/claim`, { credentials: 'include' })
       .then(async r => r.ok ? r.json() : ({ claim: null }))
       .then(d => {
@@ -90,12 +93,12 @@ function ClaimWidget({ b, isLoggedIn }: { b: Business; isLoggedIn: boolean }) {
       })
       .catch(() => { if (!cancelled) setState('none') })
     return () => { cancelled = true }
-  }, [b.id, b.claimedById, isLoggedIn])
+  }, [b.id, b.hasClaimedOwner, isLoggedIn])
 
   // Verified owner state renders nothing here — the badge lives next to
   // the business name (see BusinessCard) so it sits with the title
   // rather than as a CTA-shaped block at the bottom.
-  if (b.claimedById) return null
+  if (b.hasClaimedOwner) return null
 
   if (!isLoggedIn) {
     return (
@@ -197,7 +200,9 @@ function BusinessCard({
 }) {
   const logo  = resolveImageUrl(b.logo)
   const cover = resolveImageUrl(b.coverImage)
-  const isOwner = currentUserId != null && b.claimedById === currentUserId
+  // isOwner is now a server-set flag — the client no longer compares
+  // CUIDs (we never receive the raw owner id).
+  const isOwner = b.isMine
   const openStatus = getOpenStatus(b.hours)
 
   return (
@@ -267,7 +272,7 @@ function BusinessCard({
             {/* Verified-owner check next to the title — same position
                 Google + Twitter use, so the badge reads as "this name
                 is verified" rather than as a standalone CTA. */}
-            {b.claimedById && (
+            {b.hasClaimedOwner && (
               <span title="Verified owner" className="text-emerald-500 text-xs shrink-0">✓</span>
             )}
           </div>
@@ -631,7 +636,7 @@ function DirectoryPageInner() {
           businessName={openReviewsFor.name}
           isLoggedIn={isLoggedIn}
           currentUserId={currentUserId}
-          isOwner={currentUserId != null && openReviewsFor.claimedById === currentUserId}
+          isOwner={openReviewsFor.isMine}
           onChange={load}
           onClose={() => setOpenReviewsFor(null)}
         />

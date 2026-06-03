@@ -59,14 +59,18 @@ export async function GET() {
     const saveByBiz = new Map(saveCounts.map(s => [s.businessId, s._count._all]))
 
     const enriched = visible.map(b => {
-      const { submittedBy, isApproved: _ia, isActive: _is, ...rest } = b
+      const { submittedBy, claimedById, isApproved: _ia, isActive: _is, ...rest } = b
       return {
         ...rest,
-        avgRating:   statsByBiz.get(b.id)?.avgRating   ?? null,
-        reviewCount: statsByBiz.get(b.id)?.reviewCount ?? 0,
-        saveCount:   saveByBiz.get(b.id)               ?? 0,
-        isSaved:     true,
-        addedBy:     attributionDisplay(submittedBy?.name),
+        avgRating:        statsByBiz.get(b.id)?.avgRating   ?? null,
+        reviewCount:      statsByBiz.get(b.id)?.reviewCount ?? 0,
+        saveCount:        saveByBiz.get(b.id)               ?? 0,
+        isSaved:          true,
+        addedBy:          attributionDisplay(submittedBy?.name),
+        // Same projection as the main directory endpoint — never leak
+        // the raw owner CUID to the client.
+        hasClaimedOwner:  claimedById !== null,
+        isMine:           claimedById === session.id,
       }
     })
 

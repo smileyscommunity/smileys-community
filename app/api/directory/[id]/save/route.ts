@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
@@ -31,16 +32,39 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Business not found' }, { status: 404 })
     }
 
+    // Atomic toggle that survives the rapid-double-click race.
+    //
+    // Previous implementation: findUnique → branch → create/delete.
+    // Two concurrent POSTs (double-tap, double-fired pointer events)
+    // both saw existing == null, both called create, and the second
+    // P2002 surfaced as a 500 that rolled back the optimistic UI.
+    //
+    // New shape: read once to decide intent, then idempotent
+    // deleteMany (for unsave) or create-with-conflict-swallow (for
+    // save). Any P2002 from a concurrent racer means "already saved
+    // by us, treat as success".
     const existing = await prisma.businessSave.findUnique({
-      where: { userId_businessId: { userId: session.id, businessId: id } },
+      where:  { userId_businessId: { userId: session.id, businessId: id } },
+      select: { id: true },
     })
     if (existing) {
-      await prisma.businessSave.delete({ where: { id: existing.id } })
+      await prisma.businessSave.deleteMany({
+        where: { userId: session.id, businessId: id },
+      })
       return NextResponse.json({ saved: false })
     }
-    await prisma.businessSave.create({
-      data: { userId: session.id, businessId: id },
-    })
+    try {
+      await prisma.businessSave.create({
+        data: { userId: session.id, businessId: id },
+      })
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        // Concurrent save by the same user landed first — that's
+        // exactly the state the caller wants.
+        return NextResponse.json({ saved: true })
+      }
+      throw e
+    }
     return NextResponse.json({ saved: true })
   } catch (e) {
     console.error('Directory save POST error:', e)

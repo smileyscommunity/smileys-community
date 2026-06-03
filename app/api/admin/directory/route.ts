@@ -184,11 +184,15 @@ export async function PATCH(req: NextRequest) {
         where: { id },
         data: { isApproved: true, isActive: true, reviewedById: session.id, reviewedAt: new Date() },
       })
-      await createNotification(existing.submittedById, 'system',
-        'Business listing approved!',
-        `"${existing.name}" is now live in the Smileys directory.`,
-        '/directory',
-      )
+      // submittedById is nullable (SetNull when the submitter deletes
+      // their account); skip the notify on orphaned rows.
+      if (existing.submittedById) {
+        await createNotification(existing.submittedById, 'system',
+          'Business listing approved!',
+          `"${existing.name}" is now live in the Smileys directory.`,
+          '/directory',
+        )
+      }
       await writeAudit(session.id, session.name, 'directory.approve', id, 'business', { name: existing.name })
       return NextResponse.json({ ok: true })
     }
@@ -198,11 +202,13 @@ export async function PATCH(req: NextRequest) {
         where: { id },
         data: { isApproved: false, isActive: false, reviewedById: session.id, reviewedAt: new Date() },
       })
-      await createNotification(existing.submittedById, 'system',
-        'Business listing not approved',
-        `"${existing.name}" was not approved for the directory. Contact an admin for more info.`,
-        '/directory',
-      )
+      if (existing.submittedById) {
+        await createNotification(existing.submittedById, 'system',
+          'Business listing not approved',
+          `"${existing.name}" was not approved for the directory. Contact an admin for more info.`,
+          '/directory',
+        )
+      }
       await writeAudit(session.id, session.name, 'directory.reject', id, 'business', { name: existing.name })
       return NextResponse.json({ ok: true })
     }

@@ -105,11 +105,6 @@ function prevDay(d: DayKey): DayKey {
   return DAY_KEYS[(i + DAY_KEYS.length - 1) % DAY_KEYS.length]
 }
 
-function nextDay(d: DayKey): DayKey {
-  const i = DAY_KEYS.indexOf(d)
-  return DAY_KEYS[(i + 1) % DAY_KEYS.length]
-}
-
 /**
  * Status for the "Open now" badge on the directory card.
  *   - { open: true,  closesAt: "22:00" }
@@ -128,6 +123,15 @@ export function getOpenStatus(hours: BusinessHours | null | undefined):
   | null
 {
   if (!hours || typeof hours !== 'object') return null
+  // Defensive: if any present day key has a malformed value, treat
+  // the whole hours object as untrusted and hide the badge entirely
+  // (the API rejects malformed input at write time, so this is
+  // belt-and-suspenders for hand-edited rows). Better than rendering
+  // "Closed" for an entry with a typo in just one day.
+  for (const d of DAY_KEYS) {
+    const v = hours[d]
+    if (v !== undefined && v !== null && !isValidRange(v)) return null
+  }
 
   const { dayKey, minutes } = nowInIstanbul()
 
@@ -160,8 +164,10 @@ export function getOpenStatus(hours: BusinessHours | null | undefined):
   }
 
   // 3. Closed. Find the next opening slot within the next 7 days.
+  // Simple modular walk — probe[0] = today, probe[1] = tomorrow, etc.
+  const idx = DAY_KEYS.indexOf(dayKey)
   for (let i = 0; i < 7; i++) {
-    const probe: DayKey = i === 0 ? dayKey : nextDay(DAY_KEYS[(DAY_KEYS.indexOf(dayKey) + i - 1) % DAY_KEYS.length])
+    const probe: DayKey = DAY_KEYS[(idx + i) % DAY_KEYS.length]
     const r = hours[probe]
     if (r && isValidRange(r)) {
       const [openS] = r.split('-')
