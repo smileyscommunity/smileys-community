@@ -38,6 +38,10 @@ interface Business {
 // `none` sentinel for "no claim yet, you can submit one".
 type ClaimState = 'loading' | 'none' | 'pending' | 'approved' | 'rejected' | 'owned'
 
+// Inline claim trigger — lives inside the info block, styled as a small
+// text link rather than a full-width button. Lighter visual footprint
+// so it doesn't fight with the Website/Instagram/Call action row above.
+// The popover form (when open) overlays the card.
 function ClaimWidget({ b, isLoggedIn }: { b: Business; isLoggedIn: boolean }) {
   const [state,   setState]   = useState<ClaimState>('loading')
   const [open,    setOpen]    = useState(false)
@@ -59,22 +63,16 @@ function ClaimWidget({ b, isLoggedIn }: { b: Business; isLoggedIn: boolean }) {
     return () => { cancelled = true }
   }, [b.id, b.claimedById, isLoggedIn])
 
-  // Already-verified owner badge replaces the claim button. The owner's
-  // identity isn't exposed on the public endpoint, only the existence
-  // of an owner, so we can't say WHO claimed it.
-  if (b.claimedById) {
-    return (
-      <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 rounded-lg py-1.5 px-2 flex items-center justify-center gap-1">
-        <span>✓</span> Verified owner
-      </span>
-    )
-  }
+  // Verified owner state renders nothing here — the badge lives next to
+  // the business name (see BusinessCard) so it sits with the title
+  // rather than as a CTA-shaped block at the bottom.
+  if (b.claimedById) return null
 
   if (!isLoggedIn) {
     return (
       <Link
         href={`/login?next=${encodeURIComponent('/directory')}`}
-        className="text-[10px] font-semibold text-zinc-600 hover:text-amber-700 bg-gray-50 hover:bg-amber-50 rounded-lg py-1.5 px-2 text-center transition-colors"
+        className="text-[11px] text-gray-400 hover:text-amber-600 hover:underline transition-colors"
       >
         Is this your business?
       </Link>
@@ -84,7 +82,7 @@ function ClaimWidget({ b, isLoggedIn }: { b: Business; isLoggedIn: boolean }) {
   if (state === 'loading') return null
 
   if (state === 'pending') {
-    return <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 rounded-lg py-1.5 px-2 text-center">Claim pending</span>
+    return <p className="text-[11px] text-amber-600 italic">Claim pending review</p>
   }
 
   async function submit() {
@@ -152,7 +150,7 @@ function ClaimWidget({ b, isLoggedIn }: { b: Business; isLoggedIn: boolean }) {
   return (
     <button
       onClick={() => setOpen(true)}
-      className="text-[10px] font-semibold text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 rounded-lg py-1.5 px-2 text-center transition-colors"
+      className="text-[11px] text-gray-400 hover:text-amber-600 hover:underline transition-colors self-start"
     >
       {label}
     </button>
@@ -194,10 +192,25 @@ function BusinessCard({ b, isLoggedIn }: { b: Business; isLoggedIn: boolean }) {
       {/* Info */}
       <div className="p-3 flex flex-col gap-2 flex-1">
         <div>
-          <p className="font-bold text-gray-900 text-sm leading-tight truncate">{b.name}</p>
+          <div className="flex items-center gap-1.5">
+            <p className="font-bold text-gray-900 text-sm leading-tight truncate">{b.name}</p>
+            {/* Verified-owner check next to the title — same position
+                Google + Twitter use, so the badge reads as "this name
+                is verified" rather than as a standalone CTA. */}
+            {b.claimedById && (
+              <span title="Verified owner" className="text-emerald-500 text-xs shrink-0">✓</span>
+            )}
+          </div>
           <p className="text-[11px] text-gray-400 truncate mt-0.5">
             {b.category}{b.neighborhood ? ` · ${b.neighborhood}` : ''}
           </p>
+          {/* Claim trigger sits inside the info block as a small link
+              right under the meta line — discoverable but visually
+              quiet. Renders nothing when the business is already
+              claimed (badge above replaces it). */}
+          <div className="mt-1">
+            <ClaimWidget b={b} isLoggedIn={isLoggedIn} />
+          </div>
         </div>
 
         <p className="text-xs text-gray-500 line-clamp-2 flex-1">{b.description}</p>
@@ -232,12 +245,6 @@ function BusinessCard({ b, isLoggedIn }: { b: Business; isLoggedIn: boolean }) {
           {!b.website && !b.instagram && !b.phone && (
             <span className="text-[10px] text-gray-300 italic flex-1">No links</span>
           )}
-        </div>
-
-        {/* Claim widget — pinned at the bottom so all cards in the grid
-            line up regardless of how many link buttons rendered above. */}
-        <div className="grid grid-cols-1">
-          <ClaimWidget b={b} isLoggedIn={isLoggedIn} />
         </div>
       </div>
     </div>
