@@ -137,6 +137,7 @@ export default function Footer() {
             <ul className="space-y-3">
               {[
                 { href: '/listings',      label: 'Community Board 🛍️' },
+                { href: '/directory',     label: 'Business Directory 🏢' },
                 { href: '/guide',         label: 'Istanbul Guide 🗺️'  },
                 { href: '/neighborhoods', label: 'Neighborhoods 🏘️'   },
                 { href: '/posts',         label: 'Articles 📰'        },

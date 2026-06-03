@@ -82,6 +82,7 @@ const discoverLinks = [
   { label: 'Board',         href: '/listings',      emoji: '🛍️', public: true  },
   { label: 'Guide',         href: '/guide',         emoji: '🗺️', public: true  },
   { label: 'Visiting?',     href: '/visiting',      emoji: '👋', public: true  },
+  { label: 'Directory',     href: '/directory',     emoji: '🏢', public: false },
 ]
 
 const pageTitles: [string, string][] = [
@@ -102,6 +103,7 @@ const pageTitles: [string, string][] = [
   ['/perks',         'Perks'],
   ['/apply',         'Apply'],
   ['/cup',           'Smileys World Cup'],
+  ['/directory',     'Business Directory'],
 ]
 
 function getPageTitle(pathname: string): string {

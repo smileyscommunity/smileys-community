@@ -56,7 +56,7 @@ export default function BottomNav() {
   useEffect(() => { setSheetOpen(false) }, [pathname])  // close on nav
 
   const isInApp = pathname.startsWith('/admin') || pathname.startsWith('/host') || pathname.startsWith('/partner') ||
-    ['/events', '/clubs', '/members', '/perks', '/dashboard', '/profile', '/my-events', '/notifications', '/pending', '/reviews', '/listings', '/messages', '/neighborhoods', '/invite', '/guide', '/hangouts', '/visiting'].some(r => pathname === r || pathname.startsWith(r + '/'))
+    ['/events', '/clubs', '/members', '/perks', '/dashboard', '/profile', '/my-events', '/notifications', '/pending', '/reviews', '/listings', '/messages', '/neighborhoods', '/invite', '/guide', '/hangouts', '/visiting', '/directory'].some(r => pathname === r || pathname.startsWith(r + '/'))
   if (!isLoggedIn || !isInApp) return null
 
   const photo = resolveImageUrl(user.profilePhoto)
