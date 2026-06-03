@@ -50,6 +50,52 @@ export const DIRECTORY_LIMITS = {
   memberDiscount: 80,
 } as const
 
+// Tag normalization: trim, collapse internal whitespace, drop empties,
+// dedupe (case-insensitive on the comparison, original case preserved
+// on the survivor), cap each tag to 30 chars and the array to 12 tags.
+// Used by both admin create + admin/owner PATCH.
+const TAG_MAX = 30
+const TAGS_MAX_PER_BIZ = 12
+
+export function normalizeTags(input: unknown): string[] | null {
+  if (input === null || input === undefined) return null
+  if (typeof input === 'string') {
+    // Allow comma-separated input from the admin form.
+    return normalizeTags(input.split(','))
+  }
+  if (!Array.isArray(input)) return null
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const raw of input) {
+    if (typeof raw !== 'string') continue
+    const cleaned = raw.trim().replace(/\s+/g, ' ').slice(0, TAG_MAX)
+    if (!cleaned) continue
+    const key = cleaned.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(cleaned)
+    if (out.length >= TAGS_MAX_PER_BIZ) break
+  }
+  return out
+}
+
+/**
+ * Public-safe attribution display name for a directory submission.
+ * "Sarah Karaman" → "Sarah K." — drops the last name to the initial
+ * so the directory's "Added by …" line doesn't leak the full surname
+ * of every submitter to scrapers. Falls back to the bare first name
+ * when the user only has a single token.
+ */
+export function attributionDisplay(fullName: string | null | undefined): string {
+  if (!fullName || typeof fullName !== 'string') return 'a member'
+  const parts = fullName.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return 'a member'
+  if (parts.length === 1) return parts[0]
+  const first = parts[0]
+  const lastInitial = parts[parts.length - 1][0]?.toUpperCase() ?? ''
+  return lastInitial ? `${first} ${lastInitial}.` : first
+}
+
 /**
  * Normalize an Instagram handle to bare-handle form. Strips leading `@`,
  * any URL prefix (https://instagram.com/foo or instagram.com/foo →

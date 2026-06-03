@@ -11,6 +11,7 @@ import { isSafeHref } from '@/lib/safeUrl'
 import DirectoryReviews from '@/components/DirectoryReviews'
 import DirectoryReportButton from '@/components/DirectoryReportButton'
 import DirectoryOwnerEdit from '@/components/DirectoryOwnerEdit'
+import DirectorySaveButton from '@/components/DirectorySaveButton'
 import { getOpenStatus } from '@/lib/businessHours'
 import dynamic from 'next/dynamic'
 
@@ -52,6 +53,14 @@ interface Business {
   // Weekly opening hours, free-form member-discount perk.
   hours: Record<string, string | null> | null
   memberDiscount: string | null
+  // Admin-curated sub-tags ("Vegan", "Brunch", "Late-night", ...).
+  tags: string[]
+  // Save state — isSaved is the caller's flag (false for anon); count
+  // is the aggregate over all users.
+  isSaved: boolean
+  saveCount: number
+  // Truncated submitter attribution ("Sarah K." / "a member").
+  addedBy: string
 }
 
 // Claim status mirrors the BusinessClaim.status DB enum plus a
@@ -219,13 +228,18 @@ function BusinessCard({
           )}
         </div>
 
-        {/* Open-now status — top-right corner. Green when open, amber
-            when closed-now-but-opens-soon. Hidden entirely when the
-            business hasn't set hours, so blank-hours entries don't
-            read as "closed". */}
-        {openStatus && (
-          <div className="absolute top-2 right-2">
-            {openStatus.open ? (
+        {/* Top-right cluster: save toggle on top, open-now badge below.
+            Save is always visible (anon viewers get bounced to login on
+            click); open-now hides when hours aren't set. */}
+        <div className="absolute top-2 right-2 flex flex-col items-end gap-1">
+          <DirectorySaveButton
+            businessId={b.id}
+            businessName={b.name}
+            initialSaved={b.isSaved}
+            isLoggedIn={isLoggedIn}
+          />
+          {openStatus && (
+            openStatus.open ? (
               <span className="bg-emerald-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-tight shadow-sm">
                 Open · until {openStatus.closesAt}
               </span>
@@ -233,9 +247,9 @@ function BusinessCard({
               <span className="bg-white/95 text-gray-700 text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-tight shadow-sm">
                 Closed{openStatus.opensAt ? ` · opens ${openStatus.opensAt}` : ''}
               </span>
-            )}
-          </div>
-        )}
+            )
+          )}
+        </div>
 
         {/* Logo */}
         {logo && (
@@ -291,9 +305,36 @@ function BusinessCard({
 
         <p className="text-xs text-gray-500 line-clamp-2 flex-1">{b.description}</p>
 
+        {/* Sub-tag chips. Capped to 4 visible (overflow truncates) so
+            the card height stays predictable. Each chip is just visual
+            — clicking a chip on a future iteration could filter the
+            grid by that tag. */}
+        {b.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {b.tags.slice(0, 4).map(t => (
+              <span key={t} className="text-[10px] font-semibold bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                {t}
+              </span>
+            ))}
+            {b.tags.length > 4 && (
+              <span className="text-[10px] text-gray-400">+{b.tags.length - 4}</span>
+            )}
+          </div>
+        )}
+
         {b.languages && (
           <p className="text-[10px] text-gray-400">🗣 {b.languages}</p>
         )}
+
+        {/* Attribution line — "Added by Sarah K." plus optional save
+            count for social proof. addedBy is already server-truncated
+            so no surname leaks here. */}
+        <p className="text-[10px] text-gray-400">
+          Added by <span className="text-gray-500">{b.addedBy}</span>
+          {b.saveCount > 0 && (
+            <span> · ★ saved by {b.saveCount} {b.saveCount === 1 ? 'member' : 'members'}</span>
+          )}
+        </p>
 
         {/* Links. Each href passes through isSafeHref / the IG handle
             regex so a historical row with an unsanitized javascript:
@@ -471,6 +512,19 @@ function DirectoryPageInner() {
 
           {/* Filter pills */}
           <div className="flex gap-2 pb-4 overflow-x-auto scrollbar-hide">
+            {/* Saved-only quick link — visible only when logged in. Takes
+                members straight to their personal /directory/saved list
+                rather than filtering in place, so the route is
+                bookmarkable + shareable as a sub-page. */}
+            {isLoggedIn && (
+              <Link
+                href="/directory/saved"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold border whitespace-nowrap bg-amber-500 text-white border-amber-500 hover:bg-amber-600 hover:border-amber-600 transition-all"
+              >
+                ★ Saved
+              </Link>
+            )}
+
             {/* Type filters */}
             {([
               { id: 'all',            label: 'All'            },

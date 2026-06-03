@@ -165,6 +165,7 @@ model User {
   businessReviewOwnerReplies BusinessReview[]   @relation("BusinessReviewOwnerReply")
   businessReportsFiled       BusinessReport[]   @relation("BusinessReportReporter")
   businessReportsReviewed    BusinessReport[]   @relation("BusinessReportReviewer")
+  businessSaves              BusinessSave[]     @relation("BusinessSaves")
 
   @@map("users")
 }
@@ -1860,6 +1861,11 @@ model Business {
   // card. Capped client- and server-side to keep it from competing
   // with the business name visually.
   memberDiscount  String?
+  // Admin-curated sub-tags: "Vegan", "Brunch", "Late-night",
+  // "Wheelchair accessible", cuisines, etc. Filters become much
+  // sharper than the 10 top-level categories alone. Postgres native
+  // array — queryable, easy to render as chips.
+  tags            String[] @default([])
   isApproved      Boolean   @default(false)
   isActive        Boolean   @default(true)
   submittedById   String
@@ -1876,6 +1882,7 @@ model Business {
   claims          BusinessClaim[]
   reviews         BusinessReview[]
   reports         BusinessReport[]
+  saves           BusinessSave[]
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @default(now()) @updatedAt
 
@@ -1944,6 +1951,24 @@ model BusinessReport {
   @@index([status, createdAt])
   @@index([businessId])
   @@map("business_reports")
+}
+
+// Member-saved directory entries — the "starred" / favorites surface
+// at /directory/saved. Unique on (user, business) so toggling is
+// idempotent. Indexed on (businessId, createdAt) so a future
+// "trending this week" sort can groupBy + range-filter cheaply.
+model BusinessSave {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation("BusinessSaves", fields: [userId], references: [id])
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, businessId])
+  @@index([businessId, createdAt])
+  @@index([userId, createdAt])
+  @@map("business_saves")
 }
 
 // Google-Business-style claim flow. A logged-in member asserts ownership

@@ -9,6 +9,7 @@ import {
   BUSINESS_CATEGORY_SET,
   DIRECTORY_LIMITS,
   normalizeInstagramHandle,
+  attributionDisplay,
 } from '@/lib/directory'
 
 const PAGE_SIZE = 200
@@ -25,6 +26,7 @@ export async function GET(req: NextRequest) {
     // Public read — the directory is part of the marketing surface, like
     // /events and /clubs. No session required. The POST handler below
     // remains gated, so anonymous browsers can't submit.
+    const session = await getSession()
     const { searchParams } = new URL(req.url)
     const category     = searchParams.get('category') || ''
     const type         = searchParams.get('type') || ''
@@ -62,39 +64,66 @@ export async function GET(req: NextRequest) {
         website: true, instagram: true, logo: true, coverImage: true,
         isExpatOwned: true, isExpatFriendly: true, languages: true,
         latitude: true, longitude: true,
-        hours: true, memberDiscount: true,
+        hours: true, memberDiscount: true, tags: true,
         // claimedById is exposed (truthy/falsy) so the public card can
         // show a "✓ Verified owner" badge; the owner's identity is NOT
         // included to avoid a PII leak on a public endpoint.
         claimedById: true,
+        // Submitter name is exposed for the "Added by Sarah K." line.
+        // attributionDisplay() truncates the surname to a single
+        // letter before it leaves the server, so a public scraper
+        // can't enumerate which full-name member added what.
+        submittedBy: { select: { name: true } },
         createdAt: true,
       },
     })
 
-    // Aggregate ratings — one groupBy over the visible review set rather
-    // than N+1 review fetches. Hidden reviews are excluded so the
-    // average matches what the public sees on the detail card.
+    // Aggregate ratings, save counts, and per-caller save flags. All
+    // computed via single groupBy / findMany passes — no N+1 over the
+    // business list. Hidden reviews are excluded so the average
+    // matches what the public sees on the detail card.
     const ids = businesses.map(b => b.id)
-    const ratingStats = ids.length === 0
-      ? []
-      : await prisma.businessReview.groupBy({
-          by: ['businessId'],
-          where: { businessId: { in: ids }, isHidden: false },
-          _avg: { rating: true },
-          _count: { _all: true },
-        })
+    const [ratingStats, saveCounts, mySaves] = await Promise.all([
+      ids.length === 0 ? Promise.resolve([]) : prisma.businessReview.groupBy({
+        by: ['businessId'],
+        where: { businessId: { in: ids }, isHidden: false },
+        _avg: { rating: true },
+        _count: { _all: true },
+      }),
+      ids.length === 0 ? Promise.resolve([]) : prisma.businessSave.groupBy({
+        by: ['businessId'],
+        where: { businessId: { in: ids } },
+        _count: { _all: true },
+      }),
+      // Only query the caller's saves when there's a session — anonymous
+      // viewers get isSaved=false for every row without a DB round-trip.
+      ids.length === 0 || !session ? Promise.resolve([]) : prisma.businessSave.findMany({
+        where:  { userId: session.id, businessId: { in: ids } },
+        select: { businessId: true },
+      }),
+    ])
     const statsByBiz = new Map(
       ratingStats.map(s => [s.businessId, {
         avgRating:   s._avg.rating ?? null,
         reviewCount: s._count._all,
       }]),
     )
+    const saveByBiz = new Map(saveCounts.map(s => [s.businessId, s._count._all]))
+    const savedSet  = new Set(mySaves.map(s => s.businessId))
 
-    const enriched = businesses.map(b => ({
-      ...b,
-      avgRating:   statsByBiz.get(b.id)?.avgRating   ?? null,
-      reviewCount: statsByBiz.get(b.id)?.reviewCount ?? 0,
-    }))
+    // Strip the joined submittedBy row before returning — only the
+    // truncated attribution string leaves the server.
+    const enriched = businesses.map(b => {
+      const { submittedBy, ...rest } = b
+      return {
+        ...rest,
+        avgRating:   statsByBiz.get(b.id)?.avgRating   ?? null,
+        reviewCount: statsByBiz.get(b.id)?.reviewCount ?? 0,
+        saveCount:   saveByBiz.get(b.id)               ?? 0,
+        isSaved:     savedSet.has(b.id),
+        addedBy:     attributionDisplay(submittedBy?.name),
+      }
+    })
 
     return NextResponse.json(enriched)
   } catch (e) {

@@ -9,6 +9,7 @@ import {
   BUSINESS_CATEGORY_SET,
   DIRECTORY_LIMITS,
   normalizeInstagramHandle,
+  normalizeTags,
 } from '@/lib/directory'
 import { parseHours } from '@/lib/businessHours'
 
@@ -77,6 +78,10 @@ export function validateBusinessCreate(input: Record<string, unknown>):
   if ('memberDiscount' in input) {
     const v = str(input.memberDiscount, DIRECTORY_LIMITS.memberDiscount)
     if (v) data.memberDiscount = v
+  }
+  if ('tags' in input) {
+    const tags = normalizeTags(input.tags)
+    if (tags && tags.length > 0) data.tags = tags
   }
 
   const websiteRaw = str(input.website, DIRECTORY_LIMITS.website)
@@ -190,6 +195,11 @@ export function validateFieldUpdate(input: Record<string, unknown>):
   }
   if ('memberDiscount' in input) {
     data.memberDiscount = str(input.memberDiscount, DIRECTORY_LIMITS.memberDiscount)
+  }
+  if ('tags' in input) {
+    // Empty array clears all tags; we don't restrict here on intent.
+    const tags = normalizeTags(input.tags)
+    data.tags = tags ?? []
   }
 
   return { data }

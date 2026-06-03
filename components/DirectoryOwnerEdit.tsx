@@ -24,6 +24,7 @@ interface BusinessLike {
   languages: string | null
   hours: Record<string, string | null> | null
   memberDiscount: string | null
+  tags: string[]
 }
 
 type EditState = {
@@ -37,6 +38,7 @@ type EditState = {
   instagram: string
   languages: string
   memberDiscount: string
+  tagsStr: string
   hours: Record<string, string>
 }
 
@@ -57,6 +59,7 @@ function initFromBusiness(b: BusinessLike): EditState {
     instagram:      b.instagram      ?? '',
     languages:      b.languages      ?? '',
     memberDiscount: b.memberDiscount ?? '',
+    tagsStr:        (b.tags ?? []).join(', '),
     hours,
   }
 }
@@ -99,6 +102,7 @@ export default function DirectoryOwnerEdit({
           instagram:      s.instagram    || null,
           languages:      s.languages    || null,
           memberDiscount: s.memberDiscount || null,
+          tags: s.tagsStr,
           hours: hoursPatch,
         }),
       })
@@ -185,6 +189,11 @@ export default function DirectoryOwnerEdit({
                   <label className={labelCls}>Smileys member perk</label>
                   <input maxLength={DIRECTORY_LIMITS.memberDiscount} placeholder='e.g. "10% off"'
                     value={s.memberDiscount} onChange={e => setS(p => ({ ...p, memberDiscount: e.target.value }))} className={inputCls} />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className={labelCls}>Tags · comma-separated</label>
+                  <input placeholder="Vegan, Brunch, Late-night, Wheelchair accessible"
+                    value={s.tagsStr} onChange={e => setS(p => ({ ...p, tagsStr: e.target.value }))} className={inputCls} />
                 </div>
               </div>
 

@@ -56,6 +56,7 @@ interface Business {
   longitude: number | null
   hours: Record<string, string | null> | null
   memberDiscount: string | null
+  tags: string[]
   isApproved: boolean
   isActive: boolean
   createdAt: string
@@ -78,6 +79,10 @@ type EditFields = {
   latitude:  string
   longitude: string
   memberDiscount: string
+  // Tags entered as a single comma-separated string in the form; the
+  // payload sent to the API stays an array (the validator accepts
+  // either shape, normalizing to array).
+  tagsStr: string
   isExpatOwned: boolean
   isExpatFriendly: boolean
   // Hours kept as a separate object so saving sends an actual JSON
@@ -101,6 +106,7 @@ function toEditFields(b: Business): EditFields {
     latitude:        b.latitude  != null ? String(b.latitude)  : '',
     longitude:       b.longitude != null ? String(b.longitude) : '',
     memberDiscount:  b.memberDiscount  ?? '',
+    tagsStr:         (b.tags ?? []).join(', '),
     hours:           Object.fromEntries(DAY_KEYS.map(d => [
       d, typeof b.hours?.[d] === 'string' ? b.hours[d]! : '',
     ])),
@@ -169,6 +175,12 @@ function BusinessRow({ b, onAction }: { b: Business; onAction: () => void }) {
           if (changed) {
             patch.hours = Object.fromEntries(DAY_KEYS.map(d => [d, edit.hours[d] || null]))
           }
+          continue
+        }
+        // tagsStr is form-only — ship as `tags` (string the validator
+        // re-splits) when it changed.
+        if (k === 'tagsStr') {
+          if (edit.tagsStr !== original.tagsStr) patch.tags = edit.tagsStr
           continue
         }
         if (edit[k] !== original[k]) patch[k] = edit[k]
@@ -374,6 +386,15 @@ function BusinessRow({ b, onAction }: { b: Business; onAction: () => void }) {
             <div className="sm:col-span-2">
               <label className={labelCls}>Smileys member perk</label>
               <input maxLength={DIRECTORY_LIMITS.memberDiscount} placeholder='e.g. "10% off for Smileys members"' {...field('memberDiscount')} className={inputCls} />
+            </div>
+            <div className="sm:col-span-2">
+              <label className={labelCls}>Tags · comma-separated</label>
+              <input
+                placeholder="Vegan, Brunch, Late-night, Wheelchair accessible"
+                value={edit.tagsStr}
+                onChange={e => setEdit(s => ({ ...s, tagsStr: e.target.value }))}
+                className={inputCls}
+              />
             </div>
           </div>
           <p className="text-[10px] text-zinc-500 -mt-1">
