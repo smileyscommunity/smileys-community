@@ -45,7 +45,16 @@ export async function POST(req: NextRequest) {
       },
       select: { tokenVersion: true },
     })
-    await createSession({ ...session, tokenVersion: updated.tokenVersion })
+    // Nuke every active Session row for this user (including this device's),
+    // then issue a brand new one — consistent with the tokenVersion bump that
+    // invalidates every existing JWT. Other devices now lose their /settings
+    // entry too; this device gets a fresh JWT immediately so it stays signed
+    // in.
+    await prisma.session.deleteMany({ where: { userId: session.id } })
+    await createSession(
+      { ...session, tokenVersion: updated.tokenVersion },
+      { userAgent: req.headers.get('user-agent') },
+    )
 
     return NextResponse.json({ ok: true })
   } catch (e) {

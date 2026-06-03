@@ -181,7 +181,10 @@ export async function POST(req: NextRequest) {
     }
 
     await Promise.all([
-      createSession({ id: user.id, name: user.name, email: user.email, role: user.role, color: user.color, partnerId: user.partnerId || undefined, tokenVersion: user.tokenVersion }),
+      createSession(
+        { id: user.id, name: user.name, email: user.email, role: user.role, color: user.color, partnerId: user.partnerId || undefined, tokenVersion: user.tokenVersion },
+        { userAgent: req.headers.get('user-agent'), ip: getIp(req) },
+      ),
       prisma.user.update({ where: { id: user.id }, data: { lastActive: new Date() } }),
     ])
 

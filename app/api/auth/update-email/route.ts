@@ -48,8 +48,14 @@ export async function POST(req: NextRequest) {
     await prisma.emailVerificationToken.create({ data: { userId: session.id, token: hashToken(token), expiresAt } })
     sendVerificationEmail(newEmail, session.name, token).catch(console.error)
 
-    // Re-issue session for this device with new email + new tokenVersion
-    await createSession({ ...session, email: newEmail, emailVerified: false, tokenVersion: updated.tokenVersion })
+    // Same shape as change-password: nuke every existing Session row
+    // (consistent with the tokenVersion bump that invalidates every JWT),
+    // then issue a fresh one for this device so it stays signed in.
+    await prisma.session.deleteMany({ where: { userId: session.id } })
+    await createSession(
+      { ...session, email: newEmail, emailVerified: false, tokenVersion: updated.tokenVersion },
+      { userAgent: req.headers.get('user-agent') },
+    )
 
     return NextResponse.json({ ok: true })
   } catch (e) {

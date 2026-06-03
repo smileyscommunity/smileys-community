@@ -317,9 +317,17 @@ Known, not yet addressed:
   user-authored content in shared threads, scrubs every tracking field
   on the User row. Payment / EventAttendee / Review preserved
   deliberately for business records.
-- **7-day JWT session, no refresh rotation.** A stolen cookie is good
-  for a full week. `tokenVersion` invalidates globally but there's no
-  per-device session table, so you can't see/revoke individual devices.
+- ~~**7-day JWT session, no refresh rotation.**~~ *Partially closed.*
+  A `Session` table now tracks every issued JWT by its `jti`. Each
+  device has its own row (userAgent/ip/createdAt/lastUsedAt); users
+  can list them at `GET /api/auth/sessions` and revoke individual
+  devices at `DELETE /api/auth/sessions/[id]`. `getSession()` rejects
+  any JWT whose `jti` row is missing, revoked, or past expiry.
+  Legacy JWTs issued before this column (no `jti`) keep working until
+  their 7-day expiry; after that the backward-compat path can be
+  removed. The 7-day TTL itself is unchanged — refresh-token rotation
+  would shorten the stolen-cookie blast radius further but adds
+  meaningful flow complexity.
 - **2FA optional for admins/mods.** Audit recommended mandatory; not
   done because it's a UX decision (where's the enrollment prompt? what
   happens on failed enrollment?).

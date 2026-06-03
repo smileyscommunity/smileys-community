@@ -44,7 +44,10 @@ export async function GET() {
     }
     // partnerId is not a privilege boundary — safe to auto-update.
     if (user && user.partnerId !== session.partnerId) {
-      await createSession({ ...session, partnerId: user.partnerId || undefined })
+      await createSession(
+        { ...session, partnerId: user.partnerId || undefined },
+        { reuseSessionId: session.sessionId },
+      )
     }
     if (!user) { await deleteSession(); return NextResponse.json(null) }
     const isClubHost = clubHostCount > 0
@@ -93,11 +96,14 @@ export async function PATCH(req: NextRequest) {
 
     const updated = await prisma.user.update({ where: { id: session.id }, data })
 
-    await createSession({
-      ...session,
-      name:  updated.name  ?? session.name,
-      color: updated.color ?? session.color,
-    })
+    await createSession(
+      {
+        ...session,
+        name:  updated.name  ?? session.name,
+        color: updated.color ?? session.color,
+      },
+      { reuseSessionId: session.sessionId },
+    )
 
     return NextResponse.json({ ok: true })
   } catch (e) {

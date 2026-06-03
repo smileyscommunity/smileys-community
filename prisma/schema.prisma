@@ -98,6 +98,7 @@ model User {
   cohostedEvents          EventCoHost[]
   pushSubscriptions       PushSubscription[]
   totpBackupCodes         TotpBackupCode[]
+  sessions                Session[]
   listings                Listing[]
   savedListings           SavedListing[]
   listingAlerts           String[]
@@ -1115,6 +1116,37 @@ model TotpBackupCode {
 
   @@index([userId])
   @@map("totp_backup_codes")
+}
+
+// Per-device session row. The ID is embedded as the `jti` claim in the
+// session JWT issued at login. `getSession()` checks the row exists +
+// hasn't been explicitly revoked on every authenticated request.
+//
+// Why this exists: the `tokenVersion` mechanism on User invalidates EVERY
+// session for a user at once (logout, password reset, role change), but
+// can't revoke a single device. With this table, users can see all their
+// active devices in /settings and sign out individual ones (lost laptop,
+// borrowed phone).
+//
+// Legacy compat: sessions issued before this column was added carry no
+// `jti` claim. getSession() treats those as "legacy mode" — still valid
+// until the 7-day JWT expiry, but not tracked here. After 7 days, every
+// session is tracked.
+model Session {
+  id         String    @id @default(cuid())
+  userId     String
+  userAgent  String?
+  ip         String?
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime  @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt]) // for the cleanup sweeper
+  @@map("sessions")
 }
 
 model WaitlistEntry {

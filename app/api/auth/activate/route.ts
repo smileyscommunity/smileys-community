@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
       neighborhood:  user.neighborhood ?? undefined,
       instagram:     user.instagram ?? undefined,
       emailVerified: user.emailVerified,
-    })
+    }, { userAgent: req.headers.get('user-agent'), ip: getIp(req) })
 
     const initials = user.name.trim().split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
 
