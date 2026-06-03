@@ -19,11 +19,18 @@ interface Item {
   href:        string
 }
 
-// Order matters — top item gets the most attention. Cup stays first
-// (highest-engagement feature with a time-bound hook). Directory sits
-// lower in the list, deliberately not at the top: it's a useful
-// reference but lighter on weekly engagement than Hangouts/Visiting
-// for current members.
+// ORDERING POLICY
+// ───────────────
+// New entries go at the TOP of this array — newest feature gets the
+// most visible slot. When you add a new item, ALSO bump DISMISS_KEY
+// (v3 → v4 → …) so previously-dismissed users see the refreshed card
+// once and the new item gets discovery.
+//
+// Exception kept on record: the Business Directory was explicitly
+// placed 4th rather than 1st on request, because Cup / Hangouts /
+// Visiting were already driving more weekly engagement and the owner
+// didn't want Directory taking the prime slot. Future additions
+// override this — put them above Cup.
 const ITEMS: Item[] = [
   {
     emoji:       '⚽',
