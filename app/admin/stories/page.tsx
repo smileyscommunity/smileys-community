@@ -4,6 +4,15 @@ import { useState, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { resolveImageUrl } from '@/lib/data'
 
+// Server caps mirrored here for inline UI feedback. The actual writes
+// trim and re-cap server-side via the testimonials and story-photos
+// routes; these are the soft thresholds the counter colors warn at.
+const NAME_MAX    = 200
+const ROLE_MAX    = 200
+const QUOTE_MAX   = 3000
+const CAPTION_MAX = 300
+const EVENT_MAX   = 200
+
 interface Testimonial {
   id:         string
   memberName: string
@@ -59,6 +68,15 @@ export default function StoriesPage() {
   const [uploading, setUploading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  // Inline-confirm state for both delete paths — replaces window.confirm
+  // so a misclick doesn't immediately nuke a row. Set to the row id
+  // when the user clicks the trash icon; cleared on Cancel or success.
+  const [confirmDeleteTestimonial, setConfirmDeleteTestimonial] = useState<string | null>(null)
+  const [confirmDeletePhoto,       setConfirmDeletePhoto]       = useState<string | null>(null)
+  // Per-row busy state so rapid clicks on toggle don't fire multiple
+  // PATCHes and so the row UI can show a spinner.
+  const [busyRowId, setBusyRowId] = useState<string | null>(null)
+
   useEffect(() => {
     fetch('/app/api/admin/testimonials', { credentials: 'include' })
       .then(r => r.json()).then(d => { setTestimonials(Array.isArray(d) ? d : []); setTLoading(false) })
@@ -79,45 +97,69 @@ export default function StoriesPage() {
     if (!tForm.memberName.trim() || !tForm.quote.trim()) { toast.error('Name and quote required'); return }
     setTSaving(true)
     try {
+      const url = editId ? `/app/api/admin/testimonials/${editId}` : '/app/api/admin/testimonials'
+      const res = await fetch(url, {
+        method:      editId ? 'PATCH' : 'POST',
+        credentials: 'include',
+        headers:     { 'Content-Type': 'application/json' },
+        body:        JSON.stringify(tForm),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        // Surface the server's actual error message — previously
+        // `throw new Error()` discarded it and the catch fell back to
+        // the generic "Failed to save".
+        toast.error(data?.error ?? 'Failed to save')
+        return
+      }
       if (editId) {
-        const res = await fetch(`/app/api/admin/testimonials/${editId}`, {
-          method: 'PATCH', credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(tForm),
-        })
-        if (!res.ok) throw new Error()
-        const updated = await res.json()
-        setTestimonials(prev => prev.map(t => t.id === editId ? updated : t))
+        setTestimonials(prev => prev.map(t => t.id === editId ? data : t))
         toast.success('Updated!')
       } else {
-        const res = await fetch('/app/api/admin/testimonials', {
-          method: 'POST', credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(tForm),
-        })
-        if (!res.ok) throw new Error()
-        const created = await res.json()
-        setTestimonials(prev => [...prev, created])
+        setTestimonials(prev => [...prev, data])
         toast.success('Testimonial added!')
       }
       resetTForm()
-    } catch { toast.error('Failed to save') }
+    } catch { toast.error('Network error — please try again') }
     finally { setTSaving(false) }
   }
 
   async function toggleTestimonial(t: Testimonial) {
-    const res = await fetch(`/app/api/admin/testimonials/${t.id}`, {
-      method: 'PATCH', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ active: !t.active }),
-    })
-    if (res.ok) setTestimonials(prev => prev.map(x => x.id === t.id ? { ...x, active: !x.active } : x))
+    setBusyRowId(t.id)
+    try {
+      const res = await fetch(`/app/api/admin/testimonials/${t.id}`, {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active: !t.active }),
+      })
+      if (!res.ok) {
+        // Previously this silently no-op'd on failure — user clicked
+        // and saw nothing change. Surface a toast.
+        const d = await res.json().catch(() => ({}))
+        toast.error(d?.error ?? 'Failed to update')
+        return
+      }
+      setTestimonials(prev => prev.map(x => x.id === t.id ? { ...x, active: !x.active } : x))
+    } finally {
+      setBusyRowId(null)
+    }
   }
 
   async function deleteTestimonial(id: string) {
-    if (!confirm('Delete this testimonial?')) return
-    const res = await fetch(`/app/api/admin/testimonials/${id}`, { method: 'DELETE', credentials: 'include' })
-    if (res.ok) { setTestimonials(prev => prev.filter(t => t.id !== id)); toast.success('Deleted') }
+    setBusyRowId(id)
+    try {
+      const res = await fetch(`/app/api/admin/testimonials/${id}`, { method: 'DELETE', credentials: 'include' })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        toast.error(d?.error ?? 'Failed to delete')
+        return
+      }
+      setTestimonials(prev => prev.filter(t => t.id !== id))
+      setConfirmDeleteTestimonial(null)
+      toast.success('Deleted')
+    } finally {
+      setBusyRowId(null)
+    }
   }
 
   // ── Photos ────────────────────────────────────────────────
@@ -144,28 +186,52 @@ export default function StoriesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(pForm),
       })
-      if (!res.ok) throw new Error()
-      const created = await res.json()
-      setPhotos(prev => [...prev, created])
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast.error(data?.error ?? 'Failed to save')
+        return
+      }
+      setPhotos(prev => [...prev, data])
       setPForm({ url: '', caption: '', event: '' })
       toast.success('Photo added!')
-    } catch { toast.error('Failed to save') }
+    } catch { toast.error('Network error — please try again') }
     finally { setPSaving(false) }
   }
 
   async function togglePhoto(p: StoryPhoto) {
-    const res = await fetch(`/app/api/admin/story-photos/${p.id}`, {
-      method: 'PATCH', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ active: !p.active }),
-    })
-    if (res.ok) setPhotos(prev => prev.map(x => x.id === p.id ? { ...x, active: !x.active } : x))
+    setBusyRowId(p.id)
+    try {
+      const res = await fetch(`/app/api/admin/story-photos/${p.id}`, {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active: !p.active }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        toast.error(d?.error ?? 'Failed to update')
+        return
+      }
+      setPhotos(prev => prev.map(x => x.id === p.id ? { ...x, active: !x.active } : x))
+    } finally {
+      setBusyRowId(null)
+    }
   }
 
   async function deletePhoto(id: string) {
-    if (!confirm('Delete this photo?')) return
-    const res = await fetch(`/app/api/admin/story-photos/${id}`, { method: 'DELETE', credentials: 'include' })
-    if (res.ok) { setPhotos(prev => prev.filter(p => p.id !== id)); toast.success('Deleted') }
+    setBusyRowId(id)
+    try {
+      const res = await fetch(`/app/api/admin/story-photos/${id}`, { method: 'DELETE', credentials: 'include' })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        toast.error(d?.error ?? 'Failed to delete')
+        return
+      }
+      setPhotos(prev => prev.filter(p => p.id !== id))
+      setConfirmDeletePhoto(null)
+      toast.success('Deleted')
+    } finally {
+      setBusyRowId(null)
+    }
   }
 
   const activeTestimonials = testimonials.filter(t => t.active).length
@@ -228,12 +294,14 @@ export default function StoriesPage() {
                     <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wide mb-1.5">Name</label>
                     <input value={tForm.memberName} onChange={e => setTForm(f => ({ ...f, memberName: e.target.value }))}
                       placeholder="Sarah K."
+                      maxLength={NAME_MAX}
                       className="w-full px-3 py-2.5 bg-zinc-800 border border-zinc-700 rounded-xl text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500" />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wide mb-1.5">Role / Label</label>
                     <input value={tForm.role} onChange={e => setTForm(f => ({ ...f, role: e.target.value }))}
                       placeholder="Member since 2023"
+                      maxLength={ROLE_MAX}
                       className="w-full px-3 py-2.5 bg-zinc-800 border border-zinc-700 rounded-xl text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500" />
                   </div>
                 </div>
@@ -243,7 +311,9 @@ export default function StoriesPage() {
                   <textarea value={tForm.quote} onChange={e => setTForm(f => ({ ...f, quote: e.target.value }))}
                     placeholder="I moved to Istanbul not knowing anyone. Within 3 months of joining Smileys, I had a group of friends I'd known for years..."
                     rows={3}
+                    maxLength={QUOTE_MAX}
                     className="w-full px-3 py-2.5 bg-zinc-800 border border-zinc-700 rounded-xl text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none" />
+                  <p className="text-right text-xs text-zinc-600 mt-1">{tForm.quote.length}/{QUOTE_MAX}</p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -304,17 +374,32 @@ export default function StoriesPage() {
                     </div>
                     <div className="flex flex-col gap-2 shrink-0">
                       <button onClick={() => toggleTestimonial(t)}
-                        className={`text-xs font-bold px-2.5 py-1 rounded-lg transition-colors ${t.active ? 'bg-green-900/40 text-green-400 hover:bg-red-900/40 hover:text-red-400' : 'bg-zinc-800 text-zinc-500 hover:bg-green-900/40 hover:text-green-400'}`}>
-                        {t.active ? 'Live' : 'Hidden'}
+                        disabled={busyRowId === t.id}
+                        className={`text-xs font-bold px-2.5 py-1 rounded-lg transition-colors disabled:opacity-40 ${t.active ? 'bg-green-900/40 text-green-400 hover:bg-red-900/40 hover:text-red-400' : 'bg-zinc-800 text-zinc-500 hover:bg-green-900/40 hover:text-green-400'}`}>
+                        {busyRowId === t.id ? '…' : t.active ? 'Live' : 'Hidden'}
                       </button>
                       <button onClick={() => startEdit(t)}
                         className="text-xs font-bold px-2.5 py-1 rounded-lg bg-zinc-800 text-zinc-400 hover:bg-zinc-700 transition-colors">
                         Edit
                       </button>
-                      <button onClick={() => deleteTestimonial(t.id)}
-                        className="text-xs font-bold px-2.5 py-1 rounded-lg bg-zinc-800 text-red-500 hover:bg-red-900/30 transition-colors">
-                        Delete
-                      </button>
+                      {confirmDeleteTestimonial === t.id ? (
+                        <div className="flex gap-1">
+                          <button onClick={() => deleteTestimonial(t.id)}
+                            disabled={busyRowId === t.id}
+                            className="flex-1 text-xs font-bold px-2 py-1 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-40">
+                            {busyRowId === t.id ? '…' : 'Delete?'}
+                          </button>
+                          <button onClick={() => setConfirmDeleteTestimonial(null)}
+                            className="text-xs font-bold px-2 py-1 rounded-lg bg-zinc-800 text-zinc-400 hover:bg-zinc-700 transition-colors">
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <button onClick={() => setConfirmDeleteTestimonial(t.id)}
+                          className="text-xs font-bold px-2.5 py-1 rounded-lg bg-zinc-800 text-red-500 hover:bg-red-900/30 transition-colors">
+                          Delete
+                        </button>
+                      )}
                     </div>
                   </div>
                 )
@@ -356,12 +441,14 @@ export default function StoriesPage() {
                 <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wide mb-1.5">Caption (optional)</label>
                 <input value={pForm.caption} onChange={e => setPForm(f => ({ ...f, caption: e.target.value }))}
                   placeholder="Sunset sailing on the Bosphorus"
+                  maxLength={CAPTION_MAX}
                   className="w-full px-3 py-2.5 bg-zinc-800 border border-zinc-700 rounded-xl text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wide mb-1.5">Event name (optional)</label>
                 <input value={pForm.event} onChange={e => setPForm(f => ({ ...f, event: e.target.value }))}
                   placeholder="Bosphorus Sailing Club"
+                  maxLength={EVENT_MAX}
                   className="w-full px-3 py-2.5 bg-zinc-800 border border-zinc-700 rounded-xl text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500" />
               </div>
             </div>
@@ -396,13 +483,28 @@ export default function StoriesPage() {
                     {p.event   && <p className="text-xs text-amber-400 text-center">{p.event}</p>}
                     <div className="flex gap-2 mt-1">
                       <button onClick={() => togglePhoto(p)}
-                        className={`text-xs font-bold px-2.5 py-1 rounded-lg ${p.active ? 'bg-green-500/20 text-green-400 hover:bg-red-500/20 hover:text-red-400' : 'bg-white/10 text-zinc-400 hover:bg-green-500/20 hover:text-green-400'} transition-colors`}>
-                        {p.active ? 'Live' : 'Hidden'}
+                        disabled={busyRowId === p.id}
+                        className={`text-xs font-bold px-2.5 py-1 rounded-lg disabled:opacity-40 ${p.active ? 'bg-green-500/20 text-green-400 hover:bg-red-500/20 hover:text-red-400' : 'bg-white/10 text-zinc-400 hover:bg-green-500/20 hover:text-green-400'} transition-colors`}>
+                        {busyRowId === p.id ? '…' : p.active ? 'Live' : 'Hidden'}
                       </button>
-                      <button onClick={() => deletePhoto(p.id)}
-                        className="text-xs font-bold px-2.5 py-1 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors">
-                        Delete
-                      </button>
+                      {confirmDeletePhoto === p.id ? (
+                        <>
+                          <button onClick={() => deletePhoto(p.id)}
+                            disabled={busyRowId === p.id}
+                            className="text-xs font-bold px-2.5 py-1 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-40">
+                            {busyRowId === p.id ? '…' : 'Delete?'}
+                          </button>
+                          <button onClick={() => setConfirmDeletePhoto(null)}
+                            className="text-xs font-bold px-2.5 py-1 rounded-lg bg-white/10 text-zinc-300 hover:bg-white/20 transition-colors">
+                            ✕
+                          </button>
+                        </>
+                      ) : (
+                        <button onClick={() => setConfirmDeletePhoto(p.id)}
+                          className="text-xs font-bold px-2.5 py-1 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors">
+                          Delete
+                        </button>
+                      )}
                     </div>
                   </div>
                   {/* Mobile always-visible action strip — bottom of the
@@ -419,13 +521,28 @@ export default function StoriesPage() {
                     )}
                     <div className="flex gap-1.5">
                       <button onClick={() => togglePhoto(p)}
-                        className={`flex-1 text-[10px] font-bold px-2 py-1 rounded-md ${p.active ? 'bg-green-500/30 text-green-300' : 'bg-white/20 text-zinc-200'}`}>
-                        {p.active ? 'Live' : 'Hidden'}
+                        disabled={busyRowId === p.id}
+                        className={`flex-1 text-[10px] font-bold px-2 py-1 rounded-md disabled:opacity-40 ${p.active ? 'bg-green-500/30 text-green-300' : 'bg-white/20 text-zinc-200'}`}>
+                        {busyRowId === p.id ? '…' : p.active ? 'Live' : 'Hidden'}
                       </button>
-                      <button onClick={() => deletePhoto(p.id)}
-                        className="text-[10px] font-bold px-2 py-1 rounded-md bg-red-500/30 text-red-300">
-                        ✕
-                      </button>
+                      {confirmDeletePhoto === p.id ? (
+                        <>
+                          <button onClick={() => deletePhoto(p.id)}
+                            disabled={busyRowId === p.id}
+                            className="text-[10px] font-bold px-2 py-1 rounded-md bg-red-500 text-white disabled:opacity-40">
+                            {busyRowId === p.id ? '…' : 'Sure?'}
+                          </button>
+                          <button onClick={() => setConfirmDeletePhoto(null)}
+                            className="text-[10px] font-bold px-2 py-1 rounded-md bg-white/20 text-zinc-200">
+                            ✕
+                          </button>
+                        </>
+                      ) : (
+                        <button onClick={() => setConfirmDeletePhoto(p.id)}
+                          className="text-[10px] font-bold px-2 py-1 rounded-md bg-red-500/30 text-red-300">
+                          ✕
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

@@ -27,6 +27,16 @@ export async function POST(req: NextRequest) {
   if (quote.trim().length > 3000)     return NextResponse.json({ error: 'Quote too long (max 3000 chars)' }, { status: 400 })
   if (role?.trim().length > 200)      return NextResponse.json({ error: 'Role too long' }, { status: 400 })
 
+  // Photo URL must be a local upload path. Without this, an admin could
+  // set `photo: "https://attacker.com/pixel.gif"` and the public Why
+  // Smileys page would render an <img src> that leaks every visitor's
+  // IP + referer to the attacker on each page load. We accept the same
+  // path shape /app/api/upload returns.
+  const cleanPhoto = photo ? String(photo).trim().slice(0, 500) : null
+  if (cleanPhoto && !/^\/app\/api\/files\/[a-zA-Z0-9\-_/]+\.(jpg|jpeg|png|webp|gif)$/i.test(cleanPhoto)) {
+    return NextResponse.json({ error: 'Photo must be uploaded via the form — external URLs are not allowed' }, { status: 400 })
+  }
+
   const cleanCategory = ALLOWED_CATEGORIES.includes(category) ? category : 'general'
 
   const maxOrder = await prisma.testimonial.aggregate({ _max: { order: true } })
@@ -36,7 +46,7 @@ export async function POST(req: NextRequest) {
       role:       role?.trim() || null,
       quote:      quote.trim(),
       category:   cleanCategory,
-      photo:      photo ? String(photo).trim().slice(0, 500) : null,
+      photo:      cleanPhoto,
       order:      (maxOrder._max.order ?? 0) + 1,
     },
   })

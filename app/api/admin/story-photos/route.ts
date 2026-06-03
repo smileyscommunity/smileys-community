@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
+import { isSafeHref } from '@/lib/safeUrl'
 
 export async function GET() {
   const session = await getSession()
@@ -18,13 +19,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   const { url, caption, event } = await req.json()
-  const cleanUrl = url?.trim()
-  if (!cleanUrl || cleanUrl.length > 2000) {
-    return NextResponse.json({ error: 'Valid URL required (max 2000 chars)' }, { status: 400 })
+  const cleanUrl = String(url ?? '').trim().slice(0, 2000)
+  if (!cleanUrl) {
+    return NextResponse.json({ error: 'Photo URL required' }, { status: 400 })
   }
-  // Only allow relative paths or https URLs
-  if (!cleanUrl.startsWith('/') && !cleanUrl.startsWith('https://')) {
-    return NextResponse.json({ error: 'URL must be a relative path or https URL' }, { status: 400 })
+  // Use the shared isSafeHref allowlist — previously the inline check
+  // accepted any string starting with `/`, so `//evil.com` (resolves
+  // to https://evil.com when rendered as an <img src>) bypassed it.
+  if (!isSafeHref(cleanUrl)) {
+    return NextResponse.json({ error: 'URL must be a relative path (/path) or https:// URL' }, { status: 400 })
   }
   if (caption && caption.length > 300) {
     return NextResponse.json({ error: 'Caption too long (max 300 chars)' }, { status: 400 })

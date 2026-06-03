@@ -18,7 +18,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if ('memberName' in body) data.memberName = String(body.memberName ?? '').trim().slice(0, 200)
   if ('role'       in body) data.role       = body.role ? String(body.role).trim().slice(0, 200) : null
   if ('quote'      in body) data.quote      = String(body.quote ?? '').trim().slice(0, 3000)
-  if ('photo'      in body) data.photo      = body.photo ? String(body.photo).trim().slice(0, 500) : null
+  if ('photo' in body) {
+    const cleanPhoto = body.photo ? String(body.photo).trim().slice(0, 500) : null
+    // Match POST validation — no external photo URLs (would leak visitor
+    // IPs / referers on the public Why Smileys page).
+    if (cleanPhoto && !/^\/app\/api\/files\/[a-zA-Z0-9\-_/]+\.(jpg|jpeg|png|webp|gif)$/i.test(cleanPhoto)) {
+      return NextResponse.json({ error: 'Photo must be uploaded via the form — external URLs are not allowed' }, { status: 400 })
+    }
+    data.photo = cleanPhoto
+  }
   if ('active'     in body) data.active     = !!body.active
   if ('order'      in body) data.order      = Math.max(0, Math.min(9999, Number(body.order) || 0))
   if ('category'   in body) {
