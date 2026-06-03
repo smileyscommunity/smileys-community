@@ -43,15 +43,44 @@ const inputCls  = 'w-full px-3 py-2.5 bg-zinc-800 border border-zinc-700 rounded
 const labelCls  = 'block text-xs font-bold text-zinc-400 uppercase tracking-wide mb-1.5'
 
 export default function ContentPage() {
-  const [content,  setContent]  = useState<Content | null>(null)
-  const [tab,      setTab]      = useState<Tab>('stats')
-  const [saving,   setSaving]   = useState(false)
-  const [loading,  setLoading]  = useState(true)
+  const [content,   setContent]   = useState<Content | null>(null)
+  const [tab,       setTab]       = useState<Tab>('stats')
+  const [saving,    setSaving]    = useState(false)
+  const [loading,   setLoading]   = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  // Inline-confirm for FAQ-item delete — previously a single click on
+  // the × silently dropped the question from local state. Misclick
+  // recovery required reloading without saving. Now flips into a red
+  // "Delete?" pill that needs a second click to actually remove.
+  const [confirmFaqDelete, setConfirmFaqDelete] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/app/api/admin/content', { credentials: 'include' })
-      .then(r => r.json())
-      .then(d => setContent(d))
+      .then(async r => {
+        if (!r.ok) {
+          const d = await r.json().catch(() => ({}))
+          const msg = d?.error ?? `Couldn't load content (HTTP ${r.status})`
+          setLoadError(msg)
+          toast.error(msg)
+          return null
+        }
+        return r.json()
+      })
+      .then(d => {
+        // Don't blindly setContent(d) — if `d` came back as
+        // { error: '...' } from a failed response that slipped through,
+        // the previous code would set content to that object and the
+        // truthy `if (!content)` check would pass, then the renderer
+        // would crash on content.stats.map(...). Only accept when the
+        // shape looks like Content.
+        if (d && typeof d === 'object' && !Array.isArray(d) && !('error' in d)) {
+          setContent(d as Content)
+        }
+      })
+      .catch(() => {
+        setLoadError('Network error — could not load content')
+        toast.error('Network error — could not load content')
+      })
       .finally(() => setLoading(false))
   }, [])
 
@@ -63,10 +92,16 @@ export default function ContentPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ [section]: data }),
       })
-      if (!res.ok) throw new Error()
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        // Surface the server's actual error — previously
+        // `throw new Error()` discarded it.
+        toast.error(d?.error ?? 'Failed to save')
+        return
+      }
       setContent(prev => prev ? { ...prev, [section]: data } : prev)
       toast.success('Saved ✓')
-    } catch { toast.error('Failed to save') }
+    } catch { toast.error('Network error — please try again') }
     finally { setSaving(false) }
   }
 
@@ -79,7 +114,16 @@ export default function ContentPage() {
       {[1,2,3].map(i => <div key={i} className="h-24 bg-zinc-900 rounded-2xl border border-zinc-800 animate-pulse" />)}
     </div>
   )
-  if (!content) return <div className="p-6 text-zinc-500 text-sm">Failed to load content.</div>
+  if (!content) return (
+    <div className="p-6 flex flex-col gap-3 items-start">
+      <p className="text-zinc-400 text-sm">Couldn&apos;t load content.</p>
+      {loadError && <p className="text-xs text-red-400">{loadError}</p>}
+      <button onClick={() => window.location.reload()}
+        className="px-4 py-2 rounded-xl bg-zinc-700 hover:bg-zinc-600 text-zinc-100 text-sm font-semibold transition-colors">
+        Retry
+      </button>
+    </div>
+  )
 
   return (
     <div className="p-4 sm:p-6 space-y-5 max-w-3xl">
@@ -268,9 +312,29 @@ export default function ContentPage() {
                           onChange={e => set('faq', content.faq.map((s, sj) => sj === si ? { ...s, items: s.items.map((x, ij) => ij === ii ? { ...x, a: e.target.value } : x) } : s))}
                           rows={3} className={`${inputCls} resize-none`} placeholder="Answer…" />
                       </div>
-                      <button
-                        onClick={() => set('faq', content.faq.map((s, sj) => sj === si ? { ...s, items: s.items.filter((_, ij) => ij !== ii) } : s))}
-                        className="mt-1 text-zinc-600 hover:text-red-400 transition-colors text-lg leading-none shrink-0">×</button>
+                      {/* Two-click confirm — was a single-click instant
+                          remove. Misclick would silently drop the
+                          question from local state. */}
+                      {confirmFaqDelete === `${si}-${ii}` ? (
+                        <div className="flex items-start gap-1 mt-1 shrink-0">
+                          <button
+                            onClick={() => {
+                              set('faq', content.faq.map((s, sj) => sj === si ? { ...s, items: s.items.filter((_, ij) => ij !== ii) } : s))
+                              setConfirmFaqDelete(null)
+                            }}
+                            className="px-2 py-1 text-[10px] font-bold bg-red-500 hover:bg-red-600 text-white rounded transition-colors">
+                            Delete?
+                          </button>
+                          <button onClick={() => setConfirmFaqDelete(null)}
+                            className="px-2 py-1 text-[10px] font-bold text-zinc-400 hover:text-white bg-zinc-800 rounded transition-colors">
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmFaqDelete(`${si}-${ii}`)}
+                          className="mt-1 text-zinc-600 hover:text-red-400 transition-colors text-lg leading-none shrink-0">×</button>
+                      )}
                     </div>
                   </div>
                 ))}
