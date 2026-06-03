@@ -58,12 +58,48 @@ interface Business {
   reviewedBy: BusinessUser | null
 }
 
+type EditFields = {
+  name: string
+  category: string
+  description: string
+  neighborhood: string
+  address: string
+  phone: string
+  website: string
+  instagram: string
+  languages: string
+  logo: string
+  coverImage: string
+  isExpatOwned: boolean
+  isExpatFriendly: boolean
+}
+
+function toEditFields(b: Business): EditFields {
+  return {
+    name:            b.name,
+    category:        b.category,
+    description:     b.description,
+    neighborhood:    b.neighborhood    ?? '',
+    address:         b.address         ?? '',
+    phone:           b.phone           ?? '',
+    website:         b.website         ?? '',
+    instagram:       b.instagram       ?? '',
+    languages:       b.languages       ?? '',
+    logo:            b.logo            ?? '',
+    coverImage:      b.coverImage      ?? '',
+    isExpatOwned:    b.isExpatOwned,
+    isExpatFriendly: b.isExpatFriendly,
+  }
+}
+
 function BusinessRow({ b, onAction }: { b: Business; onAction: () => void }) {
   const [expanded,      setExpanded]      = useState(false)
   const [loading,       setLoading]       = useState(false)
   // Inline confirm replaces a single-click destructive delete — matches
   // the pattern used everywhere else in /admin.
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [editing,       setEditing]       = useState(false)
+  const [edit,          setEdit]          = useState<EditFields>(() => toEditFields(b))
 
   async function act(action: string) {
     setLoading(true)
@@ -89,6 +125,59 @@ function BusinessRow({ b, onAction }: { b: Business; onAction: () => void }) {
     }
   }
 
+  function startEdit() {
+    setEdit(toEditFields(b))
+    setEditing(true)
+  }
+
+  function cancelEdit() {
+    setEdit(toEditFields(b))
+    setEditing(false)
+  }
+
+  async function saveEdit() {
+    setLoading(true)
+    try {
+      // Build a diff-only patch — only ship fields whose value changed.
+      // The API allowlist is identical to the create normalizer, so
+      // anything we don't touch stays untouched on the server.
+      const patch: Record<string, unknown> = {}
+      const original = toEditFields(b)
+      for (const k of Object.keys(edit) as (keyof EditFields)[]) {
+        if (edit[k] !== original[k]) patch[k] = edit[k]
+      }
+      if (Object.keys(patch).length === 0) {
+        toast.message('Nothing changed')
+        setEditing(false)
+        return
+      }
+      const r = await fetch('/app/api/admin/directory', {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: b.id, ...patch }),
+      })
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}))
+        toast.error(d?.error || 'Failed to save')
+        return
+      }
+      toast.success('Saved')
+      setEditing(false)
+      onAction()
+    } catch {
+      toast.error('Network error — not saved')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const inputCls = 'w-full bg-zinc-950 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500'
+  const labelCls = 'block text-[10px] font-semibold uppercase tracking-wide text-zinc-500 mb-1'
+
+  function field<K extends keyof EditFields>(k: K) {
+    return { value: edit[k] as string, onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setEdit(s => ({ ...s, [k]: e.target.value } as EditFields)) }
+  }
+
   return (
     <div className="bg-zinc-900 rounded-xl border border-white/5 overflow-hidden">
       <button
@@ -112,7 +201,7 @@ function BusinessRow({ b, onAction }: { b: Business; onAction: () => void }) {
         </div>
       </button>
 
-      {expanded && (
+      {expanded && !editing && (
         <div className="px-4 pb-4 border-t border-white/5 pt-3 space-y-3">
           <p className="text-xs text-zinc-300">{b.description}</p>
 
@@ -137,6 +226,10 @@ function BusinessRow({ b, onAction }: { b: Business; onAction: () => void }) {
           </div>
 
           <div className="flex gap-2 flex-wrap pt-1">
+            <button onClick={startEdit} disabled={loading}
+              className="text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50">
+              Edit
+            </button>
             {/* "Pending" bucket: isApproved=false AND isActive=true. */}
             {!b.isApproved && b.isActive && (
               <>
@@ -180,6 +273,89 @@ function BusinessRow({ b, onAction }: { b: Business; onAction: () => void }) {
                 Delete
               </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Inline edit form. Renders in place of the read-only details when
+          the admin clicks Edit. Saves only the fields that changed (diff
+          patch) via PATCH — the API runs the same allowlist validator as
+          the public POST / admin create, so a bad URL or unknown category
+          is rejected here too. */}
+      {expanded && editing && (
+        <div className="px-4 pb-4 border-t border-white/5 pt-3 space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Name</label>
+              <input maxLength={DIRECTORY_LIMITS.name} {...field('name')} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Category</label>
+              <select {...field('category')} className={inputCls}>
+                {BUSINESS_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className={labelCls}>Description</label>
+            <textarea maxLength={DIRECTORY_LIMITS.description} rows={3} {...field('description')} className={`${inputCls} resize-none`} />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Neighborhood</label>
+              <select {...field('neighborhood')} className={inputCls}>
+                <option value="">—</option>
+                {ISTANBUL_NEIGHBORHOODS.map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Address</label>
+              <input maxLength={DIRECTORY_LIMITS.address} {...field('address')} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Phone</label>
+              <input maxLength={DIRECTORY_LIMITS.phone} placeholder="+90 5xx xxx xx xx" {...field('phone')} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Languages</label>
+              <input maxLength={DIRECTORY_LIMITS.languages} placeholder="English, Turkish…" {...field('languages')} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Website</label>
+              <input maxLength={DIRECTORY_LIMITS.website} placeholder="https://…" {...field('website')} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Instagram</label>
+              <input maxLength={DIRECTORY_LIMITS.instagram} placeholder="@handle" {...field('instagram')} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Logo URL</label>
+              <input maxLength={DIRECTORY_LIMITS.logo} placeholder="https://…" {...field('logo')} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Cover image URL</label>
+              <input maxLength={DIRECTORY_LIMITS.coverImage} placeholder="https://…" {...field('coverImage')} className={inputCls} />
+            </div>
+          </div>
+          <div className="flex gap-3 pt-1">
+            <label className="flex items-center gap-2 text-xs text-zinc-300">
+              <input type="checkbox" checked={edit.isExpatOwned} onChange={e => setEdit(s => ({ ...s, isExpatOwned: e.target.checked }))} className="accent-amber-500" />
+              Expat-owned
+            </label>
+            <label className="flex items-center gap-2 text-xs text-zinc-300">
+              <input type="checkbox" checked={edit.isExpatFriendly} onChange={e => setEdit(s => ({ ...s, isExpatFriendly: e.target.checked }))} className="accent-teal-500" />
+              Expat-friendly
+            </label>
+          </div>
+          <div className="flex gap-2 pt-2">
+            <button onClick={saveEdit} disabled={loading}
+              className="text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50">
+              {loading ? 'Saving…' : 'Save'}
+            </button>
+            <button onClick={cancelEdit} disabled={loading}
+              className="text-xs font-semibold text-zinc-400 hover:text-zinc-200 px-3 py-1.5 rounded-lg hover:bg-zinc-800 transition-colors">
+              Cancel
+            </button>
           </div>
         </div>
       )}

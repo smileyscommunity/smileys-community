@@ -7,10 +7,11 @@ import Link from 'next/link'
 // members who haven't dismissed it yet. localStorage-backed so the dismiss
 // state is per-browser — fine for an informational card, no schema cost.
 // Bump the suffix to v2 etc. to re-show after a future feature drop. Bumped
-// to v2 when Smileys Cup 2026 was added; v3 adds the Business Directory.
+// to v2 when Smileys Cup 2026 was added; v3 added the Business Directory;
+// v4 promoted Directory to the top slot per the new policy (see ITEMS).
 // Previous dismissers see the refreshed list once so new items get discovery;
 // if they dismiss again the new flag silences it.
-const DISMISS_KEY = 'smileys_onboarding_v3'
+const DISMISS_KEY = 'smileys_onboarding_v4'
 
 interface Item {
   emoji:       string
@@ -23,15 +24,15 @@ interface Item {
 // ───────────────
 // New entries go at the TOP of this array — newest feature gets the
 // most visible slot. When you add a new item, ALSO bump DISMISS_KEY
-// (v3 → v4 → …) so previously-dismissed users see the refreshed card
+// (v4 → v5 → …) so previously-dismissed users see the refreshed card
 // once and the new item gets discovery.
-//
-// Exception kept on record: the Business Directory was explicitly
-// placed 4th rather than 1st on request, because Cup / Hangouts /
-// Visiting were already driving more weekly engagement and the owner
-// didn't want Directory taking the prime slot. Future additions
-// override this — put them above Cup.
 const ITEMS: Item[] = [
+  {
+    emoji:       '🏢',
+    title:       'Business Directory',
+    description: 'Expat-owned & expat-friendly spots across Istanbul. Add your favourites.',
+    href:        '/directory',
+  },
   {
     emoji:       '⚽',
     title:       'Smileys World Cup 2026',
@@ -49,12 +50,6 @@ const ITEMS: Item[] = [
     title:       'Visiting?',
     description: 'See who\'s coming to Istanbul this month, or post your own trip.',
     href:        '/visiting',
-  },
-  {
-    emoji:       '🏢',
-    title:       'Business Directory',
-    description: 'Expat-owned & expat-friendly spots across Istanbul. Add your favourites.',
-    href:        '/directory',
   },
   {
     emoji:       '🟢',
