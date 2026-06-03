@@ -9,7 +9,7 @@ import { isSafeHref } from '@/lib/safeUrl'
 import { BUSINESS_CATEGORIES, DIRECTORY_LIMITS } from '@/lib/directory'
 import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
 
-type View = 'pending' | 'approved' | 'rejected'
+type View = 'approved' | 'pending' | 'rejected'
 
 const EMPTY_CREATE = {
   name: '', category: '', description: '',
@@ -587,7 +587,9 @@ export default function AdminDirectoryPage() {
   const searchParams = useSearchParams()
   const router       = useRouter()
   const raw          = searchParams.get('status')
-  const view: View   = raw === 'approved' || raw === 'rejected' ? raw : 'pending'
+  // Tab order is Approved → Pending → Rejected, so the first tab is also
+  // the default landing view when no ?status= param is present.
+  const view: View   = raw === 'pending' || raw === 'rejected' ? raw : 'approved'
 
   const { data, loading, error, retry } = useAdminLoad<Business[]>(
     `/app/api/admin/directory?status=${view}`,
@@ -629,7 +631,7 @@ export default function AdminDirectoryPage() {
           set isApproved=false AND isActive=false, which matched
           neither of the two original tabs). */}
       <div className="flex gap-1 mb-5 bg-zinc-900 p-1 rounded-xl w-fit">
-        {(['pending', 'approved', 'rejected'] as const).map(v => (
+        {(['approved', 'pending', 'rejected'] as const).map(v => (
           <button key={v} onClick={() => setView(v)}
             className={`text-xs font-semibold px-4 py-1.5 rounded-lg capitalize transition-colors ${
               view === v ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'
