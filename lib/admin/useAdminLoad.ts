@@ -30,8 +30,11 @@ export interface UseAdminLoadResult<T> {
   error:   string | null
   retry:   () => void
   // Lets callers patch data without going through a full refetch
-  // (e.g. after a successful mutation in the same component).
-  setData: (next: T | null) => void
+  // (e.g. after a successful mutation in the same component). Accepts
+  // either a value or a functional updater (React.SetStateAction
+  // shape) so rapid back-to-back mutations work against the latest
+  // state, not a stale render-time snapshot.
+  setData: (next: T | null | ((prev: T | null) => T | null)) => void
 }
 
 export function useAdminLoad<T>(

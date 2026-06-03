@@ -26,35 +26,59 @@ export async function POST(req: NextRequest) {
   }
 
   const { question, options } = await req.json()
-  if (!question?.trim() || !Array.isArray(options) || options.filter((o: string) => o?.trim()).length < 2) {
+  const cleanedQuestion = String(question ?? '').trim()
+  const cleanedOptions  = Array.isArray(options)
+    ? options.map((o: unknown) => String(o ?? '').trim()).filter(Boolean)
+    : []
+
+  if (!cleanedQuestion || cleanedOptions.length < 2) {
     return NextResponse.json({ error: 'Question and at least 2 options required' }, { status: 400 })
   }
-  if (question.trim().length > 300) {
+  if (cleanedQuestion.length > 300) {
     return NextResponse.json({ error: 'Question too long (max 300 chars)' }, { status: 400 })
   }
-  if (options.length > 10) {
+  if (cleanedOptions.length > 10) {
     return NextResponse.json({ error: 'Maximum 10 options allowed' }, { status: 400 })
   }
-  const longOption = options.find((o: string) => o?.trim().length > 200)
-  if (longOption) {
+  if (cleanedOptions.some(o => o.length > 200)) {
     return NextResponse.json({ error: 'Each option must be under 200 characters' }, { status: 400 })
   }
 
-  // Deactivate existing active polls
-  await prisma.communityPoll.updateMany({ where: { active: true }, data: { active: false } })
+  // Reject duplicate options — previously the server accepted ["Yes",
+  // "Yes", "No"] and split member votes across the duplicates. Compare
+  // case-insensitively so "Yes" and "yes" count as the same answer.
+  const seen = new Set<string>()
+  for (const o of cleanedOptions) {
+    const key = o.toLowerCase()
+    if (seen.has(key)) {
+      return NextResponse.json({ error: 'Options must be unique' }, { status: 400 })
+    }
+    seen.add(key)
+  }
 
-  const poll = await prisma.communityPoll.create({
-    data: {
-      question: question.trim(),
-      active:   true,
-      options: {
-        create: options
-          .filter((o: string) => o?.trim())
-          .map((text: string, order: number) => ({ text: text.trim(), order })),
+  // Deactivate existing active polls + create the new one in one
+  // transaction so a transient throw between the two doesn't leave the
+  // community with zero active polls.
+  const poll = await prisma.$transaction(async tx => {
+    await tx.communityPoll.updateMany({ where: { active: true }, data: { active: false } })
+    return tx.communityPoll.create({
+      data: {
+        question: cleanedQuestion,
+        active:   true,
+        options: {
+          create: cleanedOptions.map((text, order) => ({ text, order })),
+        },
       },
-    },
-    include: { options: { orderBy: { order: 'asc' } } },
+      include: { options: { orderBy: { order: 'asc' }, include: { _count: { select: { votes: true } } } } },
+    })
   })
+
+  // Audit — creating a poll changes the community-wide content every
+  // dashboard surfaces. Previously only DELETE was audited.
+  writeAudit(session.id, session.name, 'poll.create', poll.id, 'community_poll',
+    { question: poll.question, optionCount: cleanedOptions.length },
+    `Created community poll: "${poll.question}"`,
+  )
 
   return NextResponse.json(poll)
 }
@@ -89,11 +113,28 @@ export async function PATCH(req: NextRequest) {
   const { pollId, active } = await req.json()
   if (!pollId) return NextResponse.json({ error: 'pollId required' }, { status: 400 })
 
-  if (active) await prisma.communityPoll.updateMany({ where: { active: true }, data: { active: false } })
-
-  const poll = await prisma.communityPoll.update({
-    where: { id: pollId },
-    data:  { active: !!active },
+  // Same transactional shape as POST — if a different poll was active,
+  // deactivate it AND mark the target active together so there's never
+  // a window with two active polls or zero.
+  const poll = await prisma.$transaction(async tx => {
+    if (active) {
+      await tx.communityPoll.updateMany({
+        where: { active: true, id: { not: pollId } },
+        data:  { active: false },
+      })
+    }
+    return tx.communityPoll.update({
+      where: { id: pollId },
+      data:  { active: !!active },
+    })
   })
+
+  // Audit — flipping which poll is "live" is a content change worth a
+  // trail (e.g. a moderator ending a controversial poll early).
+  writeAudit(session.id, session.name, active ? 'poll.activate' : 'poll.end',
+    pollId, 'community_poll',
+    { question: poll.question, active: !!active },
+    `${active ? 'Reactivated' : 'Ended'} community poll: "${poll.question}"`,
+  )
   return NextResponse.json(poll)
 }

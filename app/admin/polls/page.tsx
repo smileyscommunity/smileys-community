@@ -1,9 +1,27 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { toast } from 'sonner'
 import { useAdminLoad } from '@/lib/admin/useAdminLoad'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
+
+// Server caps mirrored here for inline UI validation.
+const QUESTION_MAX = 300
+const OPTION_MAX   = 200
+const MAX_OPTIONS  = 10
+
+function timeAgo(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime()
+  const s  = Math.floor(ms / 1000)
+  if (s < 60)   return 'just now'
+  const m = Math.floor(s / 60)
+  if (m < 60)   return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24)   return `${h}h ago`
+  const d = Math.floor(h / 24)
+  if (d < 30)   return `${d}d ago`
+  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+}
 
 // Polls live on /admin/polls and the announcement banner lives
 // on /admin/announcements. Both used to share /admin/announcements
@@ -20,11 +38,12 @@ interface PollOption {
 }
 
 interface Poll {
-  id: string
-  question: string
-  active: boolean
+  id:        string
+  question:  string
+  active:    boolean
   createdAt: string
-  options: PollOption[]
+  updatedAt: string
+  options:   PollOption[]
 }
 
 export default function PollsPage() {
@@ -33,14 +52,45 @@ export default function PollsPage() {
     (v): v is Poll[] => Array.isArray(v),
   )
   const polls = data ?? []
+  // Functional updater pattern — previously we captured `data` at call
+  // time, so rapid back-to-back updates worked off a stale snapshot.
+  // useAdminLoad.setData accepts a functional updater, so route through.
   const setPolls = (next: Poll[] | ((prev: Poll[]) => Poll[])) => {
-    setData(typeof next === 'function' ? next(data ?? []) : next)
+    setData(prev =>
+      typeof next === 'function' ? next(prev ?? []) : next,
+    )
   }
 
-  const [question, setQ]        = useState('')
-  const [options, setOpts]      = useState(['', ''])
-  const [creating, setCreating] = useState(false)
-  const [error, setError]       = useState('')
+  const [question,   setQ]        = useState('')
+  const [options,    setOpts]     = useState(['', ''])
+  const [creating,   setCreating] = useState(false)
+  const [error,      setError]    = useState('')
+  // Inline-confirm state for delete — replaces window.confirm so a
+  // misclick doesn't immediately nuke a poll.
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  // Per-poll busy state so rapid clicks on End/Reactivate don't fire
+  // multiple PATCHes against the same row.
+  const [busyPollId, setBusyPollId] = useState<string | null>(null)
+
+  // Pre-compute validation state for the create form so the Publish
+  // button and the inline error reflect what the server would say.
+  const filledOptions = useMemo(
+    () => options.map(o => o.trim()).filter(Boolean),
+    [options],
+  )
+  const duplicateOptions = useMemo(() => {
+    const seen = new Set<string>()
+    for (const o of filledOptions) {
+      const k = o.toLowerCase()
+      if (seen.has(k)) return true
+      seen.add(k)
+    }
+    return false
+  }, [filledOptions])
+  const canPublish = !creating
+                  && !!question.trim()
+                  && filledOptions.length >= 2
+                  && !duplicateOptions
 
   function addOption() {
     if (options.length < 10) setOpts(o => [...o, ''])
@@ -53,24 +103,27 @@ export default function PollsPage() {
 
   async function createPoll() {
     setError('')
-    if (!question.trim()) { setError('Question is required'); return }
-    const filled = options.filter(o => o.trim())
-    if (filled.length < 2) { setError('At least 2 options required'); return }
+    if (!canPublish) {
+      // Mirror what the button-disable state would have said.
+      if (!question.trim())          setError('Question is required')
+      else if (filledOptions.length < 2) setError('At least 2 options required')
+      else if (duplicateOptions)     setError('Options must be unique')
+      return
+    }
     setCreating(true)
     try {
       const res = await fetch('/app/api/admin/community-poll', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question, options: filled }),
+        body: JSON.stringify({ question, options: filledOptions }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        // Inline error pill stays for validation-shaped messages
-        // (useful inside the form); toast covers server-side
-        // failures so the feedback isn't trapped inside the panel.
-        setError(data.error || 'Failed to create poll')
-        toast.error(data?.error ?? 'Failed to create poll')
+        // Single source of error feedback — the inline pill below the
+        // form. Previously this also fired a toast with the SAME
+        // message, so failures briefly flashed twice.
+        setError(data?.error ?? 'Failed to create poll')
         return
       }
       setPolls(p => [data, ...p.map(pp => ({ ...pp, active: false }))])
@@ -83,38 +136,51 @@ export default function PollsPage() {
   }
 
   async function deletePoll(pollId: string) {
-    if (!confirm('Delete this poll? This cannot be undone.')) return
-    const res = await fetch('/app/api/admin/community-poll', {
-      method: 'DELETE',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pollId }),
-    })
-    if (!res.ok) {
-      const d = await res.json().catch(() => ({}))
-      toast.error(d?.error ?? 'Failed to delete poll')
-      return
+    setBusyPollId(pollId)
+    try {
+      const res = await fetch('/app/api/admin/community-poll', {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pollId }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        toast.error(d?.error ?? 'Failed to delete poll')
+        return
+      }
+      setPolls(p => p.filter(poll => poll.id !== pollId))
+      setConfirmDelete(null)
+      toast.success('Poll deleted')
+    } finally {
+      setBusyPollId(null)
     }
-    setPolls(p => p.filter(poll => poll.id !== pollId))
-    toast.success('Poll deleted')
   }
 
   async function toggleActive(pollId: string, active: boolean) {
-    const res = await fetch('/app/api/admin/community-poll', {
-      method: 'PATCH',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pollId, active }),
-    })
-    if (!res.ok) {
-      const d = await res.json().catch(() => ({}))
-      toast.error(d?.error ?? 'Failed to toggle poll')
-      return
+    setBusyPollId(pollId)
+    try {
+      const res = await fetch('/app/api/admin/community-poll', {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pollId, active }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        toast.error(d?.error ?? 'Failed to toggle poll')
+        return
+      }
+      const now = new Date().toISOString()
+      setPolls(p => p.map(poll =>
+        poll.id === pollId
+          ? { ...poll, active, updatedAt: now }
+          : { ...poll, active: active ? false : poll.active, updatedAt: active && poll.active ? now : poll.updatedAt },
+      ))
+      toast.success(active ? 'Poll reactivated' : 'Poll ended')
+    } finally {
+      setBusyPollId(null)
     }
-    setPolls(p => p.map(poll =>
-      poll.id === pollId ? { ...poll, active } : { ...poll, active: active ? false : poll.active }
-    ))
-    toast.success(active ? 'Poll reactivated' : 'Poll ended')
   }
 
   const totalVotes = (poll: Poll) => poll.options.reduce((s, o) => s + o._count.votes, 0)
@@ -141,34 +207,43 @@ export default function PollsPage() {
             <input
               value={question}
               onChange={e => setQ(e.target.value)}
-              maxLength={300}
+              maxLength={QUESTION_MAX}
               placeholder="e.g. What kind of events do you want more of?"
               className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500"
             />
+            <p className="text-right text-xs text-zinc-600 mt-1">{question.length}/{QUESTION_MAX}</p>
           </div>
 
           <div>
             <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-2">Options</label>
             <div className="space-y-2">
               {options.map((opt, i) => (
-                <div key={i} className="flex gap-2">
-                  <input
-                    value={opt}
-                    onChange={e => setOpts(o => o.map((v, idx) => idx === i ? e.target.value : v))}
-                    maxLength={200}
-                    placeholder={`Option ${i + 1}`}
-                    className="flex-1 bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                  />
-                  {options.length > 2 && (
-                    <button onClick={() => removeOption(i)} className="text-zinc-600 hover:text-red-400 px-2 transition-colors">✕</button>
+                <div key={i}>
+                  <div className="flex gap-2">
+                    <input
+                      value={opt}
+                      onChange={e => setOpts(o => o.map((v, idx) => idx === i ? e.target.value : v))}
+                      maxLength={OPTION_MAX}
+                      placeholder={`Option ${i + 1}`}
+                      className="flex-1 bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                    {options.length > 2 && (
+                      <button onClick={() => removeOption(i)} className="text-zinc-600 hover:text-red-400 px-2 transition-colors" aria-label={`Remove option ${i + 1}`}>✕</button>
+                    )}
+                  </div>
+                  {opt.length > OPTION_MAX - 20 && (
+                    <p className="text-right text-[10px] text-zinc-600 mt-0.5">{opt.length}/{OPTION_MAX}</p>
                   )}
                 </div>
               ))}
             </div>
-            {options.length < 10 && (
+            {options.length < MAX_OPTIONS && (
               <button onClick={addOption} className="mt-2 text-xs text-amber-400 hover:text-amber-300 font-semibold transition-colors">
                 + Add option
               </button>
+            )}
+            {duplicateOptions && (
+              <p className="mt-2 text-xs text-amber-400">Some options are duplicates — make each one unique.</p>
             )}
           </div>
 
@@ -177,8 +252,8 @@ export default function PollsPage() {
           <div className="flex justify-end">
             <button
               onClick={createPoll}
-              disabled={creating}
-              className="px-5 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-colors"
+              disabled={!canPublish}
+              className="px-5 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-30 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-colors"
             >
               {creating ? 'Creating…' : 'Publish poll'}
             </button>
@@ -222,17 +297,36 @@ export default function PollsPage() {
                       </span>
                       <button
                         onClick={() => toggleActive(poll.id, !poll.active)}
-                        className="text-xs font-semibold text-zinc-400 hover:text-white px-3 py-2 rounded-lg hover:bg-white/5 transition-colors"
+                        disabled={busyPollId === poll.id}
+                        className="text-xs font-semibold text-zinc-400 hover:text-white px-3 py-2 rounded-lg hover:bg-white/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {poll.active ? 'End' : 'Reactivate'}
+                        {busyPollId === poll.id ? '…' : poll.active ? 'End' : 'Reactivate'}
                       </button>
-                      <button
-                        onClick={() => deletePoll(poll.id)}
-                        className="text-xs font-semibold text-red-500 hover:text-red-400 px-2 py-2 rounded-lg hover:bg-red-500/10 transition-colors"
-                        title="Delete poll"
-                      >
-                        ✕
-                      </button>
+                      {confirmDelete === poll.id ? (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => deletePoll(poll.id)}
+                            disabled={busyPollId === poll.id}
+                            className="text-xs font-semibold text-white bg-red-500 hover:bg-red-600 px-2 py-2 rounded-lg transition-colors disabled:opacity-50"
+                          >
+                            {busyPollId === poll.id ? 'Deleting…' : 'Delete?'}
+                          </button>
+                          <button
+                            onClick={() => setConfirmDelete(null)}
+                            className="text-xs font-semibold text-zinc-400 hover:text-white px-2 py-2 rounded-lg hover:bg-white/5 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmDelete(poll.id)}
+                          className="text-xs font-semibold text-red-500 hover:text-red-400 px-2 py-2 rounded-lg hover:bg-red-500/10 transition-colors"
+                          title="Delete poll"
+                        >
+                          ✕
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -253,7 +347,14 @@ export default function PollsPage() {
                     })}
                   </div>
 
-                  <p className="text-xs text-zinc-600 mt-3">{total} total vote{total !== 1 ? 's' : ''} · Created {new Date(poll.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                  <p className="text-xs text-zinc-600 mt-3">
+                    {total} total vote{total !== 1 ? 's' : ''}
+                    {' · Created '}
+                    {timeAgo(poll.createdAt)}
+                    {poll.updatedAt && poll.updatedAt !== poll.createdAt && (
+                      <> · Updated {timeAgo(poll.updatedAt)}</>
+                    )}
+                  </p>
                 </div>
               )
             })}
