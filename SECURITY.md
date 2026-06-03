@@ -296,6 +296,24 @@ These look like they could be simplified. They cannot.
     request CSP header, etc.) ships to prod with no signal. The smoke
     test catches some of these but not all.
 
+12. **`OFFLINE_APIS` in `public/sw.js` is empty by design.** Caching
+    auth-bearing responses in the shared CACHE could leak User A's
+    data to User B on a shared device. If a future offline-mode
+    feature is needed, scope it to a per-user cache name
+    (e.g. `auth-${userId}`) generated at login.
+
+13. **Backup-code consumption is atomic via
+    `prisma.totpBackupCode.updateMany`**, not a findUnique + update.
+    The atomicity is load-bearing: a findUnique + update is a TOCTOU
+    race where two concurrent requests with the same code can both
+    mint sessions. Same goes for any future single-use credential.
+
+14. **TOTP replay protection (`lastUsedTotpStep`) is checked AND
+    bumped on every TOTP-accepting route**: `/verify`, `/setup` DELETE,
+    `/backup-codes` POST. Without this, a shoulder-surfed TOTP at
+    login could be replayed within the same 30s step against the
+    other routes to disable 2FA or rotate recovery codes.
+
 11. **`/api/csp-report` is exempted from the CSRF Origin check in
     middleware.** Don't put the CSRF check back in for that path —
     browsers don't reliably send Origin on report POSTs and there's

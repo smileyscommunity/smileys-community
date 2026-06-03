@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 import { getSession, createSession } from '@/lib/session'
 import { sendVerificationEmail } from '@/lib/email'
-import { rateLimit } from '@/lib/rateLimit'
+import { rateLimit, getIp } from '@/lib/rateLimit'
 import { hashToken } from '@/lib/tokenHash'
 
 export async function POST(req: NextRequest) {
@@ -33,28 +33,43 @@ export async function POST(req: NextRequest) {
     const existing = await prisma.user.findUnique({ where: { email: newEmail } })
     if (existing) return NextResponse.json({ error: 'Email already in use' }, { status: 409 })
 
-    // Bump tokenVersion so an attacker holding a stolen JWT can't keep using the account.
-    const updated = await prisma.user.update({
-      where: { id: session.id },
-      data:  { email: newEmail, emailVerified: false, tokenVersion: { increment: 1 } },
-      select: { tokenVersion: true },
-    })
-
-    // Send verification to new email
-    await prisma.emailVerificationToken.deleteMany({ where: { userId: session.id } })
+    // Send verification to new email — generate the token before the
+    // transaction so we can include both the email-change verification
+    // setup AND the session rotation in a single atomic step. See the
+    // change-password route for the same reasoning.
     const token     = randomBytes(32).toString('hex')
     const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24)
-    // Email plaintext, store hash — see lib/tokenHash.ts.
-    await prisma.emailVerificationToken.create({ data: { userId: session.id, token: hashToken(token), expiresAt } })
+    const hashedToken = hashToken(token)
+
+    const { tokenVersion, newSessionId } = await prisma.$transaction(async tx => {
+      const u = await tx.user.update({
+        where: { id: session.id },
+        // Bump tokenVersion so a stolen JWT can't keep using the account.
+        data:  { email: newEmail, emailVerified: false, tokenVersion: { increment: 1 } },
+        select: { tokenVersion: true },
+      })
+      await tx.emailVerificationToken.deleteMany({ where: { userId: session.id } })
+      await tx.emailVerificationToken.create({ data: { userId: session.id, token: hashedToken, expiresAt } })
+      await tx.session.deleteMany({ where: { userId: session.id } })
+      const row = await tx.session.create({
+        data: {
+          userId:    session.id,
+          userAgent: req.headers.get('user-agent')?.slice(0, 500) ?? null,
+          ip:        getIp(req),
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        },
+        select: { id: true },
+      })
+      return { tokenVersion: u.tokenVersion, newSessionId: row.id }
+    })
+    // Fire-and-forget mail send AFTER the tx commits — slow SMTP shouldn't
+    // hold a DB transaction open.
     sendVerificationEmail(newEmail, session.name, token).catch(console.error)
 
-    // Same shape as change-password: nuke every existing Session row
-    // (consistent with the tokenVersion bump that invalidates every JWT),
-    // then issue a fresh one for this device so it stays signed in.
-    await prisma.session.deleteMany({ where: { userId: session.id } })
+    // Re-issue the JWT cookie pointing at the freshly-created Session row.
     await createSession(
-      { ...session, email: newEmail, emailVerified: false, tokenVersion: updated.tokenVersion },
-      { userAgent: req.headers.get('user-agent') },
+      { ...session, email: newEmail, emailVerified: false, tokenVersion },
+      { reuseSessionId: newSessionId },
     )
 
     return NextResponse.json({ ok: true })

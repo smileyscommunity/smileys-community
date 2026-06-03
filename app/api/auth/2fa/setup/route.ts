@@ -108,7 +108,7 @@ export async function DELETE(req: NextRequest) {
 
   const user = await prisma.user.findUnique({
     where: { id: session.id },
-    select: { totpSecret: true, totpEnabled: true },
+    select: { totpSecret: true, totpEnabled: true, lastUsedTotpStep: true },
   })
   if (!user?.totpEnabled || !user.totpSecret) {
     return NextResponse.json({ error: '2FA is not enabled' }, { status: 400 })
@@ -118,10 +118,21 @@ export async function DELETE(req: NextRequest) {
   const result = verifySync({ token: String(code), secret, strategy: 'totp' } as any)
   if (!(result as any).valid) return NextResponse.json({ error: 'Invalid code' }, { status: 400 })
 
+  // Replay protection — same window as /verify. Without this, an attacker
+  // with a stolen session cookie who shoulder-surfed one fresh TOTP code at
+  // the user's screen could call /verify (which bumps lastUsedTotpStep)
+  // and then within the same 30s call DELETE with the SAME code to disable
+  // 2FA entirely. lastUsedTotpStep is bumped in the same transaction as
+  // the disable so concurrent attacker requests can't race the check.
+  const currentStep = Math.floor(Date.now() / 30000)
+  if (user.lastUsedTotpStep !== null && currentStep <= user.lastUsedTotpStep) {
+    return NextResponse.json({ error: 'This code was already used — wait for the next one.' }, { status: 400 })
+  }
+
   await prisma.$transaction([
     prisma.user.update({
       where: { id: session.id },
-      data: { totpEnabled: false, totpSecret: null },
+      data: { totpEnabled: false, totpSecret: null, lastUsedTotpStep: currentStep },
     }),
     // Nuke backup codes so they can't be used to log in after the user
     // has explicitly disabled 2FA.

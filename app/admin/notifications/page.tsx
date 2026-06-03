@@ -63,6 +63,17 @@ export default function AdminNotificationsPage() {
   const [loadingHistory, setLoadingHistory] = useState(true)
   const [confirmSend,    setConfirmSend]    = useState(false)
 
+  // Sync audience when isModerator flips from false to true. The useState
+  // initializer runs once at mount; AuthContext starts as GUEST so
+  // isModerator is initially false and audience initializes to 'all'.
+  // When /me resolves to a real moderator a tick later, the 'All members'
+  // button is disabled (round-3 city-scope check) but the underlying state
+  // stays 'all', leaving canSend permanently false. This nudges it to a
+  // valid scope.
+  useEffect(() => {
+    if (isModerator && audience === 'all') setAudience('club')
+  }, [isModerator, audience])
+
   // Extracted so the post-send refresh can call the same code path the
   // initial load uses. Previously this fetch was duplicated.
   const loadHistory = useCallback(async () => {

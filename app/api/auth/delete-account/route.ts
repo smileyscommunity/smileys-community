@@ -86,6 +86,7 @@ export async function POST(req: NextRequest) {
       tx.totpBackupCode.deleteMany({ where: { userId: id } }),
       tx.session.deleteMany({ where: { userId: id } }),
       tx.eventPhoto.deleteMany({ where: { userId: id } }),
+      tx.clubPhoto.deleteMany({ where: { userId: id } }),
       tx.hangoutJoin.deleteMany({ where: { userId: id } }),
       tx.availabilityPulse.deleteMany({ where: { userId: id } }),
       tx.clubMembership.deleteMany({ where: { userId: id } }),
@@ -185,11 +186,16 @@ export async function POST(req: NextRequest) {
       },
     })
   }, {
-    // Slightly longer than the default 5s — many tables, but well under
-    // the 60s envelope budget. If we ever hit this on a power user with
-    // tens of thousands of rows, switch to per-table chunked deletes.
+    // 60s timeout — Prisma serializes operations on a single tx
+    // connection (Promise.all inside an interactive transaction is NOT
+    // actually parallel), so the ~30 sequential deleteMany/updateMany
+    // ops below can take real time on a power user with tens of
+    // thousands of notification / hangout / club-post-like rows. If we
+    // still hit this ceiling, the next step is to flip the user to
+    // status='deleting' synchronously and let a background sweeper
+    // chunk through the rest.
     maxWait: 5_000,
-    timeout: 30_000,
+    timeout: 60_000,
   })
 
   await deleteSession()

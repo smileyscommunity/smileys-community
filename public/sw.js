@@ -47,10 +47,22 @@
 // v12: 2026-06-02 — CSP report-uri added — browsers POST blocked-
 //                  resource reports to /api/csp-report so we catch
 //                  silent CSP regressions before users notice.
-const CACHE = 'smileys-v12'
+// v13: 2026-06-03 — Auth-API caching disabled. Network-first cache of
+//                  /api/events/attending could leak User A's events
+//                  to User B on a shared device (inflight cache.put
+//                  racing with logout's clear-auth-cache message,
+//                  and SW controller null on first visit). The
+//                  offline /my-events benefit isn't worth the leak.
+//                  OFFLINE_APIS is now empty; the activate handler
+//                  below evicts every old cached entry on this bump.
+const CACHE = 'smileys-v13'
 
-// API endpoints to cache for offline use (network-first, cache fallback)
-const OFFLINE_APIS = ['/app/api/events/attending']
+// API endpoints to cache for offline use. Empty by design — see v13 note.
+// Auth-bearing responses MUST NOT be cached in this shared CACHE because
+// the SW has no concept of "current user" and can't isolate entries per
+// session. If a future offline-mode feature is needed, scope it to a
+// per-user cache name (e.g. `auth-${userId}`) generated at login.
+const OFFLINE_APIS = []
 
 self.addEventListener('install', () => self.skipWaiting())
 

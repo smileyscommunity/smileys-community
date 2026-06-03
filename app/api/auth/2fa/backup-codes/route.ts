@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
 
   const user = await prisma.user.findUnique({
     where: { id: session.id },
-    select: { totpSecret: true, totpEnabled: true },
+    select: { totpSecret: true, totpEnabled: true, lastUsedTotpStep: true },
   })
   if (!user?.totpEnabled || !user.totpSecret) {
     return NextResponse.json({ error: '2FA is not enabled' }, { status: 400 })
@@ -59,8 +59,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid code — check your authenticator app' }, { status: 400 })
   }
 
+  // Replay protection — see app/api/auth/2fa/setup/route.ts DELETE path.
+  // Without this, a shoulder-surfed TOTP used at /verify can also be used
+  // here within 30s to rotate the recovery codes to attacker-known values.
+  const currentStep = Math.floor(Date.now() / 30000)
+  if (user.lastUsedTotpStep !== null && currentStep <= user.lastUsedTotpStep) {
+    return NextResponse.json({ error: 'This code was already used — wait for the next one.' }, { status: 400 })
+  }
+
   const backupCodes = generateBackupCodes()
   await prisma.$transaction([
+    prisma.user.update({
+      where: { id: session.id },
+      data:  { lastUsedTotpStep: currentStep },
+    }),
     prisma.totpBackupCode.deleteMany({ where: { userId: session.id } }),
     prisma.totpBackupCode.createMany({
       data: backupCodes.map(c => ({ userId: session.id, codeHash: hashBackupCode(c) })),

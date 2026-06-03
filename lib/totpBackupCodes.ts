@@ -49,6 +49,14 @@ export function generateBatch(): string[] {
  * the stored "ABCD1-23456".
  */
 export function hashCode(code: string): string {
-  const normalized = code.toUpperCase().replace(/[\s-]/g, '')
+  // Normalize unicode dashes and unicode whitespace too — a code saved in
+  // Apple Notes / 1Password rich text / printed-then-OCR'd will commonly
+  // come back with U+2010 (non-breaking hyphen), U+2013 (en-dash),
+  // U+00A0 (non-breaking space), etc. Without these, a legit code would
+  // hash-miss and the user would be locked out of recovery exactly when
+  // they need it (lost their TOTP device).
+  const normalized = code
+    .toUpperCase()
+    .replace(/[\s ‐-―−-]/g, '')
   return createHash('sha256').update(normalized).digest('hex')
 }

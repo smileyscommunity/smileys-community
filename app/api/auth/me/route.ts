@@ -1,6 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { headers } from 'next/headers'
 import { getSession, createSession, deleteSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
+
+// Pull userAgent + IP from the inbound request when /me has no NextRequest
+// argument (GET). Same shape as lib/rateLimit.ts getIp — kept inline to
+// avoid pulling a hard import here.
+async function fingerprint() {
+  const h = await headers()
+  return {
+    userAgent: h.get('user-agent'),
+    ip:        h.get('x-real-ip')
+            ?? h.get('x-forwarded-for')?.split(',').pop()?.trim()
+            ?? null,
+  }
+}
 
 export async function GET() {
   const session = await getSession()
@@ -44,9 +58,16 @@ export async function GET() {
     }
     // partnerId is not a privilege boundary — safe to auto-update.
     if (user && user.partnerId !== session.partnerId) {
+      // For tracked sessions (has sessionId from jti), keep the row.
+      // For legacy sessions (no jti, pre-Session-table), pass userAgent+ip
+      // so the freshly-created row in /settings looks like a real device
+      // rather than an unidentifiable Unknown/Unknown row.
+      const opts = session.sessionId
+        ? { reuseSessionId: session.sessionId }
+        : await fingerprint()
       await createSession(
         { ...session, partnerId: user.partnerId || undefined },
-        { reuseSessionId: session.sessionId },
+        opts,
       )
     }
     if (!user) { await deleteSession(); return NextResponse.json(null) }
@@ -96,13 +117,22 @@ export async function PATCH(req: NextRequest) {
 
     const updated = await prisma.user.update({ where: { id: session.id }, data })
 
+    // Same legacy-vs-tracked branch as the GET partner-refresh path.
+    const opts = session.sessionId
+      ? { reuseSessionId: session.sessionId }
+      : {
+          userAgent: req.headers.get('user-agent'),
+          ip:        req.headers.get('x-real-ip')
+                  ?? req.headers.get('x-forwarded-for')?.split(',').pop()?.trim()
+                  ?? null,
+        }
     await createSession(
       {
         ...session,
         name:  updated.name  ?? session.name,
         color: updated.color ?? session.color,
       },
-      { reuseSessionId: session.sessionId },
+      opts,
     )
 
     return NextResponse.json({ ok: true })

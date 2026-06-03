@@ -52,11 +52,11 @@ export function verifyHmacSignature(opts: {
     .digest('hex')
 
   // Some providers ship the signature with a prefix (`sha256=...` or
-  // `v1=...`). Strip a single `prefix=` if present so callers don't
-  // have to remember.
-  const got = opts.signatureHex.includes('=')
-    ? opts.signatureHex.split('=').pop() ?? ''
-    : opts.signatureHex
+  // `v1=...`). Strip the FIRST `prefix=` only — split('=').pop() was
+  // wrong for base64 signatures with `=` padding (would return the
+  // empty string after the last `=`, rejecting every legit base64 sig).
+  const eq = opts.signatureHex.indexOf('=')
+  const got = eq >= 0 ? opts.signatureHex.slice(eq + 1) : opts.signatureHex
 
   // timingSafeEqual requires equal-length buffers. Length-mismatch
   // returns false immediately rather than throwing.

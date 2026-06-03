@@ -49,6 +49,7 @@ interface CreateOptions {
 
 export async function createSession(user: SessionUser, opts: CreateOptions = {}) {
   let jti = opts.reuseSessionId
+  const expiresAt = new Date(Date.now() + SESSION_TTL_MS)
   if (!jti) {
     // Persist the per-device row first so we can embed its ID in the JWT.
     // userAgent + ip are captured at issuance time only; they're not
@@ -59,11 +60,22 @@ export async function createSession(user: SessionUser, opts: CreateOptions = {})
         userId:    user.id,
         userAgent: opts.userAgent?.slice(0, 500) ?? null,
         ip:        opts.ip ?? null,
-        expiresAt: new Date(Date.now() + SESSION_TTL_MS),
+        expiresAt,
       },
       select: { id: true },
     })
     jti = row.id
+  } else {
+    // Re-issue path. The new JWT carries fresh 7d expiry, so the matching
+    // Session row's expiresAt has to slide forward too — otherwise an
+    // actively-used account gets force-signed-out the moment the original
+    // row's expiresAt passes. updateMany so a missing row (e.g. the user
+    // revoked it from another device mid-flight) doesn't throw; the next
+    // getSession will then drop them as expected.
+    await prisma.session.updateMany({
+      where: { id: jti, revokedAt: null },
+      data:  { expiresAt },
+    })
   }
 
   const token = await new SignJWT({ user, jti })

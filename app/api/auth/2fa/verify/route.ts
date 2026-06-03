@@ -43,7 +43,12 @@ export async function POST(req: NextRequest) {
   // Two acceptance paths: a 6-digit TOTP code, or a one-time backup code.
   // The backup-code path is for users who've lost their phone — each code
   // is single-use, hash-stored, and marked `used` on consumption.
-  const codeStr = String(code).trim()
+  //
+  // Normalize whitespace + ASCII hyphen BEFORE classifying so an iOS paste
+  // with an interior NBSP (system-inserted) or a copy from a hyphenated
+  // backup-code display doesn't misroute. hashBackupCode also normalizes,
+  // so the cleaned form is what we hand to both verifiers.
+  const codeStr = String(code).replace(/[\s-]/g, '')
   const looksLikeTotp = /^\d{6}$/.test(codeStr)
 
   let usedBackupCode = false
@@ -60,19 +65,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'This code was already used — wait for the next one.' }, { status: 400 })
     }
   } else {
-    // Backup-code path. Look up by hash; only accept if not yet used.
+    // Backup-code path. Atomic claim: updateMany only flips rows where
+    // used=false AND userId matches, returning the count. Two concurrent
+    // requests with the same code see exactly one count===1 winner; the
+    // other gets count===0 and is rejected. The previous findUnique +
+    // update was a TOCTOU race that could mint two sessions from one code.
     const hashed = hashBackupCode(codeStr)
-    const backup = await prisma.totpBackupCode.findUnique({
-      where: { codeHash: hashed },
-      select: { id: true, userId: true, used: true },
-    })
-    if (!backup || backup.userId !== user.id || backup.used) {
-      return NextResponse.json({ error: 'Invalid code — check your authenticator app' }, { status: 400 })
-    }
-    await prisma.totpBackupCode.update({
-      where: { id: backup.id },
+    const claim = await prisma.totpBackupCode.updateMany({
+      where: { codeHash: hashed, userId: user.id, used: false },
       data:  { used: true, usedAt: new Date() },
     })
+    if (claim.count !== 1) {
+      return NextResponse.json({ error: 'Invalid code — check your authenticator app' }, { status: 400 })
+    }
     usedBackupCode = true
   }
 

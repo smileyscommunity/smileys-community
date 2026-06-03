@@ -27,12 +27,22 @@ const MAX_SUBS_PER_SEND = 20
 // (RTL override is a classic confusable trick). Allow standard letters,
 // numbers, punctuation, emoji, and whitespace.
 function sanitizeText(s: string, max: number): string {
+  // Strip the dangerous-only set:
+  //   \u200b ZWSP, \u200e LRM, \u200f RLM, \u202a-\u202e bidi overrides,
+  //   \u2066-\u2069 isolates, \ufeff BOM.
+  // KEEP \u200c (ZWNJ) and \u200d (ZWJ) \u2014 those are required for correct
+  // rendering of Persian / Urdu / Hindi / Bengali and for compound emoji
+  // (family glyphs like \ud83d\udc68\u200d\ud83d\udc69\u200d\ud83d\udc67 are sequences glued by ZWJ).
   // eslint-disable-next-line no-control-regex
-  return s
-    .replace(/[\x00-\x1f\x7f]/g, '')          // ASCII control chars
-    .replace(/[\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g, '') // ZWSP, bidi controls
+  const stripped = s
+    .replace(/[\x00-\x1f\x7f]/g, '')                                  // ASCII control chars
+    .replace(/[\u200b\u200e\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g, '')
     .trim()
-    .slice(0, max)
+  // Truncate by code point, not UTF-16 code unit. slice(0, max) on a string
+  // ending at an emoji boundary leaves a lone surrogate, which the OS
+  // notification renderer shows as U+FFFD.
+  const codePoints = Array.from(stripped)
+  return codePoints.length > max ? codePoints.slice(0, max).join('') : stripped
 }
 
 // Only allow links that stay inside the app. Without this, a host who
