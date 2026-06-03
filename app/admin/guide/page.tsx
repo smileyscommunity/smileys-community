@@ -50,15 +50,39 @@ export default function AdminGuidePage() {
   const [saving,  setSaving]  = useState(false)
   const [openCat, setOpenCat] = useState<number | null>(0)
   const [openRes, setOpenRes] = useState<string | null>(null)
+  // Inline-confirm for category removal — was an instant single-click
+  // wipe of the whole category and every resource inside.
+  const [confirmRemoveCat, setConfirmRemoveCat] = useState<number | null>(null)
+  // Snapshot of the last loaded/saved state used to compute the dirty
+  // flag. Without this Save was always enabled.
+  const [baseline, setBaseline] = useState<string>('')
+  const dirty = JSON.stringify(guide) !== baseline
 
   useEffect(() => {
     fetch('/app/api/admin/guide', { credentials: 'include' })
-      .then(r => r.json())
-      .then(d => setGuide(d))
+      .then(async r => {
+        if (!r.ok) {
+          const d = await r.json().catch(() => ({}))
+          toast.error(d?.error ?? `Couldn't load city guide (HTTP ${r.status})`)
+          return null
+        }
+        return r.json()
+      })
+      .then(d => {
+        if (!d) return
+        // Normalize into the Guide shape so a corrupt file or weird
+        // legacy payload doesn't crash the renderer (e.g. categories
+        // being undefined).
+        const next: Guide = { categories: Array.isArray(d.categories) ? d.categories : [] }
+        setGuide(next)
+        setBaseline(JSON.stringify(next))
+      })
+      .catch(() => toast.error('Network error — could not load city guide'))
       .finally(() => setLoading(false))
   }, [])
 
   async function save() {
+    if (!dirty) return
     setSaving(true)
     try {
       const res = await fetch('/app/api/admin/guide', {
@@ -66,11 +90,30 @@ export default function AdminGuidePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(guide),
       })
-      if (!res.ok) throw new Error()
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        // Surface the server's actual error — previously
+        // `throw new Error()` swallowed it.
+        toast.error(data?.error ?? 'Failed to save')
+        return
+      }
+      // Refresh the dirty baseline so the Save button disables.
+      setBaseline(JSON.stringify(guide))
       toast.success('City guide saved ✓')
-    } catch { toast.error('Failed to save') }
+    } catch { toast.error('Network error — please try again') }
     finally { setSaving(false) }
   }
+
+  // Warn before leaving the page if there are unsaved edits.
+  useEffect(() => {
+    function onBeforeUnload(e: BeforeUnloadEvent) {
+      if (!dirty) return
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [dirty])
 
   function updateCat(ci: number, field: keyof Category, val: string) {
     setGuide(g => {
@@ -175,9 +218,9 @@ export default function AdminGuidePage() {
           <h1 className="text-xl font-bold text-white">Istanbul City Guide</h1>
           <p className="text-xs text-zinc-500 mt-0.5">Edit categories and resources shown on the member guide page</p>
         </div>
-        <button onClick={save} disabled={saving}
-          className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-white text-sm font-bold rounded-xl disabled:opacity-50 transition-colors">
-          {saving ? 'Saving…' : 'Save'}
+        <button onClick={save} disabled={saving || !dirty}
+          className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-white text-sm font-bold rounded-xl disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+          {saving ? 'Saving…' : dirty ? 'Save' : 'Saved'}
         </button>
       </div>
 
@@ -219,12 +262,29 @@ export default function AdminGuidePage() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
                 </button>
-                <button onClick={() => removeCat(ci)}
-                  className="p-1 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-zinc-700 transition-colors ml-1" title="Remove category">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+                {/* Two-click confirm — first click flips the X into
+                    a red "Delete?" pill; second click within the same
+                    state actually removes. Was an instant nuke of the
+                    entire category and every resource in it. */}
+                {confirmRemoveCat === ci ? (
+                  <div className="flex items-center gap-1 ml-1">
+                    <button onClick={() => { removeCat(ci); setConfirmRemoveCat(null) }}
+                      className="px-2 py-1 text-[10px] font-bold bg-red-500 hover:bg-red-600 text-white rounded-md transition-colors">
+                      Delete?
+                    </button>
+                    <button onClick={() => setConfirmRemoveCat(null)}
+                      className="px-2 py-1 text-[10px] font-bold text-zinc-400 hover:text-white bg-zinc-800 rounded-md transition-colors">
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <button onClick={() => setConfirmRemoveCat(ci)}
+                    className="p-1 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-zinc-700 transition-colors ml-1" title="Remove category">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -348,7 +408,10 @@ export default function AdminGuidePage() {
       </div>
 
       <p className="text-xs text-zinc-600 text-center mt-6">
-        Changes are saved to the server immediately. The Neighborhoods section is auto-populated from live event data and not editable here.
+        {/* Previously claimed "Changes are saved to the server
+            immediately" — they aren't. Save button is what writes to
+            disk. Correcting the lie. */}
+        Click <span className="text-amber-400 font-semibold">Save</span> above to publish your changes. The Neighborhoods section is auto-populated from live event data and not editable here.
       </p>
     </div>
   )
