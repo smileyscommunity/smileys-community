@@ -20,7 +20,11 @@ interface Banner {
   updatedAt: string
 }
 
-type AllBanners = Record<BannerPage, Banner>
+type AllBanners = Record<BannerPage, Banner[]>
+
+const EMPTY_BANNERS: AllBanners = {
+  dashboard: [], events: [], clubs: [], members: [], neighborhoods: [], guide: [],
+}
 
 const PAGES: { key: BannerPage; label: string; icon: string }[] = [
   { key: 'dashboard',     label: 'Dashboard',      icon: '🏠' },
@@ -46,17 +50,47 @@ function BannerPreview({ b }: { b: Banner }) {
 }
 
 export default function BannersPage() {
-  const [banners,      setBanners]      = useState<Record<BannerPage, Banner[]>>({} as any)
+  const [banners,      setBanners]      = useState<AllBanners>(EMPTY_BANNERS)
   const [expanded,     setExpanded]     = useState<BannerPage | null>(null)
   const [editing,      setEditing]      = useState<Banner | null>(null)
   const [saving,       setSaving]       = useState(false)
+  // Inline-confirm for remove — same pattern as the other admin pages.
+  const [confirmRemove, setConfirmRemove] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/app/api/admin/banners', { credentials: 'include' })
-      .then(r => r.json())
-      .then(d => setBanners(d))
-      .catch(() => {})
+      .then(async r => {
+        if (!r.ok) {
+          const d = await r.json().catch(() => ({}))
+          toast.error(d?.error ?? `Couldn't load banners (HTTP ${r.status})`)
+          return EMPTY_BANNERS
+        }
+        const d = await r.json()
+        // Normalize the parsed shape — every key must hold an array;
+        // legacy single-object format would otherwise crash list.map().
+        return {
+          dashboard:     Array.isArray(d?.dashboard)     ? d.dashboard     : [],
+          events:        Array.isArray(d?.events)        ? d.events        : [],
+          clubs:         Array.isArray(d?.clubs)         ? d.clubs         : [],
+          members:       Array.isArray(d?.members)       ? d.members       : [],
+          neighborhoods: Array.isArray(d?.neighborhoods) ? d.neighborhoods : [],
+          guide:         Array.isArray(d?.guide)         ? d.guide         : [],
+        }
+      })
+      .then(setBanners)
+      .catch(() => toast.error('Network error — could not load banners'))
   }, [])
+
+  // Inline link validation that mirrors the server's isSafeHref so
+  // admins see the error before submitting.
+  function clientLinkValid(link: string): boolean {
+    if (!link) return true
+    // eslint-disable-next-line no-control-regex
+    if (/[\s\x00-\x1f]/.test(link)) return false
+    if (link.startsWith('//')) return false
+    if (link.startsWith('/')) return true
+    return /^https:\/\//i.test(link)
+  }
 
   function startEdit(page: BannerPage, existing?: Banner) {
     setEditing(existing || { ...EMPTY, page, id: '' })
@@ -64,9 +98,15 @@ export default function BannersPage() {
 
   async function save() {
     if (!editing) return
+    // Inline validate the link before submitting so admin sees the
+    // error in-context instead of getting a 400 toast after a roundtrip.
+    if (!clientLinkValid(editing.link)) {
+      toast.error('Link must be https:// or a /relative path')
+      return
+    }
     const page = editing.page
     const current = banners[page] || []
-    
+
     // If new, append. If existing, replace.
     let updated: Banner[]
     if (!editing.id) {
@@ -83,21 +123,27 @@ export default function BannersPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ page, banners: updated }),
       })
-      if (!res.ok) throw new Error()
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        // Surface the server's actual error — previously
+        // `throw new Error()` discarded it and the toast just said
+        // "Failed to save".
+        toast.error(data?.error ?? 'Failed to save')
+        return
+      }
       setBanners(prev => ({ ...prev, [page]: updated }))
       toast.success('Banners updated!')
       setEditing(null)
     } catch {
-      toast.error('Failed to save')
+      toast.error('Network error — please try again')
     } finally {
       setSaving(false)
     }
   }
 
   async function remove(page: BannerPage, id: string) {
-    if (!confirm('Are you sure you want to remove this banner?')) return
     const updated = (banners[page] || []).filter(b => b.id !== id)
-    
+
     try {
       const res = await fetch('/app/api/admin/banners', {
         method: 'POST',
@@ -105,26 +151,39 @@ export default function BannersPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ page, banners: updated }),
       })
-      if (!res.ok) throw new Error()
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast.error(data?.error ?? 'Failed to remove')
+        return
+      }
       setBanners(prev => ({ ...prev, [page]: updated }))
+      setConfirmRemove(null)
       toast.success('Banner removed')
     } catch {
-      toast.error('Failed to remove')
+      toast.error('Network error — please try again')
     }
   }
 
   async function toggleActive(page: BannerPage, id: string) {
     const updated = (banners[page] || []).map(b => b.id === id ? { ...b, active: !b.active } : b)
     try {
-      await fetch('/app/api/admin/banners', {
+      const res = await fetch('/app/api/admin/banners', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ page, banners: updated }),
       })
+      if (!res.ok) {
+        // Previously the UI flipped the toggle regardless of res.ok,
+        // so the admin saw the change even though the server rejected
+        // the write. Surface the error AND don't mutate local state.
+        const d = await res.json().catch(() => ({}))
+        toast.error(d?.error ?? 'Failed to toggle')
+        return
+      }
       setBanners(prev => ({ ...prev, [page]: updated }))
     } catch {
-      toast.error('Failed to toggle')
+      toast.error('Network error — please try again')
     }
   }
 
@@ -188,9 +247,26 @@ export default function BannersPage() {
                               <button onClick={() => startEdit(p.key, b)} className="p-1 text-zinc-500 hover:text-amber-500" title="Edit">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                               </button>
-                              <button onClick={() => remove(p.key, b.id)} className="p-1 text-zinc-500 hover:text-red-500" title="Remove">
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                              </button>
+                              {/* Two-click confirm — first click flips
+                                  the icon into a red "Delete?" pill so
+                                  a misclick doesn't immediately destroy
+                                  a live banner. */}
+                              {confirmRemove === b.id ? (
+                                <div className="flex items-center gap-1">
+                                  <button onClick={() => remove(p.key, b.id)}
+                                    className="px-1.5 py-0.5 text-[10px] font-bold bg-red-500 hover:bg-red-600 text-white rounded transition-colors">
+                                    Delete?
+                                  </button>
+                                  <button onClick={() => setConfirmRemove(null)}
+                                    className="px-1.5 py-0.5 text-[10px] font-bold text-zinc-400 hover:text-white bg-zinc-800 rounded transition-colors">
+                                    ✕
+                                  </button>
+                                </div>
+                              ) : (
+                                <button onClick={() => setConfirmRemove(b.id)} className="p-1 text-zinc-500 hover:text-red-500" title="Remove">
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                </button>
+                              )}
                             </div>
                           </div>
                           <BannerPreview b={b} />
@@ -286,10 +362,17 @@ export default function BannersPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-1.5 ml-1">Link URL</label>
-                    <input type="text" value={editing.link}
+                    <input type="text" value={editing.link} maxLength={2000}
                       onChange={e => setEditing({ ...editing, link: e.target.value })}
                       placeholder="/events or https://..."
-                      className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-xl text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500" />
+                      className={`w-full px-4 py-3 bg-zinc-800 border rounded-xl text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-2 ${
+                        clientLinkValid(editing.link)
+                          ? 'border-zinc-700 focus:ring-amber-500'
+                          : 'border-red-500/50 focus:ring-red-500'
+                      }`} />
+                    {!clientLinkValid(editing.link) && (
+                      <p className="text-xs text-red-400 mt-1 ml-1">Must be https:// or a /relative path</p>
+                    )}
                   </div>
                 </div>
 
@@ -306,8 +389,9 @@ export default function BannersPage() {
               <button onClick={() => setEditing(null)} className="flex-1 py-3 rounded-2xl text-sm font-bold text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors border border-zinc-800">
                 Cancel
               </button>
-              <button onClick={save} disabled={saving || !editing.headline.trim()}
-                className="flex-[2] py-3 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm disabled:opacity-40 transition-colors shadow-lg shadow-amber-500/10">
+              <button onClick={save}
+                disabled={saving || !editing.headline.trim() || !clientLinkValid(editing.link)}
+                className="flex-[2] py-3 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-lg shadow-amber-500/10">
                 {saving ? 'Saving…' : editing.id ? 'Update Banner' : 'Create Banner'}
               </button>
             </div>
