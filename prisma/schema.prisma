@@ -156,13 +156,15 @@ model User {
   cupPrizesAwardedTo CupPrize[]         @relation("CupPrizeAwardedTo")
   cupDonationsReviewed CupPrizeDonation[] @relation("CupDonationReviewer")
 
-  businessSubmissions       Business[]         @relation("BusinessSubmissions")
-  businessReviewsModerated  Business[]         @relation("BusinessReviews")
-  businessesOwned           Business[]         @relation("BusinessOwnership")
-  businessClaims            BusinessClaim[]    @relation("BusinessClaims")
-  businessClaimReviews      BusinessClaim[]    @relation("BusinessClaimReviews")
-  businessReviewsAuthored   BusinessReview[]   @relation("BusinessReviewAuthor")
-  businessReviewOwnerReplies BusinessReview[]  @relation("BusinessReviewOwnerReply")
+  businessSubmissions        Business[]         @relation("BusinessSubmissions")
+  businessReviewsModerated   Business[]         @relation("BusinessReviews")
+  businessesOwned            Business[]         @relation("BusinessOwnership")
+  businessClaims             BusinessClaim[]    @relation("BusinessClaims")
+  businessClaimReviews       BusinessClaim[]    @relation("BusinessClaimReviews")
+  businessReviewsAuthored    BusinessReview[]   @relation("BusinessReviewAuthor")
+  businessReviewOwnerReplies BusinessReview[]   @relation("BusinessReviewOwnerReply")
+  businessReportsFiled       BusinessReport[]   @relation("BusinessReportReporter")
+  businessReportsReviewed    BusinessReport[]   @relation("BusinessReportReviewer")
 
   @@map("users")
 }
@@ -1849,6 +1851,15 @@ model Business {
   // confirmed.
   latitude        Float?
   longitude       Float?
+  // Weekly hours. Shape: { mon: "09:00-22:00" | null, ..., sun: ... }
+  // null/missing day = closed. Stored as JSON because the structure
+  // is fixed and small; querying isn't needed (the "Open now" badge
+  // is computed in JS at render time).
+  hours           Json?
+  // Free-form "Smileys members get 10% off" perk advertised on the
+  // card. Capped client- and server-side to keep it from competing
+  // with the business name visually.
+  memberDiscount  String?
   isApproved      Boolean   @default(false)
   isActive        Boolean   @default(true)
   submittedById   String
@@ -1864,6 +1875,7 @@ model Business {
   claimedAt       DateTime?
   claims          BusinessClaim[]
   reviews         BusinessReview[]
+  reports         BusinessReport[]
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @default(now()) @updatedAt
 
@@ -1908,6 +1920,30 @@ model BusinessReview {
   @@index([businessId, isHidden])
   @@index([authorId])
   @@map("business_reviews")
+}
+
+// Member-submitted "report a problem" on a directory entry. Common
+// reasons: closed, wrong info, inappropriate content. Anonymous reports
+// are allowed (reporterId is nullable) so a casual visitor can still
+// flag a closed shop without making an account; we rely on the
+// rate-limit + admin triage to keep spam in check.
+model BusinessReport {
+  id            String    @id @default(cuid())
+  businessId    String
+  business      Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  reporterId    String?
+  reporter      User?     @relation("BusinessReportReporter", fields: [reporterId], references: [id])
+  reason        String    // closed | wrong_info | inappropriate | other
+  message       String?
+  status        String    @default("pending") // pending | resolved | dismissed
+  reviewedById  String?
+  reviewedBy    User?     @relation("BusinessReportReviewer", fields: [reviewedById], references: [id])
+  reviewedAt    DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([status, createdAt])
+  @@index([businessId])
+  @@map("business_reports")
 }
 
 // Google-Business-style claim flow. A logged-in member asserts ownership

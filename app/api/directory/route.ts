@@ -62,6 +62,7 @@ export async function GET(req: NextRequest) {
         website: true, instagram: true, logo: true, coverImage: true,
         isExpatOwned: true, isExpatFriendly: true, languages: true,
         latitude: true, longitude: true,
+        hours: true, memberDiscount: true,
         // claimedById is exposed (truthy/falsy) so the public card can
         // show a "✓ Verified owner" badge; the owner's identity is NOT
         // included to avoid a PII leak on a public endpoint.

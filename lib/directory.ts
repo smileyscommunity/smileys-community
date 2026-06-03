@@ -45,6 +45,9 @@ export const DIRECTORY_LIMITS = {
   // pipeline. 500 is plenty for any reasonable CDN URL.
   logo:         500,
   coverImage:   500,
+  // Short marketing line like "10% off for Smileys members". Capped
+  // tightly so it doesn't compete visually with the business name.
+  memberDiscount: 80,
 } as const
 
 /**

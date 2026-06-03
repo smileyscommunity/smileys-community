@@ -7,9 +7,10 @@ import { useAdminLoad } from '@/lib/admin/useAdminLoad'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import { isSafeHref } from '@/lib/safeUrl'
 import { BUSINESS_CATEGORIES, DIRECTORY_LIMITS } from '@/lib/directory'
+import { DAY_KEYS, DAY_LABELS } from '@/lib/businessHours'
 import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
 
-type View = 'approved' | 'pending' | 'rejected' | 'claims'
+type View = 'approved' | 'pending' | 'rejected' | 'claims' | 'reports'
 
 const EMPTY_CREATE = {
   name: '', category: '', description: '',
@@ -53,6 +54,8 @@ interface Business {
   languages: string | null
   latitude:  number | null
   longitude: number | null
+  hours: Record<string, string | null> | null
+  memberDiscount: string | null
   isApproved: boolean
   isActive: boolean
   createdAt: string
@@ -74,8 +77,12 @@ type EditFields = {
   coverImage: string
   latitude:  string
   longitude: string
+  memberDiscount: string
   isExpatOwned: boolean
   isExpatFriendly: boolean
+  // Hours kept as a separate object so saving sends an actual JSON
+  // shape, not a flat field set. Empty string per day = closed/not set.
+  hours: Record<string, string>
 }
 
 function toEditFields(b: Business): EditFields {
@@ -93,6 +100,10 @@ function toEditFields(b: Business): EditFields {
     coverImage:      b.coverImage      ?? '',
     latitude:        b.latitude  != null ? String(b.latitude)  : '',
     longitude:       b.longitude != null ? String(b.longitude) : '',
+    memberDiscount:  b.memberDiscount  ?? '',
+    hours:           Object.fromEntries(DAY_KEYS.map(d => [
+      d, typeof b.hours?.[d] === 'string' ? b.hours[d]! : '',
+    ])),
     isExpatOwned:    b.isExpatOwned,
     isExpatFriendly: b.isExpatFriendly,
   }
@@ -150,6 +161,16 @@ function BusinessRow({ b, onAction }: { b: Business; onAction: () => void }) {
       const patch: Record<string, unknown> = {}
       const original = toEditFields(b)
       for (const k of Object.keys(edit) as (keyof EditFields)[]) {
+        // `hours` is an object — shallow-compare per-day strings, then
+        // ship as a {mon: "...", ...} payload. The API turns empty
+        // strings into nulls (closed) inside parseHours.
+        if (k === 'hours') {
+          const changed = DAY_KEYS.some(d => (edit.hours[d] ?? '') !== (original.hours[d] ?? ''))
+          if (changed) {
+            patch.hours = Object.fromEntries(DAY_KEYS.map(d => [d, edit.hours[d] || null]))
+          }
+          continue
+        }
         if (edit[k] !== original[k]) patch[k] = edit[k]
       }
       if (Object.keys(patch).length === 0) {
@@ -350,10 +371,34 @@ function BusinessRow({ b, onAction }: { b: Business; onAction: () => void }) {
               <label className={labelCls}>Longitude</label>
               <input type="text" inputMode="decimal" placeholder="28.9817" {...field('longitude')} className={inputCls} />
             </div>
+            <div className="sm:col-span-2">
+              <label className={labelCls}>Smileys member perk</label>
+              <input maxLength={DIRECTORY_LIMITS.memberDiscount} placeholder='e.g. "10% off for Smileys members"' {...field('memberDiscount')} className={inputCls} />
+            </div>
           </div>
           <p className="text-[10px] text-zinc-500 -mt-1">
             Lat/lon are optional — leave blank to drop the pin at the neighborhood centroid. Paste from Google Maps right-click → "What's here?".
           </p>
+
+          <div>
+            <label className={labelCls}>Hours · Mon–Sun</label>
+            <p className="text-[10px] text-zinc-500 mb-1.5">
+              Format <code>09:00-22:00</code>. Leave blank for closed days. Cross-midnight works (<code>21:00-02:00</code>).
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+              {DAY_KEYS.map(d => (
+                <div key={d} className="flex items-center gap-2">
+                  <span className="w-9 text-[10px] font-semibold text-zinc-500 uppercase shrink-0">{DAY_LABELS[d]}</span>
+                  <input
+                    value={edit.hours[d] ?? ''}
+                    onChange={e => setEdit(s => ({ ...s, hours: { ...s.hours, [d]: e.target.value } }))}
+                    placeholder="09:00-22:00"
+                    className={`${inputCls} font-mono`}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
           <div className="flex gap-3 pt-1">
             <label className="flex items-center gap-2 text-xs text-zinc-300">
               <input type="checkbox" checked={edit.isExpatOwned} onChange={e => setEdit(s => ({ ...s, isExpatOwned: e.target.checked }))} className="accent-amber-500" />
@@ -734,19 +779,164 @@ function ClaimsList() {
   )
 }
 
+// --------------- Reports surface ---------------
+
+interface ReportRow {
+  id: string
+  reason: string
+  message: string | null
+  status: 'pending' | 'resolved' | 'dismissed'
+  createdAt: string
+  reviewedAt: string | null
+  business: { id: string; name: string; category: string; neighborhood: string | null; isApproved: boolean; isActive: boolean }
+  reporter: { id: string; name: string; email: string } | null
+  reviewedBy: { id: string; name: string } | null
+}
+
+const REASON_LABEL: Record<string, string> = {
+  closed:        '🚪 Closed',
+  wrong_info:    '📍 Wrong info',
+  inappropriate: '⚠️ Inappropriate',
+  other:         '✏️ Other',
+}
+
+function ReportsList() {
+  const [status,  setStatus]  = useState<'pending' | 'resolved' | 'dismissed'>('pending')
+  const [rows,    setRows]    = useState<ReportRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [acting,  setActing]  = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const r = await fetch(`/app/api/admin/directory/reports?status=${status}`, { credentials: 'include' })
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}))
+        toast.error(d?.error || `Couldn't load reports (HTTP ${r.status})`)
+        setRows([])
+        return
+      }
+      const d = await r.json()
+      setRows(Array.isArray(d) ? d : [])
+    } catch {
+      toast.error('Network error — could not load reports')
+    } finally {
+      setLoading(false)
+    }
+  }, [status])
+
+  useEffect(() => { load() }, [load])
+
+  async function act(id: string, action: 'resolve' | 'dismiss') {
+    setActing(id)
+    try {
+      const r = await fetch(`/app/api/admin/directory/reports/${id}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      })
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}))
+        toast.error(d?.error || 'Failed')
+        return
+      }
+      toast.success(action === 'resolve' ? 'Marked resolved' : 'Dismissed')
+      load()
+    } catch {
+      toast.error('Network error')
+    } finally {
+      setActing(null)
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-1 bg-zinc-900 p-1 rounded-xl w-fit">
+        {(['pending', 'resolved', 'dismissed'] as const).map(s => (
+          <button key={s} onClick={() => setStatus(s)}
+            className={`text-xs font-semibold px-3 py-1 rounded-lg capitalize transition-colors ${
+              status === s ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'
+            }`}>
+            {s}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="space-y-2">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="bg-zinc-900 rounded-xl h-20 animate-pulse" />
+          ))}
+        </div>
+      ) : rows.length === 0 ? (
+        <div className="text-center py-14 text-zinc-500">
+          <div className="text-3xl mb-2">🚩</div>
+          <p className="text-sm">No {status} reports</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {rows.map(r => (
+            <div key={r.id} className="bg-zinc-900 rounded-xl border border-white/5 p-4 space-y-2">
+              <div className="flex items-start justify-between gap-3 flex-wrap">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-white">
+                    {REASON_LABEL[r.reason] ?? r.reason} · {r.business.name}
+                  </p>
+                  <p className="text-xs text-zinc-500 mt-0.5">
+                    {r.reporter ? `${r.reporter.name} · ${r.reporter.email}` : 'Anonymous reporter'} · {new Date(r.createdAt).toLocaleDateString()}
+                    {' · '}
+                    <span className="text-zinc-400">{r.business.category}{r.business.neighborhood ? ` · ${r.business.neighborhood}` : ''}</span>
+                  </p>
+                </div>
+              </div>
+              {r.message && (
+                <p className="text-xs text-zinc-300 whitespace-pre-wrap bg-zinc-950 border border-zinc-800 rounded-lg p-3">{r.message}</p>
+              )}
+              {r.reviewedBy && (
+                <p className="text-[11px] text-zinc-500">Reviewed by {r.reviewedBy.name}{r.reviewedAt ? ` · ${new Date(r.reviewedAt).toLocaleDateString()}` : ''}</p>
+              )}
+              {status === 'pending' && (
+                <div className="flex gap-2 pt-1">
+                  <button
+                    onClick={() => act(r.id, 'resolve')}
+                    disabled={acting === r.id}
+                    className="text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    {acting === r.id ? '…' : 'Mark resolved'}
+                  </button>
+                  <button
+                    onClick={() => act(r.id, 'dismiss')}
+                    disabled={acting === r.id}
+                    className="text-xs font-semibold bg-zinc-700 hover:bg-zinc-600 text-white px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function AdminDirectoryPage() {
   const searchParams = useSearchParams()
   const router       = useRouter()
   const raw          = searchParams.get('status')
   // Tab order is Approved → Pending → Rejected, so the first tab is also
   // the default landing view when no ?status= param is present.
-  const view: View   = raw === 'pending' || raw === 'rejected' || raw === 'claims' ? raw : 'approved'
+  const view: View   = raw === 'pending' || raw === 'rejected' || raw === 'claims' || raw === 'reports' ? raw : 'approved'
 
-  const isClaims = view === 'claims'
+  const isClaims  = view === 'claims'
+  const isReports = view === 'reports'
+  const isAux     = isClaims || isReports
   const { data, loading, error, retry } = useAdminLoad<Business[]>(
-    `/app/api/admin/directory?status=${view === 'claims' ? 'approved' : view}`,
+    `/app/api/admin/directory?status=${isAux ? 'approved' : view}`,
     (v): v is Business[] => Array.isArray(v),
-    { enabled: !isClaims },
+    { enabled: !isAux },
   )
   const items = data ?? []
   const [showAdd, setShowAdd] = useState(false)
@@ -762,7 +952,7 @@ export default function AdminDirectoryPage() {
           <h1 className="text-xl font-bold text-white">Business Directory</h1>
           <p className="text-xs text-zinc-500 mt-0.5">Manage expat-owned and expat-friendly business listings</p>
         </div>
-        {!showAdd && !isClaims && (
+        {!showAdd && !isAux && (
           <button
             onClick={() => setShowAdd(true)}
             className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition-colors"
@@ -772,7 +962,7 @@ export default function AdminDirectoryPage() {
         )}
       </div>
 
-      {showAdd && !isClaims && (
+      {showAdd && !isAux && (
         <CreateForm
           onCreated={() => { retry(); setView('approved') }}
           onCancel={() => setShowAdd(false)}
@@ -783,7 +973,7 @@ export default function AdminDirectoryPage() {
           row; the fourth Claims tab is a different model entirely
           (ownership claims) and uses its own list component. */}
       <div className="flex gap-1 mb-5 bg-zinc-900 p-1 rounded-xl w-fit">
-        {(['approved', 'pending', 'rejected', 'claims'] as const).map(v => (
+        {(['approved', 'pending', 'rejected', 'claims', 'reports'] as const).map(v => (
           <button key={v} onClick={() => setView(v)}
             className={`text-xs font-semibold px-4 py-1.5 rounded-lg capitalize transition-colors ${
               view === v ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'
@@ -795,6 +985,8 @@ export default function AdminDirectoryPage() {
 
       {isClaims ? (
         <ClaimsList />
+      ) : isReports ? (
+        <ReportsList />
       ) : error ? (
         <LoadErrorBanner message={error} onRetry={retry} />
       ) : loading ? (

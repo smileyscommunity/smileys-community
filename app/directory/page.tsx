@@ -9,6 +9,9 @@ import { resolveImageUrl } from '@/lib/data'
 import { BUSINESS_CATEGORIES } from '@/lib/directory'
 import { isSafeHref } from '@/lib/safeUrl'
 import DirectoryReviews from '@/components/DirectoryReviews'
+import DirectoryReportButton from '@/components/DirectoryReportButton'
+import DirectoryOwnerEdit from '@/components/DirectoryOwnerEdit'
+import { getOpenStatus } from '@/lib/businessHours'
 import dynamic from 'next/dynamic'
 
 // Leaflet hits `window` on import, so the map can't render during SSR
@@ -46,6 +49,9 @@ interface Business {
   // Map view falls back to neighborhood centroid + jitter when null.
   latitude:  number | null
   longitude: number | null
+  // Weekly opening hours, free-form member-discount perk.
+  hours: Record<string, string | null> | null
+  memberDiscount: string | null
 }
 
 // Claim status mirrors the BusinessClaim.status DB enum plus a
@@ -172,15 +178,18 @@ function ClaimWidget({ b, isLoggedIn }: { b: Business; isLoggedIn: boolean }) {
 }
 
 function BusinessCard({
-  b, isLoggedIn, currentUserId, onOpenReviews,
+  b, isLoggedIn, currentUserId, onOpenReviews, onEdited,
 }: {
   b: Business
   isLoggedIn: boolean
   currentUserId: string | null
   onOpenReviews: () => void
+  onEdited: () => void
 }) {
   const logo  = resolveImageUrl(b.logo)
   const cover = resolveImageUrl(b.coverImage)
+  const isOwner = currentUserId != null && b.claimedById === currentUserId
+  const openStatus = getOpenStatus(b.hours)
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col hover:-translate-y-0.5 hover:shadow-md hover:border-gray-200 transition-all duration-200 relative">
@@ -200,7 +209,33 @@ function BusinessCard({
           {b.isExpatFriendly && (
             <span className="bg-teal-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-tight">Expat-friendly</span>
           )}
+          {/* Member-discount perk — top-left strip alongside the other
+              identity badges. Truncated so a wordy admin entry doesn't
+              overflow the cover. */}
+          {b.memberDiscount && (
+            <span className="bg-fuchsia-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-tight max-w-[140px] truncate" title={b.memberDiscount}>
+              💸 {b.memberDiscount}
+            </span>
+          )}
         </div>
+
+        {/* Open-now status — top-right corner. Green when open, amber
+            when closed-now-but-opens-soon. Hidden entirely when the
+            business hasn't set hours, so blank-hours entries don't
+            read as "closed". */}
+        {openStatus && (
+          <div className="absolute top-2 right-2">
+            {openStatus.open ? (
+              <span className="bg-emerald-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-tight shadow-sm">
+                Open · until {openStatus.closesAt}
+              </span>
+            ) : (
+              <span className="bg-white/95 text-gray-700 text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-tight shadow-sm">
+                Closed{openStatus.opensAt ? ` · opens ${openStatus.opensAt}` : ''}
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Logo */}
         {logo && (
@@ -286,6 +321,18 @@ function BusinessCard({
           {!b.website && !b.instagram && !b.phone && (
             <span className="text-[10px] text-gray-300 italic flex-1">No links</span>
           )}
+        </div>
+
+        {/* Bottom row: owner-edit (verified owners only) + report.
+            Both render as tiny inline text links so they don't fight
+            with the link buttons above. */}
+        <div className="flex items-center justify-between gap-2 -mt-1">
+          {isOwner ? (
+            <DirectoryOwnerEdit b={b} onSaved={onEdited} />
+          ) : (
+            <span />
+          )}
+          <DirectoryReportButton businessId={b.id} businessName={b.name} />
         </div>
       </div>
     </div>
@@ -513,6 +560,7 @@ function DirectoryPageInner() {
                 isLoggedIn={isLoggedIn}
                 currentUserId={currentUserId}
                 onOpenReviews={() => setOpenReviewsFor(b)}
+                onEdited={load}
               />
             ))}
           </div>

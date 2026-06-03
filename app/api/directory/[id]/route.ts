@@ -1,0 +1,70 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { getSession } from '@/lib/session'
+import { isAdminOrModerator } from '@/lib/access'
+import { writeAudit } from '@/lib/audit'
+
+// PATCH /api/directory/[id] — verified-owner self-edit. Reuses the
+// same field-update validator as /api/admin/directory PATCH so the
+// allowlist (and URL / category / hours / discount rules) stays
+// identical between the two paths.
+//
+// Access:
+//   - Admin/moderator: allowed for any business (mirrors the admin
+//     route for owners who happen to also be staff).
+//   - Verified owner: allowed only when session.id === b.claimedById.
+//     Anyone else gets 404 (don't leak existence of business).
+//
+// Fields restricted to admin-only stay out of the validator entirely
+// — owners can never approve/reject, change moderation flags, or
+// reassign ownership.
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  // Lazy-import the validator so the owner-edit and admin-edit code
+  // paths share exactly one normalize function.
+  const { validateFieldUpdate } = await import('@/app/api/admin/directory/_lib')
+
+  try {
+    const session = await getSession()
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const { id } = await params
+    const existing = await prisma.business.findUnique({
+      where:  { id },
+      select: { id: true, claimedById: true, name: true, isApproved: true, isActive: true },
+    })
+    if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+    const isOwner = existing.claimedById === session.id
+    const isStaff = isAdminOrModerator(session)
+    if (!isOwner && !isStaff) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    }
+    // Owners can only edit live (approved+active) listings — editing a
+    // rejected/inactive entry would let them silently undo a moderation
+    // decision. Staff aren't subject to this.
+    if (!isStaff && (!existing.isApproved || !existing.isActive)) {
+      return NextResponse.json({ error: 'This listing is currently inactive — contact an admin.' }, { status: 403 })
+    }
+
+    const body = await req.json().catch(() => null) as Record<string, unknown> | null
+    if (!body) return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+
+    const result = validateFieldUpdate(body)
+    if ('error' in result) return NextResponse.json({ error: result.error }, { status: 400 })
+    if (Object.keys(result.data).length === 0) {
+      return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
+    }
+
+    await prisma.business.update({ where: { id }, data: result.data })
+    await writeAudit(
+      session.id, session.name,
+      isOwner ? 'directory.owner_update' : 'directory.update',
+      id, 'business',
+      { name: existing.name, fields: Object.keys(result.data) },
+    )
+    return NextResponse.json({ ok: true })
+  } catch (e) {
+    console.error('Directory owner PATCH error:', e)
+    return NextResponse.json({ error: 'Server error' }, { status: 500 })
+  }
+}
