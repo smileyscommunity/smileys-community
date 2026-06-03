@@ -1842,6 +1842,13 @@ model Business {
   isExpatOwned    Boolean   @default(false)
   isExpatFriendly Boolean   @default(false)
   languages       String?
+  // Optional precise coordinates. When unset the map view falls back
+  // to neighborhood centroid + a deterministic per-id offset (so
+  // multiple businesses in the same neighborhood don't all stack on
+  // the same pin). Set via /admin/directory once the address is
+  // confirmed.
+  latitude        Float?
+  longitude       Float?
   isApproved      Boolean   @default(false)
   isActive        Boolean   @default(true)
   submittedById   String

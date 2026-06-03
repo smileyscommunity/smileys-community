@@ -62,6 +62,22 @@ function str(v: unknown, max: number): string | null {
   return s.slice(0, max)
 }
 
+// Coordinate parser shared by create + field-update. Returns:
+//   undefined  → key not present, don't touch the column
+//   null       → key present but empty, clear the override
+//   number     → valid coord
+//   'invalid'  → out-of-range or unparseable, bubble up an error
+function parseCoord(v: unknown, isLon = false): number | null | undefined | 'invalid' {
+  if (v === undefined) return undefined
+  if (v === null || v === '') return null
+  const n = typeof v === 'number' ? v : Number(v)
+  if (!Number.isFinite(n)) return 'invalid'
+  const lo = isLon ? -180 : -90
+  const hi = isLon ?  180 :  90
+  if (n < lo || n > hi) return 'invalid'
+  return n
+}
+
 // Normalize a single business payload for admin create / bulk-create.
 // Returns either { data: <prisma-ready row> } or { error: '...' }.
 // Centralized so the single-form POST and the bulk-paste path produce
@@ -91,6 +107,16 @@ function validateBusinessCreate(input: Record<string, unknown>):
     isExpatOwned:    !!input.isExpatOwned,
     isExpatFriendly: !!input.isExpatFriendly,
   }
+
+  // Optional lat/lon. Bounded loosely to global ranges so a stray
+  // string like "41.0345°N" isn't accepted and a typo doesn't drop a
+  // pin on the wrong continent. Empty / null clears the override.
+  const lat = parseCoord(input.latitude)
+  if (lat === 'invalid') return { error: 'Invalid latitude (must be -90..90)' }
+  if (lat !== undefined) data.latitude = lat
+  const lon = parseCoord(input.longitude, true)
+  if (lon === 'invalid') return { error: 'Invalid longitude (must be -180..180)' }
+  if (lon !== undefined) data.longitude = lon
 
   const websiteRaw = str(input.website, DIRECTORY_LIMITS.website)
   if (websiteRaw) {
@@ -190,6 +216,17 @@ function validateFieldUpdate(input: Record<string, unknown>):
   }
   if ('isExpatOwned'    in input) data.isExpatOwned    = !!input.isExpatOwned
   if ('isExpatFriendly' in input) data.isExpatFriendly = !!input.isExpatFriendly
+
+  if ('latitude' in input) {
+    const v = parseCoord(input.latitude)
+    if (v === 'invalid') return { error: 'Invalid latitude (must be -90..90)' }
+    data.latitude = v ?? null
+  }
+  if ('longitude' in input) {
+    const v = parseCoord(input.longitude, true)
+    if (v === 'invalid') return { error: 'Invalid longitude (must be -180..180)' }
+    data.longitude = v ?? null
+  }
 
   return { data }
 }

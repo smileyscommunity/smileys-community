@@ -51,6 +51,8 @@ interface Business {
   isExpatOwned: boolean
   isExpatFriendly: boolean
   languages: string | null
+  latitude:  number | null
+  longitude: number | null
   isApproved: boolean
   isActive: boolean
   createdAt: string
@@ -70,6 +72,8 @@ type EditFields = {
   languages: string
   logo: string
   coverImage: string
+  latitude:  string
+  longitude: string
   isExpatOwned: boolean
   isExpatFriendly: boolean
 }
@@ -87,6 +91,8 @@ function toEditFields(b: Business): EditFields {
     languages:       b.languages       ?? '',
     logo:            b.logo            ?? '',
     coverImage:      b.coverImage      ?? '',
+    latitude:        b.latitude  != null ? String(b.latitude)  : '',
+    longitude:       b.longitude != null ? String(b.longitude) : '',
     isExpatOwned:    b.isExpatOwned,
     isExpatFriendly: b.isExpatFriendly,
   }
@@ -336,7 +342,18 @@ function BusinessRow({ b, onAction }: { b: Business; onAction: () => void }) {
               <label className={labelCls}>Cover image URL</label>
               <input maxLength={DIRECTORY_LIMITS.coverImage} placeholder="https://…" {...field('coverImage')} className={inputCls} />
             </div>
+            <div>
+              <label className={labelCls}>Latitude</label>
+              <input type="text" inputMode="decimal" placeholder="41.0345" {...field('latitude')} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Longitude</label>
+              <input type="text" inputMode="decimal" placeholder="28.9817" {...field('longitude')} className={inputCls} />
+            </div>
           </div>
+          <p className="text-[10px] text-zinc-500 -mt-1">
+            Lat/lon are optional — leave blank to drop the pin at the neighborhood centroid. Paste from Google Maps right-click → "What's here?".
+          </p>
           <div className="flex gap-3 pt-1">
             <label className="flex items-center gap-2 text-xs text-zinc-300">
               <input type="checkbox" checked={edit.isExpatOwned} onChange={e => setEdit(s => ({ ...s, isExpatOwned: e.target.checked }))} className="accent-amber-500" />

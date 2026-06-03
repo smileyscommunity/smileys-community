@@ -9,6 +9,12 @@ import { resolveImageUrl } from '@/lib/data'
 import { BUSINESS_CATEGORIES } from '@/lib/directory'
 import { isSafeHref } from '@/lib/safeUrl'
 import DirectoryReviews from '@/components/DirectoryReviews'
+import dynamic from 'next/dynamic'
+
+// Leaflet hits `window` on import, so the map can't render during SSR
+// or the static-paths analysis. Dynamic-import with ssr:false keeps the
+// list view fast (no Leaflet bundle until the user toggles to Map).
+const DirectoryMap = dynamic(() => import('@/components/DirectoryMap'), { ssr: false })
 
 const CATEGORIES = [
   { id: 'all', label: 'All' },
@@ -36,6 +42,10 @@ interface Business {
   // Aggregate review stats (non-hidden reviews only).
   avgRating:   number | null
   reviewCount: number
+  // Optional precise coordinates — set by admin via /admin/directory.
+  // Map view falls back to neighborhood centroid + jitter when null.
+  latitude:  number | null
+  longitude: number | null
 }
 
 // Claim status mirrors the BusinessClaim.status DB enum plus a
@@ -316,6 +326,9 @@ function DirectoryPageInner() {
   const [type,         setType]         = useState<TypeFilter>('all')
   const [search,       setSearch]       = useState('')
   const [neighborhood, setNeighborhood] = useState(initialNeighborhood)
+  // List vs map. Default to list because it works for everyone on
+  // every device; map is a one-tap toggle away.
+  const [viewMode,     setViewMode]     = useState<'list' | 'map'>('list')
 
   const load = useCallback(() => {
     setLoading(true)
@@ -370,6 +383,21 @@ function DirectoryPageInner() {
                   onChange={e => setSearch(e.target.value)}
                   className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
                 />
+              </div>
+              {/* List/Map toggle — same shape as the type filter pills
+                  below so it reads as part of the directory toolset. */}
+              <div className="flex bg-gray-100 rounded-xl p-0.5 text-xs font-bold">
+                {(['list', 'map'] as const).map(m => (
+                  <button
+                    key={m}
+                    onClick={() => setViewMode(m)}
+                    className={`px-3 py-1.5 rounded-lg capitalize transition-colors ${
+                      viewMode === m ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    {m === 'list' ? '☰ List' : '📍 Map'}
+                  </button>
+                ))}
               </div>
               <Link href="/directory/submit"
                 className="shrink-0 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors">
@@ -463,6 +491,19 @@ function DirectoryPageInner() {
               </Link>
             </div>
           </div>
+        ) : viewMode === 'map' ? (
+          <DirectoryMap
+            businesses={visible.map(b => ({
+              id: b.id, name: b.name, category: b.category,
+              neighborhood: b.neighborhood,
+              latitude: b.latitude, longitude: b.longitude,
+              avgRating: b.avgRating, reviewCount: b.reviewCount,
+            }))}
+            onPinClick={(id) => {
+              const biz = visible.find(b => b.id === id)
+              if (biz) setOpenReviewsFor(biz)
+            }}
+          />
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
             {visible.map(b => (
