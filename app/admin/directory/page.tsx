@@ -6,8 +6,34 @@ import { toast } from 'sonner'
 import { useAdminLoad } from '@/lib/admin/useAdminLoad'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import { isSafeHref } from '@/lib/safeUrl'
+import { BUSINESS_CATEGORIES, DIRECTORY_LIMITS } from '@/lib/directory'
+import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
 
 type View = 'pending' | 'approved' | 'rejected'
+
+const EMPTY_CREATE = {
+  name: '', category: '', description: '',
+  neighborhood: '', address: '', phone: '',
+  website: '', instagram: '', languages: '',
+  logo: '', coverImage: '',
+  isExpatOwned: false, isExpatFriendly: false,
+}
+type CreateForm = typeof EMPTY_CREATE
+
+// Example JSON shown in the bulk-paste box. Keeps users from having to
+// guess the field names. Pasting JSON that omits optional fields is fine
+// — the server validates per-field.
+const BULK_TEMPLATE = JSON.stringify([
+  {
+    name: 'Simit & Coffee Co.',
+    category: 'Cafe',
+    description: 'Specialty third-wave coffee + simit, English-speaking baristas.',
+    neighborhood: 'Kadıköy',
+    website: 'https://example.com',
+    instagram: 'simit_coffee',
+    isExpatFriendly: true,
+  },
+], null, 2)
 
 interface BusinessUser { id: string; name: string; email: string }
 interface Business {
@@ -161,6 +187,226 @@ function BusinessRow({ b, onAction }: { b: Business; onAction: () => void }) {
   )
 }
 
+// --------------- Admin create surface ---------------
+
+type CreateMode = 'single' | 'bulk'
+
+function CreateForm({ onCreated, onCancel }: { onCreated: () => void; onCancel: () => void }) {
+  const [mode,    setMode]    = useState<CreateMode>('single')
+  const [form,    setForm]    = useState<CreateForm>(EMPTY_CREATE)
+  const [bulk,    setBulk]    = useState('')
+  const [busy,    setBusy]    = useState(false)
+  const [report,  setReport]  = useState<{ created: number; failed: number; errors: { index: number; name?: string; error: string }[] } | null>(null)
+
+  function set<K extends keyof CreateForm>(k: K, v: CreateForm[K]) {
+    setForm(prev => ({ ...prev, [k]: v }))
+  }
+
+  async function submitSingle(e: React.FormEvent) {
+    e.preventDefault()
+    setBusy(true)
+    try {
+      const r = await fetch('/app/api/admin/directory', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ business: form }),
+      })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) { toast.error(d?.error || 'Failed to create'); return }
+      toast.success(`Added "${form.name}" to the directory`)
+      setForm(EMPTY_CREATE)
+      onCreated()
+    } catch {
+      toast.error('Network error — not saved')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function submitBulk() {
+    setBusy(true)
+    setReport(null)
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(bulk)
+    } catch (e) {
+      toast.error('Invalid JSON: ' + (e instanceof Error ? e.message : 'parse error'))
+      setBusy(false)
+      return
+    }
+    if (!Array.isArray(parsed)) {
+      toast.error('Top-level must be an array of business objects')
+      setBusy(false)
+      return
+    }
+    try {
+      const r = await fetch('/app/api/admin/directory', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businesses: parsed }),
+      })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) { toast.error(d?.error || 'Failed to import'); return }
+      setReport({ created: d.created ?? 0, failed: d.failed ?? 0, errors: d.errors ?? [] })
+      if ((d.created ?? 0) > 0) {
+        toast.success(`Imported ${d.created} business${d.created === 1 ? '' : 'es'}${d.failed ? ` (${d.failed} skipped)` : ''}`)
+        onCreated()
+      } else {
+        toast.error('No rows were imported — see error report below')
+      }
+    } catch {
+      toast.error('Network error — not saved')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const inputCls = 'w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500'
+  const labelCls = 'block text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-1'
+
+  return (
+    <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 mb-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-bold text-white">Add a business</h2>
+        <div className="flex items-center gap-2">
+          {/* Mode toggle — keeps both flows on the same panel without
+              bouncing between routes. Bulk inherits the same validator
+              as single, so a row that fails here would fail there. */}
+          <div className="flex bg-zinc-950 border border-zinc-800 rounded-lg p-0.5 text-[11px] font-semibold">
+            {(['single', 'bulk'] as const).map(m => (
+              <button key={m} onClick={() => { setMode(m); setReport(null) }}
+                className={`px-3 py-1 rounded-md capitalize transition-colors ${
+                  mode === m ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'
+                }`}>
+                {m === 'single' ? 'Single' : 'Bulk JSON'}
+              </button>
+            ))}
+          </div>
+          <button onClick={onCancel} className="text-xs text-zinc-500 hover:text-zinc-300">Cancel</button>
+        </div>
+      </div>
+
+      {mode === 'single' ? (
+        <form onSubmit={submitSingle} className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Name *</label>
+              <input value={form.name} onChange={e => set('name', e.target.value)} maxLength={DIRECTORY_LIMITS.name} className={inputCls} required />
+            </div>
+            <div>
+              <label className={labelCls}>Category *</label>
+              <select value={form.category} onChange={e => set('category', e.target.value)} className={inputCls} required>
+                <option value="">Select…</option>
+                {BUSINESS_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className={labelCls}>Description *</label>
+            <textarea value={form.description} onChange={e => set('description', e.target.value)} maxLength={DIRECTORY_LIMITS.description} rows={2} className={`${inputCls} resize-none`} required />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Neighborhood</label>
+              <select value={form.neighborhood} onChange={e => set('neighborhood', e.target.value)} className={inputCls}>
+                <option value="">—</option>
+                {ISTANBUL_NEIGHBORHOODS.map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Address</label>
+              <input value={form.address} onChange={e => set('address', e.target.value)} maxLength={DIRECTORY_LIMITS.address} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Phone</label>
+              <input value={form.phone} onChange={e => set('phone', e.target.value)} maxLength={DIRECTORY_LIMITS.phone} placeholder="+90 5xx xxx xx xx" className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Languages</label>
+              <input value={form.languages} onChange={e => set('languages', e.target.value)} maxLength={DIRECTORY_LIMITS.languages} placeholder="English, Turkish…" className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Website</label>
+              <input value={form.website} onChange={e => set('website', e.target.value)} maxLength={DIRECTORY_LIMITS.website} placeholder="https://…" className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Instagram handle</label>
+              <input value={form.instagram} onChange={e => set('instagram', e.target.value)} maxLength={DIRECTORY_LIMITS.instagram} placeholder="@handle" className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Logo URL</label>
+              <input value={form.logo} onChange={e => set('logo', e.target.value)} maxLength={DIRECTORY_LIMITS.logo} placeholder="https://…" className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Cover image URL</label>
+              <input value={form.coverImage} onChange={e => set('coverImage', e.target.value)} maxLength={DIRECTORY_LIMITS.coverImage} placeholder="https://…" className={inputCls} />
+            </div>
+          </div>
+          <div className="flex gap-3 pt-1">
+            <label className="flex items-center gap-2 text-xs text-zinc-300">
+              <input type="checkbox" checked={form.isExpatOwned} onChange={e => set('isExpatOwned', e.target.checked)} className="accent-amber-500" />
+              Expat-owned
+            </label>
+            <label className="flex items-center gap-2 text-xs text-zinc-300">
+              <input type="checkbox" checked={form.isExpatFriendly} onChange={e => set('isExpatFriendly', e.target.checked)} className="accent-teal-500" />
+              Expat-friendly
+            </label>
+          </div>
+          <div className="flex gap-2 pt-2">
+            <button type="submit" disabled={busy}
+              className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition-colors disabled:opacity-50">
+              {busy ? 'Saving…' : 'Add to directory'}
+            </button>
+          </div>
+        </form>
+      ) : (
+        <div className="space-y-3">
+          <p className="text-xs text-zinc-400">
+            Paste a JSON array of business objects. Each row is validated independently — valid rows are imported, invalid rows are skipped and reported below. Max {200} per request.
+          </p>
+          <textarea
+            value={bulk}
+            onChange={e => setBulk(e.target.value)}
+            placeholder={BULK_TEMPLATE}
+            rows={12}
+            spellCheck={false}
+            className={`${inputCls} font-mono text-[12px] resize-y`}
+          />
+          <div className="flex gap-2">
+            <button onClick={submitBulk} disabled={busy || !bulk.trim()}
+              className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition-colors disabled:opacity-50">
+              {busy ? 'Importing…' : 'Import'}
+            </button>
+            <button onClick={() => setBulk(BULK_TEMPLATE)}
+              className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-semibold transition-colors">
+              Insert template
+            </button>
+          </div>
+          {report && (
+            <div className="border border-zinc-800 rounded-lg p-3 text-xs space-y-2">
+              <div className="text-zinc-300">
+                <span className="text-emerald-400 font-semibold">{report.created}</span> imported,{' '}
+                <span className={report.failed ? 'text-red-400 font-semibold' : 'text-zinc-500'}>{report.failed}</span> skipped.
+              </div>
+              {report.errors.length > 0 && (
+                <ul className="space-y-1 max-h-48 overflow-y-auto">
+                  {report.errors.map(e => (
+                    <li key={e.index} className="text-red-400">
+                      Row {e.index + 1}{e.name ? ` "${e.name}"` : ''}: {e.error}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function AdminDirectoryPage() {
   const searchParams = useSearchParams()
   const router       = useRouter()
@@ -172,6 +418,7 @@ export default function AdminDirectoryPage() {
     (v): v is Business[] => Array.isArray(v),
   )
   const items = data ?? []
+  const [showAdd, setShowAdd] = useState(false)
 
   function setView(v: View) {
     router.replace(`/admin/directory?status=${v}`)
@@ -184,7 +431,22 @@ export default function AdminDirectoryPage() {
           <h1 className="text-xl font-bold text-white">Business Directory</h1>
           <p className="text-xs text-zinc-500 mt-0.5">Manage expat-owned and expat-friendly business listings</p>
         </div>
+        {!showAdd && (
+          <button
+            onClick={() => setShowAdd(true)}
+            className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition-colors"
+          >
+            + Add business
+          </button>
+        )}
       </div>
+
+      {showAdd && (
+        <CreateForm
+          onCreated={() => { retry(); setView('approved') }}
+          onCancel={() => setShowAdd(false)}
+        />
+      )}
 
       {/* Tabs. Pending / Approved / Rejected — the rejected bucket
           surfaces entries that previously fell into the void (reject

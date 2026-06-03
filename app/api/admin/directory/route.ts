@@ -62,6 +62,66 @@ function str(v: unknown, max: number): string | null {
   return s.slice(0, max)
 }
 
+// Normalize a single business payload for admin create / bulk-create.
+// Returns either { data: <prisma-ready row> } or { error: '...' }.
+// Centralized so the single-form POST and the bulk-paste path produce
+// identical rows (and refuse identical inputs).
+function validateBusinessCreate(input: Record<string, unknown>):
+  | { data: Record<string, unknown> }
+  | { error: string }
+{
+  const name        = str(input.name,        DIRECTORY_LIMITS.name)
+  const category    = str(input.category,    50)
+  const description = str(input.description, DIRECTORY_LIMITS.description)
+  if (!name)        return { error: 'Name is required' }
+  if (!category)    return { error: 'Category is required' }
+  if (!description) return { error: 'Description is required' }
+  if (!BUSINESS_CATEGORY_SET.has(category)) {
+    return { error: `Invalid category "${category}"` }
+  }
+
+  const data: Record<string, unknown> = {
+    name,
+    category,
+    description,
+    neighborhood: str(input.neighborhood, DIRECTORY_LIMITS.neighborhood),
+    address:      str(input.address,      DIRECTORY_LIMITS.address),
+    phone:        str(input.phone,        DIRECTORY_LIMITS.phone),
+    languages:    str(input.languages,    DIRECTORY_LIMITS.languages),
+    isExpatOwned:    !!input.isExpatOwned,
+    isExpatFriendly: !!input.isExpatFriendly,
+  }
+
+  const websiteRaw = str(input.website, DIRECTORY_LIMITS.website)
+  if (websiteRaw) {
+    if (!isSafeHref(websiteRaw)) return { error: 'Website must be an https:// URL' }
+    data.website = websiteRaw
+  } else {
+    data.website = null
+  }
+
+  if (typeof input.instagram === 'string' && input.instagram.trim()) {
+    const handle = normalizeInstagramHandle(input.instagram)
+    if (!handle) return { error: 'Invalid Instagram handle' }
+    data.instagram = handle
+  } else {
+    data.instagram = null
+  }
+
+  for (const k of ['logo', 'coverImage'] as const) {
+    const v = str(input[k], DIRECTORY_LIMITS[k])
+    if (v === null) {
+      data[k] = null
+    } else if (!isSafeHref(v)) {
+      return { error: `${k} must be an https:// URL` }
+    } else {
+      data[k] = v
+    }
+  }
+
+  return { data }
+}
+
 // Schema-validate a PATCH field update. Returns either { data: validated
 // patch } (only allowed keys, each through its normalizer) or { error:
 // '...' } on the first invalid value. Mass-assigning user-supplied values
@@ -132,6 +192,115 @@ function validateFieldUpdate(input: Record<string, unknown>):
   if ('isExpatFriendly' in input) data.isExpatFriendly = !!input.isExpatFriendly
 
   return { data }
+}
+
+// POST /api/admin/directory — admin-create. Accepts either a single
+// business via { business: {...} } or a bulk batch via { businesses:
+// [{...}, ...] }. Auto-approves (admins bypass review). Bulk path runs
+// every row through the same validator; row-level errors surface in the
+// response without rolling back the rest of the batch (best-effort
+// upload). Per-call cap of 200 rows keeps a single request from
+// monopolizing the DB.
+const BULK_MAX = 200
+
+export async function POST(req: NextRequest) {
+  try {
+    const session = await getSession()
+    if (!session || !isAdminOrModerator(session)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    const body = await req.json().catch(() => null)
+    if (!body || typeof body !== 'object') {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
+
+    // Detect single vs bulk shape. We accept both `businesses` (array)
+    // and `business` (object) at the top level so the client can stay
+    // explicit about intent.
+    const single = (body as Record<string, unknown>).business
+    const bulk   = (body as Record<string, unknown>).businesses
+
+    if (Array.isArray(bulk)) {
+      if (bulk.length === 0) {
+        return NextResponse.json({ error: 'No businesses to import' }, { status: 400 })
+      }
+      if (bulk.length > BULK_MAX) {
+        return NextResponse.json({ error: `Bulk import limited to ${BULK_MAX} rows at a time` }, { status: 400 })
+      }
+
+      const created: { id: string; name: string }[] = []
+      const errors:  { index: number; name?: string; error: string }[] = []
+
+      for (let i = 0; i < bulk.length; i++) {
+        const row = bulk[i]
+        if (!row || typeof row !== 'object') {
+          errors.push({ index: i, error: 'Row is not an object' })
+          continue
+        }
+        const result = validateBusinessCreate(row as Record<string, unknown>)
+        if ('error' in result) {
+          errors.push({ index: i, name: typeof (row as { name?: unknown }).name === 'string' ? (row as { name: string }).name : undefined, error: result.error })
+          continue
+        }
+        try {
+          const b = await prisma.business.create({
+            data: {
+              ...(result.data as Record<string, unknown>),
+              submittedById: session.id,
+              reviewedById:  session.id,
+              reviewedAt:    new Date(),
+              isApproved:    true,
+              isActive:      true,
+            } as never,
+          })
+          created.push({ id: b.id, name: b.name })
+        } catch (e) {
+          console.error('Admin directory bulk create row failed:', e)
+          errors.push({ index: i, name: (result.data as { name?: string }).name, error: 'DB error' })
+        }
+      }
+
+      if (created.length > 0) {
+        await writeAudit(
+          session.id, session.name,
+          'directory.bulk_create',
+          undefined, 'business',
+          { created: created.length, failed: errors.length, names: created.map(c => c.name).slice(0, 20) },
+        )
+      }
+
+      return NextResponse.json({ ok: true, created: created.length, failed: errors.length, errors })
+    }
+
+    if (!single || typeof single !== 'object') {
+      return NextResponse.json({ error: 'Expected { business } or { businesses }' }, { status: 400 })
+    }
+    const result = validateBusinessCreate(single as Record<string, unknown>)
+    if ('error' in result) {
+      return NextResponse.json({ error: result.error }, { status: 400 })
+    }
+    const created = await prisma.business.create({
+      data: {
+        ...(result.data as Record<string, unknown>),
+        submittedById: session.id,
+        reviewedById:  session.id,
+        reviewedAt:    new Date(),
+        isApproved:    true,
+        isActive:      true,
+      } as never,
+    })
+    await writeAudit(
+      session.id, session.name,
+      'directory.create',
+      created.id, 'business',
+      { name: created.name },
+    )
+    return NextResponse.json({ ok: true, id: created.id })
+  } catch (e) {
+    console.error('Admin directory POST error:', e)
+    return NextResponse.json({ error: 'Server error' }, { status: 500 })
+  }
 }
 
 export async function PATCH(req: NextRequest) {
