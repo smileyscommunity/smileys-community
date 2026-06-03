@@ -37,7 +37,7 @@ export default async function NeighborhoodSections({
   const [
     upcomingRaw, pastCount, locals, hostCounts,
     totalLocals, allEventCounts, communityPhotos, wallPostCount,
-    activeListings, upcomingVisitors, activeHangouts,
+    activeListings, upcomingVisitors, activeHangouts, businesses,
   ] = await Promise.all([
     prisma.event.findMany({
       where:   { neighborhood: name, date: { gte: today } },
@@ -116,6 +116,20 @@ export default async function NeighborhoodSections({
         id: true, title: true, location: true, startsAt: true, endsAt: true,
         user: { select: { id: true, name: true, color: true, profilePhoto: true, goodHangouts: true } },
         _count: { select: { joins: true } },
+      },
+    }),
+    // Approved + active directory entries tagged to this neighborhood.
+    // Up to 6 cards then "See all →" deep-links into /directory with the
+    // neighborhood pre-filtered. Silent when empty (matches every other
+    // section here — quiet areas don't read as "no businesses").
+    prisma.business.findMany({
+      where:   { neighborhood: name, isApproved: true, isActive: true },
+      orderBy: { createdAt: 'desc' },
+      take:    6,
+      select:  {
+        id: true, name: true, category: true, description: true,
+        logo: true, coverImage: true, website: true, instagram: true,
+        isExpatOwned: true, isExpatFriendly: true,
       },
     }),
   ])
@@ -502,6 +516,58 @@ export default async function NeighborhoodSections({
                         {l.title}
                       </h3>
                       {l.price && <p className="text-xs font-bold text-gray-700 mt-1.5">{l.price}</p>}
+                    </div>
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Local businesses in this neighborhood — expat-owned / expat-friendly
+          spots from the community directory. Silent when empty. "See all →"
+          deep-links /directory with this neighborhood pre-selected so the
+          context survives the click. */}
+      {businesses.length > 0 && (
+        <div className="pt-6 border-t border-gray-100">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xs font-bold text-gray-500 uppercase tracking-widest">Local businesses in {name}</h2>
+            <Link href={`/directory?neighborhood=${encodeURIComponent(name)}`}
+              className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
+              See all →
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {businesses.map(b => {
+              const cover = resolveImageUrl(b.coverImage)
+              const logo  = resolveImageUrl(b.logo)
+              return (
+                <Link key={b.id} href={`/directory?neighborhood=${encodeURIComponent(name)}`} className="group block">
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all h-full flex flex-col">
+                    <div className="relative h-32 bg-gray-100">
+                      {cover ? (
+                        <img src={cover} alt={b.name} loading="lazy" className="absolute inset-0 w-full h-full object-cover" />
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center text-4xl text-gray-300">🏢</div>
+                      )}
+                      {/* Expat badges — top-left so the logo (bottom-right) doesn't collide. */}
+                      <div className="absolute top-2 left-2 flex flex-col gap-1">
+                        {b.isExpatOwned    && <span className="bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-tight">Expat-owned</span>}
+                        {b.isExpatFriendly && <span className="bg-teal-500  text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-tight">Expat-friendly</span>}
+                      </div>
+                      {logo && (
+                        <div className="absolute bottom-2 right-2 w-9 h-9 rounded-xl overflow-hidden border-2 border-white shadow-sm bg-white">
+                          <img src={logo} alt={b.name} className="w-full h-full object-cover" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-3 flex flex-col gap-1">
+                      <h3 className="font-semibold text-gray-900 text-sm leading-snug line-clamp-1 group-hover:text-amber-600 transition-colors">
+                        {b.name}
+                      </h3>
+                      <p className="text-[11px] text-gray-400">{b.category}</p>
+                      <p className="text-xs text-gray-500 line-clamp-2 mt-1">{b.description}</p>
                     </div>
                   </div>
                 </Link>

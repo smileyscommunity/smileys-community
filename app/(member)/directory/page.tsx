@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { Suspense, useState, useEffect, useCallback } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { resolveImageUrl } from '@/lib/data'
 import { BUSINESS_CATEGORIES } from '@/lib/directory'
@@ -109,24 +110,45 @@ function BusinessCard({ b }: { b: Business }) {
 
 type TypeFilter = 'all' | 'expat-owned' | 'expat-friendly'
 
+// Suspense wrapper is required by Next 15 when useSearchParams is read
+// from a client component — without it the static-paths optimizer bails
+// out on the whole page tree at build time.
 export default function DirectoryPage() {
-  const [businesses, setBusinesses] = useState<Business[]>([])
-  const [loading,    setLoading]    = useState(true)
-  const [category,   setCategory]   = useState('all')
-  const [type,       setType]       = useState<TypeFilter>('all')
-  const [search,     setSearch]     = useState('')
+  return (
+    <Suspense fallback={null}>
+      <DirectoryPageInner />
+    </Suspense>
+  )
+}
+
+function DirectoryPageInner() {
+  // Read ?neighborhood= once on mount so deep-links from the neighborhood
+  // pages (`/neighborhoods/<slug>` → "See all →") arrive with the filter
+  // pre-selected. Stored as state so the user can clear it via the chip;
+  // we deliberately don't keep it in the URL after the first read because
+  // every other filter (category/type/search) is also state-only.
+  const searchParams = useSearchParams()
+  const initialNeighborhood = searchParams.get('neighborhood') ?? ''
+
+  const [businesses,   setBusinesses]   = useState<Business[]>([])
+  const [loading,      setLoading]      = useState(true)
+  const [category,     setCategory]     = useState('all')
+  const [type,         setType]         = useState<TypeFilter>('all')
+  const [search,       setSearch]       = useState('')
+  const [neighborhood, setNeighborhood] = useState(initialNeighborhood)
 
   const load = useCallback(() => {
     setLoading(true)
     const params = new URLSearchParams()
     if (category !== 'all') params.set('category', category)
     if (type !== 'all')     params.set('type', type)
+    if (neighborhood)       params.set('neighborhood', neighborhood)
     fetch(`/app/api/directory?${params}`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : [])
       .then(setBusinesses)
       .catch(() => setBusinesses([]))
       .finally(() => setLoading(false))
-  }, [category, type])
+  }, [category, type, neighborhood])
 
   useEffect(() => { load() }, [load])
 
@@ -175,6 +197,22 @@ export default function DirectoryPage() {
               </Link>
             </div>
           </div>
+
+          {/* Active neighborhood chip — visible when a deep-link from a
+              neighborhood page pre-selected the filter. Clearable so the
+              user can broaden the search without bouncing routes. */}
+          {neighborhood && (
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-xs text-gray-500">Filtered to:</span>
+              <button
+                onClick={() => setNeighborhood('')}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-700 text-xs font-bold hover:bg-amber-200 transition-colors"
+              >
+                📍 {neighborhood}
+                <span className="text-amber-600">✕</span>
+              </button>
+            </div>
+          )}
 
           {/* Filter pills */}
           <div className="flex gap-2 pb-4 overflow-x-auto scrollbar-hide">
