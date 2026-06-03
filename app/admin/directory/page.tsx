@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { useAdminLoad } from '@/lib/admin/useAdminLoad'
@@ -9,7 +9,7 @@ import { isSafeHref } from '@/lib/safeUrl'
 import { BUSINESS_CATEGORIES, DIRECTORY_LIMITS } from '@/lib/directory'
 import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
 
-type View = 'approved' | 'pending' | 'rejected'
+type View = 'approved' | 'pending' | 'rejected' | 'claims'
 
 const EMPTY_CREATE = {
   name: '', category: '', description: '',
@@ -583,17 +583,153 @@ function CreateForm({ onCreated, onCancel }: { onCreated: () => void; onCancel: 
   )
 }
 
+// --------------- Claims surface ---------------
+
+interface ClaimRow {
+  id: string
+  message: string
+  status: 'pending' | 'approved' | 'rejected'
+  createdAt: string
+  reviewedAt: string | null
+  business: { id: string; name: string; category: string; neighborhood: string | null; claimedById: string | null }
+  claimant: { id: string; name: string; email: string }
+  reviewedBy: { id: string; name: string } | null
+}
+
+function ClaimsList() {
+  const [status,  setStatus]  = useState<'pending' | 'approved' | 'rejected'>('pending')
+  const [rows,    setRows]    = useState<ClaimRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [acting,  setActing]  = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const r = await fetch(`/app/api/admin/directory/claims?status=${status}`, { credentials: 'include' })
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}))
+        toast.error(d?.error || `Couldn't load claims (HTTP ${r.status})`)
+        setRows([])
+        return
+      }
+      const d = await r.json()
+      setRows(Array.isArray(d) ? d : [])
+    } catch {
+      toast.error('Network error — could not load claims')
+    } finally {
+      setLoading(false)
+    }
+  }, [status])
+
+  useEffect(() => { load() }, [load])
+
+  async function act(id: string, action: 'approve' | 'reject') {
+    setActing(id)
+    try {
+      const r = await fetch(`/app/api/admin/directory/claims/${id}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      })
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}))
+        toast.error(d?.error || 'Failed')
+        return
+      }
+      toast.success(action === 'approve' ? 'Claim approved' : 'Claim rejected')
+      load()
+    } catch {
+      toast.error('Network error')
+    } finally {
+      setActing(null)
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-1 bg-zinc-900 p-1 rounded-xl w-fit">
+        {(['pending', 'approved', 'rejected'] as const).map(s => (
+          <button key={s} onClick={() => setStatus(s)}
+            className={`text-xs font-semibold px-3 py-1 rounded-lg capitalize transition-colors ${
+              status === s ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'
+            }`}>
+            {s}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="space-y-2">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="bg-zinc-900 rounded-xl h-20 animate-pulse" />
+          ))}
+        </div>
+      ) : rows.length === 0 ? (
+        <div className="text-center py-14 text-zinc-500">
+          <div className="text-3xl mb-2">🪪</div>
+          <p className="text-sm">No {status} claims</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {rows.map(c => (
+            <div key={c.id} className="bg-zinc-900 rounded-xl border border-white/5 p-4 space-y-2">
+              <div className="flex items-start justify-between gap-3 flex-wrap">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-white">
+                    {c.claimant.name} <span className="text-zinc-500 font-normal">claims</span> {c.business.name}
+                  </p>
+                  <p className="text-xs text-zinc-500 mt-0.5">
+                    {c.claimant.email} · {c.business.category}{c.business.neighborhood ? ` · ${c.business.neighborhood}` : ''} · {new Date(c.createdAt).toLocaleDateString()}
+                  </p>
+                </div>
+                {c.business.claimedById && c.business.claimedById !== c.claimant.id && (
+                  <span className="text-[10px] font-semibold text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full">Already claimed by someone else</span>
+                )}
+              </div>
+              <p className="text-xs text-zinc-300 whitespace-pre-wrap bg-zinc-950 border border-zinc-800 rounded-lg p-3">{c.message}</p>
+              {c.reviewedBy && (
+                <p className="text-[11px] text-zinc-500">Reviewed by {c.reviewedBy.name}{c.reviewedAt ? ` · ${new Date(c.reviewedAt).toLocaleDateString()}` : ''}</p>
+              )}
+              {status === 'pending' && (
+                <div className="flex gap-2 pt-1">
+                  <button
+                    onClick={() => act(c.id, 'approve')}
+                    disabled={acting === c.id}
+                    className="text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    {acting === c.id ? '…' : 'Approve & verify owner'}
+                  </button>
+                  <button
+                    onClick={() => act(c.id, 'reject')}
+                    disabled={acting === c.id}
+                    className="text-xs font-semibold bg-red-600/80 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    Reject
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function AdminDirectoryPage() {
   const searchParams = useSearchParams()
   const router       = useRouter()
   const raw          = searchParams.get('status')
   // Tab order is Approved → Pending → Rejected, so the first tab is also
   // the default landing view when no ?status= param is present.
-  const view: View   = raw === 'pending' || raw === 'rejected' ? raw : 'approved'
+  const view: View   = raw === 'pending' || raw === 'rejected' || raw === 'claims' ? raw : 'approved'
 
+  const isClaims = view === 'claims'
   const { data, loading, error, retry } = useAdminLoad<Business[]>(
-    `/app/api/admin/directory?status=${view}`,
+    `/app/api/admin/directory?status=${view === 'claims' ? 'approved' : view}`,
     (v): v is Business[] => Array.isArray(v),
+    { enabled: !isClaims },
   )
   const items = data ?? []
   const [showAdd, setShowAdd] = useState(false)
@@ -609,7 +745,7 @@ export default function AdminDirectoryPage() {
           <h1 className="text-xl font-bold text-white">Business Directory</h1>
           <p className="text-xs text-zinc-500 mt-0.5">Manage expat-owned and expat-friendly business listings</p>
         </div>
-        {!showAdd && (
+        {!showAdd && !isClaims && (
           <button
             onClick={() => setShowAdd(true)}
             className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition-colors"
@@ -619,19 +755,18 @@ export default function AdminDirectoryPage() {
         )}
       </div>
 
-      {showAdd && (
+      {showAdd && !isClaims && (
         <CreateForm
           onCreated={() => { retry(); setView('approved') }}
           onCancel={() => setShowAdd(false)}
         />
       )}
 
-      {/* Tabs. Pending / Approved / Rejected — the rejected bucket
-          surfaces entries that previously fell into the void (reject
-          set isApproved=false AND isActive=false, which matched
-          neither of the two original tabs). */}
+      {/* Tabs. Approved / Pending / Rejected partition every business
+          row; the fourth Claims tab is a different model entirely
+          (ownership claims) and uses its own list component. */}
       <div className="flex gap-1 mb-5 bg-zinc-900 p-1 rounded-xl w-fit">
-        {(['approved', 'pending', 'rejected'] as const).map(v => (
+        {(['approved', 'pending', 'rejected', 'claims'] as const).map(v => (
           <button key={v} onClick={() => setView(v)}
             className={`text-xs font-semibold px-4 py-1.5 rounded-lg capitalize transition-colors ${
               view === v ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'
@@ -641,7 +776,9 @@ export default function AdminDirectoryPage() {
         ))}
       </div>
 
-      {error ? (
+      {isClaims ? (
+        <ClaimsList />
+      ) : error ? (
         <LoadErrorBanner message={error} onRetry={retry} />
       ) : loading ? (
         <div className="space-y-2">

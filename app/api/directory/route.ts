@@ -61,6 +61,10 @@ export async function GET(req: NextRequest) {
         neighborhood: true, address: true, phone: true,
         website: true, instagram: true, logo: true, coverImage: true,
         isExpatOwned: true, isExpatFriendly: true, languages: true,
+        // claimedById is exposed (truthy/falsy) so the public card can
+        // show a "✓ Verified owner" badge; the owner's identity is NOT
+        // included to avoid a PII leak on a public endpoint.
+        claimedById: true,
         createdAt: true,
       },
     })

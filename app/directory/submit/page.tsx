@@ -1,7 +1,9 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useAuth } from '@/contexts/AuthContext'
 import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
 import { BUSINESS_CATEGORIES, DIRECTORY_LIMITS } from '@/lib/directory'
 
@@ -12,13 +14,58 @@ const EMPTY_FORM = {
   isExpatOwned: false, isExpatFriendly: false,
 }
 
+// Members-only pitch shown to anonymous visitors. Submitting a business
+// requires a member account so we can attribute the submission and a
+// rate-limit it per-user; non-members get steered to /apply instead of
+// the previous behavior (silent redirect to /login, which felt like
+// the page was broken).
+function MembersOnlyPitch() {
+  return (
+    <div className="max-w-md mx-auto px-4 py-16 text-center">
+      <div className="text-5xl mb-4">🏢</div>
+      <h2 className="text-xl font-bold text-gray-900 mb-2">Submit a business</h2>
+      <p className="text-sm text-gray-500 mb-6 leading-relaxed">
+        Adding a business to the Smileys directory is a member benefit — it
+        helps us keep the listings curated and spam-free. Apply to join
+        the community and you'll be able to add your favourite expat-owned
+        and expat-friendly spots in Istanbul.
+      </p>
+      <div className="flex flex-col sm:flex-row gap-2 justify-center">
+        <Link
+          href="/apply"
+          className="bg-amber-500 text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:bg-amber-600 transition-colors"
+        >
+          Apply to join Smileys
+        </Link>
+        <Link
+          href="/directory"
+          className="bg-white border border-gray-200 text-gray-700 text-sm font-semibold px-5 py-2.5 rounded-xl hover:bg-gray-50 transition-colors"
+        >
+          Back to directory
+        </Link>
+      </div>
+      <p className="text-[11px] text-gray-400 mt-4">
+        Already a member? <Link href={`/login?next=${encodeURIComponent('/directory/submit')}`} className="text-amber-600 hover:underline">Log in</Link>.
+      </p>
+    </div>
+  )
+}
+
 export default function SubmitBusinessPage() {
   const router = useRouter()
+  const { isLoggedIn, isLoading } = useAuth()
   const [form, setForm] = useState(EMPTY_FORM)
   const [submitting, setSubmitting] = useState(false)
   const [done,       setDone]       = useState(false)
   const [autoApproved, setAutoApproved] = useState(false)
   const [error,      setError]      = useState<string | null>(null)
+
+  // Wait for the auth bootstrap so we don't flash the form to logged-in
+  // members before useAuth resolves, or the pitch to a member who's
+  // already authenticated but still loading.
+  if (isLoading) return null
+  if (!isLoggedIn) return <MembersOnlyPitch />
+
 
   function set(k: string, v: unknown) {
     setForm(prev => ({ ...prev, [k]: v }))

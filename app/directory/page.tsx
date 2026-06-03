@@ -3,6 +3,8 @@
 import { Suspense, useState, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import { toast } from 'sonner'
+import { useAuth } from '@/contexts/AuthContext'
 import { resolveImageUrl } from '@/lib/data'
 import { BUSINESS_CATEGORIES } from '@/lib/directory'
 import { isSafeHref } from '@/lib/safeUrl'
@@ -27,14 +29,142 @@ interface Business {
   isExpatOwned: boolean
   isExpatFriendly: boolean
   languages: string | null
+  // True when an admin has approved a BusinessClaim — surfaced as a
+  // "✓ Verified owner" badge and hides the Claim CTA.
+  claimedById: string | null
 }
 
-function BusinessCard({ b }: { b: Business }) {
+// Claim status mirrors the BusinessClaim.status DB enum plus a
+// `none` sentinel for "no claim yet, you can submit one".
+type ClaimState = 'loading' | 'none' | 'pending' | 'approved' | 'rejected' | 'owned'
+
+function ClaimWidget({ b, isLoggedIn }: { b: Business; isLoggedIn: boolean }) {
+  const [state,   setState]   = useState<ClaimState>('loading')
+  const [open,    setOpen]    = useState(false)
+  const [message, setMessage] = useState('')
+  const [busy,    setBusy]    = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    if (!isLoggedIn) { setState('none'); return }
+    if (b.claimedById) { setState('owned'); return }
+    fetch(`/app/api/directory/${b.id}/claim`, { credentials: 'include' })
+      .then(async r => r.ok ? r.json() : ({ claim: null }))
+      .then(d => {
+        if (cancelled) return
+        const status = d?.claim?.status as string | undefined
+        setState(status === 'pending' || status === 'approved' || status === 'rejected' ? status : 'none')
+      })
+      .catch(() => { if (!cancelled) setState('none') })
+    return () => { cancelled = true }
+  }, [b.id, b.claimedById, isLoggedIn])
+
+  // Already-verified owner badge replaces the claim button. The owner's
+  // identity isn't exposed on the public endpoint, only the existence
+  // of an owner, so we can't say WHO claimed it.
+  if (b.claimedById) {
+    return (
+      <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 rounded-lg py-1.5 px-2 flex items-center justify-center gap-1">
+        <span>✓</span> Verified owner
+      </span>
+    )
+  }
+
+  if (!isLoggedIn) {
+    return (
+      <Link
+        href={`/login?next=${encodeURIComponent('/directory')}`}
+        className="text-[10px] font-semibold text-zinc-600 hover:text-amber-700 bg-gray-50 hover:bg-amber-50 rounded-lg py-1.5 px-2 text-center transition-colors"
+      >
+        Claim this
+      </Link>
+    )
+  }
+
+  if (state === 'loading') return null
+
+  if (state === 'pending') {
+    return <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 rounded-lg py-1.5 px-2 text-center">Claim pending</span>
+  }
+
+  async function submit() {
+    if (!message.trim()) {
+      toast.error('Tell us why you own this business')
+      return
+    }
+    setBusy(true)
+    try {
+      const r = await fetch(`/app/api/directory/${b.id}/claim`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message }),
+      })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) { toast.error(d?.error || 'Failed to submit claim'); return }
+      toast.success('Claim submitted — an admin will review it')
+      setOpen(false)
+      setMessage('')
+      setState('pending')
+    } catch {
+      toast.error('Network error — not submitted')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (open) {
+    return (
+      <div className="absolute inset-x-2 bottom-2 bg-white border border-gray-200 rounded-xl shadow-lg p-3 z-10">
+        <p className="text-xs font-bold text-gray-900 mb-1.5">Claim "{b.name}"</p>
+        <p className="text-[10px] text-gray-500 mb-2 leading-tight">
+          How are you the owner? An email at the business domain, your name on the lease, or anything verifiable.
+        </p>
+        <textarea
+          value={message}
+          onChange={e => setMessage(e.target.value)}
+          rows={3}
+          maxLength={1000}
+          autoFocus
+          placeholder="e.g. I'm the founder; my email is owner@example.com"
+          className="w-full text-xs bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
+        />
+        <div className="flex gap-1.5 mt-2">
+          <button
+            onClick={submit}
+            disabled={busy}
+            className="flex-1 text-[10px] font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-lg py-1.5 transition-colors disabled:opacity-50"
+          >
+            {busy ? 'Submitting…' : 'Submit claim'}
+          </button>
+          <button
+            onClick={() => { setOpen(false); setMessage('') }}
+            className="text-[10px] font-semibold text-gray-500 hover:text-gray-700 rounded-lg py-1.5 px-2 transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const label = state === 'rejected' ? 'Claim rejected — try again' : 'Claim this business'
+  return (
+    <button
+      onClick={() => setOpen(true)}
+      className="text-[10px] font-semibold text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 rounded-lg py-1.5 px-2 text-center transition-colors"
+    >
+      {label}
+    </button>
+  )
+}
+
+function BusinessCard({ b, isLoggedIn }: { b: Business; isLoggedIn: boolean }) {
   const logo  = resolveImageUrl(b.logo)
   const cover = resolveImageUrl(b.coverImage)
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col hover:-translate-y-0.5 hover:shadow-md hover:border-gray-200 transition-all duration-200">
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col hover:-translate-y-0.5 hover:shadow-md hover:border-gray-200 transition-all duration-200 relative">
       {/* Cover */}
       <div className="relative w-full aspect-[4/3] bg-gray-100">
         {cover ? (
@@ -100,8 +230,14 @@ function BusinessCard({ b }: { b: Business }) {
             </a>
           )}
           {!b.website && !b.instagram && !b.phone && (
-            <span className="text-[10px] text-gray-300 italic">No links</span>
+            <span className="text-[10px] text-gray-300 italic flex-1">No links</span>
           )}
+        </div>
+
+        {/* Claim widget — pinned at the bottom so all cards in the grid
+            line up regardless of how many link buttons rendered above. */}
+        <div className="grid grid-cols-1">
+          <ClaimWidget b={b} isLoggedIn={isLoggedIn} />
         </div>
       </div>
     </div>
@@ -129,6 +265,7 @@ function DirectoryPageInner() {
   // every other filter (category/type/search) is also state-only.
   const searchParams = useSearchParams()
   const initialNeighborhood = searchParams.get('neighborhood') ?? ''
+  const { isLoggedIn } = useAuth()
 
   const [businesses,   setBusinesses]   = useState<Business[]>([])
   const [loading,      setLoading]      = useState(true)
@@ -285,7 +422,7 @@ function DirectoryPageInner() {
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-            {visible.map(b => <BusinessCard key={b.id} b={b} />)}
+            {visible.map(b => <BusinessCard key={b.id} b={b} isLoggedIn={isLoggedIn} />)}
           </div>
         )}
       </div>

@@ -156,8 +156,11 @@ model User {
   cupPrizesAwardedTo CupPrize[]         @relation("CupPrizeAwardedTo")
   cupDonationsReviewed CupPrizeDonation[] @relation("CupDonationReviewer")
 
-  businessSubmissions Business[] @relation("BusinessSubmissions")
-  businessReviews     Business[] @relation("BusinessReviews")
+  businessSubmissions  Business[]        @relation("BusinessSubmissions")
+  businessReviews      Business[]        @relation("BusinessReviews")
+  businessesOwned      Business[]        @relation("BusinessOwnership")
+  businessClaims       BusinessClaim[]   @relation("BusinessClaims")
+  businessClaimReviews BusinessClaim[]   @relation("BusinessClaimReviews")
 
   @@map("users")
 }
@@ -1844,6 +1847,13 @@ model Business {
   reviewedById    String?
   reviewedBy      User?     @relation("BusinessReviews", fields: [reviewedById], references: [id])
   reviewedAt      DateTime?
+  // Verified owner (set when admin approves a BusinessClaim). Surfaced
+  // on the directory card as a "Verified owner" badge. Future PRs may
+  // grant the owner self-serve edit permissions on their own listing.
+  claimedById     String?
+  claimedBy       User?     @relation("BusinessOwnership", fields: [claimedById], references: [id])
+  claimedAt       DateTime?
+  claims          BusinessClaim[]
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @default(now()) @updatedAt
 
@@ -1851,4 +1861,32 @@ model Business {
   @@index([category])
   @@index([neighborhood])
   @@map("businesses")
+}
+
+// Google-Business-style claim flow. A logged-in member asserts ownership
+// of an existing directory entry with a short proof message; an admin
+// approves or rejects via /admin/directory. Approval flips
+// Business.claimedById to the claimant.
+//
+// `@@unique([businessId, claimantId])` prevents the same person from
+// re-spamming claims for the same business — a rejected claim sticks
+// in the row, and a re-claim attempt has to edit the existing one
+// (or admin has to delete the row, which is the resolution path).
+model BusinessClaim {
+  id            String    @id @default(cuid())
+  businessId    String
+  business      Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  claimantId    String
+  claimant      User      @relation("BusinessClaims", fields: [claimantId], references: [id])
+  message       String    // proof / why they're the owner
+  status        String    @default("pending") // pending | approved | rejected
+  reviewedById  String?
+  reviewedBy    User?     @relation("BusinessClaimReviews", fields: [reviewedById], references: [id])
+  reviewedAt    DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@unique([businessId, claimantId])
+  @@index([status])
+  @@index([businessId])
+  @@map("business_claims")
 }
