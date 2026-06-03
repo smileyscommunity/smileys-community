@@ -331,11 +331,21 @@ Known, not yet addressed:
 - **2FA optional for admins/mods.** Audit recommended mandatory; not
   done because it's a UX decision (where's the enrollment prompt? what
   happens on failed enrollment?).
-- **Webhook signature verification** for any inbound webhooks
-  (Resend bounces, etc.) — not audited end-to-end.
-- **WebPush payload validation** — payloads are server-generated but
-  the path from `sendPushToUser` callers to the actual fan-out wasn't
-  deeply probed for target-user spoofing.
+- ~~**Webhook signature verification.**~~ *Closed to the extent
+  possible today.* No inbound webhook endpoints exist in this codebase
+  as of the audit. A reusable HMAC-SHA256 verification helper lives at
+  `lib/webhookSig.ts` — the first webhook a contributor adds should
+  use it (or a provider-specific equivalent like `stripe.webhooks.
+  constructEvent`). Read the comments in that file before adding a
+  new webhook route: raw body must be passed to `req.text()` not
+  `req.json()`, and `fail closed when secret env is unset`.
+- ~~**WebPush payload validation.**~~ *Closed.* `lib/push.ts` now
+  sanitizes title/body (strips ASCII control chars, zero-width
+  spaces, and bidi-override unicode — the classic RTL spoof for
+  notifications), caps length (80/200/500 for title/body/link),
+  validates `link` against an allowlist (must be a same-origin
+  absolute path, no `javascript:` / `https://evil` / `//proto-rel`),
+  and caps fan-out at 20 subscriptions per user per send.
 - **CDN cache-control on private API responses** — `/api/auth/me`
   etc. should never be cached cross-user. The deploy pipeline is
   direct rsync to Hetzner with no CDN in front, so this is theoretical
