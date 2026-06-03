@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { toast } from 'sonner'
 
 interface NeighborhoodEntry {
   name: string
@@ -28,8 +29,21 @@ export default function AdminNeighborhoodsPage() {
 
   useEffect(() => {
     fetch('/app/api/admin/neighborhoods', { credentials: 'include' })
-      .then(r => r.json())
+      .then(async r => {
+        // Previously `.then(setNeighborhoods)` was called on whatever
+        // the response body deserialized to. A failed GET returns
+        // { error: '...' } and the later `.filter(...)` blew up on a
+        // non-array. Guard the parse here.
+        if (!r.ok) {
+          const d = await r.json().catch(() => ({}))
+          toast.error(d?.error ?? `Couldn't load neighborhoods (HTTP ${r.status})`)
+          return [] as NeighborhoodEntry[]
+        }
+        const d = await r.json()
+        return Array.isArray(d) ? (d as NeighborhoodEntry[]) : []
+      })
       .then(setNeighborhoods)
+      .catch(() => toast.error('Network error — could not load neighborhoods'))
       .finally(() => setLoading(false))
   }, [])
 

@@ -50,36 +50,59 @@ export default function EditNeighborhoodPage({ params }: { params: Promise<{ slu
   const [uploading, setUploading] = useState(false)
   const [expandedCat, setExpandedCat] = useState<number | null>(0)
   const [expandedItem, setExpandedItem] = useState<string | null>(null) // "catI-itemI"
+  // Inline-confirm state for nuking a whole category. Was a hair-trigger
+  // single-click delete — easy misclick to lose dozens of places.
+  const [confirmRemoveCat, setConfirmRemoveCat] = useState<number | null>(null)
+  // Snapshot of the last loaded/saved state used to compute the dirty
+  // flag — without this Save was always enabled and admin could spam-
+  // write the same JSON to disk repeatedly.
+  const [baseline, setBaseline] = useState<string>('')
+  const dirty = JSON.stringify(guide) !== baseline
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     fetch(`/app/api/admin/neighborhoods/${slug}`, { credentials: 'include' })
-      .then(r => r.json())
-      .then(data => setGuide({
-        tagline:    data.tagline ?? '',
-        image:      data.image,
-        season:     data.season ?? '',
-        transport:  data.transport ?? [],
-        languages:  data.languages ?? [],
-        groupLink:  data.groupLink ?? '',
-        groupLabel: data.groupLabel ?? '',
-        spotlight:  data.spotlight ?? undefined,
-        places:    (data.places ?? []).map((cat: PlaceCategory) => ({
-          ...cat,
-          items: (cat.items ?? []).map((item: PlaceItem) => ({
-            name: item.name ?? '',
-            description: item.description ?? '',
-            address: item.address ?? '',
-            tip: item.tip ?? '',
-            badge: item.badge ?? '',
-          }))
-        })),
-        tips: data.tips ?? [],
-      }))
+      .then(async r => {
+        if (!r.ok) {
+          const d = await r.json().catch(() => ({}))
+          toast.error(d?.error ?? `Couldn't load guide (HTTP ${r.status})`)
+          return null
+        }
+        return r.json()
+      })
+      .then(data => {
+        if (!data) return
+        const next: Guide = {
+          tagline:    data.tagline ?? '',
+          image:      data.image,
+          season:     data.season ?? '',
+          transport:  data.transport ?? [],
+          languages:  data.languages ?? [],
+          groupLink:  data.groupLink ?? '',
+          groupLabel: data.groupLabel ?? '',
+          spotlight:  data.spotlight ?? undefined,
+          places:    (data.places ?? []).map((cat: PlaceCategory) => ({
+            ...cat,
+            items: (cat.items ?? []).map((item: PlaceItem) => ({
+              name: item.name ?? '',
+              description: item.description ?? '',
+              address: item.address ?? '',
+              tip: item.tip ?? '',
+              badge: item.badge ?? '',
+            }))
+          })),
+          tips: data.tips ?? [],
+        }
+        setGuide(next)
+        // Seed the dirty-state baseline with what the server returned.
+        setBaseline(JSON.stringify(next))
+      })
+      .catch(() => toast.error('Network error — could not load guide'))
       .finally(() => setLoading(false))
   }, [slug])
 
   async function save() {
+    if (!dirty) return
     setSaving(true)
     try {
       const res = await fetch(`/app/api/admin/neighborhoods/${slug}`, {
@@ -87,11 +110,33 @@ export default function EditNeighborhoodPage({ params }: { params: Promise<{ slu
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(guide),
       })
-      if (!res.ok) throw new Error()
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        // Surface the server's actual error — previously
+        // `throw new Error()` discarded it and the catch fell through
+        // to a generic "Failed to save".
+        toast.error(data?.error ?? 'Failed to save')
+        return
+      }
+      // Refresh the dirty baseline so the Save button disables again.
+      setBaseline(JSON.stringify(guide))
       toast.success('Saved ✓')
-    } catch { toast.error('Failed to save') }
+    } catch { toast.error('Network error — please try again') }
     finally { setSaving(false) }
   }
+
+  // Warn before leaving the page if there are unsaved edits — guards
+  // against tab-close, refresh, and in-app navigation that would
+  // otherwise drop the entire edit silently.
+  useEffect(() => {
+    function onBeforeUnload(e: BeforeUnloadEvent) {
+      if (!dirty) return
+      e.preventDefault()
+      e.returnValue = '' // required by older browsers for the prompt
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [dirty])
 
   async function uploadImage(file: File) {
     setUploading(true)
@@ -209,10 +254,10 @@ export default function EditNeighborhoodPage({ params }: { params: Promise<{ slu
           </Link>
           <button
             onClick={save}
-            disabled={saving}
-            className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50"
+            disabled={saving || !dirty}
+            className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
           >
-            {saving ? 'Saving…' : 'Save'}
+            {saving ? 'Saving…' : dirty ? 'Save' : 'Saved'}
           </button>
         </div>
       </div>
@@ -507,12 +552,30 @@ export default function EditNeighborhoodPage({ params }: { params: Promise<{ slu
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
                 </button>
-                <button onClick={() => removeCategory(ci)}
-                  className="p-1.5 text-zinc-500 hover:text-red-400 transition-colors">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </button>
+                {/* Two-click confirm so a misclick doesn't wipe an
+                    entire category and its places. First click flips
+                    the trash icon to a red "Delete?" pill; second
+                    click within the same UI state actually removes. */}
+                {confirmRemoveCat === ci ? (
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => { removeCategory(ci); setConfirmRemoveCat(null) }}
+                      className="px-2 py-1 text-[10px] font-bold bg-red-500 hover:bg-red-600 text-white rounded-md transition-colors">
+                      Delete?
+                    </button>
+                    <button onClick={() => setConfirmRemoveCat(null)}
+                      className="px-2 py-1 text-[10px] font-bold text-zinc-400 hover:text-white bg-zinc-800 rounded-md transition-colors">
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <button onClick={() => setConfirmRemoveCat(ci)}
+                    className="p-1.5 text-zinc-500 hover:text-red-400 transition-colors"
+                    title="Delete category">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                )}
               </div>
             </div>
 
