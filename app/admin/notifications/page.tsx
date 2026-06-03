@@ -1,21 +1,32 @@
 'use client'
 
 import { toast } from 'sonner'
-
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { useAuth } from '@/contexts/AuthContext'
 
 type Channel  = 'in-app' | 'email'
 type MsgType  = 'announcement' | 'reminder' | 'alert'
+type Audience = 'all' | 'club' | 'event'
+
+interface ClubOption  { id: string; name: string; emoji?: string }
+interface EventOption { id: string; title: string; emoji?: string }
 
 interface BroadcastRecord {
-  id: string
-  title: string
-  message: string
-  type: string
-  audience: string
-  sentBy: string
+  id:        string
+  title:     string
+  message:   string
+  type:      string
+  audience:  string
+  channel?:  string
+  sentBy:    string
   sentCount: number
   createdAt: string
+}
+
+const audienceButtonLabel: Record<Audience, string> = {
+  all:   'All members',
+  club:  'Club',
+  event: 'Event',
 }
 
 const typeConfig: Record<MsgType, { label: string; color: string }> = {
@@ -31,9 +42,15 @@ const audienceLabel: Record<string, string> = {
 }
 
 export default function AdminNotificationsPage() {
-  const [clubs,     setClubs]     = useState<any[]>([])
-  const [events,    setEvents]    = useState<any[]>([])
-  const [audience,  setAudience]  = useState<'all' | 'club' | 'event'>('all')
+  const { user } = useAuth()
+  const isModerator = user.role === 'moderator'
+
+  const [clubs,     setClubs]     = useState<ClubOption[]>([])
+  const [events,    setEvents]    = useState<EventOption[]>([])
+  // Moderators can't broadcast to all members (server returns 403 since
+  // commit cdcbc0d). Force them onto a scoped audience on first render so
+  // the UI matches the server's actual policy.
+  const [audience,  setAudience]  = useState<Audience>(isModerator ? 'club' : 'all')
   const [clubId,    setClubId]    = useState('')
   const [eventId,   setEventId]   = useState('')
   const [channel,   setChannel]   = useState<Channel>('in-app')
@@ -46,17 +63,34 @@ export default function AdminNotificationsPage() {
   const [loadingHistory, setLoadingHistory] = useState(true)
   const [confirmSend,    setConfirmSend]    = useState(false)
 
-  useEffect(() => {
-    fetch('/app/api/admin/clubs',  { credentials: 'include' }).then(r => r.ok ? r.json() : []).then(d => setClubs(Array.isArray(d) ? d : []))
-    fetch('/app/api/admin/events', { credentials: 'include' }).then(r => r.ok ? r.json() : []).then(d => setEvents(Array.isArray(d) ? d : []))
-    fetch('/app/api/admin/notifications/broadcast', { credentials: 'include' })
-      .then(r => r.ok ? r.json() : [])
-      .then(d => setHistory(Array.isArray(d) ? d : []))
-      .finally(() => setLoadingHistory(false))
+  // Extracted so the post-send refresh can call the same code path the
+  // initial load uses. Previously this fetch was duplicated.
+  const loadHistory = useCallback(async () => {
+    try {
+      const res = await fetch('/app/api/admin/notifications/broadcast', { credentials: 'include' })
+      const d   = res.ok ? await res.json() : []
+      setHistory(Array.isArray(d) ? d : [])
+    } finally {
+      setLoadingHistory(false)
+    }
   }, [])
 
-  const canSend = title.trim() && message.trim() &&
-    (audience === 'all' || (audience === 'club' && clubId) || (audience === 'event' && eventId))
+  useEffect(() => {
+    fetch('/app/api/admin/clubs',  { credentials: 'include' })
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setClubs(Array.isArray(d) ? d : []))
+    fetch('/app/api/admin/events', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setEvents(Array.isArray(d) ? d : []))
+    loadHistory()
+  }, [loadHistory])
+
+  const canSend = !!(
+    title.trim() && message.trim() &&
+    (audience === 'all'   ? !isModerator :
+     audience === 'club'  ? !!clubId      :
+                            !!eventId)
+  )
 
   async function handleSend() {
     if (!canSend) return
@@ -71,11 +105,17 @@ export default function AdminNotificationsPage() {
       })
       const data = await res.json()
       if (res.ok) {
-        const skippedNote = data.skipped ? ` (${data.skipped} unsubscribed skipped)` : ''
-        toast.success(`Sent to ${data.sent} members ✓${skippedNote}`)
+        // For the email channel: the server emails users with
+        // emailMarketing=true and ALSO fires an in-app notification to
+        // every audience member. `sent` is the email count; `skipped`
+        // is users who got the in-app but not the email. The previous
+        // toast made it sound like those users got nothing.
+        const note = channel === 'email' && data.skipped
+          ? ` (${data.skipped} got the in-app only — opted out of email)`
+          : ''
+        toast.success(`Sent to ${data.sent} members ✓${note}`)
         setTitle(''); setMessage('')
-        const fresh = await fetch('/app/api/admin/notifications/broadcast', { credentials: 'include' }).then(r => r.ok ? r.json() : [])
-        setHistory(Array.isArray(fresh) ? fresh : [])
+        await loadHistory()
       } else {
         toast.error(data.error ?? 'Failed to send notification')
       }
@@ -89,9 +129,24 @@ export default function AdminNotificationsPage() {
     try {
       const res  = await fetch('/app/api/admin/cron/reminders', { credentials: 'include' })
       const data = await res.json()
-      if (res.ok) {
-        toast.success(`✓ Reminders: ${data.sent24h} · 2h: ${data.sent2h} · Reviews: ${data.sentReviews ?? 0}`)
+      if (!res.ok) {
+        toast.error(data.error ?? `Cron failed (HTTP ${res.status})`)
+        return
       }
+      // Surface every field the cron returns — previously we only showed
+      // 3 of 8. Hide zero-value lines so the toast stays scannable on a
+      // quiet day.
+      const lines: string[] = []
+      if (data.sent24h)          lines.push(`24h reminders: ${data.sent24h}`)
+      if (data.sent2h)           lines.push(`2h reminders: ${data.sent2h}`)
+      if (data.sentReviews)      lines.push(`Review nudges: ${data.sentReviews}`)
+      if (data.sentConnections)  lines.push(`Connection pings: ${data.sentConnections}`)
+      if (data.archivedCount)    lines.push(`Archived: ${data.archivedCount}`)
+      if (data.expiringListings) lines.push(`Expiring listings: ${data.expiringListings}`)
+      if (data.purgedPhotos)     lines.push(`Purged photos: ${data.purgedPhotos}`)
+      toast.success(lines.length ? `✓ ${lines.join(' · ')}` : '✓ Nothing to send right now')
+    } catch {
+      toast.error('Network error — please try again')
     } finally { setRunning(false) }
   }
 
@@ -146,12 +201,29 @@ export default function AdminNotificationsPage() {
           <div>
             <label className="text-zinc-400 text-xs font-semibold uppercase tracking-wide block mb-2">Audience</label>
             <div className="flex gap-1.5 mb-2 flex-wrap">
-              {(['all', 'club', 'event'] as const).map(a => (
-                <button key={a} onClick={() => { setAudience(a); setClubId(''); setEventId('') }}
-                  className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors flex-1 sm:flex-none ${audience === a ? 'bg-zinc-700 text-white' : 'bg-zinc-800 text-zinc-500 hover:text-white border border-zinc-700'}`}>
-                  {a === 'all' ? 'All members' : a === 'club' ? 'Club' : 'Event'}
-                </button>
-              ))}
+              {(['all', 'club', 'event'] as const).map(a => {
+                // Moderators can't broadcast to all cities — server returns
+                // 403. Disable the button + show a tooltip rather than
+                // letting them click into a guaranteed failure.
+                const disabled = a === 'all' && isModerator
+                return (
+                  <button
+                    key={a}
+                    onClick={() => { if (disabled) return; setAudience(a); setClubId(''); setEventId('') }}
+                    disabled={disabled}
+                    title={disabled ? 'Moderators can only broadcast to a specific club or event in their city' : undefined}
+                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors flex-1 sm:flex-none ${
+                      disabled
+                        ? 'bg-zinc-900 text-zinc-700 cursor-not-allowed border border-zinc-800'
+                        : audience === a
+                          ? 'bg-zinc-700 text-white'
+                          : 'bg-zinc-800 text-zinc-500 hover:text-white border border-zinc-700'
+                    }`}
+                  >
+                    {audienceButtonLabel[a]}
+                  </button>
+                )
+              })}
             </div>
             {audience === 'club' && (
               <select value={clubId} onChange={e => setClubId(e.target.value)}
@@ -227,12 +299,17 @@ export default function AdminNotificationsPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-semibold text-white">{b.title}</span>
-                    <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full capitalize ${(typeConfig as any)[b.type]?.color ?? 'bg-zinc-700 text-zinc-400'}`}>
+                    <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full capitalize ${typeConfig[b.type as MsgType]?.color ?? 'bg-zinc-700 text-zinc-400'}`}>
                       {b.type}
                     </span>
                     <span className="text-xs text-zinc-500 bg-zinc-800 px-1.5 py-0.5 rounded-full">
                       {audienceLabel[b.audience] ?? b.audience}
                     </span>
+                    {b.channel && (
+                      <span className="text-xs text-zinc-500 bg-zinc-800 px-1.5 py-0.5 rounded-full">
+                        {b.channel === 'email' ? '📧 Email + in-app' : '🔔 In-app'}
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-zinc-400 mt-0.5 line-clamp-1">{b.message}</p>
                   <div className="flex items-center gap-2 mt-1 text-xs text-zinc-600">

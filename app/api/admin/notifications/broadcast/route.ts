@@ -87,7 +87,8 @@ export async function POST(req: NextRequest) {
     )
     await prisma.broadcast.create({
       data: { title: title.trim(), message: message.trim(), type: type ?? 'announcement',
-              audience: audience ?? 'all', clubId: clubId || null, eventId: eventId || null,
+              audience: audience ?? 'all', channel: 'email',
+              clubId: clubId || null, eventId: eventId || null,
               sentBy: session.name, sentCount: eligible.length },
     })
     return NextResponse.json({ ok: true, sent: eligible.length, skipped: dedup.length - eligible.length })
@@ -97,7 +98,8 @@ export async function POST(req: NextRequest) {
     )
     await prisma.broadcast.create({
       data: { title: title.trim(), message: message.trim(), type: type ?? 'announcement',
-              audience: audience ?? 'all', clubId: clubId || null, eventId: eventId || null,
+              audience: audience ?? 'all', channel: 'in-app',
+              clubId: clubId || null, eventId: eventId || null,
               sentBy: session.name, sentCount: dedup.length },
     })
     return NextResponse.json({ ok: true, sent: dedup.length })

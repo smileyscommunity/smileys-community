@@ -1198,6 +1198,10 @@ model Broadcast {
   message   String
   type      String
   audience  String
+  // 'in-app' | 'email'. Default keeps pre-column rows readable as
+  // in-app; new sends record the actual channel so admins can tell
+  // which broadcasts went to mail vs only to the inbox.
+  channel   String   @default("in-app")
   clubId    String?
   eventId   String?
   sentBy    String
