@@ -3,6 +3,10 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { canManagePosts } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
+import { CATEGORIES, isCategory, TITLE_MAX, EXCERPT_MAX, BODY_MAX } from '@/app/admin/posts/constants'
+
+// Match POST. External cover URLs would leak visitor IPs on render.
+const COVER_PATH_RE = /^\/app\/api\/files\/[a-zA-Z0-9\-_/]+\.(jpg|jpeg|png|webp|gif)$/i
 
 export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
@@ -20,8 +24,23 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const { id } = await params
   const { title, excerpt, body, coverImage, status, category } = await req.json()
-  if (!title?.trim() || !body?.trim()) {
+  const cleanTitle   = String(title   ?? '').trim()
+  const cleanExcerpt = excerpt ? String(excerpt).trim() : ''
+  const cleanBody    = String(body    ?? '').trim()
+  if (!cleanTitle || !cleanBody) {
     return NextResponse.json({ error: 'Title and body are required' }, { status: 400 })
+  }
+  if (cleanTitle.length > TITLE_MAX)     return NextResponse.json({ error: `Title too long (max ${TITLE_MAX} chars)` }, { status: 400 })
+  if (cleanExcerpt.length > EXCERPT_MAX) return NextResponse.json({ error: `Excerpt too long (max ${EXCERPT_MAX} chars)` }, { status: 400 })
+  if (cleanBody.length > BODY_MAX)       return NextResponse.json({ error: `Body too long (max ${BODY_MAX} chars)` }, { status: 400 })
+
+  // Category allowlist + cover URL validation match POST. PUT does NOT
+  // touch the slug — keeping URLs stable across edits is a deliberate
+  // SEO + bookmark preservation choice.
+  const cleanCategory = isCategory(category) ? category : CATEGORIES[0]
+  const cleanCover = coverImage ? String(coverImage).trim() : ''
+  if (cleanCover && !COVER_PATH_RE.test(cleanCover)) {
+    return NextResponse.json({ error: 'Cover image must be uploaded via the form — external URLs are not allowed' }, { status: 400 })
   }
 
   const existing = await prisma.post.findUnique({ where: { id } })
@@ -33,17 +52,30 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const post = await prisma.post.update({
     where: { id },
     data: {
-      title:      title.trim(),
-      excerpt:    excerpt?.trim() || null,
-      body:       body.trim(),
-      coverImage: coverImage || null,
-      status:     nowPublished ? 'published' : 'draft',
-      category:   category || 'Community',
+      title:       cleanTitle,
+      excerpt:     cleanExcerpt || null,
+      body:        cleanBody,
+      coverImage:  cleanCover || null,
+      status:      nowPublished ? 'published' : 'draft',
+      category:    cleanCategory,
       publishedAt: nowPublished
         ? (wasPublished ? existing.publishedAt : new Date())
         : null,
     },
   })
+
+  // Audit — previously only DELETE was audited, so going draft →
+  // published (the moment visibility changes) left no trail. Record
+  // the specific transition so an audit reader can answer "who
+  // published this and when".
+  const action = !wasPublished && nowPublished ? 'post.publish'
+              :  wasPublished && !nowPublished ? 'post.unpublish'
+              :                                   'post.update'
+  writeAudit(session.id, session.name, action, post.id, 'post',
+    { title: post.title, status: post.status, category: post.category, slug: post.slug,
+      wasPublished, nowPublished },
+    `${action === 'post.publish' ? 'Published' : action === 'post.unpublish' ? 'Unpublished' : 'Updated'} article "${post.title}"`,
+  )
   return NextResponse.json(post)
 }
 

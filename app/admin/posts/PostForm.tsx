@@ -4,8 +4,7 @@ import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { sanitize } from '@/lib/sanitize'
-
-const CATEGORIES = ['Community', 'Club Stories', 'Events', 'Istanbul Guide', 'Tips']
+import { CATEGORIES, TITLE_MAX, EXCERPT_MAX, BODY_MAX } from './constants'
 
 interface PostFormProps {
   initial?: {
@@ -69,9 +68,14 @@ export default function PostForm({ initial = {} }: PostFormProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
-      const data = await res.json()
-      if (!res.ok) { toast.error(data.error ?? 'Save failed'); return }
-      toast.success(publishNow ? 'Article published!' : 'Saved as draft')
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { toast.error(data?.error ?? 'Save failed'); return }
+      // Differentiate update-of-published from new-publish so the
+      // toast accurately reflects what happened.
+      const msg = publishNow
+        ? (initial.status === 'published' ? 'Article updated' : 'Article published!')
+        : 'Saved as draft'
+      toast.success(msg)
       router.push('/admin/posts')
     } finally {
       setSaving(false)
@@ -137,22 +141,34 @@ export default function PostForm({ initial = {} }: PostFormProps) {
         {/* Main editor */}
         <div className="lg:col-span-2 space-y-4">
           {/* Title */}
-          <input
-            type="text"
-            value={title}
-            onChange={e => setTitle(e.target.value)}
-            placeholder="Article title…"
-            className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-xl font-bold text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-amber-500 transition-colors"
-          />
+          <div>
+            <input
+              type="text"
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              placeholder="Article title…"
+              maxLength={TITLE_MAX}
+              className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-xl font-bold text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-amber-500 transition-colors"
+            />
+            {title.length > TITLE_MAX - 20 && (
+              <p className="text-right text-xs text-zinc-600 mt-1">{title.length}/{TITLE_MAX}</p>
+            )}
+          </div>
 
           {/* Excerpt */}
-          <textarea
-            value={excerpt}
-            onChange={e => setExcerpt(e.target.value)}
-            placeholder="Short description (shown in listings)…"
-            rows={2}
-            className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-sm text-zinc-300 placeholder-zinc-500 focus:outline-none focus:border-amber-500 transition-colors resize-none"
-          />
+          <div>
+            <textarea
+              value={excerpt}
+              onChange={e => setExcerpt(e.target.value)}
+              placeholder="Short description (shown in listings)…"
+              rows={2}
+              maxLength={EXCERPT_MAX}
+              className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-sm text-zinc-300 placeholder-zinc-500 focus:outline-none focus:border-amber-500 transition-colors resize-none"
+            />
+            {excerpt.length > EXCERPT_MAX - 50 && (
+              <p className="text-right text-xs text-zinc-600 mt-1">{excerpt.length}/{EXCERPT_MAX}</p>
+            )}
+          </div>
 
           {/* Body — editor or preview */}
           {preview ? (
@@ -166,10 +182,15 @@ export default function PostForm({ initial = {} }: PostFormProps) {
                 onChange={e => setBody(e.target.value)}
                 placeholder={`Write your article here…\n\nUse ## for headings, **bold** for emphasis, - for bullet lists.\n\nDouble-enter creates a new paragraph.`}
                 rows={22}
+                maxLength={BODY_MAX}
                 className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-sm text-zinc-300 placeholder-zinc-500 focus:outline-none focus:border-amber-500 transition-colors resize-y font-mono leading-relaxed"
               />
-              <div className="absolute bottom-3 right-3 text-xs text-zinc-600 pointer-events-none">
-                {body.length} chars
+              {/* Body counter — shows total chars always; warns red when
+                  near the 50k cap so admins notice before submit fails. */}
+              <div className={`absolute bottom-3 right-3 text-xs pointer-events-none ${
+                body.length > BODY_MAX - 1000 ? 'text-red-400 font-semibold' : 'text-zinc-600'
+              }`}>
+                {body.length.toLocaleString()}/{BODY_MAX.toLocaleString()} chars
               </div>
             </div>
           )}

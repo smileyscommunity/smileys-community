@@ -5,18 +5,19 @@ import Link from 'next/link'
 import { toast } from 'sonner'
 
 interface Post {
-  id: string
-  title: string
-  slug: string
-  excerpt: string | null
-  category: string
-  status: string
-  publishedAt: string | null
-  createdAt: string
-  author: { name: string }
+  id:           string
+  title:        string
+  slug:         string
+  excerpt:      string | null
+  category:     string
+  status:       string
+  publishedAt:  string | null
+  createdAt:    string
+  updatedAt:    string
+  // Author can be null if a future migration relaxes the FK to SetNull.
+  // Defensive render path below.
+  author:       { name: string } | null
 }
-
-const CATEGORIES = ['Community', 'Club Stories', 'Events', 'Istanbul Guide', 'Tips']
 
 const categoryColors: Record<string, string> = {
   'Community':     'bg-amber-100 text-amber-700',
@@ -26,30 +27,63 @@ const categoryColors: Record<string, string> = {
   'Tips':          'bg-pink-100 text-pink-700',
 }
 
+function timeAgo(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime()
+  const s  = Math.floor(ms / 1000)
+  if (s < 60)   return 'just now'
+  const m = Math.floor(s / 60)
+  if (m < 60)   return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24)   return `${h}h ago`
+  const d = Math.floor(h / 24)
+  if (d < 30)   return `${d}d ago`
+  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
 export default function AdminPostsPage() {
   const [posts,   setPosts]   = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
   const [filter,  setFilter]  = useState<'all' | 'published' | 'draft'>('all')
   const [deleting, setDeleting] = useState<string | null>(null)
+  // Inline-confirm replaces window.confirm — misclick doesn't nuke
+  // the post immediately.
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/app/api/admin/posts')
-      .then(r => r.json())
+      .then(async r => {
+        // Previously `.then(setPosts)` was called on whatever the
+        // response body deserialized to. A failed GET returns
+        // { error: '...' } and the later `.filter(...)` blew up on a
+        // non-array. Guard the parse here.
+        if (!r.ok) {
+          const d = await r.json().catch(() => ({}))
+          toast.error(d?.error ?? `Couldn't load articles (HTTP ${r.status})`)
+          return []
+        }
+        const d = await r.json()
+        return Array.isArray(d) ? d : []
+      })
       .then(setPosts)
+      .catch(() => toast.error('Network error — could not load articles'))
       .finally(() => setLoading(false))
   }, [])
 
-  async function handleDelete(id: string, title: string) {
-    if (!confirm(`Delete "${title}"? This cannot be undone.`)) return
+  async function handleDelete(id: string) {
     setDeleting(id)
-    const res = await fetch(`/app/api/admin/posts/${id}`, { method: 'DELETE' })
-    if (res.ok) {
+    try {
+      const res = await fetch(`/app/api/admin/posts/${id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        toast.error(d?.error ?? 'Failed to delete post')
+        return
+      }
       setPosts(prev => prev.filter(p => p.id !== id))
+      setConfirmDelete(null)
       toast.success('Post deleted')
-    } else {
-      toast.error('Failed to delete post')
+    } finally {
+      setDeleting(null)
     }
-    setDeleting(null)
   }
 
   const filtered = posts.filter(p => filter === 'all' || p.status === filter)
@@ -121,9 +155,15 @@ export default function AdminPostsPage() {
                   <p className="text-xs text-zinc-400 mt-0.5 truncate">{post.excerpt}</p>
                 )}
                 <p className="text-xs text-zinc-500 mt-1">
-                  By {post.author.name} · {post.publishedAt
-                    ? new Date(post.publishedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-                    : `Draft · ${new Date(post.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`}
+                  By {post.author?.name ?? 'Unknown'} ·{' '}
+                  {post.publishedAt
+                    ? `Published ${timeAgo(post.publishedAt)}`
+                    : `Draft · created ${timeAgo(post.createdAt)}`}
+                  {/* Surface updatedAt when an article has been edited
+                      after creation/publish — was previously hidden. */}
+                  {post.updatedAt && post.updatedAt !== (post.publishedAt ?? post.createdAt) && (
+                    <> · edited {timeAgo(post.updatedAt)}</>
+                  )}
                 </p>
               </div>
 
@@ -144,13 +184,30 @@ export default function AdminPostsPage() {
                 >
                   Edit
                 </Link>
-                <button
-                  onClick={() => handleDelete(post.id, post.title)}
-                  disabled={deleting === post.id}
-                  className="px-3 py-2 rounded-lg text-xs font-semibold text-red-400 hover:text-red-300 hover:bg-red-900/20 transition-colors disabled:opacity-50"
-                >
-                  {deleting === post.id ? '…' : 'Delete'}
-                </button>
+                {confirmDelete === post.id ? (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleDelete(post.id)}
+                      disabled={deleting === post.id}
+                      className="px-3 py-2 rounded-lg text-xs font-semibold bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-50"
+                    >
+                      {deleting === post.id ? '…' : 'Delete?'}
+                    </button>
+                    <button
+                      onClick={() => setConfirmDelete(null)}
+                      className="px-2 py-2 rounded-lg text-xs font-semibold text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmDelete(post.id)}
+                    className="px-3 py-2 rounded-lg text-xs font-semibold text-red-400 hover:text-red-300 hover:bg-red-900/20 transition-colors"
+                  >
+                    Delete
+                  </button>
+                )}
               </div>
             </div>
           ))}
