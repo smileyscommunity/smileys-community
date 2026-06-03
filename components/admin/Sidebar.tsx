@@ -51,6 +51,7 @@ const ICONS: Record<string, JSX.Element> = {
   cup:          <Icon d="M5 4h14v3a4 4 0 01-4 4h-6a4 4 0 01-4-4V4zM12 11v4m-3 4h6a1 1 0 011 1v1H8v-1a1 1 0 011-1zM4 4h1a3 3 0 003 3M20 4h-1a3 3 0 00-3 3" />,
   // Megaphone for campaigns — sponsorship drives, fundraisers.
   campaigns:    <Icon d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />,
+  directory:    <Icon d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />,
 }
 
 const NAV_GROUPS = [
@@ -112,6 +113,7 @@ const NAV_GROUPS = [
       { label: 'Board',        href: '/admin/listings',     exact: false, roles: ['admin', 'moderator'],  icon: 'board'        },
       { label: 'Spotlight',    href: '/admin/spotlight',    exact: false, roles: ['admin', 'moderator'],  icon: 'spotlight'    },
       { label: 'Partners',     href: '/admin/partners',     exact: false, roles: ['admin', 'moderator'],  icon: 'partners'     },
+      { label: 'Directory',    href: '/admin/directory',    exact: false, roles: ['admin', 'moderator'],  icon: 'directory'    },
       { label: 'Tags',         href: '/admin/tags',         exact: false, roles: ['admin'],               icon: 'tags'         },
     ],
   },

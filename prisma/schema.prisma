@@ -156,6 +156,9 @@ model User {
   cupPrizesAwardedTo CupPrize[]         @relation("CupPrizeAwardedTo")
   cupDonationsReviewed CupPrizeDonation[] @relation("CupDonationReviewer")
 
+  businessSubmissions Business[] @relation("BusinessSubmissions")
+  businessReviews     Business[] @relation("BusinessReviews")
+
   @@map("users")
 }
 
@@ -1817,4 +1820,35 @@ model RateLimit {
   resetAt DateTime
 
   @@map("rate_limits")
+}
+
+model Business {
+  id              String    @id @default(cuid())
+  name            String
+  category        String
+  description     String
+  neighborhood    String?
+  address         String?
+  phone           String?
+  website         String?
+  instagram       String?
+  logo            String?
+  coverImage      String?
+  isExpatOwned    Boolean   @default(false)
+  isExpatFriendly Boolean   @default(false)
+  languages       String?
+  isApproved      Boolean   @default(false)
+  isActive        Boolean   @default(true)
+  submittedById   String
+  submittedBy     User      @relation("BusinessSubmissions", fields: [submittedById], references: [id])
+  reviewedById    String?
+  reviewedBy      User?     @relation("BusinessReviews", fields: [reviewedById], references: [id])
+  reviewedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @default(now()) @updatedAt
+
+  @@index([isApproved, isActive])
+  @@index([category])
+  @@index([neighborhood])
+  @@map("businesses")
 }
