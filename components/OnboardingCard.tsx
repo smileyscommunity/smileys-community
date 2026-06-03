@@ -7,10 +7,10 @@ import Link from 'next/link'
 // members who haven't dismissed it yet. localStorage-backed so the dismiss
 // state is per-browser — fine for an informational card, no schema cost.
 // Bump the suffix to v2 etc. to re-show after a future feature drop. Bumped
-// to v2 when Smileys Cup 2026 was added — previous dismissers see the
-// refreshed list once so the new item gets discovery; if they dismiss again
-// the v2 flag silences it.
-const DISMISS_KEY = 'smileys_onboarding_v2'
+// to v2 when Smileys Cup 2026 was added; v3 adds the Business Directory.
+// Previous dismissers see the refreshed list once so new items get discovery;
+// if they dismiss again the new flag silences it.
+const DISMISS_KEY = 'smileys_onboarding_v3'
 
 interface Item {
   emoji:       string
@@ -19,6 +19,11 @@ interface Item {
   href:        string
 }
 
+// Order matters — top item gets the most attention. Cup stays first
+// (highest-engagement feature with a time-bound hook). Directory sits
+// lower in the list, deliberately not at the top: it's a useful
+// reference but lighter on weekly engagement than Hangouts/Visiting
+// for current members.
 const ITEMS: Item[] = [
   {
     emoji:       '⚽',
@@ -37,6 +42,12 @@ const ITEMS: Item[] = [
     title:       'Visiting?',
     description: 'See who\'s coming to Istanbul this month, or post your own trip.',
     href:        '/visiting',
+  },
+  {
+    emoji:       '🏢',
+    title:       'Business Directory',
+    description: 'Expat-owned & expat-friendly spots across Istanbul. Add your favourites.',
+    href:        '/directory',
   },
   {
     emoji:       '🟢',
