@@ -82,7 +82,7 @@ const discoverLinks = [
   { label: 'Board',         href: '/listings',      emoji: '🛍️', public: true  },
   { label: 'Guide',         href: '/guide',         emoji: '🗺️', public: true  },
   { label: 'Visiting?',     href: '/visiting',      emoji: '👋', public: true  },
-  { label: 'Directory',     href: '/directory',     emoji: '🏢', public: false },
+  { label: 'Directory',     href: '/directory',     emoji: '🏢', public: true  },
 ]
 
 const pageTitles: [string, string][] = [

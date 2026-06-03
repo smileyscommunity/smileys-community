@@ -22,9 +22,9 @@ function str(v: unknown, max: number): string | null {
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getSession()
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
+    // Public read — the directory is part of the marketing surface, like
+    // /events and /clubs. No session required. The POST handler below
+    // remains gated, so anonymous browsers can't submit.
     const { searchParams } = new URL(req.url)
     const category     = searchParams.get('category') || ''
     const type         = searchParams.get('type') || ''
