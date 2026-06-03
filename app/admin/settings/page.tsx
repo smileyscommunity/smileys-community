@@ -13,29 +13,38 @@ interface Toggle {
 export default function AdminSettingsPage() {
   const [saving,   setSaving]   = useState(false)
 
-  // Community settings
+  // Community settings — start empty so we never flash placeholder
+  // copy (the old defaults included a fake "+90 555 000 0000" number
+  // that briefly looked like real data on slow connections).
   const [community, setCommunity] = useState({
-    name:        'Smileys Community',
-    tagline:     "Istanbul's most vibrant social platform",
-    description: 'Real events, real people, real connections across Istanbul.',
-    email:       'hello@smileys.community',
-    website:     'smileys.community',
-    instagram:   '@smileys.istanbul',
-    whatsapp:    '+90 555 000 0000',
+    name:        '',
+    tagline:     '',
+    description: '',
+    email:       '',
+    website:     '',
+    instagram:   '',
+    whatsapp:    '',
   })
 
   useEffect(() => {
     fetch('/app/api/admin/settings', { credentials: 'include' })
-      .then(r => r.json())
-      .then(data => {
-        if (!data.error) {
-          setCommunity(prev => ({ ...prev, ...data }))
-          if (data.pricing)       setPricing(p => ({ ...p, ...data.pricing }))
-          if (data.notifications) setNotifications(p => ({ ...p, ...data.notifications }))
-          if (data.toggles)       setToggles(prev => prev.map(t => ({ ...t, value: data.toggles[t.id] ?? t.value })))
+      .then(async r => {
+        if (!r.ok) {
+          const d = await r.json().catch(() => ({}))
+          toast.error(d?.error ?? `Couldn't load settings (HTTP ${r.status})`)
+          return null
         }
+        const d = await r.json()
+        return (d && typeof d === 'object' && !d.error) ? d : null
       })
-      .catch(() => {})
+      .then(data => {
+        if (!data) return
+        setCommunity(prev => ({ ...prev, ...data }))
+        if (data.pricing)       setPricing(p => ({ ...p, ...data.pricing }))
+        if (data.notifications) setNotifications(p => ({ ...p, ...data.notifications }))
+        if (data.toggles)       setToggles(prev => prev.map(t => ({ ...t, value: data.toggles[t.id] ?? t.value })))
+      })
+      .catch(() => toast.error('Network error — could not load settings'))
   }, [])
 
   // Membership pricing
@@ -69,14 +78,29 @@ export default function AdminSettingsPage() {
 
 
   async function flipToggle(id: string) {
+    // Optimistic flip with rollback. Previously the await result was
+    // discarded — a 403/500/network drop left the UI showing the new
+    // state even though the server kept the old value, and the next
+    // page load would "mysteriously" revert it.
+    const prev = toggles
     const updated = toggles.map(t => t.id === id ? { ...t, value: !t.value } : t)
     setToggles(updated)
     const toggleMap = Object.fromEntries(updated.map(t => [t.id, t.value]))
-    await fetch('/app/api/admin/settings', {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ toggles: toggleMap }),
-    })
+    try {
+      const res = await fetch('/app/api/admin/settings', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toggles: toggleMap }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        setToggles(prev)
+        toast.error(d?.error ?? 'Failed to save toggle')
+      }
+    } catch {
+      setToggles(prev)
+      toast.error('Network error — toggle not saved')
+    }
   }
 
   return (
@@ -154,14 +178,24 @@ export default function AdminSettingsPage() {
               disabled={saving}
               onClick={async () => {
                 setSaving(true)
-                const res = await fetch('/app/api/admin/settings', {
-                  method: 'POST',
-                  credentials: 'include',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(community),
-                })
-                setSaving(false)
-                res.ok ? toast.success('Community info saved ✓') : toast.error('Failed to save')
+                try {
+                  const res = await fetch('/app/api/admin/settings', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(community),
+                  })
+                  if (res.ok) {
+                    toast.success('Community info saved ✓')
+                  } else {
+                    const d = await res.json().catch(() => ({}))
+                    toast.error(d?.error ?? 'Failed to save')
+                  }
+                } catch {
+                  toast.error('Network error — not saved')
+                } finally {
+                  setSaving(false)
+                }
               }}
               className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-colors"
             >
@@ -216,13 +250,23 @@ export default function AdminSettingsPage() {
           </div>
           <button onClick={async () => {
             setSaving(true)
-            const res = await fetch('/app/api/admin/settings', {
-              method: 'POST', credentials: 'include',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ pricing }),
-            })
-            setSaving(false)
-            res.ok ? toast.success('Pricing saved ✓') : toast.error('Failed to save')
+            try {
+              const res = await fetch('/app/api/admin/settings', {
+                method: 'POST', credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pricing }),
+              })
+              if (res.ok) {
+                toast.success('Pricing saved ✓')
+              } else {
+                const d = await res.json().catch(() => ({}))
+                toast.error(d?.error ?? 'Failed to save')
+              }
+            } catch {
+              toast.error('Network error — not saved')
+            } finally {
+              setSaving(false)
+            }
           }} disabled={saving} className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-colors">
             {saving ? 'Saving…' : 'Save pricing'}
           </button>
@@ -289,13 +333,23 @@ export default function AdminSettingsPage() {
           <div className="mt-5">
             <button onClick={async () => {
               setSaving(true)
-              const res = await fetch('/app/api/admin/settings', {
-                method: 'POST', credentials: 'include',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ notifications }),
-              })
-              setSaving(false)
-              res.ok ? toast.success('Preferences saved ✓') : toast.error('Failed to save')
+              try {
+                const res = await fetch('/app/api/admin/settings', {
+                  method: 'POST', credentials: 'include',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ notifications }),
+                })
+                if (res.ok) {
+                  toast.success('Preferences saved ✓')
+                } else {
+                  const d = await res.json().catch(() => ({}))
+                  toast.error(d?.error ?? 'Failed to save')
+                }
+              } catch {
+                toast.error('Network error — not saved')
+              } finally {
+                setSaving(false)
+              }
             }} disabled={saving} className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-colors">
               {saving ? 'Saving…' : 'Save preferences'}
             </button>
