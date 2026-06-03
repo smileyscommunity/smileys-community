@@ -42,6 +42,31 @@ const TABS: { key: Tab; label: string; icon: string }[] = [
 const inputCls  = 'w-full px-3 py-2.5 bg-zinc-800 border border-zinc-700 rounded-xl text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500'
 const labelCls  = 'block text-xs font-bold text-zinc-400 uppercase tracking-wide mb-1.5'
 
+// Defaults merged into whatever the server returns. Prod's
+// content.json was missing `events`, `clubs`, `members`, and
+// `neighborhoods` — clicking those tabs would crash the renderer
+// because the page assumed `content.<section>.badge` etc. always
+// exist. Seeding empty values lets admin fill them in and Save,
+// which the route writes back to disk as a brand-new section.
+//
+// Keep this in sync with the Content interface above. Missing
+// top-level fields throw at render time; missing nested fields
+// throw on first edit.
+const DEFAULT_CONTENT: Content = {
+  stats:         [],
+  home:          { headline: '', subtitle: '' },
+  about:         { headline: '', subtitle: '', story_p1: '', story_p2: '', story_p3: '' },
+  why:           { headline: '', tagline: '',  subtitle: '', closing: '' },
+  get_involved:  { headline: '', subtitle: '' },
+  advertise:     { headline: '', subtitle: '' },
+  week:          [],
+  faq:           [],
+  events:        { headline: '', subtitle: '', badge: '' },
+  clubs:         { headline: '', subtitle: '', badge: '' },
+  members:       { headline: '', subtitle: '', badge: '' },
+  neighborhoods: { headline: '', subtitle: '', badge: '' },
+}
+
 export default function ContentPage() {
   const [content,   setContent]   = useState<Content | null>(null)
   const [tab,       setTab]       = useState<Tab>('stats')
@@ -74,7 +99,12 @@ export default function ContentPage() {
         // would crash on content.stats.map(...). Only accept when the
         // shape looks like Content.
         if (d && typeof d === 'object' && !Array.isArray(d) && !('error' in d)) {
-          setContent(d as Content)
+          // Merge with DEFAULT_CONTENT so any section missing from the
+          // stored file (prod's content.json is missing events / clubs
+          // / members / neighborhoods) gets an empty object to render
+          // against. Without this, clicking those tabs crashes on
+          // `content.members.badge` where content.members is undefined.
+          setContent({ ...DEFAULT_CONTENT, ...(d as Content) })
         }
       })
       .catch(() => {
