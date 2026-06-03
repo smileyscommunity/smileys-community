@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
 import { encryptTotpSecret, decryptTotpSecret } from '@/lib/totpCrypto'
+import { generateBatch as generateBackupCodes, hashCode as hashBackupCode } from '@/lib/totpBackupCodes'
 import { generateSecret, generateURI, verifySync } from 'otplib/functional'
 import QRCode from 'qrcode'
 
@@ -70,8 +71,20 @@ export async function POST(req: NextRequest) {
   const result = verifySync({ token: String(code), secret, strategy: 'totp' } as any)
   if (!(result as any).valid) return NextResponse.json({ error: 'Invalid code — try again' }, { status: 400 })
 
-  await prisma.user.update({ where: { id: session.id }, data: { totpEnabled: true } })
-  return NextResponse.json({ ok: true })
+  // Generate backup codes alongside enabling 2FA. The plaintext codes are
+  // returned in this response ONCE — the user must save them somewhere
+  // safe. We only store hashes; the plaintext is never retrievable again
+  // (regenerating issues a fresh batch and nukes the old hashes).
+  const backupCodes = generateBackupCodes()
+  await prisma.$transaction([
+    prisma.user.update({ where: { id: session.id }, data: { totpEnabled: true } }),
+    // Defensive nuke of any stale codes from a previous enrollment.
+    prisma.totpBackupCode.deleteMany({ where: { userId: session.id } }),
+    prisma.totpBackupCode.createMany({
+      data: backupCodes.map(c => ({ userId: session.id, codeHash: hashBackupCode(c) })),
+    }),
+  ])
+  return NextResponse.json({ ok: true, backupCodes })
 }
 
 export async function DELETE(req: NextRequest) {
@@ -105,9 +118,14 @@ export async function DELETE(req: NextRequest) {
   const result = verifySync({ token: String(code), secret, strategy: 'totp' } as any)
   if (!(result as any).valid) return NextResponse.json({ error: 'Invalid code' }, { status: 400 })
 
-  await prisma.user.update({
-    where: { id: session.id },
-    data: { totpEnabled: false, totpSecret: null },
-  })
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: session.id },
+      data: { totpEnabled: false, totpSecret: null },
+    }),
+    // Nuke backup codes so they can't be used to log in after the user
+    // has explicitly disabled 2FA.
+    prisma.totpBackupCode.deleteMany({ where: { userId: session.id } }),
+  ])
   return NextResponse.json({ ok: true })
 }

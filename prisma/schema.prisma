@@ -97,6 +97,7 @@ model User {
   adminNotes              AdminNote[]
   cohostedEvents          EventCoHost[]
   pushSubscriptions       PushSubscription[]
+  totpBackupCodes         TotpBackupCode[]
   listings                Listing[]
   savedListings           SavedListing[]
   listingAlerts           String[]
@@ -1090,6 +1091,30 @@ model PasswordResetToken {
   createdAt DateTime @default(now())
 
   @@map("password_reset_tokens")
+}
+
+// One-time recovery codes for users with TOTP 2FA enabled. Generated as a
+// batch at enrollment; consumed at /api/auth/2fa/verify as an alternative
+// to the 6-digit TOTP code when the user has lost their device. Stored as
+// SHA-256 hashes (same rationale as the reset/verify tokens above: codes
+// are high-entropy random strings, so unsalted hashing is sufficient and
+// lets us look up by hash). `usedAt` lets users see "5 of 10 codes used".
+//
+// Cleared in two places:
+//   - DELETE /api/auth/2fa/setup (user disables 2FA)
+//   - account-deletion route
+model TotpBackupCode {
+  id        String    @id @default(cuid())
+  userId    String
+  codeHash  String    @unique
+  used      Boolean   @default(false)
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("totp_backup_codes")
 }
 
 model WaitlistEntry {

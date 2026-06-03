@@ -307,13 +307,16 @@ These look like they could be simplified. They cannot.
 
 Known, not yet addressed:
 
-- **2FA backup codes.** An admin or moderator who loses their TOTP
-  device today is locked out permanently. Recovery is "have another
-  admin reset your 2FA via the DB," which is fine for the current team
-  of one but doesn't scale.
-- **Account deletion cascade not end-to-end audited.** `/auth/delete-account`
-  exists; the Prisma schema mostly uses `onDelete: Cascade`; no test
-  proves zero orphan rows survive. GDPR-adjacent.
+- ~~**2FA backup codes.**~~ *Closed.* 10 codes generated at enrollment
+  via `lib/totpBackupCodes.ts`, hash-stored, accepted at 2FA verify as
+  alternative to TOTP. Regenerate endpoint at
+  `POST /api/auth/2fa/backup-codes` requires a fresh TOTP code.
+- ~~**Account deletion cascade not end-to-end audited.**~~ *Closed.*
+  `/auth/delete-account` now runs a comprehensive anonymize-and-clear
+  transaction: hard-deletes PII / inbox / tracking, anonymizes
+  user-authored content in shared threads, scrubs every tracking field
+  on the User row. Payment / EventAttendee / Review preserved
+  deliberately for business records.
 - **7-day JWT session, no refresh rotation.** A stolen cookie is good
   for a full week. `tokenVersion` invalidates globally but there's no
   per-device session table, so you can't see/revoke individual devices.

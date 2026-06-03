@@ -83,6 +83,7 @@ export async function POST(req: NextRequest) {
       tx.memberConnection.deleteMany({ where: { OR: [{ requesterId: id }, { receiverId: id }] } }),
       tx.emailVerificationToken.deleteMany({ where: { userId: id } }),
       tx.passwordResetToken.deleteMany({ where: { userId: id } }),
+      tx.totpBackupCode.deleteMany({ where: { userId: id } }),
       tx.eventPhoto.deleteMany({ where: { userId: id } }),
       tx.hangoutJoin.deleteMany({ where: { userId: id } }),
       tx.availabilityPulse.deleteMany({ where: { userId: id } }),
