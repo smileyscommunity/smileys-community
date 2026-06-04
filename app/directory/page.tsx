@@ -190,13 +190,14 @@ function ClaimWidget({ b, isLoggedIn }: { b: Business; isLoggedIn: boolean }) {
 }
 
 function BusinessCard({
-  b, isLoggedIn, currentUserId, onOpenReviews, onEdited,
+  b, isLoggedIn, currentUserId, onOpenReviews, onEdited, onTagClick,
 }: {
   b: Business
   isLoggedIn: boolean
   currentUserId: string | null
   onOpenReviews: () => void
   onEdited: () => void
+  onTagClick: (tag: string) => void
 }) {
   const logo  = resolveImageUrl(b.logo)
   const cover = resolveImageUrl(b.coverImage)
@@ -311,15 +312,20 @@ function BusinessCard({
         <p className="text-xs text-gray-500 line-clamp-2 flex-1">{b.description}</p>
 
         {/* Sub-tag chips. Capped to 4 visible (overflow truncates) so
-            the card height stays predictable. Each chip is just visual
-            — clicking a chip on a future iteration could filter the
-            grid by that tag. */}
+            the card height stays predictable. Clicking a chip writes
+            the tag into the parent search box — the in-memory filter
+            already matches against tags, so the grid narrows to other
+            entries carrying the same tag. */}
         {b.tags.length > 0 && (
           <div className="flex flex-wrap gap-1">
             {b.tags.slice(0, 4).map(t => (
-              <span key={t} className="text-[10px] font-semibold bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+              <button
+                key={t}
+                onClick={(e) => { e.stopPropagation(); onTagClick(t) }}
+                className="text-[10px] font-semibold bg-gray-100 text-gray-600 hover:bg-amber-100 hover:text-amber-700 px-2 py-0.5 rounded-full transition-colors"
+              >
                 {t}
-              </span>
+              </button>
             ))}
             {b.tags.length > 4 && (
               <span className="text-[10px] text-gray-400">+{b.tags.length - 4}</span>
@@ -423,6 +429,10 @@ function DirectoryPageInner() {
   // every device; map is a one-tap toggle away.
   const [viewMode,     setViewMode]     = useState<'list' | 'map'>('list')
 
+  // total is the unpaginated server count from X-Total-Count — used to
+  // surface "showing first 200 of N" when the server-side cap kicks in.
+  const [total, setTotal] = useState<number | null>(null)
+
   const load = useCallback(() => {
     setLoading(true)
     const params = new URLSearchParams()
@@ -430,13 +440,29 @@ function DirectoryPageInner() {
     if (type !== 'all')     params.set('type', type)
     if (neighborhood)       params.set('neighborhood', neighborhood)
     fetch(`/app/api/directory?${params}`, { credentials: 'include' })
-      .then(r => r.ok ? r.json() : [])
-      .then(setBusinesses)
-      .catch(() => setBusinesses([]))
+      .then(async r => {
+        if (!r.ok) return { items: [] as Business[], total: 0 }
+        const items = await r.json() as Business[]
+        const t = Number(r.headers.get('X-Total-Count'))
+        return { items, total: Number.isFinite(t) ? t : items.length }
+      })
+      .then(({ items, total }) => {
+        setBusinesses(items)
+        setTotal(total)
+      })
+      .catch(() => { setBusinesses([]); setTotal(0) })
       .finally(() => setLoading(false))
   }, [category, type, neighborhood])
 
   useEffect(() => { load() }, [load])
+
+  // Memoize the pin-click callback so the DirectoryMap effect doesn't
+  // tear down and rebuild every marker on every parent re-render
+  // (every keystroke in the search box was thrashing the marker layer).
+  const onPinClick = useCallback((id: string) => {
+    const biz = businesses.find(b => b.id === id)
+    if (biz) setOpenReviewsFor(biz)
+  }, [businesses])
 
   const visible = businesses.filter(b => {
     if (!search.trim()) return true
@@ -445,7 +471,11 @@ function DirectoryPageInner() {
       b.name.toLowerCase().includes(q) ||
       b.description.toLowerCase().includes(q) ||
       (b.neighborhood ?? '').toLowerCase().includes(q) ||
-      b.category.toLowerCase().includes(q)
+      b.category.toLowerCase().includes(q) ||
+      // Tags participate in the same in-memory match so a tag-chip
+      // click ("Vegan") narrows the grid to other entries carrying
+      // that tag too, not just the one card clicked.
+      b.tags.some(t => t.toLowerCase().includes(q))
     )
   })
 
@@ -605,24 +635,32 @@ function DirectoryPageInner() {
               latitude: b.latitude, longitude: b.longitude,
               avgRating: b.avgRating, reviewCount: b.reviewCount,
             }))}
-            onPinClick={(id) => {
-              const biz = visible.find(b => b.id === id)
-              if (biz) setOpenReviewsFor(biz)
-            }}
+            onPinClick={onPinClick}
           />
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-            {visible.map(b => (
-              <BusinessCard
-                key={b.id}
-                b={b}
-                isLoggedIn={isLoggedIn}
-                currentUserId={currentUserId}
-                onOpenReviews={() => setOpenReviewsFor(b)}
-                onEdited={load}
-              />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+              {visible.map(b => (
+                <BusinessCard
+                  key={b.id}
+                  b={b}
+                  isLoggedIn={isLoggedIn}
+                  currentUserId={currentUserId}
+                  onOpenReviews={() => setOpenReviewsFor(b)}
+                  onEdited={load}
+                  onTagClick={setSearch}
+                />
+              ))}
+            </div>
+            {/* Truncation hint when the server cap took effect. Only
+                shows once we've crossed the page-size threshold; below
+                that the grid IS the whole directory. */}
+            {total != null && total > businesses.length && (
+              <p className="text-xs text-gray-400 text-center mt-6">
+                Showing first {businesses.length} of {total} businesses · use filters above to narrow down
+              </p>
+            )}
+          </>
         )}
       </div>
 

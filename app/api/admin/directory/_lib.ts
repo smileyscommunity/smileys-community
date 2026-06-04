@@ -114,6 +114,30 @@ export function validateBusinessCreate(input: Record<string, unknown>):
   return { data }
 }
 
+// Drop keys from `patch` whose value equals the corresponding key in
+// `existing`. Used by the admin + owner PATCH handlers to skip a DB
+// write (and the audit-log entry) when the admin re-saves a form
+// without actually changing anything. Same-value writes were bumping
+// updatedAt and creating audit noise. Object and array values use
+// JSON equality — sufficient for the small `tags` array + `hours`
+// object this currently runs against.
+export function dropUnchanged(
+  patch: Record<string, unknown>,
+  existing: Record<string, unknown>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const k of Object.keys(patch)) {
+    const a = patch[k]
+    const b = existing[k]
+    if (a === b) continue
+    if (typeof a === 'object' && a !== null && typeof b === 'object' && b !== null) {
+      if (JSON.stringify(a) === JSON.stringify(b)) continue
+    }
+    out[k] = a
+  }
+  return out
+}
+
 // Schema-validate a PATCH field update. Returns either { data: validated
 // patch } (only allowed keys, each through its normalizer) or { error:
 // '...' } on the first invalid value.

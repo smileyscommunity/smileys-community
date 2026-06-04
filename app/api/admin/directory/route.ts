@@ -4,7 +4,7 @@ import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
 import { writeAudit } from '@/lib/audit'
-import { validateBusinessCreate, validateFieldUpdate } from './_lib'
+import { validateBusinessCreate, validateFieldUpdate, dropUnchanged } from './_lib'
 
 const PAGE_SIZE = 200
 
@@ -228,10 +228,17 @@ export async function PATCH(req: NextRequest) {
     if (Object.keys(result.data).length === 0) {
       return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
     }
+    // Drop fields whose new value equals the existing one — admin
+    // re-saving an unchanged form shouldn't bump updatedAt or fire an
+    // audit-log entry.
+    const data = dropUnchanged(result.data, existing as unknown as Record<string, unknown>)
+    if (Object.keys(data).length === 0) {
+      return NextResponse.json({ ok: true, unchanged: true })
+    }
 
-    const updated = await prisma.business.update({ where: { id }, data: result.data })
+    const updated = await prisma.business.update({ where: { id }, data })
     await writeAudit(session.id, session.name, 'directory.update', id, 'business', {
-      name: existing.name, fields: Object.keys(result.data),
+      name: existing.name, fields: Object.keys(data),
     })
     return NextResponse.json(updated)
   } catch (e) {

@@ -63,6 +63,11 @@ export async function GET(req: NextRequest) {
     // server-filtered by it. The client never sent `search` — the
     // /directory page filters in-memory across the up-to-200 list — so
     // that branch was dead code. Removed: the client filter handles it.
+    // Total matching count for the X-Total-Count header — lets the
+    // client show "showing first 200 of N" without breaking the
+    // existing array response shape. Runs in parallel with findMany.
+    const totalCountPromise = prisma.business.count({ where })
+
     const businesses = await prisma.business.findMany({
       where,
       orderBy: { createdAt: 'desc' },
@@ -142,7 +147,10 @@ export async function GET(req: NextRequest) {
       }
     })
 
-    return NextResponse.json(enriched)
+    const total = await totalCountPromise
+    return NextResponse.json(enriched, {
+      headers: { 'X-Total-Count': String(total) },
+    })
   } catch (e) {
     console.error('Directory GET error:', e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

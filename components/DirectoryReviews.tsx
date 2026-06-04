@@ -116,6 +116,14 @@ export default function DirectoryReviews({
       if (mine) {
         setRating(mine.rating)
         setComment(mine.comment ?? '')
+      } else {
+        // No review for the caller — defensive reset so the form
+        // doesn't carry stale values into the next post. Matters when
+        // load() is triggered by something other than deleteReview
+        // (e.g. an admin hides the review, the row disappears from
+        // the public list, and the next reload brings mine=null).
+        setRating(0)
+        setComment('')
       }
     } catch {
       toast.error('Network error — could not load reviews')

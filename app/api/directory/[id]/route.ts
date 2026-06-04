@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
-import { validateFieldUpdate } from '@/app/api/admin/directory/_lib'
+import { validateFieldUpdate, dropUnchanged } from '@/app/api/admin/directory/_lib'
 
 // PATCH /api/directory/[id] — verified-owner self-edit. Reuses the
 // same field-update validator as /api/admin/directory PATCH so the
@@ -25,9 +25,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { id } = await params
+    // Fetch every column that the validator might touch so dropUnchanged
+    // has the full prior state to compare against.
     const existing = await prisma.business.findUnique({
-      where:  { id },
-      select: { id: true, claimedById: true, name: true, isApproved: true, isActive: true },
+      where: { id },
+      select: {
+        id: true, claimedById: true, name: true, category: true, description: true,
+        neighborhood: true, address: true, phone: true,
+        website: true, instagram: true, logo: true, coverImage: true,
+        languages: true, latitude: true, longitude: true,
+        hours: true, memberDiscount: true, tags: true,
+        isExpatOwned: true, isExpatFriendly: true,
+        isApproved: true, isActive: true,
+      },
     })
     if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
@@ -51,13 +61,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (Object.keys(result.data).length === 0) {
       return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
     }
+    const data = dropUnchanged(result.data, existing as unknown as Record<string, unknown>)
+    if (Object.keys(data).length === 0) {
+      return NextResponse.json({ ok: true, unchanged: true })
+    }
 
-    await prisma.business.update({ where: { id }, data: result.data })
+    await prisma.business.update({ where: { id }, data })
     await writeAudit(
       session.id, session.name,
       isOwner ? 'directory.owner_update' : 'directory.update',
       id, 'business',
-      { name: existing.name, fields: Object.keys(result.data) },
+      { name: existing.name, fields: Object.keys(data) },
     )
     return NextResponse.json({ ok: true })
   } catch (e) {
