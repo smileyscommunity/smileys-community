@@ -58,6 +58,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE}/contact`,       priority: 0.5, changeFrequency: 'monthly' },
     { url: `${BASE}/neighborhoods`, priority: 0.6, changeFrequency: 'monthly' },
     { url: `${BASE}/directory`,     priority: 0.8, changeFrequency: 'weekly'  },
+    { url: `${BASE}/cup`,           priority: 0.7, changeFrequency: 'daily'   },
+    { url: `${BASE}/guidelines`,    priority: 0.4, changeFrequency: 'monthly' },
   ]
 
   const eventRoutes: MetadataRoute.Sitemap = events.map(e => ({

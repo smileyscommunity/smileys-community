@@ -121,6 +121,7 @@ export default function Footer() {
                 { href: '/members',  label: 'Members 👥'   },
                 { href: '/hangouts', label: 'Hangouts ☕'  },
                 { href: '/visiting', label: 'Visiting? 👋' },
+                { href: '/cup',      label: 'Smileys Cup ⚽' },
               ].map(l => (
                 <li key={l.href}>
                   <Link href={l.href} className="text-sm text-gray-500 hover:text-amber-600 transition-colors">
@@ -206,9 +207,10 @@ export default function Footer() {
             <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Legal</h4>
             <ul className="space-y-3">
               {[
-                { href: '/privacy', label: 'Privacy policy' },
-                { href: '/terms',   label: 'Terms of use'   },
-                { href: '/cookies', label: 'Cookie policy'  },
+                { href: '/privacy',     label: 'Privacy policy'        },
+                { href: '/terms',       label: 'Terms of use'          },
+                { href: '/cookies',     label: 'Cookie policy'         },
+                { href: '/guidelines',  label: 'Community guidelines'  },
               ].map(l => (
                 <li key={l.href}>
                   <Link href={l.href} className="text-sm text-gray-500 hover:text-amber-600 transition-colors">
