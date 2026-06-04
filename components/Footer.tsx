@@ -162,20 +162,20 @@ export default function Footer() {
               {[
                 ...(isLoggedIn
                   ? [
-                      { href: '/dashboard',    label: 'My dashboard'    },
-                      { href: '/invite',       label: 'Invite a friend' },
-                      { href: '/get-involved', label: 'Get involved'    },
+                      { href: '/dashboard',    label: 'My dashboard 🏡' },
+                      { href: '/invite',       label: 'Invite a friend 💌' },
+                      { href: '/get-involved', label: 'Get involved 🙌' },
                     ]
                   : [
-                      { href: '/apply',        label: 'Apply to join' },
-                      { href: '/get-involved', label: 'Get involved'  },
+                      { href: '/apply',        label: 'Apply to join ✨' },
+                      { href: '/get-involved', label: 'Get involved 🙌'  },
                     ]
                 ),
                 // Moved here from Resources — Perks is a member benefit,
                 // not a public content surface, so it groups more
                 // naturally with the rest of the membership block.
-                { href: '/perks',        label: 'Member Perks 🎁'  },
-                { href: '/advertise',    label: 'Advertise with us'},
+                { href: '/perks',        label: 'Member Perks 🎁'   },
+                { href: '/advertise',    label: 'Advertise with us 📢' },
               ].map(l => (
                 <li key={l.href}>
                   <Link href={l.href} className="text-sm text-gray-500 hover:text-amber-600 transition-colors">
@@ -191,10 +191,10 @@ export default function Footer() {
             <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Company</h4>
             <ul className="space-y-3">
               {[
-                { href: '/why',     label: 'Why Smileys' },
-                { href: '/about',   label: 'About us'    },
-                { href: '/faq',     label: 'FAQ'         },
-                { href: '/contact', label: 'Contact'     },
+                { href: '/why',     label: 'Why Smileys 💛' },
+                { href: '/about',   label: 'About us 📖'    },
+                { href: '/faq',     label: 'FAQ ❓'         },
+                { href: '/contact', label: 'Contact 💬'     },
               ].map(l => (
                 <li key={l.href}>
                   <Link href={l.href} className="text-sm text-gray-500 hover:text-amber-600 transition-colors">
@@ -210,10 +210,10 @@ export default function Footer() {
             <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Legal</h4>
             <ul className="space-y-3">
               {[
-                { href: '/privacy',     label: 'Privacy policy'        },
-                { href: '/terms',       label: 'Terms of use'          },
-                { href: '/cookies',     label: 'Cookie policy'         },
-                { href: '/guidelines',  label: 'Community guidelines'  },
+                { href: '/privacy',     label: 'Privacy policy 🔒'       },
+                { href: '/terms',       label: 'Terms of use 📜'         },
+                { href: '/cookies',     label: 'Cookie policy 🍪'        },
+                { href: '/guidelines',  label: 'Community guidelines 🤝' },
               ].map(l => (
                 <li key={l.href}>
                   <Link href={l.href} className="text-sm text-gray-500 hover:text-amber-600 transition-colors">
