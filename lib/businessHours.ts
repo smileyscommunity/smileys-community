@@ -18,6 +18,22 @@ export const DAY_LABELS: Record<DayKey, string> = {
   fri: 'Fri', sat: 'Sat', sun: 'Sun',
 }
 
+export const DAY_FULL_LABELS: Record<DayKey, string> = {
+  mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday',
+  fri: 'Friday', sat: 'Saturday', sun: 'Sunday',
+}
+
+// Schema.org day-of-week URIs for JSON-LD openingHoursSpecification.
+const DAY_SCHEMA: Record<DayKey, string> = {
+  mon: 'https://schema.org/Monday',
+  tue: 'https://schema.org/Tuesday',
+  wed: 'https://schema.org/Wednesday',
+  thu: 'https://schema.org/Thursday',
+  fri: 'https://schema.org/Friday',
+  sat: 'https://schema.org/Saturday',
+  sun: 'https://schema.org/Sunday',
+}
+
 export type BusinessHours = Partial<Record<DayKey, string | null>>
 
 // Strict HH:MM-HH:MM matcher. Accepts 00:00-23:59 in both halves.
@@ -103,6 +119,39 @@ function minutesFromHHMM(hhmm: string): number {
 function prevDay(d: DayKey): DayKey {
   const i = DAY_KEYS.indexOf(d)
   return DAY_KEYS[(i + DAY_KEYS.length - 1) % DAY_KEYS.length]
+}
+
+/**
+ * Convert a BusinessHours object into Schema.org OpeningHoursSpecification
+ * entries for JSON-LD. Returns one entry per day that has a valid range.
+ * Cross-midnight ranges are split into two entries (mon 21:00→24:00,
+ * tue 00:00→02:00) since Schema.org doesn't model "open until 2am" as
+ * a single Monday entry.
+ */
+export function formatHoursSchema(hours: BusinessHours | null | undefined): Array<{
+  '@type': 'OpeningHoursSpecification'
+  dayOfWeek: string
+  opens: string
+  closes: string
+}> {
+  if (!hours || typeof hours !== 'object') return []
+  const out: Array<{ '@type': 'OpeningHoursSpecification'; dayOfWeek: string; opens: string; closes: string }> = []
+  for (const d of DAY_KEYS) {
+    const v = hours[d]
+    if (!v || !isValidRange(v)) continue
+    const [opens, closes] = v.split('-')
+    const o = minutesFromHHMM(opens)
+    const c = minutesFromHHMM(closes)
+    if (c <= o) {
+      // Cross-midnight: emit today 'opens-24:00' + next-day '00:00-closes'.
+      out.push({ '@type': 'OpeningHoursSpecification', dayOfWeek: DAY_SCHEMA[d], opens, closes: '23:59' })
+      const nextIdx = (DAY_KEYS.indexOf(d) + 1) % DAY_KEYS.length
+      out.push({ '@type': 'OpeningHoursSpecification', dayOfWeek: DAY_SCHEMA[DAY_KEYS[nextIdx]], opens: '00:00', closes })
+    } else {
+      out.push({ '@type': 'OpeningHoursSpecification', dayOfWeek: DAY_SCHEMA[d], opens, closes })
+    }
+  }
+  return out
 }
 
 /**

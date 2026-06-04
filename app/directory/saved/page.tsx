@@ -178,10 +178,10 @@ export default function SavedDirectoryPage() {
                     )}
                     <div className="flex gap-1.5 pt-2 border-t border-gray-50 mt-auto">
                       <Link
-                        href="/directory"
+                        href={`/directory/${b.id}`}
                         className="flex-1 text-center text-[10px] font-semibold text-gray-700 hover:text-gray-900 bg-gray-50 hover:bg-gray-100 rounded-lg py-1.5 transition-colors"
                       >
-                        Open in directory
+                        Open details
                       </Link>
                       {b.website && isSafeHref(b.website) && (
                         <a href={b.website} target="_blank" rel="noopener noreferrer nofollow"

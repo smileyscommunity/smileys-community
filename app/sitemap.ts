@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic'
 const BASE = 'https://smileyscommunity.com/app'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [events, clubs, posts, listings] = await Promise.all([
+  const [events, clubs, posts, listings, businesses] = await Promise.all([
     prisma.event.findMany({
       where: { status: 'published' },
       select: { id: true, updatedAt: true },
@@ -31,6 +31,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       orderBy: { createdAt: 'desc' },
       take:    500,
     }),
+    // Approved + active directory entries — each gets a per-business
+    // landing page with JSON-LD LocalBusiness markup at
+    // /directory/[id]. Surfacing them here lets search hits like
+    // "expat-owned Indian restaurant Kadıköy" land on the right
+    // dedicated page.
+    prisma.business.findMany({
+      where:   { isApproved: true, isActive: true },
+      select:  { id: true, updatedAt: true },
+      orderBy: { updatedAt: 'desc' },
+      take:    500,
+    }),
   ])
 
   const staticRoutes: MetadataRoute.Sitemap = [
@@ -46,6 +57,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE}/faq`,           priority: 0.6, changeFrequency: 'monthly' },
     { url: `${BASE}/contact`,       priority: 0.5, changeFrequency: 'monthly' },
     { url: `${BASE}/neighborhoods`, priority: 0.6, changeFrequency: 'monthly' },
+    { url: `${BASE}/directory`,     priority: 0.8, changeFrequency: 'weekly'  },
   ]
 
   const eventRoutes: MetadataRoute.Sitemap = events.map(e => ({
@@ -76,11 +88,26 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     changeFrequency: 'weekly',
   }))
 
+  const businessRoutes: MetadataRoute.Sitemap = businesses.map(b => ({
+    url:          `${BASE}/directory/${b.id}`,
+    lastModified: b.updatedAt,
+    priority:     0.7,
+    changeFrequency: 'weekly',
+  }))
+
   const neighborhoodRoutes: MetadataRoute.Sitemap = Object.keys(NEIGHBORHOOD_META).map(name => ({
     url:             `${BASE}/neighborhoods/${neighborhoodToSlug(name)}`,
     priority:        0.7,
     changeFrequency: 'weekly' as const,
   }))
 
-  return [...staticRoutes, ...neighborhoodRoutes, ...eventRoutes, ...clubRoutes, ...postRoutes, ...listingRoutes]
+  return [
+    ...staticRoutes,
+    ...neighborhoodRoutes,
+    ...eventRoutes,
+    ...clubRoutes,
+    ...postRoutes,
+    ...listingRoutes,
+    ...businessRoutes,
+  ]
 }

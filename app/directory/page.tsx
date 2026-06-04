@@ -269,7 +269,9 @@ function BusinessCard({
       <div className="p-3 flex flex-col gap-2 flex-1">
         <div>
           <div className="flex items-center gap-1.5">
-            <p className="font-bold text-gray-900 text-sm leading-tight truncate">{b.name}</p>
+            <Link href={`/directory/${b.id}`} className="font-bold text-gray-900 text-sm leading-tight truncate hover:text-amber-700 transition-colors">
+              {b.name}
+            </Link>
             {/* Verified-owner check next to the title — same position
                 Google + Twitter use, so the badge reads as "this name
                 is verified" rather than as a standalone CTA. */}
