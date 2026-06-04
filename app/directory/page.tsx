@@ -428,6 +428,11 @@ function DirectoryPageInner() {
   // List vs map. Default to list because it works for everyone on
   // every device; map is a one-tap toggle away.
   const [viewMode,     setViewMode]     = useState<'list' | 'map'>('list')
+  // Sort axis. 'recent' (default) = createdAt DESC, what the directory
+  // has always shown. 'trending' = re-orders by saves in the last 7
+  // days. Lives in component state, not URL state, so it doesn't
+  // collide with the neighborhood deep-link param.
+  const [sort,         setSort]         = useState<'recent' | 'trending'>('recent')
 
   // total is the unpaginated server count from X-Total-Count — used to
   // surface "showing first 200 of N" when the server-side cap kicks in.
@@ -439,6 +444,7 @@ function DirectoryPageInner() {
     if (category !== 'all') params.set('category', category)
     if (type !== 'all')     params.set('type', type)
     if (neighborhood)       params.set('neighborhood', neighborhood)
+    if (sort !== 'recent')  params.set('sort', sort)
     fetch(`/app/api/directory?${params}`, { credentials: 'include' })
       .then(async r => {
         if (!r.ok) return { items: [] as Business[], total: 0 }
@@ -452,7 +458,7 @@ function DirectoryPageInner() {
       })
       .catch(() => { setBusinesses([]); setTotal(0) })
       .finally(() => setLoading(false))
-  }, [category, type, neighborhood])
+  }, [category, type, neighborhood, sort])
 
   useEffect(() => { load() }, [load])
 
@@ -559,6 +565,23 @@ function DirectoryPageInner() {
                 ★ Saved
               </Link>
             )}
+
+            {/* Sort pill — toggles between Recent (default) and Trending
+                (last 7 days by save count). Sits at the front of the
+                filter row so the active sort axis is the first thing
+                the user sees. */}
+            {(['recent', 'trending'] as const).map(s => (
+              <button key={s} onClick={() => setSort(s)}
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold border whitespace-nowrap transition-all ${
+                  sort === s
+                    ? 'bg-gray-900 text-white border-gray-900'
+                    : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+                }`}>
+                {s === 'recent' ? '🆕 Recent' : '🔥 Trending'}
+              </button>
+            ))}
+
+            <div className="w-px bg-gray-200 my-1.5 shrink-0" />
 
             {/* Type filters */}
             {([

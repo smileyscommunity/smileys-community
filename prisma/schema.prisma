@@ -1964,9 +1964,12 @@ model BusinessReport {
 }
 
 // Member-saved directory entries — the "starred" / favorites surface
-// at /directory/saved. Unique on (user, business) so toggling is
-// idempotent. Indexed on (businessId, createdAt) so a future
-// "trending this week" sort can groupBy + range-filter cheaply.
+// at /directory/saved.
+//
+// @@index([businessId, createdAt]) feeds the trending-sort query in
+// GET /api/directory?sort=trending (counts saves in the last 7 days
+// per business). @@index([userId, createdAt]) feeds the personal
+// saved list. Unique on the pair so toggling is idempotent.
 model BusinessSave {
   id         String   @id @default(cuid())
   // Saves are personal data — cascade with the user on account

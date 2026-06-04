@@ -38,6 +38,13 @@ export async function GET(req: NextRequest) {
     const category     = searchParams.get('category') || ''
     const type         = searchParams.get('type') || ''
     const neighborhood = searchParams.get('neighborhood') || ''
+    // `sort` controls the order of the returned list:
+    //   - 'recent' (default): createdAt DESC, what we've always done
+    //   - 'trending': re-order so businesses with the most saves in the
+    //     last 7 days surface first, with createdAt DESC as the tiebreak
+    //     and the fallback for entries with zero saves in the window.
+    //     Uses the @@index([businessId, createdAt]) on BusinessSave.
+    const sort = searchParams.get('sort') === 'trending' ? 'trending' : 'recent'
 
     const where: Record<string, unknown> = { isApproved: true, isActive: true }
 
@@ -96,8 +103,14 @@ export async function GET(req: NextRequest) {
     // computed via single groupBy / findMany passes — no N+1 over the
     // business list. Hidden reviews are excluded so the average
     // matches what the public sees on the detail card.
+    //
+    // The 4th aggregate (trendingSaves) only runs when sort='trending'.
+    // It counts saves in the last 7 days per business — the same
+    // BusinessSave table indexed on (businessId, createdAt) precisely
+    // for this query.
     const ids = businesses.map(b => b.id)
-    const [ratingStats, saveCounts, mySaves] = await Promise.all([
+    const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60_000)
+    const [ratingStats, saveCounts, mySaves, trendingStats] = await Promise.all([
       ids.length === 0 ? Promise.resolve([]) : prisma.businessReview.groupBy({
         by: ['businessId'],
         where: { businessId: { in: ids }, isHidden: false },
@@ -114,6 +127,13 @@ export async function GET(req: NextRequest) {
       ids.length === 0 || !session ? Promise.resolve([]) : prisma.businessSave.findMany({
         where:  { userId: session.id, businessId: { in: ids } },
         select: { businessId: true },
+      }),
+      // Per-business save count in the last 7 days. Only runs in
+      // trending mode — recent mode pays nothing for it.
+      ids.length === 0 || sort !== 'trending' ? Promise.resolve([]) : prisma.businessSave.groupBy({
+        by: ['businessId'],
+        where: { businessId: { in: ids }, createdAt: { gte: oneWeekAgo } },
+        _count: { _all: true },
       }),
     ])
     const statsByBiz = new Map(
@@ -147,8 +167,23 @@ export async function GET(req: NextRequest) {
       }
     })
 
+    // Trending sort: re-order the enriched list in place by recent save
+    // count (last 7 days) DESC, with the original createdAt order as
+    // the tiebreak / fallback for entries with zero recent saves. The
+    // findMany above already returned the rows in createdAt DESC, so
+    // a stable sort preserves that as the secondary key.
+    let response = enriched
+    if (sort === 'trending') {
+      const trendingByBiz = new Map(trendingStats.map(s => [s.businessId, s._count._all]))
+      response = [...enriched].sort((a, b) => {
+        const aT = trendingByBiz.get(a.id) ?? 0
+        const bT = trendingByBiz.get(b.id) ?? 0
+        return bT - aT
+      })
+    }
+
     const total = await totalCountPromise
-    return NextResponse.json(enriched, {
+    return NextResponse.json(response, {
       headers: { 'X-Total-Count': String(total) },
     })
   } catch (e) {
