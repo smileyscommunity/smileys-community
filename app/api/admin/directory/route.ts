@@ -86,8 +86,14 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: `Bulk import limited to ${BULK_MAX} rows at a time` }, { status: 400 })
       }
 
-      const created: { id: string; name: string }[] = []
-      const errors:  { index: number; name?: string; error: string }[] = []
+      // Two-pass: validate every row up front (no DB), then a single
+      // createMany batch insert for the survivors. Previous code
+      // round-tripped to the DB once per row — a 200-row import was
+      // 200 sequential creates, and a connection drop mid-loop left a
+      // partial import behind with no atomicity guarantee. createMany
+      // collapses to one statement, atomic at the DB level.
+      const validated: { index: number; data: Record<string, unknown>; name: string }[] = []
+      const errors:    { index: number; name?: string; error: string }[] = []
 
       for (let i = 0; i < bulk.length; i++) {
         const row = bulk[i]
@@ -97,37 +103,71 @@ export async function POST(req: NextRequest) {
         }
         const result = validateBusinessCreate(row as Record<string, unknown>)
         if ('error' in result) {
-          errors.push({ index: i, name: typeof (row as { name?: unknown }).name === 'string' ? (row as { name: string }).name : undefined, error: result.error })
+          errors.push({
+            index: i,
+            name: typeof (row as { name?: unknown }).name === 'string'
+              ? (row as { name: string }).name
+              : undefined,
+            error: result.error,
+          })
           continue
         }
+        validated.push({
+          index: i,
+          data: {
+            ...(result.data as Record<string, unknown>),
+            submittedById: session.id,
+            reviewedById:  session.id,
+            reviewedAt:    new Date(),
+            isApproved:    true,
+            isActive:      true,
+          },
+          name: (result.data as { name: string }).name,
+        })
+      }
+
+      let createdCount = 0
+      if (validated.length > 0) {
         try {
-          const b = await prisma.business.create({
-            data: {
-              ...(result.data as Record<string, unknown>),
-              submittedById: session.id,
-              reviewedById:  session.id,
-              reviewedAt:    new Date(),
-              isApproved:    true,
-              isActive:      true,
-            } as never,
+          const res = await prisma.business.createMany({
+            data: validated.map(v => v.data) as never,
           })
-          created.push({ id: b.id, name: b.name })
+          createdCount = res.count
         } catch (e) {
-          console.error('Admin directory bulk create row failed:', e)
-          errors.push({ index: i, name: (result.data as { name?: string }).name, error: 'DB error' })
+          // createMany aborts the whole batch on any constraint
+          // violation — fall back to per-row inserts so the offending
+          // row(s) can be reported individually instead of failing the
+          // whole import. Restores the original best-effort semantics.
+          console.error('Bulk createMany failed, falling back per-row:', e)
+          for (const v of validated) {
+            try {
+              await prisma.business.create({ data: v.data as never })
+              createdCount++
+            } catch (rowErr) {
+              console.error('Bulk fallback row failed:', rowErr)
+              errors.push({ index: v.index, name: v.name, error: 'DB error' })
+            }
+          }
         }
       }
 
-      if (created.length > 0) {
+      if (createdCount > 0) {
         await writeAudit(
           session.id, session.name,
           'directory.bulk_create',
           undefined, 'business',
-          { created: created.length, failed: errors.length, names: created.map(c => c.name).slice(0, 20) },
+          {
+            created: createdCount,
+            failed: errors.length,
+            // Names come from the validated input rather than DB row
+            // ids (createMany doesn't return rows in Postgres without
+            // createManyAndReturn) — same first-20 sample as before.
+            names: validated.slice(0, 20).map(v => v.name),
+          },
         )
       }
 
-      return NextResponse.json({ ok: true, created: created.length, failed: errors.length, errors })
+      return NextResponse.json({ ok: true, created: createdCount, failed: errors.length, errors })
     }
 
     if (!single || typeof single !== 'object') {
