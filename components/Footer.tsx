@@ -142,7 +142,6 @@ export default function Footer() {
                 { href: '/guide',         label: 'Istanbul Guide 🗺️'  },
                 { href: '/neighborhoods', label: 'Neighborhoods 🏘️'   },
                 { href: '/posts',         label: 'Articles 📰'        },
-                { href: '/perks',         label: 'Member Perks 🎁'    },
               ].map(l => (
                 <li key={l.href}>
                   <Link href={l.href} className="text-sm text-gray-500 hover:text-amber-600 transition-colors">
@@ -172,6 +171,10 @@ export default function Footer() {
                       { href: '/get-involved', label: 'Get involved'  },
                     ]
                 ),
+                // Moved here from Resources — Perks is a member benefit,
+                // not a public content surface, so it groups more
+                // naturally with the rest of the membership block.
+                { href: '/perks',        label: 'Member Perks 🎁'  },
                 { href: '/advertise',    label: 'Advertise with us'},
               ].map(l => (
                 <li key={l.href}>
