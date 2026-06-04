@@ -5,10 +5,10 @@ import AnimatedCounter from '@/components/AnimatedCounter'
 import { loadContent } from '@/lib/content'
 
 export const metadata = {
-  title: 'Why Smileys — Find Your People in Istanbul',
+  title: 'Why Smileys? — Find Your People in Istanbul',
   description: 'Istanbul can feel crowded and still lonely. Smileys is the curated social community for globally minded people building a real social life in the city.',
   openGraph: {
-    title: 'Why Smileys — Find Your People in Istanbul',
+    title: 'Why Smileys? — Find Your People in Istanbul',
     description: 'A curated real-life social ecosystem for globally minded people in Istanbul.',
     url: 'https://smileyscommunity.com/why',
   },

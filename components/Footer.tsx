@@ -191,8 +191,8 @@ export default function Footer() {
             <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Company</h4>
             <ul className="space-y-3">
               {[
-                { href: '/why',     label: 'Why Smileys 💛' },
                 { href: '/about',   label: 'About us 📖'    },
+                { href: '/why',     label: 'Why Smileys? 💛' },
                 { href: '/faq',     label: 'FAQ ❓'         },
                 { href: '/contact', label: 'Contact 💬'     },
               ].map(l => (
@@ -210,8 +210,8 @@ export default function Footer() {
             <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Legal</h4>
             <ul className="space-y-3">
               {[
-                { href: '/privacy',     label: 'Privacy policy 🔒'       },
                 { href: '/terms',       label: 'Terms of use 📜'         },
+                { href: '/privacy',     label: 'Privacy policy 🔒'       },
                 { href: '/cookies',     label: 'Cookie policy 🍪'        },
                 { href: '/guidelines',  label: 'Community guidelines 🤝' },
               ].map(l => (

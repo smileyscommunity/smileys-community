@@ -265,7 +265,7 @@ export default function Navbar() {
             {!isLoggedIn ? (
               <div className="flex items-center gap-2">
                 <Link href="/why" className={`px-4 py-2 rounded-lg text-sm transition-colors ${isActive('/why') ? activeClass : inactiveClass}`}>
-                  Why Smileys
+                  Why Smileys?
                 </Link>
                 <Link href="/about" className={`px-4 py-2 rounded-lg text-sm transition-colors ${isActive('/about') ? activeClass : inactiveClass}`}>
                   About
