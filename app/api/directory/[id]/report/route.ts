@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { rateLimit } from '@/lib/rateLimit'
+import { rateLimit, getIp } from '@/lib/rateLimit'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -18,8 +18,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     const session = await getSession()
     const { id } = await params
 
-    const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || req.headers.get('x-real-ip') || 'unknown'
-    const limiterKey = session ? `directory-report:user:${session.id}` : `directory-report:ip:${ip}`
+    const limiterKey = session ? `directory-report:user:${session.id}` : `directory-report:ip:${getIp(req)}`
     if (!await rateLimit(limiterKey, 5, 60 * 60_000)) {
       return NextResponse.json({ error: 'Too many reports. Try again later.' }, { status: 429 })
     }
