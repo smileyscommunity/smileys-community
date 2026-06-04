@@ -264,6 +264,30 @@ function BusinessRow({ b, onAction }: { b: Business; onAction: () => void }) {
             {b.reviewedBy && <span> · Reviewed by {b.reviewedBy.name}</span>}
           </div>
 
+          {/* Verification helpers. Prebuilt search URLs for the two
+              fastest "does this place exist?" checks — Google Maps
+              (locations + reviews) and Google Search (broader hits).
+              Both quote the business name so the query treats it as a
+              single phrase rather than a loose keyword set. */}
+          <div className="flex gap-3 flex-wrap text-xs">
+            <a
+              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`"${b.name}"${b.neighborhood ? ` ${b.neighborhood}` : ''} Istanbul`)}`}
+              target="_blank"
+              rel="noopener noreferrer nofollow"
+              className="text-emerald-400 hover:text-emerald-300 hover:underline"
+            >
+              🗺 Verify on Google Maps
+            </a>
+            <a
+              href={`https://www.google.com/search?q=${encodeURIComponent(`"${b.name}"${b.neighborhood ? ` ${b.neighborhood}` : ''} Istanbul`)}`}
+              target="_blank"
+              rel="noopener noreferrer nofollow"
+              className="text-blue-400 hover:text-blue-300 hover:underline"
+            >
+              🔎 Google search
+            </a>
+          </div>
+
           <div className="flex gap-2 flex-wrap pt-1">
             <button onClick={startEdit} disabled={loading}
               className="text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50">
