@@ -17,13 +17,14 @@ function formatRelative(iso: string): string {
 interface Props {
   slug: string
   canUpload: boolean
+  isMember: boolean
   currentUserId?: string
   isAdmin?: boolean
   canPin?: boolean
   dark?: boolean
 }
 
-export default function ClubPhotos({ slug, canUpload, currentUserId, isAdmin, canPin, dark }: Props) {
+export default function ClubPhotos({ slug, canUpload, isMember, currentUserId, isAdmin, canPin, dark }: Props) {
   const [photos, setPhotos]       = useState<Photo[]>([])
   const [loading, setLoading]     = useState(true)
   const [caption, setCaption]     = useState('')
@@ -32,11 +33,12 @@ export default function ClubPhotos({ slug, canUpload, currentUserId, isAdmin, ca
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
+    if (!isMember) { setLoading(false); return }
     fetch(`/app/api/clubs/${slug}/photos`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : [])
       .then(data => { if (Array.isArray(data)) setPhotos(data) })
       .finally(() => setLoading(false))
-  }, [slug])
+  }, [slug, isMember])
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -80,6 +82,14 @@ export default function ClubPhotos({ slug, canUpload, currentUserId, isAdmin, ca
   const uploadBtn   = uploading
     ? (dark ? 'bg-zinc-800 text-zinc-400 cursor-not-allowed' : 'bg-gray-100 text-gray-400 cursor-not-allowed')
     : 'bg-amber-500 hover:bg-amber-600 text-white'
+
+  if (!isMember) return (
+    <div className="text-center py-16">
+      <span className="text-4xl block mb-3">🔒</span>
+      <p className="font-semibold text-gray-900 mb-1">Members only</p>
+      <p className="text-gray-500 text-sm">Join this club to see photos.</p>
+    </div>
+  )
 
   return (
     <div className="space-y-5">
