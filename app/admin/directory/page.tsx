@@ -1,14 +1,68 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { useAdminLoad } from '@/lib/admin/useAdminLoad'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import { isSafeHref } from '@/lib/safeUrl'
-import { BUSINESS_CATEGORIES, DIRECTORY_LIMITS } from '@/lib/directory'
+import { BUSINESS_CATEGORIES, DIRECTORY_LIMITS, parseGoogleMapsUrl } from '@/lib/directory'
 import { DAY_KEYS, DAY_LABELS } from '@/lib/businessHours'
 import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
+
+// Small reusable upload widget used inline next to the Logo and Cover
+// image URL inputs on both the admin edit drawer and the admin create
+// form. Click → file picker → POST /api/upload?folder=directory →
+// fills the URL field on success. The folder is admin/moderator-only
+// at the upload route layer.
+function UploadButton({
+  onUploaded, label = 'Upload',
+}: {
+  onUploaded: (url: string) => void
+  label?: string
+}) {
+  const ref = useRef<HTMLInputElement>(null)
+  const [busy, setBusy] = useState(false)
+
+  async function upload(file: File) {
+    setBusy(true)
+    try {
+      const fd = new FormData()
+      fd.append('file',   file)
+      fd.append('folder', 'directory')
+      const r = await fetch('/app/api/upload', { method: 'POST', body: fd })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) { toast.error(d?.error ?? 'Upload failed'); return }
+      onUploaded(d.url)
+      toast.success('Image uploaded')
+    } catch {
+      toast.error('Network error')
+    } finally {
+      setBusy(false)
+      if (ref.current) ref.current.value = ''
+    }
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => ref.current?.click()}
+        disabled={busy}
+        className="text-[10px] font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-200 px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50 shrink-0"
+      >
+        {busy ? '…' : `📤 ${label}`}
+      </button>
+      <input
+        ref={ref}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif"
+        className="hidden"
+        onChange={e => { const f = e.target.files?.[0]; if (f) upload(f) }}
+      />
+    </>
+  )
+}
 
 type View = 'approved' | 'pending' | 'rejected' | 'claims' | 'reports'
 
@@ -393,11 +447,36 @@ function BusinessRow({ b, onAction }: { b: Business; onAction: () => void }) {
             </div>
             <div>
               <label className={labelCls}>Logo URL</label>
-              <input maxLength={DIRECTORY_LIMITS.logo} placeholder="https://…" {...field('logo')} className={inputCls} />
+              <div className="flex gap-2">
+                <input maxLength={DIRECTORY_LIMITS.logo} placeholder="https://…" {...field('logo')} className={inputCls} />
+                <UploadButton label="Logo" onUploaded={url => setEdit(s => ({ ...s, logo: url }))} />
+              </div>
             </div>
             <div>
-              <label className={labelCls}>Cover image URL</label>
-              <input maxLength={DIRECTORY_LIMITS.coverImage} placeholder="https://…" {...field('coverImage')} className={inputCls} />
+              <label className={labelCls}>Cover / Banner URL</label>
+              <div className="flex gap-2">
+                <input maxLength={DIRECTORY_LIMITS.coverImage} placeholder="https://…" {...field('coverImage')} className={inputCls} />
+                <UploadButton label="Banner" onUploaded={url => setEdit(s => ({ ...s, coverImage: url }))} />
+              </div>
+            </div>
+            <div className="sm:col-span-2">
+              <label className={labelCls}>Paste Google Maps URL</label>
+              <input
+                type="text"
+                placeholder="https://www.google.com/maps/place/…/@41.0345,28.9817,17z/…"
+                onChange={e => {
+                  const parsed = parseGoogleMapsUrl(e.target.value)
+                  if (parsed) {
+                    setEdit(s => ({ ...s, latitude: String(parsed.lat), longitude: String(parsed.lon) }))
+                    toast.success(`Coords filled: ${parsed.lat.toFixed(4)}, ${parsed.lon.toFixed(4)}`)
+                    e.target.value = ''
+                  } else if (e.target.value.trim().length > 20) {
+                    // Only warn once the field has enough text to be a URL — silent during typing.
+                    toast.error('Could not find coordinates in that URL — open the desktop Maps link and copy from the address bar')
+                  }
+                }}
+                className={inputCls}
+              />
             </div>
             <div>
               <label className={labelCls}>Latitude</label>
@@ -422,7 +501,7 @@ function BusinessRow({ b, onAction }: { b: Business; onAction: () => void }) {
             </div>
           </div>
           <p className="text-[10px] text-zinc-500 -mt-1">
-            Lat/lon are optional — leave blank to drop the pin at the neighborhood centroid. Paste from Google Maps right-click → "What's here?".
+            Paste a Google Maps URL above to auto-fill lat/lon, or enter them manually. Blank = pin at neighborhood centroid.
           </p>
 
           <div>
@@ -620,11 +699,17 @@ function CreateForm({ onCreated, onCancel }: { onCreated: () => void; onCancel: 
             </div>
             <div>
               <label className={labelCls}>Logo URL</label>
-              <input value={form.logo} onChange={e => set('logo', e.target.value)} maxLength={DIRECTORY_LIMITS.logo} placeholder="https://…" className={inputCls} />
+              <div className="flex gap-2">
+                <input value={form.logo} onChange={e => set('logo', e.target.value)} maxLength={DIRECTORY_LIMITS.logo} placeholder="https://…" className={inputCls} />
+                <UploadButton label="Logo" onUploaded={url => set('logo', url)} />
+              </div>
             </div>
             <div>
-              <label className={labelCls}>Cover image URL</label>
-              <input value={form.coverImage} onChange={e => set('coverImage', e.target.value)} maxLength={DIRECTORY_LIMITS.coverImage} placeholder="https://…" className={inputCls} />
+              <label className={labelCls}>Cover / Banner URL</label>
+              <div className="flex gap-2">
+                <input value={form.coverImage} onChange={e => set('coverImage', e.target.value)} maxLength={DIRECTORY_LIMITS.coverImage} placeholder="https://…" className={inputCls} />
+                <UploadButton label="Banner" onUploaded={url => set('coverImage', url)} />
+              </div>
             </div>
           </div>
           <div className="flex gap-3 pt-1">

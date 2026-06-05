@@ -80,6 +80,55 @@ export function normalizeTags(input: unknown): string[] | null {
 }
 
 /**
+ * Parse latitude + longitude out of a Google Maps URL. Supports the
+ * common shapes admins paste from desktop Maps:
+ *
+ *   https://www.google.com/maps/place/Name/@41.0345,28.9817,17z/data=...
+ *   https://www.google.com/maps/@41.0345,28.9817,17z
+ *   https://maps.google.com/?q=41.0345,28.9817
+ *   https://maps.google.com/?ll=41.0345,28.9817
+ *   https://www.google.com/maps?q=41.0345,28.9817
+ *
+ * Mobile share short links (`maps.app.goo.gl/...`, `goo.gl/maps/...`)
+ * can't be resolved without an HTTP fetch — caller gets `null` and
+ * should show a "use the desktop URL" hint.
+ *
+ * Returns null when no coordinate pattern matches.
+ */
+export function parseGoogleMapsUrl(input: string): { lat: number; lon: number } | null {
+  if (!input || typeof input !== 'string') return null
+  const url = input.trim()
+  if (!url) return null
+
+  // @lat,lng,zoom — most common shape from desktop "Share / Embed map".
+  // Decimal degrees with optional minus sign and 1+ decimal places.
+  const atMatch = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/)
+  if (atMatch) {
+    const lat = parseFloat(atMatch[1])
+    const lon = parseFloat(atMatch[2])
+    if (Number.isFinite(lat) && Number.isFinite(lon)) return { lat, lon }
+  }
+
+  // ?q=lat,lng or &q=lat,lng (older shape, copy-paste from "What's here?")
+  const qMatch = url.match(/[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/)
+  if (qMatch) {
+    const lat = parseFloat(qMatch[1])
+    const lon = parseFloat(qMatch[2])
+    if (Number.isFinite(lat) && Number.isFinite(lon)) return { lat, lon }
+  }
+
+  // ?ll=lat,lng (alternate query param used by some Maps share variants)
+  const llMatch = url.match(/[?&]ll=(-?\d+\.\d+),(-?\d+\.\d+)/)
+  if (llMatch) {
+    const lat = parseFloat(llMatch[1])
+    const lon = parseFloat(llMatch[2])
+    if (Number.isFinite(lat) && Number.isFinite(lon)) return { lat, lon }
+  }
+
+  return null
+}
+
+/**
  * Public-safe attribution display name for a directory submission.
  * "Sarah Karaman" → "Sarah K." — drops the last name to the initial
  * so the directory's "Added by …" line doesn't leak the full surname
