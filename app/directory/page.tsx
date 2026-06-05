@@ -7,7 +7,6 @@ import { toast } from 'sonner'
 import { useAuth } from '@/contexts/AuthContext'
 import { resolveImageUrl } from '@/lib/data'
 import { BUSINESS_CATEGORIES } from '@/lib/directory'
-import { isSafeHref } from '@/lib/safeUrl'
 import DirectoryReviews from '@/components/DirectoryReviews'
 import DirectoryReportButton from '@/components/DirectoryReportButton'
 import DirectoryOwnerEdit from '@/components/DirectoryOwnerEdit'
@@ -349,33 +348,19 @@ function BusinessCard({
           )}
         </p>
 
-        {/* Links. Each href passes through isSafeHref / the IG handle
-            regex so a historical row with an unsanitized javascript:
-            URL can't fire — render-time defense-in-depth on top of the
-            API-level validation. */}
-        <div className="flex gap-1.5 pt-2 border-t border-gray-50 mt-auto">
-          {b.website && isSafeHref(b.website) && (
-            <a href={b.website} target="_blank" rel="noopener noreferrer nofollow"
-              className="flex-1 text-center text-[10px] font-semibold text-amber-600 hover:text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg py-1.5 transition-colors">
-              Website
-            </a>
-          )}
-          {b.instagram && /^[A-Za-z0-9._]{1,30}$/.test(b.instagram.replace(/^@/, '')) && (
-            <a href={`https://instagram.com/${b.instagram.replace(/^@/, '')}`} target="_blank" rel="noopener noreferrer nofollow"
-              className="flex-1 text-center text-[10px] font-semibold text-pink-600 hover:text-pink-700 bg-pink-50 hover:bg-pink-100 rounded-lg py-1.5 transition-colors">
-              Instagram
-            </a>
-          )}
-          {b.phone && /^[+\d\s\-()]{4,40}$/.test(b.phone) && (
-            <a href={`tel:${b.phone.replace(/[^\d+]/g, '')}`}
-              className="flex-1 text-center text-[10px] font-semibold text-green-600 hover:text-green-700 bg-green-50 hover:bg-green-100 rounded-lg py-1.5 transition-colors">
-              Call
-            </a>
-          )}
-          {!b.website && !b.instagram && !b.phone && (
-            <span className="text-[10px] text-gray-300 italic flex-1">No links</span>
-          )}
-        </div>
+        {/* Single "View details" CTA replacing the previous three-link
+            row (Website / Instagram / Call). Those contact actions now
+            live exclusively on the detail page at /directory/[id]
+            where the visitor can see the full info card alongside
+            hours, address, map, etc. — keeps the grid cards uniform
+            in height and pushes traffic to the SEO-indexed detail
+            route. */}
+        <Link
+          href={`/directory/${b.id}`}
+          className="block text-center text-[11px] font-semibold text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 rounded-lg py-1.5 mt-auto transition-colors"
+        >
+          View details →
+        </Link>
 
         {/* Bottom row: owner-edit (verified owners only) + report.
             Both render as tiny inline text links so they don't fight

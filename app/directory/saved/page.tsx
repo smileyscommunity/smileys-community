@@ -12,7 +12,6 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { useAuth } from '@/contexts/AuthContext'
 import { resolveImageUrl } from '@/lib/data'
-import { isSafeHref } from '@/lib/safeUrl'
 
 interface SavedBusiness {
   id: string
@@ -176,19 +175,18 @@ export default function SavedDirectoryPage() {
                         ))}
                       </div>
                     )}
+                    {/* Same simplification as the main /directory card —
+                        contact links (Website / IG / Call) live on the
+                        detail page only. Saved cards now offer just
+                        the two actions that matter on this surface:
+                        open the detail page or unsave. */}
                     <div className="flex gap-1.5 pt-2 border-t border-gray-50 mt-auto">
                       <Link
                         href={`/directory/${b.id}`}
-                        className="flex-1 text-center text-[10px] font-semibold text-gray-700 hover:text-gray-900 bg-gray-50 hover:bg-gray-100 rounded-lg py-1.5 transition-colors"
+                        className="flex-1 text-center text-[10px] font-semibold text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 rounded-lg py-1.5 transition-colors"
                       >
-                        Open details
+                        View details →
                       </Link>
-                      {b.website && isSafeHref(b.website) && (
-                        <a href={b.website} target="_blank" rel="noopener noreferrer nofollow"
-                          className="flex-1 text-center text-[10px] font-semibold text-amber-600 hover:text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg py-1.5 transition-colors">
-                          Website
-                        </a>
-                      )}
                       <button
                         onClick={() => unsave(b.id)}
                         className="text-[10px] font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg py-1.5 px-2 transition-colors"
