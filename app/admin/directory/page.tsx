@@ -15,6 +15,54 @@ import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
 // form. Click → file picker → POST /api/upload?folder=directory →
 // fills the URL field on success. The folder is admin/moderator-only
 // at the upload route layer.
+// Controlled Maps-URL paste field. Local state holds the raw text so
+// the input is a proper React-controlled input (no e.target.value
+// mutation), and parsing runs on every change but the failure-toast
+// fires only on blur — so the user can type/paste freely without
+// being yelled at mid-word.
+function MapsUrlInput({
+  onParsed, className,
+}: {
+  onParsed: (coords: { lat: number; lon: number }) => void
+  className?: string
+}) {
+  const [value, setValue] = useState('')
+
+  function attemptParse(text: string, fireErrorToast: boolean): boolean {
+    if (!text.trim()) return false
+    const parsed = parseGoogleMapsUrl(text)
+    if (parsed) {
+      onParsed(parsed)
+      toast.success(`Coords filled: ${parsed.lat.toFixed(4)}, ${parsed.lon.toFixed(4)}`)
+      setValue('')
+      return true
+    }
+    if (fireErrorToast && /^https?:\/\//.test(text.trim())) {
+      // Only warn when the text is clearly URL-shaped — silent for
+      // partial typing.
+      toast.error('No coordinates in that URL — open the desktop Maps link and copy from the address bar')
+    }
+    return false
+  }
+
+  return (
+    <input
+      type="text"
+      value={value}
+      onChange={e => {
+        const next = e.target.value
+        setValue(next)
+        // Try to parse silently on every change so a successful paste
+        // auto-fills without needing to blur first.
+        attemptParse(next, /* fireErrorToast */ false)
+      }}
+      onBlur={() => attemptParse(value, /* fireErrorToast */ true)}
+      placeholder="https://www.google.com/maps/place/…/@41.0345,28.9817,17z/…"
+      className={className}
+    />
+  )
+}
+
 function UploadButton({
   onUploaded, label = 'Upload',
 }: {
@@ -461,19 +509,9 @@ function BusinessRow({ b, onAction }: { b: Business; onAction: () => void }) {
             </div>
             <div className="sm:col-span-2">
               <label className={labelCls}>Paste Google Maps URL</label>
-              <input
-                type="text"
-                placeholder="https://www.google.com/maps/place/…/@41.0345,28.9817,17z/…"
-                onChange={e => {
-                  const parsed = parseGoogleMapsUrl(e.target.value)
-                  if (parsed) {
-                    setEdit(s => ({ ...s, latitude: String(parsed.lat), longitude: String(parsed.lon) }))
-                    toast.success(`Coords filled: ${parsed.lat.toFixed(4)}, ${parsed.lon.toFixed(4)}`)
-                    e.target.value = ''
-                  } else if (e.target.value.trim().length > 20) {
-                    // Only warn once the field has enough text to be a URL — silent during typing.
-                    toast.error('Could not find coordinates in that URL — open the desktop Maps link and copy from the address bar')
-                  }
+              <MapsUrlInput
+                onParsed={({ lat, lon }) => {
+                  setEdit(s => ({ ...s, latitude: String(lat), longitude: String(lon) }))
                 }}
                 className={inputCls}
               />

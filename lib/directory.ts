@@ -100,29 +100,29 @@ export function parseGoogleMapsUrl(input: string): { lat: number; lon: number } 
   const url = input.trim()
   if (!url) return null
 
-  // @lat,lng,zoom — most common shape from desktop "Share / Embed map".
-  // Decimal degrees with optional minus sign and 1+ decimal places.
-  const atMatch = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/)
-  if (atMatch) {
-    const lat = parseFloat(atMatch[1])
-    const lon = parseFloat(atMatch[2])
-    if (Number.isFinite(lat) && Number.isFinite(lon)) return { lat, lon }
-  }
-
-  // ?q=lat,lng or &q=lat,lng (older shape, copy-paste from "What's here?")
-  const qMatch = url.match(/[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/)
-  if (qMatch) {
-    const lat = parseFloat(qMatch[1])
-    const lon = parseFloat(qMatch[2])
-    if (Number.isFinite(lat) && Number.isFinite(lon)) return { lat, lon }
-  }
-
-  // ?ll=lat,lng (alternate query param used by some Maps share variants)
-  const llMatch = url.match(/[?&]ll=(-?\d+\.\d+),(-?\d+\.\d+)/)
-  if (llMatch) {
-    const lat = parseFloat(llMatch[1])
-    const lon = parseFloat(llMatch[2])
-    if (Number.isFinite(lat) && Number.isFinite(lon)) return { lat, lon }
+  // Try each known coord pattern; return the first one whose values land
+  // inside the valid global ranges. A regex-pure match like @99,200 used
+  // to pass through and trigger a misleading "Coords filled" toast,
+  // followed by a 400 from the server-side parseCoord check.
+  const patterns: RegExp[] = [
+    // @lat,lng — most common shape from desktop "Share / Embed map".
+    /@(-?\d+\.\d+),(-?\d+\.\d+)/,
+    // ?q=lat,lng or &q=lat,lng (older "What's here?" copy-paste shape).
+    /[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/,
+    // ?ll=lat,lng (alternate query param used by some Maps share variants).
+    /[?&]ll=(-?\d+\.\d+),(-?\d+\.\d+)/,
+  ]
+  for (const re of patterns) {
+    const m = url.match(re)
+    if (!m) continue
+    const lat = parseFloat(m[1])
+    const lon = parseFloat(m[2])
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue
+    // Global range bounds — same constraint the server-side parseCoord
+    // applies, so what the UI says is fillable will actually save.
+    if (lat < -90  || lat > 90)  continue
+    if (lon < -180 || lon > 180) continue
+    return { lat, lon }
   }
 
   return null
