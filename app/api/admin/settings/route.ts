@@ -14,9 +14,6 @@ const settingsPath = join(process.cwd(), 'data', 'settings.json')
 const SERIALIZED_MAX = 100_000
 const SHORT_STR_MAX  = 200
 const DESC_STR_MAX   = 500
-// House rules can run a few paragraphs — bullet lists, conduct
-// notes, escalation paths. 4 KB is plenty without unbounding.
-const RULES_STR_MAX  = 4_000
 
 // ---------- per-field allowlists ----------
 // Each top-level field of settings.json is normalized through a per-key
@@ -34,7 +31,34 @@ const STRING_KEYS: Record<string, number> = {
   website:        SHORT_STR_MAX,
   instagram:      SHORT_STR_MAX,
   whatsapp:       SHORT_STR_MAX,
-  communityRules: RULES_STR_MAX,
+  // communityRules is handled separately (structured array, not string)
+}
+
+// Structured community house rules — array of { icon, title, body }
+// per rule. Capped at 12 rules; titles 60 chars; bodies 280 chars
+// (tweet length keeps the cards scannable). Icons capped at 8 chars
+// to hold a multi-codepoint emoji like 👨‍👩‍👧 without unbounding.
+const RULES_MAX_COUNT     = 12
+const RULE_ICON_MAX       = 8
+const RULE_TITLE_MAX      = 60
+const RULE_BODY_MAX       = 280
+
+function normalizeRules(input: unknown): { icon?: string; title: string; body: string }[] {
+  if (!Array.isArray(input)) return []
+  const out: { icon?: string; title: string; body: string }[] = []
+  for (const item of input.slice(0, RULES_MAX_COUNT)) {
+    if (!item || typeof item !== 'object') continue
+    const rec = item as Record<string, unknown>
+    const title = str(rec.title, RULE_TITLE_MAX).trim()
+    const body  = str(rec.body,  RULE_BODY_MAX).trim()
+    // Skip blank rows so the admin can leave an empty form-row open
+    // without persisting it. A rule needs at least a title OR body
+    // to be meaningful.
+    if (!title && !body) continue
+    const icon = str(rec.icon, RULE_ICON_MAX).trim()
+    out.push(icon ? { icon, title, body } : { title, body })
+  }
+  return out
 }
 
 // Toggles surfaced on /admin/settings — anything outside this set
@@ -188,6 +212,13 @@ export async function POST(req: NextRequest) {
     // Top-level community strings.
     for (const key of Object.keys(STRING_KEYS)) {
       if (key in body) patch[key] = str((body as Record<string, unknown>)[key], STRING_KEYS[key])
+    }
+
+    // Structured house rules — separate path because it's an array
+    // of objects, not a string. Empty array is a legitimate save
+    // ("clear all rules"), so we always emit the key when present.
+    if ('communityRules' in body) {
+      patch.communityRules = normalizeRules((body as Record<string, unknown>).communityRules)
     }
 
     if ('pricing' in body) {

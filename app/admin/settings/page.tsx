@@ -10,6 +10,12 @@ interface Toggle {
   value: boolean
 }
 
+// Matches CommunityRule in lib/communitySettings.ts. Kept inline (not
+// imported) because this file is a client component and the loader
+// uses fs/node imports.
+interface Rule { icon?: string; title: string; body: string }
+const RULES_MAX_COUNT = 12
+
 export default function AdminSettingsPage() {
   const [saving,   setSaving]   = useState(false)
 
@@ -17,15 +23,18 @@ export default function AdminSettingsPage() {
   // copy (the old defaults included a fake "+90 555 000 0000" number
   // that briefly looked like real data on slow connections).
   const [community, setCommunity] = useState({
-    name:           '',
-    tagline:        '',
-    description:    '',
-    email:          '',
-    website:        '',
-    instagram:      '',
-    whatsapp:       '',
-    communityRules: '',
+    name:        '',
+    tagline:     '',
+    description: '',
+    email:       '',
+    website:     '',
+    instagram:   '',
+    whatsapp:    '',
   })
+  // Rules live in their own state slot because they're a separate
+  // shape (array of objects) and have their own editor with
+  // per-rule add/remove/reorder handlers.
+  const [rules, setRules] = useState<Rule[]>([])
 
   useEffect(() => {
     fetch('/app/api/admin/settings', { credentials: 'include' })
@@ -40,7 +49,11 @@ export default function AdminSettingsPage() {
       })
       .then(data => {
         if (!data) return
-        setCommunity(prev => ({ ...prev, ...data }))
+        const { communityRules, ...rest } = data
+        setCommunity(prev => ({ ...prev, ...rest }))
+        // Coerce: array → use as-is, anything else (legacy string /
+        // undefined / null) → empty.
+        setRules(Array.isArray(communityRules) ? communityRules : [])
         if (data.pricing)       setPricing(p => ({ ...p, ...data.pricing }))
         if (data.notifications) setNotifications(p => ({ ...p, ...data.notifications }))
         if (data.toggles)       setToggles(prev => prev.map(t => ({ ...t, value: data.toggles[t.id] ?? t.value })))
@@ -180,22 +193,102 @@ export default function AdminSettingsPage() {
 
             {/* Community-wide house rules. Surfaced on every club page
                 above the club's own rules — sets the baseline conduct
-                expectations everyone agrees to by being on Smileys. */}
+                expectations everyone agrees to by being on Smileys.
+                Structured per-rule (icon + title + body) so the club
+                page can render them as scannable cards instead of a
+                wall of text. */}
             <div className="mt-2">
               <label className="block text-xs font-semibold text-zinc-400 mb-1.5">
                 Community house rules
                 <span className="text-zinc-500 font-normal"> · shown on every club page</span>
               </label>
-              <textarea
-                rows={6}
-                maxLength={4000}
-                value={community.communityRules}
-                onChange={(e) => setCommunity((p) => ({ ...p, communityRules: e.target.value }))}
-                placeholder={'1. Be kind — sarcasm is fine, contempt is not\n2. RSVP integrity — show up or cancel early\n3. No selling / MLM / recruiting at events\n…'}
-                className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 resize-y font-mono"
-              />
-              <p className="text-[10px] text-zinc-500 mt-1">
-                Plain text — line breaks preserved on the club page. {community.communityRules.length}/4000.
+
+              <div className="space-y-3">
+                {rules.length === 0 && (
+                  <p className="text-xs text-zinc-500 italic">
+                    No rules yet. Add the first one below.
+                  </p>
+                )}
+                {rules.map((r, i) => (
+                  <div key={i} className="bg-zinc-800/60 border border-zinc-700 rounded-xl p-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-zinc-500 w-6">#{i + 1}</span>
+                      <input
+                        type="text"
+                        value={r.icon ?? ''}
+                        onChange={(e) => setRules(prev => prev.map((x, j) => j === i ? { ...x, icon: e.target.value } : x))}
+                        placeholder="🤝"
+                        maxLength={8}
+                        className="w-14 px-2 py-1.5 rounded-lg bg-zinc-900 border border-zinc-700 text-white text-center text-base focus:outline-none focus:ring-2 focus:ring-amber-500"
+                        aria-label={`Rule ${i + 1} icon`}
+                      />
+                      <input
+                        type="text"
+                        value={r.title}
+                        onChange={(e) => setRules(prev => prev.map((x, j) => j === i ? { ...x, title: e.target.value } : x))}
+                        placeholder="Short headline (e.g. Be kind)"
+                        maxLength={60}
+                        className="flex-1 px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder-zinc-500 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                        aria-label={`Rule ${i + 1} title`}
+                      />
+                      <div className="flex items-center gap-0.5">
+                        <button
+                          type="button"
+                          disabled={i === 0}
+                          onClick={() => setRules(prev => {
+                            const next = [...prev]
+                            ;[next[i - 1], next[i]] = [next[i], next[i - 1]]
+                            return next
+                          })}
+                          className="w-7 h-7 flex items-center justify-center rounded-md text-zinc-400 hover:bg-zinc-700 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent"
+                          aria-label="Move up"
+                        >↑</button>
+                        <button
+                          type="button"
+                          disabled={i === rules.length - 1}
+                          onClick={() => setRules(prev => {
+                            const next = [...prev]
+                            ;[next[i], next[i + 1]] = [next[i + 1], next[i]]
+                            return next
+                          })}
+                          className="w-7 h-7 flex items-center justify-center rounded-md text-zinc-400 hover:bg-zinc-700 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent"
+                          aria-label="Move down"
+                        >↓</button>
+                        <button
+                          type="button"
+                          onClick={() => setRules(prev => prev.filter((_, j) => j !== i))}
+                          className="w-7 h-7 flex items-center justify-center rounded-md text-zinc-400 hover:bg-red-500/20 hover:text-red-400"
+                          aria-label="Remove rule"
+                        >×</button>
+                      </div>
+                    </div>
+                    <textarea
+                      rows={2}
+                      value={r.body}
+                      onChange={(e) => setRules(prev => prev.map((x, j) => j === i ? { ...x, body: e.target.value } : x))}
+                      placeholder="One or two sentences explaining the rule."
+                      maxLength={280}
+                      className="w-full px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder-zinc-500 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none"
+                      aria-label={`Rule ${i + 1} body`}
+                    />
+                    <p className="text-[10px] text-zinc-500 text-right">
+                      {r.body.length}/280
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              {rules.length < RULES_MAX_COUNT && (
+                <button
+                  type="button"
+                  onClick={() => setRules(prev => [...prev, { icon: '', title: '', body: '' }])}
+                  className="mt-3 w-full px-4 py-2.5 rounded-xl border-2 border-dashed border-zinc-700 hover:border-amber-500 text-xs font-semibold text-zinc-400 hover:text-amber-400 transition-colors"
+                >
+                  + Add rule
+                </button>
+              )}
+              <p className="text-[10px] text-zinc-500 mt-2">
+                Max {RULES_MAX_COUNT} rules. Icons optional — numbered fallback when blank. Empty rules are dropped on save.
               </p>
             </div>
           </div>
@@ -209,7 +302,7 @@ export default function AdminSettingsPage() {
                     method: 'POST',
                     credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(community),
+                    body: JSON.stringify({ ...community, communityRules: rules }),
                   })
                   if (res.ok) {
                     toast.success('Community info saved ✓')

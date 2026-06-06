@@ -276,10 +276,14 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
             </div>
 
             {/* House rules — community-wide first, then club-specific.
-                Uses a native <details> disclosure widget so members see
-                the summary line by default and can expand. No client
-                JS needed. Renders nothing when neither set is configured. */}
-            {(communitySettings.communityRules || club.rules) && (
+                Native <details> disclosure so members see the summary
+                line by default and can expand. No client JS needed.
+                Community rules are structured (icon + title + body
+                per rule) and render as a stack of cards; club rules
+                stay as free-text for now (their editor is still a
+                plain textarea on /admin/clubs/[id]). Renders nothing
+                when neither set is configured. */}
+            {((communitySettings.communityRules?.length ?? 0) > 0 || club.rules) && (
               <details className="bg-amber-50 border border-amber-100 rounded-2xl mb-8 group">
                 <summary className="px-6 py-4 cursor-pointer select-none flex items-center justify-between gap-3">
                   <span className="flex items-center gap-2 text-sm font-bold text-amber-900">
@@ -289,14 +293,35 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
                   <span className="text-xs text-amber-700 hidden group-open:inline">Collapse</span>
                 </summary>
                 <div className="px-6 pb-6 space-y-5 text-sm text-amber-950">
-                  {communitySettings.communityRules && (
+                  {(communitySettings.communityRules?.length ?? 0) > 0 && (
                     <div>
-                      <h3 className="text-[11px] font-bold uppercase tracking-widest text-amber-700 mb-2">
+                      <h3 className="text-[11px] font-bold uppercase tracking-widest text-amber-700 mb-3">
                         Smileys Community
                       </h3>
-                      <p className="whitespace-pre-wrap leading-relaxed">
-                        {communitySettings.communityRules}
-                      </p>
+                      <ol className="space-y-2.5">
+                        {communitySettings.communityRules!.map((r, i) => (
+                          <li key={i} className="flex gap-3">
+                            <span
+                              className="shrink-0 w-7 h-7 rounded-full bg-amber-100 border border-amber-200 flex items-center justify-center text-sm font-bold text-amber-800"
+                              aria-hidden="true"
+                            >
+                              {r.icon || (i + 1)}
+                            </span>
+                            <div className="flex-1 min-w-0 pt-0.5">
+                              {r.title && (
+                                <p className="font-semibold text-amber-900 leading-tight">
+                                  {r.title}
+                                </p>
+                              )}
+                              {r.body && (
+                                <p className="text-amber-950/80 leading-relaxed mt-0.5">
+                                  {r.body}
+                                </p>
+                              )}
+                            </div>
+                          </li>
+                        ))}
+                      </ol>
                     </div>
                   )}
                   {club.rules && (

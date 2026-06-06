@@ -8,6 +8,13 @@
 import { readFileSync } from 'fs'
 import { join } from 'path'
 
+export interface CommunityRule {
+  icon?: string   // optional single emoji (≤8 chars). Falls back to a
+                  // numbered chip in the render when missing.
+  title: string   // short headline, ≤60 chars
+  body:  string   // 1-2 sentence explanation, ≤280 chars
+}
+
 export interface CommunitySettings {
   name?:        string
   tagline?:     string
@@ -18,17 +25,26 @@ export interface CommunitySettings {
   whatsapp?:    string  // stored as a WhatsApp channel URL, e.g.
                         // "https://whatsapp.com/channel/0029VaXXXXXX"
   // Community-wide house rules surfaced on every club page above
-  // the club's own rules. Plain text with whitespace preserved at
-  // render time (no markdown — keeps the input simple in
-  // /admin/settings).
-  communityRules?: string
+  // the club's own rules. Structured (icon + title + body per rule)
+  // so the renderer can do something better than a wall of text.
+  // Capped at 12 rules — past that, nobody reads.
+  communityRules?: CommunityRule[]
 }
 
 const SETTINGS_PATH = join(process.cwd(), 'data', 'settings.json')
 
 export function loadCommunitySettings(): CommunitySettings {
   try {
-    return JSON.parse(readFileSync(SETTINGS_PATH, 'utf-8'))
+    const raw = JSON.parse(readFileSync(SETTINGS_PATH, 'utf-8')) as CommunitySettings & { communityRules?: unknown }
+    // Legacy: communityRules used to be a single plain-text blob.
+    // If we still see that shape on disk, drop it silently — the
+    // admin will re-author in the new structured editor. Avoids
+    // showing garbled text on every club page during the migration
+    // window.
+    if (typeof raw.communityRules === 'string') {
+      raw.communityRules = []
+    }
+    return raw as CommunitySettings
   } catch {
     return {}
   }
