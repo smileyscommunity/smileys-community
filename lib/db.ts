@@ -6,7 +6,12 @@ import { todayIstanbul } from './data'
 
 export async function getClubs(): Promise<Club[]> {
   const today = todayIstanbul()
+  // isActive:true is the public-surface gate. Admins deactivate
+  // clubs via /admin/clubs (sets isActive=false on the row); those
+  // are hidden everywhere a member could discover them — listing,
+  // detail page, search, sitemap, dashboard recommendations.
   const rows = await prisma.club.findMany({
+    where: { isActive: true },
     orderBy: { name: 'asc' },
     include: {
       _count: { select: { memberships: { where: { status: 'approved' } } } },
@@ -26,7 +31,13 @@ export async function getClubs(): Promise<Club[]> {
 }
 
 export async function getClubBySlug(slug: string): Promise<Club | undefined> {
-  const row = await prisma.club.findUnique({ where: { slug } })
+  // findFirst (not findUnique) so we can compose the slug match with
+  // the isActive gate. Deactivated clubs return undefined → the
+  // detail page + public JSON endpoint both 404, matching the
+  // "removed from public surfaces" semantics of deactivation.
+  // Admin/host surfaces query prisma.club directly and aren't
+  // affected.
+  const row = await prisma.club.findFirst({ where: { slug, isActive: true } })
   return row ? (row as Club) : undefined
 }
 
