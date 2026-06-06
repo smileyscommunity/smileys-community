@@ -63,12 +63,21 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
   const clubEvents = await getEventsByClub(club.id)
 
   const today = new Date().toISOString().split('T')[0]
-  const [totalEventCount, lastEvent] = await Promise.all([
+  const [totalEventCount, lastEvent, reviewStats] = await Promise.all([
     prisma.event.count({ where: { clubId: club.id, status: { not: 'draft' } } }),
     prisma.event.findFirst({
       where: { clubId: club.id, date: { lt: today }, status: { in: ['published', 'archived', 'cancelled'] } },
       orderBy: { date: 'desc' },
       select: { date: true },
+    }),
+    // Aggregate reviews across all events in this club — mirrors the
+    // same filter the /api/clubs/[slug]/reviews route uses, so the
+    // count + avg in the tab badge match what the Reviews tab shows
+    // once opened.
+    prisma.review.aggregate({
+      where: { event: { clubId: club.id } },
+      _count: { _all: true },
+      _avg:   { rating: true },
     }),
   ])
 
@@ -223,7 +232,11 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
               canPin={canPin}
               canAnnounce={canAnnounce}
               canUpload={canUpload}
+              isMember={membershipStatus === 'approved'}
               memberAttendeesByEvent={memberAttendeesByEvent}
+              memberCount={club.memberCount}
+              reviewCount={reviewStats._count._all}
+              reviewAvg={reviewStats._avg.rating}
             />
           </div>
 

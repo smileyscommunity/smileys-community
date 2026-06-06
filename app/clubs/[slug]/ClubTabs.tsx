@@ -6,6 +6,8 @@ import ClubWall from '@/components/ClubWall'
 import ClubAnnouncements from '@/components/ClubAnnouncements'
 import ClubPhotos from '@/components/ClubPhotos'
 import ClubMembers from '@/components/ClubMembers'
+import ClubPastEvents from '@/components/ClubPastEvents'
+import ClubReviews from '@/components/ClubReviews'
 import { resolveImageUrl, getInitials } from '@/lib/data'
 
 interface ClubEvent {
@@ -26,7 +28,14 @@ interface Props {
   canPin?: boolean
   canAnnounce: boolean
   canUpload: boolean
+  isMember: boolean
   memberAttendeesByEvent: Record<string, MemberAttendee[]>
+  // Counts surfaced as small badges on the tab labels — passed from
+  // the server so the badge is rendered immediately on first paint
+  // (no client-side flash from a follow-up fetch).
+  memberCount: number
+  reviewCount: number
+  reviewAvg:   number | null
 }
 
 function AttendeeStack({ attendees }: { attendees: MemberAttendee[] }) {
@@ -54,20 +63,29 @@ function AttendeeStack({ attendees }: { attendees: MemberAttendee[] }) {
   )
 }
 
-type Tab = 'events' | 'wall' | 'announcements' | 'photos' | 'members'
+type Tab = 'events' | 'wall' | 'photos' | 'past' | 'reviews' | 'members'
 
 export default function ClubTabs({
   slug, clubEvents, canPost, currentUserId, isAdmin, canPin,
-  canAnnounce, canUpload, memberAttendeesByEvent,
+  canAnnounce, canUpload, isMember, memberAttendeesByEvent,
+  memberCount, reviewCount, reviewAvg,
 }: Props) {
   const [tab, setTab] = useState<Tab>('events')
 
+  // Compose the Reviews label with both the count and the average:
+  // "Reviews (12) · ★ 4.7". Falls back to a plain "Reviews" label
+  // when the club has none yet — no point teasing an empty rating.
+  const reviewsLabel = reviewCount > 0
+    ? `Reviews (${reviewCount})${reviewAvg != null ? ` · ★ ${reviewAvg.toFixed(1)}` : ''}`
+    : 'Reviews'
+
   const tabs: { key: Tab; label: string }[] = [
-    { key: 'events',        label: `Upcoming Events${clubEvents.length > 0 ? ` (${clubEvents.length})` : ''}` },
-    { key: 'wall',          label: 'Wall' },
-    { key: 'announcements', label: 'Announcements' },
-    { key: 'photos',        label: 'Photos' },
-    { key: 'members',       label: 'Members' },
+    { key: 'events',  label: `Events${clubEvents.length > 0 ? ` (${clubEvents.length})` : ''}` },
+    { key: 'wall',    label: 'Wall' },
+    { key: 'photos',  label: 'Photos' },
+    { key: 'past',    label: 'Past Events' },
+    { key: 'reviews', label: reviewsLabel },
+    { key: 'members', label: memberCount > 0 ? `Members (${memberCount})` : 'Members' },
   ]
 
   return (
@@ -107,28 +125,34 @@ export default function ClubTabs({
           </div>
         )
       ) : tab === 'wall' ? (
-        <ClubWall
-          slug={slug}
-          canPost={canPost}
-          currentUserId={currentUserId}
-          isAdmin={isAdmin}
-          canPin={canPin}
-        />
-      ) : tab === 'announcements' ? (
-        <ClubAnnouncements
-          slug={slug}
-          canAnnounce={canAnnounce}
-          currentUserId={currentUserId}
-          isAdmin={isAdmin}
-        />
+        <div className="space-y-8">
+          <ClubAnnouncements
+            slug={slug}
+            canAnnounce={canAnnounce}
+            currentUserId={currentUserId}
+            isAdmin={isAdmin}
+          />
+          <ClubWall
+            slug={slug}
+            canPost={canPost}
+            currentUserId={currentUserId}
+            isAdmin={isAdmin}
+            canPin={canPin}
+          />
+        </div>
       ) : tab === 'photos' ? (
         <ClubPhotos
           slug={slug}
           canUpload={canUpload}
+          isMember={isMember}
           currentUserId={currentUserId}
           isAdmin={isAdmin}
           canPin={canPin}
         />
+      ) : tab === 'past' ? (
+        <ClubPastEvents slug={slug} />
+      ) : tab === 'reviews' ? (
+        <ClubReviews slug={slug} isMember={isMember} />
       ) : (
         <ClubMembers slug={slug} />
       )}
