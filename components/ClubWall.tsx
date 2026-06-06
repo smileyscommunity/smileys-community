@@ -222,9 +222,14 @@ function PollComposer({ onChange }: {
 
 interface Props {
   slug: string; canPost: boolean; currentUserId?: string; isAdmin?: boolean; canPin?: boolean
+  // When true, polls aren't surfaced in the discussion stream (the
+  // ClubTabs Wall view renders a dedicated 📊 Polls section above
+  // and would otherwise duplicate each one). Defaults to false so
+  // standalone uses of ClubWall still show polls inline.
+  excludePolls?: boolean
 }
 
-export default function ClubWall({ slug, canPost, currentUserId, isAdmin, canPin }: Props) {
+export default function ClubWall({ slug, canPost, currentUserId, isAdmin, canPin, excludePolls }: Props) {
   const [posts,          setPosts]          = useState<Post[]>([])
   const [loading,        setLoading]        = useState(true)
   const [content,        setContent]        = useState('')
@@ -390,14 +395,22 @@ export default function ClubWall({ slug, canPost, currentUserId, isAdmin, canPin
             </div>
           ))}
         </div>
-      ) : posts.length === 0 ? (
-        <div className="bg-white rounded-2xl shadow-card p-12 text-center">
-          <span className="text-4xl block mb-3">💬</span>
-          <p className="text-gray-500 text-sm">No posts yet. Be the first to share something!</p>
-        </div>
-      ) : (
+      ) : (() => {
+        // Filter polls out when the parent renders a dedicated Polls
+        // section above us. Derived inline so we don't have to refactor
+        // every setPosts call site to keep two arrays in sync.
+        const visible = excludePolls ? posts.filter(p => p.poll === null) : posts
+        if (visible.length === 0) {
+          return (
+            <div className="bg-white rounded-2xl shadow-card p-12 text-center">
+              <span className="text-4xl block mb-3">💬</span>
+              <p className="text-gray-500 text-sm">No posts yet. Be the first to share something!</p>
+            </div>
+          )
+        }
+        return (
         <div className="space-y-3">
-          {posts.map(post => {
+          {visible.map(post => {
             const canDelete      = currentUserId === post.author.id || isAdmin
             const isExpanded     = expandedReplies.has(post.id)
             const visibleReplies = isExpanded ? post.replies : post.replies.slice(-PREVIEW_COUNT)
@@ -536,7 +549,8 @@ export default function ClubWall({ slug, canPost, currentUserId, isAdmin, canPin
             )
           })}
         </div>
-      )}
+        )
+      })()}
     </div>
   )
 }

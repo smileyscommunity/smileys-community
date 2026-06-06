@@ -4,6 +4,7 @@ import { useState } from 'react'
 import EventCard from '@/components/EventCard'
 import ClubWall from '@/components/ClubWall'
 import ClubAnnouncements from '@/components/ClubAnnouncements'
+import ClubPolls from '@/components/ClubPolls'
 import ClubPhotos from '@/components/ClubPhotos'
 import ClubMembers from '@/components/ClubMembers'
 import ClubPastEvents from '@/components/ClubPastEvents'
@@ -82,10 +83,10 @@ export default function ClubTabs({
   const tabs: { key: Tab; label: string }[] = [
     { key: 'events',  label: `Events${clubEvents.length > 0 ? ` (${clubEvents.length})` : ''}` },
     { key: 'wall',    label: 'Wall' },
-    { key: 'photos',  label: 'Photos' },
-    { key: 'past',    label: 'Past Events' },
-    { key: 'reviews', label: reviewsLabel },
     { key: 'members', label: memberCount > 0 ? `Members (${memberCount})` : 'Members' },
+    { key: 'photos',  label: 'Photos' },
+    { key: 'reviews', label: reviewsLabel },
+    { key: 'past',    label: 'Past Events' },
   ]
 
   return (
@@ -125,20 +126,48 @@ export default function ClubTabs({
           </div>
         )
       ) : tab === 'wall' ? (
-        <div className="space-y-8">
-          <ClubAnnouncements
-            slug={slug}
-            canAnnounce={canAnnounce}
-            currentUserId={currentUserId}
-            isAdmin={isAdmin}
-          />
-          <ClubWall
-            slug={slug}
-            canPost={canPost}
-            currentUserId={currentUserId}
-            isAdmin={isAdmin}
-            canPin={canPin}
-          />
+        // Three labelled sub-sections so the wall scans as
+        // "Announcements / Polls / Discussion" rather than one long
+        // mixed stream. ClubWall hides polls (excludePolls) since
+        // the ClubPolls block above already renders them — no
+        // duplication.
+        <div className="space-y-10">
+          <section>
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+              <span>📢</span> Announcements
+            </h3>
+            <ClubAnnouncements
+              slug={slug}
+              canAnnounce={canAnnounce}
+              currentUserId={currentUserId}
+              isAdmin={isAdmin}
+            />
+          </section>
+
+          <section>
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+              <span>📊</span> Polls
+            </h3>
+            <ClubPolls
+              slug={slug}
+              canPost={canPost}
+              currentUserId={currentUserId}
+            />
+          </section>
+
+          <section>
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+              <span>💬</span> Discussion
+            </h3>
+            <ClubWall
+              slug={slug}
+              canPost={canPost}
+              currentUserId={currentUserId}
+              isAdmin={isAdmin}
+              canPin={canPin}
+              excludePolls
+            />
+          </section>
         </div>
       ) : tab === 'photos' ? (
         <ClubPhotos
