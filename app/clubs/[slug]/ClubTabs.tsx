@@ -4,7 +4,6 @@ import { useState } from 'react'
 import EventCard from '@/components/EventCard'
 import ClubWall from '@/components/ClubWall'
 import ClubAnnouncements from '@/components/ClubAnnouncements'
-import ClubPolls from '@/components/ClubPolls'
 import ClubPhotos from '@/components/ClubPhotos'
 import ClubMembers from '@/components/ClubMembers'
 import ClubPastEvents from '@/components/ClubPastEvents'
@@ -126,11 +125,12 @@ export default function ClubTabs({
           </div>
         )
       ) : tab === 'wall' ? (
-        // Three labelled sub-sections so the wall scans as
-        // "Announcements / Polls / Discussion" rather than one long
-        // mixed stream. ClubWall hides polls (excludePolls) since
-        // the ClubPolls block above already renders them — no
-        // duplication.
+        // Two labelled sub-sections: pinned announcements up top,
+        // then the open discussion stream. Polls are NOT a separate
+        // block any more — they live inline in the discussion feed
+        // alongside text posts. Creating a poll is still admin/host
+        // only (the "📊 Poll" toggle in ClubWall's composer is gated
+        // on canAnnounce, and the server enforces the same).
         <div className="space-y-10">
           <section>
             <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2">
@@ -146,30 +146,15 @@ export default function ClubTabs({
 
           <section>
             <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2">
-              <span>📊</span> Polls
-            </h3>
-            {/* Poll creation is gated to admins + hosts only (canAnnounce
-                covers both — same gate that lets you post a pinned
-                announcement). Members can still vote on whatever polls
-                exist; they just can't author new ones. */}
-            <ClubPolls
-              slug={slug}
-              canCreate={canAnnounce}
-              currentUserId={currentUserId}
-            />
-          </section>
-
-          <section>
-            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2">
               <span>💬</span> Discussion
             </h3>
             <ClubWall
               slug={slug}
               canPost={canPost}
+              canAnnounce={canAnnounce}
               currentUserId={currentUserId}
               isAdmin={isAdmin}
               canPin={canPin}
-              excludePolls
             />
           </section>
         </div>
