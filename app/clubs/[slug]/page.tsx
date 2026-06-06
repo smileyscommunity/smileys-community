@@ -227,6 +227,49 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
           {/* Main */}
           <div className="lg:col-span-2">
+
+            {/* Pinned "next event" card — strongest call to attend on
+                the page. Renders the soonest upcoming event from
+                clubEvents (already sorted date-asc by getEventsByClub
+                in lib/db.ts). Silently absent when the club has no
+                upcoming events. */}
+            {(() => {
+              const next = clubEvents[0] as { id: string; title: string; date: string; time: string; location: string; neighborhood: string; price: number } | undefined
+              if (!next) return null
+              const when = new Date(next.date + 'T00:00:00')
+              const today = new Date()
+              today.setHours(0, 0, 0, 0)
+              const dayDelta = Math.round((when.getTime() - today.getTime()) / (24 * 60 * 60_000))
+              const relative =
+                dayDelta === 0 ? 'Today'
+                : dayDelta === 1 ? 'Tomorrow'
+                : dayDelta < 7 ? when.toLocaleDateString('en-GB', { weekday: 'long' })
+                : when.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+              return (
+                <Link
+                  href={`/events/${next.id}`}
+                  className="block bg-gradient-to-br from-amber-500 to-orange-500 text-white rounded-2xl shadow-card p-6 mb-8 hover:shadow-lg transition-shadow group"
+                >
+                  <p className="text-[11px] font-bold uppercase tracking-widest text-amber-100 mb-2 flex items-center gap-1.5">
+                    <span>📍</span> Next event · {relative}
+                  </p>
+                  <h2 className="text-xl sm:text-2xl font-extrabold leading-tight mb-2 group-hover:underline">
+                    {next.title}
+                  </h2>
+                  <div className="flex items-center gap-3 text-sm text-amber-50 flex-wrap">
+                    <span>🕒 {next.time}</span>
+                    <span className="text-amber-200">·</span>
+                    <span>📍 {next.neighborhood}</span>
+                    <span className="text-amber-200">·</span>
+                    <span className="font-bold">{next.price === 0 ? 'Free' : `₺${next.price}`}</span>
+                  </div>
+                  <p className="text-xs text-amber-100 mt-3 group-hover:text-white transition-colors">
+                    View details + RSVP →
+                  </p>
+                </Link>
+              )
+            })()}
+
             <div className="bg-white rounded-2xl shadow-card p-8 mb-8">
               <h2 className="text-xl font-bold text-gray-900 mb-4">About this club</h2>
               <p className="text-gray-600 leading-relaxed text-base">{club.description}</p>

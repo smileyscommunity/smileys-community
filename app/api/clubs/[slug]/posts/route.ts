@@ -198,6 +198,13 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (content?.trim().length > 2000) return NextResponse.json({ error: 'Post too long (max 2000 chars)' }, { status: 400 })
 
   if (pollData) {
+    // Polls are admin/moderator/host only — server-side mirror of the
+    // client gate in ClubTabs that hides the create-poll UI from
+    // regular members. Voting on existing polls is open to all
+    // members; only the create path is gated.
+    if (!isHost && !isPrivileged) {
+      return NextResponse.json({ error: 'Only hosts, admins, or moderators can create polls' }, { status: 403 })
+    }
     if (!pollData.question?.trim()) return NextResponse.json({ error: 'Poll question is required' }, { status: 400 })
     if (!Array.isArray(pollData.options) || pollData.options.length < 2) {
       return NextResponse.json({ error: 'Poll needs at least 2 options' }, { status: 400 })

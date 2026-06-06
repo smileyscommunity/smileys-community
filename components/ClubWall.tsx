@@ -172,52 +172,6 @@ function ReplyForm({ slug, postId, onReply, onCancel }: {
   )
 }
 
-// ─── Poll Composer ────────────────────────────────────────────────────────────
-
-function PollComposer({ onChange }: {
-  onChange: (poll: { question: string; options: string[] } | null) => void
-}) {
-  const [question, setQuestion] = useState('')
-  const [options,  setOptions]  = useState(['', ''])
-
-  function update(q: string, opts: string[]) {
-    setQuestion(q); setOptions(opts)
-    const validOpts = opts.map(o => o.trim()).filter(Boolean)
-    onChange(q.trim() && validOpts.length >= 2 ? { question: q.trim(), options: opts } : null)
-  }
-
-  function setOpt(i: number, val: string) {
-    const next = [...options]; next[i] = val; update(question, next)
-  }
-
-  return (
-    <div className="mt-3 border-t border-gray-100 pt-3 space-y-2">
-      <input value={question} onChange={e => update(e.target.value, options)}
-        placeholder="Ask a question…"
-        className="w-full text-sm px-3 py-2 border border-amber-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 bg-amber-50/50 text-gray-800 placeholder-gray-400"
-      />
-      {options.map((opt, i) => (
-        <div key={i} className="flex gap-2">
-          <input value={opt} onChange={e => setOpt(i, e.target.value)}
-            placeholder={`Option ${i + 1}`}
-            className="flex-1 text-sm px-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 text-gray-800 placeholder-gray-400"
-          />
-          {options.length > 2 && (
-            <button onClick={() => { const next = options.filter((_, j) => j !== i); update(question, next) }}
-              className="text-gray-300 hover:text-red-400 text-xl leading-none px-1">×</button>
-          )}
-        </div>
-      ))}
-      {options.length < 6 && (
-        <button onClick={() => update(question, [...options, ''])}
-          className="text-xs text-amber-600 hover:text-amber-700 font-semibold">
-          + Add option
-        </button>
-      )}
-    </div>
-  )
-}
-
 // ─── Main component ───────────────────────────────────────────────────────────
 
 interface Props {
@@ -230,13 +184,15 @@ interface Props {
 }
 
 export default function ClubWall({ slug, canPost, currentUserId, isAdmin, canPin, excludePolls }: Props) {
+  // Poll creation has moved to a dedicated 📊 Polls section above
+  // the Discussion tree (ClubPolls.tsx). The composer here is now
+  // text-posts only — pollMode / pendingPoll / PollComposer all
+  // removed to kill the two-create-paths redundancy the user flagged.
   const [posts,          setPosts]          = useState<Post[]>([])
   const [loading,        setLoading]        = useState(true)
   const [content,        setContent]        = useState('')
   const [posting,        setPosting]        = useState(false)
   const [error,          setError]          = useState('')
-  const [pollMode,       setPollMode]       = useState(false)
-  const [pendingPoll,    setPendingPoll]    = useState<{ question: string; options: string[] } | null>(null)
   const [replyingTo,     setReplyingTo]     = useState<string | null>(null)
   const [expandedReplies, setExpandedReplies] = useState<Set<string>>(new Set())
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -249,18 +205,17 @@ export default function ClubWall({ slug, canPost, currentUserId, isAdmin, canPin
   }, [slug])
 
   async function submit() {
-    if ((!content.trim() && !pendingPoll) || posting) return
-    if (pollMode && !pendingPoll) { setError('Fill in the poll question and at least 2 options'); return }
+    if (!content.trim() || posting) return
     setPosting(true); setError('')
     const res = await fetch(`/app/api/clubs/${slug}/posts`, {
       method: 'POST', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content, ...(pollMode && pendingPoll ? { poll: pendingPoll } : {}) }),
+      body: JSON.stringify({ content }),
     })
     if (res.ok) {
       const post = await res.json()
       setPosts(prev => [post, ...prev])
-      setContent(''); setPollMode(false); setPendingPoll(null)
+      setContent('')
       if (textareaRef.current) textareaRef.current.style.height = 'auto'
     } else {
       const data = await res.json()
@@ -338,36 +293,24 @@ export default function ClubWall({ slug, canPost, currentUserId, isAdmin, canPin
 
   return (
     <div className="space-y-5">
-      {/* ── Composer ── */}
+      {/* ── Composer (text-only; polls live in the dedicated section
+            above the Discussion stream) ── */}
       {canPost ? (
         <div className="bg-white rounded-2xl shadow-card p-4">
           <textarea ref={textareaRef} value={content} onChange={autoResize}
             onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit() }}
-            placeholder={pollMode ? 'Add context to your poll (optional)…' : 'Share something with the club…'}
+            placeholder="Share something with the club…"
             rows={3}
             className="w-full text-sm text-gray-800 placeholder-gray-400 resize-none focus:outline-none leading-relaxed"
             style={{ minHeight: 72 }}
           />
 
-          {pollMode && <PollComposer onChange={setPendingPoll} />}
           {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
 
           <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
-            <div className="flex items-center gap-2">
-              <span className={`text-xs ${content.length > 1800 ? 'text-red-500' : 'text-gray-400'}`}>{content.length} / 2000</span>
-              <button
-                onClick={() => { setPollMode(v => !v); setPendingPoll(null) }}
-                className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${
-                  pollMode
-                    ? 'bg-amber-100 text-amber-700 border-amber-300'
-                    : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-amber-300 hover:text-amber-600 hover:bg-amber-50'
-                }`}
-              >
-                📊 Poll
-              </button>
-            </div>
+            <span className={`text-xs ${content.length > 1800 ? 'text-red-500' : 'text-gray-400'}`}>{content.length} / 2000</span>
             <button onClick={submit}
-              disabled={(!content.trim() && !pendingPoll) || posting || content.length > 2000}
+              disabled={!content.trim() || posting || content.length > 2000}
               className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-40">
               {posting ? 'Posting…' : 'Post'}
             </button>

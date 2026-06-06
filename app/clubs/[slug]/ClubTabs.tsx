@@ -148,9 +148,13 @@ export default function ClubTabs({
             <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2">
               <span>📊</span> Polls
             </h3>
+            {/* Poll creation is gated to admins + hosts only (canAnnounce
+                covers both — same gate that lets you post a pinned
+                announcement). Members can still vote on whatever polls
+                exist; they just can't author new ones. */}
             <ClubPolls
               slug={slug}
-              canPost={canPost}
+              canCreate={canAnnounce}
               currentUserId={currentUserId}
             />
           </section>
