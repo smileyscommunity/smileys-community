@@ -232,6 +232,44 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
               <p className="text-gray-600 leading-relaxed text-base">{club.description}</p>
             </div>
 
+            {/* House rules — community-wide first, then club-specific.
+                Uses a native <details> disclosure widget so members see
+                the summary line by default and can expand. No client
+                JS needed. Renders nothing when neither set is configured. */}
+            {(communitySettings.communityRules || club.rules) && (
+              <details className="bg-amber-50 border border-amber-100 rounded-2xl mb-8 group">
+                <summary className="px-6 py-4 cursor-pointer select-none flex items-center justify-between gap-3">
+                  <span className="flex items-center gap-2 text-sm font-bold text-amber-900">
+                    📜 House Rules
+                  </span>
+                  <span className="text-xs text-amber-700 group-open:hidden">Expand</span>
+                  <span className="text-xs text-amber-700 hidden group-open:inline">Collapse</span>
+                </summary>
+                <div className="px-6 pb-6 space-y-5 text-sm text-amber-950">
+                  {communitySettings.communityRules && (
+                    <div>
+                      <h3 className="text-[11px] font-bold uppercase tracking-widest text-amber-700 mb-2">
+                        Smileys Community
+                      </h3>
+                      <p className="whitespace-pre-wrap leading-relaxed">
+                        {communitySettings.communityRules}
+                      </p>
+                    </div>
+                  )}
+                  {club.rules && (
+                    <div>
+                      <h3 className="text-[11px] font-bold uppercase tracking-widest text-amber-700 mb-2">
+                        {club.name} specific
+                      </h3>
+                      <p className="whitespace-pre-wrap leading-relaxed">
+                        {club.rules}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </details>
+            )}
+
             <ClubTabs
               slug={club.slug}
               clubEvents={clubEvents as any[]}

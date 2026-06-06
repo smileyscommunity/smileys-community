@@ -14,6 +14,9 @@ const settingsPath = join(process.cwd(), 'data', 'settings.json')
 const SERIALIZED_MAX = 100_000
 const SHORT_STR_MAX  = 200
 const DESC_STR_MAX   = 500
+// House rules can run a few paragraphs — bullet lists, conduct
+// notes, escalation paths. 4 KB is plenty without unbounding.
+const RULES_STR_MAX  = 4_000
 
 // ---------- per-field allowlists ----------
 // Each top-level field of settings.json is normalized through a per-key
@@ -24,13 +27,14 @@ const DESC_STR_MAX   = 500
 // the JSON consumed by other admin surfaces.
 
 const STRING_KEYS: Record<string, number> = {
-  name:        SHORT_STR_MAX,
-  tagline:     SHORT_STR_MAX,
-  description: DESC_STR_MAX,
-  email:       SHORT_STR_MAX,
-  website:     SHORT_STR_MAX,
-  instagram:   SHORT_STR_MAX,
-  whatsapp:    SHORT_STR_MAX,
+  name:           SHORT_STR_MAX,
+  tagline:        SHORT_STR_MAX,
+  description:    DESC_STR_MAX,
+  email:          SHORT_STR_MAX,
+  website:        SHORT_STR_MAX,
+  instagram:      SHORT_STR_MAX,
+  whatsapp:       SHORT_STR_MAX,
+  communityRules: RULES_STR_MAX,
 }
 
 // Toggles surfaced on /admin/settings — anything outside this set

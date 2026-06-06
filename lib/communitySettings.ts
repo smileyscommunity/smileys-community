@@ -16,6 +16,11 @@ export interface CommunitySettings {
   website?:     string
   instagram?:   string  // stored as handle, e.g. "@smileyscommunity"
   whatsapp?:    string  // stored as phone, e.g. "+90 5552933220"
+  // Community-wide house rules surfaced on every club page above
+  // the club's own rules. Plain text with whitespace preserved at
+  // render time (no markdown — keeps the input simple in
+  // /admin/settings).
+  communityRules?: string
 }
 
 const SETTINGS_PATH = join(process.cwd(), 'data', 'settings.json')

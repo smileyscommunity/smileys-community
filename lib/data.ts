@@ -76,6 +76,10 @@ export interface Club {
   coverImagePosition?: number
   whatsappUrl?: string | null
   instagramUrl?: string | null
+  // Club-specific house rules — surfaced on the public club page
+  // beneath the community-wide rules from settings.json. Editable
+  // in /admin/clubs/[id].
+  rules?: string | null
   nextEvent?: { title: string; date: string } | null
 }
 

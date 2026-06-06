@@ -17,13 +17,14 @@ export default function AdminSettingsPage() {
   // copy (the old defaults included a fake "+90 555 000 0000" number
   // that briefly looked like real data on slow connections).
   const [community, setCommunity] = useState({
-    name:        '',
-    tagline:     '',
-    description: '',
-    email:       '',
-    website:     '',
-    instagram:   '',
-    whatsapp:    '',
+    name:           '',
+    tagline:        '',
+    description:    '',
+    email:          '',
+    website:        '',
+    instagram:      '',
+    whatsapp:       '',
+    communityRules: '',
   })
 
   useEffect(() => {
@@ -171,6 +172,27 @@ export default function AdminSettingsPage() {
                 <input type="text" value={community.whatsapp} onChange={(e) => setCommunity((p) => ({ ...p, whatsapp: e.target.value }))}
                   className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
               </div>
+            </div>
+
+            {/* Community-wide house rules. Surfaced on every club page
+                above the club's own rules — sets the baseline conduct
+                expectations everyone agrees to by being on Smileys. */}
+            <div className="mt-2">
+              <label className="block text-xs font-semibold text-zinc-400 mb-1.5">
+                Community house rules
+                <span className="text-zinc-500 font-normal"> · shown on every club page</span>
+              </label>
+              <textarea
+                rows={6}
+                maxLength={4000}
+                value={community.communityRules}
+                onChange={(e) => setCommunity((p) => ({ ...p, communityRules: e.target.value }))}
+                placeholder={'1. Be kind — sarcasm is fine, contempt is not\n2. RSVP integrity — show up or cancel early\n3. No selling / MLM / recruiting at events\n…'}
+                className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 resize-y font-mono"
+              />
+              <p className="text-[10px] text-zinc-500 mt-1">
+                Plain text — line breaks preserved on the club page. {community.communityRules.length}/4000.
+              </p>
             </div>
           </div>
           <div className="mt-5">
