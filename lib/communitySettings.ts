@@ -15,7 +15,8 @@ export interface CommunitySettings {
   email?:       string
   website?:     string
   instagram?:   string  // stored as handle, e.g. "@smileyscommunity"
-  whatsapp?:    string  // stored as phone, e.g. "+90 5552933220"
+  whatsapp?:    string  // stored as a WhatsApp channel URL, e.g.
+                        // "https://whatsapp.com/channel/0029VaXXXXXX"
   // Community-wide house rules surfaced on every club page above
   // the club's own rules. Plain text with whitespace preserved at
   // render time (no markdown — keeps the input simple in
@@ -48,15 +49,23 @@ export function communityInstagramUrl(handle: string | undefined | null): string
 }
 
 /**
- * Convert a stored WhatsApp phone (free-text, may include +, spaces,
- * parentheses, dashes) to a wa.me click-to-chat URL. Returns null
- * when the phone doesn't yield enough digits to be valid.
+ * Validate + normalise a stored WhatsApp channel URL. Accepts the
+ * canonical `https://whatsapp.com/channel/...` shape (with or without
+ * the `www.` prefix), trims whitespace, and rejects anything else —
+ * we deliberately don't fall back to wa.me click-to-chat, since the
+ * community surface is a CHANNEL (one-to-many broadcast), not a
+ * personal phone number. Returns null when the input is missing,
+ * malformed, or pointed at the wrong host.
  */
-export function communityWhatsappUrl(phone: string | undefined | null): string | null {
-  if (!phone || typeof phone !== 'string') return null
-  const digits = phone.replace(/[^\d]/g, '')
-  // wa.me requires country code; allow anything ≥ 7 digits to cover
-  // edge formats but reject obviously-truncated inputs.
-  if (digits.length < 7) return null
-  return `https://wa.me/${digits}`
+export function communityWhatsappUrl(url: string | undefined | null): string | null {
+  if (!url || typeof url !== 'string') return null
+  const trimmed = url.trim()
+  if (!trimmed) return null
+  let parsed: URL
+  try { parsed = new URL(trimmed) } catch { return null }
+  if (parsed.protocol !== 'https:') return null
+  const host = parsed.hostname.toLowerCase()
+  if (host !== 'whatsapp.com' && host !== 'www.whatsapp.com') return null
+  if (!parsed.pathname.startsWith('/channel/')) return null
+  return parsed.toString()
 }

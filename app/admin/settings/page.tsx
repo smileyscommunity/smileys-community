@@ -168,9 +168,13 @@ export default function AdminSettingsPage() {
                   className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-zinc-400 mb-1.5">WhatsApp</label>
-                <input type="text" value={community.whatsapp} onChange={(e) => setCommunity((p) => ({ ...p, whatsapp: e.target.value }))}
+                <label className="block text-xs font-semibold text-zinc-400 mb-1.5">WhatsApp Channel URL</label>
+                <input type="url" value={community.whatsapp} onChange={(e) => setCommunity((p) => ({ ...p, whatsapp: e.target.value }))}
+                  placeholder="https://whatsapp.com/channel/0029Va…"
                   className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
+                <p className="text-[11px] text-zinc-500 mt-1">
+                  Paste the full channel link (a broadcast channel, not a phone number).
+                </p>
               </div>
             </div>
 
