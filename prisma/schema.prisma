@@ -219,6 +219,32 @@ model Partner {
   @@map("partners")
 }
 
+// SponsorLead — B2B pipeline for /advertise inquiries. Before this
+// table, advertise submissions were routed through /api/contact and
+// existed only as email, so leads were unrecoverable and there was
+// no record of which ones turned into paid sponsorships. Admins work
+// the pipeline at /admin/sponsors: new → contacted → negotiating →
+// won | lost. dealValue is the agreed amount once status is 'won' —
+// it's closed revenue for reporting, not a forecast.
+model SponsorLead {
+  id         String   @id @default(cuid())
+  name       String
+  email      String
+  company    String
+  format     String // event_sponsorship | newsletter | club_partnership | branded_event | other
+  message    String
+  status     String   @default("new") // new | contacted | negotiating | won | lost
+  dealValue  Float?
+  currency   String   @default("TRY")
+  adminNotes String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("sponsor_leads")
+}
+
 model Report {
   id            String    @id @default(cuid())
   reporterId    String

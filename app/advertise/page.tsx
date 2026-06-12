@@ -39,6 +39,7 @@ const WHY = [
 
 const FORMATS = [
   {
+    key: 'event_sponsorship',
     icon: '🎉',
     title: 'Event Sponsorship',
     features: [
@@ -50,6 +51,7 @@ const FORMATS = [
     highlight: false,
   },
   {
+    key: 'newsletter',
     icon: '📧',
     title: 'Newsletter Feature',
     features: [
@@ -61,6 +63,7 @@ const FORMATS = [
     highlight: true,
   },
   {
+    key: 'club_partnership',
     icon: '⬡',
     title: 'Club Partnership',
     features: [
@@ -72,6 +75,7 @@ const FORMATS = [
     highlight: false,
   },
   {
+    key: 'branded_event',
     icon: '✦',
     title: 'Branded Event',
     features: [
@@ -93,6 +97,11 @@ const SECTORS = [
 export default function AdvertisePage() {
   const c   = loadContent()
   const adv = c.advertise ?? {}
+  // Optional rate card, editable from /admin/content without a deploy.
+  // Keyed by format key with display strings, e.g.
+  // { "newsletter": "from ₺7.500" }. Formats without a price show
+  // "Custom pricing" so we never publish a number nobody set.
+  const PRICES: Record<string, string> = adv.prices ?? {}
   const STATS = c.stats ?? [
     { value: '4,000+', label: 'Community members'    },
     { value: '500+',   label: 'Experiences hosted'   },
@@ -238,8 +247,11 @@ export default function AdvertisePage() {
                     </li>
                   ))}
                 </ul>
+                <div className={`mt-5 text-sm font-bold ${f.highlight ? 'text-white' : 'text-gray-900'}`}>
+                  {PRICES[f.key] ?? 'Custom pricing'}
+                </div>
                 <a href="#contact"
-                  className={`mt-6 block text-center py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+                  className={`mt-3 block text-center py-2.5 rounded-xl text-sm font-semibold transition-colors ${
                     f.highlight
                       ? 'bg-white text-amber-600 hover:bg-amber-50'
                       : 'border border-gray-200 text-gray-700 hover:bg-gray-50'

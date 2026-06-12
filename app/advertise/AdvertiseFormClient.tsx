@@ -34,14 +34,15 @@ export default function AdvertiseFormClient() {
     setError('')
     setLoading(true)
     try {
-      const res = await fetch('/app/api/contact', {
+      const res = await fetch('/app/api/advertise', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name:    form.name,
           email:   form.email,
-          topic:   'partnership',
-          message: `Company: ${form.company}\nFormat of interest: ${form.format || 'Not specified'}\n\n${form.message}`,
+          company: form.company,
+          format:  form.format,
+          message: form.message,
           _hp: honeypot,
           _t:  loadedAt.current,
           _cf: turnstileToken,
@@ -94,7 +95,7 @@ export default function AdvertiseFormClient() {
         <div>
           <label className="block text-xs font-semibold text-gray-500 mb-1.5">Company / Brand</label>
           <input type="text" value={form.company} onChange={e => set('company', e.target.value)}
-            placeholder="Your company name" className={inputCls} />
+            placeholder="Your company name" required className={inputCls} />
         </div>
 
         <div>
@@ -129,7 +130,7 @@ export default function AdvertiseFormClient() {
 
         <button
           type="submit"
-          disabled={loading || !form.name.trim() || !form.email.trim() || !form.message.trim()}
+          disabled={loading || !form.name.trim() || !form.email.trim() || !form.company.trim() || !form.message.trim()}
           className="w-full py-3.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm transition-colors disabled:opacity-50">
           {loading ? 'Sending…' : 'Send enquiry'}
         </button>

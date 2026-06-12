@@ -121,6 +121,10 @@ const NAV_GROUPS = [
     label: 'Finance',
     items: [
       { label: 'Payments', href: '/admin/payments', exact: false, roles: ['admin'], icon: 'payments' },
+      // Sponsors = B2B leads from /advertise worked as a pipeline
+      // (new → … → won/lost). Lives under Finance because won deals
+      // carry the closed sponsorship revenue number.
+      { label: 'Sponsors', href: '/admin/sponsors', exact: false, roles: ['admin'], icon: 'partners' },
     ],
   },
   {
