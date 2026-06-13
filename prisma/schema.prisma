@@ -166,6 +166,7 @@ model User {
   businessReportsFiled       BusinessReport[]   @relation("BusinessReportReporter")
   businessReportsReviewed    BusinessReport[]   @relation("BusinessReportReviewer")
   businessSaves              BusinessSave[]     @relation("BusinessSaves")
+  newslettersSent            Newsletter[]       @relation("NewslettersSent")
 
   @@map("users")
 }
@@ -2021,6 +2022,42 @@ model BusinessSave {
 // re-spamming claims for the same business — a rejected claim sticks
 // in the row, and a re-claim attempt has to edit the existing one
 // (or admin has to delete the row, which is the resolution path).
+// Sent newsletter log. Each row records one blast to the opted-in list.
+// recipientCount is snapshotted at send time so the number stays
+// meaningful even if members unsubscribe later.
+model Newsletter {
+  id             String   @id @default(cuid())
+  subject        String
+  bodyHtml       String   @db.Text
+  recipientCount Int
+  sentById       String
+  sentBy         User     @relation("NewslettersSent", fields: [sentById], references: [id], onDelete: Restrict)
+  sentAt           DateTime  @default(now())
+  segment          String    @default("all")
+  status           String    @default("sent")   // 'scheduled' | 'sending' | 'sent'
+  scheduledFor     DateTime?
+  openCount        Int       @default(0)
+  clickCount       Int       @default(0)
+  unsubscribeCount Int       @default(0)
+  emailLogs        NewsletterEmailLog[]
+
+  @@index([sentAt(sort: Desc)])
+  @@map("newsletters")
+}
+
+// Maps each individual Resend email ID back to the newsletter blast it belongs to.
+// The webhook handler uses this to credit opens/clicks to the right newsletter.
+model NewsletterEmailLog {
+  id           String     @id @default(cuid())
+  newsletterId String
+  newsletter   Newsletter @relation(fields: [newsletterId], references: [id], onDelete: Cascade)
+  resendId     String     @unique
+  createdAt    DateTime   @default(now())
+
+  @@index([newsletterId])
+  @@map("newsletter_email_logs")
+}
+
 model BusinessClaim {
   id            String    @id @default(cuid())
   businessId    String

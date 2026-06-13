@@ -131,6 +131,7 @@ const NAV_GROUPS = [
     label: 'Content',
     items: [
       { label: 'Notifications', href: '/admin/notifications',                 exact: false, roles: ['admin', 'moderator'],  icon: 'notifications' },
+      { label: 'Newsletter',    href: '/admin/newsletter',                    exact: false, roles: ['admin'],                icon: 'campaigns'     },
       // Announcements + Polls used to share /admin/announcements behind a ?tab=
       // query (a single-page tab nav). That left both tabs visible from either
       // sidebar entry, so clicking "Polls" still showed an "Announcements" tab

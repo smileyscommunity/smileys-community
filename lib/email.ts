@@ -583,7 +583,7 @@ export async function sendBroadcastEmail(
         <p style="margin:0 0 16px;color:#374151;font-size:14px">Hi ${esc(firstName)},</p>
         ${bodyHtml}
         <div style="margin-top:28px;padding-top:20px;border-top:1px solid #f3f4f6">
-          <a href="https://smileyscommunity.com/app/events"
+          <a href="${APP_URL}/events"
             style="display:inline-block;background:#f59e0b;color:#fff;font-weight:700;font-size:14px;padding:12px 24px;border-radius:10px;text-decoration:none">
             Browse upcoming events →
           </a>
@@ -631,4 +631,64 @@ export async function sendListingAlertEmail(
       </div>
     `,
   })
+}
+function stripHtml(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<\/div>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+// Newsletter blast — bodyHtml is admin-authored and intentionally not escaped.
+// subject is sanitised with safeSubject to block header injection.
+// Returns the Resend email ID so the caller can log it for webhook attribution.
+export async function sendNewsletterEmail(
+  userId: string,
+  email: string,
+  name: string,
+  subject: string,
+  bodyHtml: string,
+  newsletterId?: string,
+): Promise<string> {
+  const unsub     = unsubscribeUrl(userId, newsletterId)
+  const firstName = esc(name.split(' ')[0])
+  const { data, error } = await getResend().emails.send({
+    from:    FROM,
+    to:      email,
+    subject: safeSubject(subject),
+    html: `
+      <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto;background:#fff;border-radius:16px;padding:40px 32px;border:1px solid #e5e7eb">
+        <div style="margin-bottom:28px">
+          <span style="font-size:32px">😊</span>
+          <p style="color:#6b7280;font-size:13px;margin:4px 0 0">Smileys Community · Istanbul</p>
+        </div>
+        <p style="margin:0 0 16px;color:#374151;font-size:14px">Hi ${firstName},</p>
+        <div style="color:#374151;font-size:14px;line-height:1.6">${bodyHtml}</div>
+        <div style="margin-top:28px;padding-top:20px;border-top:1px solid #f3f4f6">
+          <a href="${APP_URL}/events"
+            style="display:inline-block;background:#f59e0b;color:#fff;font-weight:700;font-size:14px;padding:12px 24px;border-radius:10px;text-decoration:none">
+            Browse upcoming events →
+          </a>
+        </div>
+        <p style="color:#9ca3af;font-size:11px;margin-top:28px;line-height:1.5">
+          You're receiving this because you're a member of Smileys Community.<br>
+          <a href="${unsub}" style="color:#9ca3af">Unsubscribe from newsletters</a>
+        </p>
+      </div>
+    `,
+    text:    `Hi ${firstName},\n\n${stripHtml(bodyHtml)}\n\nBrowse upcoming events: ${APP_URL}/events\n\nUnsubscribe: ${unsub}`,
+    headers: { 'List-Unsubscribe': unsub },
+    tags: [{ name: 'type', value: 'newsletter' }],
+  })
+  if (error || !data?.id) throw error ?? new Error('Resend returned no email ID')
+  return data.id
 }
