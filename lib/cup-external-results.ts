@@ -101,10 +101,19 @@ export async function fetchCupMatches(dateFrom: string, dateTo: string): Promise
 // almost identical to ISO 3166-1 alpha-3 for World Cup teams —
 // most resolve 1:1. Edge cases get listed here.
 const FD_TLA_OVERRIDES: Record<string, string> = {
-  // South Korea on football-data.org is sometimes 'KOR' (matches us)
-  // and sometimes 'KSA' (which is Saudi Arabia for us — DO NOT use).
-  // Listing the ones we *know* differ would go here. Empty until
-  // the first failing match shows up in production.
+  // football-data.org TLA → our internal ISO-3 code, for cases where
+  // the two differ. Add here as mismatches surface in production.
+  RSA: 'ZAF',   // South Africa: football-data uses RSA, we store ZAF
+  BOS: 'BIH',   // Bosnia-Herzegovina: football-data sometimes uses BOS
+  SKO: 'KOR',   // South Korea: football-data sometimes uses SKO
+  COR: 'KOR',   // South Korea: another alias seen in older API versions
+  CUR: 'CUW',   // Curaçao: football-data may use CUR instead of CUW
+  NCU: 'CUW',   // Curaçao: another possible alias
+  ANT: 'CUW',   // Curaçao: legacy Netherlands Antilles code
+  HAI: 'HAI',   // Haiti: ensure HAI passes through directly
+  CIV: 'CIV',   // Côte d'Ivoire: ensure direct pass-through
+  WAL: 'WAL',   // Wales: ensure direct pass-through
+  URY: 'URU',   // Uruguay: football-data uses URY, we store URU
 }
 
 export function fdTlaToCupCode(tla: string | null | undefined): string | null {
