@@ -1,3 +1,4 @@
+import Image from 'next/image'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
@@ -95,7 +96,7 @@ export default async function HomePage() {
   const stats = c.stats ?? [
     { value: '4,000+', label: 'Community members'  },
     { value: '500+',   label: 'Experiences hosted' },
-    { value: '70+',    label: 'Interest clubs'      },
+    { value: '140+',   label: 'Interest clubs'      },
     { value: 'Weekly', label: 'Curated events'      },
   ]
 
@@ -105,38 +106,56 @@ export default async function HomePage() {
       <section className="relative bg-gradient-to-b from-amber-50 via-white to-white overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,rgba(251,191,36,0.15),transparent)]" />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-24 relative">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
 
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-100 text-amber-700 rounded-full text-xs font-bold tracking-widest uppercase mb-8">
-            Curated Social Community
-          </div>
-
-          <h1 className="text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight text-gray-900 leading-[1.08] mb-6">
-            {home.headline ?? 'Find your people in Istanbul.'}
-          </h1>
-
-          <p className="text-xl md:text-2xl text-gray-500 max-w-2xl leading-relaxed mb-10">
-            {home.subtitle ?? 'From social dinners to sailing trips and neighborhood clubs, Smileys brings people together through curated experiences and lasting friendships.'}
-          </p>
-
-          <div className="flex flex-col sm:flex-row gap-4 mb-16">
-            <Link href="/apply" className="btn-primary text-base px-8 py-4">
-              Apply to join
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-              </svg>
-            </Link>
-            <Link href="/events" className="btn-secondary text-base px-8 py-4">
-              Browse events
-            </Link>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-10 max-w-3xl mt-12">
-            {stats.map((stat: { value: string; label: string }) => (
-              <div key={stat.label}>
-                <div className="text-4xl md:text-3xl lg:text-4xl font-extrabold text-gray-900 tracking-tight">{stat.value}</div>
-                <div className="text-sm text-gray-500 mt-1 uppercase tracking-wider font-medium">{stat.label}</div>
+            {/* Text column */}
+            <div>
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-amber-200 text-amber-700 rounded-full text-xs font-semibold tracking-widest uppercase mb-8">
+                Curated Social Community
               </div>
-            ))}
+
+              <h1 className="text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight text-gray-900 leading-[1.08] mb-6">
+                {home.headline ?? 'Find your people in Istanbul.'}
+              </h1>
+
+              <p className="text-xl md:text-2xl text-gray-600 max-w-2xl leading-relaxed mb-10">
+                {home.subtitle ?? 'From social dinners to sailing trips and neighborhood clubs, Smileys brings people together through curated experiences and lasting friendships.'}
+              </p>
+
+              <div className="flex flex-col sm:flex-row gap-4 mb-16">
+                <Link href="/apply" className="btn-primary text-base px-8 py-4">
+                  Apply to join
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                  </svg>
+                </Link>
+                <Link href="/clubs" className="btn-secondary text-base px-8 py-4">
+                  Browse clubs
+                </Link>
+              </div>
+
+              <div className="grid grid-cols-2 gap-x-6 gap-y-8">
+                {stats.map((stat: { value: string; label: string }) => (
+                  <div key={stat.label}>
+                    <div className="text-3xl md:text-4xl font-extrabold text-gray-900 tracking-tight">{stat.value}</div>
+                    <div className="text-sm text-gray-600 mt-1 uppercase tracking-wider font-medium">{stat.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Hero image */}
+            <div className="hidden lg:block relative h-[520px] rounded-2xl overflow-hidden shadow-xl">
+              <Image
+                src="/images/hero-istanbul.jpg"
+                alt="Friends gathered on an Istanbul rooftop at sunset"
+                fill
+                priority
+                sizes="(max-width: 1024px) 0px, 50vw"
+                className="object-cover"
+              />
+            </div>
+
           </div>
         </div>
       </section>
@@ -145,24 +164,21 @@ export default async function HomePage() {
       <ActivityTicker items={tickerItems} />
 
       {/* How it works */}
-      <section className="py-24 bg-white">
+      <section className="py-12 sm:py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="mb-16">
+          <div className="mb-10">
             <h2 className="section-title">How Smileys works</h2>
             <p className="section-subtitle max-w-xl">Three simple steps to transform your social life in Istanbul.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {steps.map((s, i) => (
-              <div key={s.step} className="relative text-center p-8 rounded-2xl bg-gray-50 hover:bg-amber-50 transition-colors duration-300 group">
-                {i < steps.length - 1 && (
-                  <div className="hidden md:block absolute top-1/2 -right-4 w-8 text-gray-300 text-xl z-10">→</div>
-                )}
+            {steps.map((s) => (
+              <div key={s.step} className="text-center p-8 rounded-2xl bg-slate-50 hover:bg-slate-100 transition-colors duration-300 group">
                 <div className="w-16 h-16 rounded-2xl bg-white shadow-card flex items-center justify-center mx-auto mb-5 text-3xl group-hover:scale-110 transition-transform duration-300">
                   {s.emoji}
                 </div>
                 <span className="step-label">Step {s.step}</span>
                 <h3 className="text-xl font-bold text-gray-900 mt-2 mb-3">{s.title}</h3>
-                <p className="text-gray-500 leading-relaxed text-sm">{s.description}</p>
+                <p className="text-gray-600 leading-relaxed text-sm">{s.description}</p>
               </div>
             ))}
           </div>
@@ -170,9 +186,9 @@ export default async function HomePage() {
       </section>
 
       {/* Featured Events */}
-      <section className="py-24 bg-gray-50">
+      <section className="py-12 sm:py-16 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-end justify-between mb-12">
+          <div className="flex items-end justify-between mb-8">
             <div>
               <h2 className="section-title">Upcoming events</h2>
               <p className="section-subtitle">Hand-picked experiences for this week.</p>
@@ -196,9 +212,9 @@ export default async function HomePage() {
       </section>
 
       {/* Featured Clubs */}
-      <section className="py-24 bg-white">
+      <section className="py-12 sm:py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-end justify-between mb-12">
+          <div className="flex items-end justify-between mb-8">
             <div>
               <h2 className="section-title">Our clubs</h2>
               <p className="section-subtitle">Find your community. Every interest covered.</p>
@@ -215,52 +231,17 @@ export default async function HomePage() {
               <ClubCard key={club.id} club={club} />
             ))}
           </div>
+          <div className="text-center mt-10 md:hidden">
+            <Link href="/clubs" className="btn-secondary">All clubs</Link>
+          </div>
         </div>
       </section>
 
-      {/* Testimonial strip */}
-      {testimonials.length > 0 && (
-        <section className="py-16 bg-gray-50 border-y border-gray-100">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center justify-between mb-8">
-              <div>
-                <h2 className="text-2xl font-extrabold text-gray-900">What members say</h2>
-                <p className="text-sm text-gray-500 mt-1">Real stories from real people</p>
-              </div>
-              <Link href="/why" className="text-sm font-semibold text-amber-600 hover:underline">
-                Read all stories →
-              </Link>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-              {testimonials.map(t => (
-                <div key={t.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                  <p className="text-sm text-gray-600 leading-relaxed mb-4 italic">"{t.quote}"</p>
-                  <div className="flex items-center gap-2.5">
-                    {t.photo ? (
-                      <img src={resolveImageUrl(t.photo)} alt={t.memberName}
-                        className="w-8 h-8 rounded-full object-cover shrink-0" />
-                    ) : (
-                      <div className="w-8 h-8 rounded-full shrink-0 bg-amber-500 flex items-center justify-center text-white text-xs font-bold">
-                        {t.memberName[0]}
-                      </div>
-                    )}
-                    <div>
-                      <p className="text-xs font-bold text-gray-900">{t.memberName}</p>
-                      {t.role && <p className="text-xs text-gray-400">{t.role}</p>}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
-
       {/* Neighborhoods */}
       {topNeighborhoods.length > 0 && (
-        <section className="py-24 bg-gray-50 border-t border-gray-100">
+        <section className="py-12 sm:py-16 bg-gray-50 border-t border-gray-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-end justify-between mb-10">
+            <div className="flex items-end justify-between mb-8">
               <div>
                 <h2 className="section-title">Explore by neighborhood</h2>
                 <p className="section-subtitle">Events happening all across Istanbul, every week.</p>
@@ -291,24 +272,44 @@ export default async function HomePage() {
         </section>
       )}
 
-      {/* CTA Banner */}
-      <section className="py-24 bg-amber-500">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <span className="text-5xl block mb-6">😊</span>
-          <h2 className="text-4xl md:text-5xl font-extrabold text-white tracking-tight mb-4">
-            Ready to build your social life?
-          </h2>
-          <p className="text-xl text-amber-100 mb-10 max-w-xl mx-auto">
-            Join thousands of people who've found their community in Istanbul through Smileys.
-          </p>
-          <Link href="/onboarding" className="btn-white">
-            Get started — it's free
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-            </svg>
-          </Link>
-        </div>
-      </section>
+      {/* Testimonial strip */}
+      {testimonials.length > 0 && (
+        <section className="py-12 sm:py-16 bg-white border-t border-gray-100">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">What members say</h2>
+                <p className="text-sm text-gray-600 mt-1">Real stories from real people</p>
+              </div>
+              <Link href="/why" className="text-sm font-semibold text-amber-600 hover:underline">
+                Read all stories →
+              </Link>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              {testimonials.map(t => (
+                <div key={t.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                  <p className="text-sm text-gray-600 leading-relaxed mb-4 italic">"{t.quote}"</p>
+                  <div className="flex items-center gap-3">
+                    {t.photo ? (
+                      <img src={resolveImageUrl(t.photo)} alt={t.memberName}
+                        className="w-11 h-11 rounded-full object-cover shrink-0" />
+                    ) : (
+                      <div className="w-11 h-11 rounded-full shrink-0 bg-amber-500 flex items-center justify-center text-white text-sm font-bold">
+                        {t.memberName[0]}
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-xs font-bold text-gray-900">{t.memberName}</p>
+                      {t.role && <p className="text-xs text-gray-400">{t.role}</p>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
     </>
   )
 }
