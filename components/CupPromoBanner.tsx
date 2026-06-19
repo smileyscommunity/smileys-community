@@ -65,11 +65,11 @@ export default function CupPromoBanner() {
       </Link>
       {/* Dismiss × — small but ≥24px tap target via the w-6 h-6
           container (24px on the cross axis, comfortable for thumbs).
-          White/transparent so it reads as part of the orange hero
-          chrome rather than a button "on" the pill. */}
+          Soft amber so it reads as part of the hero chrome on the
+          subtle amber wash rather than a button "on" the pill. */}
       <button
         onClick={dismiss}
-        className="w-6 h-6 rounded-full flex items-center justify-center text-white/70 hover:text-white hover:bg-white/20 transition-colors text-sm leading-none"
+        className="w-6 h-6 rounded-full flex items-center justify-center text-amber-600/70 hover:text-amber-800 hover:bg-amber-100 transition-colors text-sm leading-none"
         title="Dismiss"
         aria-label="Dismiss cup banner"
       >

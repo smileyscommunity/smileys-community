@@ -463,21 +463,27 @@ export default async function DashboardPage() {
     <div className="min-h-screen bg-warm pb-20 md:pb-10">
       <PullToRefreshTrigger />
 
-      {/* Header hero */}
-      <div className="bg-gradient-to-br from-amber-500 to-orange-500 relative overflow-hidden">
-        <div className="absolute inset-0 opacity-20 bg-[radial-gradient(ellipse_at_top_right,#fff_0%,transparent_60%)]" />
+      {/* Header hero — subtle amber wash with dark text. Previously a
+          saturated amber→orange gradient with white text; on a daily
+          surface that read as a marketing page. Calmer wash + darker
+          text scales better visit-over-visit, while the soft amber
+          dust keeps the brand identity. */}
+      <div className="bg-gradient-to-br from-amber-50 to-orange-50 border-b border-amber-100 relative overflow-hidden">
+        <div className="absolute inset-0 opacity-40 bg-[radial-gradient(ellipse_at_top_right,#fcd34d_0%,transparent_60%)]" />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-5 sm:pt-10 sm:pb-6 relative z-10">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <p className="text-amber-100 text-sm font-medium mb-1">{getGreeting()} 👋</p>
-              <h1 className="text-2xl sm:text-4xl font-extrabold text-white tracking-tight truncate">
+              <p className="text-amber-700 text-sm font-medium mb-1">{getGreeting()} 👋</p>
+              <h1 className="text-2xl sm:text-4xl font-extrabold text-gray-900 tracking-tight truncate">
                 {session.name.split(' ')[0]}
               </h1>
               {nextEvent && (
-                <div className="mt-3 inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm text-white text-xs font-semibold px-3 py-1.5 rounded-full">
+                <div className="mt-3 inline-flex items-center gap-2 bg-white border border-amber-200 text-gray-700 text-xs font-semibold px-3 py-1.5 rounded-full">
                   <span>Next: {nextEvent.event.title}</span>
                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                    daysToNext === 0 ? 'bg-red-500' : daysToNext === 1 ? 'bg-amber-400' : 'bg-white/30'
+                    daysToNext === 0 ? 'bg-red-500 text-white' :
+                    daysToNext === 1 ? 'bg-amber-400 text-white' :
+                    'bg-amber-100 text-amber-700'
                   }`}>
                     {daysToNext === 0 ? 'Today!' : daysToNext === 1 ? 'Tomorrow' : `${daysToNext}d`}
                   </span>
@@ -494,13 +500,12 @@ export default async function DashboardPage() {
             </div>
             <div className="shrink-0 flex flex-col items-end gap-2">
               {userProfile?.profilePhoto ? (
-                // #7 perf: 128-wide thumb instead of the full 1200×1200
-                // original. ~50× smaller wire bytes for the same 14×14
-                // CSS render. lazy/async hints for the cumulative drop.
+                // 128-wide thumb instead of the full 1200×1200 original.
+                // ~50× smaller wire bytes for the same 14×14 CSS render.
                 <img src={avatarUrl(userProfile.profilePhoto, 128)} alt={session.name} loading="lazy" decoding="async"
-                  className="w-14 h-14 rounded-2xl object-cover ring-2 ring-white/40 shadow-lg" />
+                  className="w-14 h-14 rounded-2xl object-cover ring-2 ring-amber-200 shadow" />
               ) : (
-                <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-lg font-bold ring-2 ring-white/40 shadow-lg"
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-lg font-bold ring-2 ring-amber-200 shadow"
                   style={{ backgroundColor: userProfile?.color ?? '#b45309' }}>
                   {getInitials(session.name)}
                 </div>
@@ -508,31 +513,31 @@ export default async function DashboardPage() {
             </div>
           </div>
 
-          {/* Hero promo banner — embedded in the orange section for max visibility */}
+          {/* Hero promo banner */}
           {heroBanner && (
             <div className="mt-4">
               {heroBanner.link ? (
                 <a href={heroBanner.link}
                   target={heroBanner.link.startsWith('http') ? '_blank' : undefined}
                   rel={heroBanner.link.startsWith('http') ? 'noopener noreferrer' : undefined}
-                  className="flex items-center gap-3 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-xl px-3 py-2.5 transition-colors group">
-                  <div className="shrink-0 w-9 h-9 rounded-lg bg-white/20 flex items-center justify-center text-lg">{heroBanner.emoji}</div>
+                  className="flex items-center gap-3 bg-white border border-amber-200 hover:border-amber-300 rounded-xl px-3 py-2.5 transition-colors group">
+                  <div className="shrink-0 w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center text-lg">{heroBanner.emoji}</div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[10px] font-bold text-amber-100 uppercase tracking-widest mb-0.5">From Smileys</p>
-                    <p className="text-sm font-bold text-white truncate">{heroBanner.headline}</p>
-                    {heroBanner.subtitle && <p className="text-xs text-amber-100 truncate opacity-90">{heroBanner.subtitle}</p>}
+                    <p className="text-[10px] font-bold text-amber-700 uppercase tracking-widest mb-0.5">From Smileys</p>
+                    <p className="text-sm font-bold text-gray-900 truncate">{heroBanner.headline}</p>
+                    {heroBanner.subtitle && <p className="text-xs text-gray-600 truncate">{heroBanner.subtitle}</p>}
                   </div>
-                  {heroBanner.cta && <span className="text-xs font-bold text-white shrink-0 group-hover:translate-x-0.5 transition-transform">{heroBanner.cta} →</span>}
+                  {heroBanner.cta && <span className="text-xs font-bold text-amber-700 shrink-0 group-hover:translate-x-0.5 transition-transform">{heroBanner.cta} →</span>}
                 </a>
               ) : (
-                <div className="flex items-center gap-3 bg-white/20 backdrop-blur-sm rounded-xl px-3 py-2.5">
-                  <div className="shrink-0 w-9 h-9 rounded-lg bg-white/20 flex items-center justify-center text-lg">{heroBanner.emoji}</div>
+                <div className="flex items-center gap-3 bg-white border border-amber-200 rounded-xl px-3 py-2.5">
+                  <div className="shrink-0 w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center text-lg">{heroBanner.emoji}</div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[10px] font-bold text-amber-100 uppercase tracking-widest mb-0.5">From Smileys</p>
-                    <p className="text-sm font-bold text-white truncate">{heroBanner.headline}</p>
-                    {heroBanner.subtitle && <p className="text-xs text-amber-100 truncate opacity-90">{heroBanner.subtitle}</p>}
+                    <p className="text-[10px] font-bold text-amber-700 uppercase tracking-widest mb-0.5">From Smileys</p>
+                    <p className="text-sm font-bold text-gray-900 truncate">{heroBanner.headline}</p>
+                    {heroBanner.subtitle && <p className="text-xs text-gray-600 truncate">{heroBanner.subtitle}</p>}
                   </div>
-                  {heroBanner.cta && <span className="text-xs font-bold text-white shrink-0">{heroBanner.cta} →</span>}
+                  {heroBanner.cta && <span className="text-xs font-bold text-amber-700 shrink-0">{heroBanner.cta} →</span>}
                 </div>
               )}
             </div>
@@ -543,13 +548,13 @@ export default async function DashboardPage() {
             {stats.map((s) => {
               const inner = (
                 <>
-                  <div className="text-lg font-extrabold text-white leading-none">{s.value}</div>
-                  <div className="text-[11px] text-amber-100 mt-1 leading-tight">{s.label}</div>
+                  <div className="text-lg font-extrabold text-gray-900 leading-none">{s.value}</div>
+                  <div className="text-[11px] text-gray-600 mt-1 leading-tight">{s.label}</div>
                 </>
               )
-              const cls = 'bg-white/20 backdrop-blur-sm rounded-xl px-2 py-2.5 text-center'
+              const cls = 'bg-white border border-amber-100 rounded-xl px-2 py-2.5 text-center'
               return s.href ? (
-                <Link key={s.label} href={s.href} className={`${cls} hover:bg-white/30 transition-colors`}>{inner}</Link>
+                <Link key={s.label} href={s.href} className={`${cls} hover:border-amber-300 transition-colors`}>{inner}</Link>
               ) : (
                 <div key={s.label} className={cls}>{inner}</div>
               )
@@ -706,7 +711,7 @@ export default async function DashboardPage() {
             {newMembers.length > 0 && (
               <div className="bg-white rounded-2xl shadow-card p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs font-bold text-gray-600 uppercase tracking-widest">New this week 🌱</p>
+                  <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">New this week 🌱</h2>
                   <Link href="/members" className="text-xs text-amber-600 font-semibold hover:underline">See all</Link>
                 </div>
                 <div className="space-y-2.5">
@@ -741,7 +746,7 @@ export default async function DashboardPage() {
             {recentPhotos.length > 0 && (
               <div className="bg-white rounded-2xl shadow-card p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs font-bold text-gray-600 uppercase tracking-widest">Recent photos 📸</p>
+                  <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">Recent photos 📸</h2>
                 </div>
                 <div className="grid grid-cols-3 gap-1.5">
                   {recentPhotos.map((p) => (
@@ -764,7 +769,7 @@ export default async function DashboardPage() {
             {latestHandbook.length > 0 && (
               <div className="bg-white rounded-2xl shadow-card p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs font-bold text-gray-600 uppercase tracking-widest">New on Smileys</p>
+                  <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">New on Smileys</h2>
                   <span className="text-base">📖</span>
                 </div>
                 <Link href="/handbook" className="block mb-3 group">
@@ -1153,7 +1158,7 @@ export default async function DashboardPage() {
             {recentListings.length > 0 && (
               <div className="bg-white rounded-2xl shadow-card p-5">
                 <div className="flex items-center justify-between mb-4">
-                  <p className="text-sm font-bold text-gray-900">📋 Community Board</p>
+                  <h2 className="text-sm font-bold text-gray-900">📋 Community Board</h2>
                   <Link href="/listings" className="text-xs text-amber-600 font-semibold hover:underline">See all →</Link>
                 </div>
                 <div className="space-y-3">
@@ -1476,7 +1481,7 @@ export default async function DashboardPage() {
               return (
                 <Link href={`/listings?id=${l.id}`} className="block bg-white rounded-2xl shadow-card p-4 hover:shadow-md transition-shadow group">
                   <div className="flex items-center justify-between mb-3">
-                    <p className="text-xs font-bold text-gray-600 uppercase tracking-widest">New on Board</p>
+                    <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">New on Board</h2>
                     <span className="text-lg">{EMOJI[l.category] ?? '📋'}</span>
                   </div>
                   {l.photo && (
@@ -1530,7 +1535,7 @@ export default async function DashboardPage() {
             {deduplicatedNearby.length > 0 && (
               <div className="bg-white rounded-2xl shadow-card p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs font-bold text-gray-900 uppercase tracking-widest">Near you 📍</p>
+                  <h2 className="text-xs font-bold text-gray-900 uppercase tracking-widest">Near you 📍</h2>
                   <Link href="/members" className="text-xs text-amber-600 font-semibold hover:underline">All →</Link>
                 </div>
                 <div className="space-y-2.5">
@@ -1571,7 +1576,7 @@ export default async function DashboardPage() {
             <div className="bg-white rounded-2xl shadow-card p-4">
               <div className="flex items-center gap-2 mb-3">
                 <span className="w-2 h-2 rounded-full bg-green-400" />
-                <p className="text-xs font-bold text-gray-900 uppercase tracking-widest">Community</p>
+                <h2 className="text-xs font-bold text-gray-900 uppercase tracking-widest">Community</h2>
               </div>
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between">
