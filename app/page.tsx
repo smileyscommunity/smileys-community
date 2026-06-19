@@ -144,13 +144,18 @@ export default async function HomePage() {
               </div>
             </div>
 
-            {/* Hero image */}
+            {/* Hero image — `unoptimized` because Next's image optimizer
+                returns an empty response for public/ assets when basePath
+                is set (next.js#45888). The image only renders at lg+ via
+                hidden lg:block, so the unoptimized 533KB JPEG cost is
+                desktop-only. */}
             <div className="hidden lg:block relative h-[520px] rounded-2xl overflow-hidden shadow-xl">
               <Image
                 src="/images/hero-istanbul.jpg"
                 alt="Friends gathered on an Istanbul rooftop at sunset"
                 fill
                 priority
+                unoptimized
                 sizes="(max-width: 1024px) 0px, 50vw"
                 className="object-cover"
               />
