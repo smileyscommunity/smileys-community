@@ -293,10 +293,12 @@ export default function HangoutsPage() {
                   splits the row 50/50 with Post one; sm:flex-initial on
                   desktop so it sits at content width like before. */}
               <button onClick={() => { setShowPulseForm(s => !s); setShowForm(false) }}
+                aria-expanded={showPulseForm}
                 className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 text-amber-600 border border-amber-300 hover:bg-amber-50 text-sm font-bold rounded-xl transition-colors">
                 {showPulseForm ? '× Close' : '✦ I’m around'}
               </button>
               <button onClick={() => { setShowForm(s => !s); setShowPulseForm(false) }}
+                aria-expanded={showForm}
                 className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
                 {showForm ? '× Close' : '＋ Post one'}
               </button>
@@ -309,38 +311,41 @@ export default function HangoutsPage() {
 
         {showForm && (
           <form onSubmit={handleSubmit} className="bg-white border border-gray-100 rounded-2xl p-5 space-y-4 shadow-sm">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">What&apos;s happening?</label>
+            {/* Labels wrap their inputs so the association is implicit
+                (no htmlFor/id pair needed). SR users tabbing into any
+                field now hear the label announced. */}
+            <label className="block">
+              <span className="block text-sm font-semibold text-gray-700 mb-1.5">What&apos;s happening?</span>
               <input value={title} onChange={e => setTitle(e.target.value)} maxLength={120}
                 placeholder="Coffee at Moda İskele" className="input" />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">Where</label>
+            </label>
+            <label className="block">
+              <span className="block text-sm font-semibold text-gray-700 mb-1.5">Where</span>
               <input value={location} onChange={e => setLocation(e.target.value)} maxLength={200}
                 placeholder="Café name, address, or Maps link" className="input" />
-            </div>
+            </label>
             {/* Stack on mobile — native datetime-local inputs reserve a
                 fixed width for their date+time controls and overflow a
                 2-col grid on phones, causing the two fields to overlap. */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">From</label>
+              <label className="block">
+                <span className="block text-sm font-semibold text-gray-700 mb-1.5">From</span>
                 <input type="datetime-local" value={startsAt} onChange={e => setStartsAt(e.target.value)} className="input w-full" />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Until</label>
-                <input type="datetime-local" value={endsAt} onChange={e => setEndsAt(e.target.value)} min={startsAt} className="input w-full" />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                Neighborhood <span className="text-gray-400 font-normal">(pings nearby members)</span>
               </label>
+              <label className="block">
+                <span className="block text-sm font-semibold text-gray-700 mb-1.5">Until</span>
+                <input type="datetime-local" value={endsAt} onChange={e => setEndsAt(e.target.value)} min={startsAt} className="input w-full" />
+              </label>
+            </div>
+            <label className="block">
+              <span className="block text-sm font-semibold text-gray-700 mb-1.5">
+                Neighborhood <span className="text-gray-400 font-normal">(pings nearby members)</span>
+              </span>
               <select value={neighborhood} onChange={e => setNeighborhood(e.target.value)} className="input bg-white">
                 <option value="">— Not specified —</option>
                 {ISTANBUL_NEIGHBORHOODS.map(n => <option key={n} value={n}>{n}</option>)}
               </select>
-            </div>
+            </label>
             {/* Intent — 'group' is the default (broadest reach). 'solo' is
                 the "looking for one person" signal that joiners use to
                 self-select before they tap Going. */}
@@ -363,14 +368,14 @@ export default function HangoutsPage() {
                 ))}
               </div>
             </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+            <label className="block">
+              <span className="block text-sm font-semibold text-gray-700 mb-1.5">
                 Note <span className="text-gray-400 font-normal">(optional)</span>
-              </label>
+              </span>
               <textarea value={description} onChange={e => setDescription(e.target.value)} maxLength={500} rows={2}
                 placeholder="What you're up for — quiet work, chatty, walk after…"
                 className="input resize-none" />
-            </div>
+            </label>
             {/* Location photo — optional. Helps people find the group at busy
                 venues ("we're at the back table next to the window"). */}
             <div>
@@ -407,31 +412,31 @@ export default function HangoutsPage() {
               <p className="text-sm font-bold text-amber-900">I&apos;m around</p>
               <p className="text-xs text-amber-700 mt-0.5">Lightweight ping — no venue or time committed. Auto-expires.</p>
             </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+            <label className="block">
+              <span className="block text-sm font-semibold text-gray-700 mb-1.5">
                 Note <span className="text-gray-400 font-normal">(optional)</span>
-              </label>
+              </span>
               <input value={pulseNote} onChange={e => setPulseNote(e.target.value)} maxLength={200}
                 placeholder="Free for coffee · Open to drinks later · Working from a café…"
                 className="input" />
-            </div>
+            </label>
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Where</label>
+              <label className="block">
+                <span className="block text-sm font-semibold text-gray-700 mb-1.5">Where</span>
                 <select value={pulseNeighborhood} onChange={e => setPulseNeighborhood(e.target.value)} className="input bg-white">
                   <option value="">— Anywhere —</option>
                   {ISTANBUL_NEIGHBORHOODS.map(n => <option key={n} value={n}>{n}</option>)}
                 </select>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">For how long</label>
+              </label>
+              <label className="block">
+                <span className="block text-sm font-semibold text-gray-700 mb-1.5">For how long</span>
                 <select value={pulseDuration} onChange={e => setPulseDuration(parseInt(e.target.value, 10))} className="input bg-white">
                   <option value={60}>1 hour</option>
                   <option value={120}>2 hours</option>
                   <option value={180}>3 hours</option>
                   <option value={240}>4 hours (max)</option>
                 </select>
-              </div>
+              </label>
             </div>
             <button type="submit" disabled={pulsing}
               className="w-full bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-bold py-3 rounded-xl transition-colors">
@@ -447,26 +452,41 @@ export default function HangoutsPage() {
             filter. */}
         {!loading && (hangouts.length > 0 || pulses.length > 0) && (
           <div className="flex flex-wrap items-center gap-2 -mt-2 pb-1">
-            {([
-              { v: 'all',   label: 'All' },
-              { v: 'group', label: 'Open to all' },
-              { v: 'solo',  label: 'Solo only' },
-            ] as { v: ModeFilter; label: string }[]).map(opt => (
-              <button key={opt.v} onClick={() => setModeFilter(opt.v)}
-                className={`text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap transition-colors ${
-                  modeFilter === opt.v
-                    ? 'bg-gray-900 text-white'
-                    : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300'
-                }`}>
-                {opt.label}
-              </button>
-            ))}
+            {/* Mode chips are an exclusive single-select — semantic tabs
+                with role=tab + aria-selected so SR users navigate them
+                as tabs rather than three unrelated buttons. The chips
+                live in a tablist alongside the toggle chips below, but
+                only the mode chips share the role=tab semantics; the
+                toggles are independent on/off filters and use
+                aria-pressed instead. */}
+            <div role="tablist" aria-label="Filter hangouts by meet mode" className="contents">
+              {([
+                { v: 'all',   label: 'All' },
+                { v: 'group', label: 'Open to all' },
+                { v: 'solo',  label: 'Solo only' },
+              ] as { v: ModeFilter; label: string }[]).map(opt => (
+                <button
+                  key={opt.v}
+                  onClick={() => setModeFilter(opt.v)}
+                  role="tab"
+                  aria-selected={modeFilter === opt.v}
+                  className={`text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap transition-colors ${
+                    modeFilter === opt.v
+                      ? 'bg-amber-500 text-white'
+                      : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300'
+                  }`}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
 
             {/* Neighborhood toggle — only meaningful if the caller has a
                 home neighborhood set; suppress otherwise so the chip isn't
                 a no-op for users who never picked one. */}
             {user.neighborhood && (
-              <button onClick={() => setNeighborhoodOnly(v => !v)}
+              <button
+                onClick={() => setNeighborhoodOnly(v => !v)}
+                aria-pressed={neighborhoodOnly}
                 className={`text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap transition-colors ${
                   neighborhoodOnly
                     ? 'bg-amber-500 text-white'
@@ -480,7 +500,9 @@ export default function HangoutsPage() {
             {/* Language toggle — same suppression pattern: if no languages
                 set on the profile, the chip would never match anything. */}
             {(user.languages?.length ?? 0) > 0 && (
-              <button onClick={() => setLanguageOnly(v => !v)}
+              <button
+                onClick={() => setLanguageOnly(v => !v)}
+                aria-pressed={languageOnly}
                 className={`text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap transition-colors ${
                   languageOnly
                     ? 'bg-amber-500 text-white'
@@ -681,7 +703,7 @@ function HangoutCard({ h, currentUser, onCancel, onMutated }: {
             {/* Intent badge — only renders for 'solo' since 'group' is the
                 default and adding "open to all" everywhere is noise. */}
             {h.meetMode === 'solo' && (
-              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-700 text-[10px] font-semibold border border-purple-200 shrink-0">
+              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-semibold border border-amber-200 shrink-0">
                 1-on-1
               </span>
             )}
@@ -732,22 +754,40 @@ function HangoutCard({ h, currentUser, onCancel, onMutated }: {
 
       {/* Going + chat actions row */}
       <div className="flex items-center gap-3 mt-4 pt-3 border-t border-gray-100">
-        {/* Avatar strip — counts host as implicitly in */}
-        <div className="flex items-center gap-1.5 flex-1 min-w-0">
-          <div className="flex -space-x-1.5">
-            {[h.user, ...h.joiners.filter(j => j.id !== h.user.id)].slice(0, 4).map(j => (
-              j.profilePhoto
-                ? <img key={j.id} src={avatarUrl(j.profilePhoto, 64)} alt="" loading="lazy" decoding="async" className="w-6 h-6 rounded-full border-2 border-white object-cover" />
-                : <div key={j.id} className="w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-white text-[9px] font-bold"
-                    style={{ backgroundColor: j.color }}>{j.name[0] ?? '?'}</div>
-            ))}
-          </div>
-          <span className="text-xs text-gray-600 truncate">
-            {h.joiners.length === 0
-              ? 'No one in yet'
-              : `${h.joiners.length + 1} going`}
-          </span>
-        </div>
+        {/* Avatar strip — counts host as implicitly in. Caps the visible
+            row at 4 avatars; if more people are going, append a +N
+            circle so the user gets a visual cue without having to read
+            the "X going" text first. */}
+        {(() => {
+          const everyone = [h.user, ...h.joiners.filter(j => j.id !== h.user.id)]
+          const VISIBLE  = 4
+          const visible  = everyone.slice(0, VISIBLE)
+          const overflow = Math.max(0, everyone.length - VISIBLE)
+          return (
+            <div className="flex items-center gap-1.5 flex-1 min-w-0">
+              <div className="flex -space-x-1.5">
+                {visible.map(j => (
+                  j.profilePhoto
+                    ? <img key={j.id} src={avatarUrl(j.profilePhoto, 64)} alt="" loading="lazy" decoding="async" className="w-6 h-6 rounded-full border-2 border-white object-cover" />
+                    : <div key={j.id} className="w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-white text-[9px] font-bold"
+                        style={{ backgroundColor: j.color }}>{j.name[0] ?? '?'}</div>
+                ))}
+                {overflow > 0 && (
+                  <div
+                    aria-label={`${overflow} more`}
+                    className="w-6 h-6 rounded-full border-2 border-white bg-gray-100 text-gray-700 text-[9px] font-bold flex items-center justify-center">
+                    +{overflow}
+                  </div>
+                )}
+              </div>
+              <span className="text-xs text-gray-600 truncate">
+                {h.joiners.length === 0
+                  ? 'No one in yet'
+                  : `${h.joiners.length + 1} going`}
+              </span>
+            </div>
+          )
+        })()}
 
         {!isOwner && (
           <button onClick={toggleJoin} disabled={joining}
