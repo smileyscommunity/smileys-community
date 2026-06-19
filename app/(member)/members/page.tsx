@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo, memo, Suspense } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef, memo, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import Link from 'next/link'
@@ -327,8 +327,43 @@ function MemberModal({ m, onClose, currentUserId, currentUserRole, myClubIds, my
     } finally { setBlocking(false) }
   }
 
+  // Modal panel ref + focus management: move focus into the modal on
+  // open (so SR/keyboard users land inside), restore to the trigger on
+  // unmount, and trap Tab cycling within the panel so focus can't leak
+  // back to the page content behind. Escape-to-close is the same effect
+  // it always was.
+  const panelRef   = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLElement | null>(null)
+
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    triggerRef.current = document.activeElement as HTMLElement | null
+    // Focus the first focusable element inside the panel (the close
+    // button is the topmost). RAF defers until layout settles so the
+    // panel is actually mounted.
+    requestAnimationFrame(() => {
+      panelRef.current?.querySelector<HTMLButtonElement>('button')?.focus()
+    })
+    return () => { triggerRef.current?.focus() }
+  }, [])
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') { onClose(); return }
+      if (e.key !== 'Tab') return
+      const panel = panelRef.current
+      if (!panel) return
+      const focusable = panel.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )
+      if (focusable.length === 0) return
+      const first = focusable[0]
+      const last  = focusable[focusable.length - 1]
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault(); last.focus()
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault(); first.focus()
+      }
+    }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
@@ -367,6 +402,10 @@ function MemberModal({ m, onClose, currentUserId, currentUserRole, myClubIds, my
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center md:p-6" onClick={onClose}>
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${m.name} profile`}
         className="relative bg-white w-full md:max-w-md rounded-t-3xl md:rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row max-h-[90vh]"
         onClick={e => e.stopPropagation()}
       >
@@ -690,7 +729,10 @@ function MembersPageInner() {
   // on member cards, bridging /members and /hangouts so the live signal isn't
   // siloed in a separate page.
   const [hangouts, setHangouts] = useState<HangoutSummary[]>([])
-  const [hero, setHero] = useState({ badge: 'People', headline: 'Members', subtitle: 'Connect with the Smileys community.' })
+  // CMS overrides land via /api/content. Default headline was a one-
+  // word 'Members' file-cabinet label; 'Find your people' echoes the
+  // landing-page line and reads as an invitation.
+  const [hero, setHero] = useState({ badge: 'People', headline: 'Find your people', subtitle: 'Connect with the Smileys community.' })
 
   const handleConnectionChange = useCallback((updated: ConnectionRecord | null, removed?: string) => {
     if (removed) {
@@ -732,20 +774,21 @@ function MembersPageInner() {
     }
   }, [handleConnectionChange])
 
-  useEffect(() => {
-    fetch('/app/api/content').then(r => r.json()).then(d => {
-      if (d.members) setHero(h => ({ ...h, ...d.members }))
-    }).catch(() => {})
-  }, [])
-
+  // One-shot mount fetches: hero CMS content + members + clubs + events
+  // + connections + hangouts. Was a separate useEffect for the hero
+  // fetch — moving it into the same Promise.all lets React commit all
+  // setStates in one render instead of two. Each fetch fails open with
+  // `null` so a flaky CMS endpoint doesn't take down the grid.
   useEffect(() => {
     Promise.all([
-      fetch('/app/api/members?offset=0',  { credentials: 'include' }).then(r => r.json()),
-      fetch('/app/api/clubs/memberships', { credentials: 'include' }).then(r => r.json()),
-      fetch('/app/api/events/attending',  { credentials: 'include' }).then(r => r.json()),
-      fetch('/app/api/connections',       { credentials: 'include' }).then(r => r.json()),
-      fetch('/app/api/hangouts',          { credentials: 'include' }).then(r => r.json()),
-    ]).then(([membersData, clubsData, eventsData, connData, hangoutsData]) => {
+      fetch('/app/api/content',                                       ).then(r => r.json()).catch(() => null),
+      fetch('/app/api/members?offset=0',  { credentials: 'include' }).then(r => r.json()).catch(() => null),
+      fetch('/app/api/clubs/memberships', { credentials: 'include' }).then(r => r.json()).catch(() => null),
+      fetch('/app/api/events/attending',  { credentials: 'include' }).then(r => r.json()).catch(() => null),
+      fetch('/app/api/connections',       { credentials: 'include' }).then(r => r.json()).catch(() => null),
+      fetch('/app/api/hangouts',          { credentials: 'include' }).then(r => r.json()).catch(() => null),
+    ]).then(([content, membersData, clubsData, eventsData, connData, hangoutsData]) => {
+      if (content?.members) setHero(h => ({ ...h, ...content.members }))
       setMembers(Array.isArray(membersData?.members) ? membersData.members : [])
       setTotal(membersData?.total ?? 0)
       setHostTotal(membersData?.hostTotal ?? 0)
@@ -754,12 +797,11 @@ function MembersPageInner() {
       setHasMore(membersData?.hasMore ?? false)
       setMyClubIds(Array.isArray(clubsData) ? clubsData.map((c: any) => c.clubId ?? c.id) : [])
       setMyEventIds(Array.isArray(eventsData) ? eventsData.map((e: any) => e.eventId ?? e.id) : [])
-      const sentList   = Array.isArray(connData?.sent)     ? connData.sent     : []
-      const rcvList    = Array.isArray(connData?.received) ? connData.received : []
+      const sentList = Array.isArray(connData?.sent)     ? connData.sent     : []
+      const rcvList  = Array.isArray(connData?.received) ? connData.received : []
       setConnections([...sentList, ...rcvList])
       setHangouts(Array.isArray(hangoutsData?.hangouts) ? hangoutsData.hangouts : [])
-      setLoading(false)
-    }).catch(() => setLoading(false))
+    }).finally(() => setLoading(false))
   }, [])
 
   useEffect(() => {
@@ -857,13 +899,11 @@ function MembersPageInner() {
             <div className="flex-1">
               <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">{hero.badge}</span>
               <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">{hero.headline}</h1>
-              {!loading && (
-                <p className="text-base text-gray-600 mt-1">
-                  {total} members
-                  {hostTotal  > 0 && <span className="text-gray-400"> · {hostTotal} hosts</span>}
-                  {adminTotal > 0 && <span className="text-gray-400"> · {adminTotal} admins</span>}
-                </p>
-              )}
+              {/* Was 'X members · Y hosts · Z admins' — hosts/admins are
+                  subsets of members so the · merge implied parallel
+                  categories. The role-pill counts below already surface
+                  the breakdowns where the user can act on them. */}
+              {!loading && <p className="text-base text-gray-600 mt-1">{total} members</p>}
             </div>
             <div className="flex items-center gap-2 w-full sm:w-auto">
               <div className="relative flex-1 sm:w-72">
@@ -873,6 +913,7 @@ function MembersPageInner() {
                 <input
                   type="text"
                   placeholder="Search name, interest, club…"
+                  aria-label="Search members by name, interest, club, neighborhood, or nationality"
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
@@ -881,6 +922,7 @@ function MembersPageInner() {
               <select
                 value={sort}
                 onChange={e => setSort(e.target.value as SortOption)}
+                aria-label="Sort members"
                 className="shrink-0 py-2.5 pl-3 pr-7 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white text-gray-700 appearance-none"
                 style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%239ca3af'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center', backgroundSize: '14px' }}
               >
@@ -914,30 +956,42 @@ function MembersPageInner() {
             </Link>
           )}
 
-          {/* Role + open-to filter pills */}
-          <div className="flex gap-2 pb-4 overflow-x-auto scrollbar-hide">
-            {(['All', 'Hosts', 'Admins', 'Saved'] as RoleFilter[]).map(f => {
-              const count = f === 'Hosts' ? hostTotal : f === 'Admins' ? adminTotal : f === 'Saved' ? savedTotal : total
-              // All four role pills share the same active style now (was
-              // gray-900 for All, violet-500 for Admins, amber-400 for
-              // Saved, amber-500 for Hosts). The emoji prefix carries the
-              // role differentiation; the chip itself stays in one palette.
-              return (
-                <button key={f} onClick={() => setRoleFilter(f)}
-                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold border whitespace-nowrap transition-all ${
-                    roleFilter === f
-                      ? 'bg-amber-500 text-white border-amber-500'
-                      : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
-                  }`}>
-                  {f === 'Hosts' && '🔥 '}{f === 'Admins' && '⚡ '}{f === 'Saved' && '🔖 '}{f}
-                  {!loading && count > 0 && (
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${roleFilter === f ? 'bg-white/20' : 'bg-gray-100 text-gray-400'}`}>
-                      {count}
-                    </span>
-                  )}
-                </button>
-              )
-            })}
+          {/* Role + open-to filter pills. The role pills swap the whole
+              grid view (only one active at a time), so they get proper
+              role=tablist / role=tab / aria-selected. The open-to pills
+              are toggle filters and stay plain buttons. `display:contents`
+              on the tablist lets the inner role pills keep flowing in the
+              parent flex wrap. */}
+          <div className="flex flex-wrap gap-2 pb-4">
+            <div role="tablist" aria-label="Filter members by role" className="contents">
+              {(['All', 'Hosts', 'Admins', 'Saved'] as RoleFilter[]).map(f => {
+                const count = f === 'Hosts' ? hostTotal : f === 'Admins' ? adminTotal : f === 'Saved' ? savedTotal : total
+                const isActive = roleFilter === f
+                // All four role pills share the same active style now (was
+                // gray-900 for All, violet-500 for Admins, amber-400 for
+                // Saved, amber-500 for Hosts). The emoji prefix carries the
+                // role differentiation; the chip itself stays in one palette.
+                return (
+                  <button
+                    key={f}
+                    onClick={() => setRoleFilter(f)}
+                    role="tab"
+                    aria-selected={isActive}
+                    className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold border whitespace-nowrap transition-all ${
+                      isActive
+                        ? 'bg-amber-500 text-white border-amber-500'
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+                    }`}>
+                    {f === 'Hosts' && '🔥 '}{f === 'Admins' && '⚡ '}{f === 'Saved' && '🔖 '}{f}
+                    {!loading && count > 0 && (
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${isActive ? 'bg-white/20' : 'bg-gray-100 text-gray-400'}`}>
+                        {count}
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
 
             {/* Divider — open-to filters are an orthogonal dimension to role */}
             <div className="w-px bg-gray-200 my-1.5 shrink-0" />
@@ -972,9 +1026,9 @@ function MembersPageInner() {
         {/* Pending connection requests */}
         {pendingRequests.length > 0 && (
           <div className="mb-6 bg-amber-50 border border-amber-200 rounded-2xl p-4">
-            <h3 className="text-sm font-bold text-amber-800 mb-3">
+            <h2 className="text-sm font-bold text-amber-800 mb-3">
               🤝 {pendingRequests.length} connection request{pendingRequests.length !== 1 ? 's' : ''} waiting
-            </h3>
+            </h2>
             <div className="flex flex-col gap-2">
               {pendingRequests.map(req => {
                 const inPage = members.find(x => x.id === req.requesterId)
@@ -1053,7 +1107,7 @@ function MembersPageInner() {
         {!loading && !filterLoading && visible.length === 0 && (
           <div className="text-center py-20 max-w-xs mx-auto">
             <div className="text-6xl mb-4">🔍</div>
-            <h3 className="text-lg font-bold text-gray-900 mb-2">No members found</h3>
+            <h2 className="text-lg font-bold text-gray-900 mb-2">No members found</h2>
             <p className="text-sm text-gray-600 mb-6">Try a different name, neighborhood, or interest.</p>
             <button
               onClick={() => { setSearch(''); setRoleFilter('All') }}
