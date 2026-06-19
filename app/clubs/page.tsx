@@ -1,8 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useState, useEffect, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, useMemo, Suspense } from 'react'
+import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { toast } from 'sonner'
 import { resolveImageUrl } from '@/lib/data'
 import { useAuth } from '@/contexts/AuthContext'
@@ -53,7 +53,7 @@ function ClubCard({ club, membership, toggling, onToggle }: {
         <div className="relative h-36 overflow-hidden">
           {photo ? (
             <>
-              <img src={photo} alt={club.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+              <img src={photo} alt={club.name} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
             </>
           ) : (
@@ -142,16 +142,33 @@ function ClubCard({ club, membership, toggling, onToggle }: {
   )
 }
 
-export default function AppClubsPage() {
+function AppClubsPageInner() {
   const { user, isLoggedIn } = useAuth()
-  const router = useRouter()
+  const router       = useRouter()
+  const searchParams = useSearchParams()
+  const pathname     = usePathname()
+
   const [clubs,        setClubs]       = useState<Club[]>([])
   const [memberships,  setMemberships] = useState<Membership[]>([])
   const [loading,      setLoading]     = useState(true)
   const [toggling,     setToggling]    = useState<string | null>(null)
-  const [tab,          setTab]         = useState<Tab>('explore')
-  const [activeCategory, setActiveCategory] = useState('All')
+  // tab + activeCategory mirror to/from the URL so refresh + back-button
+  // + sharing a filtered URL all work. Same pattern the events page uses.
+  const [tab,            setTab]            = useState<Tab>(() =>
+    searchParams.get('tab') === 'mine' ? 'mine' : 'explore'
+  )
+  const [activeCategory, setActiveCategory] = useState<string>(() => searchParams.get('category') ?? 'All')
   const [hero, setHero] = useState({ badge: 'Community', headline: 'Clubs', subtitle: 'Discover communities and manage your memberships.' })
+
+  // Mirror filter state to the URL. Defaults omitted from the
+  // querystring so a "clean" URL means "all defaults".
+  useEffect(() => {
+    const params = new URLSearchParams()
+    if (tab !== 'explore')        params.set('tab',      tab)
+    if (activeCategory !== 'All') params.set('category', activeCategory)
+    const qs = params.toString()
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+  }, [tab, activeCategory, router, pathname])
 
   useEffect(() => {
     fetch('/app/api/content').then(r => r.json()).then(d => {
@@ -225,15 +242,27 @@ export default function AppClubsPage() {
     return ['All', ...cats]
   }, [clubs])
 
-  const joinedClubs  = clubs.filter(c => membershipByClubId.get(c.id)?.status === 'approved')
-  const pendingClubs = clubs.filter(c => membershipByClubId.get(c.id)?.status === 'pending')
-
-  const exploreClubs = clubs.filter(c =>
-    activeCategory === 'All' || c.category === activeCategory
+  // Memoized so they don't re-filter on unrelated rerenders (typing in a
+  // search box, hover state, etc). joinedClubs / pendingClubs feed the
+  // hero + tab-pill counts as well as the my-clubs grid, so they're
+  // cheap to compute but re-running them on every paint is wasted work.
+  const joinedClubs  = useMemo(
+    () => clubs.filter(c => membershipByClubId.get(c.id)?.status === 'approved'),
+    [clubs, membershipByClubId]
+  )
+  const pendingClubs = useMemo(
+    () => clubs.filter(c => membershipByClubId.get(c.id)?.status === 'pending'),
+    [clubs, membershipByClubId]
   )
 
-  const myClubs = [...joinedClubs, ...pendingClubs].filter(c =>
-    activeCategory === 'All' || c.category === activeCategory
+  const exploreClubs = useMemo(
+    () => clubs.filter(c => activeCategory === 'All' || c.category === activeCategory),
+    [clubs, activeCategory]
+  )
+
+  const myClubs = useMemo(
+    () => [...joinedClubs, ...pendingClubs].filter(c => activeCategory === 'All' || c.category === activeCategory),
+    [joinedClubs, pendingClubs, activeCategory]
   )
 
   const displayClubs = tab === 'mine' ? myClubs : exploreClubs
@@ -248,12 +277,11 @@ export default function AppClubsPage() {
                 {hero.badge}
               </span>
               <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">{hero.headline}</h1>
-              <p className="text-base text-gray-600 mt-2">
-                {!loading && (
-                  <><strong className="text-gray-900 font-bold">{clubs.length}</strong> clubs · </>
-                )}
-                {hero.subtitle}
-              </p>
+              <p className="text-base text-gray-600 mt-2">{hero.subtitle}</p>
+              {/* (Total-clubs count used to be merged here as "354 clubs ·
+                  Discover communities…". Awkward "·" merge AND duplicated
+                  the filtered count above the grid. Kept only the
+                  filtered count below, which is the more useful number.) */}
             </div>
             {isLoggedIn && user.role === 'admin' && (
               <Link href="/admin/clubs"
@@ -269,7 +297,7 @@ export default function AppClubsPage() {
           <AdBannerStrip page="clubs" />
 
           {/* Tab pills */}
-          <div className="flex gap-2 mb-4 overflow-x-auto scrollbar-hide">
+          <div className="flex flex-wrap gap-2 mb-4">
             {(isLoggedIn
               ? [['explore', 'Explore', clubs.length], ['mine', 'My Clubs', joinedClubs.length + pendingClubs.length]] as [Tab, string, number][]
               : [['explore', 'Explore', clubs.length]] as [Tab, string, number][]
@@ -292,7 +320,7 @@ export default function AppClubsPage() {
 
           {/* Category filter pills */}
           {!loading && categories.length > 2 && (
-            <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+            <div className="flex flex-wrap gap-2 pb-1">
               {categories.map(cat => (
                 <button key={cat} onClick={() => setActiveCategory(cat)}
                   className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold border whitespace-nowrap transition-all ${
@@ -363,5 +391,14 @@ export default function AppClubsPage() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function AppClubsPage() {
+  // Suspense wrapper is required by useSearchParams() in Next.js App Router.
+  return (
+    <Suspense>
+      <AppClubsPageInner />
+    </Suspense>
   )
 }
