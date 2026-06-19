@@ -86,7 +86,9 @@ function AppEventsPageInner() {
   })
   const [neighborhoodFilter, setNeighborhoodFilter] = useState<string>(() => searchParams.get('neighborhood') ?? '')
   const [goingOnly,    setGoingOnly]    = useState(() => searchParams.get('going') === '1')
-  const [hero, setHero] = useState({ badge: 'Istanbul', headline: 'Events', subtitle: 'Find your next experience in Istanbul.' })
+  // CMS overrides land in this state on mount via /api/content. Defaults
+  // are the fallback when the CMS hasn't been configured.
+  const [hero, setHero] = useState({ badge: 'Istanbul', headline: "What's on this week", subtitle: 'Find your next experience in Istanbul.' })
 
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
   const [showMap,         setShowMap]         = useState(false)
@@ -120,17 +122,17 @@ function AppEventsPageInner() {
     setOffset(currentOffset + evts.length)
   }
 
+  // One-shot mount fetches that don't depend on tab: hero copy from the
+  // CMS + live hangouts. Batched in a single Promise.all so React can
+  // commit both setStates in one render instead of two sequential ones.
   useEffect(() => {
-    fetch('/app/api/content').then(r => r.json()).then(d => {
-      if (d.events) setHero(h => ({ ...h, ...d.events }))
-    }).catch(() => {})
-  }, [])
-
-  useEffect(() => {
-    fetch('/app/api/hangouts', { credentials: 'include' })
-      .then(r => r.json())
-      .then(d => { if (Array.isArray(d?.hangouts)) setHangouts(d.hangouts) })
-      .catch(() => {})
+    Promise.all([
+      fetch('/app/api/content').then(r => r.json()).catch(() => null),
+      fetch('/app/api/hangouts', { credentials: 'include' }).then(r => r.json()).catch(() => null),
+    ]).then(([content, hg]) => {
+      if (content?.events)             setHero(h => ({ ...h, ...content.events }))
+      if (Array.isArray(hg?.hangouts)) setHangouts(hg.hangouts)
+    })
   }, [])
 
   useEffect(() => {
@@ -211,6 +213,20 @@ function AppEventsPageInner() {
       ? filteredWithoutNeighborhood.filter(e => e.neighborhood === neighborhoodFilter)
       : filteredWithoutNeighborhood
   }, [filteredWithoutNeighborhood, neighborhoodFilter])
+
+  // Partition the filtered list into a featured spotlight row + the
+  // rest of the grid, so the grid stops reading as one uniform block.
+  // Only applied on the upcoming tab — featured is forward-looking.
+  // Capped at 4 so featured doesn't crowd out the main grid.
+  const featuredFiltered = useMemo(
+    () => tab === 'upcoming' ? filtered.filter(e => e.featured).slice(0, 4) : [],
+    [filtered, tab]
+  )
+  const featuredIds = useMemo(() => new Set(featuredFiltered.map(e => e.id)), [featuredFiltered])
+  const restFiltered = useMemo(
+    () => featuredFiltered.length > 0 ? filtered.filter(e => !featuredIds.has(e.id)) : filtered,
+    [filtered, featuredFiltered.length, featuredIds]
+  )
 
   const hasActiveFilters = timeFilter !== 'All' || selectedTags.length > 0 || !!neighborhoodFilter || goingOnly
 
@@ -508,9 +524,30 @@ function AppEventsPageInner() {
               </div>
             )}
 
-            {/* Card grid */}
+            {/* Featured spotlight row — only when there's at least one
+                featured event matching the user's filters. Same EventCard
+                so the visual language is consistent; what changes is the
+                section label and the fact that featured events get
+                surfaced above the main grid instead of being scattered
+                inside it. */}
+            {featuredFiltered.length > 0 && (
+              <section className="mb-8">
+                <div className="flex items-center gap-2 mb-3">
+                  <h2 className="text-sm font-bold text-amber-700 uppercase tracking-widest">★ Featured</h2>
+                  <div className="flex-1 h-px bg-amber-200/60" />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                  {featuredFiltered.map(event => (
+                    <EventCard key={event.id} event={event} linkPrefix="/events" initialStatus={attendance[event.id] ?? null} />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Main card grid — excludes featured events when the spotlight
+                row above is visible (no duplication). */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-              {filtered.map(event => (
+              {restFiltered.map(event => (
                 <EventCard key={event.id} event={event} linkPrefix="/events" initialStatus={attendance[event.id] ?? null} />
               ))}
             </div>
