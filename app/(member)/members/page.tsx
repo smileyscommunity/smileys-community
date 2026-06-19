@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback, Suspense } from 'react'
+import { useState, useEffect, useCallback, useMemo, memo, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { toast } from 'sonner'
 import Link from 'next/link'
 import { resolveImageUrl, avatarUrl, getInitials } from '@/lib/data'
 import { countryFlag } from '@/lib/countries'
@@ -79,7 +80,7 @@ interface Member {
 function displayRole(m: Member): { label: string; cls: string } {
   if (m.role === 'admin')     return { label: 'Admin', cls: 'bg-amber-100 text-amber-700' }
   if (m.role === 'moderator') return { label: 'Mod',   cls: 'bg-purple-100 text-purple-700' }
-  return { label: 'Member', cls: 'bg-gray-100 text-gray-500' }
+  return { label: 'Member', cls: 'bg-gray-100 text-gray-600' }
 }
 
 function Avatar({ m, size = 'md' }: { m: Member; size?: 'md' | 'lg' }) {
@@ -135,12 +136,17 @@ function ConnectButton({ m, currentUserId, connections, onConnectionChange }: {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ receiverId: m.id, note: note.trim() || undefined }),
       })
-      if (res.ok) {
-        const data = await res.json()
-        onConnectionChange(data.connection)
-        setShowNote(false)
-        setNote('')
+      if (!res.ok) {
+        toast.error(`Could not send request to ${m.name.split(' ')[0]}`)
+        return
       }
+      const data = await res.json()
+      onConnectionChange(data.connection)
+      toast.success(`Request sent to ${m.name.split(' ')[0]}`)
+      setShowNote(false)
+      setNote('')
+    } catch {
+      toast.error('Network error — check your connection')
     } finally { setLoading(false) }
   }
 
@@ -153,10 +159,15 @@ function ConnectButton({ m, currentUserId, connections, onConnectionChange }: {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'accept' }),
       })
-      if (res.ok) {
-        const data = await res.json()
-        onConnectionChange(data.connection)
+      if (!res.ok) {
+        toast.error('Could not accept request')
+        return
       }
+      const data = await res.json()
+      onConnectionChange(data.connection)
+      toast.success(`Connected with ${m.name.split(' ')[0]}`)
+    } catch {
+      toast.error('Network error — check your connection')
     } finally { setLoading(false) }
   }
 
@@ -167,7 +178,17 @@ function ConnectButton({ m, currentUserId, connections, onConnectionChange }: {
       const res = await fetch(`/app/api/connections/${conn.id}`, {
         method: 'DELETE', credentials: 'include',
       })
-      if (res.ok) onConnectionChange(null, conn.id)
+      if (!res.ok) {
+        // Different copy depending on what state we're cancelling.
+        const what = conn.status === 'pending'
+          ? (iRequested ? 'cancel request' : 'decline request')
+          : 'disconnect'
+        toast.error(`Could not ${what}`)
+        return
+      }
+      onConnectionChange(null, conn.id)
+    } catch {
+      toast.error('Network error — check your connection')
     } finally { setLoading(false) }
   }
 
@@ -187,7 +208,7 @@ function ConnectButton({ m, currentUserId, connections, onConnectionChange }: {
               {loading ? '...' : 'Send'}
             </button>
             <button onClick={() => setShowNote(false)}
-              className="px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-100 rounded-lg transition-colors">
+              className="px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
               Cancel
             </button>
           </div>
@@ -256,30 +277,54 @@ function MemberModal({ m, onClose, currentUserId, currentUserRole, myClubIds, my
   )
   const isConnected = isPrivileged || conn?.status === 'accepted'
 
-  const [blocked,  setBlocked]  = useState(false)
-  const [blocking, setBlocking] = useState(false)
+  const [blocked,    setBlocked]    = useState(false)
+  const [blocking,   setBlocking]   = useState(false)
+  // Two-state block confirmation. Was native confirm() — unstyled,
+  // non-accessible, can't be branded. Now: first click flips
+  // confirmingBlock true → inline 'Yes, block' / 'Cancel' surface
+  // takes over; second click commits.
+  const [confirmingBlock, setConfirmingBlock] = useState(false)
 
-  async function handleBlock() {
-    if (!confirm(`Block ${m.name.split(' ')[0]}? They won't be able to see your profile or message you.`)) return
+  async function commitBlock() {
     setBlocking(true)
-    const res = await fetch('/app/api/members/block', {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: m.id }),
-    })
-    setBlocking(false)
-    if (res.ok) { setBlocked(true); onClose() }
+    try {
+      const res = await fetch('/app/api/members/block', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: m.id }),
+      })
+      if (!res.ok) {
+        toast.error(`Could not block ${m.name.split(' ')[0]}`)
+        return
+      }
+      setBlocked(true)
+      toast.success(`Blocked ${m.name.split(' ')[0]}`)
+      onClose()
+    } catch {
+      toast.error('Network error — check your connection')
+    } finally {
+      setBlocking(false)
+      setConfirmingBlock(false)
+    }
   }
 
   async function handleUnblock() {
     setBlocking(true)
-    const res = await fetch('/app/api/members/block', {
-      method: 'DELETE', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: m.id }),
-    })
-    setBlocking(false)
-    if (res.ok) setBlocked(false)
+    try {
+      const res = await fetch('/app/api/members/block', {
+        method: 'DELETE', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: m.id }),
+      })
+      if (!res.ok) {
+        toast.error('Could not unblock')
+        return
+      }
+      setBlocked(false)
+      toast.success('Unblocked')
+    } catch {
+      toast.error('Network error — check your connection')
+    } finally { setBlocking(false) }
   }
 
   useEffect(() => {
@@ -287,6 +332,32 @@ function MemberModal({ m, onClose, currentUserId, currentUserRole, myClubIds, my
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
+
+  // Shared block control — rendered in both the connected-profile footer
+  // and the not-connected footer below. Two-state: starts as the plain
+  // 'Block X' button, flips to an inline 'Block X? · Yes · Cancel' row on
+  // first click, commits on the second.
+  const blockButton = confirmingBlock ? (
+    <div className="flex items-center gap-2">
+      <span className="text-xs text-red-700 font-semibold">Block {m.name.split(' ')[0]}?</span>
+      <button onClick={commitBlock} disabled={blocking}
+        className="text-xs px-2 py-1 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold disabled:opacity-50">
+        {blocking ? '…' : 'Yes, block'}
+      </button>
+      <button onClick={() => setConfirmingBlock(false)} disabled={blocking}
+        className="text-xs px-2 py-1 hover:bg-gray-100 text-gray-600 rounded-lg font-medium disabled:opacity-50">
+        Cancel
+      </button>
+    </div>
+  ) : (
+    <button onClick={blocked ? handleUnblock : () => setConfirmingBlock(true)} disabled={blocking}
+      className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-600 transition-colors disabled:opacity-50">
+      <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+      </svg>
+      {blocked ? 'Unblock' : `Block ${m.name.split(' ')[0]}`}
+    </button>
+  )
 
   const roleBadge = m.isHost
     ? <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-amber-500 text-white">Host</span>
@@ -453,13 +524,7 @@ function MemberModal({ m, onClose, currentUserId, currentUserRole, myClubIds, my
                   <div className="pt-2 border-t border-gray-100 flex items-center gap-4">
                     <ReportButton reportedId={m.id} reportedName={m.name} />
                     <span className="w-px h-3 bg-gray-200 shrink-0" />
-                    <button onClick={blocked ? handleUnblock : handleBlock} disabled={blocking}
-                      className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-600 transition-colors disabled:opacity-50">
-                      <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                      </svg>
-                      {blocked ? 'Unblock' : `Block ${m.name.split(' ')[0]}`}
-                    </button>
+                    {blockButton}
                   </div>
                 )}
               </div>
@@ -471,13 +536,7 @@ function MemberModal({ m, onClose, currentUserId, currentUserRole, myClubIds, my
             <div className="px-4 pb-4 border-t border-gray-100 pt-3 flex items-center gap-4">
               <ReportButton reportedId={m.id} reportedName={m.name} />
               <span className="w-px h-3 bg-gray-200 shrink-0" />
-              <button onClick={blocked ? handleUnblock : handleBlock} disabled={blocking}
-                className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-600 transition-colors disabled:opacity-50">
-                <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                </svg>
-                {blocked ? 'Unblock' : `Block ${m.name.split(' ')[0]}`}
-              </button>
+              {blockButton}
             </div>
           )}
         </div>
@@ -486,9 +545,9 @@ function MemberModal({ m, onClose, currentUserId, currentUserRole, myClubIds, my
   )
 }
 
-function MemberCard({ m, onClick, connectionStatus, hangingOut }: { m: Member; onClick: () => void; connectionStatus?: string; hangingOut?: boolean }) {
+const MemberCard = memo(function MemberCard({ m, onSelect, connectionStatus, hangingOut }: { m: Member; onSelect: (m: Member) => void; connectionStatus?: string; hangingOut?: boolean }) {
   const flag    = countryFlag(m.nationality)
-  const photo   = resolveImageUrl(m.profilePhoto)
+  const photo   = avatarUrl(m.profilePhoto, 256)
   const isOnline = m.lastActive
     ? (Date.now() - new Date(m.lastActive).getTime()) < 20 * 60 * 1000
     : false
@@ -496,7 +555,7 @@ function MemberCard({ m, onClick, connectionStatus, hangingOut }: { m: Member; o
 
   return (
     <button
-      onClick={onClick}
+      onClick={() => onSelect(m)}
       className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden text-left hover:-translate-y-0.5 hover:shadow-md hover:border-gray-200 transition-all duration-200 w-full flex flex-col group"
     >
       {/* Portrait photo */}
@@ -593,12 +652,12 @@ function MemberCard({ m, onClick, connectionStatus, hangingOut }: { m: Member; o
       </div>
     </button>
   )
-}
+})
 
-type RoleFilter = 'All' | 'Hosts' | 'Admins'
+type RoleFilter = 'All' | 'Hosts' | 'Admins' | 'Saved'
 type SortOption = 'newest' | 'active' | 'az'
 
-const ROLE_FILTERS: RoleFilter[] = ['All', 'Hosts', 'Admins']
+const ROLE_FILTERS: RoleFilter[] = ['All', 'Hosts', 'Admins', 'Saved']
 
 export default function MembersPage() {
   return <Suspense><MembersPageInner /></Suspense>
@@ -613,6 +672,7 @@ function MembersPageInner() {
   const [total,        setTotal]        = useState(0)
   const [hostTotal,    setHostTotal]    = useState(0)
   const [adminTotal,   setAdminTotal]   = useState(0)
+  const [savedTotal,   setSavedTotal]   = useState(0)
   const [hasMore,      setHasMore]      = useState(false)
   const [loadingMore,  setLoadingMore]  = useState(false)
   const [loading,      setLoading]      = useState(true)
@@ -644,6 +704,34 @@ function MembersPageInner() {
     }
   }, [])
 
+  // Pending Accept/Decline helper — was two inline arrow functions per
+  // request with no res.ok check and no toast on failure (silent failure
+  // pattern we just fixed on clubs). Single helper handles both actions
+  // with try/catch/finally + toast feedback.
+  const handlePendingAction = useCallback(async (reqId: string, action: 'accept' | 'decline', firstName: string) => {
+    try {
+      const res = await fetch(`/app/api/connections/${reqId}`, {
+        method:  'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ action }),
+      })
+      if (!res.ok) {
+        toast.error(action === 'accept' ? 'Could not accept request' : 'Could not decline request')
+        return
+      }
+      if (action === 'accept') {
+        const data = await res.json()
+        handleConnectionChange(data.connection)
+        toast.success(`Connected with ${firstName}`)
+      } else {
+        handleConnectionChange(null, reqId)
+      }
+    } catch {
+      toast.error('Network error — check your connection')
+    }
+  }, [handleConnectionChange])
+
   useEffect(() => {
     fetch('/app/api/content').then(r => r.json()).then(d => {
       if (d.members) setHero(h => ({ ...h, ...d.members }))
@@ -662,6 +750,7 @@ function MembersPageInner() {
       setTotal(membersData?.total ?? 0)
       setHostTotal(membersData?.hostTotal ?? 0)
       setAdminTotal(membersData?.adminTotal ?? 0)
+      setSavedTotal(membersData?.savedTotal ?? 0)
       setHasMore(membersData?.hasMore ?? false)
       setMyClubIds(Array.isArray(clubsData) ? clubsData.map((c: any) => c.clubId ?? c.id) : [])
       setMyEventIds(Array.isArray(eventsData) ? eventsData.map((e: any) => e.eventId ?? e.id) : [])
@@ -687,6 +776,7 @@ function MembersPageInner() {
       const params = new URLSearchParams()
       if (roleFilter === 'Hosts')  params.set('isHost', 'true')
       if (roleFilter === 'Admins') params.set('adminOnly', 'true')
+      if (roleFilter === 'Saved')  params.set('savedOnly', 'true')
       if (openToFilter)            params.set('openTo', openToFilter)
       if (trimmed)                 params.set('search', trimmed)
       fetch(`/app/api/members?${params}`, { credentials: 'include' })
@@ -708,48 +798,54 @@ function MembersPageInner() {
     setLoadingMore(false)
   }
 
-  const hostCount  = hostTotal
-  const adminCount = adminTotal
+  const activeMembers  = filteredMembers ?? members
+  const hangoutHostIds = useMemo(() => new Set(hangouts.map(h => h.user.id)), [hangouts])
 
-  const activeMembers = filteredMembers ?? members
-  const hangoutHostIds = new Set(hangouts.map(h => h.user.id))
-
-  const visible = activeMembers
-    .filter(m => {
-      if (roleFilter === 'All') return true
-      return true // server already filtered
-    })
-    .filter(m => {
-      if (!search) return true
-      const q = search.toLowerCase()
-      return (
-        m.name.toLowerCase().includes(q) ||
-        m.neighborhood?.toLowerCase().includes(q) ||
-        m.nationality?.toLowerCase().includes(q) ||
-        m.interests.some(i => i.toLowerCase().includes(q)) ||
-        m.clubs.some(c => c.name.toLowerCase().includes(q))
-      )
-    })
-    .sort((a, b) => {
-      if (sort === 'active')  return b.eventsCount - a.eventsCount
-      if (sort === 'az')      return a.name.localeCompare(b.name)
-      return new Date(b.joinedAt).getTime() - new Date(a.joinedAt).getTime()
-    })
+  const visible = useMemo(() =>
+    activeMembers
+      .filter(m => {
+        if (!search) return true
+        const q = search.toLowerCase()
+        return (
+          m.name.toLowerCase().includes(q) ||
+          m.neighborhood?.toLowerCase().includes(q) ||
+          m.nationality?.toLowerCase().includes(q) ||
+          m.interests.some(i => i.toLowerCase().includes(q)) ||
+          m.clubs.some(c => c.name.toLowerCase().includes(q))
+        )
+      })
+      .sort((a, b) => {
+        if (sort === 'active')  return b.eventsCount - a.eventsCount
+        if (sort === 'az')      return a.name.localeCompare(b.name)
+        return new Date(b.joinedAt).getTime() - new Date(a.joinedAt).getTime()
+      }),
+    [activeMembers, search, sort]
+  )
 
   const pendingRequests = connections.filter(c => c.receiverId === user.id && c.status === 'pending')
   const connectedCount  = connections.filter(c => c.status === 'accepted').length
 
   const isPrivilegedUser = user.role === 'admin' || user.role === 'moderator'
 
-  function getConnectionStatus(memberId: string): string | undefined {
-    const c = connections.find(x =>
-      (x.requesterId === user.id && x.receiverId === memberId) ||
-      (x.receiverId === user.id && x.requesterId === memberId)
-    )
-    if (c) return c.status
+  // O(1) connection status lookup — built once when connections or user changes,
+  // not re-scanned on every card render.
+  const connectionStatusMap = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const c of connections) {
+      const otherId = c.requesterId === user.id ? c.receiverId : c.requesterId
+      if (c.requesterId === user.id || c.receiverId === user.id) map.set(otherId, c.status)
+    }
+    return map
+  }, [connections, user.id])
+
+  const getConnectionStatus = useCallback((memberId: string): string | undefined => {
+    const status = connectionStatusMap.get(memberId)
+    if (status) return status
     if (isPrivilegedUser) return 'privileged'
     return undefined
-  }
+  }, [connectionStatusMap, isPrivilegedUser])
+
+  const handleSelectMember = useCallback((m: Member) => setSelected(m), [])
 
   return (
     <div className="min-h-screen bg-warm pb-20 md:pb-0">
@@ -762,10 +858,10 @@ function MembersPageInner() {
               <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">{hero.badge}</span>
               <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">{hero.headline}</h1>
               {!loading && (
-                <p className="text-base text-gray-500 mt-1">
+                <p className="text-base text-gray-600 mt-1">
                   {total} members
-                  {hostCount  > 0 && <span className="text-gray-400"> · {hostCount} hosts</span>}
-                  {adminCount > 0 && <span className="text-gray-400"> · {adminCount} admins</span>}
+                  {hostTotal  > 0 && <span className="text-gray-400"> · {hostTotal} hosts</span>}
+                  {adminTotal > 0 && <span className="text-gray-400"> · {adminTotal} admins</span>}
                 </p>
               )}
             </div>
@@ -820,17 +916,18 @@ function MembersPageInner() {
 
           {/* Role + open-to filter pills */}
           <div className="flex gap-2 pb-4 overflow-x-auto scrollbar-hide">
-            {(['All', 'Hosts', 'Admins'] as RoleFilter[]).map(f => {
-              const count = f === 'Hosts' ? hostCount : f === 'Admins' ? adminCount : total
+            {(['All', 'Hosts', 'Admins', 'Saved'] as RoleFilter[]).map(f => {
+              const count = f === 'Hosts' ? hostTotal : f === 'Admins' ? adminTotal : f === 'Saved' ? savedTotal : total
               const activeCls = f === 'Hosts' ? 'bg-amber-500 text-white border-amber-500'
                 : f === 'Admins' ? 'bg-violet-500 text-white border-violet-500'
+                : f === 'Saved' ? 'bg-amber-400 text-white border-amber-400'
                 : 'bg-gray-900 text-white border-gray-900'
               return (
                 <button key={f} onClick={() => setRoleFilter(f)}
                   className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold border whitespace-nowrap transition-all ${
                     roleFilter === f ? activeCls : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
                   }`}>
-                  {f === 'Hosts' && '🔥 '}{f === 'Admins' && '⚡ '}{f}
+                  {f === 'Hosts' && '🔥 '}{f === 'Admins' && '⚡ '}{f === 'Saved' && '🔖 '}{f}
                   {!loading && count > 0 && (
                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${roleFilter === f ? 'bg-white/20' : 'bg-gray-100 text-gray-400'}`}>
                       {count}
@@ -881,51 +978,40 @@ function MembersPageInner() {
                 const inPage = members.find(x => x.id === req.requesterId)
                 const u = inPage ?? req.requester
                 if (!u) return null
+                // Avatar + name block is identical between the in-page
+                // (button → modal) and out-of-page (Link → /members/[id])
+                // branches; only the wrapper element differs. Extract
+                // once instead of two near-identical JSX trees.
+                const avatarAndName = (
+                  <>
+                    {u.profilePhoto ? (
+                      <img src={avatarUrl(u.profilePhoto, 64)} alt={u.name} loading="lazy" decoding="async" className="w-8 h-8 rounded-full object-cover shrink-0" />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+                        style={{ backgroundColor: u.color }}>{getInitials(u.name)}</div>
+                    )}
+                    <span className="text-sm font-semibold text-gray-800 truncate">{u.name}</span>
+                  </>
+                )
                 return (
                   <div key={req.id} className="flex items-center gap-3 bg-white border border-amber-200 rounded-xl px-3 py-2.5">
                     {inPage ? (
                       <button onClick={() => setSelected(inPage)} className="flex items-center gap-2 flex-1 min-w-0 text-left">
-                        {u.profilePhoto ? (
-                          <img src={avatarUrl(u.profilePhoto, 64)} alt={u.name} loading="lazy" decoding="async" className="w-8 h-8 rounded-full object-cover shrink-0" />
-                        ) : (
-                          <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-                            style={{ backgroundColor: u.color }}>{getInitials(u.name)}</div>
-                        )}
-                        <span className="text-sm font-semibold text-gray-800 truncate">{u.name}</span>
+                        {avatarAndName}
                       </button>
                     ) : (
                       <Link href={`/members/${u.id}`} className="flex items-center gap-2 flex-1 min-w-0">
-                        {u.profilePhoto ? (
-                          <img src={avatarUrl(u.profilePhoto, 64)} alt={u.name} loading="lazy" decoding="async" className="w-8 h-8 rounded-full object-cover shrink-0" />
-                        ) : (
-                          <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-                            style={{ backgroundColor: u.color }}>{getInitials(u.name)}</div>
-                        )}
-                        <span className="text-sm font-semibold text-gray-800 truncate">{u.name}</span>
+                        {avatarAndName}
                       </Link>
                     )}
                     <div className="flex gap-2 shrink-0">
                       <button
-                        onClick={() => {
-                          fetch(`/app/api/connections/${req.id}`, {
-                            method: 'PATCH', credentials: 'include',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ action: 'accept' }),
-                          }).then(r => r.ok ? r.json() : null).then(d => {
-                            if (d) handleConnectionChange(d.connection)
-                          })
-                        }}
+                        onClick={() => handlePendingAction(req.id, 'accept', u.name.split(' ')[0])}
                         className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg transition-colors">
                         Accept
                       </button>
                       <button
-                        onClick={() => {
-                          fetch(`/app/api/connections/${req.id}`, {
-                            method: 'PATCH', credentials: 'include',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ action: 'decline' }),
-                          }).then(r => { if (r.ok) handleConnectionChange(null, req.id) })
-                        }}
+                        onClick={() => handlePendingAction(req.id, 'decline', u.name.split(' ')[0])}
                         className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-semibold rounded-lg transition-colors">
                         Decline
                       </button>
@@ -966,7 +1052,7 @@ function MembersPageInner() {
           <div className="text-center py-20 max-w-xs mx-auto">
             <div className="text-6xl mb-4">🔍</div>
             <h3 className="text-lg font-bold text-gray-900 mb-2">No members found</h3>
-            <p className="text-sm text-gray-500 mb-6">Try a different name, neighborhood, or interest.</p>
+            <p className="text-sm text-gray-600 mb-6">Try a different name, neighborhood, or interest.</p>
             <button
               onClick={() => { setSearch(''); setRoleFilter('All') }}
               className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors"
@@ -980,7 +1066,7 @@ function MembersPageInner() {
           <>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
               {visible.map(m => (
-                <MemberCard key={m.id} m={m} onClick={() => setSelected(m)} connectionStatus={getConnectionStatus(m.id)} hangingOut={hangoutHostIds.has(m.id)} />
+                <MemberCard key={m.id} m={m} onSelect={handleSelectMember} connectionStatus={getConnectionStatus(m.id)} hangingOut={hangoutHostIds.has(m.id)} />
               ))}
             </div>
             {hasMore && !search && roleFilter === 'All' && (
