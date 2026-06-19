@@ -469,21 +469,21 @@ function AppEventsPageInner() {
               )}
               {timeFilter !== 'All' && (
                 <button onClick={() => setTimeFilter('All')}
-                  className="flex items-center justify-between px-4 py-2.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl text-sm text-amber-700 transition-colors">
+                  className="flex items-center justify-between px-4 py-2.5 bg-amber-100 hover:bg-amber-200 border border-amber-200 rounded-xl text-sm text-amber-700 transition-colors">
                   <span>Remove <strong>"{timeFilter}"</strong> time filter</span>
                   <span className="text-amber-400">✕</span>
                 </button>
               )}
               {selectedTags.map(tag => (
                 <button key={tag} onClick={() => setSelectedTags(prev => prev.filter(t => t !== tag))}
-                  className="flex items-center justify-between px-4 py-2.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl text-sm text-amber-700 transition-colors">
+                  className="flex items-center justify-between px-4 py-2.5 bg-amber-100 hover:bg-amber-200 border border-amber-200 rounded-xl text-sm text-amber-700 transition-colors">
                   <span>Remove <strong>"{tag}"</strong> tag</span>
                   <span className="text-amber-400">✕</span>
                 </button>
               ))}
               {neighborhoodFilter && (
                 <button onClick={() => setNeighborhoodFilter('')}
-                  className="flex items-center justify-between px-4 py-2.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl text-sm text-amber-700 transition-colors">
+                  className="flex items-center justify-between px-4 py-2.5 bg-amber-100 hover:bg-amber-200 border border-amber-200 rounded-xl text-sm text-amber-700 transition-colors">
                   <span>Remove <strong>"{neighborhoodFilter}"</strong> neighborhood</span>
                   <span className="text-amber-400">✕</span>
                 </button>
