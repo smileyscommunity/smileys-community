@@ -122,6 +122,20 @@ export default async function HomePage() {
                 {home.subtitle ?? 'From social dinners to sailing trips and neighborhood clubs, Smileys brings people together through curated experiences and lasting friendships.'}
               </p>
 
+              {/* Mobile/tablet hero image — sits between the pitch and the
+                  ask, so the visual proof lands before the CTAs. Desktop
+                  sees the side image instead, so hide at lg+. */}
+              <div className="lg:hidden relative aspect-[3/2] rounded-2xl overflow-hidden shadow-xl mb-10">
+                <Image
+                  src="/images/hero-istanbul.jpg"
+                  alt="Friends gathered on an Istanbul rooftop at sunset"
+                  fill
+                  unoptimized
+                  sizes="100vw"
+                  className="object-cover"
+                />
+              </div>
+
               <div className="flex flex-col sm:flex-row gap-4 mb-16">
                 <Link href="/apply" className="btn-primary text-base px-8 py-4">
                   Apply to join
@@ -132,18 +146,6 @@ export default async function HomePage() {
                 <Link href="/clubs" className="btn-secondary text-base px-8 py-4">
                   Browse clubs
                 </Link>
-              </div>
-
-              {/* Mobile/tablet hero image — desktop sees the side image, so hide at lg+ */}
-              <div className="lg:hidden relative aspect-[3/2] rounded-2xl overflow-hidden shadow-xl mb-12">
-                <Image
-                  src="/images/hero-istanbul.jpg"
-                  alt="Friends gathered on an Istanbul rooftop at sunset"
-                  fill
-                  unoptimized
-                  sizes="100vw"
-                  className="object-cover"
-                />
               </div>
 
               <div className="grid grid-cols-2 gap-x-6 gap-y-8">
