@@ -59,6 +59,38 @@ interface BracketResponse {
 // @/lib/cup-data — single source so a roster correction lives in
 // one file across server + member page + admin page.
 
+// usePersistedState — state + localStorage mirror in one hook. Was
+// three separate useState lazy initialisers + three separate useEffect
+// persisters (group-stage view, draft champion, draft semifinalists);
+// extracting the pattern collapses the 6 hooks into 3 + ~12 lines of
+// shared infra. SSR-safe (no-ops on the server) and tolerant of
+// malformed localStorage payloads (falls back to the initial value).
+function usePersistedState<T>(
+  key:          string,
+  initialValue: T,
+  serialize:    (v: T) => string | null,
+  deserialize:  (raw: string) => T,
+): [T, React.Dispatch<React.SetStateAction<T>>] {
+  const [state, setState] = useState<T>(() => {
+    if (typeof window === 'undefined') return initialValue
+    try {
+      const raw = window.localStorage.getItem(key)
+      return raw !== null ? deserialize(raw) : initialValue
+    } catch { return initialValue }
+  })
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const serialized = serialize(state)
+    if (serialized === null) window.localStorage.removeItem(key)
+    else                     window.localStorage.setItem(key, serialized)
+  // serialize is a function reference that callers pass inline; if we
+  // include it in deps the effect re-runs every render. The function
+  // is conceptually stable for a given key so leaving it out is safe.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, state])
+  return [state, setState]
+}
+
 export default function CupPredictionsPage() {
   const router = useRouter()
 
@@ -68,22 +100,27 @@ export default function CupPredictionsPage() {
   // Bracket draft — separate from the saved bracket so the user can
   // edit + cancel without losing the current state. Initialised
   // from server on first load and on save.
-  // Bracket draft persisted to localStorage. A page refresh mid-
-  // bracket used to drop the picks; now it survives. Cleared on
-  // successful save (the saved bracket itself is the source of
-  // truth after that).
-  const [draftChampion, setDraftChampion] = useState<string | null>(() => {
-    if (typeof window === 'undefined') return null
-    return window.localStorage.getItem('cup-bracket-draft-champion')
-  })
-  const [draftSF,       setDraftSF]       = useState<string[]>(() => {
-    if (typeof window === 'undefined') return []
-    try {
-      const raw = window.localStorage.getItem('cup-bracket-draft-sf')
-      const parsed = raw ? JSON.parse(raw) : []
-      return Array.isArray(parsed) ? parsed.filter((s: unknown): s is string => typeof s === 'string') : []
-    } catch { return [] }
-  })
+  // Bracket draft persisted to localStorage via usePersistedState. A
+  // refresh mid-edit used to drop the picks; now it survives. Cleared
+  // by saveBracket on success — the saved bracket is the source of
+  // truth after that.
+  const [draftChampion, setDraftChampion] = usePersistedState<string | null>(
+    'cup-bracket-draft-champion',
+    null,
+    v => v,                // raw string OR null → removeItem
+    raw => raw,
+  )
+  const [draftSF, setDraftSF] = usePersistedState<string[]>(
+    'cup-bracket-draft-sf',
+    [],
+    v => JSON.stringify(v),
+    raw => {
+      try {
+        const parsed = JSON.parse(raw)
+        return Array.isArray(parsed) ? parsed.filter((s: unknown): s is string => typeof s === 'string') : []
+      } catch { return [] }
+    },
+  )
   const [editingBracket, setEditingBracket] = useState(false)
   const [savingBracket,  setSavingBracket]  = useState(false)
   const [savingFixtureId, setSavingFixtureId] = useState<string | null>(null)
@@ -98,17 +135,12 @@ export default function CupPredictionsPage() {
   // mental model — useful from MD1 onward when "what's today?" is
   // the question). Smart default flips at first kickoff. User's
   // explicit choice persists in localStorage so the toggle sticks.
-  const [groupStageView, setGroupStageView] = useState<'group' | 'date'>(() => {
-    if (typeof window === 'undefined') return 'group'
-    const stored = window.localStorage.getItem('cup-stage-view')
-    if (stored === 'group' || stored === 'date') return stored
-    const cupStart = new Date('2026-06-11T21:00:00+03:00')
-    return new Date() < cupStart ? 'group' : 'date'
-  })
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    window.localStorage.setItem('cup-stage-view', groupStageView)
-  }, [groupStageView])
+  const [groupStageView, setGroupStageView] = usePersistedState<'group' | 'date'>(
+    'cup-stage-view',
+    new Date() < new Date('2026-06-11T21:00:00+03:00') ? 'group' : 'date',
+    v => v,
+    raw => (raw === 'group' || raw === 'date') ? raw : 'group',
+  )
 
   useEffect(() => {
     // Keep the raw Response objects so we can read .status directly
@@ -196,18 +228,7 @@ export default function CupPredictionsPage() {
     }
   }, [bracket])
 
-  // Persist the draft to localStorage on every change so a refresh
-  // mid-bracket doesn't drop the picks. Both keys cleared on
-  // successful save (see saveBracket below).
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    if (draftChampion) window.localStorage.setItem('cup-bracket-draft-champion', draftChampion)
-    else window.localStorage.removeItem('cup-bracket-draft-champion')
-  }, [draftChampion])
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    window.localStorage.setItem('cup-bracket-draft-sf', JSON.stringify(draftSF))
-  }, [draftSF])
+  // (Draft persisting moved into usePersistedState above.)
 
   async function saveBracket() {
     if (!draftChampion || draftSF.length !== 4) {
@@ -265,10 +286,18 @@ export default function CupPredictionsPage() {
         setFixtures(prev => prev?.map(f => f.id === fixtureId
           ? { ...f, yourPick: { pickedTeam: team, submittedAt: new Date().toISOString(), pointsAwarded: 0 } }
           : f) ?? null)
-        // Tiny haptic on mobile — makes the pick feel more tactile.
-        // navigator.vibrate is a no-op on desktop and on iOS Safari,
-        // so guarded but harmless.
-        if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') navigator.vibrate(15)
+        // Haptic only on knockouts — group-stage picks are 1 pt each
+        // and members often rip through all 72 in one sit, so the
+        // cumulative buzz reads as a notification storm. Knockouts
+        // (R32 → Final) scale 3-40 pts; one tactile bump per real
+        // decision keeps the feedback meaningful. No-op on desktop /
+        // iOS Safari either way.
+        const round = fixtures?.find(f => f.id === fixtureId)?.round
+        if (round && round !== 'group' &&
+            typeof navigator !== 'undefined' &&
+            typeof navigator.vibrate === 'function') {
+          navigator.vibrate(15)
+        }
         toast.success(`Picked ${teamLabel(team)}`)
       } else if (res.status === 403 && /approved/i.test(d.error)) {
         setAccessState('not-member')
@@ -339,10 +368,14 @@ export default function CupPredictionsPage() {
           match the page width while Countdown + visitor hero
           stay at a comfortable reading width. */}
       <div className="rounded-2xl overflow-hidden shadow-card mb-4 aspect-[16/5] sm:aspect-[3/1] lg:aspect-[4/1]">
-        <img src="/app/images/cup-banner.svg" alt="Smileys World Cup 2026 — Jun 11 to Jul 19, predict every match"
+        {/* Empty alt = decorative for SRs. The visible content the SVG
+            carries (title, dates, tagline) is conveyed to assistive tech
+            by the sr-only <h1> below, so a verbose alt here just makes
+            SRs read the heading twice. */}
+        <img src="/app/images/cup-banner.svg" alt=""
           className="w-full h-full object-cover block" loading="eager" decoding="async" />
       </div>
-      <h1 className="sr-only">Smileys World Cup 2026 prediction game</h1>
+      <h1 className="sr-only">Smileys World Cup 2026 — Jun 11 to Jul 19, predict every match</h1>
 
       {/* Above-the-fold reading area — countdown + visitor hero.
           Capped at max-w-3xl on lg+ so the long-form content
@@ -927,7 +960,7 @@ function BracketCard({
           </div>
           {canEdit && (
             <button onClick={onStartEdit}
-              className="w-full mt-2 py-2 text-xs font-semibold text-amber-600 hover:bg-amber-50 rounded-lg transition-colors">
+              className="w-full mt-3 py-2.5 text-sm font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl transition-colors">
               Edit bracket
             </button>
           )}
