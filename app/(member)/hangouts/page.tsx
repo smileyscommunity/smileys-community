@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { ISTANBUL_NEIGHBORHOODS, resolveImageUrl, avatarUrl } from '@/lib/data'
 import { toast } from 'sonner'
+import { downscaleImage } from '@/lib/image-resize'
 
 // Spontaneous hangouts — members only (real-time, contact-required). Auto-
 // expires server-side via the cron when endsAt is past.
@@ -128,18 +129,26 @@ export default function HangoutsPage() {
     if (!isLoading && !isLoggedIn) router.replace('/login?next=/hangouts')
   }, [isLoading, isLoggedIn, router])
 
-  useEffect(() => {
-    if (!isLoggedIn) return
-    // Two parallel loads — hangouts + active pulses — so the feed renders
-    // even if one endpoint is slow. Failures fall through to empty arrays
-    // so a 500 doesn't blank the page.
-    Promise.allSettled([
+  // Single source for the two parallel fetches that build the feed.
+  // Mount + post-action reloads now share this; was duplicated as
+  // mount-effect + reloadFeed() with identical Promise.allSettled
+  // bodies. Failures fall through to whatever state was already
+  // set, so a 500 from one endpoint doesn't blank the page.
+  async function loadFeed() {
+    const [h, p] = await Promise.allSettled([
       fetch('/app/api/hangouts',     { credentials: 'include' }).then(r => r.json()),
       fetch('/app/api/availability', { credentials: 'include' }).then(r => r.json()),
-    ]).then(([h, p]) => {
-      if (h.status === 'fulfilled' && Array.isArray(h.value?.hangouts)) setHangouts(h.value.hangouts)
-      if (p.status === 'fulfilled' && Array.isArray(p.value?.pulses))   setPulses(p.value.pulses)
-    }).finally(() => setLoading(false))
+    ])
+    if (h.status === 'fulfilled' && Array.isArray(h.value?.hangouts)) setHangouts(h.value.hangouts)
+    if (p.status === 'fulfilled' && Array.isArray(p.value?.pulses))   setPulses(p.value.pulses)
+  }
+
+  useEffect(() => {
+    if (!isLoggedIn) return
+    loadFeed().finally(() => setLoading(false))
+    // loadFeed closes over the setters which are stable; safe to
+    // omit from deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoggedIn])
 
   // Location photo upload — single image, hangouts folder. Same pattern
@@ -147,10 +156,10 @@ export default function HangoutsPage() {
   async function handlePhotoChoose(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    if (file.size > 5 * 1024 * 1024) { toast.error('Image too large (max 5MB)'); return }
     setUploading(true)
+    const upload = await downscaleImage(file)
     const fd = new FormData()
-    fd.append('file', file)
+    fd.append('file', upload)
     fd.append('folder', 'hangouts')
     try {
       const r = await fetch('/app/api/upload', { method: 'POST', credentials: 'include', body: fd }).then(res => res.json())
@@ -162,15 +171,6 @@ export default function HangoutsPage() {
       setUploading(false)
       e.target.value = ''
     }
-  }
-
-  async function reloadFeed() {
-    const [h, p] = await Promise.allSettled([
-      fetch('/app/api/hangouts',     { credentials: 'include' }).then(r => r.json()),
-      fetch('/app/api/availability', { credentials: 'include' }).then(r => r.json()),
-    ])
-    if (h.status === 'fulfilled' && Array.isArray(h.value?.hangouts)) setHangouts(h.value.hangouts)
-    if (p.status === 'fulfilled' && Array.isArray(p.value?.pulses))   setPulses(p.value.pulses)
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -193,7 +193,7 @@ export default function HangoutsPage() {
       const data = await res.json()
       if (!res.ok) { toast.error(data.error ?? 'Could not post'); return }
       toast.success('Hangout posted — neighbors are getting pinged')
-      await reloadFeed()
+      await loadFeed()
       setShowForm(false)
       setTitle(''); setLocation(''); setNeighborhood(''); setDescription('')
       setStartsAt(defaultStartsAt()); setEndsAt(defaultEndsAt()); setMeetMode('group')
@@ -222,7 +222,7 @@ export default function HangoutsPage() {
       const data = await res.json()
       if (!res.ok) { toast.error(data.error ?? 'Could not post'); return }
       toast.success('Pulse posted — visible until it expires')
-      await reloadFeed()
+      await loadFeed()
       setShowPulseForm(false)
       setPulseNote(''); setPulseNeighborhood(''); setPulseDuration(120)
     } catch {
@@ -232,25 +232,34 @@ export default function HangoutsPage() {
     }
   }
 
+  // Confirmation is now handled inline by PulseCard's two-state UI; the
+  // parent just executes the DELETE when called.
   async function handleClearPulse() {
-    if (!confirm('Clear your pulse?')) return
-    const res = await fetch('/app/api/availability', { method: 'DELETE', credentials: 'include' })
-    if (res.ok) {
+    try {
+      const res = await fetch('/app/api/availability', { method: 'DELETE', credentials: 'include' })
+      if (!res.ok) {
+        toast.error('Could not clear')
+        return
+      }
       setPulses(prev => prev.filter(p => !p.isMine))
       toast.success('Pulse cleared')
-    } else {
-      toast.error('Could not clear')
+    } catch {
+      toast.error('Network error — check your connection')
     }
   }
 
+  // Confirmation is handled inline by HangoutCard's two-state UI.
   async function handleCancel(id: string) {
-    if (!confirm('Cancel this hangout?')) return
-    const res = await fetch(`/app/api/hangouts/${id}`, { method: 'DELETE', credentials: 'include' })
-    if (res.ok) {
+    try {
+      const res = await fetch(`/app/api/hangouts/${id}`, { method: 'DELETE', credentials: 'include' })
+      if (!res.ok) {
+        toast.error('Could not cancel')
+        return
+      }
       setHangouts(prev => prev.filter(h => h.id !== id))
       toast.success('Cancelled')
-    } else {
-      toast.error('Could not cancel')
+    } catch {
+      toast.error('Network error — check your connection')
     }
   }
 
@@ -267,7 +276,7 @@ export default function HangoutsPage() {
             <div>
               <p className="text-xs font-bold uppercase tracking-widest text-amber-600 mb-1">Spontaneous</p>
               <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">Hangouts</h1>
-              <p className="text-sm text-gray-500 mt-1">&quot;I&apos;m at X right now — join me?&quot;</p>
+              <p className="text-sm text-gray-600 mt-1">&quot;I&apos;m at X right now — join me?&quot;</p>
             </div>
             <div className="flex items-center gap-2 w-full sm:w-auto sm:shrink-0">
               {/* Recap entry point — anyone who's had a recent hangout can
@@ -349,7 +358,7 @@ export default function HangoutsPage() {
                         : 'bg-white border-gray-200 hover:border-gray-300'
                     }`}>
                     <p className="text-sm font-semibold text-gray-900">{opt.label}</p>
-                    <p className="text-xs text-gray-500">{opt.sub}</p>
+                    <p className="text-xs text-gray-600">{opt.sub}</p>
                   </button>
                 ))}
               </div>
@@ -437,7 +446,7 @@ export default function HangoutsPage() {
             user can mix any combination. Hidden when there's nothing to
             filter. */}
         {!loading && (hangouts.length > 0 || pulses.length > 0) && (
-          <div className="flex items-center gap-2 -mt-2 overflow-x-auto pb-1">
+          <div className="flex flex-wrap items-center gap-2 -mt-2 pb-1">
             {([
               { v: 'all',   label: 'All' },
               { v: 'group', label: 'Open to all' },
@@ -514,7 +523,7 @@ export default function HangoutsPage() {
                 <p className="text-base font-bold text-gray-900 mb-1">
                   {anyFilterOn ? 'Nothing matches your filters' : 'Nothing right now'}
                 </p>
-                <p className="text-sm text-gray-500 mb-6 max-w-md mx-auto">
+                <p className="text-sm text-gray-600 mb-6 max-w-md mx-auto">
                   Be the first — post where you are or just drop a pulse if you don&apos;t want to commit to a venue yet.
                 </p>
                 <div className="flex items-center justify-center gap-2">
@@ -548,7 +557,7 @@ export default function HangoutsPage() {
                     <HangoutCard
                       key={h.id}
                       h={h}
-                      currentUserId={user.id}
+                      currentUser={user}
                       onCancel={handleCancel}
                       onMutated={updated => {
                         setHangouts(prev => prev.map(pp => pp.id === updated.id ? updated : pp))
@@ -566,13 +575,19 @@ export default function HangoutsPage() {
   )
 }
 
-function HangoutCard({ h, currentUserId, onCancel, onMutated }: {
+function HangoutCard({ h, currentUser, onCancel, onMutated }: {
   h: Hangout
-  currentUserId: string
+  // Real user from useAuth — used for ownership check + optimistic
+  // join (was just `currentUserId: string`, which forced the just-
+  // joined-me avatar to fall back to empty initials and a flat amber
+  // circle until the next reload). profilePhoto is `string | null |
+  // undefined` because useAuth's AppUser shape uses undefined; we
+  // coerce to JoinerSummary's `string | null` at the optimistic add.
+  currentUser: { id: string; name: string; color: string; profilePhoto?: string | null }
   onCancel: (id: string) => void
   onMutated: (h: Hangout) => void
 }) {
-  const isOwner = h.user.id === currentUserId
+  const isOwner = h.user.id === currentUser.id
   // #7 perf: 128-wide avatar thumb on hangouts feed (rendered at
   // w-12 = 48px CSS = retina 96px).
   const avatar  = avatarUrl(h.user.profilePhoto, 128)
@@ -582,6 +597,7 @@ function HangoutCard({ h, currentUserId, onCancel, onMutated }: {
   const [sending,    setSending]        = useState(false)
   const [joining,    setJoining]        = useState(false)
   const [loadingMsg, setLoadingMsg]     = useState(false)
+  const [confirmingCancel, setConfirmingCancel] = useState(false)
 
   // Lazy-load messages the first time the thread is opened.
   useEffect(() => {
@@ -602,14 +618,24 @@ function HangoutCard({ h, currentUserId, onCancel, onMutated }: {
       const data = await res.json()
       if (!res.ok) { toast.error(data.error ?? 'Could not update'); return }
       // Update locally — count + avatar strip + my-join flip
-      const me: JoinerSummary = { id: currentUserId, name: '', color: '#f59e0b', profilePhoto: null }
+      // Optimistic add uses the real user — name + color + photo —
+      // so the avatar strip shows the right initials + brand colour
+      // immediately instead of an empty circle until the next reload.
+      const me: JoinerSummary = {
+        id:           currentUser.id,
+        name:         currentUser.name,
+        color:        currentUser.color,
+        profilePhoto: currentUser.profilePhoto ?? null,
+      }
       onMutated({
         ...h,
         joinedByMe: data.joined,
         joiners: data.joined
           ? [...h.joiners, me]
-          : h.joiners.filter(j => j.id !== currentUserId),
+          : h.joiners.filter(j => j.id !== currentUser.id),
       })
+    } catch {
+      toast.error('Network error — check your connection')
     } finally { setJoining(false) }
   }
 
@@ -628,6 +654,8 @@ function HangoutCard({ h, currentUserId, onCancel, onMutated }: {
       setMessages(prev => [...prev, data.message])
       setDraft('')
       onMutated({ ...h, messageCount: h.messageCount + 1 })
+    } catch {
+      toast.error('Network error — check your connection')
     } finally { setSending(false) }
   }
 
@@ -661,7 +689,7 @@ function HangoutCard({ h, currentUserId, onCancel, onMutated }: {
           <p className="text-xs text-amber-700 font-semibold mt-0.5">{formatWindow(h.startsAt, h.endsAt)}</p>
           <p className="text-xs text-gray-600 mt-1.5">📍 {h.location}{h.neighborhood && <span className="text-gray-400"> · {h.neighborhood}</span>}</p>
           {h.description && (
-            <p className="text-xs text-gray-500 mt-2 whitespace-pre-wrap">{h.description}</p>
+            <p className="text-xs text-gray-600 mt-2 whitespace-pre-wrap">{h.description}</p>
           )}
           <p className="text-[11px] text-gray-400 mt-2 flex items-center gap-1.5 flex-wrap">
             <span>Posted by {isOwner ? 'you' : h.user.name}</span>
@@ -684,8 +712,21 @@ function HangoutCard({ h, currentUserId, onCancel, onMutated }: {
           </p>
         </div>
         {isOwner && (
-          <button onClick={() => onCancel(h.id)}
-            className="text-xs text-gray-400 hover:text-red-500 shrink-0">Cancel</button>
+          // Two-state inline cancel — was a native confirm() in the
+          // parent. First tap flips confirmingCancel; second tap on
+          // "Yes, cancel" fires the DELETE. "Keep it" cleanly aborts.
+          confirmingCancel ? (
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button onClick={() => { onCancel(h.id); setConfirmingCancel(false) }}
+                className="text-xs font-bold text-red-600 hover:text-red-700">Yes, cancel</button>
+              <span className="text-xs text-gray-300">/</span>
+              <button onClick={() => setConfirmingCancel(false)}
+                className="text-xs font-semibold text-gray-500 hover:text-gray-700">Keep it</button>
+            </div>
+          ) : (
+            <button onClick={() => setConfirmingCancel(true)}
+              className="text-xs text-gray-400 hover:text-gray-700 shrink-0">Cancel</button>
+          )
         )}
       </div>
 
@@ -701,7 +742,7 @@ function HangoutCard({ h, currentUserId, onCancel, onMutated }: {
                     style={{ backgroundColor: j.color }}>{j.name[0] ?? '?'}</div>
             ))}
           </div>
-          <span className="text-xs text-gray-500 truncate">
+          <span className="text-xs text-gray-600 truncate">
             {h.joiners.length === 0
               ? 'No one in yet'
               : `${h.joiners.length + 1} going`}
@@ -720,7 +761,7 @@ function HangoutCard({ h, currentUserId, onCancel, onMutated }: {
         )}
 
         <button onClick={() => setThreadOpen(o => !o)}
-          className="text-xs font-semibold text-gray-500 hover:text-gray-900 shrink-0 flex items-center gap-1">
+          className="text-xs font-semibold text-gray-600 hover:text-gray-900 shrink-0 flex items-center gap-1">
           💬 {h.messageCount > 0 && <span>{h.messageCount}</span>}
         </button>
       </div>
@@ -767,6 +808,7 @@ function PulseCard({ pulse, onClear }: { pulse: Pulse; onClear?: () => void }) {
   const avatar = pulse.user.profilePhoto ? avatarUrl(pulse.user.profilePhoto, 64) : null
   const minsLeft = Math.max(0, Math.round((new Date(pulse.until).getTime() - Date.now()) / 60_000))
   const ttlLabel = minsLeft < 60 ? `${minsLeft}m left` : `${Math.floor(minsLeft / 60)}h ${minsLeft % 60}m left`
+  const [confirmingClear, setConfirmingClear] = useState(false)
 
   return (
     <div className={`rounded-2xl border p-3 flex items-center gap-3 ${
@@ -782,12 +824,24 @@ function PulseCard({ pulse, onClear }: { pulse: Pulse; onClear?: () => void }) {
         </p>
         <p className="text-sm text-gray-900 truncate mt-0.5">
           {pulse.note || 'Open to meeting up'}
-          {pulse.neighborhood && <span className="text-gray-500"> · {pulse.neighborhood}</span>}
+          {pulse.neighborhood && <span className="text-gray-600"> · {pulse.neighborhood}</span>}
         </p>
         <p className="text-[11px] text-gray-400 mt-0.5">{ttlLabel}</p>
       </div>
       {pulse.isMine ? (
-        <button onClick={onClear} className="text-xs text-gray-400 hover:text-red-500 shrink-0">Clear</button>
+        // Two-state inline clear — was a native confirm() in the parent.
+        confirmingClear ? (
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button onClick={() => { onClear?.(); setConfirmingClear(false) }}
+              className="text-xs font-bold text-red-600 hover:text-red-700">Yes</button>
+            <span className="text-xs text-gray-300">/</span>
+            <button onClick={() => setConfirmingClear(false)}
+              className="text-xs font-semibold text-gray-500 hover:text-gray-700">No</button>
+          </div>
+        ) : (
+          <button onClick={() => setConfirmingClear(true)}
+            className="text-xs text-gray-400 hover:text-gray-700 shrink-0">Clear</button>
+        )
       ) : (
         <Link href={`/messages/${pulse.user.id}`}
           className="text-xs font-bold text-amber-700 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg shrink-0">
