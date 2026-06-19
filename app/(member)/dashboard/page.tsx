@@ -584,11 +584,6 @@ export default async function DashboardPage() {
               widgets. Desktop layout (order-1) is unchanged. */}
           <div className="order-2 lg:order-1 lg:w-60 lg:shrink-0 space-y-4">
 
-            {/* Announcement — urgent, always first if present */}
-            {announcement && (
-              <AnnouncementBanner text={announcement.text} link={announcement.link || undefined} updatedAt={announcement.updatedAt} />
-            )}
-
             {/* Profile card */}
             <div className="bg-white rounded-2xl shadow-card overflow-hidden">
               <div className="h-12 bg-gradient-to-r from-amber-400 to-orange-400" />
@@ -636,9 +631,6 @@ export default async function DashboardPage() {
                     owns this nudge with specific steps, not just a number. */}
               </div>
             </div>
-
-            {/* Pending connection requests — action required, right below profile */}
-            <PendingConnectionsWidget />
 
             {/* Who's Going — social context */}
             {whosGoing.length > 0 && (
@@ -813,6 +805,18 @@ export default async function DashboardPage() {
               renders first so the dashboard opens onto something the
               member can act on, not their own profile card. */}
           <div className="order-1 lg:order-2 flex-1 min-w-0 space-y-6">
+
+            {/* Urgent-first: system announcement + pending connection
+                requests (action items) used to live in the left rail,
+                which lands at #20+ on mobile after the whole center
+                column. Promoted to the top of the center column so
+                they're above the fold on every viewport. Each is
+                self-hiding when there's nothing to show. */}
+            {announcement && (
+              <AnnouncementBanner text={announcement.text} link={announcement.link || undefined} updatedAt={announcement.updatedAt} />
+            )}
+
+            <PendingConnectionsWidget />
 
             {/* Mobile-only render of Get started — the right-rail copy is
                 hidden under lg, so this keeps the onboarding nudge present
