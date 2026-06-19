@@ -6,7 +6,7 @@ export const ISTANBUL_NEIGHBORHOODS = [
   'Şişli', 'Levent', 'Maslak', 'Etiler', 'Bomonti', 'Bebek',
   'Arnavutköy', 'Fener', 'Eminönü', 'Sultanahmet', 'Fındıklı',
   'Kabataş', 'Fulya', 'Gayrettepe', 'Mecidiyeköy', 'Ulus',
-  'Pierre Loti', 'Fatih', 'Eyüpsultan', 'Bakırköy', 'Zeytinburnu',
+  'Pierre Loti', 'Fatih', 'Aksaray', 'Eyüpsultan', 'Bakırköy', 'Zeytinburnu',
   // Asian side
   'Üsküdar', 'Kuzguncuk', 'Beylerbeyi', 'Çengelköy', 'Acıbadem',
   'Altunizade', 'Fenerbahçe', 'Feneryolu', 'Caddebostan',
@@ -55,7 +55,7 @@ export function resolveImageUrl(url: string | null | undefined): string {
 // original URL when the source is external (Unsplash, etc.) —
 // those already use their own optimization.
 const SIZED_PATH = /^\/app\/api\/files\//
-export function avatarUrl(url: string | null | undefined, size: 64 | 128 | 256 = 64): string {
+export function avatarUrl(url: string | null | undefined, size: 64 | 96 | 128 | 256 = 64): string {
   const resolved = resolveImageUrl(url)
   if (!resolved || !SIZED_PATH.test(resolved)) return resolved
   return `${resolved}?w=${size}`
@@ -80,6 +80,15 @@ export interface Club {
   // beneath the community-wide rules from settings.json. Editable
   // in /admin/clubs/[id].
   rules?: string | null
+  // Spotlight = a featured member chosen by the club host. Surfaced
+  // on the club page as a profile callout. Three columns persist
+  // independently so the host can edit the note without changing who
+  // is spotlighted. Date is preserved verbatim from the DB — server-
+  // rendered pages format it; client code that JSON-round-trips it
+  // will see an ISO string.
+  spotlightUserId?: string | null
+  spotlightNote?: string | null
+  spotlightUpdatedAt?: Date | string | null
   nextEvent?: { title: string; date: string } | null
 }
 
@@ -106,6 +115,7 @@ export interface Event {
   emoji: string
   isPremium: boolean
   membersOnly: boolean
+  intent?: 'social' | 'professional'
   memberPrice?: number
   whatsappUrl?: string
   currency?: string

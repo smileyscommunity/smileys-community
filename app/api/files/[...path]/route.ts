@@ -12,7 +12,7 @@ export const runtime = 'nodejs'
 // Anything else (or no `?w=` at all) serves the original. Bounded
 // allowlist + immutable cache means each variant is computed at
 // most once per (file, width) per process / CDN cache window.
-const SIZED: ReadonlySet<number> = new Set([64, 128, 256])
+const SIZED: ReadonlySet<number> = new Set([64, 96, 128, 256])
 
 const MIME: Record<string, string> = {
   '.jpg':  'image/jpeg',
@@ -23,7 +23,7 @@ const MIME: Record<string, string> = {
 }
 
 const UPLOAD_ROOT = join(process.cwd(), 'public', 'uploads')
-const VALID_FOLDERS = ['events', 'clubs', 'users', 'general', 'applications', 'posts', 'neighborhoods']
+const VALID_FOLDERS = ['events', 'clubs', 'users', 'general', 'applications', 'posts', 'neighborhoods', 'directory', 'listings']
 const VALID_FILE = /^[\w\-]+\.(jpg|jpeg|png|webp|gif)$/i
 
 // Tiny in-process cache: filename → boolean (is an approved
@@ -94,10 +94,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
   const widthParam = req.nextUrl.searchParams.get('w')
   const width      = widthParam ? Number(widthParam) : null
   const wantSized  = width !== null && SIZED.has(width)
-  const body       = wantSized
-    ? await sharp(raw).rotate().resize(width, width, { fit: 'cover' }).jpeg({ quality: 80 }).toBuffer()
-    : raw
-  const mime = wantSized ? 'image/jpeg' : (MIME[ext] ?? 'application/octet-stream')
+  let body: Buffer | Uint8Array = raw
+  let mime = MIME[ext] ?? 'application/octet-stream'
+  if (wantSized) {
+    try {
+      body = await sharp(raw).resize(width, width, { fit: 'cover' }).jpeg({ quality: 80 }).toBuffer()
+      mime = 'image/jpeg'
+    } catch {
+      // Corrupted or unsupported file — fall back to the raw bytes.
+      // Better to serve the original than a silent 500 that shows
+      // a broken image or blank slot in the UI.
+    }
+  }
 
   // Profile photos are semi-public (shown on member/event pages). Cache aggressively.
   // Applications folder is more conservative since it can include rejected applicants.

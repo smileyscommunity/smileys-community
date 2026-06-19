@@ -453,13 +453,15 @@ export default async function DashboardPage() {
   // featuredEvents). Slice to 4 to match the original UI cap.
   const trendingEvents = trendingEventsRaw.filter((e) => !featuredIds.has(e.id)).slice(0, 4)
 
+  // Trimmed from 6 vanity tiles to 4 — drops "Events attended" (lifetime
+  // total grows slowly) and "My clubs" (changes once a month). The
+  // remaining four are either forward-looking (Upcoming, This month),
+  // motivational (Month streak), or actually-clickable (Profile views).
   const stats: { label: string; value: number; href?: string }[] = [
-    { label: 'Events attended', value: myAttendances.length    },
-    { label: 'My clubs',        value: clubs.length            },
-    { label: 'This month',      value: eventsThisMonth         },
-    { label: 'Upcoming',        value: upcomingEvents.length   },
-    { label: 'Profile views',   value: weeklyVisitors, href: '/profile-visitors' },
-    { label: 'Month streak',    value: monthStreak             },
+    { label: 'Upcoming',      value: upcomingEvents.length },
+    { label: 'Profile views', value: weeklyVisitors, href: '/profile-visitors' },
+    { label: 'Month streak',  value: monthStreak           },
+    { label: 'This month',    value: eventsThisMonth       },
   ]
 
   return (
@@ -469,11 +471,11 @@ export default async function DashboardPage() {
       {/* Header hero */}
       <div className="bg-gradient-to-br from-amber-500 to-orange-500 relative overflow-hidden">
         <div className="absolute inset-0 opacity-20 bg-[radial-gradient(ellipse_at_top_right,#fff_0%,transparent_60%)]" />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-6 relative z-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-5 sm:pt-10 sm:pb-6 relative z-10">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <p className="text-amber-100 text-sm font-medium mb-1">{getGreeting()} 👋</p>
-              <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight truncate">
+              <h1 className="text-2xl sm:text-4xl font-extrabold text-white tracking-tight truncate">
                 {session.name.split(' ')[0]}
               </h1>
               {nextEvent && (
@@ -542,15 +544,15 @@ export default async function DashboardPage() {
           )}
 
           {/* Quick stats strip */}
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 mt-4">
+          <div className="grid grid-cols-4 gap-2 mt-3">
             {stats.map((s) => {
               const inner = (
                 <>
-                  <div className="text-base font-extrabold text-white leading-none">{s.value}</div>
-                  <div className="text-[9px] text-amber-100 mt-0.5 leading-tight">{s.label}</div>
+                  <div className="text-lg font-extrabold text-white leading-none">{s.value}</div>
+                  <div className="text-[11px] text-amber-100 mt-1 leading-tight">{s.label}</div>
                 </>
               )
-              const cls = 'bg-white/20 backdrop-blur-sm rounded-xl px-2 py-2 text-center'
+              const cls = 'bg-white/20 backdrop-blur-sm rounded-xl px-2 py-2.5 text-center'
               return s.href ? (
                 <Link key={s.label} href={s.href} className={`${cls} hover:bg-white/30 transition-colors`}>{inner}</Link>
               ) : (
@@ -648,7 +650,7 @@ export default async function DashboardPage() {
                     <Link key={a.user.id} href={`/events/${a.event.id}`}
                       className="flex flex-col items-center gap-1.5 shrink-0 group">
                       {a.user.profilePhoto ? (
-                        <img src={avatarUrl(a.user.profilePhoto, 128)} alt={a.user.name} loading="lazy" decoding="async"
+                        <img src={avatarUrl(a.user.profilePhoto, 96)} alt={a.user.name} loading="lazy" decoding="async"
                           className="w-11 h-11 rounded-full object-cover border-2 border-white shadow-sm group-hover:ring-2 group-hover:ring-amber-400 transition-all" />
                       ) : (
                         <div className="w-11 h-11 rounded-full border-2 border-white shadow-sm flex items-center justify-center text-white text-xs font-bold group-hover:ring-2 group-hover:ring-amber-400 transition-all"
