@@ -96,7 +96,7 @@ export default async function HomePage() {
   const stats = c.stats ?? [
     { value: '4,000+', label: 'Community members'  },
     { value: '500+',   label: 'Experiences hosted' },
-    { value: '140+',   label: 'Interest clubs'      },
+    { value: '120+',   label: 'Active clubs'         },
     { value: 'Weekly', label: 'Curated events'      },
   ]
 
@@ -132,6 +132,18 @@ export default async function HomePage() {
                 <Link href="/clubs" className="btn-secondary text-base px-8 py-4">
                   Browse clubs
                 </Link>
+              </div>
+
+              {/* Mobile/tablet hero image — desktop sees the side image, so hide at lg+ */}
+              <div className="lg:hidden relative aspect-[3/2] rounded-2xl overflow-hidden shadow-xl mb-12">
+                <Image
+                  src="/images/hero-istanbul.jpg"
+                  alt="Friends gathered on an Istanbul rooftop at sunset"
+                  fill
+                  unoptimized
+                  sizes="100vw"
+                  className="object-cover"
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-x-6 gap-y-8">
