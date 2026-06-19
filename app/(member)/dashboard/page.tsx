@@ -21,6 +21,7 @@ import PendingConnectionsWidget from '@/components/PendingConnectionsWidget'
 import ClubActivityTimeline from '@/components/ClubActivityTimeline'
 import DashboardVisitorsStrip from '@/components/DashboardVisitorsStrip'
 import PartnersBanner from '@/components/PartnersBanner'
+import GetStartedChecklist from '@/components/GetStartedChecklist'
 import Image from 'next/image'
 
 export const dynamic = 'force-dynamic'
@@ -40,11 +41,6 @@ function daysUntil(dateStr: string): number {
   const today = todayIstanbul()
   const diff  = new Date(dateStr).getTime() - new Date(today).getTime()
   return Math.ceil(diff / 86400000)
-}
-
-function profileCompletion(p: { profilePhoto: string | null; bio: string | null; neighborhood: string | null; interests: string[]; instagram: string | null; gender: string | null }) {
-  const fields = [!!p.profilePhoto, !!p.bio, !!p.neighborhood, p.interests.length > 0, !!p.instagram, !!p.gender]
-  return Math.round((fields.filter(Boolean).length / fields.length) * 100)
 }
 
 export default async function DashboardPage() {
@@ -424,7 +420,6 @@ export default async function DashboardPage() {
   const upcomingDates  = upcomingEvents.map((a) => a.event.date)
   const nextEvent      = upcomingEvents[0]
   const daysToNext     = nextEvent ? daysUntil(nextEvent.event.date) : null
-  const completion     = userProfile ? profileCompletion(userProfile) : 0
   const memberSince    = userProfile?.joinedAt
     ? new Date(userProfile.joinedAt).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
     : null
@@ -623,17 +618,9 @@ export default async function DashboardPage() {
                     <Link href="/profile" className="text-xs text-red-600 font-bold shrink-0">Set now →</Link>
                   </div>
                 )}
-                {completion < 100 && (
-                  <div className="mt-2 p-3 bg-amber-50 rounded-xl">
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs font-semibold text-amber-800">Profile {completion}% complete</span>
-                      <Link href="/profile" className="text-xs text-amber-600 font-semibold">Complete →</Link>
-                    </div>
-                    <div className="h-1.5 bg-amber-200 rounded-full overflow-hidden">
-                      <div className="h-full bg-amber-500 rounded-full" style={{ width: `${completion}%` }} />
-                    </div>
-                  </div>
-                )}
+                {/* Profile-completion % banner removed — the Get started
+                    checklist below (mobile) / right rail (desktop) already
+                    owns this nudge with specific steps, not just a number. */}
               </div>
             </div>
 
@@ -814,6 +801,21 @@ export default async function DashboardPage() {
               member can act on, not their own profile card. */}
           <div className="order-1 lg:order-2 flex-1 min-w-0 space-y-6">
 
+            {/* Mobile-only render of Get started — the right-rail copy is
+                hidden under lg, so this keeps the onboarding nudge present
+                on phones / tablets. Same component, same null-when-done
+                behaviour. */}
+            <div className="lg:hidden">
+              <GetStartedChecklist
+                hasProfilePhoto={!!userProfile?.profilePhoto}
+                hasBio={!!userProfile?.bio?.trim()}
+                hasNeighborhood={!!userProfile?.neighborhood}
+                interestCount={userProfile?.interests?.length ?? 0}
+                clubCount={myMemberships.length}
+                attendedCount={myAttendances.length}
+              />
+            </div>
+
             {/* ── ACTIONS ── */}
             <ReviewReminder events={unreviewed} />
 
@@ -941,7 +943,14 @@ export default async function DashboardPage() {
               </div>
             )}
 
-            {/* ── PERSONAL ── */}
+            {/* ── PHASE: DISCOVER ── visible chunking between the urgent
+                "things needing your attention" block above and the broader
+                content-discovery block below. Quiet eyebrow + hairline so
+                the rhythm reads without adding text noise. */}
+            <div className="flex items-center gap-3 pt-2">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Discover</span>
+              <div className="flex-1 h-px bg-gray-200" />
+            </div>
 
             {/* From Smileys — latest published articles */}
             {latestPosts.length > 0 && (
@@ -1307,6 +1316,13 @@ export default async function DashboardPage() {
               </div>
             )}
 
+            {/* ── PHASE: CONNECT ── people + clubs cluster, second of the
+                two visible phase dividers (Discover above, Connect here). */}
+            <div className="flex items-center gap-3 pt-2">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Connect</span>
+              <div className="flex-1 h-px bg-gray-200" />
+            </div>
+
             {/* ── PEOPLE ── */}
             {suggestedMembers.length > 0 && (
               <div>
@@ -1476,46 +1492,17 @@ export default async function DashboardPage() {
               )
             })()}
 
-            {/* Onboarding checklist — action items early, hides when complete */}
-            {(() => {
-              const steps = [
-                { label: 'Add a profile photo',   done: !!userProfile?.profilePhoto,              href: '/profile' },
-                { label: 'Write a short bio',      done: !!userProfile?.bio?.trim(),               href: '/profile' },
-                { label: 'Set your neighborhood',  done: !!userProfile?.neighborhood,              href: '/profile' },
-                { label: 'Pick your interests',    done: (userProfile?.interests?.length ?? 0) > 0, href: '/profile' },
-                { label: 'Join a club',             done: myMemberships.length > 0,                href: '/clubs'   },
-                { label: 'RSVP to an event',        done: myAttendances.length > 0,                href: '/events'  },
-              ]
-              const doneCount = steps.filter((s) => s.done).length
-              if (doneCount === steps.length) return null
-              const pct = Math.round((doneCount / steps.length) * 100)
-              return (
-                <div className="bg-white rounded-2xl shadow-card p-5">
-                  <div className="flex items-center justify-between mb-1">
-                    <h2 className="text-sm font-bold text-gray-900">Get started</h2>
-                    <span className="text-xs font-semibold text-amber-600">{doneCount}/{steps.length}</span>
-                  </div>
-                  <div className="h-1.5 bg-gray-100 rounded-full mb-4 overflow-hidden">
-                    <div className="h-full bg-amber-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
-                  </div>
-                  <div className="space-y-2">
-                    {steps.map((step) => (
-                      <Link key={step.label} href={step.href}
-                        className={`flex items-center gap-2.5 text-sm transition-colors ${step.done ? 'text-gray-400 line-through pointer-events-none' : 'text-gray-700 hover:text-amber-600'}`}>
-                        <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${step.done ? 'border-green-400 bg-green-400' : 'border-gray-300'}`}>
-                          {step.done && (
-                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                            </svg>
-                          )}
-                        </span>
-                        {step.label}
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              )
-            })()}
+            {/* Onboarding checklist — single source of truth (also rendered
+                inline at the top of the center column on mobile where the
+                right rail is hidden). Self-hides when all steps are done. */}
+            <GetStartedChecklist
+              hasProfilePhoto={!!userProfile?.profilePhoto}
+              hasBio={!!userProfile?.bio?.trim()}
+              hasNeighborhood={!!userProfile?.neighborhood}
+              interestCount={userProfile?.interests?.length ?? 0}
+              clubCount={myMemberships.length}
+              attendedCount={myAttendances.length}
+            />
 
 
             {/* My neighborhood */}
@@ -1583,7 +1570,7 @@ export default async function DashboardPage() {
             {/* Community pulse — bottom */}
             <div className="bg-white rounded-2xl shadow-card p-4">
               <div className="flex items-center gap-2 mb-3">
-                <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                <span className="w-2 h-2 rounded-full bg-green-400" />
                 <p className="text-xs font-bold text-gray-900 uppercase tracking-widest">Community</p>
               </div>
               <div className="space-y-2.5">
