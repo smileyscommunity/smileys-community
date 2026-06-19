@@ -241,7 +241,7 @@ function ConnectButton({ m, currentUserId, connections, onConnectionChange }: {
   if (conn.status === 'pending' && iRequested) {
     return (
       <button onClick={remove} disabled={loading}
-        className="flex items-center gap-1.5 px-4 py-2 bg-gray-100 hover:bg-red-50 hover:text-red-600 hover:border-red-200 text-gray-600 text-sm font-semibold rounded-xl border border-gray-200 transition-colors disabled:opacity-60">
+        className="flex items-center gap-1.5 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm font-semibold rounded-xl border border-gray-200 transition-colors disabled:opacity-60">
         {loading ? '...' : 'Pending…'}
       </button>
     )
@@ -577,14 +577,14 @@ const MemberCard = memo(function MemberCard({ m, onSelect, connectionStatus, han
             </span>
           )}
           {connectionStatus === 'accepted' && (
-            <span className="flex items-center gap-0.5 bg-green-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">
+            <span className="flex items-center gap-0.5 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">
               <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
               </svg>
             </span>
           )}
           {connectionStatus === 'pending' && (
-            <span className="bg-amber-400 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">●</span>
+            <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">●</span>
           )}
         </div>
 
@@ -918,14 +918,16 @@ function MembersPageInner() {
           <div className="flex gap-2 pb-4 overflow-x-auto scrollbar-hide">
             {(['All', 'Hosts', 'Admins', 'Saved'] as RoleFilter[]).map(f => {
               const count = f === 'Hosts' ? hostTotal : f === 'Admins' ? adminTotal : f === 'Saved' ? savedTotal : total
-              const activeCls = f === 'Hosts' ? 'bg-amber-500 text-white border-amber-500'
-                : f === 'Admins' ? 'bg-violet-500 text-white border-violet-500'
-                : f === 'Saved' ? 'bg-amber-400 text-white border-amber-400'
-                : 'bg-gray-900 text-white border-gray-900'
+              // All four role pills share the same active style now (was
+              // gray-900 for All, violet-500 for Admins, amber-400 for
+              // Saved, amber-500 for Hosts). The emoji prefix carries the
+              // role differentiation; the chip itself stays in one palette.
               return (
                 <button key={f} onClick={() => setRoleFilter(f)}
                   className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold border whitespace-nowrap transition-all ${
-                    roleFilter === f ? activeCls : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+                    roleFilter === f
+                      ? 'bg-amber-500 text-white border-amber-500'
+                      : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
                   }`}>
                   {f === 'Hosts' && '🔥 '}{f === 'Admins' && '⚡ '}{f === 'Saved' && '🔖 '}{f}
                   {!loading && count > 0 && (
