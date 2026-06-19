@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo, useCallback, Suspense } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import dynamic from 'next/dynamic'
-import { motion, AnimatePresence } from 'framer-motion'
 import EventCard from '@/components/EventCard'
 import EventCardSkeleton from '@/components/EventCardSkeleton'
 import Link from 'next/link'
@@ -88,7 +87,7 @@ function AppEventsPageInner() {
   const [goingOnly,    setGoingOnly]    = useState(() => searchParams.get('going') === '1')
   // CMS overrides land in this state on mount via /api/content. Defaults
   // are the fallback when the CMS hasn't been configured.
-  const [hero, setHero] = useState({ badge: 'Istanbul', headline: "What's on this week", subtitle: 'Find your next experience in Istanbul.' })
+  const [hero, setHero] = useState({ badge: 'Istanbul', headline: "What's on", subtitle: 'Find your next experience in Istanbul.' })
 
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
   const [showMap,         setShowMap]         = useState(false)
@@ -387,15 +386,20 @@ function AppEventsPageInner() {
           </div>
         )}
 
-        {/* Active filter chips */}
-        <AnimatePresence>
-          {hasActiveFilters && tab === 'upcoming' && (
-            <motion.div
-              initial={{ opacity: 0, height: 0, marginBottom: 0 }}
-              animate={{ opacity: 1, height: 'auto', marginBottom: 24 }}
-              exit={{ opacity: 0, height: 0, marginBottom: 0 }}
-              transition={{ duration: 0.2 }}
-              className="overflow-hidden"
+        {/* Active filter chips. Was a framer-motion AnimatePresence; now
+            a plain CSS `transition-all` on max-height + opacity + margin,
+            since framer is overkill for "row of pills fades in/out".
+            max-h-40 (160px) fits ~3 lines of wrapped chips; if you ever
+            blow past that, the row clips silently rather than crashing.
+            aria-hidden keeps the row out of the SR rotor when collapsed. */}
+        {(() => {
+          const visible = hasActiveFilters && tab === 'upcoming'
+          return (
+            <div
+              aria-hidden={!visible}
+              className={`overflow-hidden transition-all duration-200 ${
+                visible ? 'max-h-40 opacity-100 mb-6' : 'max-h-0 opacity-0 mb-0'
+              }`}
             >
               <div className="flex flex-wrap items-center gap-2 pt-1">
                 <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide shrink-0">
@@ -457,9 +461,9 @@ function AppEventsPageInner() {
                   Clear all
                 </button>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            </div>
+          )
+        })()}
 
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
