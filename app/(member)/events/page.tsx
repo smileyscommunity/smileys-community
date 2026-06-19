@@ -472,11 +472,11 @@ function AppEventsPageInner() {
         ) : filtered.length === 0 ? (
           <div className="text-center py-20 max-w-sm mx-auto">
             <div className="text-6xl mb-4">{neighborhoodFilter && !selectedTags.length && timeFilter === 'All' ? '📍' : '🔍'}</div>
-            <h3 className="text-lg font-bold text-gray-900 mb-2">
+            <h2 className="text-lg font-bold text-gray-900 mb-2">
               {neighborhoodFilter && !selectedTags.length && timeFilter === 'All'
                 ? `No events in ${neighborhoodFilter} right now`
                 : 'No events match your filters'}
-            </h3>
+            </h2>
             {neighborhoodFilter && !selectedTags.length && timeFilter === 'All' && (
               <p className="text-sm text-gray-600 mb-4">Check back soon — new events are added regularly.</p>
             )}
