@@ -80,12 +80,17 @@ function ClubCard({ club, membership, toggling, onToggle }: {
           {(isJoined || isPending) && (
             <div className="absolute top-3 right-3">
               {isJoined && (
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-green-500 text-white">
+                // Solid amber-500 = active commitment, matches the
+                // events page's amber-not-green Going treatment.
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-500 text-white">
                   {isHost ? 'Host' : '✓ Joined'}
                 </span>
               )}
               {isPending && (
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-400 text-white">
+                // Soft amber-100 = in-progress / waiting state, so the
+                // Pending badge differentiates from solid Joined without
+                // breaking the amber palette.
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
                   Pending
                 </span>
               )}
@@ -113,20 +118,33 @@ function ClubCard({ club, membership, toggling, onToggle }: {
                 they've already joined while browsing Explore can leave
                 without first switching tabs. Hosts never see Leave —
                 they need to transfer hosting before leaving. */}
+            {/* aria-busy tells the SR rotor the button is mid-request;
+                the success/error outcome itself is announced via the
+                sonner toast (Toaster is rendered in app/layout.tsx with
+                its default aria-live region). */}
             {isJoined && !isHost && (
-              <button onClick={() => onToggle(club)} disabled={toggling === club.id}
-                className="text-xs px-2.5 py-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition-colors font-medium disabled:opacity-50">
+              <button
+                onClick={() => onToggle(club)}
+                disabled={toggling === club.id}
+                aria-busy={toggling === club.id}
+                className="text-xs px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors font-medium disabled:opacity-50">
                 {toggling === club.id ? '…' : 'Leave'}
               </button>
             )}
             {isPending && (
-              <button onClick={() => onToggle(club)} disabled={toggling === club.id}
+              <button
+                onClick={() => onToggle(club)}
+                disabled={toggling === club.id}
+                aria-busy={toggling === club.id}
                 className="text-xs px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors font-medium disabled:opacity-50">
                 {toggling === club.id ? '…' : 'Cancel'}
               </button>
             )}
             {!isJoined && !isPending && (
-              <button onClick={() => onToggle(club)} disabled={toggling === club.id}
+              <button
+                onClick={() => onToggle(club)}
+                disabled={toggling === club.id}
+                aria-busy={toggling === club.id}
                 className="text-xs px-3 py-1.5 rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors font-semibold disabled:opacity-50">
                 {toggling === club.id ? '…' : club.isPrivate ? 'Request' : 'Join'}
               </button>
@@ -158,7 +176,11 @@ function AppClubsPageInner() {
     searchParams.get('tab') === 'mine' ? 'mine' : 'explore'
   )
   const [activeCategory, setActiveCategory] = useState<string>(() => searchParams.get('category') ?? 'All')
-  const [hero, setHero] = useState({ badge: 'Community', headline: 'Clubs', subtitle: 'Discover communities and manage your memberships.' })
+  // CMS overrides land in this state on mount via /api/content. The
+  // default headline used to be 'Clubs' — accurate but file-cabinet
+  // bland. 'Find your community' reads as an invitation while leaving
+  // the badge + subtitle communicating the actual content.
+  const [hero, setHero] = useState({ badge: 'Community', headline: 'Find your community', subtitle: 'Discover communities and manage your memberships.' })
 
   // Mirror filter state to the URL. Defaults omitted from the
   // querystring so a "clean" URL means "all defaults".
@@ -170,17 +192,18 @@ function AppClubsPageInner() {
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
   }, [tab, activeCategory, router, pathname])
 
-  useEffect(() => {
-    fetch('/app/api/content').then(r => r.json()).then(d => {
-      if (d.clubs) setHero(h => ({ ...h, ...d.clubs }))
-    }).catch(() => {})
-  }, [])
-
+  // One-shot mount fetches: hero CMS content + clubs + memberships.
+  // Batched in a single Promise.all so all three setStates commit in
+  // one render instead of the hero fetch sneaking in a second render
+  // cycle. Each fetch fails open with `null` so a flaky CMS endpoint
+  // doesn't take down the clubs grid.
   useEffect(() => {
     Promise.all([
-      fetch('/app/api/clubs', { credentials: 'include' }).then(r => r.json()),
-      fetch('/app/api/clubs/memberships', { credentials: 'include' }).then(r => r.json()),
-    ]).then(([clubData, memberData]) => {
+      fetch('/app/api/content').then(r => r.json()).catch(() => null),
+      fetch('/app/api/clubs', { credentials: 'include' }).then(r => r.json()).catch(() => null),
+      fetch('/app/api/clubs/memberships', { credentials: 'include' }).then(r => r.json()).catch(() => null),
+    ]).then(([content, clubData, memberData]) => {
+      if (content?.clubs) setHero(h => ({ ...h, ...content.clubs }))
       setClubs(Array.isArray(clubData) ? clubData : [])
       setMemberships(Array.isArray(memberData) ? memberData : [])
     }).finally(() => setLoading(false))
@@ -296,16 +319,24 @@ function AppClubsPageInner() {
 
           <AdBannerStrip page="clubs" />
 
-          {/* Tab pills */}
-          <div className="flex flex-wrap gap-2 mb-4">
+          {/* Tab pills — role=tab + aria-selected so the SR rotor picks
+              them up as proper tabs. The grid below is the implicit
+              tabpanel (single panel that swaps content); no separate
+              role=tabpanel since we'd just be wrapping the existing
+              grid for the SR semantics. */}
+          <div role="tablist" aria-label="Filter clubs by membership" className="flex flex-wrap gap-2 mb-4">
             {(isLoggedIn
               ? [['explore', 'Explore', clubs.length], ['mine', 'My Clubs', joinedClubs.length + pendingClubs.length]] as [Tab, string, number][]
               : [['explore', 'Explore', clubs.length]] as [Tab, string, number][]
             ).map(([key, label, count]) => (
-              <button key={key} onClick={() => setTab(key)}
+              <button
+                key={key}
+                onClick={() => setTab(key)}
+                role="tab"
+                aria-selected={tab === key}
                 className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold border whitespace-nowrap transition-all ${
                   tab === key
-                    ? 'bg-gray-900 text-white border-gray-900'
+                    ? 'bg-amber-500 text-white border-amber-500'
                     : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
                 }`}>
                 {label}
@@ -344,9 +375,9 @@ function AppClubsPageInner() {
         ) : displayClubs.length === 0 ? (
           <div className="text-center py-20 max-w-xs mx-auto">
             <div className="text-6xl mb-4">🏛️</div>
-            <h3 className="text-lg font-bold text-gray-900 mb-2">
+            <h2 className="text-lg font-bold text-gray-900 mb-2">
               {tab === 'mine' ? 'No clubs yet' : 'No clubs found'}
-            </h3>
+            </h2>
             <p className="text-sm text-gray-600 mb-6">
               {tab === 'mine'
                 ? 'Join clubs to meet people who share your interests.'
