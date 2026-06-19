@@ -31,7 +31,15 @@ function getInitials(name: string) {
 }
 
 function getGreeting() {
-  const hour = (new Date().getUTCHours() + 3) % 24 // Istanbul UTC+3
+  // Use the IANA Europe/Istanbul zone instead of hardcoding `getUTCHours() + 3`.
+  // Turkey is currently on permanent UTC+3, but a future DST change (or any
+  // reader of this code wondering "why +3?") is one tzdata update away from
+  // breaking the morning/afternoon/evening boundaries.
+  const hour = Number(new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Europe/Istanbul',
+    hour:     'numeric',
+    hour12:   false,
+  }).format(new Date()))
   if (hour < 12) return 'Good morning'
   if (hour < 17) return 'Good afternoon'
   return 'Good evening'
@@ -1422,22 +1430,26 @@ export default async function DashboardPage() {
               </div>
             )}
 
-            {/* ── MOBILE-ONLY ── */}
-
-            <div className="lg:hidden"><QuickLinks /></div>
-            <div className="lg:hidden"><InviteBanner /></div>
-            {referralStats.friends > 0 && (
-              <div className="lg:hidden">
-                <ReferralImpact friendCount={referralStats.friends} eventCount={referralStats.events} />
-              </div>
-            )}
+            {/* (QuickLinks / InviteBanner / ReferralImpact used to render
+                here behind lg:hidden + again in the right column. They
+                now live exclusively in the right column, which renders on
+                every viewport via outer order-3 below.) */}
           </div>
 
-          {/* ── RIGHT ── */}
-          {/* hidden lg:block — never shown on mobile, so no mobile
-              order needed. lg:order-3 is implicit / default. */}
-          <div className="hidden lg:block lg:order-3 lg:w-60 lg:shrink-0 space-y-4">
+          {/* ── RIGHT ──
+              Outer container now renders on every viewport (was
+              hidden lg:block) so QuickLinks / InviteBanner /
+              ReferralImpact can live here ONCE instead of being
+              duplicated in the center column behind lg:hidden.
+              Mobile order: center → left → right. The dense
+              desktop-only widgets stay in the nested hidden lg:block
+              below; the action-y cross-viewport widgets live below
+              that, visible everywhere. */}
+          <div className="order-3 lg:w-60 lg:shrink-0 space-y-4">
 
+            {/* Desktop-only widgets — too dense / sidebar-shaped for
+                mobile (mini calendar, weather, narrow listing card). */}
+            <div className="hidden lg:block space-y-4">
 
             <IstanbulWeather />
 
@@ -1562,18 +1574,24 @@ export default async function DashboardPage() {
               </div>
             )}
 
+            </div>{/* /hidden lg:block (desktop-only widgets) */}
+
+            {/* Cross-viewport widgets — render at all sizes. Single
+                source of truth (no center-column duplicates). */}
             <QuickLinks />
 
             <InviteBanner />
 
-            <PartnersBanner />
+            <div className="hidden lg:block">
+              <PartnersBanner />
+            </div>
 
             {referralStats.friends > 0 && (
               <ReferralImpact friendCount={referralStats.friends} eventCount={referralStats.events} />
             )}
 
-            {/* Community pulse — bottom */}
-            <div className="bg-white rounded-2xl shadow-card p-4">
+            {/* Community pulse — desktop-only stats panel, bottom of rail */}
+            <div className="hidden lg:block bg-white rounded-2xl shadow-card p-4">
               <div className="flex items-center gap-2 mb-3">
                 <span className="w-2 h-2 rounded-full bg-green-400" />
                 <h2 className="text-xs font-bold text-gray-900 uppercase tracking-widest">Community</h2>
