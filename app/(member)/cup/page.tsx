@@ -152,9 +152,32 @@ export default function CupPredictionsPage() {
 
     loadAll().finally(() => { if (alive) setLoading(false) })
     // Re-fetch fixtures every 60s so group standings + pick locks
-    // update without a page reload.
-    const t = setInterval(pollFixtures, 60_000)
-    return () => { alive = false; clearInterval(t) }
+    // update without a page reload. Visibility-gated: a backgrounded
+    // tab stops polling, so a laptop left open overnight doesn't
+    // hammer /fixtures forever. Refreshes once on return to visible
+    // so the user sees fresh data the moment they look back.
+    let intervalId: ReturnType<typeof setInterval> | null = null
+    function startInterval() {
+      if (intervalId === null) intervalId = setInterval(pollFixtures, 60_000)
+    }
+    function stopInterval() {
+      if (intervalId !== null) { clearInterval(intervalId); intervalId = null }
+    }
+    function onVisibility() {
+      if (document.hidden) {
+        stopInterval()
+      } else {
+        pollFixtures()
+        startInterval()
+      }
+    }
+    if (!document.hidden) startInterval()
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      alive = false
+      stopInterval()
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
   }, [])
 
   // Prime the draft once when the saved bracket first arrives. A
@@ -1254,14 +1277,37 @@ function DisclaimerBanner() {
 // countdown works for visitors too.
 // ─────────────────────────────────────────────────────────────────
 function Countdown({ fixtures }: { fixtures: Fixture[] | null }) {
-  // Tick once a second so the readout stays current. Mounted only
-  // when fixtures are available — otherwise the interval doesn't
-  // fire and the component renders null.
+  // Self-rescheduling tick. Was setInterval(1000) — fine for the
+  // final-minute "12m 34s → 34s" countdown but wasteful for the
+  // pre-tournament "11d 4h 12m" readout that only changes once a
+  // minute. ~58 re-renders/min saved (fixtures + bracket + leaderboard
+  // all subscribe; each tick used to cascade into them).
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(t)
-  }, [])
+    if (!fixtures || fixtures.length === 0) return
+    let tid: ReturnType<typeof setTimeout>
+    function schedule() {
+      const newNow = Date.now()
+      // Find target dynamically each tick — `nextMatch` rolls
+      // forward as kickoffs pass, so the deadline we're counting
+      // toward changes during the tournament.
+      const firstMs = Math.min(...fixtures!.map(f => new Date(f.kickoffAt).getTime()))
+      const next = fixtures!
+        .filter(f => new Date(f.kickoffAt).getTime() > newNow)
+        .sort((a, b) => new Date(a.kickoffAt).getTime() - new Date(b.kickoffAt).getTime())[0]
+      let target: number | null = null
+      if (newNow < firstMs) target = firstMs
+      else if (next) target = new Date(next.kickoffAt).getTime()
+      if (target === null) return  // Tournament complete; stop ticking.
+      const remaining = target - newNow
+      // Second-precision only inside the final minute; otherwise tick
+      // at minute precision since the rendered readout doesn't change.
+      const delay = remaining < 60_000 ? 1000 : 60_000
+      tid = setTimeout(() => { setNow(Date.now()); schedule() }, delay)
+    }
+    schedule()
+    return () => clearTimeout(tid)
+  }, [fixtures])
 
   if (!fixtures || fixtures.length === 0) return null
 
@@ -1282,18 +1328,22 @@ function Countdown({ fixtures }: { fixtures: Fixture[] | null }) {
       ? `Next: ${teamLabel(nextMatch!.homeTeam)} vs ${teamLabel(nextMatch!.awayTeam)}`
       : 'Next match'
 
-  const tone = preKickoff ? 'amber' : 'sky'
+  // Was amber pre-kickoff / sky in-tournament — sky was the only
+  // non-amber accent on the page and broke the palette established
+  // across events/clubs/members. Keep amber across both states;
+  // pre-kickoff uses the stronger amber-100/200 (urgent), in-
+  // tournament drops to the softer amber-50/100 (informational).
   const icon = preKickoff ? '⏱️' : '⚽'
 
   return (
     <div className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl mb-4 border ${
-      tone === 'amber'
-        ? 'bg-amber-50 border-amber-200'
-        : 'bg-sky-50 border-sky-200'
+      preKickoff
+        ? 'bg-amber-100 border-amber-200'
+        : 'bg-amber-50 border-amber-100'
     }`}>
       <span className="text-base shrink-0" aria-hidden="true">{icon}</span>
-      <p className={`text-xs font-bold ${tone === 'amber' ? 'text-amber-900' : 'text-sky-900'} text-center`}>
-        {label} <span className={`tabular-nums ${tone === 'amber' ? 'text-amber-700' : 'text-sky-700'} ml-1`}>{formatRemaining(target - now)}</span>
+      <p className="text-xs font-bold text-amber-900 text-center">
+        {label} <span className="tabular-nums text-amber-700 ml-1">{formatRemaining(target - now)}</span>
       </p>
     </div>
   )
@@ -1429,7 +1479,7 @@ function WatchPartyRow({ e }: { e: WatchPartyEvent }) {
       <div className="text-right shrink-0">
         <p className="text-[10px] text-gray-600 font-semibold">{e.totalSpots - e.spotsLeft}/{e.totalSpots}</p>
         <div className="w-12 h-1 bg-gray-100 rounded-full overflow-hidden mt-1">
-          <div className={`h-full rounded-full ${fill >= 80 ? 'bg-red-400' : 'bg-amber-400'}`} style={{ width: `${fill}%` }} />
+          <div className={`h-full rounded-full ${fill >= 80 ? 'bg-red-500' : 'bg-amber-400'}`} style={{ width: `${fill}%` }} />
         </div>
       </div>
     </Link>
@@ -1836,8 +1886,31 @@ function LeaderboardProvider({ children }: { children: React.ReactNode }) {
     // anything tighter doesn't get fresher data. The ?since= guard
     // means most of these polls are a single Prisma aggregate +
     // a 304 with no body.
-    const t = setInterval(load, 30_000)
-    return () => { alive = false; clearInterval(t) }
+    // Visibility-gated: a backgrounded tab stops polling and
+    // refreshes once on return so a forgotten tab doesn't keep
+    // hitting /leaderboard.
+    let intervalId: ReturnType<typeof setInterval> | null = null
+    function startInterval() {
+      if (intervalId === null) intervalId = setInterval(load, 30_000)
+    }
+    function stopInterval() {
+      if (intervalId !== null) { clearInterval(intervalId); intervalId = null }
+    }
+    function onVisibility() {
+      if (document.hidden) {
+        stopInterval()
+      } else {
+        load()
+        startInterval()
+      }
+    }
+    if (!document.hidden) startInterval()
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      alive = false
+      stopInterval()
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
   }, [])
 
   return (
@@ -2177,7 +2250,7 @@ function Leaderboard() {
           </div>
           <div className="text-right shrink-0">
             <p className="text-lg font-extrabold text-amber-700 tabular-nums leading-none">{top.score}</p>
-            <p className="text-[10px] text-amber-700/70 font-semibold">pts</p>
+            <p className="text-[10px] text-amber-600 font-semibold">pts</p>
           </div>
         </div>
       )}
