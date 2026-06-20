@@ -12,6 +12,7 @@ interface Props {
 }
 
 export default function EventListItem({ event, selected, status, onSelect }: Props) {
+  const isCancelled = event.status === 'cancelled'
   return (
     <button
       onClick={() => onSelect(event.id)}
@@ -19,7 +20,7 @@ export default function EventListItem({ event, selected, status, onSelect }: Pro
         selected
           ? 'bg-amber-50 border-l-2 border-l-amber-500'
           : 'hover:bg-gray-50 border-l-2 border-l-transparent'
-      }`}
+      } ${isCancelled ? 'opacity-60' : ''}`}
     >
       {/* Thumbnail */}
       <div className="relative w-14 h-14 rounded-xl overflow-hidden shrink-0">
@@ -28,7 +29,7 @@ export default function EventListItem({ event, selected, status, onSelect }: Pro
             src={resolveImageUrl(event.coverImage)}
             alt={event.title}
             fill
-            className="object-cover"
+            className={`object-cover ${isCancelled ? 'grayscale' : ''}`}
             sizes="56px"
             placeholder="blur"
             blurDataURL={BLUR_PLACEHOLDER}
@@ -36,9 +37,12 @@ export default function EventListItem({ event, selected, status, onSelect }: Pro
         ) : (
           <div className={`w-full h-full flex items-center justify-center text-2xl ${
             event.isPremium ? 'bg-gradient-to-br from-amber-100 to-orange-100' : 'bg-gray-100'
-          }`}>
+          } ${isCancelled ? 'grayscale' : ''}`}>
             {event.emoji}
           </div>
+        )}
+        {isCancelled && (
+          <div className="absolute inset-0 bg-red-950/30 pointer-events-none" />
         )}
       </div>
 
@@ -51,6 +55,11 @@ export default function EventListItem({ event, selected, status, onSelect }: Pro
           {formatShortDate(event.date)} · {formatTime(event.time)} · {event.neighborhood}
         </p>
         <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+          {isCancelled && (
+            <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 uppercase tracking-wide">
+              Cancelled
+            </span>
+          )}
           <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${
             event.price === 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
           }`}>

@@ -98,6 +98,14 @@ export async function POST(req: NextRequest) {
       data: backupCodes.map(c => ({ userId: session.id, codeHash: hashBackupCode(c) })),
     }),
   ])
+  // Mark the current session as totpVerified so the user doesn't have to
+  // log out and back in — they just proved possession of the TOTP device.
+  if (session.sessionId) {
+    await prisma.session.update({
+      where: { id: session.sessionId },
+      data:  { totpVerified: true },
+    })
+  }
   return NextResponse.json({ ok: true, backupCodes })
 }
 

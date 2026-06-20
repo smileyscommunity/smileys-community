@@ -9,29 +9,24 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  if (!await rateLimit(`member-profile:${getIp(req)}`, 120, 60_000)) {
+  if (!await rateLimit(`member-profile:${getIp(req)}`, 30, 60_000)) {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
   }
 
   const { id } = await params
   const today = todayIstanbul()
 
-  const [user, upcomingEvents, connection, hangoutsHosted, hangoutsJoined] = await Promise.all([
+  const [user, upcomingEvents, connection, hangoutsHosted, hangoutsJoined, savedRow] = await Promise.all([
     prisma.user.findFirst({
       where: { id, status: 'approved', role: { in: ['member', 'moderator', 'admin'] } },
       select: {
         id: true, name: true, color: true, bio: true,
         neighborhood: true, nationality: true, interests: true,
         languages: true, profilePhoto: true, joinedAt: true, role: true,
-        instagram: true, socialStyles: true, lastActive: true,
-        // referralCode drives the brought-in count below — the count
-        // itself is derived (not the stale User.referralCount column)
-        // so it stays accurate even if a referred member later gets
-        // suspended or banned.
+        instagram: true, socialStyles: true, lastActive: true, profileVisibility: true,
         referralCode: true,
-        // Hangout trust + activity counters — drive the "✓ N good hangouts"
-        // badge and the "hosted/joined" line on the profile.
         goodHangouts: true,
+        industry: true, professionalRole: true, professionalStatus: true,
         clubMemberships: {
           where: { status: 'approved', role: 'host' },
           select: { club: { select: { id: true, name: true, emoji: true, slug: true, bgColor: true } } },
@@ -60,9 +55,33 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     }),
     // Hangouts joined — distinct hangout count via HangoutJoin.
     prisma.hangoutJoin.count({ where: { userId: id } }),
+    // Whether the current viewer has saved this member.
+    session.id !== id
+      ? prisma.memberSave.findUnique({
+          where: { userId_savedId: { userId: session.id, savedId: id } },
+          select: { savedId: true },
+        })
+      : Promise.resolve(null),
   ])
 
   if (!user) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // Honour profileVisibility:'connections'. Viewing your own profile always
+  // works. Anyone else needs an accepted MemberConnection to proceed — return
+  // 404 rather than 403 so the viewer doesn't know the profile exists.
+  if (session.id !== id && user.profileVisibility === 'connections') {
+    const conn = await prisma.memberConnection.findFirst({
+      where: {
+        status: 'accepted',
+        OR: [
+          { requesterId: session.id, receiverId: id },
+          { requesterId: id, receiverId: session.id },
+        ],
+      },
+      select: { id: true },
+    })
+    if (!conn) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
 
   // Count of approved members this user brought in — drives the
   // "🤝 Brought in N members" trust badge on the profile. Derived
@@ -119,6 +138,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     joinedAt:     user.joinedAt,
     role:         user.role,
     instagram:    user.instagram,
+    // Professional fields surfaced only when the member opted in to a
+    // non-social_only status. Treating null/social_only the same way
+    // — neither leaks the industry/role to viewers — keeps the social
+    // surface clean by default.
+    industry:           user.professionalStatus && user.professionalStatus !== 'social_only' ? user.industry           : null,
+    professionalRole:   user.professionalStatus && user.professionalStatus !== 'social_only' ? user.professionalRole   : null,
+    professionalStatus: user.professionalStatus && user.professionalStatus !== 'social_only' ? user.professionalStatus : null,
     clubs:        user.clubMemberships.map(cm => cm.club),
     upcomingEvents,
     isConnected:     connection?.status === 'accepted',
@@ -133,5 +159,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     // doesn't render a "Brought in 0" badge that would actively shame
     // members who haven't invited anyone yet.
     broughtInCount,
+    isSaved: savedRow !== null,
   })
 }

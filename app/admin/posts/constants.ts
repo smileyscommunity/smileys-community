@@ -4,11 +4,26 @@
 // all, so an admin could write any string. Now this single allowlist
 // is the source of truth.
 
+export const KINDS = ['community', 'handbook'] as const
+export type Kind = (typeof KINDS)[number]
+export function isKind(s: unknown): s is Kind {
+  return typeof s === 'string' && (KINDS as readonly string[]).includes(s)
+}
+
 export const CATEGORIES = ['Community', 'Club Stories', 'Events', 'Istanbul Guide', 'Tips'] as const
 export type Category = (typeof CATEGORIES)[number]
-
 export function isCategory(s: unknown): s is Category {
   return typeof s === 'string' && (CATEGORIES as readonly string[]).includes(s)
+}
+
+export const HANDBOOK_CATEGORIES = ['Bureaucracy', 'Money', 'Daily Life', 'Family', 'Getting Around'] as const
+export type HandbookCategory = (typeof HANDBOOK_CATEGORIES)[number]
+export function isHandbookCategory(s: unknown): s is HandbookCategory {
+  return typeof s === 'string' && (HANDBOOK_CATEGORIES as readonly string[]).includes(s)
+}
+
+export function isValidCategory(kind: string, cat: unknown): boolean {
+  return kind === 'handbook' ? isHandbookCategory(cat) : isCategory(cat)
 }
 
 // Soft caps mirrored client+server. The actual writes trim and re-cap

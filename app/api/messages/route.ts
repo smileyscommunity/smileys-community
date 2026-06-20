@@ -8,8 +8,9 @@ export async function GET() {
     if (!session) return NextResponse.json({ error: 'Not logged in' }, { status: 401 })
 
     const messages = await prisma.directMessage.findMany({
-      where: { OR: [{ fromId: session.id }, { toId: session.id }] },
+      where: { OR: [{ fromId: session.id }, { toId: session.id }], deletedAt: null },
       orderBy: { createdAt: 'desc' },
+      take: 200,
       include: {
         from: { select: { id: true, name: true, color: true, profilePhoto: true } },
         to:   { select: { id: true, name: true, color: true, profilePhoto: true } },

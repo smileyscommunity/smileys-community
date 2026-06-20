@@ -118,7 +118,7 @@ export default function ActiveDevicesSection() {
                 </span>
               )}
             </div>
-            <p className="text-xs text-gray-500 mt-0.5">
+            <p className="text-xs text-gray-600 mt-0.5">
               {s.ip ? `${s.ip} · ` : ''}Last active {timeAgo(s.lastUsedAt)}
             </p>
           </div>

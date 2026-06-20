@@ -51,7 +51,7 @@ export default function AvatarStack({ people, total, max = 5, size = 'md' }: Ava
         )
       })}
       {extra > 0 && (
-        <div className={`${sizeCls} rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-500 border-2 border-white shadow-sm shrink-0`}>
+        <div className={`${sizeCls} rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-600 border-2 border-white shadow-sm shrink-0`}>
           +{extra}
         </div>
       )}

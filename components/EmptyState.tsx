@@ -12,7 +12,7 @@ export default function EmptyState({ icon = '✨', title, body, action }: Props)
     <div className="text-center py-20 max-w-xs mx-auto">
       <span className="text-5xl block mb-4">{icon}</span>
       <h3 className="text-lg font-bold text-gray-900 mb-2">{title}</h3>
-      {body && <p className="text-sm text-gray-500 mb-6">{body}</p>}
+      {body && <p className="text-sm text-gray-600 mb-6">{body}</p>}
       {action && (
         action.href ? (
           <Link href={action.href}

@@ -21,7 +21,7 @@ interface HostEvent {
 interface Attendee {
   userId: string
   checkedIn: boolean
-  user: { id: string; name: string; color: string; email: string; profilePhoto?: string | null }
+  user: { id: string; name: string; color: string; email?: string; profilePhoto?: string | null }
 }
 
 function EventList() {
@@ -77,6 +77,7 @@ function CheckInScanner() {
   const [search,      setSearch]      = useState('')
   const [eventName,   setEventName]   = useState('')
   const [toggling,    setToggling]    = useState<string | null>(null)
+  const [toggleError, setToggleError] = useState<string | null>(null)
 
   // useScanCheckin owns scan parse + look-up + optimistic PATCH with
   // rollback + vibrate + toast lifecycle. Same hook /admin/checkin
@@ -99,14 +100,20 @@ function CheckInScanner() {
 
   async function toggleCheckin(userId: string, current: boolean) {
     setToggling(userId)
+    setToggleError(null)
+    const next = !current
+    setAttendees(prev => prev.map(a => a.userId === userId ? { ...a, checkedIn: next } : a))
     const res = await fetch(`/app/api/events/${eventId}/checkin`, {
       method: 'PATCH', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, checkedIn: !current }),
+      body: JSON.stringify({ userId, checkedIn: next }),
     })
     if (res.ok) {
-      setAttendees(prev => prev.map(a => a.userId === userId ? { ...a, checkedIn: !current } : a))
-      if (!current) vibrate.success()
+      if (next) vibrate.success()
+    } else {
+      setAttendees(prev => prev.map(a => a.userId === userId ? { ...a, checkedIn: current } : a))
+      vibrate.error()
+      setToggleError('Check-in update failed. Please try again.')
     }
     setToggling(null)
   }
@@ -117,7 +124,19 @@ function CheckInScanner() {
     !search || a.user.name.toLowerCase().includes(search.toLowerCase())
   )
 
-  if (loading) return <div className="text-zinc-500 text-sm">Loading attendees…</div>
+  if (loading) return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3 mb-4">
+        <button onClick={() => router.push('/host/checkin')} className="p-2 rounded-lg text-zinc-400 hover:bg-zinc-800 transition-colors">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+        <h2 className="text-base font-bold text-white truncate">{eventName || 'Loading…'}</h2>
+      </div>
+      <div className="text-zinc-500 text-sm">Loading attendees…</div>
+    </div>
+  )
 
   return (
     <div className="space-y-4">
@@ -164,6 +183,10 @@ function CheckInScanner() {
         className="w-full bg-zinc-800 border border-zinc-700 text-white text-sm rounded-xl px-4 py-2.5 placeholder-zinc-500 focus:outline-none focus:border-amber-500"
       />
 
+      {toggleError && (
+        <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{toggleError}</p>
+      )}
+
       {/* Attendee list */}
       {visible.length === 0 ? (
         <div className="text-zinc-500 text-sm text-center py-8">No attendees found.</div>
@@ -193,7 +216,7 @@ function CheckInScanner() {
                   )}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-white truncate">{a.user.name}</p>
-                    <p className="text-xs text-zinc-400 truncate">{a.user.email}</p>
+                    {a.user.email && <p className="text-xs text-zinc-400 truncate">{a.user.email}</p>}
                   </div>
                   <button
                     onClick={() => toggleCheckin(a.userId, a.checkedIn)}
@@ -235,7 +258,7 @@ export default function HostCheckinPage() {
     <div className="p-4 sm:p-8">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-white">Check-In</h1>
-        <p className="text-zinc-400 text-sm mt-1">Tap the + to check in an attendee</p>
+        <p className="text-zinc-400 text-sm mt-1">Scan QR or tap to check in attendees</p>
       </div>
       <Suspense fallback={<div className="text-zinc-500 text-sm">Loading…</div>}>
         <CheckinContent />

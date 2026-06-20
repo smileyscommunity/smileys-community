@@ -48,6 +48,15 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     const { id: eventId } = await params
 
+    // Discussion auto-locks 14 days post-event (UI hides the input;
+    // this is the server-side guard for the same window).
+    const event = await prisma.event.findUnique({ where: { id: eventId }, select: { date: true } })
+    if (!event) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    const lockedAt = new Date(event.date); lockedAt.setDate(lockedAt.getDate() + 15)
+    if (Date.now() >= lockedAt.getTime()) {
+      return NextResponse.json({ error: 'Discussion closed for this event' }, { status: 403 })
+    }
+
     // Only approved attendees (or admins) can post
     if (session.role !== 'admin') {
       const attendee = await prisma.eventAttendee.findUnique({

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback, use } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { resolveImageUrl, getInitials } from '@/lib/data'
+import { downscaleImage } from '@/lib/image-resize'
 
 interface Reaction { userId: string; emoji: string }
 
@@ -168,10 +169,10 @@ export default function ThreadPage({ params }: { params: Promise<{ userId: strin
   async function handleImageChoose(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    if (file.size > 5 * 1024 * 1024) { alert('Image too large (max 5MB)'); return }
     setUploading(true)
+    const upload = await downscaleImage(file)
     const fd = new FormData()
-    fd.append('file', file)
+    fd.append('file', upload)
     fd.append('folder', 'messages')
     try {
       const r = await fetch('/app/api/upload', { method: 'POST', credentials: 'include', body: fd }).then(r => r.json())
@@ -233,7 +234,7 @@ export default function ThreadPage({ params }: { params: Promise<{ userId: strin
       <div className="flex flex-col bg-white w-full max-w-3xl shadow-sm">
       {/* Header */}
       <div className="bg-white border-b border-gray-100 px-4 py-3 flex items-center gap-3 shrink-0">
-        <Link href="/messages" className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-500">
+        <Link href="/messages" className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-600">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
@@ -417,7 +418,7 @@ export default function ThreadPage({ params }: { params: Promise<{ userId: strin
       {/* Input */}
       <div className="shrink-0 bg-white border-t border-gray-100 px-4 py-3">
         {notConnected && !(me?.role === 'admin' || me?.role === 'moderator' || me?.isClubHost) ? (
-          <div className="text-center text-sm text-gray-500 py-1">
+          <div className="text-center text-sm text-gray-600 py-1">
             Connect with {partnerName} first to send messages.{' '}
             <Link href="/members" className="text-amber-600 hover:underline font-medium">Browse members</Link>
           </div>
@@ -455,7 +456,7 @@ export default function ThreadPage({ params }: { params: Promise<{ userId: strin
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading || sending}
-                className="p-2.5 text-gray-500 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition-colors shrink-0 disabled:opacity-40"
+                className="p-2.5 text-gray-600 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition-colors shrink-0 disabled:opacity-40"
                 title="Attach photo"
                 aria-label="Attach photo"
               >

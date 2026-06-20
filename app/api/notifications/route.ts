@@ -6,7 +6,7 @@ import { rateLimit } from '@/lib/rateLimit'
 export async function GET() {
   try {
     const session = await getSession()
-    if (!session) return NextResponse.json([])
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const notifications = await prisma.notification.findMany({
       where: { userId: session.id },

@@ -1,0 +1,51 @@
+{
+  "tagline": "A quiet residential district on the far Asian side near Kartal — close to the sea, well connected by metro, and increasingly popular with families priced out of more central neighbourhoods.",
+  "places": [
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Kartal Sahili (yakın)",
+          "description": "The Kartal waterfront park and marina are minutes away — a good seafront escape with views of the Princes' Islands and the open Marmara.",
+          "address": "Kartal Sahili, Kartal",
+          "badge": "Smileys Pick"
+        },
+        {
+          "name": "Yakacık Semt Parkı",
+          "description": "A neighbourhood park popular with families and morning joggers — green and well-maintained.",
+          "address": "Yakacık, Kartal"
+        }
+      ]
+    },
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Yakacık Merkez Kafeleri",
+          "description": "Neighbourhood cafés around the Yakacık centre — unpretentious and local, with outdoor seating in good weather.",
+          "address": "Yakacık Merkez, Kartal"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Semt Lokantalari",
+          "description": "Affordable lokanta restaurants serving daily menus of traditional Turkish food. Solid and unpretentious.",
+          "address": "Yakacık, Kartal",
+          "badge": "Smileys Pick"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Yakacık is close to Kartal metro station on the M4 line — Kadıköy is around 25 minutes.",
+    "Very affordable rents by Istanbul standards — a practical choice for the Asian side.",
+    "The nearby Kartal waterfront is a bonus that most residents take full advantage of.",
+    "Pendik and its airport connections are also easily reachable from here."
+  ]
+}

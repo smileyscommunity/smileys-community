@@ -15,3 +15,7 @@ export function setCached<T>(key: string, data: T, ttlMs: number): void {
   store.set(key, { data, expiresAt: Date.now() + ttlMs })
 }
 
+export function deleteCached(key: string): void {
+  store.delete(key)
+}
+

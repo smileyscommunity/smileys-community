@@ -61,7 +61,7 @@ export default function AdvertiseFormClient() {
       <div className="bg-gray-50 rounded-2xl p-10 text-center border border-gray-100">
         <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-5 text-2xl">✓</div>
         <h3 className="text-xl font-extrabold text-gray-900 mb-2">Thanks for reaching out!</h3>
-        <p className="text-gray-500 text-sm">
+        <p className="text-gray-600 text-sm">
           We'll review your enquiry and get back to <strong className="text-gray-700">{form.email}</strong> within 48 hours.
         </p>
       </div>
@@ -81,32 +81,32 @@ export default function AdvertiseFormClient() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1.5">Your name</label>
+            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Your name</label>
             <input type="text" value={form.name} onChange={e => set('name', e.target.value)}
               placeholder="Ayşe Kaya" required className={inputCls} />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1.5">Work email</label>
+            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Work email</label>
             <input type="email" value={form.email} onChange={e => set('email', e.target.value)}
               placeholder="you@company.com" required className={inputCls} />
           </div>
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-gray-500 mb-1.5">Company / Brand</label>
+          <label className="block text-xs font-semibold text-gray-600 mb-1.5">Company / Brand</label>
           <input type="text" value={form.company} onChange={e => set('company', e.target.value)}
             placeholder="Your company name" required className={inputCls} />
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-gray-500 mb-2">Format of interest</label>
+          <label className="block text-xs font-semibold text-gray-600 mb-2">Format of interest</label>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {FORMATS.map(f => (
               <button key={f.value} type="button" onClick={() => set('format', f.value)}
                 className={`py-2.5 px-3 rounded-xl border text-xs font-semibold text-center transition-colors ${
                   form.format === f.value
                     ? 'border-amber-400 bg-amber-50 text-amber-700'
-                    : 'border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-white'
+                    : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-white'
                 }`}>
                 {f.label}
               </button>
@@ -115,7 +115,7 @@ export default function AdvertiseFormClient() {
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-gray-500 mb-1.5">
+          <label className="block text-xs font-semibold text-gray-600 mb-1.5">
             Tell us about your goals
             <span className="text-gray-400 font-normal ml-1">({form.message.length}/800)</span>
           </label>

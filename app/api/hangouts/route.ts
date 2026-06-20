@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
       // host name on each card. languages drives the "Speaks my language"
       // filter — overlap with caller's languages is computed client-side
       // so we don't have to denormalize a derived field.
-      user:  { select: { id: true, name: true, color: true, profilePhoto: true, goodHangouts: true, languages: true } },
+      user:  { select: { id: true, name: true, color: true, profilePhoto: true, goodHangouts: true, languages: true, nationality: true } },
       joins: {
         select: { userId: true, user: { select: { id: true, name: true, color: true, profilePhoto: true } } },
         orderBy: { createdAt: 'asc' },

@@ -1,12 +1,60 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
+import { Role } from '@/lib/constants'
 import { sendApplicationReceivedEmail, sendAdminNewApplicationEmail } from '@/lib/email'
 import { rateLimit, getIp } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
 import { verifyTurnstile } from '@/lib/turnstile'
-import { sendPushToUser } from '@/lib/push'
+
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const disposableDomains: string[] = require('disposable-email-domains')
+
+const PHOTO_RE = /^\/app\/api\/files\/[a-zA-Z0-9-]+\/[a-zA-Z0-9-]+\.(jpg|jpeg|png|webp|gif)$/
+
+const applySchema = z.object({
+  firstName:   z.string().trim().min(1).max(100),
+  lastName:    z.string().trim().min(1).max(100),
+  email:       z.string().trim().email().max(320),
+  phone:       z.string().trim().min(1).max(30),
+  country:     z.string().trim().min(1).max(100),
+  neighborhood:z.string().trim().min(1).max(200),
+  gender:      z.string().trim().min(1).max(50),
+  profilePhoto:z.string().trim().regex(PHOTO_RE, 'Invalid profile photo'),
+  // Optional fields
+  birthdate:       z.string().trim().max(20).optional().nullable(),
+  city:            z.string().trim().max(100).optional().nullable(),
+  instagram:       z.string().trim().max(100).optional().nullable(),
+  linkedin:        z.string().trim().max(200).optional().nullable(),
+  profession:      z.string().trim().max(200).optional().nullable(),
+  timeInCity:      z.string().trim().max(500).optional().nullable(),
+  reasonHere:      z.string().trim().max(1000).optional().nullable(),
+  aboutCommunity:  z.string().trim().max(2000).optional().nullable(),
+  socialJudgment:  z.string().trim().max(2000).optional().nullable(),
+  bio:             z.string().trim().max(1000).optional().nullable(),
+  source:          z.string().trim().max(200).optional().nullable(),
+  referredBy:      z.string().trim().max(20).optional().nullable(),
+  targetCitySlug:  z.string().trim().max(80).optional().nullable(),
+  languages:       z.array(z.string().max(50)).max(20).optional().default([]),
+  interests:       z.array(z.string().max(50)).max(30).optional().default([]),
+  socialStyles:    z.array(z.string().max(50)).max(20).optional().default([]),
+  openToCoffee:    z.boolean().optional().default(false),
+  openToLanguage:  z.boolean().optional().default(false),
+  openToHosting:   z.boolean().optional().default(false),
+  // Legacy essay fields — still accepted so old clients / drafts don't break
+  whyJoin:              z.string().trim().max(2000).optional().nullable(),
+  enjoyWith:            z.string().trim().max(2000).optional().nullable(),
+  goodCommunity:        z.string().trim().max(2000).optional().nullable(),
+  contribution:         z.string().trim().max(2000).optional().nullable(),
+  groupBehavior:        z.string().trim().max(2000).optional().nullable(),
+  removedFromCommunity: z.string().trim().max(2000).optional().nullable(),
+  toxicBehavior:        z.string().trim().max(2000).optional().nullable(),
+  // Anti-fraud / internal fields
+  _hp: z.any().optional(),  // honeypot
+  _cf: z.string().optional().nullable(),  // Cloudflare Turnstile token
+  _fp: z.string().max(64).optional().nullable(),  // fingerprint
+  _tz: z.string().max(60).optional().nullable(),  // browser timezone
+})
 
 async function getIpTimezone(ip: string): Promise<string | null> {
   try {
@@ -38,20 +86,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Too many applications from this IP. Try again later.' }, { status: 429 })
     }
 
-    const { firstName, lastName, email, phone, birthdate, gender, country, city, neighborhood, instagram, linkedin,
-            profession, timeInCity, reasonHere,
-            // New consolidated fields (UI now posts these instead of the 3+3 below)
-            aboutCommunity, socialJudgment, languages,
-            openToCoffee, openToLanguage, openToHosting,
-            // Legacy fields still accepted so older clients / drafts don't break;
-            // routed to their existing columns and not surfaced in the new UI.
-            whyJoin, enjoyWith, goodCommunity, interests, socialStyles,
-            contribution, groupBehavior, removedFromCommunity, toxicBehavior,
-            profilePhoto,
-            // targetCitySlug — which community they're applying to. Defaults to
-            // istanbul for backwards compat with older clients that don't post it.
-            targetCitySlug,
-            bio, source, referredBy, _hp, _cf, _fp, _tz } = await req.json()
+    const raw = await req.json().catch(() => null)
+    const parsed = applySchema.safeParse(raw)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Invalid request' }, { status: 400 })
+    }
+    const {
+      firstName, lastName, email, phone, birthdate, gender, country, city, neighborhood,
+      instagram, linkedin, profession, timeInCity, reasonHere,
+      aboutCommunity, socialJudgment, languages, interests, socialStyles,
+      openToCoffee, openToLanguage, openToHosting,
+      whyJoin, enjoyWith, goodCommunity,
+      contribution, groupBehavior, removedFromCommunity, toxicBehavior,
+      profilePhoto, targetCitySlug, bio, source, referredBy,
+      _hp, _cf, _fp, _tz,
+    } = parsed.data
 
     if (!(await verifyTurnstile(_cf ?? '', getIp(req)))) {
       return NextResponse.json({ error: 'Human verification failed. Please try again.' }, { status: 400 })
@@ -59,14 +108,10 @@ export async function POST(req: NextRequest) {
 
     if (_hp) return NextResponse.json({ ok: true })
 
-    if (!firstName?.trim() || !lastName?.trim() || !email?.trim() || !phone?.trim() || !country?.trim() || !neighborhood?.trim() || !gender?.trim()) {
-      return NextResponse.json({ error: 'Name, email, phone, country, neighborhood, and gender are required' }, { status: 400 })
-    }
-
     // Resolve the target city from the slug the form posted (or
     // Istanbul if the client didn't send one — older builds). Reject
     // applications to paused cities at the door.
-    const wantedSlug = (typeof targetCitySlug === 'string' && targetCitySlug.trim()) || 'istanbul'
+    const wantedSlug = targetCitySlug?.trim() || 'istanbul'
     const targetCity = await prisma.city.findUnique({
       where: { slug: wantedSlug },
       select: { id: true, status: true },
@@ -76,33 +121,27 @@ export async function POST(req: NextRequest) {
     }
     const targetCityId = targetCity.id
 
-    const fullName = `${firstName.trim()} ${lastName.trim()}`
-    if (!profilePhoto?.trim()) {
-      return NextResponse.json({ error: 'Profile photo is required' }, { status: 400 })
-    }
-    if (!/^\/app\/api\/files\/[a-zA-Z0-9\-]+\/[a-zA-Z0-9\-]+\.(jpg|jpeg|png|webp|gif)$/.test(profilePhoto.trim())) {
-      return NextResponse.json({ error: 'Invalid profile photo' }, { status: 400 })
-    }
-
-    const cleanEmail     = email.toLowerCase().trim()
-    const cleanPhone     = phone?.trim()     || null
+    const fullName    = `${firstName} ${lastName}`
+    const cleanEmail  = email.toLowerCase()
+    const cleanPhone  = phone || null
     const cleanInstagram = instagram?.trim() || null
-    const cleanRef       = referredBy?.trim() || null
-    const validRef       = cleanRef && /^[A-Z2-9]{8}$/.test(cleanRef) ? cleanRef : null
+    const cleanRef    = referredBy?.trim() || null
+    const validRef    = cleanRef && /^[A-Z2-9]{8}$/.test(cleanRef) ? cleanRef : null
 
     // Blacklist check — email, phone, fingerprint, IP
+    // Filter out null/empty values — an empty {} in Prisma OR matches ALL records,
+    // which would block every applicant whenever any blacklist entry exists.
     const ip = (req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip') ?? '').split(',')[0].trim() || null
-    const fingerprint = typeof _fp === 'string' ? _fp.slice(0, 64) : null
-    const blacklisted = await prisma.blacklist.findFirst({
-      where: {
-        OR: [
-          cleanEmail    ? { email: cleanEmail }       : {},
-          cleanPhone    ? { phone: cleanPhone }        : {},
-          fingerprint   ? { fingerprint }              : {},
-          ip            ? { ipAddress: ip }            : {},
-        ],
-      },
-    })
+    const fingerprint = typeof _fp === 'string' && _fp.length > 0 ? _fp.slice(0, 64) : null
+    const blacklistConditions = [
+      cleanEmail  ? { email: cleanEmail }   : null,
+      cleanPhone  ? { phone: cleanPhone }   : null,
+      fingerprint ? { fingerprint }         : null,
+      ip          ? { ipAddress: ip }       : null,
+    ].filter(Boolean) as object[]
+    const blacklisted = blacklistConditions.length > 0
+      ? await prisma.blacklist.findFirst({ where: { OR: blacklistConditions } })
+      : null
     if (blacklisted) {
       return NextResponse.json({ error: 'This application cannot be accepted.' }, { status: 403 })
     }
@@ -115,17 +154,20 @@ export async function POST(req: NextRequest) {
 
     // 90-day cooldown after rejection (phone, fingerprint, or IP)
     const cooldownDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
-    const recentRejection = await prisma.memberApplication.findFirst({
-      where: {
-        status: 'rejected',
-        reviewedAt: { gte: cooldownDate },
-        OR: [
-          cleanPhone  ? { phone: cleanPhone }        : {},
-          fingerprint ? { fingerprint }               : {},
-          ip          ? { ipAddress: ip }             : {},
-        ],
-      },
-    })
+    // Build OR conditions, filtering out nulls to avoid Prisma empty-object
+    // matching all records when a field isn't provided.
+    // Fingerprint intentionally excluded from cooldown: non-unique on the free
+    // FingerprintJS tier, so including it causes innocent applicants sharing a
+    // browser config with a rejected person to be blocked.
+    const cooldownConditions = [
+      cleanPhone ? { phone: cleanPhone } : null,
+      ip         ? { ipAddress: ip }     : null,
+    ].filter(Boolean) as object[]
+    const recentRejection = cooldownConditions.length > 0
+      ? await prisma.memberApplication.findFirst({
+          where: { status: 'rejected', reviewedAt: { gte: cooldownDate }, OR: cooldownConditions },
+        })
+      : null
     if (recentRejection) {
       return NextResponse.json({ error: 'This application cannot be accepted.' }, { status: 409 })
     }
@@ -158,46 +200,47 @@ export async function POST(req: NextRequest) {
     const ipTimezone      = ip ? await getIpTimezone(ip) : null
     const timezoneMismatch = !!(browserTz && ipTimezone && browserTz !== ipTimezone)
 
-    // Fingerprint / IP velocity — auto-reject if more than 2 in 24h from same device/IP
+    // IP velocity — auto-reject if 3+ applications from same IP in 24h.
+    // Fingerprint is intentionally excluded: the free FingerprintJS tier
+    // produces non-unique IDs for commonly configured browsers (same Chrome
+    // version + OS + screen size) which caused innocent applicants to be
+    // auto-rejected. IP-only is less precise but has far fewer false positives.
     const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000)
-    const [fpCount, ipCount] = await Promise.all([
-      fingerprint ? prisma.memberApplication.count({ where: { fingerprint, createdAt: { gte: since24h } } }) : Promise.resolve(0),
-      ip          ? prisma.memberApplication.count({ where: { ipAddress: ip, createdAt: { gte: since24h } } }) : Promise.resolve(0),
-    ])
-    const velocityBlock = fpCount >= 2 || ipCount >= 2
+    const ipCount = ip
+      ? await prisma.memberApplication.count({ where: { ipAddress: ip, createdAt: { gte: since24h } } })
+      : 0
+    const velocityBlock = ipCount >= 3
 
     // Similar name check against blacklist
     const blacklistNames = await prisma.blacklist.findMany({ select: { name: true } })
     const nameSimilar = blacklistNames.some(b => b.name && nameDistance(fullName, b.name) < 0.35)
 
     // Notify admins if known device/IP or suspicious signals
-    const admins = await prisma.user.findMany({ where: { role: { in: ['admin', 'moderator'] } }, select: { id: true } })
+    const admins = await prisma.user.findMany({ where: { role: { in: [Role.Admin, Role.Moderator] } }, select: { id: true } })
 
     if (velocityBlock) {
       // Still save but mark as rejected immediately
       await prisma.memberApplication.create({
         data: {
-          firstName: firstName.trim(), lastName: lastName.trim(), fullName: fullName.trim(),
+          firstName, lastName, fullName,
           email: cleanEmail, phone: cleanPhone, ipAddress: ip, userAgent: req.headers.get('user-agent')?.slice(0, 500) || null,
           fingerprint, timezone: browserTz, timezoneMismatch, disposableEmail: isDisposable,
-          status: 'rejected', reviewNote: 'Auto-rejected: velocity limit (same device/IP within 24h)',
+          status: 'rejected', reviewNote: 'Auto-rejected: velocity limit (3+ applications from same IP within 24h)',
           assignedClubs: [], interests: [], socialStyles: [],
           targetCityId,
         },
       })
-      for (const admin of admins) {
-        sendPushToUser(admin.id, {
-          title: '⚠️ Velocity block triggered',
-          body: `${fullName} was auto-rejected — same device/IP applied 3+ times in 24h`,
-          link: '/admin/applications',
-        }).catch(() => {})
-      }
+      admins.forEach(a => createNotification(a.id, 'application', '⚠️ Velocity block triggered',
+        `${fullName} was auto-rejected — same IP applied 3+ times in 24h`, '/admin/applications').catch(() => {}))
       return NextResponse.json({ error: 'This application cannot be accepted.' }, { status: 403 })
     }
 
-    // Check if fingerprint or IP matches an existing application — alert admins
+    // Check if fingerprint or IP matches a REJECTED application — alert admins.
+    // Only match rejected (not approved/hold) — approved members sharing a
+    // fingerprint is a FingerprintJS false positive (same browser config),
+    // not a security signal.
     const [fpMatch, ipMatch] = await Promise.all([
-      fingerprint ? prisma.memberApplication.findFirst({ where: { fingerprint, status: { not: 'pending' } }, select: { fullName: true, status: true } }) : Promise.resolve(null),
+      fingerprint ? prisma.memberApplication.findFirst({ where: { fingerprint, status: 'rejected' }, select: { fullName: true, status: true } }) : Promise.resolve(null),
       ip          ? prisma.memberApplication.findFirst({ where: { ipAddress: ip, status: 'rejected' }, select: { fullName: true } }) : Promise.resolve(null),
     ])
     const isKnownDevice = !!(fpMatch || ipMatch || nameSimilar)
@@ -216,41 +259,25 @@ export async function POST(req: NextRequest) {
 
     await prisma.memberApplication.create({
       data: {
-        firstName:   firstName.trim(),
-        lastName:    lastName.trim(),
-        fullName:    fullName.trim(),
+        firstName, lastName, fullName,
         email:       cleanEmail,
         phone:       cleanPhone,
-        birthdate:   birthdate?.trim() || null,
-        gender:      gender?.trim()    || null,
-        country:      country?.trim()       || null,
-        city:         'Istanbul',
-        neighborhood: neighborhood.trim(),
+        birthdate:   birthdate  || null,
+        gender:      gender     || null,
+        country:     country    || null,
+        city:        'Istanbul',
+        neighborhood,
         instagram:   cleanInstagram,
-        linkedin:    linkedin?.trim()    || null,
-        profession:           profession?.trim()           || null,
-        timeInCity:           timeInCity?.trim()           || null,
-        reasonHere:           reasonHere?.trim()           || null,
-        whyJoin:              whyJoin?.trim()              || null,
-        enjoyWith:            enjoyWith?.trim()            || null,
-        goodCommunity:        goodCommunity?.trim()        || null,
-        interests:            Array.isArray(interests)    ? interests    : [],
-        socialStyles:         Array.isArray(socialStyles) ? socialStyles : [],
-        languages:            Array.isArray(languages)    ? languages    : [],
-        contribution:         contribution?.trim()         || null,
-        groupBehavior:        groupBehavior?.trim()        || null,
-        removedFromCommunity: removedFromCommunity?.trim() || null,
-        toxicBehavior:        toxicBehavior?.trim()        || null,
-        // Consolidated essay + judgment fields — current UI posts these instead.
-        aboutCommunity:       aboutCommunity?.trim()       || null,
-        socialJudgment:       socialJudgment?.trim()       || null,
-        openToCoffee:         openToCoffee   === true,
-        openToLanguage:       openToLanguage === true,
-        openToHosting:        openToHosting  === true,
-        profilePhoto:         profilePhoto?.trim()         || null,
-        assignedClubs:        [],
-        bio:                  bio?.trim()                  || null,
-        source:               source?.trim()               || null,
+        linkedin:    linkedin   || null,
+        profession,  timeInCity, reasonHere,
+        whyJoin,     enjoyWith,  goodCommunity,
+        interests,   socialStyles, languages,
+        contribution, groupBehavior, removedFromCommunity, toxicBehavior,
+        aboutCommunity, socialJudgment,
+        openToCoffee, openToLanguage, openToHosting,
+        profilePhoto: profilePhoto || null,
+        assignedClubs: [],
+        bio,  source,
         referredBy:           validRef,
         ipAddress:            ip,
         userAgent:            req.headers.get('user-agent')?.slice(0, 500) || null,
@@ -277,10 +304,6 @@ export async function POST(req: NextRequest) {
       : `${fullName.trim()} has applied to join Smileys.`
 
     await Promise.all(admins.map(a => createNotification(a.id, 'application', notifTitle, notifBody, '/admin/applications')))
-
-    if (isSuspicious) {
-      admins.forEach(a => sendPushToUser(a.id, { title: notifTitle, body: notifBody, link: '/admin/applications' }).catch(() => {}))
-    }
 
     Promise.all([
       sendApplicationReceivedEmail(cleanEmail, fullName.trim()),

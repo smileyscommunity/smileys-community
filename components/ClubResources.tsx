@@ -49,7 +49,7 @@ export default function ClubResources({ slug, initialResources, canEdit, dark }:
 
   const card    = dark ? 'bg-zinc-900 border border-zinc-800 rounded-2xl p-6' : 'bg-white shadow-card rounded-2xl p-6'
   const title_  = dark ? 'text-white' : 'text-gray-900'
-  const muted   = dark ? 'text-zinc-500' : 'text-gray-500'
+  const muted   = dark ? 'text-zinc-500' : 'text-gray-600'
   const divider = dark ? 'border-zinc-800' : 'border-gray-100'
   const del_    = dark ? 'text-zinc-600 hover:text-red-400' : 'text-gray-300 hover:text-red-400'
   const input   = dark

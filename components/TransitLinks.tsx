@@ -30,8 +30,15 @@ export function categoryId(label: string) {
 function ResourceCard({ r }: { r: Resource }) {
   const isEssential = r.badge?.toLowerCase() === 'essential'
 
+  // h-full so the card stretches to fill its grid cell. Without it,
+  // a row whose tallest card has a `tip` leaves the shorter (no-tip)
+  // cards short, and the page-bg shows through below them — reading
+  // as a gap between adjacent cards in the same column.
+  // Content (title, description, CTA) packs to the top; any slack
+  // from row-stretching falls below the CTA inside the bg-white
+  // card, which reads as padding rather than a gap.
   const cardBody = (
-    <div className={`relative bg-white rounded-2xl p-4 shadow-sm transition-all overflow-hidden
+    <div className={`relative bg-white rounded-2xl p-4 shadow-sm transition-all overflow-hidden h-full flex flex-col
       ${r.href ? 'hover:shadow-md hover:border-amber-200' : ''}
       ${isEssential ? 'border border-amber-200 ring-1 ring-amber-100' : 'border border-gray-100'}`}>
       {isEssential && (
@@ -47,7 +54,7 @@ function ResourceCard({ r }: { r: Resource }) {
           </span>
         )}
       </div>
-      <p className="text-sm text-gray-500 leading-relaxed">{r.description}</p>
+      <p className="text-sm text-gray-600 leading-relaxed">{r.description}</p>
       {r.tip && (
         <p className="mt-2.5 text-sm text-amber-700 bg-amber-50 rounded-xl px-2.5 py-2 leading-relaxed">
           💡 {r.tip}
@@ -61,13 +68,18 @@ function ResourceCard({ r }: { r: Resource }) {
     </div>
   )
 
+  // Flex column so cardBody can flex-1 and stretch to fill the grid
+  // cell height (the actual gap fix), and secondaryHref stays as a
+  // shrink-0 row below. `group` only when r.href — without a Link or
+  // anchor wrapping cardBody, group-hover descendants have nothing
+  // to react to, so the marker class is dead weight.
   return (
-    <div className="group relative">
+    <div className={`relative h-full flex flex-col ${r.href ? 'group' : ''}`}>
       {r.href ? (
         r.href.startsWith('/')
-          ? <Link href={r.href} className="block">{cardBody}</Link>
-          : <a href={r.href} target="_blank" rel="noopener noreferrer" className="block">{cardBody}</a>
-      ) : cardBody}
+          ? <Link href={r.href} className="block flex-1">{cardBody}</Link>
+          : <a href={r.href} target="_blank" rel="noopener noreferrer" className="block flex-1">{cardBody}<span className="sr-only"> (opens in a new tab)</span></a>
+      ) : <div className="flex-1">{cardBody}</div>}
       {r.secondaryHref && (
         <div className="mt-1.5 px-1">
           <Link href={r.secondaryHref}
@@ -82,34 +94,45 @@ function ResourceCard({ r }: { r: Resource }) {
 
 export default function TransitLinks({ categories }: { categories: Category[] }) {
   return (
-    <div className="space-y-14">
-      {categories.map((cat, i) => (
-        <section key={cat.label} id={categoryId(cat.label)}>
-          {/* Section header */}
-          <div className="flex items-center gap-3 mb-5">
-            <span className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg ${cat.color} shrink-0`}>
-              {cat.icon}
-            </span>
-            <h2 className="text-xs font-bold text-gray-500 uppercase tracking-widest flex-1">{cat.label}</h2>
-            {cat.updatedAt && (
-              <span className="text-xs font-medium text-gray-400 shrink-0">
-                Updated {new Date(cat.updatedAt).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}
+    <div className="space-y-10">
+      {categories.map(cat => (
+        <section key={cat.label} id={categoryId(cat.label)} className="scroll-mt-16">
+          {/* Section header — title row + meta row. Split into two
+              rows so a long label and a long "Updated" date can't
+              collide on mobile. Previous flexbox-everything-on-one-row
+              version overlapped on the Co-working and Practical Info
+              sections at iPhone width. */}
+          <div className="mb-4">
+            <div className="flex items-center gap-3">
+              <span aria-hidden="true" className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl ${cat.color} shrink-0`}>
+                {cat.icon}
               </span>
-            )}
-            <span className="text-xs font-medium text-gray-400 shrink-0">
-              {cat.resources.length} {cat.resources.length === 1 ? 'item' : 'items'}
-            </span>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight leading-tight">
+                {cat.label}
+              </h2>
+            </div>
+            <div className="mt-2 ml-[52px] flex items-center gap-3 text-xs text-gray-400 font-medium">
+              <span>{cat.resources.length} {cat.resources.length === 1 ? 'item' : 'items'}</span>
+              {cat.updatedAt && (
+                <>
+                  <span className="text-gray-300">·</span>
+                  <span>Updated {new Date(cat.updatedAt).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}</span>
+                </>
+              )}
+            </div>
           </div>
 
-          {/* Resources grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {cat.resources.map(r => <ResourceCard key={r.title} r={r} />)}
-          </div>
-
-          {/* Section divider (not on last) */}
-          {i < categories.length - 1 && (
-            <div className="mt-14 border-t border-gray-100" />
-          )}
+          {/* Resources grid — semantic <ul> so SR users get a list-of-N
+              announcement and can navigate with the list rotor. The
+              grid styling stays via Tailwind utilities; list-none kills
+              the default disc/decimal marker. */}
+          <ul className="list-none p-0 m-0 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {cat.resources.map(r => (
+              <li key={r.title}>
+                <ResourceCard r={r} />
+              </li>
+            ))}
+          </ul>
         </section>
       ))}
     </div>

@@ -10,6 +10,7 @@ import { COUNTRIES } from '@/lib/countries'
 import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
 import FingerprintJS from '@fingerprintjs/fingerprintjs'
 import posthog from 'posthog-js'
+import { downscaleImage } from '@/lib/image-resize'
 
 const step0Schema = z.object({
   firstName:    z.string().min(1, 'First name is required'),
@@ -215,9 +216,14 @@ function ApplyForm() {
     setLocalPhoto(localUrl)
 
     setPhotoUploading(true)
-    const fd = new FormData()
-    fd.append('file', file)
     try {
+      // Downscale before upload — iPhone HEIC/JPEG photos routinely
+      // exceed the 10 MB Next.js body limit and used to fail silently
+      // with "Failed to parse body as FormData". Cap the long edge at
+      // 1080px and re-encode as JPEG@0.85 — plenty for a profile shot.
+      const uploadFile = await downscaleImage(file, 1080, 0.85).catch(() => file)
+      const fd = new FormData()
+      fd.append('file', uploadFile, 'profile.jpg')
       const res  = await fetch('/app/api/apply/upload', { method: 'POST', body: fd })
       const data = await res.json()
       if (data.url) set('profilePhoto', data.url)
@@ -316,10 +322,10 @@ function ApplyForm() {
           </div>
           <div className="text-4xl mb-3">😊</div>
           <h1 className="text-2xl font-extrabold text-gray-900 mb-2">You're under review!</h1>
-          <p className="text-gray-500 text-sm leading-relaxed mb-2">
+          <p className="text-gray-600 text-sm leading-relaxed mb-2">
             Thanks for applying to Smileys Community. We personally review every application.
           </p>
-          <p className="text-gray-500 text-sm mb-6">
+          <p className="text-gray-600 text-sm mb-6">
             We'll get back to you at <strong>{form.email}</strong> within 2–3 days.
           </p>
           <Link href="/" className="text-amber-600 font-semibold text-sm hover:underline">← Back to home</Link>
@@ -338,13 +344,13 @@ function ApplyForm() {
         <div className="mb-6">
           <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">Application</span>
           <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight mb-1">Apply to join</h1>
-          <p className="text-gray-500 text-sm">Smileys is a curated community in Istanbul.</p>
+          <p className="text-gray-600 text-sm">Smileys is a curated community in Istanbul.</p>
         </div>
 
         {/* Progress bar */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-gray-500">
+            <span className="text-xs font-semibold text-gray-600">
               Step {step + 1} of {STEPS.length}
               <span className="text-gray-400 font-normal"> · about {STEP_MINUTES_LEFT[step] ?? 1} min left</span>
             </span>
@@ -367,7 +373,7 @@ function ApplyForm() {
             their essay into the right city's review queue. */}
         {step === 0 && cities.length > 1 && (
           <div className="bg-white border border-gray-200 rounded-2xl p-3.5 mb-3">
-            <label htmlFor="target-city" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
+            <label htmlFor="target-city" className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">
               Which city are you applying to?
             </label>
             <select
@@ -382,7 +388,7 @@ function ApplyForm() {
                 </option>
               ))}
             </select>
-            <p className="text-xs text-gray-500 mt-1.5">Pick the city you'll attend events in. Each city has its own admin team and rhythm.</p>
+            <p className="text-xs text-gray-600 mt-1.5">Pick the city you'll attend events in. Each city has its own admin team and rhythm.</p>
           </div>
         )}
 
@@ -450,7 +456,7 @@ function ApplyForm() {
             <h2 className="font-bold text-gray-900 text-base mb-1">Basic Information</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-2">First name *</label>
+                <label className="block text-xs font-semibold text-gray-600 mb-2">First name *</label>
                 <input type="text" value={form.firstName}
                   onChange={e => set('firstName', e.target.value)}
                   onBlur={e => validateField('firstName', e.target.value)}
@@ -459,7 +465,7 @@ function ApplyForm() {
                 {fieldErrors.firstName && <p className="text-xs text-red-500 mt-1">{fieldErrors.firstName}</p>}
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-2">Last name *</label>
+                <label className="block text-xs font-semibold text-gray-600 mb-2">Last name *</label>
                 <input type="text" value={form.lastName}
                   onChange={e => set('lastName', e.target.value)}
                   onBlur={e => validateField('lastName', e.target.value)}
@@ -470,13 +476,13 @@ function ApplyForm() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-2">Date of birth</label>
+                <label className="block text-xs font-semibold text-gray-600 mb-2">Date of birth</label>
                 <input type="date" value={form.birthdate} onChange={e => set('birthdate', e.target.value)}
                   autoComplete="bday"
                   max={new Date().toISOString().split('T')[0]} className={inputCls} />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-2">Country *</label>
+                <label className="block text-xs font-semibold text-gray-600 mb-2">Country *</label>
                 <select value={form.country}
                   onChange={e => set('country', e.target.value)}
                   onBlur={e => validateField('country', e.target.value)}
@@ -489,7 +495,7 @@ function ApplyForm() {
               </div>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-2">Gender *</label>
+              <label className="block text-xs font-semibold text-gray-600 mb-2">Gender *</label>
               <select
                 value={form.gender}
                 onChange={e => { set('gender', e.target.value); validateField('gender', e.target.value) }}
@@ -505,7 +511,7 @@ function ApplyForm() {
               {fieldErrors.gender && <p className="text-xs text-red-500 mt-1">{fieldErrors.gender}</p>}
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-2">Neighborhood / Area *</label>
+              <label className="block text-xs font-semibold text-gray-600 mb-2">Neighborhood / Area *</label>
               <select value={form.neighborhood}
                 onChange={e => { set('neighborhood', e.target.value); validateField('neighborhood', e.target.value) }}
                 className={fieldCls(fieldErrors.neighborhood)}>
@@ -517,7 +523,7 @@ function ApplyForm() {
               {fieldErrors.neighborhood && <p className="text-xs text-red-500 mt-1">{fieldErrors.neighborhood}</p>}
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-2">Phone (WhatsApp) *</label>
+              <label className="block text-xs font-semibold text-gray-600 mb-2">Phone (WhatsApp) *</label>
               <input type="tel" value={form.phone}
                 onChange={e => set('phone', e.target.value)}
                 onBlur={e => validateField('phone', e.target.value)}
@@ -527,7 +533,7 @@ function ApplyForm() {
               {fieldErrors.phone && <p className="text-xs text-red-500 mt-1">{fieldErrors.phone}</p>}
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-2">Email *</label>
+              <label className="block text-xs font-semibold text-gray-600 mb-2">Email *</label>
               <input type="email" value={form.email}
                 onChange={e => set('email', e.target.value)}
                 onBlur={e => validateField('email', e.target.value)}
@@ -544,28 +550,28 @@ function ApplyForm() {
           {step === 1 && <>
             <h2 className="font-bold text-gray-900 text-base mb-1">About You</h2>
             <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-2">What do you do professionally?</label>
+              <label className="block text-xs font-semibold text-gray-600 mb-2">What do you do professionally?</label>
               <input type="text" value={form.profession} onChange={e => set('profession', e.target.value)}
                 placeholder="e.g. Product designer, entrepreneur…" className={inputCls} />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-2">How long have you been in Istanbul?</label>
+              <label className="block text-xs font-semibold text-gray-600 mb-2">How long have you been in Istanbul?</label>
               <input type="text" value={form.timeInCity} onChange={e => set('timeInCity', e.target.value)}
                 placeholder="e.g. 3 years, just arrived…" className={inputCls} />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-2">What brings you here?</label>
+              <label className="block text-xs font-semibold text-gray-600 mb-2">What brings you here?</label>
               <input type="text" value={form.reasonHere} onChange={e => set('reasonHere', e.target.value)}
                 placeholder="e.g. Work, relocated, digital nomad…" className={inputCls} />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-2">Anything else you'd like us to know?</label>
+              <label className="block text-xs font-semibold text-gray-600 mb-2">Anything else you'd like us to know?</label>
               <textarea rows={3} value={form.bio} onChange={e => set('bio', e.target.value)}
                 placeholder="What you're passionate about, looking for…"
                 className={`${inputCls} resize-none`} />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-2">How did you hear about us?</label>
+              <label className="block text-xs font-semibold text-gray-600 mb-2">How did you hear about us?</label>
               <select value={form.source} onChange={e => set('source', e.target.value)} className={`${inputCls} bg-white`}>
                 <option value="">Select…</option>
                 <option value="instagram">Instagram</option>
@@ -582,7 +588,7 @@ function ApplyForm() {
           {step === 2 && <>
             <h2 className="font-bold text-gray-900 text-base mb-1">Community Fit</h2>
             <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-2">
+              <label className="block text-xs font-semibold text-gray-600 mb-2">
                 What kind of community are you looking for — and what would you bring to it?
               </label>
               <textarea rows={6} value={form.aboutCommunity} onChange={e => set('aboutCommunity', e.target.value)}
@@ -693,7 +699,7 @@ function ApplyForm() {
             <div className="pt-4 mt-2 border-t border-gray-100">
               <h3 className="font-bold text-gray-900 text-sm mb-3">Social Judgment</h3>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-2">
+                <label className="block text-xs font-semibold text-gray-600 mb-2">
                   Tell us about a time you handled a difficult social situation well.
                 </label>
                 <textarea rows={4} value={form.socialJudgment} onChange={e => set('socialJudgment', e.target.value)}
@@ -704,7 +710,7 @@ function ApplyForm() {
 
             <h2 className="font-bold text-gray-900 text-base mb-1 pt-6 mt-4 border-t border-gray-100">Verification</h2>
             <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-2">Profile photo <span className="text-red-400">*</span></label>
+              <label className="block text-xs font-semibold text-gray-600 mb-2">Profile photo <span className="text-red-400">*</span></label>
               <input ref={photoInputRef} type="file" accept="image/*" className="hidden"
                 onChange={e => e.target.files?.[0] && handlePhotoUpload(e.target.files[0])} />
               {localPhoto || form.profilePhoto ? (

@@ -44,6 +44,9 @@ export async function GET(req: NextRequest) {
     }
     const emptyMonths = () => Object.fromEntries(monthKeys.map(k => [k, 0]))
 
+    // Promise.all tuple exceeds TypeScript's inference limit (~10 elements),
+    // so the destructured variables lose their Prisma types and become any[].
+    // Explicit cast here restores safety at the usage sites below.
     const [
       allUsers, allApps, allEvents, allAttendees, allPayments, allReports,
       topEventsRaw, topClubs,
@@ -207,12 +210,12 @@ export async function GET(req: NextRequest) {
       }),
       // Total approved members — denominator for the ban-rate metric.
       prisma.user.count({ where: { status: 'approved', role: { in: ['member', 'moderator'] } } }),
-    ])
+    ]) as [any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], number]
 
     // ── Members ──────────────────────────────────────────────────────────────
-    const approved = allUsers.filter(u => u.status === 'approved')
-    const newLast30 = approved.filter(u => new Date(u.joinedAt) >= day30).length
-    const newPrev30 = approved.filter(u => new Date(u.joinedAt) >= day60 && new Date(u.joinedAt) < day30).length
+    const approved = allUsers.filter((u: any) => u.status === 'approved')
+    const newLast30 = approved.filter((u: any) => new Date(u.joinedAt) >= day30).length
+    const newPrev30 = approved.filter((u: any) => new Date(u.joinedAt) >= day60 && new Date(u.joinedAt) < day30).length
     const growthRate = newPrev30 > 0 ? Math.round(((newLast30 - newPrev30) / newPrev30) * 100) : newLast30 > 0 ? 100 : 0
 
     const memberByMonth = emptyMonths()
@@ -324,7 +327,7 @@ export async function GET(req: NextRequest) {
     const hostNamesForRefunds = hostIdsForRefunds.length
       ? await prisma.user.findMany({ where: { id: { in: hostIdsForRefunds } }, select: { id: true, name: true } })
       : []
-    const hostNameMap = Object.fromEntries(hostNamesForRefunds.map(u => [u.id, u.name]))
+    const hostNameMap = Object.fromEntries(hostNamesForRefunds.map((u: { id: string; name: string }) => [u.id, u.name]))
 
     const refundRateByHost = Object.values(hostRefundMap)
       .filter(h => h.paid + h.refunded >= 3)
@@ -465,7 +468,7 @@ export async function GET(req: NextRequest) {
       // without an extra query.
       select: { id: true, joinedAt: true, email: true, name: true, color: true, profilePhoto: true, neighborhood: true, lastActive: true },
     })
-    const userJoinById = new Map(approvedWithId.map(u => [u.id, new Date(u.joinedAt)]))
+    const userJoinById = new Map<string, Date>(approvedWithId.map((u: any) => [u.id, new Date(u.joinedAt)] as [string, Date]))
     // userId → first attendance date
     const firstAttendanceByUser = new Map<string, Date>()
     for (const a of allAttendees) {
@@ -474,7 +477,7 @@ export async function GET(req: NextRequest) {
       if (!existing || d < existing) firstAttendanceByUser.set(a.userId, d)
     }
     const cohorts = cohortMonthLabels.map(label => {
-      const cohortUsers = approvedWithId.filter(u =>
+      const cohortUsers = approvedWithId.filter((u: any) =>
         new Date(u.joinedAt).toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }) === label
       )
       const size = cohortUsers.length
@@ -563,11 +566,11 @@ export async function GET(req: NextRequest) {
       // events. Computed by matching applications.email to users.email,
       // then checking event count from the eventsByHost groupBy.
       hostPipeline: (() => {
-        const userByEmail   = new Map(approvedWithId.map(u => [u.email, u]))
-        const eventCountByHost = new Map(
+        const userByEmail   = new Map<string, any>(approvedWithId.map((u: any) => [u.email, u] as [string, any]))
+        const eventCountByHost = new Map<string, number>(
           (eventsByHost as { hostId: string | null; _count: { _all: number } }[])
             .filter(e => e.hostId)
-            .map(e => [e.hostId!, e._count._all])
+            .map(e => [e.hostId!, e._count._all] as [string, number])
         )
         const pending = hostApplications.filter(a => a.status === 'pending').length
         const approvedHostUsers = hostApplications
@@ -605,7 +608,7 @@ export async function GET(req: NextRequest) {
       // event. Surfaces which acquisition channels actually engage instead
       // of which ones just send people who bounce.
       sourceBreakdown: (() => {
-        const userIdByEmail   = new Map(approvedWithId.map(u => [u.email, u.id]))
+        const userIdByEmail   = new Map<string, string>(approvedWithId.map((u: any) => [u.email, u.id] as [string, string]))
         const attendedUserIds = new Set(allAttendees.map(a => a.userId))
         const bucket: Record<string, { approved: number; attended: number }> = {}
         for (const app of approvedApps as { email: string; source: string | null }[]) {

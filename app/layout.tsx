@@ -8,12 +8,11 @@ import VerifyEmailBanner from '@/components/VerifyEmailBanner'
 import PendingApprovalBanner from '@/components/PendingApprovalBanner'
 import { AuthProvider } from '@/contexts/AuthContext'
 import BottomNav from '@/components/BottomNav'
-import CookieBanner from '@/components/CookieBanner'
 import ServiceWorkerRegistration from '@/components/ServiceWorkerRegistration'
-import CommandPalette from '@/components/CommandPalette'
-import InstallPrompt from '@/components/InstallPrompt'
+import ClientOnlyComponents from '@/components/ClientOnlyComponents'
 
 import { APP_URL } from '@/lib/env'
+import { loadContent } from '@/lib/content'
 
 const siteUrl = APP_URL
 const defaultImage = `${siteUrl}/api/og`
@@ -59,6 +58,7 @@ export const viewport: Viewport = {
 // rendering savings were already small.
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   await headers()
+  const footerStats = loadContent().stats
   return (
     <html lang="en">
       <head>
@@ -75,12 +75,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <PendingApprovalBanner />
           <main className="flex-1">{children}</main>
           <BottomNav />
-          <Footer />
-          <CommandPalette />
-          <CookieBanner />
+          <Footer stats={footerStats} />
+          <ClientOnlyComponents />
           <Toaster position="top-right" richColors closeButton />
         </AuthProvider>
-        <InstallPrompt />
         <ServiceWorkerRegistration />
       </body>
     </html>

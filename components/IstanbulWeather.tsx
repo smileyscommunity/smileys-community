@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 
 interface Weather {
-  temp: number
+  temp: number | null
   text: string
   icon: string
 }
@@ -41,7 +41,7 @@ export default function IstanbulWeather() {
         setWeather({ temp: Math.round(d.current_weather.temperature), ...map })
       })
       .catch(() => {
-        setWeather({ temp: 0, text: 'Istanbul', icon: '🌤️' })
+        setWeather({ temp: null, text: 'Istanbul', icon: '🌤️' })
       })
       .finally(() => setLoading(false))
   }, [])
@@ -72,7 +72,7 @@ export default function IstanbulWeather() {
         <div>
           <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">Istanbul · {now}</p>
           <div className="flex items-end gap-1.5 mt-1">
-            {weather.temp > 0 && (
+            {weather.temp !== null && (
               <span className="text-3xl font-black leading-none">{weather.temp}°</span>
             )}
             <span className="text-xs font-semibold pb-0.5 opacity-90">{weather.text}</span>

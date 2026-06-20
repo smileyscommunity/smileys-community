@@ -37,7 +37,8 @@ export async function POST(req: NextRequest) {
 
     let buffer: Buffer
     try {
-      // Sharp's .jpeg() re-encode strips EXIF (incl. GPS) by default.
+      // .rotate() reads EXIF Orientation from the original buffer to fix camera
+      // rotation, then removes it. .jpeg() strips all remaining EXIF (GPS etc).
       buffer = await sharp(raw).rotate().resize(1200, 1200, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 82 }).toBuffer()
     } catch {
       return NextResponse.json({ error: 'Could not process image' }, { status: 400 })

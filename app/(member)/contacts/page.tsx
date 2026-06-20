@@ -119,7 +119,7 @@ export default function ContactsPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">Contacts</h1>
-              <p className="text-base text-gray-500 mt-1">
+              <p className="text-base text-gray-600 mt-1">
                 {accepted.length} connection{accepted.length !== 1 ? 's' : ''}
               </p>
             </div>
@@ -136,7 +136,7 @@ export default function ContactsPage() {
       {/* Incoming requests */}
       {pendingReceived.length > 0 && (
         <section>
-          <h2 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">
+          <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-4">
             Requests ({pendingReceived.length})
           </h2>
           <div className="space-y-3">
@@ -180,7 +180,7 @@ export default function ContactsPage() {
       {/* Connected */}
       {accepted.length > 0 && (
         <section>
-          <h2 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">
+          <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-4">
             Connected ({accepted.length})
           </h2>
           <div className="space-y-2">
@@ -217,7 +217,7 @@ export default function ContactsPage() {
       {/* Sent pending */}
       {pendingSent.length > 0 && (
         <section>
-          <h2 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">
+          <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-4">
             Sent requests ({pendingSent.length})
           </h2>
           <div className="space-y-2">
@@ -236,7 +236,7 @@ export default function ContactsPage() {
                     <p className="text-xs text-gray-400">Request sent {timeAgo(c.createdAt)}</p>
                   </div>
                   <button onClick={() => withdraw(c.id)}
-                    className="px-3 py-1.5 bg-gray-100 hover:bg-red-50 hover:text-red-500 text-gray-500 text-xs font-semibold rounded-lg transition-colors shrink-0">
+                    className="px-3 py-1.5 bg-gray-100 hover:bg-red-50 hover:text-red-500 text-gray-600 text-xs font-semibold rounded-lg transition-colors shrink-0">
                     Withdraw
                   </button>
                 </div>

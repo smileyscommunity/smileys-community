@@ -27,55 +27,31 @@ async function authorize(req: NextRequest): Promise<NextResponse | null> {
 }
 
 async function runSweep() {
-  const now           = new Date()
-  const oneDayAgo     = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-  const sevenDaysAgo  = new Date(now.getTime() - 7  * 24 * 60 * 60 * 1000)
-  const todayStr      = now.toISOString().slice(0, 10)
+  const now            = new Date()
+  const oneDayAgo      = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+  const twoDaysAgo     = new Date(now.getTime() - 48 * 60 * 60 * 1000)
+  const sevenDaysAgo   = new Date(now.getTime() - 7  * 24 * 60 * 60 * 1000)
+  const todayStr       = now.toISOString().slice(0, 10)
 
-  // Event.date is a yyyy-mm-dd string and Event.endTime is optional
-  // "HH:MM". To keep the query simple we filter by date range (events
-  // whose date is between 1 and 7 days ago, exclusive of today) — close
-  // enough for an hourly sweep since the eligibility window the form
-  // checks is 7 days. The few edge-of-window events skipped here are
-  // picked up on the next hourly run.
-  const candidates = await prisma.event.findMany({
+  let dispatchedEvents   = 0
+  let dispatchedNotices  = 0
+
+  // ── Pass 1: first dispatch ───────────────────────────────────────────────
+  // Events that ended 24h–7 days ago and have never had a survey sent.
+  const firstPass = await prisma.event.findMany({
     where: {
       status:             { in: ['published', 'archived'] },
       surveyDispatchedAt: null,
       date:               { lt: todayStr, gte: sevenDaysAgo.toISOString().slice(0, 10) },
     },
-    select: {
-      id: true, title: true, emoji: true, date: true, endTime: true,
-      hostId: true,
-    },
+    select: { id: true, title: true, emoji: true, date: true, endTime: true, hostId: true },
   })
 
-  let dispatchedEvents   = 0
-  let dispatchedNotices  = 0
-
-  for (const event of candidates) {
-    // Make sure the event has actually ended ≥24h ago (date check
-    // alone can't tell us — a 9pm event yesterday might not have hit
-    // the 24h mark yet).
+  for (const event of firstPass) {
     const endedAt = endTimestamp(event.date, event.endTime)
     if (endedAt > oneDayAgo.getTime()) continue
 
-    const attendees = await prisma.eventAttendee.findMany({
-      where:  { eventId: event.id, status: 'approved' },
-      select: { userId: true },
-    })
-
-    // Skip the host so they don't get nudged to survey their own
-    // event. Co-hosts also skip — they have a host-side perspective
-    // and the survey is designed for attendee voice.
-    const cohostIds = await prisma.eventCoHost.findMany({
-      where:  { eventId: event.id },
-      select: { userId: true },
-    }).then(rows => new Set(rows.map(r => r.userId)))
-    const targets = attendees
-      .map(a => a.userId)
-      .filter(uid => uid !== event.hostId && !cohostIds.has(uid))
-
+    const targets = await eligibleTargets(event.id, event.hostId)
     for (const userId of targets) {
       createNotification(
         userId,
@@ -94,7 +70,66 @@ async function runSweep() {
     dispatchedEvents++
   }
 
+  // ── Pass 2: 48-hour follow-up nudge ─────────────────────────────────────
+  // Events where the first dispatch happened 48h+ ago, the reminder
+  // hasn't been sent yet, and the event is still within the 7-day window.
+  const reminderPass = await prisma.event.findMany({
+    where: {
+      status:             { in: ['published', 'archived'] },
+      surveyDispatchedAt: { lte: twoDaysAgo },
+      surveyReminderAt:   null,
+      date:               { gte: sevenDaysAgo.toISOString().slice(0, 10) },
+    },
+    select: {
+      id: true, title: true, emoji: true, date: true, endTime: true,
+      hostId: true,
+      surveys: { select: { userId: true } },
+    },
+  })
+
+  for (const event of reminderPass) {
+    const respondedIds = new Set(event.surveys.map(s => s.userId))
+    const targets      = await eligibleTargets(event.id, event.hostId)
+    // Only nudge those who haven't submitted yet.
+    const nonResponders = targets.filter(uid => !respondedIds.has(uid))
+
+    for (const userId of nonResponders) {
+      createNotification(
+        userId,
+        'event_survey',
+        `${event.emoji} Still time to rate "${event.title}"`,
+        `Your feedback helps us improve. Takes 20 seconds — closes in a few days.`,
+        `/events/${event.id}/feedback`,
+      ).catch(() => {})
+      dispatchedNotices++
+    }
+
+    await prisma.event.update({
+      where: { id: event.id },
+      data:  { surveyReminderAt: now },
+    })
+    // Count as a dispatched event only if we actually sent reminders.
+    if (nonResponders.length > 0) dispatchedEvents++
+  }
+
   return { now: now.toISOString(), dispatchedEvents, dispatchedNotices }
+}
+
+async function eligibleTargets(eventId: string, hostId: string): Promise<string[]> {
+  const [attendees, cohosts] = await Promise.all([
+    prisma.eventAttendee.findMany({
+      where:  { eventId, status: 'approved' },
+      select: { userId: true },
+    }),
+    prisma.eventCoHost.findMany({
+      where:  { eventId },
+      select: { userId: true },
+    }),
+  ])
+  const cohostIds = new Set(cohosts.map(c => c.userId))
+  return attendees
+    .map(a => a.userId)
+    .filter(uid => uid !== hostId && !cohostIds.has(uid))
 }
 
 function endTimestamp(date: string, endTime: string | null): number {

@@ -13,6 +13,7 @@ interface Visitor {
     color: string
     photo: string | null
     neighborhood: string | null
+    restricted: boolean
   }
 }
 
@@ -31,7 +32,7 @@ export default function ProfileVisitorsPage() {
     <div className="min-h-screen bg-warm pb-20">
       <div className="bg-white border-b border-gray-100 sticky top-0 z-10">
         <div className="max-w-xl mx-auto px-4 py-3 flex items-center gap-3">
-          <Link href="/dashboard" className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors">
+          <Link href="/dashboard" className="p-1.5 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
@@ -76,24 +77,38 @@ export default function ProfileVisitorsPage() {
                 return 'Just now'
               })()
 
-              return (
-                <Link key={v.id} href={`/members/${v.viewer.id}`}
-                  className="bg-white rounded-2xl p-4 flex items-center gap-3 hover:shadow-md transition-shadow shadow-card">
-                  {photo ? (
-                    <img src={photo} alt={v.viewer.name} className="w-12 h-12 rounded-full object-cover shrink-0" />
-                  ) : (
-                    <div className="w-12 h-12 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0"
-                      style={{ backgroundColor: v.viewer.color }}>
-                      {getInitials(v.viewer.name)}
-                    </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-900 truncate">{v.viewer.name}</p>
-                    {v.viewer.neighborhood && (
-                      <p className="text-xs text-gray-400 truncate">📍 {v.viewer.neighborhood}</p>
+              const card = (
+                <div className="bg-white rounded-2xl p-4 flex items-center gap-3 shadow-card">
+                  <div className="relative shrink-0">
+                    {photo ? (
+                      <img src={photo} alt={v.viewer.name} className={`w-12 h-12 rounded-full object-cover ${v.viewer.restricted ? 'opacity-40' : ''}`} />
+                    ) : (
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white text-sm font-bold ${v.viewer.restricted ? 'opacity-40' : ''}`}
+                        style={{ backgroundColor: v.viewer.color }}>
+                        {getInitials(v.viewer.name)}
+                      </div>
+                    )}
+                    {v.viewer.restricted && (
+                      <span className="absolute -bottom-0.5 -right-0.5 text-xs bg-white rounded-full shadow px-0.5">🔒</span>
                     )}
                   </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 truncate">{v.viewer.name}</p>
+                    {v.viewer.restricted ? (
+                      <p className="text-xs text-gray-400">Connections-only profile</p>
+                    ) : v.viewer.neighborhood ? (
+                      <p className="text-xs text-gray-400 truncate">📍 {v.viewer.neighborhood}</p>
+                    ) : null}
+                  </div>
                   <span className="text-xs text-gray-400 shrink-0">{timeAgo}</span>
+                </div>
+              )
+
+              return v.viewer.restricted ? (
+                <div key={v.id}>{card}</div>
+              ) : (
+                <Link key={v.id} href={`/members/${v.viewer.id}`} className="block hover:shadow-md transition-shadow rounded-2xl">
+                  {card}
                 </Link>
               )
             })}

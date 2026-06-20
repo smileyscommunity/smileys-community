@@ -180,7 +180,7 @@ function AppClubsPageInner() {
   // default headline used to be 'Clubs' — accurate but file-cabinet
   // bland. 'Find your community' reads as an invitation while leaving
   // the badge + subtitle communicating the actual content.
-  const [hero, setHero] = useState({ badge: 'Community', headline: 'Find your community', subtitle: 'Discover communities and manage your memberships.' })
+  const [hero, setHero] = useState({ badge: 'Community', headline: 'Clubs', subtitle: 'Discover communities and manage your memberships.' })
 
   // Mirror filter state to the URL. Defaults omitted from the
   // querystring so a "clean" URL means "all defaults".

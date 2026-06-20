@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getSession } from '@/lib/session'
+import { isAdmin as checkAdmin } from '@/lib/access'
 import { prisma } from '@/lib/prisma'
 import ClubManagementTabs from './ClubManagementTabs'
 
@@ -11,7 +12,7 @@ export default async function HostClubPage({ params }: { params: Promise<{ slug:
   const session = await getSession()
   if (!session) notFound()
 
-  const isAdmin = session.role === 'admin'
+  const isAdmin = checkAdmin(session)
 
   const club = await prisma.club.findUnique({
     where: { slug },

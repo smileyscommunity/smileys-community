@@ -25,41 +25,44 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const { user, isLoading, isLoggedIn } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
-  const allowed = user?.role === 'admin' || user?.role === 'moderator'
-  const isMod   = user?.role === 'moderator'
+  const allowed  = user?.role === 'admin' || user?.role === 'moderator'
+  const isMod    = user?.role === 'moderator'
+  // Only admins must have 2FA enrolled. Moderators are exempt.
+  // Allow /admin/security through so admins can complete setup without an infinite redirect.
+  const needs2fa = allowed && !isMod && !user?.totpEnabled && !pathname.startsWith('/admin/security')
+
+  const MODERATOR_ALLOWED = [
+    '/admin/moderator',
+    '/admin/security',
+    '/admin/applications',
+    '/admin/moderation',
+    '/admin/events',
+    '/admin/participants',
+    '/admin/checkin',
+    '/admin/spotlight',
+    '/admin/announcements',
+    '/admin/engagement',
+    '/admin/listings',
+    '/admin/retention',
+    '/admin/banners',
+    '/admin/stories',
+    '/admin/content',
+    '/admin/neighborhoods',
+    '/admin/posts',
+    '/admin/audit',
+    '/admin/partners',
+  ]
+  const isModPageAllowed = !isMod || MODERATOR_ALLOWED.some(p => pathname.startsWith(p))
 
   useEffect(() => {
     if (isLoading) return
     if (!isLoggedIn) { router.replace('/login'); return }
     if (!allowed) { router.replace('/login'); return }
-    if (user.role === 'moderator') {
-      const moderatorAllowed = [
-        '/admin/moderator',
-        '/admin/applications',
-        '/admin/moderation',
-        '/admin/events',
-        '/admin/participants',
-        '/admin/checkin',
-        '/admin/spotlight',
-        // Announcements + polls (was /admin/engagement; kept here so the
-        // legacy URL still resolves before its server-side redirect runs).
-        '/admin/announcements',
-        '/admin/engagement',
-        '/admin/listings',
-        '/admin/retention',
-        '/admin/banners',
-        '/admin/stories',
-        '/admin/content',
-        '/admin/neighborhoods',
-        '/admin/posts',
-        '/admin/audit',
-        '/admin/partners',
-      ]
-      if (!moderatorAllowed.some(p => pathname.startsWith(p))) router.replace('/admin/moderator')
-    }
-  }, [user, isLoading, isLoggedIn, allowed, router, pathname])
+    if (needs2fa) { router.replace('/admin/security?require2fa=1'); return }
+    if (!isModPageAllowed) router.replace('/admin/moderator')
+  }, [user, isLoading, isLoggedIn, allowed, needs2fa, isModPageAllowed, router])
 
-  if (isLoading || !isLoggedIn || !allowed) return null
+  if (isLoading || !isLoggedIn || !allowed || needs2fa || !isModPageAllowed) return null
 
   // Bottom nav derived from sidebar navItems — automatically includes every section
   const userRoles = [user.role, ...(user.isClubHost ? ['host'] : [])]

@@ -97,7 +97,7 @@ export default function HangoutRecapPage() {
       <div className="mb-6">
         <Link href="/hangouts" className="text-xs text-amber-600 font-semibold">← Back to hangouts</Link>
         <h1 className="text-2xl font-extrabold text-gray-900 mt-2">Hangout recap</h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <p className="text-sm text-gray-600 mt-1">
           Leave a quick reference for the people you met. Good references build trust so people feel safer joining your next hangout.
         </p>
       </div>
@@ -109,7 +109,7 @@ export default function HangoutRecapPage() {
           ))}
         </div>
       ) : hangouts.length === 0 ? (
-        <div className="bg-white border border-gray-100 rounded-2xl p-10 text-center text-gray-500 text-sm shadow-sm">
+        <div className="bg-white border border-gray-100 rounded-2xl p-10 text-center text-gray-600 text-sm shadow-sm">
           <p className="text-3xl mb-3">☕</p>
           <p>No recent hangouts to review.</p>
           <Link href="/hangouts" className="text-amber-600 font-semibold text-xs mt-2 inline-block">Post one →</Link>
@@ -122,7 +122,7 @@ export default function HangoutRecapPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-sm font-bold text-gray-900 truncate">{h.title}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">
+                    <p className="text-xs text-gray-600 mt-0.5">
                       📍 {h.location}{h.neighborhood && ` · ${h.neighborhood}`} · ended {timeAgo(h.endsAt)}
                     </p>
                   </div>
@@ -139,7 +139,7 @@ export default function HangoutRecapPage() {
               </div>
               <div className="divide-y divide-gray-100">
                 {h.participants.length === 0 ? (
-                  <p className="px-5 py-6 text-xs text-gray-500 text-center">Just you on this one.</p>
+                  <p className="px-5 py-6 text-xs text-gray-600 text-center">Just you on this one.</p>
                 ) : h.participants.map(p => {
                   const avatar = p.profilePhoto ? resolveImageUrl(p.profilePhoto) : null
                   const current = h.myRefs[p.id]

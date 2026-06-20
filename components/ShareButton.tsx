@@ -38,7 +38,7 @@ export default function ShareButton({ title, url, variant = 'default', cacheKey 
 
   const btnCls = variant === 'overlay'
     ? 'p-1.5 rounded-xl bg-white/90 backdrop-blur-sm shadow text-gray-700 hover:bg-white transition-colors'
-    : 'p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors'
+    : 'p-1.5 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors'
 
   return (
     <div className="relative" ref={ref}>
@@ -52,7 +52,7 @@ export default function ShareButton({ title, url, variant = 'default', cacheKey 
       {open && (
         <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden z-50">
           <div className="px-3 py-2 border-b border-gray-50">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Share event</p>
+            <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Share event</p>
           </div>
 
           {/* WhatsApp */}

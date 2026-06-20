@@ -52,7 +52,7 @@ function PartnerCard({ p }: { p: Partner }) {
           </div>
         </div>
 
-        <p className="text-xs text-gray-500 truncate">📍 {p.address}</p>
+        <p className="text-xs text-gray-600 truncate">📍 {p.address}</p>
 
         {/* Links */}
         <div className="flex gap-2 mt-auto">
@@ -116,7 +116,7 @@ export default function PerksPage() {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-10 pb-0">
           <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">Member Perks</span>
           <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">Local Perks</h1>
-          <p className="text-base text-gray-500 mt-1 mb-5">Exclusive discounts at local businesses — just show your Smileys profile.</p>
+          <p className="text-base text-gray-600 mt-1 mb-5">Exclusive discounts at local businesses — just show your Smileys profile.</p>
 
           <div className="flex gap-3 mb-0">
             <div className="relative flex-1 max-w-sm">
@@ -137,7 +137,7 @@ export default function PerksPage() {
             {categories.map(c => (
               <button key={c} onClick={() => setCategory(c)}
                 className={`px-4 py-2.5 text-sm font-semibold border-b-2 whitespace-nowrap transition-colors ${
-                  category === c ? 'border-amber-500 text-amber-600' : 'border-transparent text-gray-500 hover:text-gray-800'
+                  category === c ? 'border-amber-500 text-amber-600' : 'border-transparent text-gray-600 hover:text-gray-800'
                 }`}>
                 {c}
               </button>
@@ -170,7 +170,7 @@ export default function PerksPage() {
             <h3 className="text-lg font-bold text-gray-900 mb-2">
               {partners.length === 0 ? 'No partners yet' : 'No results'}
             </h3>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-gray-600">
               {partners.length === 0
                 ? 'Check back soon — we\'re adding local businesses.'
                 : 'Try a different search or category.'}

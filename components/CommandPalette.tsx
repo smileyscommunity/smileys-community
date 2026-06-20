@@ -75,7 +75,9 @@ export default function CommandPalette() {
     { id: 'events',        label: 'Events',        hint: 'Browse upcoming events',     icon: '📅', group: 'Navigate', action: () => go('/events')        },
     { id: 'clubs',         label: 'Clubs',          hint: 'Explore clubs',              icon: '🏛️', group: 'Navigate', action: () => go('/clubs')         },
     { id: 'members',       label: 'Members',        hint: 'Discover the community',     icon: '👥', group: 'Navigate', action: () => go('/members')       },
+    { id: 'hangouts',      label: 'Hangouts',       hint: 'Live meetups happening now',  icon: '🤝', group: 'Navigate', action: () => go('/hangouts')      },
     { id: 'board',         label: 'Board',          hint: 'Rooms, jobs & more',         icon: '📋', group: 'Navigate', action: () => go('/listings')      },
+    { id: 'directory',     label: 'Directory',      hint: 'Local businesses & services', icon: '🏢', group: 'Navigate', action: () => go('/directory')     },
     { id: 'my-events',     label: 'My Events',      hint: 'Your events & QR codes',     icon: '🎟️', group: 'Navigate', action: () => go('/my-events')     },
     { id: 'messages',      label: 'Messages',       hint: 'Direct messages',            icon: '💬', group: 'Navigate', action: () => go('/messages')      },
     { id: 'notifications', label: 'Notifications',  hint: 'Your notifications',         icon: '🔔', group: 'Navigate', action: () => go('/notifications') },
@@ -155,7 +157,7 @@ export default function CommandPalette() {
                 {results.events.length > 0 && (
                   <Command.Group className="px-2">
                     <div className="px-2 pt-3 pb-1">
-                      <span className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Events</span>
+                      <span className="text-xs font-semibold text-gray-600 uppercase tracking-widest">Events</span>
                     </div>
                     {results.events.map(e => (
                       <Command.Item
@@ -177,7 +179,7 @@ export default function CommandPalette() {
                 {results.members.length > 0 && (
                   <Command.Group className="px-2">
                     <div className="px-2 pt-3 pb-1">
-                      <span className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Members</span>
+                      <span className="text-xs font-semibold text-gray-600 uppercase tracking-widest">Members</span>
                     </div>
                     {results.members.map(m => {
                       const photo = resolveImageUrl(m.profilePhoto)
@@ -209,7 +211,7 @@ export default function CommandPalette() {
                 {results.clubs.length > 0 && (
                   <Command.Group className="px-2">
                     <div className="px-2 pt-3 pb-1">
-                      <span className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Clubs</span>
+                      <span className="text-xs font-semibold text-gray-600 uppercase tracking-widest">Clubs</span>
                     </div>
                     {results.clubs.map(c => (
                       <Command.Item
@@ -242,7 +244,7 @@ export default function CommandPalette() {
                 return (
                   <Command.Group key={group} className="px-2">
                     <div className="px-2 pt-3 pb-1">
-                      <span className="text-xs font-semibold text-gray-500 uppercase tracking-widest">{group}</span>
+                      <span className="text-xs font-semibold text-gray-600 uppercase tracking-widest">{group}</span>
                     </div>
                     {items.map(cmd => (
                       <Command.Item

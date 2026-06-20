@@ -183,7 +183,7 @@ export default function FAQPage() {
           <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 tracking-tight mb-4">
             Frequently asked questions
           </h1>
-          <p className="text-base text-gray-500 max-w-lg">
+          <p className="text-base text-gray-600 max-w-lg">
             Everything you need to know about Smileys — membership, events, clubs, and more.
           </p>
         </div>
@@ -219,7 +219,7 @@ export default function FAQPage() {
               {s.faqs.map((faq, i) => (
                 <div key={i} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 hover:border-amber-200 transition-colors">
                   <p className="text-sm font-bold text-gray-900 mb-2.5 leading-snug">{faq.q}</p>
-                  <p className="text-sm text-gray-500 leading-relaxed">{faq.a}</p>
+                  <p className="text-sm text-gray-600 leading-relaxed">{faq.a}</p>
                 </div>
               ))}
             </div>

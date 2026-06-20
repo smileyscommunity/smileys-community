@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { readFileSync } from 'fs'
 import { join } from 'path'
+import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { neighborhoodToSlug, NEIGHBORHOOD_META } from '@/lib/neighborhoods'
 import { getSession } from '@/lib/session'
@@ -20,21 +21,8 @@ import { loadContent } from '@/lib/content'
 
 export const dynamic = 'force-dynamic'
 
-function getActivitySignal(eventCount: number, memberCount: number) {
-  const score = eventCount * 3 + Math.round(memberCount / 6)
-  if (score >= 9) return { label: 'Hot right now',  icon: '🔥', cls: 'bg-orange-50 text-orange-500' }
-  if (score >= 5) return { label: 'Active',          icon: '⚡', cls: 'bg-blue-50 text-blue-500'    }
-  if (score >= 2) return { label: 'Growing',         icon: '🌱', cls: 'bg-green-50 text-green-600'  }
-  return               { label: 'Quiet this month', icon: '😴', cls: 'bg-gray-50 text-gray-400'    }
-}
-
-export default async function NeighborhoodsPage() {
-  const c = loadContent()
-  const nh = c.neighborhoods ?? {}
-  const today = new Date().toISOString().split('T')[0]
-
-  const [session, eventCounts, memberCounts, nextEventsRaw] = await Promise.all([
-    getSession(),
+const getNeighborhoodStats = unstable_cache(
+  async (today: string) => Promise.all([
     prisma.event.groupBy({
       by: ['neighborhood'],
       where: { date: { gte: today } },
@@ -51,6 +39,27 @@ export default async function NeighborhoodsPage() {
       orderBy: { date: 'asc' },
       take: 300,
     }),
+  ]),
+  ['neighborhood-stats'],
+  { revalidate: 300, tags: ['neighborhoods'] },
+)
+
+function getActivitySignal(eventCount: number, memberCount: number) {
+  const score = eventCount * 3 + Math.round(memberCount / 6)
+  if (score >= 9) return { label: 'Hot right now',  icon: '🔥', cls: 'bg-orange-50 text-orange-500' }
+  if (score >= 5) return { label: 'Active',          icon: '⚡', cls: 'bg-blue-50 text-blue-500'    }
+  if (score >= 2) return { label: 'Growing',         icon: '🌱', cls: 'bg-green-50 text-green-600'  }
+  return               { label: 'Quiet this month', icon: '😴', cls: 'bg-gray-50 text-gray-400'    }
+}
+
+export default async function NeighborhoodsPage() {
+  const c = loadContent()
+  const nh = c.neighborhoods ?? {}
+  const today = new Date().toISOString().split('T')[0]
+
+  const [session, [eventCounts, memberCounts, nextEventsRaw]] = await Promise.all([
+    getSession(),
+    getNeighborhoodStats(today),
   ])
 
   // First upcoming event per neighborhood
@@ -126,7 +135,7 @@ export default async function NeighborhoodsPage() {
           <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900 mb-3">
             {nh.headline ?? 'Find events near you'}
           </h1>
-          <p className="text-base text-gray-500 max-w-2xl leading-relaxed">
+          <p className="text-base text-gray-600 max-w-2xl leading-relaxed">
             {nh.subtitle ?? "Smileys events happen all across Istanbul. Pick a neighborhood and see what's coming up."}
           </p>
         </div>
@@ -158,7 +167,7 @@ export default async function NeighborhoodsPage() {
                       )
                     ))}
                   </div>
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-gray-600">
                     {memberCounts.find(m => m.neighborhood === userNeighborhood)?._count._all ?? 0} locals
                   </span>
                 </div>

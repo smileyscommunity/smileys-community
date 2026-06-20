@@ -32,7 +32,7 @@ export async function GET(_: NextRequest, { params }: Params) {
     },
   })
   const ORDER = { pending: 0, approved: 1, declined: 2 } as const
-  donations.sort((a, b) => {
+  donations.sort((a: any, b: any) => {
     const oa = ORDER[a.status as keyof typeof ORDER] ?? 9
     const ob = ORDER[b.status as keyof typeof ORDER] ?? 9
     if (oa !== ob) return oa - ob

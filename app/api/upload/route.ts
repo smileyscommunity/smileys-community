@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
     // Regular members can upload event/club/hangout photos; downstream API
     // routes enforce per-feature auth (e.g. the hangouts POST checks the
     // returned URL against a regex before storing).
-    const isMemberUpload = folder === 'events' || folder === 'clubs' || folder === 'hangouts'
+    const isMemberUpload = folder === 'events' || folder === 'clubs' || folder === 'hangouts' || folder === 'listings'
 
     if (!isPrivileged && !isClubHost && !isMemberUpload && folder !== 'users') {
       return NextResponse.json({ error: 'You can only upload profile photos.' }, { status: 403 })
@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Only JPG, PNG, WebP, GIF allowed' }, { status: 400 })
     }
 
-    const validFolders = ['events', 'clubs', 'users', 'general', 'posts', 'hangouts', 'directory']
+    const validFolders = ['events', 'clubs', 'users', 'general', 'posts', 'hangouts', 'directory', 'listings']
     const subfolder  = validFolders.includes(folder ?? '') ? folder! : 'general'
     const filename   = `${Date.now()}-${randomBytes(6).toString('hex')}.jpg`
     const uploadDir  = join(process.cwd(), 'public', 'uploads', subfolder)
@@ -77,9 +77,10 @@ export async function POST(req: NextRequest) {
 
     let buffer: Buffer
     try {
-      // Sharp's .jpeg() re-encode strips EXIF (including any GPS coords from
-      // mobile photos) by default — the output buffer has no metadata. Don't
-      // call .withMetadata() unless you intentionally want to keep it.
+      // .rotate() must come BEFORE .jpeg() — it reads the EXIF Orientation tag
+      // from the original buffer to auto-correct camera rotation, then removes
+      // the tag from output. .jpeg() strips all remaining EXIF (incl. GPS).
+      // Never call .withMetadata() here or GPS coords leak to the public URL.
       buffer = await sharp(raw).rotate().resize(1200, 1200, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 82 }).toBuffer()
     } catch {
       return NextResponse.json({ error: 'Could not process image. Please upload a valid JPG, PNG, WebP, or GIF.' }, { status: 400 })

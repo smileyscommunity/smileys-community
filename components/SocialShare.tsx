@@ -33,7 +33,7 @@ export default function SocialShare({ title, url, cacheKey }: Props) {
 
   return (
     <div className="bg-white rounded-2xl shadow-card p-5">
-      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Share</p>
+      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Share</p>
       <div className="flex gap-2">
 
         {/* WhatsApp */}

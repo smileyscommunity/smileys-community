@@ -55,9 +55,9 @@ export async function GET() {
     }),
   ])
   const pendingMap = new Map<string | null, number>(
-    pendingByCamp.map(p => [p.campaignId, p._count._all]),
+    pendingByCamp.map((p: any) => [p.campaignId, p._count._all] as [string | null, number]),
   )
-  const enriched = campaigns.map(c => ({
+  const enriched = campaigns.map((c: any) => ({
     ...c,
     _count: { ...c._count, pendingDonations: pendingMap.get(c.id) ?? 0 },
   }))

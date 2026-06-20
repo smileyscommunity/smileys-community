@@ -87,7 +87,7 @@ function AppEventsPageInner() {
   const [goingOnly,    setGoingOnly]    = useState(() => searchParams.get('going') === '1')
   // CMS overrides land in this state on mount via /api/content. Defaults
   // are the fallback when the CMS hasn't been configured.
-  const [hero, setHero] = useState({ badge: 'Istanbul', headline: "What's on", subtitle: 'Find your next experience in Istanbul.' })
+  const [hero, setHero] = useState({ badge: 'Istanbul', headline: "Events", subtitle: 'Find your next experience in Istanbul.' })
 
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
   const [showMap,         setShowMap]         = useState(false)

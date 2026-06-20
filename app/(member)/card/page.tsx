@@ -34,7 +34,7 @@ export default function MemberCardPage() {
       <div className="bg-white border-b border-gray-100">
         <div className="max-w-sm mx-auto px-4 pt-10 pb-4">
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900">Member Card</h1>
-          <p className="text-sm text-gray-500 mt-1">Show this at events for instant check-in</p>
+          <p className="text-sm text-gray-600 mt-1">Show this at events for instant check-in</p>
         </div>
       </div>
 

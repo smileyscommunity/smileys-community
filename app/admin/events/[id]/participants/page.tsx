@@ -7,7 +7,7 @@ import { formatDate } from '@/lib/data'
 import type { Event } from '@/lib/data'
 import UserAvatar from '@/components/UserAvatar'
 
-interface AttendeeUser { id: string; name: string; color: string; email: string; profilePhoto?: string | null; gender?: string | null; nationality?: string | null; phone?: string | null }
+interface AttendeeUser { id: string; name: string; color: string; email: string; profilePhoto?: string | null; gender?: string | null; nationality?: string | null; phone?: string | null; noShowCount?: number }
 interface Attendee    { userId: string; status: string; checkedIn: boolean; joinedAt: string; isStaff?: boolean; user: AttendeeUser }
 interface WaitlistEntry { id: string; userId: string; createdAt: string; user: AttendeeUser }
 
@@ -44,9 +44,9 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
   const [busy,      setBusy]      = useState<string | null>(null)
   const [addSearch, setAddSearch] = useState('')
   const [allUsers,  setAllUsers]  = useState<AttendeeUser[]>([])
-  const [waModal,   setWaModal]   = useState(false)
-  const [waMessage, setWaMessage] = useState('')
-  const [copied,    setCopied]    = useState<'numbers' | 'message' | null>(null)
+  const [attendeeView,   setAttendeeView]   = useState<'all' | 'checkedin' | 'noshows'>('all')
+  const [notifying,      setNotifying]      = useState(false)
+  const [reminding,      setReminding]      = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -55,9 +55,12 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
       fetch('/app/api/admin/users', { credentials: 'include' }).then(r => r.json()),
     ]).then(([ev, data, users]) => {
       setEvent(ev)
-      setAttendees(Array.isArray(data.attendees) ? data.attendees : [])
+      const userList: AttendeeUser[] = Array.isArray(users) ? users : []
+      const noShowMap = new Map(userList.map((u: AttendeeUser) => [u.id, u.noShowCount ?? 0]))
+      const mergeNoShow = (a: Attendee): Attendee => ({ ...a, user: { ...a.user, noShowCount: noShowMap.get(a.userId) ?? 0 } })
+      setAttendees(Array.isArray(data.attendees) ? data.attendees.map(mergeNoShow) : [])
       setWaitlist(Array.isArray(data.waitlist)   ? data.waitlist  : [])
-      setAllUsers(Array.isArray(users) ? users : [])
+      setAllUsers(userList)
     }).finally(() => setLoading(false))
   }, [id])
 
@@ -151,10 +154,43 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
     setBusy(null)
   }
 
+  async function remindAttendees(count: number) {
+    if (!confirm(`Send reminder email + notification to ${count} attendee${count !== 1 ? 's' : ''}?`)) return
+    setReminding(true)
+    try {
+      const res = await fetch(`/app/api/admin/events/${id}/remind-attendees`, {
+        method: 'POST', credentials: 'include',
+      })
+      const data = await res.json()
+      if (res.ok) toast.success(`Reminded ${data.emailed} via email · ${data.notified} in-app`)
+      else toast.error(data.error ?? 'Failed to send reminders')
+    } catch {
+      toast.error('Failed to send reminders')
+    }
+    setReminding(false)
+  }
+
+  async function notifyNoShows(count: number) {
+    if (!confirm(`Send email + in-app notification to ${count} no-show${count !== 1 ? 's' : ''}?`)) return
+    setNotifying(true)
+    try {
+      const res = await fetch(`/app/api/admin/events/${id}/notify-noshows`, {
+        method: 'POST', credentials: 'include',
+      })
+      const data = await res.json()
+      if (res.ok) toast.success(`Sent to ${data.emailed} email${data.emailed !== 1 ? 's' : ''} · ${data.notified} in-app`)
+      else toast.error(data.error ?? 'Failed to notify')
+    } catch {
+      toast.error('Failed to notify')
+    }
+    setNotifying(false)
+  }
+
   if (loading) return <div className="p-8 text-center text-zinc-500 text-sm">Loading…</div>
   if (!event)  return <div className="p-8 text-center text-zinc-500 text-sm">Event not found</div>
 
   const approved         = attendees.filter(a => a.status === 'approved')
+  const isPastEvent      = event.date < new Date().toISOString().slice(0, 10)
   const pending          = attendees.filter(a => a.status === 'pending')
   const checkedInCount   = approved.filter(a => a.checkedIn).length
   const nonStaff         = approved.filter(a => !a.isStaff)
@@ -165,9 +201,10 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
   const turkishMaleCount = turkishMaleQuota
     ? nonStaff.filter(a => a.user.gender === 'male' && a.user.nationality === 'Turkey').length
     : 0
-  const femaleCount = nonStaff.filter(a => a.user.gender === 'female').length
-  const maleCount   = nonStaff.filter(a => a.user.gender === 'male').length
-  const maleQuota   = (event as any).maleQuota as number | null ?? Math.floor(event.totalSpots / 2)
+  const femaleCount  = nonStaff.filter(a => a.user.gender === 'female').length
+  const maleCount    = nonStaff.filter(a => a.user.gender === 'male').length
+  const maleQuota    = (event as any).maleQuota   as number | null
+  const femaleQuota  = (event as any).femaleQuota as number | null
 
 
   return (
@@ -254,25 +291,30 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
           <div>
             <div className="flex justify-between text-xs text-zinc-400 mb-1">
               <span>♀ Female</span>
-              <span className="font-semibold text-pink-400">{femaleCount} going</span>
+              <span className="font-semibold text-pink-400">
+                {femaleCount}{femaleQuota ? ` / ${femaleQuota} max` : ' going'}
+              </span>
             </div>
             <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
               <div className="h-full bg-pink-500 rounded-full transition-all"
-                style={{ width: `${Math.min(100, event.totalSpots > 0 ? (femaleCount / event.totalSpots) * 100 : 0)}%` }} />
+                style={{ width: `${Math.min(100, (femaleQuota ?? event.totalSpots) > 0 ? (femaleCount / (femaleQuota ?? event.totalSpots)) * 100 : 0)}%` }} />
             </div>
+            {femaleQuota && femaleCount >= femaleQuota && (
+              <p className="text-xs text-red-400 mt-1">Female spots full</p>
+            )}
           </div>
           <div>
             <div className="flex justify-between text-xs text-zinc-400 mb-1">
               <span>♂ Male</span>
-              <span className={`font-semibold ${maleCount >= maleQuota ? 'text-red-400' : 'text-blue-400'}`}>
-                {maleCount} / {maleQuota} max
+              <span className={`font-semibold ${maleQuota && maleCount >= maleQuota ? 'text-red-400' : 'text-blue-400'}`}>
+                {maleCount}{maleQuota ? ` / ${maleQuota} max` : ' going'}
               </span>
             </div>
             <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
               <div className="h-full bg-blue-500 rounded-full transition-all"
-                style={{ width: `${Math.min(100, maleQuota > 0 ? (maleCount / maleQuota) * 100 : 0)}%` }} />
+                style={{ width: `${Math.min(100, (maleQuota ?? event.totalSpots) > 0 ? (maleCount / (maleQuota ?? event.totalSpots)) * 100 : 0)}%` }} />
             </div>
-            {maleCount >= maleQuota && (
+            {maleQuota && maleCount >= maleQuota && (
               <p className="text-xs text-red-400 mt-1">Male spots full</p>
             )}
           </div>
@@ -313,7 +355,6 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
                       <UserAvatar user={u} />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-white truncate">{u.name}</p>
-                        <p className="text-xs text-zinc-500 truncate">{u.email}</p>
                       </div>
                       <span className="text-xs text-amber-400 font-semibold shrink-0">Add →</span>
                     </button>
@@ -344,8 +385,7 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
                     <UserAvatar user={a.user} />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-white truncate">{a.user.name}</p>
-                      <p className="text-xs text-zinc-500 truncate">{a.user.email}</p>
-                    </div>
+                      </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <button onClick={() => approveAttendee(a.userId)} disabled={busy === a.userId}
                         className="text-xs px-3 py-2 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 font-semibold transition-colors disabled:opacity-40">
@@ -363,81 +403,51 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
         </div>
       )}
 
-      {/* WhatsApp broadcast modal */}
-      {waModal && (() => {
-        const withPhone = approved.filter(a => !a.isStaff && a.user.phone)
-        const numbers   = withPhone.map(a => a.user.phone!.replace(/\D/g, '').replace(/^0/, '90')).join('\n')
-        return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4" onClick={() => { setWaModal(false); setCopied(null) }}>
-            <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-5 w-full max-w-sm shadow-2xl space-y-4" onClick={e => e.stopPropagation()}>
-              <div>
-                <p className="text-white font-bold text-sm">WhatsApp broadcast</p>
-                <p className="text-zinc-400 text-xs mt-0.5">{withPhone.length} of {nonStaff.length} attendees have a phone number</p>
-              </div>
-
-              {/* Step 1 — message */}
-              <div>
-                <p className="text-xs font-semibold text-zinc-400 mb-1.5">1. Write your message</p>
-                <textarea
-                  value={waMessage}
-                  onChange={e => setWaMessage(e.target.value)}
-                  rows={3}
-                  placeholder={`Hi! Quick reminder about ${event?.title}…`}
-                  autoFocus
-                  className="w-full px-3 py-2.5 bg-zinc-800 border border-zinc-700 rounded-xl text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-green-500/50 resize-none"
-                />
-                {waMessage.trim() && (
-                  <button
-                    onClick={() => { navigator.clipboard.writeText(waMessage.trim()); setCopied('message') }}
-                    className={`mt-1.5 w-full py-1.5 text-xs font-semibold rounded-xl transition-colors ${copied === 'message' ? 'bg-green-500/20 text-green-400' : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300'}`}
-                  >
-                    {copied === 'message' ? '✓ Message copied' : 'Copy message'}
-                  </button>
-                )}
-              </div>
-
-              {/* Step 2 — copy numbers */}
-              <div>
-                <p className="text-xs font-semibold text-zinc-400 mb-1.5">2. Copy phone numbers</p>
-                <button
-                  onClick={() => { navigator.clipboard.writeText(numbers); setCopied('numbers') }}
-                  className={`w-full py-2.5 text-sm font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 ${copied === 'numbers' ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-green-600 hover:bg-green-700 text-white'}`}
-                >
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                  {copied === 'numbers' ? `✓ ${withPhone.length} numbers copied` : `Copy ${withPhone.length} numbers`}
-                </button>
-              </div>
-
-              {/* Step 3 — instructions */}
-              <div className="bg-zinc-800/60 rounded-xl px-3 py-2.5 space-y-1">
-                <p className="text-xs font-semibold text-zinc-400">3. Send in WhatsApp</p>
-                <p className="text-xs text-zinc-500 leading-relaxed">Open WhatsApp → New Broadcast → add the copied numbers → paste your message → send.</p>
-              </div>
-
-              <button onClick={() => { setWaModal(false); setCopied(null) }} className="w-full text-center text-xs text-zinc-500 hover:text-zinc-300 transition-colors py-1">
-                Close
-              </button>
-            </div>
-          </div>
-        )
-      })()}
 
       {/* ── APPROVED ── */}
+      {(() => {
+        const noShows = approved.filter(a => !a.checkedIn)
+        const visibleApproved = attendeeView === 'checkedin' ? approved.filter(a => a.checkedIn)
+          : attendeeView === 'noshows' ? noShows
+          : approved
+        return (
       <div className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
         <SectionHeader
           title="Approved"
           count={approved.length}
           color="bg-green-500/20 text-green-400"
-          badge={checkedInCount > 0 ? `· ${checkedInCount} checked in` : undefined}
         >
           <div className="flex items-center gap-2">
-            {approved.length > 0 && (
+            {!isPastEvent && approved.length > 0 && (
               <button
-                onClick={() => setWaModal(true)}
-                className="flex items-center gap-1.5 text-xs px-2.5 py-2 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 font-semibold transition-colors"
+                onClick={() => remindAttendees(approved.length)}
+                disabled={reminding}
+                className="flex items-center gap-1.5 text-xs px-2.5 py-2 rounded-lg bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 font-semibold transition-colors disabled:opacity-40"
+                title="Send reminder email + notification to all attendees"
               >
-                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                WhatsApp
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+                {reminding ? 'Sending…' : `Remind all (${approved.length})`}
+              </button>
+            )}
+            {isPastEvent && checkedInCount > 0 && (
+              <div className="flex rounded-lg overflow-hidden border border-zinc-700 text-xs font-semibold">
+                {(['all', 'checkedin', 'noshows'] as const).map(v => (
+                  <button key={v} onClick={() => setAttendeeView(v)}
+                    className={`px-2.5 py-1.5 transition-colors ${attendeeView === v ? 'bg-zinc-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}>
+                    {v === 'all' ? `All ${approved.length}` : v === 'checkedin' ? `✓ ${checkedInCount}` : `✗ ${noShows.length}`}
+                  </button>
+                ))}
+              </div>
+            )}
+            {isPastEvent && noShows.length > 0 && (
+              <button
+                onClick={() => notifyNoShows(noShows.length)}
+                disabled={notifying}
+                className="flex items-center gap-1.5 text-xs px-2.5 py-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 font-semibold transition-colors disabled:opacity-40"
+                title="Send email + in-app notification to no-shows"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                {notifying ? 'Sending…' : `Notify (${noShows.length})`}
               </button>
             )}
             {approved.length > 0 && (
@@ -449,7 +459,7 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
                   const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([csv], { type: 'text/csv' })), download: `${event?.title ?? 'event'}-attendees.csv` })
                   a.click()
                 }}
-                className="flex items-center gap-1.5 text-xs px-2.5 py-2 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-300 font-semibold transition-colors"
+                className="hidden sm:flex items-center gap-1.5 text-xs px-2.5 py-2 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-300 font-semibold transition-colors"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                 CSV
@@ -459,13 +469,23 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
         </SectionHeader>
         {approved.length === 0
           ? <div className="px-4 py-6 text-center text-zinc-600 text-xs">'No approved attendees yet'</div>
+          : visibleApproved.length === 0
+          ? <div className="px-4 py-6 text-center text-zinc-600 text-xs">
+              {attendeeView === 'checkedin' ? 'Nobody checked in yet' : 'Everyone showed up!'}
+            </div>
           : <div className="divide-y divide-zinc-800">
-              {approved.map(a => (
+              {visibleApproved.map(a => (
                 <Row key={a.userId}>
                   <UserAvatar user={a.user} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-white truncate">{a.user.name}</p>
-                    <p className="text-xs text-zinc-500 truncate">{a.user.email}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-sm font-semibold text-white truncate">{a.user.name}</p>
+                      {(a.user.noShowCount ?? 0) >= 3 && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20 shrink-0" title="Registered but didn't show up 3+ times">
+                          ✗ {a.user.noShowCount}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     {a.checkedIn
@@ -492,6 +512,8 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
             </div>
         }
       </div>
+        )
+      })()}
 
       {/* ── WAITLIST ── */}
       <div className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
@@ -512,7 +534,6 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
                   <UserAvatar user={w.user} />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-white truncate">{w.user.name}</p>
-                    <p className="text-xs text-zinc-500 truncate">{w.user.email}</p>
                   </div>
                   <p className="text-xs text-zinc-600 shrink-0">
                     {new Date(w.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}

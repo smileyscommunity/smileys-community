@@ -1,0 +1,51 @@
+{
+  "tagline": "A residential Asian side district on the slopes above Ataşehir — elevated positions with city views, a growing café scene, and a quieter alternative to the busy valley below.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Kayışdağı Semt Kafeleri",
+          "description": "A handful of neighbourhood cafés that have opened as the district's population has grown. Relaxed and affordable.",
+          "address": "Kayışdağı, Ataşehir",
+          "badge": "Smileys Pick"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Kayışdağı Ormanı",
+          "description": "A forest area on the Kayışdağı ridge used for walking and jogging by locals. A rare green patch on the inner Asian side.",
+          "address": "Kayışdağı, Ataşehir",
+          "badge": "Must Visit"
+        },
+        {
+          "name": "Panoramik Manzara Noktaları",
+          "description": "The elevated streets of Kayışdağı offer sweeping views over Ataşehir and towards the Bosphorus on clear days.",
+          "address": "Kayışdağı, Ataşehir"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Semt Restoranları",
+          "description": "Local restaurants serving Turkish home cooking and grills to the neighbourhood's residents.",
+          "address": "Kayışdağı, Ataşehir"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Bus routes connect Kayışdağı to Ataşehir metro stations and onward to Kadıköy.",
+    "Quieter and greener than the Ataşehir valley — a good option for families wanting Asian side living.",
+    "The forest area is best in spring and autumn when the weather is mild.",
+    "Rents are more affordable here than in Kozyatağı or İçerenköy for similar quality."
+  ]
+}

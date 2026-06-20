@@ -1,12 +1,31 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import type { Metadata } from 'next'
+import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { resolveImageUrl, avatarUrl } from '@/lib/data'
 import { APP_URL, SITE_URL } from '@/lib/env'
 import { sanitize } from '@/lib/sanitize'
 
-export const dynamic = 'force-dynamic'
+const getPost = unstable_cache(
+  async (slug: string) => prisma.post.findUnique({
+    where:   { slug },
+    include: { author: { select: { name: true, color: true, profilePhoto: true } } },
+  }),
+  ['post'],
+  { revalidate: 300, tags: ['posts'] },
+)
+
+const getRelatedPosts = unstable_cache(
+  async (category: string, excludeSlug: string) => prisma.post.findMany({
+    where:   { status: 'published', category, slug: { not: excludeSlug } },
+    orderBy: { publishedAt: 'desc' },
+    take:    3,
+    select:  { title: true, slug: true, excerpt: true, coverImage: true, publishedAt: true },
+  }),
+  ['posts-related'],
+  { revalidate: 300, tags: ['posts'] },
+)
 
 const categoryColors: Record<string, string> = {
   'Community':     'bg-amber-100 text-amber-700',
@@ -65,7 +84,7 @@ function renderBody(text: string) {
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
-  const post = await prisma.post.findUnique({ where: { slug }, include: { author: { select: { name: true } } } })
+  const post = await getPost(slug)
   if (!post) return {}
   return {
     title: `${post.title} — Smileys Community`,
@@ -90,25 +109,17 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function PostPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
-  const post = await prisma.post.findUnique({
-    where: { slug, status: 'published' },
-    include: { author: { select: { name: true, color: true, profilePhoto: true } } },
-  })
-  if (!post) notFound()
+  const post = await getPost(slug)
+  if (!post || post.status !== 'published') notFound()
 
-  const related = await prisma.post.findMany({
-    where: { status: 'published', category: post.category, slug: { not: slug } },
-    orderBy: { publishedAt: 'desc' },
-    take: 3,
-    select: { title: true, slug: true, excerpt: true, coverImage: true, publishedAt: true },
-  })
+  const related = await getRelatedPosts(post.category, slug)
 
   return (
     <main className="min-h-screen bg-warm">
       {/* Back */}
       <div className="bg-white border-b border-gray-100">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center gap-3">
-          <Link href="/posts" className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-amber-600 transition-colors font-medium">
+          <Link href="/posts" className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-amber-600 transition-colors font-medium">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
@@ -142,7 +153,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
         </h1>
 
         {post.excerpt && (
-          <p className="text-lg text-gray-500 leading-relaxed mb-6 border-l-4 border-amber-400 pl-4">
+          <p className="text-lg text-gray-600 leading-relaxed mb-6 border-l-4 border-amber-400 pl-4">
             {post.excerpt}
           </p>
         )}
@@ -192,7 +203,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
               {related.map(r => (
                 <Link key={r.slug} href={`/posts/${r.slug}`} className="group block bg-gray-50 hover:bg-amber-50 rounded-2xl p-5 border border-gray-100 hover:border-amber-200 transition-all">
                   <h3 className="font-bold text-gray-900 group-hover:text-amber-600 transition-colors text-sm leading-snug mb-2">{r.title}</h3>
-                  {r.excerpt && <p className="text-xs text-gray-500 line-clamp-2">{r.excerpt}</p>}
+                  {r.excerpt && <p className="text-xs text-gray-600 line-clamp-2">{r.excerpt}</p>}
                   <p className="text-xs text-gray-400 mt-3">{formatDate(r.publishedAt)}</p>
                 </Link>
               ))}

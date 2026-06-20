@@ -126,12 +126,12 @@ export async function PATCH(req: NextRequest) {
               })
             } catch (e) {
               // P2002 = unique constraint — second admin approved simultaneously, user already created
-              if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') return
+              if (e instanceof Prisma.PrismaClientKnownRequestError && (e as Prisma.PrismaClientKnownRequestError).code === 'P2002') return
               throw e
             }
             // Auto-enroll in assigned clubs
             if (application.assignedClubs?.length) {
-              await Promise.all(application.assignedClubs.map(clubId =>
+              await Promise.all(application.assignedClubs.map((clubId: string) =>
                 prisma.$transaction([
                   prisma.clubMembership.upsert({
                     where:  { userId_clubId: { userId: user.id, clubId } },
@@ -139,7 +139,7 @@ export async function PATCH(req: NextRequest) {
                     update: {},
                   }),
                   prisma.club.update({ where: { id: clubId }, data: { memberCount: { increment: 1 } } }),
-                ]).catch(e => console.error(`Admin club enrollment failed for ${clubId}:`, e))
+                ]).catch((e: unknown) => console.error(`Admin club enrollment failed for ${clubId}:`, e))
               ))
             }
             // Generate activation token (7 days)

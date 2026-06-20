@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin, isModerator, isClubHost, isClubHostFor } from '@/lib/access'
@@ -27,7 +28,7 @@ export async function GET(req: NextRequest) {
                          ? +takeRaw : undefined
     const fromValid    = fromParam && /^\d{4}-\d{2}-\d{2}$/.test(fromParam) ? fromParam : undefined
 
-    const where: any = {
+    const where: Prisma.EventWhereInput = {
       ...(clubHost ? { hostId: session.id } : {}),
       ...(!showArchived && !statusParam ? { status: { not: 'archived' } } : {}),
       ...(fromValid ? { date: { gte: fromValid } } : {}),

@@ -1,0 +1,45 @@
+{
+  "tagline": "A calm, residential Asian side district between Maltepe and Kartal — good transport links, an honest local café scene, and a quieter pace suited to everyday living.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Cevizli Semt Kafeleri",
+          "description": "A cluster of neighbourhood cafés around the Cevizli metro station. Reliable daily coffee spots popular with commuters and locals.",
+          "address": "Cevizli, Maltepe"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Cevizli Lokantalari",
+          "description": "Honest lokanta restaurants serving rotating daily menus at very local prices. Solid home-style Turkish cooking.",
+          "address": "Cevizli, Maltepe",
+          "badge": "Smileys Pick"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Maltepe Sahil (yakın)",
+          "description": "The Maltepe waterfront park is just a short ride away — one of the best coastal promenades on the Asian side.",
+          "address": "Maltepe Sahili, Maltepe"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Cevizli has its own M4 metro stop — direct line to Kadıköy (15 minutes) and Sabiha Gökçen Airport.",
+    "Very affordable to live here compared to Kadıköy or Moda — popular with young professionals.",
+    "Quieter and more residential than Maltepe or Kartal, but with the same metro access.",
+    "The nearby coastal park is a 10-minute walk — worth the stroll in good weather."
+  ]
+}

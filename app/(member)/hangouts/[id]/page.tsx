@@ -60,7 +60,7 @@ export default async function HangoutPermalinkPage({ params }: PageProps) {
   const hangout = await prisma.hangout.findUnique({
     where: { id },
     include: {
-      user: { select: { id: true, name: true, color: true, profilePhoto: true, goodHangouts: true } },
+      user: { select: { id: true, name: true, color: true, profilePhoto: true, goodHangouts: true, neighborhood: true } },
       joins: {
         orderBy: { createdAt: 'asc' },
         select: { user: { select: { id: true, name: true, color: true, profilePhoto: true } } },
@@ -89,6 +89,29 @@ export default async function HangoutPermalinkPage({ params }: PageProps) {
 
         {/* Hero card */}
         <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+          {/* Host header — shown first so you immediately know who's hosting */}
+          <div className="flex items-center gap-3 px-5 pt-5 pb-4">
+            <Link href={`/members/${hangout.user.id}`} className="shrink-0">
+              {hostAvatar
+                ? <img src={hostAvatar} alt={hangout.user.name} className="w-12 h-12 rounded-full object-cover" />
+                : <div className="w-12 h-12 rounded-full flex items-center justify-center text-white text-base font-bold"
+                    style={{ backgroundColor: hangout.user.color }}>{hangout.user.name[0]}</div>}
+            </Link>
+            <div className="flex-1 min-w-0">
+              <Link href={`/members/${hangout.user.id}`} className="text-sm font-bold text-gray-900 hover:text-amber-700">
+                {hangout.user.name}
+              </Link>
+              <p className="text-xs text-gray-500">
+                is hosting a hangout{hangout.user.neighborhood && <> · 📍 {hangout.user.neighborhood}</>}
+              </p>
+            </div>
+            {hangout.user.goodHangouts > 0 && (
+              <span className="inline-flex items-center gap-0.5 px-2 py-1 rounded-full bg-green-50 text-green-700 text-xs font-semibold border border-green-200 shrink-0">
+                ✓ {hangout.user.goodHangouts} good
+              </span>
+            )}
+          </div>
+
           {photoUrl && (
             <div className="relative w-full h-48 sm:h-64 bg-gray-100">
               <Image src={photoUrl} alt={hangout.title} fill className="object-cover" sizes="(max-width: 640px) 100vw, 640px" unoptimized />
@@ -106,7 +129,7 @@ export default async function HangoutPermalinkPage({ params }: PageProps) {
 
             <div className="text-sm text-gray-700 space-y-1">
               <p>📍 <span className="font-medium">{hangout.location}</span>
-                {hangout.neighborhood && <span className="text-gray-500"> · {hangout.neighborhood}</span>}
+                {hangout.neighborhood && <span className="text-gray-600"> · {hangout.neighborhood}</span>}
               </p>
               <p>🕒 <span className="font-medium">
                 {hangout.startsAt.toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
@@ -118,34 +141,17 @@ export default async function HangoutPermalinkPage({ params }: PageProps) {
             {hangout.description && (
               <p className="text-sm text-gray-600 whitespace-pre-wrap pt-2 border-t border-gray-100">{hangout.description}</p>
             )}
-
-            {/* Host */}
-            <div className="flex items-center gap-3 pt-3 border-t border-gray-100">
-              {hostAvatar
-                ? <img src={hostAvatar} alt={hangout.user.name} className="w-10 h-10 rounded-full object-cover" />
-                : <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold"
-                    style={{ backgroundColor: hangout.user.color }}>{hangout.user.name[0]}</div>}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-900">{hangout.user.name}</p>
-                <p className="text-xs text-gray-500">Host</p>
-              </div>
-              {hangout.user.goodHangouts > 0 && (
-                <span className="inline-flex items-center gap-0.5 px-2 py-1 rounded-full bg-green-50 text-green-700 text-xs font-semibold border border-green-200">
-                  ✓ {hangout.user.goodHangouts}
-                </span>
-              )}
-            </div>
           </div>
         </div>
 
         {/* Joiners */}
         {hangout.joins.length > 0 && (
           <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">
+            <p className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-3">
               {hangout.joins.length} joiner{hangout.joins.length === 1 ? '' : 's'}
             </p>
             <div className="flex items-center gap-3 flex-wrap">
-              {hangout.joins.map(j => {
+              {hangout.joins.map((j: any) => {
                 const av = j.user.profilePhoto ? resolveImageUrl(j.user.profilePhoto) : null
                 return (
                   <Link key={j.user.id} href={`/members/${j.user.id}`} className="flex items-center gap-2 text-xs">
@@ -166,9 +172,9 @@ export default async function HangoutPermalinkPage({ params }: PageProps) {
             section. */}
         {hangout.messages.length > 0 && (
           <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Chat</p>
+            <p className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-3">Chat</p>
             <div className="space-y-3">
-              {hangout.messages.map(m => {
+              {hangout.messages.map((m: any) => {
                 const av = m.user.profilePhoto ? resolveImageUrl(m.user.profilePhoto) : null
                 return (
                   <div key={m.id} className="flex items-start gap-2.5">

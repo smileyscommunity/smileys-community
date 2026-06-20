@@ -2,33 +2,22 @@
 
 // Star/save toggle on each directory card. Optimistic toggle, rolls
 // back on a !ok response so the UI doesn't drift from the server.
-//
-// Anonymous viewers see a star button that links to /login?next=
-// instead of trying to POST — the API would 401 anyway, and bouncing
-// them to login is the natural conversion path.
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 
 export default function DirectorySaveButton({
-  businessId, businessName, initialSaved, isLoggedIn,
+  businessId, businessName, initialSaved,
 }: {
   businessId: string
   businessName: string
   initialSaved: boolean
-  isLoggedIn: boolean
 }) {
-  const router = useRouter()
   const [saved, setSaved] = useState(initialSaved)
   const [busy,  setBusy]  = useState(false)
 
   async function toggle(e: React.MouseEvent) {
     e.stopPropagation()
-    if (!isLoggedIn) {
-      router.push('/login?next=' + encodeURIComponent('/directory'))
-      return
-    }
     if (busy) return
     setBusy(true)
     const next = !saved
@@ -59,11 +48,11 @@ export default function DirectorySaveButton({
       onClick={toggle}
       disabled={busy}
       aria-label={saved ? `Unsave ${businessName}` : `Save ${businessName}`}
-      title={saved ? 'Saved' : isLoggedIn ? 'Save for later' : 'Log in to save'}
+      title={saved ? 'Saved' : 'Save for later'}
       className={`w-7 h-7 rounded-full flex items-center justify-center shadow-sm transition-all duration-150 ${
         saved
           ? 'bg-amber-500 text-white hover:bg-amber-600'
-          : 'bg-white/95 text-gray-500 hover:text-amber-600'
+          : 'bg-white/95 text-gray-600 hover:text-amber-600'
       } ${busy ? 'opacity-50' : ''}`}
     >
       {/* Filled vs outline star. Inline SVG so we don't pull a whole

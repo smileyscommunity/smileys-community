@@ -22,9 +22,14 @@ export async function GET(req: NextRequest, { params }: Params) {
           { fromId: session.id, toId: otherId },
           { fromId: otherId,    toId: session.id },
         ],
+        deletedAt: null,
         ...(since ? { createdAt: { gt: new Date(since) } } : {}),
       },
-      orderBy: { createdAt: 'asc' },
+      // Initial load: fetch last 100 in desc order and reverse — gives the
+      // most-recent 100 in chronological order without a two-query skip/take.
+      // Poll path (since provided): asc, no limit — incremental and small.
+      orderBy: { createdAt: since ? 'asc' : 'desc' },
+      take: since ? undefined : 100,
       include: {
         from: { select: { id: true, name: true, color: true, profilePhoto: true } },
         // Reactions ship with the message so the UI doesn't need a second
@@ -51,7 +56,8 @@ export async function GET(req: NextRequest, { params }: Params) {
       data:  { isRead: true },
     })
 
-    return NextResponse.json(messages)
+    // Initial load was fetched desc — reverse to chronological order for the client.
+    return NextResponse.json(since ? messages : [...messages].reverse())
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
@@ -180,7 +186,10 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     if (!msg) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     if (msg.fromId !== session.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-    await prisma.directMessage.delete({ where: { id: messageId } })
+    // Soft-delete — keep the row for abuse-report audit trail. The GET
+    // handler filters `deletedAt: null` so the message is hidden from
+    // both parties' views while remaining accessible to admins.
+    await prisma.directMessage.update({ where: { id: messageId }, data: { deletedAt: new Date() } })
     return NextResponse.json({ ok: true })
   } catch (e) {
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

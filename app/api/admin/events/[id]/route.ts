@@ -5,6 +5,7 @@ import { isAdmin, isAdminOrModerator, isClubHost, isClubHostFor } from '@/lib/ac
 import { createNotification } from '@/lib/notify'
 import { writeAudit, getDiff } from '@/lib/audit'
 import { sendEventCancelledEmail, recordEmailFailure } from '@/lib/email'
+import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -82,7 +83,8 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
     const ALLOWED_FIELDS = [
       'title', 'date', 'time', 'location', 'neighborhood', 'address', 'description',
-      'totalSpots', 'spotsLeft', 'price', 'memberPrice', 'emoji', 'isPremium',
+      ...(admin ? ['totalSpots', 'spotsLeft'] : []),
+      'price', 'memberPrice', 'emoji', 'isPremium',
       'membersOnly', 'limitedSpots', 'vibes', 'status', 'coverImage', 'coverImagePosition', 'meetingUrl',
       'whatsappUrl', 'minAge', 'maxAge', 'language', 'difficulty', 'refundPolicy',
       'registrationDeadline', 'endTime', 'currency', 'approvalRequired', 'isRecurring',
@@ -208,6 +210,11 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
     const event = await prisma.event.update({ where: { id }, data })
 
+    // If totalSpots changed, recompute spotsLeft so it reflects the new capacity
+    if (data.totalSpots !== undefined) {
+      await recomputeSpotsLeft(id, event.totalSpots)
+    }
+
     // Propagate changes to all future events in the same series (except date/time which are per-event)
     if (applyToSeries && before.seriesId) {
       const SERIES_EXCLUDED = new Set(['date', 'time', 'registrationDeadline', 'seriesId', 'tags'])
@@ -216,7 +223,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
         if (!SERIES_EXCLUDED.has(k)) seriesData[k] = v
       }
       if (Object.keys(seriesData).length > 0) {
-        const today = new Date().toISOString().split('T')[0]
+        const today = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Istanbul' })).toISOString().split('T')[0]
         await prisma.event.updateMany({
           where: { seriesId: before.seriesId, id: { not: id }, date: { gte: today } },
           data: seriesData,

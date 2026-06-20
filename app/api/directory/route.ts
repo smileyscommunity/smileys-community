@@ -3,23 +3,18 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
-import { rateLimit } from '@/lib/rateLimit'
+import { rateLimit, getIp } from '@/lib/rateLimit'
 import { isSafeHref } from '@/lib/safeUrl'
 import {
   BUSINESS_CATEGORY_SET,
   DIRECTORY_LIMITS,
   normalizeInstagramHandle,
-  attributionDisplay,
+  queryDirectory,
+  type DirectorySort,
 } from '@/lib/directory'
 import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
 
-// Allowlist for the neighborhood filter param so a garbage param
-// returns a clean 400 instead of an empty list (the previous behavior
-// silently dropped to zero rows, indistinguishable from "no
-// businesses match these filters yet").
 const NEIGHBORHOOD_SET: ReadonlySet<string> = new Set(ISTANBUL_NEIGHBORHOODS)
-
-const PAGE_SIZE = 200
 
 function str(v: unknown, max: number): string | null {
   if (typeof v !== 'string') return null
@@ -30,161 +25,41 @@ function str(v: unknown, max: number): string | null {
 
 export async function GET(req: NextRequest) {
   try {
-    // Public read — the directory is part of the marketing surface, like
-    // /events and /clubs. No session required. The POST handler below
-    // remains gated, so anonymous browsers can't submit.
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? req.headers.get('x-real-ip') ?? 'anon'
+    if (!await rateLimit(`directory:${ip}`, 60, 60_000)) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+    }
+
+    // Public read — no session required. POST remains gated.
     const session = await getSession()
     const { searchParams } = new URL(req.url)
     const category     = searchParams.get('category') || ''
-    const type         = searchParams.get('type') || ''
     const neighborhood = searchParams.get('neighborhood') || ''
-    // `sort` controls the order of the returned list:
-    //   - 'recent' (default): createdAt DESC, what we've always done
-    //   - 'trending': re-order so businesses with the most saves in the
-    //     last 7 days surface first, with createdAt DESC as the tiebreak
-    //     and the fallback for entries with zero saves in the window.
-    //     Uses the @@index([businessId, createdAt]) on BusinessSave.
-    const sort = searchParams.get('sort') === 'trending' ? 'trending' : 'recent'
+    const type         = searchParams.get('type') || ''
+    const sort         = (searchParams.get('sort') === 'trending' ? 'trending' : 'recent') as DirectorySort
+    const cursor       = searchParams.get('cursor') || undefined
 
-    const where: Record<string, unknown> = { isApproved: true, isActive: true }
-
-    // Validate `category` against the allowlist before passing to Prisma.
-    // Submitting a raw string here is harmless (Prisma parameterizes) but
-    // an invalid value returns 0 rows silently — easier to surface here.
-    if (category && category !== 'all') {
-      if (!BUSINESS_CATEGORY_SET.has(category)) {
-        return NextResponse.json({ error: 'Invalid category' }, { status: 400 })
-      }
-      where.category = category
+    if (category && category !== 'all' && !BUSINESS_CATEGORY_SET.has(category)) {
+      return NextResponse.json({ error: 'Invalid category' }, { status: 400 })
     }
-    if (neighborhood) {
-      if (!NEIGHBORHOOD_SET.has(neighborhood)) {
-        return NextResponse.json({ error: 'Invalid neighborhood' }, { status: 400 })
-      }
-      where.neighborhood = neighborhood
+    if (neighborhood && !NEIGHBORHOOD_SET.has(neighborhood)) {
+      return NextResponse.json({ error: 'Invalid neighborhood' }, { status: 400 })
     }
-    if (type === 'expat-owned')    where.isExpatOwned    = true
-    if (type === 'expat-friendly') where.isExpatFriendly = true
 
-    // The previous implementation also accepted a `search` param and
-    // server-filtered by it. The client never sent `search` — the
-    // /directory page filters in-memory across the up-to-200 list — so
-    // that branch was dead code. Removed: the client filter handles it.
-    // Total matching count for the X-Total-Count header — lets the
-    // client show "showing first 200 of N" without breaking the
-    // existing array response shape. Runs in parallel with findMany.
-    const totalCountPromise = prisma.business.count({ where })
+    const { items, nextCursor, total } = await queryDirectory({
+      category:     category || undefined,
+      neighborhood: neighborhood || undefined,
+      type:         type || undefined,
+      sort,
+      cursor,
+      callerId:     session?.id,
+    })
 
-    const businesses = await prisma.business.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      take: PAGE_SIZE,
-      select: {
-        id: true, name: true, category: true, description: true,
-        neighborhood: true, address: true, phone: true,
-        website: true, instagram: true, logo: true, coverImage: true,
-        isExpatOwned: true, isExpatFriendly: true, languages: true,
-        latitude: true, longitude: true,
-        hours: true, memberDiscount: true, tags: true,
-        // claimedById is selected for server-side computation of
-        // hasClaimedOwner + isMine; both booleans are derived below
-        // and the raw CUID is stripped from the response shape.
-        claimedById: true,
-        // Submitter name is exposed for the "Added by Sarah K." line.
-        // attributionDisplay() truncates the surname to a single
-        // letter before it leaves the server, so a public scraper
-        // can't enumerate which full-name member added what.
-        submittedBy: { select: { name: true } },
-        createdAt: true,
+    return NextResponse.json(items, {
+      headers: {
+        'X-Total-Count': String(total),
+        ...(nextCursor ? { 'X-Next-Cursor': nextCursor } : {}),
       },
-    })
-
-    // Aggregate ratings, save counts, and per-caller save flags. All
-    // computed via single groupBy / findMany passes — no N+1 over the
-    // business list. Hidden reviews are excluded so the average
-    // matches what the public sees on the detail card.
-    //
-    // The 4th aggregate (trendingSaves) only runs when sort='trending'.
-    // It counts saves in the last 7 days per business — the same
-    // BusinessSave table indexed on (businessId, createdAt) precisely
-    // for this query.
-    const ids = businesses.map(b => b.id)
-    const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60_000)
-    const [ratingStats, saveCounts, mySaves, trendingStats] = await Promise.all([
-      ids.length === 0 ? Promise.resolve([]) : prisma.businessReview.groupBy({
-        by: ['businessId'],
-        where: { businessId: { in: ids }, isHidden: false },
-        _avg: { rating: true },
-        _count: { _all: true },
-      }),
-      ids.length === 0 ? Promise.resolve([]) : prisma.businessSave.groupBy({
-        by: ['businessId'],
-        where: { businessId: { in: ids } },
-        _count: { _all: true },
-      }),
-      // Only query the caller's saves when there's a session — anonymous
-      // viewers get isSaved=false for every row without a DB round-trip.
-      ids.length === 0 || !session ? Promise.resolve([]) : prisma.businessSave.findMany({
-        where:  { userId: session.id, businessId: { in: ids } },
-        select: { businessId: true },
-      }),
-      // Per-business save count in the last 7 days. Only runs in
-      // trending mode — recent mode pays nothing for it.
-      ids.length === 0 || sort !== 'trending' ? Promise.resolve([]) : prisma.businessSave.groupBy({
-        by: ['businessId'],
-        where: { businessId: { in: ids }, createdAt: { gte: oneWeekAgo } },
-        _count: { _all: true },
-      }),
-    ])
-    const statsByBiz = new Map(
-      ratingStats.map(s => [s.businessId, {
-        avgRating:   s._avg.rating ?? null,
-        reviewCount: s._count._all,
-      }]),
-    )
-    const saveByBiz = new Map(saveCounts.map(s => [s.businessId, s._count._all]))
-    const savedSet  = new Set(mySaves.map(s => s.businessId))
-
-    // Strip the joined submittedBy row + the raw claimedById before
-    // returning. The original implementation selected claimedById:true
-    // and a scraper could correlate the CUID to the owner's other
-    // public surfaces (reviews, club posts, etc.) to de-anonymize
-    // every verified business owner. We now expose:
-    //   - hasClaimedOwner: boolean   (truthy badge state)
-    //   - isMine:          boolean   (only true for the calling owner)
-    // and keep the underlying user id server-side.
-    const enriched = businesses.map(b => {
-      const { submittedBy, claimedById, ...rest } = b
-      return {
-        ...rest,
-        avgRating:        statsByBiz.get(b.id)?.avgRating   ?? null,
-        reviewCount:      statsByBiz.get(b.id)?.reviewCount ?? 0,
-        saveCount:        saveByBiz.get(b.id)               ?? 0,
-        isSaved:          savedSet.has(b.id),
-        addedBy:          attributionDisplay(submittedBy?.name),
-        hasClaimedOwner:  claimedById !== null,
-        isMine:           session != null && claimedById === session.id,
-      }
-    })
-
-    // Trending sort: re-order the enriched list in place by recent save
-    // count (last 7 days) DESC, with the original createdAt order as
-    // the tiebreak / fallback for entries with zero recent saves. The
-    // findMany above already returned the rows in createdAt DESC, so
-    // a stable sort preserves that as the secondary key.
-    let response = enriched
-    if (sort === 'trending') {
-      const trendingByBiz = new Map(trendingStats.map(s => [s.businessId, s._count._all]))
-      response = [...enriched].sort((a, b) => {
-        const aT = trendingByBiz.get(a.id) ?? 0
-        const bT = trendingByBiz.get(b.id) ?? 0
-        return bT - aT
-      })
-    }
-
-    const total = await totalCountPromise
-    return NextResponse.json(response, {
-      headers: { 'X-Total-Count': String(total) },
     })
   } catch (e) {
     console.error('Directory GET error:', e)

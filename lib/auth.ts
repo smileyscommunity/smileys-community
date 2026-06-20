@@ -22,5 +22,6 @@ export interface AppUser {
   membershipType?: string
   profilePhoto?: string
   partnerId?: string | null
+  totpEnabled?: boolean
 }
 

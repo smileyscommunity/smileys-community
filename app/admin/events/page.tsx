@@ -7,6 +7,7 @@ import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { formatTime, resolveImageUrl, todayIstanbul, getInitials } from '@/lib/data'
 import { useAdminLoad } from '@/lib/admin/useAdminLoad'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
+import NotifyAttendeesModal from '@/components/admin/NotifyAttendeesModal'
 
 type TabKey = 'all' | 'upcoming' | 'pending' | 'archived'
 const TAB_KEYS: TabKey[] = ['all', 'upcoming', 'pending', 'archived']
@@ -36,11 +37,13 @@ function ActionsMenu({
   onStatusChange,
   onDuplicate,
   onDelete,
+  onNotify,
 }: {
   event: AdminEvent
   onStatusChange: (id: string, status: string) => void
   onDuplicate: (event: AdminEvent) => void
   onDelete: (event: AdminEvent) => void
+  onNotify: (event: AdminEvent, preset?: string) => void
 }) {
   const [open, setOpen] = useState(false)
   const statusOptions = [
@@ -71,6 +74,10 @@ function ActionsMenu({
               </button>
             ))}
             <div className="border-t border-zinc-700 mt-1 pt-1">
+              <button onClick={() => { setOpen(false); onNotify(event) }}
+                className="w-full text-left px-4 py-2 text-xs font-semibold text-amber-400 hover:bg-amber-500/10 transition-colors">
+                Notify attendees
+              </button>
               <button onClick={() => { setOpen(false); onDuplicate(event) }}
                 className="w-full text-left px-4 py-2 text-xs font-semibold text-zinc-400 hover:bg-zinc-700 hover:text-white transition-colors">
                 Duplicate
@@ -96,7 +103,7 @@ function ActionsMenu({
 // button styles stay in lockstep.
 function RowActions({
   event, isFeatured,
-  onApprove, onToggleFeatured, onStatusChange, onDuplicate, onDelete,
+  onApprove, onToggleFeatured, onStatusChange, onDuplicate, onDelete, onNotify,
 }: {
   event: AdminEvent
   isFeatured: boolean
@@ -105,6 +112,7 @@ function RowActions({
   onStatusChange: (id: string, status: string) => void
   onDuplicate: (e: AdminEvent) => void
   onDelete: (e: AdminEvent) => void
+  onNotify: (e: AdminEvent, preset?: string) => void
 }) {
   return (
     <>
@@ -126,7 +134,7 @@ function RowActions({
         className="px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-semibold transition-colors shrink-0">
         Edit
       </Link>
-      <ActionsMenu event={event} onStatusChange={onStatusChange} onDuplicate={onDuplicate} onDelete={onDelete} />
+      <ActionsMenu event={event} onStatusChange={onStatusChange} onDuplicate={onDuplicate} onDelete={onDelete} onNotify={onNotify} />
     </>
   )
 }
@@ -183,6 +191,17 @@ function AdminEventsPageInner() {
   const [clubFilter, setClubFilter] = useState(initialClub)
   const [dateFrom,   setDateFrom]   = useState(initialFrom)
   const [dateTo,     setDateTo]     = useState(initialTo)
+
+  // Notify-attendees modal — opened from the ⋯ menu or auto-fired when
+  // status changes to cancelled / postponed so the admin never forgets
+  // to tell people. preset matches a key in NotifyAttendeesModal's
+  // PRESETS list and pre-fills the textarea with an editable template.
+  const [notifyEvent,  setNotifyEvent]  = useState<AdminEvent | null>(null)
+  const [notifyPreset, setNotifyPreset] = useState<string | undefined>(undefined)
+  function openNotify(event: AdminEvent, preset?: string) {
+    setNotifyEvent(event)
+    setNotifyPreset(preset)
+  }
   const [selected,   setSelected]   = useState<Set<string>>(new Set())
   const [bulkBusy,   setBulkBusy]   = useState(false)
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null)
@@ -276,7 +295,7 @@ function AdminEventsPageInner() {
   const PATCH_STATUSES = new Set(['published', 'flagged', 'unpublished', 'pending'])
 
   async function handleStatusChange(id: string, newStatus: string) {
-    if (newStatus === 'cancelled' && !window.confirm('Cancel event? Attendees will be notified.')) return
+    if (newStatus === 'cancelled' && !window.confirm('Cancel event? You can notify attendees in the next step.')) return
     const method = PATCH_STATUSES.has(newStatus) ? 'PATCH' : 'PUT'
     const res = await fetch(`/app/api/admin/events/${id}`, {
       method, credentials: 'include',
@@ -286,6 +305,13 @@ function AdminEventsPageInner() {
     if (res.ok) {
       setEvents(prev => prev.map(e => e.id === id ? { ...e, status: newStatus } : e))
       toast.success(`Status → ${newStatus}`)
+      // Auto-open the notify modal for the two states whose business
+      // impact is on attendees, not on internal bookkeeping. Admin can
+      // edit or close — the status change is already committed.
+      if (newStatus === 'cancelled' || newStatus === 'postponed') {
+        const updated = events.find(e => e.id === id)
+        if (updated) openNotify({ ...updated, status: newStatus }, newStatus === 'cancelled' ? 'cancelled' : 'time_change')
+      }
     } else {
       const d = await res.json().catch(() => ({}))
       toast.error(d.error ?? 'Failed to update status')
@@ -414,12 +440,17 @@ function AdminEventsPageInner() {
     })
   }, [events, search, clubFilter, dateFrom, dateTo])
 
-  const visible = useMemo(() => baseFiltered.filter(e => {
-    if (tabStatus === 'upcoming') return isUpcoming(e)
-    if (tabStatus === 'archived') return e.status === 'archived'
-    if (tabStatus === 'pending')  return e.status === 'pending'
-    return true  // 'all'
-  }), [baseFiltered, tabStatus, isUpcoming])
+  const visible = useMemo(() => {
+    const filtered = baseFiltered.filter(e => {
+      if (tabStatus === 'upcoming') return isUpcoming(e)
+      if (tabStatus === 'archived') return e.status === 'archived'
+      if (tabStatus === 'pending')  return e.status === 'pending'
+      return true  // 'all'
+    })
+    // Upcoming: soonest first. Past/All: latest first.
+    if (tabStatus === 'upcoming') return filtered
+    return [...filtered].sort((a, b) => b.date.localeCompare(a.date))
+  }, [baseFiltered, tabStatus, isUpcoming])
 
   const { upcomingCount, pendingCount, archivedCount } = useMemo(() => ({
     upcomingCount: baseFiltered.filter(isUpcoming).length,
@@ -630,7 +661,7 @@ function AdminEventsPageInner() {
           {visible.map(event => {
             const host       = event.host
             const club       = clubs.find(c => c.id === event.clubId)
-            const goingCount = event._count.attendees
+            const goingCount = event.totalSpots - event.spotsLeft
             const fillPct    = event.totalSpots > 0 ? Math.round((goingCount / event.totalSpots) * 100) : 0
             const isPast     = event.date < today
             const isFeatured = event.featured
@@ -730,7 +761,7 @@ function AdminEventsPageInner() {
                   <div className="flex items-center justify-end gap-1.5 -mr-1">
                     <RowActions event={event} isFeatured={isFeatured}
                       onApprove={approveEvent} onToggleFeatured={toggleFeatured}
-                      onStatusChange={handleStatusChange} onDuplicate={handleDuplicate} onDelete={handleDelete} />
+                      onStatusChange={handleStatusChange} onDuplicate={handleDuplicate} onDelete={handleDelete} onNotify={openNotify} />
                   </div>
                 </div>
 
@@ -817,7 +848,7 @@ function AdminEventsPageInner() {
                   <div className="col-span-3 flex items-center justify-end gap-1.5">
                     <RowActions event={event} isFeatured={isFeatured}
                       onApprove={approveEvent} onToggleFeatured={toggleFeatured}
-                      onStatusChange={handleStatusChange} onDuplicate={handleDuplicate} onDelete={handleDelete} />
+                      onStatusChange={handleStatusChange} onDuplicate={handleDuplicate} onDelete={handleDelete} onNotify={openNotify} />
                   </div>
                 </div>
 
@@ -832,6 +863,12 @@ function AdminEventsPageInner() {
           </div>
         )}
       </div>
+
+      <NotifyAttendeesModal
+        event={notifyEvent && { id: notifyEvent.id, title: notifyEvent.title, attendeeCount: notifyEvent._count.attendees }}
+        preset={notifyPreset}
+        onClose={() => { setNotifyEvent(null); setNotifyPreset(undefined) }}
+      />
     </div>
   )
 }

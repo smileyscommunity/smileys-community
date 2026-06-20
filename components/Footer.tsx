@@ -11,7 +11,7 @@ interface FooterProps {
 const DEFAULT_STATS = [
   { value: '4,000+', label: 'members'      },
   { value: '500+',   label: 'events hosted' },
-  { value: '140+',   label: 'active clubs'  },
+  { value: '120+',   label: 'active clubs'  },
 ]
 
 export default function Footer({ stats }: FooterProps) {

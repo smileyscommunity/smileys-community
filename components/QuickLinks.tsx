@@ -13,14 +13,17 @@ interface LinkItem {
 
 const BASE_LINKS: LinkItem[] = [
   { label: 'My tickets & QR',   href: '/my-events',       icon: '🎟' },
-  { label: 'Profile visitors',  href: '/profile-visitors', icon: '👀' },
-  { label: 'Member Card',       href: '/card',             icon: '🪪' },
-  { label: 'Istanbul Guide',    href: '/guide',            icon: '🗺️' },
   { label: 'Browse events',     href: '/events',           icon: '🗓️' },
-  { label: 'Community Board',   href: '/listings',         icon: '📋' },
   { label: 'Explore clubs',     href: '/clubs',            icon: '🏛️' },
   { label: 'Meet members',      href: '/members',          icon: '🤝' },
+  // neighborhood wall injected here when available
+  { label: 'Profile visitors',  href: '/profile-visitors', icon: '👀' },
   { label: 'Notifications',     href: '/notifications',    icon: '🔔' },
+  { label: 'Member Card',       href: '/card',             icon: '🪪' },
+  { label: 'Community Board',   href: '/listings',         icon: '📋' },
+  { label: 'Istanbul Guide',    href: '/guide',            icon: '🗺️' },
+  { label: 'The Handbook',      href: '/handbook',         icon: '📖' },
+  { label: 'Community Rules',   href: '/guidelines',       icon: '📜' },
   { label: 'Install App',       href: '#install',          icon: '📲', isAction: true },
 ]
 
@@ -29,7 +32,7 @@ export default function QuickLinks() {
   const wallLink: LinkItem | null = user.neighborhood
     ? { label: `${user.neighborhood} wall`, href: `/neighborhoods/${neighborhoodToSlug(user.neighborhood)}#wall`, icon: '📍' }
     : null
-  const LINKS = wallLink ? [BASE_LINKS[0], wallLink, ...BASE_LINKS.slice(1)] : BASE_LINKS
+  const LINKS = wallLink ? [...BASE_LINKS.slice(0, 4), wallLink, ...BASE_LINKS.slice(4)] : BASE_LINKS
   return (
     <div className="bg-white rounded-2xl shadow-card p-5">
       <h2 className="text-base font-bold text-gray-900 mb-3">Quick links</h2>

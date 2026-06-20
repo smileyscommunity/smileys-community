@@ -43,7 +43,7 @@ export default function AppealPage() {
             <div className="text-center py-4">
               <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-5 text-3xl">✓</div>
               <h1 className="text-xl font-extrabold text-gray-900 mb-2">Appeal submitted</h1>
-              <p className="text-sm text-gray-500 mb-6">
+              <p className="text-sm text-gray-600 mb-6">
                 We've received your appeal and will review it personally. If we decide to restore your account, you'll receive an email.
               </p>
               <Link href="/login" className="text-sm font-semibold text-amber-600 hover:underline">
@@ -55,7 +55,7 @@ export default function AppealPage() {
               <div className="mb-6">
                 <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mb-4 text-2xl">🚫</div>
                 <h1 className="text-xl font-extrabold text-gray-900 mb-1">Appeal your ban</h1>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-gray-600">
                   If you believe your account was suspended in error, tell us why. We review every appeal personally.
                 </p>
               </div>
@@ -70,14 +70,14 @@ export default function AppealPage() {
                 <input type="text" name="website" value={honeypot} onChange={e => setHoneypot(e.target.value)}
                   tabIndex={-1} autoComplete="off" style={{ position: 'absolute', left: '-9999px', opacity: 0, height: 0 }} />
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1.5">Email address</label>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Email address</label>
                   <input
                     type="email" value={email} onChange={e => setEmail(e.target.value)}
                     placeholder="you@example.com" required className={inputCls}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1.5">Your appeal</label>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Your appeal</label>
                   <textarea
                     value={note} onChange={e => setNote(e.target.value)}
                     placeholder="Explain why you believe the ban was unfair or what has changed since…"

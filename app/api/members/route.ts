@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { rateLimit } from '@/lib/rateLimit'
 
 const PAGE_SIZE = 100
 
@@ -8,52 +10,80 @@ export async function GET(req: NextRequest) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  if (!await rateLimit(`members:${session.id}`, 60, 60_000)) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+  }
+
   const offset    = parseInt(req.nextUrl.searchParams.get('offset') ?? '0') || 0
   const isHost    = req.nextUrl.searchParams.get('isHost') === 'true'
   const adminOnly = req.nextUrl.searchParams.get('adminOnly') === 'true'
-  // ?openTo=coffee | language | hosting — narrows to members who've opted in.
+  const savedOnly = req.nextUrl.searchParams.get('savedOnly') === 'true'
   const openTo    = req.nextUrl.searchParams.get('openTo')
-  // ?search= — case-insensitive substring match against name + neighborhood +
-  // nationality. Without this the client-side filter could only find what
-  // was already on screen, so a name beyond the first PAGE_SIZE rows of
-  // joinedAt-desc never matched.
   const search    = req.nextUrl.searchParams.get('search')?.trim() ?? ''
-  const openFilter =
+
+  const openFilter: Prisma.UserWhereInput =
     openTo === 'coffee'   ? { openToCoffee:   true } :
     openTo === 'language' ? { openToLanguage: true } :
     openTo === 'hosting'  ? { openToHosting:  true } :
     {}
-  const searchFilter = search ? {
+
+  const searchFilter: Prisma.UserWhereInput = search ? {
     OR: [
-      { name:         { contains: search, mode: 'insensitive' as const } },
-      { neighborhood: { contains: search, mode: 'insensitive' as const } },
-      { nationality:  { contains: search, mode: 'insensitive' as const } },
+      { name:         { contains: search, mode: 'insensitive' } },
+      { neighborhood: { contains: search, mode: 'insensitive' } },
+      { nationality:  { contains: search, mode: 'insensitive' } },
     ],
   } : {}
 
-  const roleIn = ['member', 'moderator', 'admin'] as string[]
-  const where = {
-    ...openFilter,
-    ...searchFilter,
-    ...(isHost
-      ? { status: 'approved', role: { in: roleIn }, clubMemberships: { some: { role: 'host', status: 'approved' } } }
-      : adminOnly
-      ? { status: 'approved', role: 'admin' }
-      : { status: 'approved', role: { in: roleIn } }),
-  }
+  // For savedOnly: collect the viewer's saved member IDs first.
+  const savedIds = savedOnly
+    ? (await prisma.memberSave.findMany({
+        where:  { userId: session.id },
+        select: { savedId: true },
+      })).map(s => s.savedId)
+    : null
 
   // Get IDs the current user has blocked or is blocked by
   const blockRelations = await prisma.memberBlock.findMany({
     where: { OR: [{ blockerId: session.id }, { blockedId: session.id }] },
     select: { blockerId: true, blockedId: true },
   })
-  const blockedIds = new Set(blockRelations.map(b => b.blockerId === session.id ? b.blockedId : b.blockerId))
+  const blockedIds = [...new Set(blockRelations.map(b =>
+    b.blockerId === session.id ? b.blockedId : b.blockerId
+  ))]
 
-  const whereWithBlock = { ...where, id: { notIn: [...blockedIds] } }
+  const roleIn = ['member', 'moderator', 'admin']
 
-  const [members, total, hostTotal, adminTotal] = await Promise.all([
+  // Build the full where — each clause is ANDed together by Prisma's default.
+  // Using an explicit AND array avoids TypeScript inference issues when mixing
+  // OR/NOT with dynamic conditions at the same level.
+  const where: Prisma.UserWhereInput = {
+    AND: [
+      // Exclude members who've set profileVisibility:'connections' — they
+      // opted out of general member discovery. Always include the viewer.
+      {
+        OR: [
+          { profileVisibility: 'everyone' },
+          { id: session.id },
+        ],
+      },
+      // Exclude blocked users (and users who blocked the viewer).
+      blockedIds.length > 0 ? { id: { notIn: blockedIds } } : {},
+      openFilter,
+      searchFilter,
+      savedOnly && savedIds !== null
+        ? { id: { in: savedIds }, status: 'approved', role: { in: roleIn } }
+        : isHost
+        ? { status: 'approved', role: { in: roleIn }, clubMemberships: { some: { role: 'host', status: 'approved' } } }
+        : adminOnly
+        ? { status: 'approved', role: 'admin' }
+        : { status: 'approved', role: { in: roleIn } },
+    ],
+  }
+
+  const [members, total, hostTotal, adminTotal, savedTotal] = await Promise.all([
     prisma.user.findMany({
-      where: whereWithBlock,
+      where,
       orderBy: { joinedAt: 'desc' },
       take: PAGE_SIZE,
       skip: offset,
@@ -73,8 +103,7 @@ export async function GET(req: NextRequest) {
         _count: { select: { joinedEvents: { where: { status: 'approved' } } } },
       },
     }),
-    prisma.user.count({ where: whereWithBlock }),
-    // Count users who are a host in at least one club
+    prisma.user.count({ where }),
     prisma.user.count({
       where: {
         status: 'approved',
@@ -84,6 +113,7 @@ export async function GET(req: NextRequest) {
     prisma.user.count({
       where: { status: 'approved', role: 'admin' },
     }),
+    prisma.memberSave.count({ where: { userId: session.id } }),
   ])
 
   const result = members.map(m => ({
@@ -98,5 +128,5 @@ export async function GET(req: NextRequest) {
     eventsCount: m._count.joinedEvents,
   }))
 
-  return NextResponse.json({ members: result, total, hostTotal, adminTotal, hasMore: offset + PAGE_SIZE < total, isFiltered: isHost || adminOnly })
+  return NextResponse.json({ members: result, total, hostTotal, adminTotal, savedTotal, hasMore: offset + PAGE_SIZE < total, isFiltered: isHost || adminOnly || savedOnly })
 }

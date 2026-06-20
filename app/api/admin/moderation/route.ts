@@ -26,7 +26,17 @@ export async function GET() {
       },
     })
 
-    return NextResponse.json(reports)
+    // Attach event title for reports that carry an eventId (e.g. post-event survey flags).
+    const eventIds = [...new Set(reports.flatMap(r => r.eventId ? [r.eventId] : []))]
+    const events = eventIds.length
+      ? await prisma.event.findMany({ where: { id: { in: eventIds } }, select: { id: true, title: true } })
+      : []
+    const eventMap = new Map(events.map(e => [e.id, e]))
+
+    return NextResponse.json(reports.map(r => ({
+      ...r,
+      event: r.eventId ? (eventMap.get(r.eventId) ?? null) : null,
+    })))
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

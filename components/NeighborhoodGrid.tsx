@@ -149,7 +149,7 @@ function NeighborhoodCard({ n, cardBg, cardBorder }: { n: NeighborhoodItem; card
 
       {/* Next event */}
       {n.nextEvent && (
-        <div className="flex items-center gap-1.5 text-xs text-gray-500 bg-white/70 rounded-lg px-2 py-1.5 min-w-0">
+        <div className="flex items-center gap-1.5 text-xs text-gray-600 bg-white/70 rounded-lg px-2 py-1.5 min-w-0">
           <span className="shrink-0">{n.nextEvent.emoji}</span>
           <span className="truncate font-medium text-gray-700">{n.nextEvent.title}</span>
           <span className="shrink-0 text-gray-400">· {fmt(n.nextEvent.date)}</span>
@@ -162,7 +162,7 @@ function NeighborhoodCard({ n, cardBg, cardBorder }: { n: NeighborhoodItem; card
           {n.signal.icon} {n.signal.label}
         </span>
         {n.eventCount > 0 && (
-          <span className="text-[11px] font-semibold text-gray-500 bg-white/70 px-2 py-0.5 rounded-full">
+          <span className="text-[11px] font-semibold text-gray-600 bg-white/70 px-2 py-0.5 rounded-full">
             {n.eventCount} event{n.eventCount !== 1 ? 's' : ''}
           </span>
         )}
@@ -201,7 +201,7 @@ export default function NeighborhoodGrid({ groups }: { groups: Group[] }) {
     <div className="space-y-8">
       {/* Stats + Search + Filter */}
       <div className="space-y-4">
-        <div className="flex items-center gap-5 text-sm text-gray-500">
+        <div className="flex items-center gap-5 text-sm text-gray-600">
           <span><strong className="text-gray-900 font-bold">{groups.flatMap(g => g.items).length}</strong> neighborhoods</span>
           {totalEvents  > 0 && <span><strong className="text-gray-900 font-bold">{totalEvents}</strong> upcoming events</span>}
           {totalMembers > 0 && <span><strong className="text-gray-900 font-bold">{totalMembers}</strong> local members</span>}
@@ -246,11 +246,11 @@ export default function NeighborhoodGrid({ groups }: { groups: Group[] }) {
         filtered.length === 0 ? (
           <div className="text-center py-16">
             <div className="text-4xl mb-3">🔍</div>
-            <p className="text-gray-500 text-sm">No neighborhoods match "{query}"</p>
+            <p className="text-gray-600 text-sm">No neighborhoods match "{query}"</p>
           </div>
         ) : (
           <div>
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-5">
+            <p className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-5">
               {filtered.length} result{filtered.length !== 1 ? 's' : ''}
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -268,7 +268,7 @@ export default function NeighborhoodGrid({ groups }: { groups: Group[] }) {
           {featured.length > 0 && !activeSide && (
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Happening now</span>
+                <span className="text-xs font-bold text-gray-600 uppercase tracking-widest">Happening now</span>
                 <div className="flex-1 h-px bg-gray-100" />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

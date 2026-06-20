@@ -17,22 +17,33 @@ export async function GET() {
 
     const hostId = session.id
 
+    // Same event scope as /api/host/events: own events + co-hosted + club events
+    const hostClubs = await prisma.clubMembership.findMany({
+      where: { userId: hostId, role: 'host', status: 'approved' },
+      select: { clubId: true },
+    })
+    const clubIds = hostClubs.map(m => m.clubId)
+
+    const eventWhere = {
+      OR: [
+        { hostId },
+        ...(clubIds.length > 0 ? [{ clubId: { in: clubIds } }] : []),
+      ],
+    }
+
     const [events, reviews, attendeeStats] = await Promise.all([
-      // Total events count
-      prisma.event.count({ where: { hostId } }),
-      
-      // Average rating across all events hosted by this user
+      prisma.event.count({ where: eventWhere }),
+
       prisma.review.aggregate({
-        where: { event: { hostId } },
+        where: { event: eventWhere },
         _avg: { rating: true },
-        _count: { rating: true }
+        _count: { rating: true },
       }),
 
-      // Total attendees and unique members reached
       prisma.eventAttendee.findMany({
-        where: { event: { hostId }, status: 'approved' },
-        select: { userId: true }
-      })
+        where: { event: eventWhere, status: 'approved' },
+        select: { userId: true },
+      }),
     ])
 
     const totalAttendees = attendeeStats.length

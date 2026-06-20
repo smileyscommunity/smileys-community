@@ -2,6 +2,16 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { resolveImageUrl, getInitials } from '@/lib/data'
+import MentionTextarea, { MentionInput } from '@/components/MentionTextarea'
+
+function renderContent(text: string) {
+  const parts = text.split(/(@\w+)/g)
+  return parts.map((part, i) =>
+    /^@\w+$/.test(part)
+      ? <span key={i} className="font-semibold text-amber-600">{part}</span>
+      : <span key={i}>{part}</span>
+  )
+}
 
 interface Author {
   id: string; name: string; color: string; photo: string | null; role: string
@@ -145,7 +155,7 @@ function PostRow({
             {canEdit && (
               <div className="relative shrink-0" ref={menuRef}>
                 <button onClick={() => setMenu(v => !v)}
-                  className="p-0.5 rounded text-gray-300 hover:text-gray-500 transition-colors">
+                  className="p-0.5 rounded text-gray-300 hover:text-gray-600 transition-colors">
                   <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
                     <circle cx="12" cy="5" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="12" cy="19" r="1.5" />
                   </svg>
@@ -170,7 +180,7 @@ function PostRow({
 
           {/* Content */}
           {post.content && (
-            <p className="text-xs text-gray-700 mt-0.5 leading-relaxed whitespace-pre-wrap break-words">{post.content}</p>
+            <p className="text-xs text-gray-700 mt-0.5 leading-relaxed whitespace-pre-wrap break-words">{renderContent(post.content)}</p>
           )}
           {post.imageUrl && (
             <img src={resolveImageUrl(post.imageUrl)} alt="" className="mt-1.5 rounded-lg max-h-48 object-cover w-full" />
@@ -181,7 +191,7 @@ function PostRow({
             {allReactions.map(r => (
               <button key={r.emoji} onClick={() => react(r.emoji)}
                 className={`flex items-center gap-0.5 text-[11px] px-1.5 py-0.5 rounded-full border transition-colors ${
-                  r.reactedByMe ? 'bg-amber-50 border-amber-200 text-amber-700 font-semibold' : 'bg-gray-50 border-gray-200 text-gray-500 hover:border-gray-300'
+                  r.reactedByMe ? 'bg-amber-50 border-amber-200 text-amber-700 font-semibold' : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-gray-300'
                 }`}>
                 {r.emoji} {r.count}
               </button>
@@ -234,7 +244,7 @@ function PostRow({
                         </button>
                       )}
                     </div>
-                    <p className="text-[11px] text-gray-600 mt-0.5 leading-relaxed break-words">{r.content}</p>
+                    <p className="text-[11px] text-gray-600 mt-0.5 leading-relaxed break-words">{renderContent(r.content)}</p>
                   </div>
                 </div>
               ))}
@@ -257,11 +267,11 @@ function PostRow({
           {replyOpen && (
             <div className="mt-1.5 pl-3 border-l-2 border-amber-200">
               <div className="flex gap-1.5 items-center">
-                <input type="text" value={replyText} onChange={e => setReplyText(e.target.value)}
+                <MentionInput value={replyText} onChange={setReplyText}
                   onKeyDown={e => { if (e.key === 'Enter') submitReply(); if (e.key === 'Escape') setReplyOpen(false) }}
                   placeholder="Reply… (Enter to post)"
                   maxLength={1000} autoFocus
-                  className="flex-1 text-xs px-2.5 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 text-gray-900 placeholder-gray-400"
+                  className="text-xs px-2.5 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 text-gray-900 placeholder-gray-400"
                 />
                 <button onClick={submitReply} disabled={!replyText.trim() || replying}
                   className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg disabled:opacity-40 transition-colors shrink-0">
@@ -306,7 +316,6 @@ export default function NeighborhoodWall({ slug, myId, isStaff, name }: Props) {
   const [posting,        setPosting]        = useState(false)
   const [error,          setError]          = useState('')
   const [composeOpen,    setComposeOpen]    = useState(false)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     fetch(`/app/api/neighborhoods/${slug}/posts`, { credentials: 'include' })
@@ -315,10 +324,6 @@ export default function NeighborhoodWall({ slug, myId, isStaff, name }: Props) {
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [slug])
-
-  useEffect(() => {
-    if (composeOpen) textareaRef.current?.focus()
-  }, [composeOpen])
 
   async function submit() {
     if (!text.trim() || posting) return
@@ -368,7 +373,7 @@ export default function NeighborhoodWall({ slug, myId, isStaff, name }: Props) {
 
   if (!myId) {
     return (
-      <div className="text-center py-8 text-gray-500 text-sm">
+      <div className="text-center py-8 text-gray-600 text-sm">
         Log in to see and post on the {name} wall.
       </div>
     )
@@ -386,14 +391,10 @@ export default function NeighborhoodWall({ slug, myId, isStaff, name }: Props) {
           </button>
         ) : (
           <div>
-            <textarea
-              ref={textareaRef}
-              value={text}
-              onChange={e => setText(e.target.value)}
+            <MentionTextarea value={text} onChange={setText}
               onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit() }}
               placeholder={`Share a tip, event, or shout-out in ${name}…`}
-              rows={3}
-              maxLength={2000}
+              rows={3} maxLength={2000} autoFocus
               className="w-full text-sm text-gray-900 placeholder-gray-400 border border-gray-200 rounded-xl p-3 outline-none focus:ring-2 focus:ring-amber-400 resize-none leading-relaxed"
             />
             {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
@@ -401,7 +402,7 @@ export default function NeighborhoodWall({ slug, myId, isStaff, name }: Props) {
               <span className="text-xs text-gray-400">{text.length > 0 ? `${text.length} / 2000` : '⌘+Enter to post'}</span>
               <div className="flex gap-2">
                 <button onClick={() => { setComposeOpen(false); setText(''); setError('') }}
-                  className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700 transition-colors">
+                  className="px-3 py-1.5 text-xs text-gray-600 hover:text-gray-700 transition-colors">
                   Cancel
                 </button>
                 <button onClick={submit} disabled={!text.trim() || posting}
@@ -433,7 +434,7 @@ export default function NeighborhoodWall({ slug, myId, isStaff, name }: Props) {
       ) : posts.length === 0 ? (
         <div className="text-center py-10">
           <div className="text-3xl mb-2">📝</div>
-          <p className="text-gray-500 text-sm font-medium">No posts yet</p>
+          <p className="text-gray-600 text-sm font-medium">No posts yet</p>
           <p className="text-gray-400 text-xs mt-1">Be the first to post something about {name}!</p>
         </div>
       ) : (

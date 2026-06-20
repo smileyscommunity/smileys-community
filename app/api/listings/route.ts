@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
   const category     = searchParams.get('category') || undefined
   const neighborhood = searchParams.get('neighborhood') || undefined
   const saved        = searchParams.get('saved') === 'true'
+  const mine         = searchParams.get('mine') === 'true'
   const q            = searchParams.get('q')?.trim() || undefined
   const offset       = parseInt(searchParams.get('offset') || '0', 10)
 
@@ -34,11 +35,17 @@ export async function GET(req: NextRequest) {
       : { id: '__never__' }
     : {}
 
+  // ?mine=true — show the current user's own listings including expired/filled
+  // so they can see and manage everything they've posted.
+  const mineFilter = mine && session ? { userId: session.id } : {}
+  const statusFilter = mine ? {} : { status: 'active' }
+
   const where = {
-    status: 'active',
+    ...statusFilter,
     ...(category ? { category } : {}),
     ...(neighborhood ? { neighborhood } : {}),
     ...savedFilter,
+    ...mineFilter,
     ...(q ? { OR: [
       { title:       { contains: q, mode: 'insensitive' as const } },
       { description: { contains: q, mode: 'insensitive' as const } },
@@ -79,7 +86,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Too many listings. Try again in a minute.' }, { status: 429 })
   }
 
-  const { category, title, description, price, photo, contact, neighborhood } = await req.json()
+  const { category, title, description, price, photo, photoPosition, contact, neighborhood } = await req.json()
 
   const VALID_CATEGORIES = ['ROOMS', 'JOBS', 'BUY_SELL', 'SERVICES', 'FREE', 'RECO']
   if (!category || !VALID_CATEGORIES.includes(category)) {
@@ -110,6 +117,7 @@ export async function POST(req: NextRequest) {
       description: description.trim(),
       price: price?.trim() || null,
       photo: safePhoto,
+      photoPosition: typeof photoPosition === 'number' && photoPosition >= 0 && photoPosition <= 100 ? Math.round(photoPosition) : 50,
       contact: safeContact,
       neighborhood: safeNeighborhood,
       expiresAt,

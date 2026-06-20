@@ -2,12 +2,17 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { canModerateEventQueue, isAdmin } from '@/lib/access'
+import { rateLimit } from '@/lib/rateLimit'
 
 export async function GET() {
   try {
     const session = await getSession()
     if (!session || !canModerateEventQueue(session)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    if (!await rateLimit(`event-approval-queue:${session.id}`, 60, 60_000)) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
     }
 
     // City-scope: moderators only see events in their own city. Admins

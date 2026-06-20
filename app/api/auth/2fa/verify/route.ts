@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
     createSession(
       { id: user.id, name: user.name, email: user.email, role: user.role,
         color: user.color, partnerId: user.partnerId || undefined, tokenVersion: user.tokenVersion },
-      { userAgent: req.headers.get('user-agent'), ip: getIp(req) },
+      { userAgent: req.headers.get('user-agent'), ip: getIp(req), totpVerified: true },
     ),
     prisma.user.update({ where: { id: user.id }, data: userUpdate }),
     prisma.totpBackupCode.count({ where: { userId: user.id, used: false } }),
@@ -107,7 +107,7 @@ export async function POST(req: NextRequest) {
     id: user.id, name: user.name, email: user.email, role: user.role,
     color: user.color, initials, bio: user.bio, neighborhood: user.neighborhood,
     instagram: user.instagram, emailVerified: user.emailVerified, isClubHost,
-    partnerId: user.partnerId,
+    partnerId: user.partnerId, totpEnabled: true,
     // UI uses these to warn after a backup-code login: "You just used a
     // recovery code. N remain. Regenerate at /settings/2fa."
     usedBackupCode,

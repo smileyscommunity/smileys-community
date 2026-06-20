@@ -183,7 +183,7 @@ export default function RSVPButton({ eventId, hostId, spotsLeft, price, memberPr
           onClick={() => setConfirmCancel(false)}>
           <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full" onClick={e => e.stopPropagation()}>
             <h3 className="font-bold text-gray-900 text-lg mb-2">Cancel your spot?</h3>
-            <p className="text-sm text-gray-500 mb-1">
+            <p className="text-sm text-gray-600 mb-1">
               This event costs <strong>{sym}{price}</strong>. Cancelling now may forfeit your payment depending on the refund policy.
             </p>
             <p className="text-xs text-gray-400 mb-5">If you paid, contact the organiser to arrange a refund.</p>

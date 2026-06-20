@@ -30,8 +30,9 @@ export async function GET() {
           bio: true, neighborhood: true, instagram: true, linkedin: true, lookingFor: true, profileVisibility: true,
           phone: true, gender: true, nationality: true, languages: true, interests: true, socialStyles: true,
           status: true, membershipType: true, profilePhoto: true, lastActive: true,
-          partnerId: true, suspendedUntil: true,
+          partnerId: true, suspendedUntil: true, totpEnabled: true,
           openToCoffee: true, openToLanguage: true, openToHosting: true,
+          industry: true, professionalRole: true, professionalStatus: true,
         },
       }),
       prisma.clubMembership.count({
@@ -87,10 +88,32 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json()
     const allowed = ['name', 'bio', 'neighborhood', 'instagram', 'linkedin', 'lookingFor', 'color',
                      'phone', 'gender', 'nationality', 'languages', 'interests', 'profileVisibility', 'socialStyles', 'emailMarketing',
-                     'openToCoffee', 'openToLanguage', 'openToHosting']
+                     'openToCoffee', 'openToLanguage', 'openToHosting',
+                     'industry', 'professionalRole', 'professionalStatus']
     const data: Record<string, unknown> = {}
     for (const key of allowed) {
       if (key in body) data[key] = body[key]
+    }
+
+    // Normalise professional fields. Empty strings → null so members
+    // can clear them cleanly; status validated against the closed set
+    // so an attacker can't poison the value used downstream by the
+    // Pro directory filter.
+    const PRO_STATUSES = new Set(['social_only', 'open_to_networking', 'hiring', 'seeking_advice'])
+    for (const key of ['industry', 'professionalRole']) {
+      if (key in data) {
+        const v = data[key]
+        if (v === null || v === '') data[key] = null
+        else if (typeof v !== 'string' || v.length > 60) return NextResponse.json({ error: `${key} invalid` }, { status: 400 })
+        else data[key] = v.trim()
+      }
+    }
+    if ('professionalStatus' in data) {
+      const v = data.professionalStatus
+      if (v === null || v === '') data.professionalStatus = null
+      else if (typeof v !== 'string' || !PRO_STATUSES.has(v)) {
+        return NextResponse.json({ error: 'professionalStatus invalid' }, { status: 400 })
+      }
     }
 
     // profilePhoto must be a local upload path or empty

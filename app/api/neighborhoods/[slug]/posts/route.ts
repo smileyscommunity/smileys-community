@@ -4,6 +4,26 @@ import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
 import { slugToNeighborhood } from '@/lib/neighborhoods'
 import { buildReactions, buildAuthor } from '@/lib/posts'
+import { createNotification } from '@/lib/notify'
+
+async function notifyMentions(content: string, excludeUserId: string, authorName: string, link: string) {
+  const matches = [...content.matchAll(/@(\w+)/g)].map(m => m[1])
+  if (!matches.length) return
+  const users = await prisma.user.findMany({
+    where: {
+      status: 'approved',
+      id:     { not: excludeUserId },
+      OR: matches.map(word => ({ name: { startsWith: word, mode: 'insensitive' as const } })),
+    },
+    select: { id: true },
+  })
+  if (!users.length) return
+  await Promise.allSettled(
+    users.map(u =>
+      createNotification(u.id, 'neighborhood_mention', `${authorName} mentioned you`, content.slice(0, 120), link)
+    )
+  )
+}
 
 type Params = { params: Promise<{ slug: string }> }
 
@@ -71,6 +91,9 @@ export async function POST(req: NextRequest, { params }: Params) {
     data: { neighborhood, userId: session.id, content: trimmed, imageUrl: imageUrl ?? null },
     include: { user: { select: { id: true, name: true, color: true, profilePhoto: true, role: true } } },
   })
+
+  const link = `/neighborhoods/${slug}`
+  notifyMentions(trimmed, session.id, session.name, link).catch(() => {})
 
   return NextResponse.json({
     id: post.id, content: post.content, imageUrl: post.imageUrl,

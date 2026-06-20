@@ -1,0 +1,47 @@
+{
+  "tagline": "A calm, coastal Asian side neighbourhood between Maltepe and Bostancı — seafront promenades, a relaxed pace, and some of the most pleasant residential streets on the southern coast.",
+  "places": [
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "İdealtepe Sahili",
+          "description": "A quiet stretch of the Marmara coastline with a promenade, benches, and sea views extending to the Princes' Islands. Best at sunset.",
+          "address": "İdealtepe Sahili, Maltepe",
+          "badge": "Smileys Pick",
+          "tip": "Walk south along the coast towards Bostancı for a longer seafront stroll away from the busier sections."
+        }
+      ]
+    },
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Sahil Kafeleri",
+          "description": "Small cafés along the seafront road with outdoor seating and views of the Marmara. A pleasant spot for a slow afternoon coffee.",
+          "address": "İdealtepe Sahili, Maltepe"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Semt Lokantalari",
+          "description": "Neighbourhood restaurants serving solid Turkish food at local prices — reliable, unpretentious, and popular with residents.",
+          "address": "İdealtepe, Maltepe",
+          "badge": "Smileys Pick"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "İdealtepe is on the commuter rail (Marmaray) and close to Maltepe's M4 metro stop.",
+    "One of the quieter coastal neighbourhoods — a good choice if you want seaside living without the Bostancı or Caddebostan bustle.",
+    "Rents are lower here than in Bostancı or Caddebostan for nearly the same coastline access.",
+    "The seafront is lovely for an evening walk regardless of where you're based."
+  ]
+}

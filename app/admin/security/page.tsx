@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 
 interface SecurityOverview {
@@ -61,6 +62,9 @@ function uaLabel(ua: string | null): string {
 }
 
 export default function AdminSecurityPage() {
+  const searchParams = useSearchParams()
+  const require2fa   = searchParams.get('require2fa') === '1'
+
   const [overview,  setOverview]  = useState<SecurityOverview | null>(null)
   const [sessions,  setSessions]  = useState<SessionRow[]>([])
   const [loading,   setLoading]   = useState(true)
@@ -146,7 +150,10 @@ export default function AdminSecurityPage() {
       setCode('')
       setStep(codes.length > 0 ? 'show-codes' : 'idle')
       await loadOverview()
-      if (codes.length === 0) toast.success('Two-factor authentication enabled')
+      if (codes.length === 0) {
+        toast.success('Two-factor authentication enabled')
+        if (require2fa) window.location.replace('/admin')
+      }
     } catch {
       toast.error('Network error — could not enable 2FA')
     } finally {
@@ -247,6 +254,20 @@ export default function AdminSecurityPage() {
         <h1 className="text-2xl font-extrabold text-white tracking-tight">Security</h1>
         <p className="text-sm text-zinc-500 mt-1">Protect your admin account</p>
       </div>
+
+      {require2fa && (
+        <div className="flex items-start gap-3 p-4 rounded-2xl bg-red-500/10 border border-red-500/30">
+          <svg className="w-5 h-5 text-red-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <div>
+            <p className="text-sm font-semibold text-red-300">Two-factor authentication required</p>
+            <p className="text-xs text-red-300/80 mt-0.5">
+              Admin access requires 2FA. Set it up below to continue — you only need to do this once.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* 2FA card */}
       <section className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
@@ -362,7 +383,11 @@ export default function AdminSecurityPage() {
                 Copy to clipboard
               </button>
               <button
-                onClick={() => { setShownCodes([]); setStep('idle') }}
+                onClick={() => {
+                  setShownCodes([])
+                  setStep('idle')
+                  if (require2fa) window.location.replace('/admin')
+                }}
                 className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors"
               >
                 I've saved them

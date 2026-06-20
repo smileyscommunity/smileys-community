@@ -7,7 +7,6 @@ import { useAuth } from '@/contexts/AuthContext'
 import NotificationBell from '@/components/NotificationBell'
 import AccountMenu from '@/components/AccountMenu'
 import { resolveImageUrl } from '@/lib/data'
-import { motion, AnimatePresence } from 'framer-motion'
 import { usePendingConnections } from '@/hooks/usePendingConnections'
 
 function MessagesIcon() {
@@ -78,11 +77,12 @@ const discoverLinks = [
   // wraps (Jul 19, 2026); we'll demote it back down or remove afterwards.
   { label: 'World Cup',     href: '/cup',           emoji: '⚽', public: true  },
   { label: 'Hangouts',      href: '/hangouts',      emoji: '☕', public: false },
+  { label: 'Guide',         href: '/guide',         emoji: '🗺️', public: true  },
+  { label: 'Handbook',      href: '/handbook',      emoji: '📖', public: true  },
   { label: 'Neighborhoods', href: '/neighborhoods', emoji: '🏘️', public: true  },
   { label: 'Board',         href: '/listings',      emoji: '🛍️', public: true  },
-  { label: 'Guide',         href: '/guide',         emoji: '🗺️', public: true  },
-  { label: 'Visiting?',     href: '/visiting',      emoji: '👋', public: true  },
   { label: 'Directory',     href: '/directory',     emoji: '🏢', public: true  },
+  { label: 'Visiting?',     href: '/visiting',      emoji: '👋', public: true  },
 ]
 
 const pageTitles: [string, string][] = [
@@ -306,20 +306,13 @@ export default function Navbar() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
                   </button>
-                  <AnimatePresence>
-                  {dropdownOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.95, y: -8 }}
-                      animate={{ opacity: 1, scale: 1,    y: 0  }}
-                      exit={{    opacity: 0, scale: 0.95, y: -8 }}
-                      transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
-                      className="absolute right-0 top-full mt-2 w-56 max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden z-50"
-                      style={{ originX: 1, originY: 0 }}
-                    >
-                      <AccountMenu onItemClick={() => setDropdownOpen(false)} />
-                    </motion.div>
-                  )}
-                  </AnimatePresence>
+                  <div
+                    className={`absolute right-0 top-full mt-2 w-56 max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden z-50 transition-all duration-150 origin-top-right ${
+                      dropdownOpen ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none'
+                    }`}
+                  >
+                    <AccountMenu onItemClick={() => setDropdownOpen(false)} />
+                  </div>
                 </div>
               </div>
             )}
@@ -334,14 +327,14 @@ export default function Navbar() {
                   className="p-2 rounded-xl hover:bg-gray-100 transition-colors"
                   aria-label="Search"
                 >
-                  <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
                 </button>
                 <MessagesIcon />
                 <NotificationBell />
                 <Link href="/card" aria-label="Member card" className="p-2 rounded-xl hover:bg-gray-100 transition-colors">
-                  <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
                   </svg>
                 </Link>

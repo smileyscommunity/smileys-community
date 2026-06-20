@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdmin } from '@/lib/access'
-import { isClubHostFor } from '@/lib/access'
+import { isAdmin, isClubHostFor } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
+import { rateLimit } from '@/lib/rateLimit'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -11,6 +11,8 @@ export async function POST(req: NextRequest, { params }: Params) {
   try {
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!isAdmin(session) && !await rateLimit(`broadcast:${session.id}`, 10, 60 * 60_000))
+      return NextResponse.json({ error: 'Rate limit: max 10 broadcasts per hour' }, { status: 429 })
 
     const { id: eventId } = await params
     const { message } = await req.json()
@@ -39,7 +41,7 @@ export async function POST(req: NextRequest, { params }: Params) {
           createNotification(
             a.userId,
             'host_message',
-            `Message from your host — ${event.title}`,
+            `📢 ${event.title}`,
             message.trim(),
             `/events/${eventId}`,
           )

@@ -78,7 +78,7 @@ export default function GetInvolvedPage() {
           <h1 className="text-5xl sm:text-6xl font-extrabold text-gray-900 tracking-tight leading-tight mb-6">
             {gi.headline ?? 'Help build the community you want to be part of'}
           </h1>
-          <p className="text-base text-gray-500 max-w-2xl leading-relaxed">
+          <p className="text-base text-gray-600 max-w-2xl leading-relaxed">
             {gi.subtitle ?? "Smileys is shaped by its members. The best events, the most active clubs, the warmest atmosphere — they all start with someone deciding to show up and contribute."}
           </p>
         </div>
@@ -115,7 +115,7 @@ export default function GetInvolvedPage() {
                   <h2 className={`text-3xl font-extrabold mb-4 ${w.accent ? 'text-white' : 'text-gray-900'}`}>
                     {w.title}
                   </h2>
-                  <p className={`leading-relaxed mb-6 ${w.accent ? 'text-amber-50' : 'text-gray-500'}`}>
+                  <p className={`leading-relaxed mb-6 ${w.accent ? 'text-amber-50' : 'text-gray-600'}`}>
                     {w.body}
                   </p>
                   <Link href={w.href}
@@ -160,7 +160,7 @@ export default function GetInvolvedPage() {
           <blockquote className="text-2xl font-bold text-gray-900 leading-snug mb-4">
             "The people who shape Smileys are the ones who show up."
           </blockquote>
-          <p className="text-gray-500 mb-10">
+          <p className="text-gray-600 mb-10">
             Every host, every club leader, every member who invites a friend — you're not just attending a community.
             You're building one.
           </p>

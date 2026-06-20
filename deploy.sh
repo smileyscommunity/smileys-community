@@ -41,10 +41,11 @@ fi
 echo "→ Running smoke test..."
 "$LOCAL/scripts/smoke.sh" "$LOCAL"
 
-echo "→ Stopping server..."
-ssh "$SERVER" "pm2 stop smileys || true"
-
-echo "→ Syncing files..."
+echo "→ Syncing files (server still serving)..."
+# Leave pm2 running through the rsync. Next.js loads chunks at process
+# start, so in-flight requests are unaffected by files changing under
+# them. We only restart once everything is in place — cuts deploy
+# downtime from ~45s of 502s to a single ~5s pm2 restart window.
 rsync -av --delete \
   --exclude='.env' \
   --exclude='.env.local' \
@@ -64,8 +65,11 @@ rsync -av --delete \
   --exclude='data/city-guide.json' \
   "$LOCAL/" "$SERVER:$REMOTE/" || { CODE=$?; [ "$CODE" = "23" ] || [ "$CODE" = "24" ] || exit $CODE; }
 
-echo "→ Starting server..."
-ssh "$SERVER" "cd $REMOTE && npm install --legacy-peer-deps && npx prisma generate --schema=./prisma/schema.prisma && npx prisma db push --schema=./prisma/schema.prisma && pm2 start smileys --max-memory-restart 512M && pm2 save"
+echo "→ Restarting server (graceful)..."
+# Restart instead of stop+start so the gap between old and new
+# processes is just pm2's drain window. Falls back to start if
+# smileys isn't registered yet (first-time deploy on a new host).
+ssh "$SERVER" "cd $REMOTE && npm install --legacy-peer-deps && npx prisma generate --schema=./prisma/schema.prisma && npx prisma db push --schema=./prisma/schema.prisma && (pm2 restart smileys --update-env || pm2 start smileys --max-memory-restart 512M) && pm2 save"
 
 # Install the Hangouts sweeper cron (idempotent — strips any existing
 # sweep-hangouts line first, then adds a fresh one). Without this, expired
@@ -112,6 +116,18 @@ ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-cup-results.sh && (crontab -l 2>/d
 # env doesn't bleed into ad-hoc node invocations). Fails loudly if
 # anything goes wrong — silent failures here turned a previous
 # deploy into "page renders empty bracket and nobody knows why".
+echo "→ Registering newsletter sweeper crontab..."
+ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-newsletters.sh && (crontab -l 2>/dev/null | grep -v 'sweep-newsletters' ; echo '*/5 * * * * $REMOTE/scripts/sweep-newsletters.sh >> /var/log/sweep-newsletters.log 2>&1') | crontab -"
+
+# Nightly cleanup of expired AvailabilityPulse rows. Runs at 3 AM Istanbul
+# time (UTC+3 = 00:00 UTC). Without this stale pulses accumulate forever.
+echo "→ Registering availability-pulses sweeper crontab..."
+ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-availability-pulses.sh && (crontab -l 2>/dev/null | grep -v 'sweep-availability-pulses' ; echo '0 0 * * * $REMOTE/scripts/sweep-availability-pulses.sh >> /var/log/sweep-availability-pulses.log 2>&1') | crontab -"
+
+# Daily nudge for approved members who never logged in. 10 AM Istanbul (07:00 UTC).
+echo "→ Registering login-nudge sweeper crontab..."
+ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-login-nudge.sh && (crontab -l 2>/dev/null | grep -v 'sweep-login-nudge' ; echo '0 7 * * * $REMOTE/scripts/sweep-login-nudge.sh >> /var/log/sweep-login-nudge.log 2>&1') | crontab -"
+
 echo "→ Seeding Smileys Cup 2026 fixtures..."
 ssh "$SERVER" "cd $REMOTE && npx tsx --env-file=.env scripts/seed-cup.ts"
 

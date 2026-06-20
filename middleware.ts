@@ -70,8 +70,8 @@ function buildCsp(nonce: string): string {
     // larger refactor. Keep `'unsafe-inline'` — XSS impact via inline CSS is
     // much lower than via JS.
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob: https://images.unsplash.com https://smileyscommunity.com https://*.tile.openstreetmap.org https://unpkg.com",
-    "connect-src 'self' https://challenges.cloudflare.com https://*.tile.openstreetmap.org https://*.ingest.sentry.io https://*.ingest.us.sentry.io",
+    "img-src 'self' data: blob: https:",
+    "connect-src 'self' https://challenges.cloudflare.com https://*.tile.openstreetmap.org https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://api.open-meteo.com",
     "font-src 'self' data:",
     "frame-src https://challenges.cloudflare.com",
     "object-src 'none'",
@@ -93,19 +93,24 @@ export function middleware(req: NextRequest) {
 
   // crypto.randomUUID is available in the Edge runtime. Strip hyphens so the
   // CSP header doesn't get confused by them — base16 is sufficient entropy.
-  const nonce = crypto.randomUUID().replace(/-/g, '')
+  const nonce     = crypto.randomUUID().replace(/-/g, '')
+  // Correlation ID: short enough to grep, unique enough to trace a single
+  // request across API routes, server components, and PM2 logs. Read it
+  // in any server route via `headers().get('x-request-id')` and include it
+  // in console.error calls so a log line maps back to the browser request.
+  const requestId = crypto.randomUUID()
   const csp = buildCsp(nonce)
 
-  // Pass the nonce + CSP through to the React Server Components via request
-  // headers. Next.js reads `x-nonce` from the request and applies the nonce
-  // to its own inline bootstrap scripts; layouts can read it via `headers()`.
   const requestHeaders = new Headers(req.headers)
   requestHeaders.set('x-nonce', nonce)
+  requestHeaders.set('x-request-id', requestId)
   requestHeaders.set('content-security-policy', csp)
 
   const res = NextResponse.next({ request: { headers: requestHeaders } })
-  // Set the CSP header on the response so the browser actually enforces it.
   res.headers.set('content-security-policy', csp)
+  // Expose the ID on the response so it appears in browser DevTools network
+  // panel and can be quoted in bug reports.
+  res.headers.set('x-request-id', requestId)
 
   return res
 }

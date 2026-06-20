@@ -5,7 +5,7 @@ import { isAdmin, isClubHost } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
 import { sendEventApprovedEmail, sendEventRejectedEmail, recordEmailFailure } from '@/lib/email'
 import { autoJoinClub } from '@/lib/autoJoinClub'
-import { sendPushToUser } from '@/lib/push'
+
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 import { writeAudit } from '@/lib/audit'
 
@@ -97,11 +97,6 @@ async function canManageEvent(sessionId: string, eventId: string, sessionRole: s
   const event = await prisma.event.findUnique({ where: { id: eventId }, select: { clubId: true, hostId: true } })
   if (!event) return false
   if (event.hostId === sessionId) return true
-  const cohost = await prisma.eventCoHost.findUnique({ where: { eventId_userId: { eventId, userId: sessionId } } })
-  if (cohost) return true
-  // Club-host fallback only applies to events that belong to a club.
-  // City-level events (clubId === null) gate on host / co-host / admin
-  // — there's no club to derive hosting rights from.
   if (!event.clubId) return false
   const membership = await prisma.clubMembership.findFirst({
     where: { userId: sessionId, clubId: event.clubId, role: 'host', status: 'approved' },
@@ -202,7 +197,6 @@ export async function DELETE(req: NextRequest, { params }: Params) {
         ])
         createNotification(next.userId, 'waitlist_promoted', 'Spot available! 🎉',
           `A spot opened up for "${eventRow?.title}" — you're in!`, `/events/${eventId}`)
-        sendPushToUser(next.userId, { title: 'Spot available! 🎉', body: `A spot opened up for "${eventRow?.title}" — you're in!`, link: `/app/events/${eventId}` }).catch(() => {})
       }
       if (eventRow?.approvalRequired) {
         await recomputeSpotsLeft(eventId, eventRow.totalSpots)
@@ -230,7 +224,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const { userId, action } = await req.json() // action: 'approve' | 'reject'
 
     const [event, user] = await Promise.all([
-      prisma.event.findUnique({ where: { id: eventId }, select: { title: true, spotsLeft: true, date: true, neighborhood: true, turkishMaleQuota: true, genderBalance: true, maleQuota: true, femaleQuota: true, totalSpots: true, approvalRequired: true } }),
+      prisma.event.findUnique({ where: { id: eventId }, select: { title: true, status: true, spotsLeft: true, date: true, neighborhood: true, turkishMaleQuota: true, genderBalance: true, maleQuota: true, femaleQuota: true, totalSpots: true, approvalRequired: true } }),
       prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true, gender: true, nationality: true } }),
     ])
 
@@ -248,6 +242,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const MALE_VARIANTS    = ['male', 'Male', 'MALE']
     const FEMALE_VARIANTS  = ['female', 'Female', 'FEMALE']
     const TURKEY_VARIANTS  = ['Turkey', 'turkey', 'Türkiye', 'türkiye', 'Turkiye', 'TR']
+
+    if (action === 'approve' && (event?.status === 'cancelled' || event?.status === 'archived')) {
+      return NextResponse.json({ error: 'Cannot approve into a cancelled or archived event' }, { status: 400 })
+    }
 
     if (action === 'approve') {
       // Turkish male quota check
@@ -364,9 +362,10 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
     const event = await prisma.event.findUnique({
       where: { id: eventId },
-      select: { title: true, spotsLeft: true, approvalRequired: true, totalSpots: true },
+      select: { title: true, spotsLeft: true, approvalRequired: true, totalSpots: true, hostId: true },
     })
     if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
+    if (event.hostId === userId) return NextResponse.json({ error: 'Hosts are automatically attending their own events' }, { status: 400 })
 
     const existing = await prisma.eventAttendee.findUnique({
       where: { userId_eventId: { userId, eventId } },

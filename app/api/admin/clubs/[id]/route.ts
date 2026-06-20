@@ -69,11 +69,11 @@ export async function GET(_: NextRequest, { params }: Params) {
     } | null = null
 
     if (clubEvents.length > 0) {
-      const rollupMap = await computeEventSurveyRollup(clubEvents.map(e => e.id))
+      const rollupMap = await computeEventSurveyRollup(clubEvents.map((e: any) => e.id))
       const allRows   = Array.from(rollupMap.values())
       const agg       = aggregateRollup(allRows)
 
-      const recent = clubEvents.slice(0, 6).map(e => {
+      const recent = clubEvents.slice(0, 6).map((e: any) => {
         const r = rollupMap.get(e.id)
         return {
           id:              e.id,
@@ -213,7 +213,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
         const body  = goingInactive
           ? (reasonRaw ? `From the admins: ${reasonRaw}` : 'Activity is paused for now. We\'ll let you know if anything changes.')
           : 'The club is active again. New events should be back soon.'
-        await Promise.all(members.map(m =>
+        await Promise.all(members.map((m: any) =>
           createNotification(m.userId, 'announcement', title, body, `/clubs/${before.slug}`),
         ))
       })().catch(() => {})

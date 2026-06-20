@@ -30,7 +30,7 @@ export default function AccountMenu({ onItemClick }: Props) {
   return (
     <>
       <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
-        <p className="text-xs text-gray-500 font-medium mb-0.5">Signed in as</p>
+        <p className="text-xs text-gray-600 font-medium mb-0.5">Signed in as</p>
         <p className="text-sm font-bold text-gray-900">{user.name}</p>
         <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${roleBadge[user.role]}`}>{user.role}</span>
       </div>

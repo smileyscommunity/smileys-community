@@ -210,7 +210,11 @@ export function formatDate(dateStr: string): string {
 }
 
 export function formatShortDate(dateStr: string): string {
-  const date = new Date(dateStr + 'T00:00:00')
+  // Accept either YYYY-MM-DD (anchored to local midnight so a UTC
+  // date doesn't render as the previous day in negative timezones)
+  // or a full ISO timestamp (used as-is). Pre-existing callers all
+  // pass YYYY-MM-DD; the ISO path is for things like Post.createdAt.
+  const date = dateStr.includes('T') ? new Date(dateStr) : new Date(dateStr + 'T00:00:00')
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 

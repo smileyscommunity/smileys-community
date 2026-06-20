@@ -38,6 +38,7 @@ const TYPE_ICON: Record<string, string> = {
   connection_accepted: '🤝',
   report:              '🚩',
   application:         '👤',
+  event_survey:        '✍️',
 }
 
 function timeAgo(dateStr: string): string {
@@ -167,14 +168,23 @@ export default function NotificationBell() {
                   <span className="text-lg shrink-0 mt-0.5">{TYPE_ICON[n.type] ?? '🔔'}</span>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-semibold text-gray-900 leading-snug">{n.title}</div>
-                    <div className="text-xs text-gray-500 mt-0.5 leading-relaxed line-clamp-2">{n.body}</div>
+                    <div className="text-xs text-gray-600 mt-0.5 leading-relaxed line-clamp-2">{n.body}</div>
+                    {n.type === 'event_survey' && n.link && (
+                      <a
+                        href={n.link}
+                        onClick={e => e.stopPropagation()}
+                        className="inline-block mt-1.5 px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold rounded-lg transition-colors"
+                      >
+                        Leave feedback →
+                      </a>
+                    )}
                     <div className="text-xs text-gray-400 mt-1">{timeAgo(n.createdAt)}</div>
                   </div>
                   <div className="flex flex-col items-end gap-1 shrink-0">
                     {!n.isRead && <span className="w-2 h-2 bg-amber-500 rounded-full" />}
                     <button
                       onClick={e => dismiss(e, n.id)}
-                      className="opacity-0 group-hover:opacity-100 p-0.5 text-gray-300 hover:text-gray-500 transition-all"
+                      className="opacity-0 group-hover:opacity-100 p-0.5 text-gray-300 hover:text-gray-600 transition-all"
                       title="Dismiss"
                     >
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">

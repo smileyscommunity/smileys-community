@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
     orderBy: { createdAt: 'desc' },
     take: 50,
     include: {
-      user: { select: { id: true, name: true, color: true, profilePhoto: true, goodHangouts: true } },
+      user: { select: { id: true, name: true, color: true, profilePhoto: true, goodHangouts: true, nationality: true } },
     },
   })
 

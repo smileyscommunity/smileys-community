@@ -176,7 +176,11 @@ export default function AdminSponsorsPage() {
           const draft = draftFor(lead)
           return (
             <div key={lead.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
-              <div className="flex items-center gap-3 flex-wrap">
+              {/* Mobile: identity button on row 1, status dropdown
+                  full-width on row 2. sm+: collapses back to one row.
+                  Previous `flex-wrap` version pushed the dropdown
+                  awkwardly under the name on narrow viewports. */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                 <button onClick={() => setOpenId(open ? null : lead.id)} className="flex-1 min-w-0 text-left">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-semibold text-white truncate">{lead.company}</span>
@@ -193,7 +197,7 @@ export default function AdminSponsorsPage() {
                   </div>
                 </button>
                 <select value={lead.status} onChange={e => setStatus(lead, e.target.value)}
-                  className={`${inputCls} capitalize`}>
+                  className={`${inputCls} capitalize shrink-0`}>
                   {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>

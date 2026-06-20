@@ -63,27 +63,29 @@ export default function AnnouncementsPage() {
     '/app/api/admin/announcement',
     (v): v is Announcement => !!v && typeof v === 'object' && 'text' in v && 'active' in v,
   )
-  const [data,     setData]     = useState<Announcement>(EMPTY)
-  const [saving,   setSaving]   = useState(false)
-  const [hydrated, setHydrated] = useState(false)
+  const [data,      setData]      = useState<Announcement>(EMPTY)
+  const [committed, setCommitted] = useState<Announcement>(EMPTY)
+  const [saving,    setSaving]    = useState(false)
+  const [hydrated,  setHydrated]  = useState(false)
   // Hydrate the form ONCE so the user's in-flight edits don't get
   // clobbered if useAdminLoad re-fires (e.g. user clicks retry while
   // typing).
   useEffect(() => {
     if (loaded && !hydrated) {
       setData(loaded)
+      setCommitted(loaded)
       setHydrated(true)
     }
   }, [loaded, hydrated])
 
-  // Disable save when there's nothing to save. Compares the editable
-  // fields only — updatedAt/updatedBy are server-set on every write.
+  // Disable save when there's nothing to save. Compare against the last
+  // committed state (not the initial fetch) so the button correctly
+  // resets to "Saved" after each successful save.
   const dirty = useMemo(() => {
-    if (!loaded) return false
-    return data.text   !== loaded.text
-        || data.link   !== loaded.link
-        || data.active !== loaded.active
-  }, [data, loaded])
+    return data.text   !== committed.text
+        || data.link   !== committed.link
+        || data.active !== committed.active
+  }, [data, committed])
 
   const linkValid = clientLinkLooksValid(data.link.trim())
 
@@ -103,13 +105,13 @@ export default function AnnouncementsPage() {
         return
       }
       const d = await res.json().catch(() => ({}))
-      // Sync the local copy with server-stamped fields so `dirty`
-      // resets and the "Last edited" line updates without a refetch.
-      setData(prev => ({
-        ...prev,
+      const updated: Announcement = {
+        ...data,
         updatedAt: d.updatedAt ?? new Date().toISOString(),
-        updatedBy: d.updatedBy ?? prev.updatedBy,
-      }))
+        updatedBy: d.updatedBy ?? data.updatedBy,
+      }
+      setData(updated)
+      setCommitted(updated)
       toast.success(data.active ? 'Announcement published' : 'Announcement hidden')
     } finally {
       setSaving(false)

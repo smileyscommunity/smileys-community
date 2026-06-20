@@ -62,6 +62,7 @@ export const NEIGHBORHOOD_META: Record<string, NeighborhoodMeta> = {
   'Ulus':           { emoji: '🌲', vibe: 'Affluent & leafy',                side: 'European', cost: 3, lat: 41.0729, lon: 29.0415 },
   'Pierre Loti':    { emoji: '☕', vibe: 'Hilltop views & tea gardens',     side: 'European', cost: 1, lat: 41.0500, lon: 28.9310 },
   'Fatih':          { emoji: '🕌', vibe: 'Traditional & historic',          side: 'European', cost: 1, lat: 41.0205, lon: 28.9415 },
+  'Aksaray':        { emoji: '🌍', vibe: 'International & street food',      side: 'European', cost: 1, lat: 41.0143, lon: 28.9519 },
   'Eyüpsultan':     { emoji: '🌙', vibe: 'Spiritual & serene',              side: 'European', cost: 1, lat: 41.0472, lon: 28.9262 },
   'Bakırköy':       { emoji: '🛍️', vibe: 'Shopping & social',               side: 'European', cost: 2, lat: 40.9801, lon: 28.8730 },
   'Zeytinburnu':    { emoji: '🧵', vibe: 'Industrial & local',              side: 'European', cost: 1, lat: 41.0007, lon: 28.9018 },

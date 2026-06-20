@@ -68,7 +68,7 @@ export default function InvitePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-6">
           <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">Referrals</span>
           <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900 mb-2">Invite Friends</h1>
-          <p className="text-base text-gray-500 max-w-md">
+          <p className="text-base text-gray-600 max-w-md">
             Know someone who'd love Smileys? Share your personal invite link. Your referrals help us keep the community quality high.
           </p>
         </div>
@@ -80,17 +80,17 @@ export default function InvitePage() {
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
             <p className="text-3xl font-extrabold text-amber-500">{stats?.approved ?? 0}</p>
-            <p className="text-xs text-gray-500 mt-1 font-medium">Friends joined</p>
+            <p className="text-xs text-gray-600 mt-1 font-medium">Friends joined</p>
           </div>
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
             <p className="text-3xl font-extrabold text-gray-700">{stats?.pending ?? 0}</p>
-            <p className="text-xs text-gray-500 mt-1 font-medium">Applications pending</p>
+            <p className="text-xs text-gray-600 mt-1 font-medium">Applications pending</p>
           </div>
         </div>
 
         {/* Invite link card */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Your invite link</p>
+          <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Your invite link</p>
           <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 mb-4">
             <span className="flex-1 text-sm text-gray-700 font-mono truncate">{inviteUrl}</span>
             <button
@@ -128,7 +128,7 @@ export default function InvitePage() {
 
         {/* QR code */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">QR code</p>
+          <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-4">QR code</p>
           <div className="flex flex-col items-start gap-3">
             <div className="p-3 bg-white rounded-xl border border-gray-100 shadow-sm">
               {inviteUrl ? <QRCode value={inviteUrl} size={180} /> : <div className="w-[180px] h-[180px] bg-gray-100 rounded-xl animate-pulse" />}
@@ -142,7 +142,7 @@ export default function InvitePage() {
         {/* Who you invited */}
         {(stats?.joined?.length ?? 0) > 0 && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">People you brought in</p>
+            <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-4">People you brought in</p>
             <div className="space-y-3">
               {stats!.joined.map(m => {
                 const photo = resolveImageUrl(m.profilePhoto)
@@ -169,7 +169,7 @@ export default function InvitePage() {
 
         {/* How it works */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">How it works</p>
+          <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-4">How it works</p>
           <div className="space-y-3">
             {[
               { step: '1', text: 'Share your unique link with friends', icon: '🔗' },

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
+import { downscaleImage } from '@/lib/image-resize'
 
 const REASONS = [
   { value: 'inappropriate_behavior', label: 'Inappropriate behavior',            desc: 'Made others uncomfortable at an event or online' },
@@ -45,8 +46,9 @@ export default function ReportButton({ reportedId, reportedName, eventId }: Prop
 
   async function handleScreenshot(file: File) {
     setUploading(true)
+    const upload = await downscaleImage(file)
     const fd = new FormData()
-    fd.append('file', file)
+    fd.append('file', upload)
     fd.append('folder', 'general')
     const res  = await fetch('/app/api/upload', { method: 'POST', credentials: 'include', body: fd })
     const data = await res.json()
@@ -246,18 +248,18 @@ export default function ReportButton({ reportedId, reportedName, eventId }: Prop
                   <div className="px-5 pb-5">
                     <div className="bg-gray-50 rounded-xl p-4 space-y-2 mb-4">
                       <div>
-                        <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Reason</p>
+                        <p className="text-xs font-bold text-gray-600 uppercase tracking-wide">Reason</p>
                         <p className="text-sm font-semibold text-gray-800">{selectedReason?.label}</p>
                       </div>
                       {details && (
                         <div>
-                          <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Details</p>
+                          <p className="text-xs font-bold text-gray-600 uppercase tracking-wide">Details</p>
                           <p className="text-sm text-gray-600">{details}</p>
                         </div>
                       )}
                       {screenshot && (
                         <div>
-                          <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Screenshot</p>
+                          <p className="text-xs font-bold text-gray-600 uppercase tracking-wide">Screenshot</p>
                           <img src={screenshot} alt="" className="mt-1 w-20 h-14 object-cover rounded-lg" />
                         </div>
                       )}

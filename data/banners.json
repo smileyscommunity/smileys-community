@@ -1,0 +1,22 @@
+{
+  "dashboard": [
+    {
+      "id": "dashboard_sail_istanbul",
+      "page": "dashboard",
+      "type": "promo",
+      "active": true,
+      "headline": "Sail Istanbul",
+      "subtitle": "A day on the Bosphorus — spots filling fast",
+      "emoji": "⛵",
+      "link": "/events/sail-istanbul-june",
+      "cta": "Book your spot",
+      "bg": "",
+      "updatedAt": "2026-06-05T09:00:00.000Z"
+    }
+  ],
+  "events": [],
+  "clubs": [],
+  "members": [],
+  "neighborhoods": [],
+  "guide": []
+}

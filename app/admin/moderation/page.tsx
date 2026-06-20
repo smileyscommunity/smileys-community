@@ -18,6 +18,7 @@ interface Report {
   escalatedNote?: string | null
   reporter: { id: string; name: string; email: string; color: string }
   reported: { id: string; name: string; email: string; color: string; status: string; role: string }
+  event?: { id: string; title: string } | null
 }
 
 interface BannedUser {
@@ -538,6 +539,11 @@ function ModerationPageInner() {
                       </span>
                     </div>
                     <div className="text-sm font-medium text-zinc-300 mb-0.5">{REASON_LABELS[r.reason] ?? r.reason}</div>
+                    {r.event && (
+                      <Link href={`/admin/events/${r.event.id}`} className="text-xs text-amber-500 hover:underline mb-1 block">
+                        📅 {r.event.title}
+                      </Link>
+                    )}
                     {r.details && <p className="text-xs text-zinc-500 mb-1 line-clamp-2">"{r.details}"</p>}
                     <div className="text-xs text-zinc-600">
                       By <span className="text-zinc-400">{r.reporter.name}</span> · {new Date(r.createdAt).toLocaleDateString()}

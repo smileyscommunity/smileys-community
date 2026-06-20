@@ -15,6 +15,7 @@ interface Event {
   status: string
   emoji: string
   totalSpots: number
+  checkedInCount?: number
   _count?: { attendees: number }
 }
 
@@ -25,7 +26,7 @@ export default function HostDashboard() {
   const [loading, setLoading] = useState(true)
 
   const canEvents = user.isClubHost || user.role === 'admin'
-  const canClubs  = user.isClubHost || user.role === 'admin'
+  const canClubs  = canEvents
 
   useEffect(() => {
     if (!canEvents) { setLoading(false); return }
@@ -36,11 +37,23 @@ export default function HostDashboard() {
 
   const today     = todayIstanbul()
   const upcoming  = events.filter(e => e.status === 'published' && e.date >= today)
-  const past      = events.filter(e => e.date < today)
-  const totalAtts = events.reduce((s, e) => s + (e._count?.attendees ?? 0), 0)
+  const past      = events
+    .filter(e => e.date < today && e.status !== 'cancelled' && e.status !== 'draft')
+    .sort((a, b) => b.date.localeCompare(a.date))
+  const totalAtts = events
+    .filter(e => e.status !== 'cancelled' && e.status !== 'draft')
+    .reduce((s, e) => s + (e._count?.attendees ?? 0), 0)
 
-  const avgFillRate = past.length > 0
-    ? Math.round(past.reduce((s, e) => s + (e.totalSpots > 0 ? ((e._count?.attendees ?? 0) / e.totalSpots) * 100 : 0), 0) / past.length)
+  // Exclude unlimited events (totalSpots === 0) from fill rate — they'd always contribute 0%
+  const ratedPast = past.filter(e => e.totalSpots > 0)
+  const avgFillRate = ratedPast.length > 0
+    ? Math.round(ratedPast.reduce((s, e) => s + ((e._count?.attendees ?? 0) / e.totalSpots) * 100, 0) / ratedPast.length)
+    : null
+
+  // Avg show-up rate: checked-in / registered, for past events that had any registrations
+  const checkinPast = past.filter(e => (e._count?.attendees ?? 0) > 0 && (e.checkedInCount ?? 0) > 0)
+  const avgCheckinRate = checkinPast.length > 0
+    ? Math.round(checkinPast.reduce((s, e) => s + ((e.checkedInCount ?? 0) / (e._count?.attendees ?? 1)) * 100, 0) / checkinPast.length)
     : null
 
   const nextEvent = upcoming.sort((a, b) => a.date.localeCompare(b.date))[0]
@@ -72,7 +85,7 @@ export default function HostDashboard() {
 
       {/* Stats — events hosts only */}
       {canEvents && (
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 sm:gap-4 mb-6 sm:mb-8">
         <div className="bg-zinc-900 rounded-xl p-5 border border-zinc-800">
           <div className="text-3xl font-bold text-white">{totalAtts}</div>
           <div className="text-xs text-zinc-400 mt-1">Total Attendees</div>
@@ -86,6 +99,12 @@ export default function HostDashboard() {
             {avgFillRate !== null ? `${avgFillRate}%` : '—'}
           </div>
           <div className="text-xs text-zinc-400 mt-1">Avg Fill Rate</div>
+        </div>
+        <div className="bg-zinc-900 rounded-xl p-5 border border-zinc-800">
+          <div className={`text-3xl font-bold ${avgCheckinRate !== null ? (avgCheckinRate >= 70 ? 'text-green-400' : avgCheckinRate >= 40 ? 'text-amber-400' : 'text-red-400') : 'text-zinc-600'}`}>
+            {avgCheckinRate !== null ? `${avgCheckinRate}%` : '—'}
+          </div>
+          <div className="text-xs text-zinc-400 mt-1">Avg Show-up Rate</div>
         </div>
         <div className="bg-zinc-900 rounded-xl p-5 border border-zinc-800">
           <div className={`text-3xl font-bold ${daysUntilNext !== null ? (daysUntilNext <= 3 ? 'text-amber-400' : 'text-white') : 'text-zinc-600'}`}>
@@ -123,7 +142,9 @@ export default function HostDashboard() {
                 <div className="flex items-start gap-3 min-w-0">
                   <span className="text-2xl shrink-0">{e.emoji}</span>
                   <div className="min-w-0">
-                    <Link href={`/host/events/${e.id}/edit`} className="text-sm font-medium text-white hover:text-amber-400 transition-colors truncate block">{e.title}</Link>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Link href={`/host/events/${e.id}/edit`} className="text-sm font-medium text-white hover:text-amber-400 transition-colors truncate">{e.title}</Link>
+                    </div>
                     <div className="text-xs text-zinc-400 mt-0.5">{e.date} · {e.time}</div>
                     <div className="text-xs text-zinc-500 mt-0.5 truncate">{e.location}</div>
                   </div>
@@ -157,7 +178,14 @@ export default function HostDashboard() {
                       <div className="text-xs text-zinc-400 mt-0.5">{e.date} · {e.location}</div>
                     </div>
                   </div>
-                  <div className="text-xs text-zinc-500 shrink-0">{e._count?.attendees ?? 0} attended</div>
+                  <div className="text-xs text-zinc-500 shrink-0 text-right">
+                    <div>{e._count?.attendees ?? 0} registered</div>
+                    {(e.checkedInCount ?? 0) > 0 && (() => {
+                      const total = e._count?.attendees ?? 0
+                      const pct = total > 0 ? Math.round((e.checkedInCount! / total) * 100) : 0
+                      return <div className="text-green-400 font-semibold">{e.checkedInCount} showed up ({pct}%)</div>
+                    })()}
+                  </div>
                 </div>
               </div>
             ))}

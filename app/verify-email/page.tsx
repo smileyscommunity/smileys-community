@@ -31,7 +31,7 @@ function VerifyEmailContent() {
       {status === 'loading' && (
         <>
           <div className="w-12 h-12 border-4 border-amber-400 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-sm text-gray-500">Verifying your email…</p>
+          <p className="text-sm text-gray-600">Verifying your email…</p>
         </>
       )}
       {status === 'success' && (
@@ -42,7 +42,7 @@ function VerifyEmailContent() {
             </svg>
           </div>
           <h2 className="text-lg font-bold text-gray-900">Email verified!</h2>
-          <p className="text-sm text-gray-500">Your account is now fully active.</p>
+          <p className="text-sm text-gray-600">Your account is now fully active.</p>
           <Link href="/dashboard" className="inline-block px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors">
             Go to dashboard
           </Link>
@@ -56,7 +56,7 @@ function VerifyEmailContent() {
             </svg>
           </div>
           <h2 className="text-lg font-bold text-gray-900">Verification failed</h2>
-          <p className="text-sm text-gray-500">{error}</p>
+          <p className="text-sm text-gray-600">{error}</p>
           <Link href="/login" className="inline-block text-sm text-amber-600 font-semibold hover:underline">
             Back to sign in
           </Link>

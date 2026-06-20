@@ -1,0 +1,29 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { getSession } from '@/lib/session'
+
+export async function GET(req: NextRequest) {
+  const session = await getSession()
+  if (!session) return NextResponse.json([], { status: 401 })
+
+  const q = req.nextUrl.searchParams.get('q')?.trim() ?? ''
+  if (q.length < 1) return NextResponse.json([])
+
+  const users = await prisma.user.findMany({
+    where: {
+      status: 'approved',
+      id:     { not: session.id },
+      name:   { startsWith: q, mode: 'insensitive' },
+    },
+    select: { id: true, name: true, color: true, profilePhoto: true },
+    take:    6,
+    orderBy: { name: 'asc' },
+  })
+
+  return NextResponse.json(users.map(u => ({
+    id:    u.id,
+    name:  u.name,
+    color: u.color,
+    photo: u.profilePhoto,
+  })))
+}

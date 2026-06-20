@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { resolveImageUrl, getInitials } from '@/lib/data'
+import { downscaleImage } from '@/lib/image-resize'
 
 interface PhotoAuthor { id: string; name: string; color: string; photo: string | null }
-interface Photo { id: string; url: string; caption: string | null; createdAt: string; author: PhotoAuthor }
+interface Photo { id: string; url: string; caption: string | null; createdAt: string; source?: 'club' | 'event'; author: PhotoAuthor }
 
 function formatRelative(iso: string): string {
   const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
@@ -45,8 +46,9 @@ export default function ClubPhotos({ slug, canUpload, isMember, currentUserId, i
     if (!file) return
     setUploading(true); setError('')
     try {
+      const upload = await downscaleImage(file)
       const form = new FormData()
-      form.append('file', file); form.append('folder', 'clubs')
+      form.append('file', upload); form.append('folder', 'clubs')
       const uploadRes = await fetch('/app/api/upload', { method: 'POST', credentials: 'include', body: form })
       if (!uploadRes.ok) throw new Error('Upload failed')
       const { url } = await uploadRes.json()
@@ -73,7 +75,7 @@ export default function ClubPhotos({ slug, canUpload, isMember, currentUserId, i
   const uploadCard  = dark ? 'bg-zinc-900 border border-zinc-800 rounded-2xl p-4' : 'bg-white shadow-card rounded-2xl p-4'
   const emptyCard   = dark ? 'bg-zinc-900 border border-zinc-800 rounded-2xl p-12 text-center' : 'bg-white shadow-card rounded-2xl p-12 text-center'
   const title_      = dark ? 'text-zinc-200' : 'text-gray-800'
-  const empty_      = dark ? 'text-zinc-500' : 'text-gray-500'
+  const empty_      = dark ? 'text-zinc-500' : 'text-gray-600'
   const skelBg      = dark ? 'bg-zinc-800' : 'bg-gray-200'
   const photoBg     = dark ? 'bg-zinc-800' : 'bg-gray-100'
   const input       = dark
@@ -87,7 +89,7 @@ export default function ClubPhotos({ slug, canUpload, isMember, currentUserId, i
     <div className="text-center py-16">
       <span className="text-4xl block mb-3">🔒</span>
       <p className="font-semibold text-gray-900 mb-1">Members only</p>
-      <p className="text-gray-500 text-sm">Join this club to see photos.</p>
+      <p className="text-gray-600 text-sm">Join this club to see photos.</p>
     </div>
   )
 
@@ -125,7 +127,7 @@ export default function ClubPhotos({ slug, canUpload, isMember, currentUserId, i
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {photos.map(photo => {
-            const canDelete = currentUserId === photo.author.id || isAdmin || canPin
+            const canDelete = photo.source !== 'event' && (currentUserId === photo.author.id || isAdmin || canPin)
             const authorPhoto = resolveImageUrl(photo.author.photo)
             return (
               <div key={photo.id} className={`relative group rounded-xl overflow-hidden ${photoBg} aspect-square`}>

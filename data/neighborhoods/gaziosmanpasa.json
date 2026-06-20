@@ -1,0 +1,50 @@
+{
+  "tagline": "A dense, fast-moving European side district with strong community roots — popular street markets, local eateries, and a predominantly working-class character that keeps prices honest.",
+  "places": [
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "GOP Lokantalari",
+          "description": "A concentration of unpretentious lokanta restaurants serving generous portions of traditional Turkish food at some of the lowest prices in the city.",
+          "address": "Gaziosmanpaşa, İstanbul",
+          "badge": "Smileys Pick"
+        },
+        {
+          "name": "Simitçiler ve Poğaçacılar",
+          "description": "Street vendors and small bakeries selling simit, poğaça, and börek all day. A classic Istanbul working-class breakfast on the move.",
+          "address": "Gaziosmanpaşa Meydanı, İstanbul"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Gaziosmanpaşa Semt Pazarı",
+          "description": "One of the larger weekly street markets on the European side — fresh produce, clothing, and household goods at very competitive prices.",
+          "address": "Gaziosmanpaşa, İstanbul"
+        }
+      ]
+    },
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Geleneksel Kahvehaneler",
+          "description": "Traditional coffee houses where locals play backgammon and socialise — a window into old-Istanbul neighbourhood life.",
+          "address": "Gaziosmanpaşa, İstanbul"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Gaziosmanpaşa is well connected by metro (M7) and bus to the city centre.",
+    "One of the most affordable districts in Istanbul for both renting and eating out.",
+    "The local market is worth visiting for fresh produce even if you don't live here.",
+    "Less tourist-facing than central districts — a genuinely local Istanbul experience."
+  ]
+}

@@ -156,7 +156,7 @@ export default function TwoFactorSection({ show }: Props) {
   if (mode === 'disabled') {
     return (
       <div className="space-y-3">
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-gray-600">
           Use an authenticator app (1Password, Google Authenticator, Authy, etc.)
           for a 6-digit code every time you sign in.
         </p>
@@ -175,7 +175,7 @@ export default function TwoFactorSection({ show }: Props) {
   if (mode === 'enrolling' && qr) {
     return (
       <div className="space-y-4">
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-gray-600">
           Scan this QR code with your authenticator app, then enter the 6-digit code it generates.
         </p>
         <div className="flex justify-center bg-white border border-gray-200 rounded-xl p-4">
@@ -259,7 +259,7 @@ export default function TwoFactorSection({ show }: Props) {
         <span className="inline-block w-2 h-2 rounded-full bg-green-500" />
         <p className="text-sm font-semibold text-gray-800">2FA is active</p>
       </div>
-      <p className="text-xs text-gray-500">
+      <p className="text-xs text-gray-600">
         {remaining !== null
           ? `${remaining} recovery code${remaining === 1 ? '' : 's'} remaining.`
           : 'Recovery codes available.'}

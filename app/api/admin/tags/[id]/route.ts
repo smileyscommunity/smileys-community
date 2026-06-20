@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { canManageTags } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
+import { deleteCached } from '@/lib/analyticsCache'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -16,6 +17,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     where: { id },
     data: { ...(name && { name: name.trim() }), ...(emoji && { emoji }) },
   })
+  deleteCached('tags:groups')
   return NextResponse.json(tag)
 }
 
@@ -28,6 +30,7 @@ export async function DELETE(_: NextRequest, { params }: Params) {
     select: { name: true, emoji: true, groupId: true } })
   if (!snapshot) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   await prisma.tag.delete({ where: { id } })
+  deleteCached('tags:groups')
   writeAudit(session.id, session.name, 'tag.delete', id, 'tag',
     { name: snapshot.name, emoji: snapshot.emoji, groupId: snapshot.groupId },
     `Deleted tag ${snapshot.emoji} "${snapshot.name}"`,

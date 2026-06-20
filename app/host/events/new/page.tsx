@@ -4,9 +4,16 @@ import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import ImageUpload from '@/components/ImageUpload'
 import RichTextEditor from '@/components/RichTextEditor'
-import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
+import { ISTANBUL_NEIGHBORHOODS, todayIstanbul } from '@/lib/data'
+import { useAuth } from '@/contexts/AuthContext'
 
 const VIBES = ['Social', 'Chill', 'Active', 'Party', 'Networking', 'Learning', 'Food', 'Outdoor', 'Cultural']
+
+const EMOJIS = [
+  '⛵', '🍽️', '💬', '🎵', '🌿', '🎭', '🏃', '🎨', '🍷', '🧘', '🥾', '🎤',
+  '☕', '🍺', '🍸', '💃', '🎬', '📸', '🚴', '🏊', '🏋️', '📚', '🎲', '🌅',
+  '🏖️', '👨‍🍳', '🤝', '🎸', '🚢', '🌮', '🧗', '🌙', '🧁', '🥂', '🎓', '🛶',
+]
 
 const inputCls = 'w-full px-4 py-3 rounded-xl border border-zinc-700 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500 bg-zinc-800 placeholder-zinc-500'
 
@@ -18,9 +25,9 @@ function HostNewEventForm() {
   const router       = useRouter()
   const searchParams = useSearchParams()
   const neighborhoodParam = searchParams.get('neighborhood') ?? ''
+  const { user } = useAuth()
 
   const [clubs,   setClubs]   = useState<{ id: string; name: string; emoji: string }[]>([])
-  const [hostId,  setHostId]  = useState('')
   const [saving,      setSaving]      = useState(false)
   const [error,       setError]       = useState('')
   const [repeat,      setRepeat]      = useState<'none' | 'weekly' | 'biweekly' | 'monthly'>('none')
@@ -34,6 +41,8 @@ function HostNewEventForm() {
     title:       '',
     clubId:      '',
     vibes:       [] as string[],
+    intent:      'social' as 'social' | 'professional',
+    emoji:       '🎉',
     date:        '',
     time:        '',
     location:     '',
@@ -50,9 +59,6 @@ function HostNewEventForm() {
   })
 
   useEffect(() => {
-    fetch('/app/api/auth/me', { credentials: 'include' }).then(r => r.json()).then(me => {
-      if (me?.id) setHostId(me.id)
-    })
     fetch('/app/api/host/clubs', { credentials: 'include' })
       .then(r => r.ok ? r.json() : [])
       .then(d => {
@@ -64,8 +70,8 @@ function HostNewEventForm() {
     const dupStr = sessionStorage.getItem('smileys_dup_event')
     if (dupStr) {
       try {
-        sessionStorage.removeItem('smileys_dup_event')
         const dup = JSON.parse(dupStr)
+        sessionStorage.removeItem('smileys_dup_event')
         setForm(f => ({
           ...f,
           title:        dup.title        ? `${dup.title} (Copy)` : f.title,
@@ -182,12 +188,16 @@ function HostNewEventForm() {
     if (!form.clubId)             { setError('Please select a club for this event'); return }
     if (!form.title.trim())       { setError('Title is required'); return }
     if (!form.date)               { setError('Date is required'); return }
+    if (form.date < todayIstanbul()) { setError('Event date cannot be in the past'); return }
     if (!form.time)               { setError('Time is required'); return }
     if (!form.location.trim())    { setError('Location name is required'); return }
     if (!form.neighborhood)       { setError('Neighborhood is required'); return }
     if (!form.address.trim())     { setError('Full address is required'); return }
     if (!form.description.trim()) { setError('Description is required'); return }
     if (!form.coverImage)         { setError('Cover image is required'); return }
+
+    const hostId = user?.id
+    if (!hostId) { setError('Session expired — please refresh'); return }
 
     setSaving(true)
     try {
@@ -209,7 +219,7 @@ function HostNewEventForm() {
         hostId,
         price:        parseInt(form.price) || 0,
         memberPrice:  form.memberPrice ? parseInt(form.memberPrice) : undefined,
-        emoji:        '🎉',
+        emoji:        form.emoji,
         limitedSpots: true,
         isRecurring:  isSeriesCreate,
         seriesId,
@@ -228,7 +238,7 @@ function HostNewEventForm() {
       }
 
       // Auto-assign as club host if club selected
-      if (form.clubId && hostId) {
+      if (form.clubId) {
         await fetch(`/app/api/admin/clubs/${form.clubId}/hosts`, {
           method: 'POST', credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
@@ -281,8 +291,30 @@ function HostNewEventForm() {
           </select>
         </div>
 
-        {/* Vibe */}
+        {/* Intent */}
         <div>
+          <label className="block text-xs font-semibold text-zinc-400 mb-2">Event Goal</label>
+          <div className="flex gap-2">
+            {[
+              { id: 'social', label: '🥨 Social', desc: 'Chill, party, hobbies' },
+              { id: 'professional', label: '🤝 Networking', desc: 'Work, business, career' },
+            ].map(opt => (
+              <button key={opt.id} type="button" onClick={() => setForm(f => ({ ...f, intent: opt.id as any }))}
+                className={`flex-1 p-3 rounded-xl border transition-all text-left ${
+                  form.intent === opt.id
+                    ? 'bg-amber-500/10 border-amber-500 text-amber-500'
+                    : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-500'
+                }`}>
+                <p className="text-sm font-bold">{opt.label}</p>
+                <p className="text-[10px] opacity-60 mt-0.5">{opt.desc}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Vibes */}
+        <div>
+
           <label className="block text-xs font-semibold text-zinc-400 mb-2">Vibe</label>
           <div className="flex flex-wrap gap-2">
             {VIBES.map(v => (
@@ -309,6 +341,7 @@ function HostNewEventForm() {
             <input
               type="date"
               value={form.date}
+              min={todayIstanbul()}
               onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
               required
               className={inputCls}
@@ -500,6 +533,21 @@ function HostNewEventForm() {
           </div>
 
           <RichTextEditor value={form.description} onChange={v => setForm(f => ({ ...f, description: v }))} placeholder="Tell people what this event is about…" />
+        </div>
+
+        {/* Emoji */}
+        <div>
+          <label className="block text-xs font-semibold text-zinc-400 mb-2">Event emoji</label>
+          <div className="flex flex-wrap gap-2">
+            {EMOJIS.map(e => (
+              <button key={e} type="button" onClick={() => setForm(f => ({ ...f, emoji: e }))}
+                className={`w-11 h-11 rounded-xl text-2xl flex items-center justify-center transition-all ${
+                  form.emoji === e ? 'bg-amber-500/20 ring-2 ring-amber-500 scale-110' : 'bg-zinc-800 hover:bg-zinc-700'
+                }`}>
+                {e}
+              </button>
+            ))}
+          </div>
         </div>
 
         <button

@@ -26,10 +26,65 @@ interface JoinRequest {
   neighborhood: string | null; bio: string | null; requestedAt: string
 }
 
+interface ClubMember {
+  id: string; role: string; firstName: string; fullName: string | null
+  color: string; photo: string | null; neighborhood: string | null; connected: boolean
+}
+
+function MemberList({ slug }: { slug: string }) {
+  const [members, setMembers] = useState<ClubMember[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch(`/app/api/clubs/${slug}/members`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : [])
+      .then(setMembers)
+      .finally(() => setLoading(false))
+  }, [slug])
+
+  if (loading) return <p className="text-zinc-500 text-sm py-8 text-center">Loading…</p>
+  if (members.length === 0) return (
+    <div className="py-12 text-center">
+      <div className="text-3xl mb-2">👥</div>
+      <p className="text-zinc-500 text-sm">No members yet.</p>
+    </div>
+  )
+
+  const hosts   = members.filter(m => m.role === 'host')
+  const regular = members.filter(m => m.role !== 'host')
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">{members.length} member{members.length !== 1 ? 's' : ''}</p>
+      {[...hosts, ...regular].map(m => {
+        const photo    = resolveImageUrl(m.photo)
+        const display  = m.fullName ?? m.firstName
+        const initials = display.trim().split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
+        return (
+          <div key={m.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 flex items-center justify-center text-white font-bold text-xs"
+              style={{ backgroundColor: m.color }}>
+              {photo ? <img src={photo} alt={display} className="w-full h-full object-cover" /> : initials}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-white truncate">{display}</p>
+              {m.neighborhood && <p className="text-xs text-zinc-500 mt-0.5">📍 {m.neighborhood}</p>}
+            </div>
+            {m.role === 'host' && (
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 shrink-0">Host</span>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function MemberRequests({ slug }: { slug: string }) {
   const [requests, setRequests] = useState<JoinRequest[]>([])
   const [loading,  setLoading]  = useState(true)
   const [busy,     setBusy]     = useState<string | null>(null)
+  const [error,    setError]    = useState<string | null>(null)
 
   useEffect(() => {
     fetch(`/app/api/clubs/${slug}/members?pending=1`, { credentials: 'include' })
@@ -40,12 +95,18 @@ function MemberRequests({ slug }: { slug: string }) {
 
   async function decide(userId: string, action: 'approve' | 'reject') {
     setBusy(userId)
+    setError(null)
     const res = await fetch(`/app/api/clubs/${slug}/members`, {
       method: 'PATCH', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId, action }),
     })
-    if (res.ok) setRequests(prev => prev.filter(r => r.id !== userId))
+    if (res.ok) {
+      setRequests(prev => prev.filter(r => r.id !== userId))
+    } else {
+      const data = await res.json().catch(() => ({}))
+      setError(data.error ?? 'Something went wrong. Please try again.')
+    }
     setBusy(null)
   }
 
@@ -60,6 +121,9 @@ function MemberRequests({ slug }: { slug: string }) {
 
   return (
     <div className="space-y-3">
+      {error && (
+        <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{error}</p>
+      )}
       <p className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">
         {requests.length} pending request{requests.length !== 1 ? 's' : ''}
       </p>
@@ -127,7 +191,7 @@ export default function ClubManagementTabs({
   const [tab, setTab] = useState<Tab>('announcements')
 
   const tabs: { key: Tab; label: string }[] = [
-    ...(isPrivate ? [{ key: 'members' as Tab, label: '👥 Members' }] : []),
+    { key: 'members' as Tab, label: '👥 Members' },
     ...BASE_TABS,
   ]
 
@@ -150,7 +214,12 @@ export default function ClubManagementTabs({
         ))}
       </div>
 
-      {tab === 'members' && <MemberRequests slug={slug} />}
+      {tab === 'members' && (
+        <div className="space-y-8">
+          {isPrivate && <MemberRequests slug={slug} />}
+          <MemberList slug={slug} />
+        </div>
+      )}
       {tab === 'announcements' && (
         <ClubAnnouncements slug={slug} canAnnounce={true} currentUserId={currentUserId} isAdmin={isAdmin} dark />
       )}
@@ -164,7 +233,7 @@ export default function ClubManagementTabs({
         <ClubResources slug={slug} initialResources={initialResources} canEdit={true} dark />
       )}
       {tab === 'photos' && (
-        <ClubPhotos slug={slug} canUpload={true} currentUserId={currentUserId} isAdmin={isAdmin} dark />
+        <ClubPhotos slug={slug} canUpload={true} isMember={true} currentUserId={currentUserId} isAdmin={isAdmin} dark />
       )}
     </div>
   )

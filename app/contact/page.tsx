@@ -59,7 +59,7 @@ export default function ContactPage() {
             <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 tracking-tight mb-4">
               Get in touch
             </h1>
-            <p className="text-lg text-gray-500 max-w-xl">
+            <p className="text-lg text-gray-600 max-w-xl">
               Have a question, idea, or issue? We're a small team and we read every message personally.
               We typically reply within 24–48 hours.
             </p>
@@ -75,7 +75,7 @@ export default function ContactPage() {
                 <div className="bg-white rounded-2xl shadow-card p-10 text-center">
                   <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-5 text-3xl">✓</div>
                   <h2 className="text-2xl font-extrabold text-gray-900 mb-2">Message sent!</h2>
-                  <p className="text-gray-500 mb-6">
+                  <p className="text-gray-600 mb-6">
                     Thanks for reaching out. We'll reply to <strong className="text-gray-700">{form.email}</strong> within 24–48 hours.
                   </p>
                   <div className="flex gap-3 justify-center flex-wrap">
@@ -110,7 +110,7 @@ export default function ContactPage() {
 
                     {/* Topic selector */}
                     <div>
-                      <label className="block text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">
+                      <label className="block text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide">
                         What's this about?
                       </label>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -120,7 +120,7 @@ export default function ContactPage() {
                             className={`flex flex-col items-center gap-1 py-3 px-2 rounded-xl border text-xs font-semibold transition-colors ${
                               form.topic === t.value
                                 ? 'border-amber-400 bg-amber-50 text-amber-700'
-                                : 'border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50'
+                                : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
                             }`}>
                             <span className="text-lg">{t.icon}</span>
                             <span className="leading-tight text-center">{t.label}</span>
@@ -132,14 +132,14 @@ export default function ContactPage() {
                     {/* Name + email */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-xs font-semibold text-gray-500 mb-1.5">Your name</label>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1.5">Your name</label>
                         <input
                           type="text" value={form.name} onChange={e => set('name', e.target.value)}
                           placeholder="Ayşe Kaya" required className={inputCls}
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-gray-500 mb-1.5">Email address</label>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1.5">Email address</label>
                         <input
                           type="email" value={form.email} onChange={e => set('email', e.target.value)}
                           placeholder="you@example.com" required className={inputCls}
@@ -149,7 +149,7 @@ export default function ContactPage() {
 
                     {/* Message */}
                     <div>
-                      <label className="block text-xs font-semibold text-gray-500 mb-1.5">
+                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">
                         Message
                         <span className="text-gray-400 font-normal ml-1">({form.message.length}/1000)</span>
                       </label>

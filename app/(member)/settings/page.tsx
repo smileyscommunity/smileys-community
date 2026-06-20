@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import ActiveDevicesSection from '@/components/settings/ActiveDevicesSection'
 import TwoFactorSection from '@/components/settings/TwoFactorSection'
 import DeleteAccountSection from '@/components/settings/DeleteAccountSection'
+import PasswordToggle from '@/components/PasswordToggle'
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!
 
@@ -80,7 +81,7 @@ function PushNotificationsSection() {
   return (
     <Section title="Push Notifications" description="Get notified on this device even when the app is closed">
       {state === 'denied' ? (
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-gray-600">
           Notifications are blocked in your browser. To enable, open your browser settings and allow notifications for this site.
         </p>
       ) : (
@@ -140,6 +141,7 @@ export default function SettingsPage() {
   const [current,   setCurrent]   = useState('')
   const [newPw,     setNewPw]     = useState('')
   const [confirmPw, setConfirmPw] = useState('')
+  const [showPw,    setShowPw]    = useState(false)
   const [pwStatus,  setPwStatus]  = useState<'idle' | 'saving' | 'ok' | 'error'>('idle')
   const [pwError,   setPwError]   = useState('')
 
@@ -285,7 +287,7 @@ export default function SettingsPage() {
       <div className="bg-white border-b border-gray-100">
         <div className="max-w-xl mx-auto px-4 sm:px-6 pt-10 pb-4">
           <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">Settings</h1>
-          <p className="text-base text-gray-500 mt-1">Manage your account and preferences</p>
+          <p className="text-base text-gray-600 mt-1">Manage your account and preferences</p>
         </div>
       </div>
       <div className="max-w-xl mx-auto px-4 py-8 space-y-5">
@@ -295,19 +297,28 @@ export default function SettingsPage() {
           <form onSubmit={handleChangePassword} className="space-y-3">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Current password</label>
-              <input type="password" value={current} onChange={e => setCurrent(e.target.value)} required
-                className="input" />
+              <div className="relative">
+                <input type={showPw ? 'text' : 'password'} value={current} onChange={e => setCurrent(e.target.value)} required
+                  className="input pr-12" />
+                <PasswordToggle visible={showPw} onToggle={() => setShowPw(p => !p)} />
+              </div>
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">New password</label>
-              <input type="password" value={newPw} onChange={e => setNewPw(e.target.value)} required minLength={12}
-                className="input" />
-              <p className="text-xs text-gray-400 mt-1">At least 12 characters.</p>
+              <div className="relative">
+                <input type={showPw ? 'text' : 'password'} value={newPw} onChange={e => setNewPw(e.target.value)} required minLength={8}
+                  className="input pr-12" />
+                <PasswordToggle visible={showPw} onToggle={() => setShowPw(p => !p)} />
+              </div>
+              <p className="text-xs text-gray-400 mt-1">At least 8 characters.</p>
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Confirm new password</label>
-              <input type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} required
-                className="input" />
+              <div className="relative">
+                <input type={showPw ? 'text' : 'password'} value={confirmPw} onChange={e => setConfirmPw(e.target.value)} required
+                  className="input pr-12" />
+                <PasswordToggle visible={showPw} onToggle={() => setShowPw(p => !p)} />
+              </div>
             </div>
             {pwError && <p className="text-xs text-red-500">{pwError}</p>}
             <button type="submit" disabled={pwStatus === 'saving'}
@@ -330,14 +341,14 @@ export default function SettingsPage() {
             {prefs.quietHours && (
               <div className="flex flex-wrap gap-3 py-2 pl-1">
                 <div className="flex items-center gap-2">
-                  <label className="text-xs text-gray-500 w-10">From</label>
+                  <label className="text-xs text-gray-600 w-10">From</label>
                   <select value={prefs.quietFrom} onChange={e => savePref('quietFrom', Number(e.target.value))}
                     className="text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-400">
                     {Array.from({ length: 24 }, (_, i) => <option key={i} value={i}>{String(i).padStart(2,'0')}:00</option>)}
                   </select>
                 </div>
                 <div className="flex items-center gap-2">
-                  <label className="text-xs text-gray-500 w-6">To</label>
+                  <label className="text-xs text-gray-600 w-6">To</label>
                   <select value={prefs.quietTo} onChange={e => savePref('quietTo', Number(e.target.value))}
                     className="text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-400">
                     {Array.from({ length: 24 }, (_, i) => <option key={i} value={i}>{String(i).padStart(2,'0')}:00</option>)}
@@ -403,11 +414,11 @@ export default function SettingsPage() {
         <Section title="Account">
           <div className="space-y-3">
             <div className="flex justify-between items-center text-sm">
-              <span className="text-gray-500">Email</span>
+              <span className="text-gray-600">Email</span>
               <span className="text-gray-700 font-medium">{user.email}</span>
             </div>
             <div className="flex justify-between items-center text-sm">
-              <span className="text-gray-500">Role</span>
+              <span className="text-gray-600">Role</span>
               <span className="capitalize text-gray-700 font-medium">{user.role}</span>
             </div>
           </div>

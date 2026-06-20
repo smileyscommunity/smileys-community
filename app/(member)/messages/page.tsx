@@ -53,7 +53,7 @@ export default function MessagesPage() {
     <div className="min-h-screen bg-warm pb-20 md:pb-0">
       <div className="bg-white border-b border-gray-100">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6">
-          <div className="flex items-center gap-3 text-sm text-gray-500 mb-4">
+          <div className="flex items-center gap-3 text-sm text-gray-600 mb-4">
             <Link href="/dashboard" className="hover:text-gray-900 transition-colors">Dashboard</Link>
             <span>/</span>
             <span className="text-gray-900 font-medium">Messages</span>
@@ -61,7 +61,7 @@ export default function MessagesPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">Messages</h1>
-              <p className="text-base text-gray-500 mt-1">{totalUnread > 0 ? `${totalUnread} unread` : 'Your conversations'}</p>
+              <p className="text-base text-gray-600 mt-1">{totalUnread > 0 ? `${totalUnread} unread` : 'Your conversations'}</p>
             </div>
           </div>
         </div>
@@ -85,7 +85,7 @@ export default function MessagesPage() {
           <div className="text-center py-20 max-w-xs mx-auto">
             <div className="text-6xl mb-4">💬</div>
             <h3 className="text-lg font-bold text-gray-900 mb-2">No messages yet</h3>
-            <p className="text-sm text-gray-500 mb-6">Start a conversation from any member's profile.</p>
+            <p className="text-sm text-gray-600 mb-6">Start a conversation from any member's profile.</p>
             <Link href="/members" className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors inline-block">
               Browse members
             </Link>
@@ -111,7 +111,7 @@ export default function MessagesPage() {
                     <span className={`text-sm font-semibold text-gray-900 ${c.unread > 0 ? 'font-bold' : ''}`}>{c.partner.name}</span>
                     <span className="text-xs text-gray-400 shrink-0">{timeAgo(c.lastMessage.createdAt)}</span>
                   </div>
-                  <p className={`text-sm truncate ${c.unread > 0 ? 'text-gray-900 font-medium' : 'text-gray-500'}`}>
+                  <p className={`text-sm truncate ${c.unread > 0 ? 'text-gray-900 font-medium' : 'text-gray-600'}`}>
                     {c.lastMessage.fromMe && <span className="text-gray-400">You: </span>}
                     {c.lastMessage.text}
                   </p>

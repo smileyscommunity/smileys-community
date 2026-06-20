@@ -1,15 +1,33 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 
 interface Props {
-  text: string
-  link?: string
+  text:       string
+  link?:      string
+  updatedAt?: string | null
 }
 
-export default function AnnouncementBanner({ text, link }: Props) {
+const LS_KEY = 'smileys_announcement_dismissed'
+
+export default function AnnouncementBanner({ text, link, updatedAt }: Props) {
   const [dismissed, setDismissed] = useState(false)
+
+  // On mount, check if this exact announcement version was already dismissed.
+  // Key on updatedAt so a new announcement always shows even if a prior one was dismissed.
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(LS_KEY)
+      if (stored && stored === (updatedAt ?? text)) setDismissed(true)
+    } catch { /* localStorage unavailable */ }
+  }, [updatedAt, text])
+
+  function dismiss() {
+    try { localStorage.setItem(LS_KEY, updatedAt ?? text) } catch { /* ignore */ }
+    setDismissed(true)
+  }
+
   if (dismissed || !text) return null
 
   const content = (
@@ -28,7 +46,7 @@ export default function AnnouncementBanner({ text, link }: Props) {
       ) : (
         <div className="flex-1 min-w-0">{content}</div>
       )}
-      <button onClick={() => setDismissed(true)}
+      <button onClick={dismiss}
         className="shrink-0 text-amber-400 hover:text-amber-600 transition-colors text-base leading-none mt-0.5">
         ×
       </button>

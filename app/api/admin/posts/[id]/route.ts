@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { canManagePosts } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
-import { CATEGORIES, isCategory, TITLE_MAX, EXCERPT_MAX, BODY_MAX } from '@/app/admin/posts/constants'
+import { CATEGORIES, HANDBOOK_CATEGORIES, isValidCategory, TITLE_MAX, EXCERPT_MAX, BODY_MAX } from '@/app/admin/posts/constants'
 
 // Match POST. External cover URLs would leak visitor IPs on render.
 const COVER_PATH_RE = /^\/app\/api\/files\/[a-zA-Z0-9\-_/]+\.(jpg|jpeg|png|webp|gif)$/i
@@ -24,6 +24,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const { id } = await params
   const { title, excerpt, body, coverImage, status, category } = await req.json()
+  const existing = await prisma.post.findUnique({ where: { id } })
+  if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  const postKind = existing.kind ?? 'community'
   const cleanTitle   = String(title   ?? '').trim()
   const cleanExcerpt = excerpt ? String(excerpt).trim() : ''
   const cleanBody    = String(body    ?? '').trim()
@@ -37,14 +40,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   // Category allowlist + cover URL validation match POST. PUT does NOT
   // touch the slug — keeping URLs stable across edits is a deliberate
   // SEO + bookmark preservation choice.
-  const cleanCategory = isCategory(category) ? category : CATEGORIES[0]
+  const defaultCat    = postKind === 'handbook' ? HANDBOOK_CATEGORIES[0] : CATEGORIES[0]
+  const cleanCategory = isValidCategory(postKind, category) ? String(category) : defaultCat
   const cleanCover = coverImage ? String(coverImage).trim() : ''
   if (cleanCover && !COVER_PATH_RE.test(cleanCover)) {
     return NextResponse.json({ error: 'Cover image must be uploaded via the form — external URLs are not allowed' }, { status: 400 })
   }
-
-  const existing = await prisma.post.findUnique({ where: { id } })
-  if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const wasPublished = existing.status === 'published'
   const nowPublished = status === 'published'

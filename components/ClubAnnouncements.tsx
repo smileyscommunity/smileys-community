@@ -97,7 +97,7 @@ export default function ClubAnnouncements({ slug, canAnnounce, currentUserId, is
   const time_    = dark ? 'text-zinc-500' : 'text-gray-400'
   const del_     = dark ? 'text-zinc-600 hover:text-red-400' : 'text-gray-300 hover:text-red-400'
   const body_    = dark ? 'text-zinc-300' : 'text-gray-700'
-  const empty_   = dark ? 'text-zinc-500' : 'text-gray-500'
+  const empty_   = dark ? 'text-zinc-500' : 'text-gray-600'
   const skelBg   = dark ? 'bg-zinc-700' : 'bg-gray-200'
 
   return (

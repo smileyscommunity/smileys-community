@@ -1,4 +1,6 @@
 import Link from 'next/link'
+import { readFileSync } from 'fs'
+import { join } from 'path'
 
 export const metadata = {
   title: 'Community Guidelines — Smileys Community',
@@ -6,6 +8,15 @@ export const metadata = {
 }
 
 const LAST_UPDATED = 'June 2026'
+
+interface CommunityRule { title: string; body: string }
+
+function loadCommunityRules(): CommunityRule[] {
+  try {
+    const settings = JSON.parse(readFileSync(join(process.cwd(), 'data', 'settings.json'), 'utf-8'))
+    return Array.isArray(settings.communityRules) ? settings.communityRules : []
+  } catch { return [] }
+}
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -29,6 +40,8 @@ function Rule({ icon, title, children }: { icon: string; title: string; children
 }
 
 export default function GuidelinesPage() {
+  const communityRules = loadCommunityRules()
+
   return (
     <main className="min-h-screen bg-white">
       {/* Header */}
@@ -41,7 +54,7 @@ export default function GuidelinesPage() {
             Smileys Community
           </Link>
           <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight mb-3">Community Guidelines</h1>
-          <p className="text-gray-500 text-sm">Last updated: {LAST_UPDATED}</p>
+          <p className="text-gray-600 text-sm">Last updated: {LAST_UPDATED}</p>
         </div>
       </div>
 
@@ -56,6 +69,23 @@ export default function GuidelinesPage() {
             guidelines exist so the rare bad actor doesn't ruin it for everyone else.
           </p>
         </div>
+
+        {communityRules.length > 0 && (
+          <section className="mb-10">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Community Rules</h2>
+            <ol className="space-y-3">
+              {communityRules.map((rule, i) => (
+                <li key={i} className="flex gap-4 border-l-4 border-amber-400 bg-amber-50/40 pl-4 py-3 rounded-r-xl">
+                  <span className="text-amber-500 font-extrabold text-sm shrink-0 mt-0.5 w-5">{i + 1}.</span>
+                  <div>
+                    <p className="font-semibold text-gray-900 text-sm">{rule.title}</p>
+                    <p className="text-sm text-gray-600 leading-relaxed mt-0.5">{rule.body}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
 
         <Section title="What we expect from every member">
           <div className="space-y-3">
@@ -179,7 +209,7 @@ export default function GuidelinesPage() {
             <a href="mailto:info@smileyscommunity.com" className="text-amber-700 hover:underline">
               info@smileyscommunity.com
             </a>
-            ; we review every appeal but reserve the right to decline reinstatement.
+            ; we review every appeal and respond within 5 business days, but reserve the right to decline reinstatement.
           </p>
         </Section>
 
@@ -207,7 +237,7 @@ export default function GuidelinesPage() {
           <p>
             The community grows, the rules evolve. When we update these guidelines we'll bump
             the "Last updated" date at the top. Material changes (new categories of violation,
-            new enforcement steps) will also be announced on the community wall so you're not
+            new enforcement steps) will also be announced on the main Smileys dashboard feed so you're not
             surprised.
           </p>
         </Section>

@@ -2,12 +2,17 @@ import { canManageUsers, canViewUserList, isAdmin as sessionIsAdmin } from '@/li
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { rateLimit } from '@/lib/rateLimit'
 
 export async function GET(req: NextRequest) {
   try {
     const session = await getSession()
     if (!session || !canViewUserList(session)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    if (!await rateLimit(`admin-users:${session.id}`, 30, 60_000)) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
     }
 
     const params = new URL(req.url).searchParams
@@ -44,6 +49,7 @@ export async function GET(req: NextRequest) {
         ...cityFilter,
       },
       orderBy: { joinedAt: 'desc' },
+      take: 1000,
       select: {
         id: true, name: true, email: true, role: true,
         color: true, emailVerified: true, joinedAt: true,
@@ -63,11 +69,27 @@ export async function GET(req: NextRequest) {
       },
     })
 
+    // No-show count: approved attendees where checkedIn=false and event date is past.
+    // NO_SHOW_TRACKING_SINCE: update this date to reset all counts (only events on/after this date are counted).
+    const NO_SHOW_TRACKING_SINCE = '2026-06-18'
+    const today = new Date().toISOString().slice(0, 10)
+    const noShowRows = await prisma.$queryRaw<{ userId: string; count: bigint }[]>`
+      SELECT ea."userId", COUNT(*) AS count
+      FROM event_attendees ea
+      JOIN events e ON e.id = ea."eventId"
+      WHERE ea."checkedIn" = false
+        AND ea.status = 'approved'
+        AND e.date >= ${NO_SHOW_TRACKING_SINCE}
+        AND e.date < ${today}
+      GROUP BY ea."userId"
+    `
+    const noShowMap = new Map(noShowRows.map(r => [r.userId, Number(r.count)]))
+
     const isAdmin = canManageUsers(session)
     const mapped = users.map(({ email, phone, password, ...u }) => {
       const displayEmail = isAdmin ? email : (email.split('@')[0].slice(0, 3) + '...@' + email.split('@')[1])
       const displayPhone = isAdmin ? phone : (phone ? phone.slice(0, 4) + '...' + phone.slice(-2) : null)
-      return { ...u, email: displayEmail, phone: displayPhone, hasPassword: !!password }
+      return { ...u, email: displayEmail, phone: displayPhone, hasPassword: !!password, noShowCount: noShowMap.get(u.id) ?? 0 }
     })
     return NextResponse.json(mapped)
   } catch (e) {

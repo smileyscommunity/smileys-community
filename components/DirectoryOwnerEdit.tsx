@@ -8,7 +8,7 @@
 
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { BUSINESS_CATEGORIES, DIRECTORY_LIMITS } from '@/lib/directory'
+import { BUSINESS_CATEGORIES, DIRECTORY_LIMITS } from '@/lib/directory-constants'
 import { DAY_KEYS, DAY_LABELS, isValidRange } from '@/lib/businessHours'
 
 interface BusinessLike {
@@ -119,7 +119,7 @@ export default function DirectoryOwnerEdit({
   }
 
   const inputCls = 'w-full bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-amber-300'
-  const labelCls = 'block text-[10px] font-semibold uppercase tracking-wide text-gray-500 mb-1'
+  const labelCls = 'block text-[10px] font-semibold uppercase tracking-wide text-gray-600 mb-1'
 
   return (
     <>
@@ -199,13 +199,13 @@ export default function DirectoryOwnerEdit({
 
               <div>
                 <label className={labelCls}>Hours · Mon–Sun</label>
-                <p className="text-[10px] text-gray-500 mb-1.5">
+                <p className="text-[10px] text-gray-600 mb-1.5">
                   Format: <code>09:00-22:00</code>. Leave blank for closed days. Cross-midnight ranges like <code>21:00-02:00</code> work too.
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                   {DAY_KEYS.map(d => (
                     <div key={d} className="flex items-center gap-2">
-                      <span className="w-10 text-[11px] font-semibold text-gray-500 uppercase">{DAY_LABELS[d]}</span>
+                      <span className="w-10 text-[11px] font-semibold text-gray-600 uppercase">{DAY_LABELS[d]}</span>
                       <input
                         value={s.hours[d]}
                         onChange={e => setS(p => ({ ...p, hours: { ...p.hours, [d]: e.target.value } }))}
@@ -219,7 +219,7 @@ export default function DirectoryOwnerEdit({
             </div>
 
             <div className="px-5 py-3 border-t border-gray-100 flex gap-2 justify-end shrink-0">
-              <button onClick={() => setOpen(false)} className="text-sm font-semibold text-gray-500 hover:text-gray-700 px-4 py-2 transition-colors">
+              <button onClick={() => setOpen(false)} className="text-sm font-semibold text-gray-600 hover:text-gray-700 px-4 py-2 transition-colors">
                 Cancel
               </button>
               <button onClick={save} disabled={busy}

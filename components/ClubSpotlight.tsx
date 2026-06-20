@@ -74,7 +74,7 @@ export default function ClubSpotlight({ slug, initialSpotlight, canEdit, dark }:
   const bio_    = dark ? 'text-zinc-500' : 'text-gray-400'
   const note_   = dark ? 'text-zinc-400' : 'text-gray-600'
   const muted   = dark ? 'text-zinc-500' : 'text-gray-400'
-  const label   = dark ? 'text-zinc-500' : 'text-gray-500'
+  const label   = dark ? 'text-zinc-500' : 'text-gray-600'
   const selBg   = dark ? 'bg-zinc-800 border border-amber-500/30' : 'bg-amber-50 border border-amber-200'
   const selName = dark ? 'text-white' : 'text-gray-900'
   const listBg  = dark ? 'border border-zinc-700 divide-y divide-zinc-800' : 'border border-gray-200 divide-y divide-gray-100'

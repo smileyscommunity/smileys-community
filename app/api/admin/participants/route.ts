@@ -33,9 +33,14 @@ export async function GET() {
       eventIdFilter = { in: hostEvents.map(e => e.id) }
     }
 
+    const today = new Date().toISOString().slice(0, 10)
+
     const [attendees, waitlistRaw] = await Promise.all([
       prisma.eventAttendee.findMany({
-        where: eventIdFilter ? { eventId: eventIdFilter } : undefined,
+        where: {
+          ...(eventIdFilter ? { eventId: eventIdFilter } : {}),
+          event: { date: { gte: today } },
+        },
         include: {
           user:  { select: userSelect },
           event: { select: eventSelect },
@@ -53,12 +58,14 @@ export async function GET() {
 
     const [waitlistUsers, waitlistEvents] = waitlistUserIds.length ? await Promise.all([
       prisma.user.findMany({ where: { id: { in: waitlistUserIds } }, select: userSelect }),
-      prisma.event.findMany({ where: { id: { in: waitlistEventIds } }, select: eventSelect }),
+      prisma.event.findMany({ where: { id: { in: waitlistEventIds }, date: { gte: today } }, select: eventSelect }),
     ]) : [[], []]
 
     const userMap  = Object.fromEntries(waitlistUsers.map(u => [u.id, u]))
     const eventMap = Object.fromEntries(waitlistEvents.map(e => [e.id, e]))
-    const waitlist = waitlistRaw.map(w => ({ ...w, user: userMap[w.userId], event: eventMap[w.eventId] }))
+    const waitlist = waitlistRaw
+      .map(w => ({ ...w, user: userMap[w.userId], event: eventMap[w.eventId] }))
+      .filter(w => w.event != null)
 
     return NextResponse.json({ attendees, waitlist })
   } catch (e) {

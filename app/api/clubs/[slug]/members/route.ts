@@ -128,19 +128,21 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 
   if (action === 'approve') {
-    await prisma.clubMembership.update({
-      where: { userId_clubId: { userId, clubId: club.id } },
+    const { count } = await prisma.clubMembership.updateMany({
+      where: { userId, clubId: club.id, status: 'pending' },
       data: { status: 'approved' },
     })
+    if (count === 0) return NextResponse.json({ error: 'No pending request found' }, { status: 404 })
     await prisma.club.update({ where: { id: club.id }, data: { memberCount: { increment: 1 } } })
     await createNotification(
       userId, 'club_approved', 'Club request approved',
       `Your request to join "${club.name}" was approved! 🎉`, `/clubs/${club.slug}`
     )
   } else {
-    await prisma.clubMembership.delete({
-      where: { userId_clubId: { userId, clubId: club.id } },
+    const { count } = await prisma.clubMembership.deleteMany({
+      where: { userId, clubId: club.id, status: 'pending' },
     })
+    if (count === 0) return NextResponse.json({ error: 'No pending request found' }, { status: 404 })
     await createNotification(
       userId, 'club_approved', 'Club request update',
       `Your request to join "${club.name}" was not approved this time.`, `/clubs`

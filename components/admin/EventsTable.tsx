@@ -54,7 +54,7 @@ export default function EventsTable() {
       ) : (
         <div className="space-y-2">
           {events.map(e => {
-            const attending = e._count.attendees
+            const attending = e.totalSpots - e.spotsLeft
             const pct       = e.totalSpots > 0 ? Math.round((attending / e.totalSpots) * 100) : 0
             const barColor  = pct >= 90 ? 'bg-red-500' : pct >= 60 ? 'bg-amber-500' : 'bg-green-500'
             const host      = e.host

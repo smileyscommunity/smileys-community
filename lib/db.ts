@@ -78,9 +78,7 @@ function mapEvent(e: any, spotsLeft?: number): Event {
     price:        e.price,
     memberPrice:  e.memberPrice ?? undefined,
     totalSpots:   e.totalSpots,
-    spotsLeft:    spotsLeft ?? e._count?.attendees != null
-      ? Math.max(0, e.totalSpots - (e._count?.attendees ?? 0))
-      : e.spotsLeft,
+    spotsLeft:    spotsLeft ?? Math.max(0, e.spotsLeft ?? 0),
     limitedSpots: e.limitedSpots,
     isPremium:    e.isPremium,
     membersOnly:  e.membersOnly,
@@ -146,10 +144,14 @@ export async function getEvents(options?: {
 }): Promise<{ events: Event[]; total: number }> {
   const { limit = 24, offset = 0, upcoming, cityId } = options ?? {}
   const today = new Date(new Date().toLocaleString('en-CA', { timeZone: 'Europe/Istanbul' }).split(',')[0]).toISOString().split('T')[0]
+  // Include 'cancelled' so the EventCard banner is reachable — members
+  // who heard about an event before it was killed need to see WHY it
+  // disappeared from their feed, not silently lose it. The card itself
+  // grays out, stamps "Cancelled" across the cover, and disables Join.
   const baseWhere = upcoming === true
-    ? { date: { gte: today }, status: 'published' }
+    ? { date: { gte: today }, status: { in: ['published', 'cancelled'] } }
     : upcoming === false
-    ? { date: { lt: today }, status: { in: ['published', 'archived'] } }
+    ? { date: { lt: today }, status: { in: ['published', 'archived', 'cancelled'] } }
     : {}
   const where = cityId ? { ...baseWhere, cityId } : baseWhere
 
@@ -162,8 +164,8 @@ export async function getEvents(options?: {
     where,
     include: eventInclude,
     orderBy: upcoming === false
-      ? [{ date: 'desc' }]
-      : [{ featured: 'desc' }, { date: 'asc' }],
+      ? [{ date: 'desc' }, { time: 'desc' }]
+      : [{ featured: 'desc' }, { date: 'asc' }, { time: 'asc' }],
     take: limit,
     skip: offset,
   })
@@ -194,7 +196,7 @@ export async function getEventsByClub(clubId: string): Promise<Event[]> {
   const rows = await prisma.event.findMany({
     where: {
       clubId,
-      status: 'published',
+      status: { in: ['published', 'cancelled'] },
       date: { gte: today },
       OR: [
         { price: { gt: 0 } },

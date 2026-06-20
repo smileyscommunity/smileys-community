@@ -19,9 +19,7 @@ import { getSession } from '@/lib/session'
 // Ranks are dense (1, 2, 2, 4 for ties to allow inspection of
 // "you and N others tied at this rank" semantics).
 //
-// Anonymity: we expose name + first initial of last name + color.
-// Profile photo only for the top 10 — keeps the leaderboard
-// readable without doxxing the casual middle of the pack.
+// Anonymity: we expose name + first initial of last name + color + profile photo.
 
 export const dynamic = 'force-dynamic'
 
@@ -137,10 +135,11 @@ export async function GET(req: Request) {
         rank:         r.rank,
         name:         u ? displayName(u.name) : '—',
         color:        u?.color ?? '#f59e0b',
-        profilePhoto: idx < 10 ? (u?.profilePhoto ?? null) : null,
+        profilePhoto: u?.profilePhoto ?? null,
         score:        r.score,
         matchScore:   r.matchScore,
         bracketScore: r.bracketScore,
+        isYou:        session?.id === r.userId,
       }
     }),
     yourRank:  youRow?.rank ?? null,

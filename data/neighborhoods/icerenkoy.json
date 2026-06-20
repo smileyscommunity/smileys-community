@@ -1,0 +1,50 @@
+{
+  "tagline": "A well-established Asian side residential and business district — tree-lined streets, good schools, corporate headquarters, and a quiet suburban comfort close to Ataşehir's commercial core.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "İçerenköy Semt Kafeleri",
+          "description": "A solid selection of neighbourhood cafés around the main streets — frequented by professionals working in the nearby Ataşehir business district.",
+          "address": "İçerenköy, Ataşehir",
+          "badge": "Smileys Pick"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "İçerenköy Restoranları",
+          "description": "A mix of neighbourhood lokantas and mid-range restaurants catering to the district's working and residential population.",
+          "address": "İçerenköy, Ataşehir"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "İçerenköy Sahası ve Parkları",
+          "description": "Several small parks and green spaces in the residential streets — good for a morning walk before commuting.",
+          "address": "İçerenköy, Ataşehir"
+        },
+        {
+          "name": "Palladium AVM",
+          "description": "A modern shopping centre in the İçerenköy area with international brands, cinema, and dining options.",
+          "address": "İçerenköy, Ataşehir"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "İçerenköy is well-served by bus routes connecting to Kadıköy, Ataşehir, and the metro network.",
+    "A popular choice for professionals working in the Ataşehir finance and business corridor.",
+    "More residential and quieter than Ataşehir itself — better for families.",
+    "The nearby E5 highway gives good car access across the Asian side."
+  ]
+}

@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { ISTANBUL_NEIGHBORHOODS, resolveImageUrl, avatarUrl } from '@/lib/data'
+import { ISTANBUL_NEIGHBORHOODS, resolveImageUrl, avatarUrl, getInitials } from '@/lib/data'
+import { countryFlag } from '@/lib/countries'
 import { toast } from 'sonner'
 import { downscaleImage } from '@/lib/image-resize'
 
@@ -13,9 +14,7 @@ import { downscaleImage } from '@/lib/image-resize'
 
 interface JoinerSummary {
   id: string; name: string; color: string; profilePhoto: string | null
-  // Only the host slot includes goodHangouts + languages + mutualConnections
-  // (we don't fetch them for every joiner in the avatar strip — too noisy
-  // and the trust signal is mostly about who's hosting).
+  nationality?:       string | null
   goodHangouts?:      number
   languages?:         string[]
   mutualConnections?: number
@@ -49,6 +48,25 @@ interface Pulse {
   createdAt:    string
   user:         JoinerSummary
   isMine:       boolean
+}
+
+interface Regular {
+  id:           string
+  name:         string
+  color:        string
+  profilePhoto: string | null
+  neighborhood: string | null
+  count:        number
+}
+
+interface RecentHangout {
+  id:           string
+  title:        string
+  neighborhood: string | null
+  endsAt:       string
+  user:         { id: string; name: string; color: string; profilePhoto: string | null }
+  joinerCount:  number
+  goodRefCount: number
 }
 
 type ModeFilter = 'all' | 'solo' | 'group'
@@ -95,16 +113,19 @@ export default function HangoutsPage() {
   const router = useRouter()
   const { user, isLoggedIn, isLoading } = useAuth()
 
-  const [hangouts, setHangouts] = useState<Hangout[]>([])
-  const [pulses,   setPulses]   = useState<Pulse[]>([])
-  const [loading,  setLoading]  = useState(true)
+  const [hangouts,       setHangouts]       = useState<Hangout[]>([])
+  const [pulses,         setPulses]         = useState<Pulse[]>([])
+  const [recentHangouts, setRecentHangouts] = useState<RecentHangout[]>([])
+  const [regulars,       setRegulars]       = useState<Regular[]>([])
+  const [recapCount,     setRecapCount]     = useState(0)
+  const [loading,        setLoading]        = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [showPulseForm, setShowPulseForm] = useState(false)
-  // Filter chips — exclusive: meet-mode. Toggleable: neighborhood + language.
+  // Filter chips — exclusive: meet-mode + neighborhood. Toggleable: language.
   // All default to "off" / "all" so newcomers see the full feed by default;
   // filters are an explicit narrowing action.
   const [modeFilter,          setModeFilter]          = useState<ModeFilter>('all')
-  const [neighborhoodOnly,    setNeighborhoodOnly]    = useState(false)
+  const [neighborhoodFilter,  setNeighborhoodFilter]  = useState<string | null>(null)
   const [languageOnly,        setLanguageOnly]        = useState(false)
 
   // Hangout form
@@ -135,12 +156,18 @@ export default function HangoutsPage() {
   // bodies. Failures fall through to whatever state was already
   // set, so a 500 from one endpoint doesn't blank the page.
   async function loadFeed() {
-    const [h, p] = await Promise.allSettled([
-      fetch('/app/api/hangouts',     { credentials: 'include' }).then(r => r.json()),
-      fetch('/app/api/availability', { credentials: 'include' }).then(r => r.json()),
+    const [h, p, rc, rh, rg] = await Promise.allSettled([
+      fetch('/app/api/hangouts',             { credentials: 'include' }).then(r => r.json()),
+      fetch('/app/api/availability',         { credentials: 'include' }).then(r => r.json()),
+      fetch('/app/api/hangouts/recap-count', { credentials: 'include' }).then(r => r.json()),
+      fetch('/app/api/hangouts/recent',      { credentials: 'include' }).then(r => r.json()),
+      fetch('/app/api/hangouts/regulars',    { credentials: 'include' }).then(r => r.json()),
     ])
-    if (h.status === 'fulfilled' && Array.isArray(h.value?.hangouts)) setHangouts(h.value.hangouts)
-    if (p.status === 'fulfilled' && Array.isArray(p.value?.pulses))   setPulses(p.value.pulses)
+    if (h.status  === 'fulfilled' && Array.isArray(h.value?.hangouts))      setHangouts(h.value.hangouts)
+    if (p.status  === 'fulfilled' && Array.isArray(p.value?.pulses))        setPulses(p.value.pulses)
+    if (rc.status === 'fulfilled' && typeof rc.value?.pending === 'number') setRecapCount(rc.value.pending)
+    if (rh.status === 'fulfilled' && Array.isArray(rh.value?.hangouts))     setRecentHangouts(rh.value.hangouts)
+    if (rg.status === 'fulfilled' && Array.isArray(rg.value?.regulars))     setRegulars(rg.value.regulars)
   }
 
   useEffect(() => {
@@ -180,6 +207,7 @@ export default function HangoutsPage() {
     try {
       const res = await fetch('/app/api/hangouts', {
         method:  'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title, location, neighborhood: neighborhood || undefined,
@@ -212,6 +240,7 @@ export default function HangoutsPage() {
     try {
       const res = await fetch('/app/api/availability', {
         method:  'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           neighborhood: pulseNeighborhood || undefined,
@@ -285,22 +314,24 @@ export default function HangoutsPage() {
                   the push but still want to leave one. Hidden on mobile to
                   keep the action row to two equal-width buttons; phone
                   users get here via the recap push notification instead. */}
-              <Link href="/hangouts/recap"
-                className="hidden sm:inline-flex text-xs font-semibold text-gray-600 hover:text-amber-600 px-3 py-2 rounded-xl border border-gray-200 hover:border-amber-300 transition-colors">
-                Recap
-              </Link>
               {/* Pulse trigger — soft commitment. flex-1 on mobile so it
                   splits the row 50/50 with Post one; sm:flex-initial on
                   desktop so it sits at content width like before. */}
               <button onClick={() => { setShowPulseForm(s => !s); setShowForm(false) }}
                 aria-expanded={showPulseForm}
-                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 text-amber-600 border border-amber-300 hover:bg-amber-50 text-sm font-bold rounded-xl transition-colors">
-                {showPulseForm ? '× Close' : '✦ I’m around'}
+                className="flex-1 sm:flex-initial flex flex-col items-center justify-center px-3 py-2 text-amber-600 border border-amber-300 hover:bg-amber-50 rounded-xl transition-colors">
+                {showPulseForm ? <span className="text-sm font-bold">× Close</span> : <>
+                  <span className="text-sm font-bold">✦ I’m around</span>
+                  <span className="text-[10px] font-normal text-amber-500 mt-0.5">No plan, just free</span>
+                </>}
               </button>
               <button onClick={() => { setShowForm(s => !s); setShowPulseForm(false) }}
                 aria-expanded={showForm}
-                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
-                {showForm ? '× Close' : '＋ Post one'}
+                className="flex-1 sm:flex-initial flex flex-col items-center justify-center px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl transition-colors">
+                {showForm ? <span className="text-sm font-bold">× Close</span> : <>
+                  <span className="text-sm font-bold">＋ Post a hangout</span>
+                  <span className="text-[10px] font-normal text-amber-100 mt-0.5">I’m at X — come join</span>
+                </>}
               </button>
             </div>
           </div>
@@ -308,6 +339,33 @@ export default function HangoutsPage() {
       </div>
 
       <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+
+        {/* Recap nudge — only shows when the user has past hangouts waiting
+            for a reference. Explains what recap is so it doesn't feel random. */}
+        {recapCount > 0 && (
+          <Link href="/hangouts/recap"
+            className="flex items-center justify-between gap-3 bg-white border border-amber-200 rounded-2xl px-5 py-4 shadow-sm hover:border-amber-400 transition-colors">
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-gray-900">
+                ⭐ {recapCount} hangout{recapCount === 1 ? '' : 's'} waiting for your review
+              </p>
+              <p className="text-xs text-gray-500 mt-0.5">Leave a reference for people you met — it builds trust for their next hangout.</p>
+            </div>
+            <span className="text-xs font-bold text-amber-600 shrink-0">Review →</span>
+          </Link>
+        )}
+
+        {/* Ground rules — always visible so everyone knows the norms, not
+            just people who happen to open the post form. */}
+        <div className="rounded-2xl border border-amber-100 bg-amber-50 px-5 py-4">
+          <p className="text-xs font-bold text-amber-800 uppercase tracking-widest mb-3">Ground rules</p>
+          <ul className="space-y-2">
+            <li className="flex items-start gap-2 text-xs text-amber-900"><span>📍</span><span>Meet in public places only — no private addresses.</span></li>
+            <li className="flex items-start gap-2 text-xs text-amber-900"><span>🚫</span><span>Cancel if plans change — don't leave joiners hanging.</span></li>
+            <li className="flex items-start gap-2 text-xs text-amber-900"><span>🔁</span><span>No recurring events or commercial meetups — those go on the Events page.</span></li>
+            <li className="flex items-start gap-2 text-xs text-amber-900"><span>⭐</span><span>After it ends, leave a recap so hosts build trust over time.</span></li>
+          </ul>
+        </div>
 
         {showForm && (
           <form onSubmit={handleSubmit} className="bg-white border border-gray-100 rounded-2xl p-5 space-y-4 shadow-sm">
@@ -480,22 +538,27 @@ export default function HangoutsPage() {
               ))}
             </div>
 
-            {/* Neighborhood toggle — only meaningful if the caller has a
-                home neighborhood set; suppress otherwise so the chip isn't
-                a no-op for users who never picked one. */}
-            {user.neighborhood && (
-              <button
-                onClick={() => setNeighborhoodOnly(v => !v)}
-                aria-pressed={neighborhoodOnly}
-                className={`text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap transition-colors ${
-                  neighborhoodOnly
-                    ? 'bg-amber-500 text-white'
-                    : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300'
-                }`}
-                title={`Filter to ${user.neighborhood}`}>
-                📍 {user.neighborhood}
-              </button>
-            )}
+            {/* Neighborhood pills — one per distinct neighborhood in the
+                current feed, sorted alphabetically. Hidden when every
+                hangout is location-less or there's only one neighborhood
+                (no point filtering to the only option). */}
+            {(() => {
+              const hoods = [...new Set(hangouts.map(h => h.neighborhood).filter(Boolean) as string[])].sort()
+              if (hoods.length < 2) return null
+              return hoods.map(hood => (
+                <button
+                  key={hood}
+                  onClick={() => setNeighborhoodFilter(v => v === hood ? null : hood)}
+                  aria-pressed={neighborhoodFilter === hood}
+                  className={`text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap transition-colors ${
+                    neighborhoodFilter === hood
+                      ? 'bg-amber-500 text-white'
+                      : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300'
+                  }`}>
+                  📍 {hood}
+                </button>
+              ))
+            })()}
 
             {/* Language toggle — same suppression pattern: if no languages
                 set on the profile, the chip would never match anything. */}
@@ -524,12 +587,12 @@ export default function HangoutsPage() {
         {loading ? (
           <p className="text-center text-gray-400 text-sm py-10">Loading…</p>
         ) : (() => {
-          // Apply all three filters in order. modeFilter is exclusive
-          // (single chip), neighborhood + language are independent toggles.
+          // Apply all three filters in order. modeFilter + neighborhoodFilter
+          // are exclusive single-select; language is an independent toggle.
           const myLangs = new Set(user.languages ?? [])
           const filtered = hangouts.filter(h => {
             if (modeFilter !== 'all' && h.meetMode !== modeFilter) return false
-            if (neighborhoodOnly && h.neighborhood !== user.neighborhood) return false
+            if (neighborhoodFilter && h.neighborhood !== neighborhoodFilter) return false
             if (languageOnly) {
               const hostLangs = h.user.languages ?? []
               if (!hostLangs.some(l => myLangs.has(l))) return false
@@ -538,26 +601,16 @@ export default function HangoutsPage() {
           })
 
           if (filtered.length === 0 && pulses.length === 0) {
-            const anyFilterOn = modeFilter !== 'all' || neighborhoodOnly || languageOnly
+            const anyFilterOn = modeFilter !== 'all' || neighborhoodFilter !== null || languageOnly
             return (
               <div className="text-center py-16">
                 <div className="text-5xl mb-3">☕</div>
                 <p className="text-base font-bold text-gray-900 mb-1">
                   {anyFilterOn ? 'Nothing matches your filters' : 'Nothing right now'}
                 </p>
-                <p className="text-sm text-gray-600 mb-6 max-w-md mx-auto">
-                  Be the first — post where you are or just drop a pulse if you don&apos;t want to commit to a venue yet.
+                <p className="text-sm text-gray-600 max-w-md mx-auto">
+                  Use the buttons above to drop a quick pulse or post a hangout with a specific spot and time.
                 </p>
-                <div className="flex items-center justify-center gap-2">
-                  <button onClick={() => setShowPulseForm(true)}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 text-amber-700 border border-amber-300 hover:bg-amber-50 text-sm font-bold rounded-xl">
-                    ✦ I&apos;m around
-                  </button>
-                  <button onClick={() => setShowForm(true)}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl">
-                    Post a hangout
-                  </button>
-                </div>
               </div>
             )
           }
@@ -591,6 +644,78 @@ export default function HangoutsPage() {
             </>
           )
         })()}
+
+        {/* Regulars — top hosts this month. Social reward + newcomer signal. */}
+        {!loading && regulars.length > 0 && (
+          <div className="pt-2">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 px-1">Most active hosts this month</p>
+            <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1">
+              {regulars.map((r, i) => {
+                const photo = r.profilePhoto ? avatarUrl(r.profilePhoto, 128) : null
+                return (
+                  <Link key={r.id} href={`/members/${r.id}`}
+                        className="flex flex-col items-center gap-1.5 min-w-[64px] group">
+                    <div className="relative">
+                      {photo
+                        ? <img src={photo} alt={r.name} className="w-14 h-14 rounded-full object-cover border-2 border-white shadow-sm group-hover:ring-2 group-hover:ring-amber-400 transition-all" />
+                        : <div className="w-14 h-14 rounded-full flex items-center justify-center text-white text-sm font-bold border-2 border-white shadow-sm group-hover:ring-2 group-hover:ring-amber-400 transition-all"
+                               style={{ backgroundColor: r.color }}>
+                            {getInitials(r.name)}
+                          </div>
+                      }
+                      <span className="absolute -bottom-0.5 -right-0.5 bg-amber-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-sm">
+                        {i + 1}
+                      </span>
+                    </div>
+                    <p className="text-xs font-medium text-gray-700 text-center leading-tight max-w-[64px] truncate group-hover:text-amber-600 transition-colors">
+                      {r.name.split(' ')[0]}
+                    </p>
+                    <p className="text-[10px] text-gray-400">{r.count} hosted</p>
+                  </Link>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Just happened — expired hangouts from the last 48h. Social proof
+            that the feature is alive; also creates FOMO for newcomers. */}
+        {!loading && recentHangouts.length > 0 && (
+          <div className="pt-2">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 px-1">Just happened</p>
+            <div className="space-y-2">
+              {recentHangouts.map(h => {
+                const hostAvatar = h.user.profilePhoto
+                  ? avatarUrl(h.user.profilePhoto, 64)
+                  : null
+                const hoursAgo = Math.round((Date.now() - new Date(h.endsAt).getTime()) / 3_600_000)
+                return (
+                  <div key={h.id} className="bg-white rounded-2xl shadow-card px-4 py-3 flex items-center gap-3 opacity-80">
+                    {hostAvatar
+                      ? <img src={hostAvatar} alt={h.user.name} className="w-8 h-8 rounded-full object-cover shrink-0" />
+                      : <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+                             style={{ backgroundColor: h.user.color }}>
+                          {getInitials(h.user.name)}
+                        </div>
+                    }
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-700 truncate">{h.title}</p>
+                      <p className="text-xs text-gray-400">
+                        {h.joinerCount > 0
+                          ? `${h.joinerCount + 1} went`
+                          : 'Host only'
+                        }
+                        {h.goodRefCount > 0 && <> · ✓ {h.goodRefCount} good</>}
+                        {h.neighborhood && <> · {h.neighborhood}</>}
+                        {' · '}{hoursAgo < 1 ? 'just now' : `${hoursAgo}h ago`}
+                      </p>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
       </div>
     </div>
@@ -628,7 +753,7 @@ function HangoutCard({ h, currentUser, onCancel, onMutated }: {
     fetch(`/app/api/hangouts/${h.id}/messages`, { credentials: 'include' })
       .then(r => r.json())
       .then(d => setMessages(Array.isArray(d.messages) ? d.messages : []))
-      .catch(() => {})
+      .catch(() => { toast.error('Could not load messages') })
       .finally(() => setLoadingMsg(false))
   }, [threadOpen, h.id, messages.length])
 
@@ -668,6 +793,7 @@ function HangoutCard({ h, currentUser, onCancel, onMutated }: {
     try {
       const res = await fetch(`/app/api/hangouts/${h.id}/messages`, {
         method:  'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ body: draft }),
       })
@@ -714,7 +840,7 @@ function HangoutCard({ h, currentUser, onCancel, onMutated }: {
             <p className="text-xs text-gray-600 mt-2 whitespace-pre-wrap">{h.description}</p>
           )}
           <p className="text-[11px] text-gray-400 mt-2 flex items-center gap-1.5 flex-wrap">
-            <span>Posted by {isOwner ? 'you' : h.user.name}</span>
+            <span>Posted by {isOwner ? 'you' : <>{h.user.name}{countryFlag(h.user.nationality) && <> {countryFlag(h.user.nationality)}</>}</>}</span>
             {/* Trust badge — sourced from HangoutReference aggregates. Only
                 shows once a host has at least one good reference so it
                 doesn't make newcomers look unproven by absence. */}
@@ -781,9 +907,7 @@ function HangoutCard({ h, currentUser, onCancel, onMutated }: {
                 )}
               </div>
               <span className="text-xs text-gray-600 truncate">
-                {h.joiners.length === 0
-                  ? 'No one in yet'
-                  : `${h.joiners.length + 1} going`}
+                {h.joiners.length + 1} going
               </span>
             </div>
           )
@@ -845,7 +969,7 @@ function HangoutCard({ h, currentUser, onCancel, onMutated }: {
 // PulseCard — compact card for an AvailabilityPulse. Visually lighter than a
 // hangout card so the two signal grades read differently at a glance.
 function PulseCard({ pulse, onClear }: { pulse: Pulse; onClear?: () => void }) {
-  const avatar = pulse.user.profilePhoto ? avatarUrl(pulse.user.profilePhoto, 64) : null
+  const avatar = pulse.user.profilePhoto ? avatarUrl(pulse.user.profilePhoto, 128) : null
   const minsLeft = Math.max(0, Math.round((new Date(pulse.until).getTime() - Date.now()) / 60_000))
   const ttlLabel = minsLeft < 60 ? `${minsLeft}m left` : `${Math.floor(minsLeft / 60)}h ${minsLeft % 60}m left`
   const [confirmingClear, setConfirmingClear] = useState(false)
@@ -855,16 +979,22 @@ function PulseCard({ pulse, onClear }: { pulse: Pulse; onClear?: () => void }) {
       pulse.isMine ? 'bg-amber-50 border-amber-200' : 'bg-white border-amber-100'
     }`}>
       {avatar
-        ? <img src={avatar} alt={pulse.user.name} className="w-9 h-9 rounded-full object-cover shrink-0" />
-        : <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+        ? <img src={avatar} alt={pulse.user.name} className="w-12 h-12 rounded-full object-cover shrink-0" />
+        : <div className="w-12 h-12 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0"
             style={{ backgroundColor: pulse.user.color }}>{pulse.user.name[0]}</div>}
       <div className="flex-1 min-w-0">
-        <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">
-          ✦ {pulse.user.name} {pulse.isMine && <span className="text-amber-500">(you)</span>} is around
+        <p className="text-sm font-bold text-gray-900 flex items-center gap-1.5">
+          {pulse.user.name}
+          {countryFlag(pulse.user.nationality) && (
+            <span className="text-base leading-none">{countryFlag(pulse.user.nationality)}</span>
+          )}
+          {pulse.isMine && <span className="text-amber-500 font-normal text-xs">(you)</span>}
         </p>
-        <p className="text-sm text-gray-900 truncate mt-0.5">
-          {pulse.note || 'Open to meeting up'}
-          {pulse.neighborhood && <span className="text-gray-600"> · {pulse.neighborhood}</span>}
+        <p className="text-xs text-amber-700 font-semibold mt-1">
+          ✦ {pulse.note || 'Open to meeting up'}
+          {pulse.neighborhood && (
+            <span className="text-gray-500 font-normal"> · {pulse.neighborhood}</span>
+          )}
         </p>
         <p className="text-[11px] text-gray-400 mt-0.5">{ttlLabel}</p>
       </div>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { createNotification } from '@/lib/notify'
 
 // Hangout references — the trust signal that makes spontaneous meetups
 // safe to scale past close friends. See HangoutReference model in
@@ -157,6 +158,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
       return ref
     })
+
+    // Notify the recipient when they receive a good reference — it's the
+    // primary trust signal and people love seeing it.
+    if (newVibe === 'good') {
+      const hangout = await prisma.hangout.findUnique({
+        where:  { id },
+        select: { title: true },
+      })
+      createNotification(
+        body.toUserId!,
+        'good_reference',
+        `⭐ ${session.name} left you a good reference`,
+        hangout ? `for "${hangout.title}"` : 'Check your profile to see it.',
+        `/members/${body.toUserId}`,
+      ).catch(() => {})
+    }
 
     return NextResponse.json({ id: result.id, vibe: result.vibe }, { status: 200 })
   } catch (e) {

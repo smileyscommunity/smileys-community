@@ -120,6 +120,7 @@ export default function LoginPage() {
       instagram:     data.instagram,
       isClubHost:    data.isClubHost,
       emailVerified: data.emailVerified,
+      totpEnabled:   data.totpEnabled,
     })
 
     // Staff dogfooding shouldn't pollute member funnels — opt them out entirely
@@ -158,7 +159,7 @@ export default function LoginPage() {
           <h1 className="text-2xl font-extrabold text-gray-900">
             {step === '2fa' ? 'Two-factor authentication' : 'Welcome back'}
           </h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-gray-600 mt-1">
             {step === '2fa'
               ? 'Enter the 6-digit code from your authenticator app'
               : 'Sign in to your account'}
@@ -296,7 +297,7 @@ export default function LoginPage() {
           )}
 
           {step === 'credentials' && (
-            <p className="text-center text-sm text-gray-500 mt-5">
+            <p className="text-center text-sm text-gray-600 mt-5">
               Don't have an account?{' '}
               <Link href="/apply" className="text-amber-600 font-semibold hover:underline">
                 Apply to join

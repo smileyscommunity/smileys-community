@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getEvents } from '@/lib/db'
 import { getSession } from '@/lib/session'
+import { rateLimit } from '@/lib/rateLimit'
 
 export async function GET(req: NextRequest) {
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? req.headers.get('x-real-ip') ?? 'anon'
+  if (!await rateLimit(`events:${ip}`, 120, 60_000)) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+  }
   const { searchParams } = req.nextUrl
   const limit    = Math.min(parseInt(searchParams.get('limit')  ?? '24'), 100)
   const offset   = Math.max(parseInt(searchParams.get('offset') ?? '0'),  0)

@@ -7,7 +7,7 @@ import Link from 'next/link'
 import UserAvatar from '@/components/UserAvatar'
 
 interface AttendeeUser {
-  id: string; name: string; color: string; email: string; profilePhoto?: string | null
+  id: string; name: string; color: string; email?: string; profilePhoto?: string | null
 }
 interface Attendee {
   userId: string; status: string; checkedIn: boolean; joinedAt: string; user: AttendeeUser
@@ -37,9 +37,10 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
   const [waitlist,   setWaitlist]   = useState<WaitlistEntry[]>([])
   const [loading,    setLoading]    = useState(true)
   const [tab,        setTab]        = useState<'pending' | 'approved' | 'waitlist' | 'reviews'>('pending')
-  const [addSearch,  setAddSearch]  = useState('')
-  const [allMembers, setAllMembers] = useState<AttendeeUser[]>([])
-  const [addBusy,    setAddBusy]    = useState<string | null>(null)
+  const [addSearch,    setAddSearch]    = useState('')
+  const [searchResults, setSearchResults] = useState<AttendeeUser[]>([])
+  const [searching,    setSearching]    = useState(false)
+  const [addBusy,      setAddBusy]      = useState<string | null>(null)
   const [reviews,        setReviews]        = useState<Review[]>([])
   const [reviewsLoaded,  setReviewsLoaded]  = useState(false)
 
@@ -47,15 +48,29 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
     Promise.all([
       fetch(`/app/api/events/${id}`, { credentials: 'include' }).then(r => r.json()),
       fetch(`/app/api/admin/events/${id}/participants`, { credentials: 'include' }).then(r => r.json()),
-      fetch('/app/api/members?offset=0', { credentials: 'include' }).then(r => r.json()),
-    ]).then(([ev, data, membersData]) => {
+    ]).then(([ev, data]) => {
       if (ev?.title) setEventTitle(ev.title)
       if (ev?.date)  setEventDate(ev.date)
       setAttendees(Array.isArray(data.attendees) ? data.attendees : [])
       setWaitlist(Array.isArray(data.waitlist) ? data.waitlist : [])
-      setAllMembers(Array.isArray(membersData?.members) ? membersData.members : [])
     }).finally(() => setLoading(false))
   }, [id])
+
+  useEffect(() => {
+    if (addSearch.trim().length < 2) { setSearchResults([]); return }
+    const timer = setTimeout(async () => {
+      setSearching(true)
+      try {
+        const res = await fetch(`/app/api/search?q=${encodeURIComponent(addSearch)}&type=members`, { credentials: 'include' })
+        if (res.ok) {
+          const data = await res.json()
+          const alreadyIn = new Set(attendees.map(a => a.userId))
+          setSearchResults((data.members ?? []).filter((u: AttendeeUser) => !alreadyIn.has(u.id)).slice(0, 6))
+        }
+      } finally { setSearching(false) }
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [addSearch, attendees])
 
   async function loadReviews() {
     if (reviewsLoaded) return
@@ -69,7 +84,7 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
     if (t === 'reviews') loadReviews()
   }
 
-  const today = new Date().toISOString().split('T')[0]
+  const today  = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Istanbul' })).toISOString().split('T')[0]
   const isPast = eventDate ? eventDate < today : false
 
   async function approve(userId: string) {
@@ -126,6 +141,25 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
   const pending  = attendees.filter(a => a.status === 'pending')
   const approved = attendees.filter(a => a.status === 'approved')
 
+  function exportCsv() {
+    const rows = [
+      ['Name', 'Checked In', 'Joined At'],
+      ...approved.map(a => [
+        a.user.name,
+        a.checkedIn ? 'Yes' : 'No',
+        new Date(a.joinedAt).toLocaleDateString('en-GB'),
+      ]),
+    ]
+    const csv  = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href = url
+    a.download = `${(eventTitle || 'event').replace(/[^a-zA-Z0-9]/g, '-')}-attendees.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const [broadcastMsg,  setBroadcastMsg]  = useState('')
   const [broadcasting,  setBroadcasting]  = useState(false)
   const [broadcastSent, setBroadcastSent] = useState(false)
@@ -171,24 +205,24 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
             className="w-full px-3 py-2.5 text-sm bg-zinc-800 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
           />
           {addSearch.trim().length > 1 && (() => {
-            const alreadyIn = new Set(attendees.map(a => a.userId))
-            const results = allMembers
-              .filter(u => u.name.toLowerCase().includes(addSearch.toLowerCase()) && !alreadyIn.has(u.id))
-              .slice(0, 6)
-            if (!results.length) return (
+            if (searching) return (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded-xl p-3 text-xs text-zinc-500 z-10">
+                Searching…
+              </div>
+            )
+            if (!searchResults.length) return (
               <div className="absolute top-full left-0 right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded-xl p-3 text-xs text-zinc-500 z-10">
                 No members found
               </div>
             )
             return (
               <div className="absolute top-full left-0 right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded-xl overflow-hidden z-10 shadow-xl">
-                {results.map(u => (
+                {searchResults.map(u => (
                   <button key={u.id} onClick={() => addParticipant(u)} disabled={addBusy === u.id}
                     className="w-full flex items-center gap-3 px-4 py-3 hover:bg-zinc-700 transition-colors text-left disabled:opacity-40">
                     <UserAvatar user={u} />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-white truncate">{u.name}</p>
-                      <p className="text-xs text-zinc-500 truncate">{u.email}</p>
                     </div>
                     <span className="text-xs text-amber-400 font-semibold shrink-0">Add →</span>
                   </button>
@@ -269,7 +303,7 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
                   <UserAvatar user={a.user} />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-white truncate">{a.user.name}</p>
-                    <p className="text-xs text-zinc-500 truncate">{a.user.email}</p>
+                    {a.user.email && <p className="text-xs text-zinc-500 truncate">{a.user.email}</p>}
                   </div>
                   <div className="flex gap-2 shrink-0">
                     <button onClick={() => approve(a.userId)} className="px-3 py-1.5 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 text-xs font-semibold transition-colors">Approve</button>
@@ -287,18 +321,32 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
           {approved.length === 0 ? (
             <div className="p-10 text-center text-zinc-500 text-sm">No approved attendees yet.</div>
           ) : (
+            <>
+              <div className="px-5 py-3 border-b border-zinc-800 flex items-center justify-between">
+                <span className="text-xs text-zinc-500">{approved.length} attendee{approved.length !== 1 ? 's' : ''}</span>
+                <button
+                  onClick={exportCsv}
+                  className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white border border-zinc-700 px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  Download CSV
+                </button>
+              </div>
             <div className="divide-y divide-zinc-800">
               {approved.map(a => (
                 <div key={a.userId} className="flex items-center gap-3 px-5 py-4">
                   <UserAvatar user={a.user} />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-white truncate">{a.user.name}</p>
-                    <p className="text-xs text-zinc-500 truncate">{a.user.email}</p>
+                    {a.user.email && <p className="text-xs text-zinc-500 truncate">{a.user.email}</p>}
                   </div>
                   {a.checkedIn && <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-green-500/10 text-green-400 shrink-0">Checked in</span>}
                 </div>
               ))}
             </div>
+            </>
           )}
         </div>
       )}

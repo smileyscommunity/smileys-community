@@ -40,7 +40,7 @@ export default function ForgotPasswordPage() {
             <span className="font-bold text-xl text-gray-900">Smileys Community</span>
           </Link>
           <h1 className="text-2xl font-extrabold text-gray-900">Reset your password</h1>
-          <p className="text-sm text-gray-500 mt-1">Enter your email and we'll send a reset link</p>
+          <p className="text-sm text-gray-600 mt-1">Enter your email and we'll send a reset link</p>
         </div>
 
         <div className="bg-white rounded-2xl shadow-card p-7">
@@ -52,12 +52,12 @@ export default function ForgotPasswordPage() {
                 </svg>
                 Check your email
               </div>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-gray-600">
                 If an account exists for <strong className="text-gray-800 break-all">{email}</strong>, we sent a reset link. Check your inbox (and spam folder). The link expires in 1 hour.
               </p>
               <button
                 onClick={() => { setSent(false); setError('') }}
-                className="block w-full text-sm text-gray-500 hover:text-gray-700"
+                className="block w-full text-sm text-gray-600 hover:text-gray-700"
               >
                 Wrong email? <span className="text-amber-600 font-semibold">Try again</span>
               </button>
@@ -91,7 +91,7 @@ export default function ForgotPasswordPage() {
               >
                 {loading ? 'Sending…' : 'Send reset link'}
               </button>
-              <p className="text-center text-sm text-gray-500">
+              <p className="text-center text-sm text-gray-600">
                 <Link href="/login" className="text-amber-600 font-semibold hover:underline">Back to sign in</Link>
               </p>
             </form>

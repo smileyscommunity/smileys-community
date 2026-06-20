@@ -58,7 +58,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         data: { userId: session.id, businessId: id },
       })
     } catch (e) {
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && (e as Prisma.PrismaClientKnownRequestError).code === 'P2002') {
         // Concurrent save by the same user landed first — that's
         // exactly the state the caller wants.
         return NextResponse.json({ saved: true })

@@ -70,13 +70,13 @@ export default function DirectoryReportButton({
               <h2 className="text-base font-bold text-gray-900">Report a problem</h2>
               <button onClick={close} className="text-gray-400 hover:text-gray-700 text-xl leading-none" aria-label="Close">×</button>
             </div>
-            <p className="text-xs text-gray-500 mb-4">"{businessName}"</p>
+            <p className="text-xs text-gray-600 mb-4">"{businessName}"</p>
 
             {done ? (
               <div className="text-center py-6">
                 <div className="text-4xl mb-2">🙏</div>
                 <p className="text-sm font-semibold text-gray-900">Thanks for flagging</p>
-                <p className="text-xs text-gray-500 mt-1">An admin will review your report shortly.</p>
+                <p className="text-xs text-gray-600 mt-1">An admin will review your report shortly.</p>
                 <button onClick={close}
                   className="mt-4 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors">
                   Done
@@ -113,7 +113,7 @@ export default function DirectoryReportButton({
                 <div className="flex gap-2 justify-end">
                   <button
                     onClick={close}
-                    className="text-sm font-semibold text-gray-500 hover:text-gray-700 px-4 py-2 transition-colors"
+                    className="text-sm font-semibold text-gray-600 hover:text-gray-700 px-4 py-2 transition-colors"
                   >
                     Cancel
                   </button>

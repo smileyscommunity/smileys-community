@@ -12,6 +12,7 @@ interface PostInitial {
   body?:       string
   coverImage?: string
   status?:     string
+  kind?:       string
   category?:   string
 }
 

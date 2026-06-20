@@ -57,7 +57,7 @@ interface AuditEntry {
 
 interface AdminEvent {
   id: string; title: string; date: string; emoji: string
-  totalSpots: number; _count: { attendees: number }
+  totalSpots: number; spotsLeft: number; _count: { attendees: number }
   host: { name: string; color: string; profilePhoto: string | null } | null
 }
 
@@ -298,9 +298,9 @@ export default function AdminPage() {
           target with a visible label at every viewport. */}
       <div className="grid grid-cols-3 gap-2">
         {[
-          { href: '/admin/applications',                 label: 'Review apps',  icon: '👤' },
-          { href: '/admin/moderation',                   label: 'Review reports', icon: '🚨' },
-          { href: '/admin/announcements?tab=announcement', label: 'Announce',   icon: '📣' },
+          { href: '/admin/events/new',                    label: 'New Event',  icon: '➕' },
+          { href: '/admin/announcements?tab=announcement', label: 'Announce',  icon: '📣' },
+          { href: '/admin/checkin',                        label: 'Check-In',  icon: '✓' },
         ].map(a => (
           <Link key={a.href} href={a.href}
             className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-3 sm:py-2.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-xl text-[11px] sm:text-xs font-semibold text-zinc-300 transition-colors text-center">
@@ -336,7 +336,7 @@ export default function AdminPage() {
           a relative move on a rate ("84% is 5% higher than 80%") reads
           wrong. Hidden when no survey responses have landed yet. */}
       {stats?.quality && stats.quality.responses > 0 && (
-        <Link href="/admin/moderation" className="block rounded-2xl border border-zinc-800 bg-zinc-900 hover:border-zinc-700 transition-colors p-4 sm:p-5">
+        <Link href={stats.quality.anomalies > 0 ? '/admin/moderation?tab=reports&surveyOnly=1' : '/admin/moderation'} className="block rounded-2xl border border-zinc-800 bg-zinc-900 hover:border-zinc-700 transition-colors p-4 sm:p-5">
           <div className="flex items-center justify-between mb-3">
             <div>
               <h3 className="text-sm font-bold text-white">Quality · last 30 days</h3>
@@ -583,7 +583,7 @@ export default function AdminPage() {
           ) : (
             <div className="divide-y divide-zinc-800/60">
               {events.map(e => {
-                const pct = e.totalSpots > 0 ? Math.round((e._count.attendees / e.totalSpots) * 100) : 0
+                const pct = e.totalSpots > 0 ? Math.round(((e.totalSpots - e.spotsLeft) / e.totalSpots) * 100) : 0
                 const barColor = pct >= 90 ? 'bg-red-500' : pct >= 60 ? 'bg-amber-500' : 'bg-emerald-500'
                 return (
                   <Link key={e.id} href={`/admin/events/${e.id}/edit`}
@@ -597,7 +597,7 @@ export default function AdminPage() {
                         <div className="flex-1 h-1 bg-zinc-800 rounded-full overflow-hidden">
                           <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${pct}%` }} />
                         </div>
-                        <span className="text-[11px] text-zinc-500 shrink-0 font-medium">{e._count.attendees}/{e.totalSpots}</span>
+                        <span className="text-[11px] text-zinc-500 shrink-0 font-medium">{e.totalSpots - e.spotsLeft}/{e.totalSpots}</span>
                       </div>
                     </div>
                     <div className="shrink-0 text-right">
@@ -641,7 +641,7 @@ export default function AdminPage() {
             <div className="divide-y divide-zinc-800/60">
               {audit.map(entry => {
                 const colorCls = ACTION_COLOR[entry.action] ?? 'bg-zinc-700 text-zinc-400'
-                const label = entry.action.replace('.', ' ').replace(/_/g, ' ')
+                const label = (entry.action ?? '').replace('.', ' ').replace(/_/g, ' ')
                 const targetName = entry.meta?.name || entry.meta?.title
                 return (
                   <div key={entry.id} className="px-5 py-3">

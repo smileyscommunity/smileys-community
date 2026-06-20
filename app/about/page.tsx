@@ -36,6 +36,12 @@ const VALUES = [
   },
 ]
 
+const DEFAULT_STATS = [
+  { value: '4,000+', label: 'Community members'  },
+  { value: '500+',   label: 'Experiences hosted' },
+  { value: '70+',    label: 'Interest clubs'      },
+]
+
 const HOW_IT_WORKS = [
   {
     step: '01',
@@ -57,25 +63,28 @@ const HOW_IT_WORKS = [
 export default function AboutPage() {
   const c     = loadContent()
   const about = c.about ?? {}
-  const stats = (c.stats ?? [
-    { value: '4,000+', label: 'Community members'  },
-    { value: '500+',   label: 'Experiences hosted' },
-    { value: '70+',    label: 'Interest clubs'      },
-  ]).slice(0, 3)
+  // `??` only triggers on null/undefined — an empty `c.stats = []`
+  // would otherwise render zero stat tiles. Guard on .length so the
+  // defaults are used whenever content didn't supply any.
+  const rawStats = c.stats?.length ? c.stats : DEFAULT_STATS
+  if (process.env.NODE_ENV !== 'production' && rawStats.length > 3) {
+    console.warn(`[about] content has ${rawStats.length} stats but the layout only shows 3 — extras silently dropped. Trim content.json or widen the grid.`)
+  }
+  const stats = rawStats.slice(0, 3)
 
   return (
     <main>
 
       {/* ── Hero ── */}
       <section className="bg-white border-b border-gray-100">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase mb-6">
-            😊 Smileys Community
+            About us
           </div>
           <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 tracking-tight leading-tight mb-5">
             {about.headline ?? "Istanbul's curated social community"}
           </h1>
-          <p className="text-base text-gray-500 max-w-xl leading-relaxed">
+          <p className="text-base text-gray-600 max-w-xl leading-relaxed">
             {about.subtitle ?? 'We bring together curious, open-minded people through handpicked events, interest-based clubs, and a community that actually feels like one.'}
           </p>
           <div className="mt-8 flex items-center gap-4 flex-wrap">
@@ -88,20 +97,25 @@ export default function AboutPage() {
       {/* ── Stats ── */}
       <section className="bg-amber-500">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-10">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-10 md:gap-8 text-center text-white">
+          {/* dl/dt/dd so SRs read this as a definition list ("term:
+              Community members, value: 4,000+"). Visual order is
+              value-then-label, so each pair sits in a flex-col-reverse
+              that flips the render while keeping the dt-before-dd
+              source order the spec requires. */}
+          <dl className="grid grid-cols-1 md:grid-cols-3 gap-10 md:gap-8 text-center text-white">
             {stats.map((s: { value: string; label: string }) => (
-              <div key={s.label}>
-                <div className="text-5xl md:text-4xl font-extrabold mb-1">{s.value}</div>
-                <div className="text-amber-100 text-sm font-medium uppercase tracking-wider">{s.label}</div>
+              <div key={s.label} className="flex flex-col-reverse gap-1">
+                <dt className="text-amber-100 text-sm font-medium uppercase tracking-wider">{s.label}</dt>
+                <dd className="text-4xl md:text-5xl font-extrabold">{s.value}</dd>
               </div>
             ))}
-          </div>
+          </dl>
         </div>
       </section>
 
       {/* ── Story ── */}
       <section className="bg-white">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
           <h2 className="section-title mb-6">Our story</h2>
           <div className="prose prose-gray max-w-none text-gray-600 leading-relaxed space-y-5">
             <p className="text-lg">{about.story_p1 ?? "Smileys started from a frustration most people moving to Istanbul share: the city is magnificent, full of energy and culture — but breaking into it socially is surprisingly hard. Existing expat groups felt impersonal. Dating apps weren't the answer. And showing up to a random \"networking event\" felt like the opposite of fun."}</p>
@@ -113,19 +127,19 @@ export default function AboutPage() {
 
       {/* ── Values ── */}
       <section className="bg-gray-50 border-t border-gray-100">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-          <div className="mb-14">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
+          <div className="mb-10">
             <h2 className="section-title mb-3">What we stand for</h2>
-            <p className="text-gray-500 max-w-xl">
+            <p className="text-gray-600 max-w-xl">
               Four principles that shape everything we do — from who we approve to how we design events.
             </p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             {VALUES.map(v => (
-              <div key={v.title} className="bg-white rounded-2xl p-7 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-                <div className="text-2xl mb-4">{v.icon}</div>
+              <div key={v.title} className="bg-white rounded-2xl p-7 border border-gray-100 shadow-sm">
+                <div aria-hidden="true" className="text-2xl mb-4">{v.icon}</div>
                 <h3 className="text-lg font-bold text-gray-900 mb-2">{v.title}</h3>
-                <p className="text-gray-500 text-sm leading-relaxed">{v.body}</p>
+                <p className="text-gray-600 text-sm leading-relaxed">{v.body}</p>
               </div>
             ))}
           </div>
@@ -134,43 +148,39 @@ export default function AboutPage() {
 
       {/* ── How it works ── */}
       <section className="bg-white border-t border-gray-100">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-          <div className="mb-14">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
+          <div className="mb-10">
             <h2 className="section-title mb-3">How it works</h2>
-            <p className="text-gray-500 max-w-xl">
+            <p className="text-gray-600 max-w-xl">
               Membership is application-based. Not to be exclusive — but to make sure the community
               stays the kind of place everyone actually wants to be in.
             </p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
+          {/* ol so SRs announce "list of 3 steps" and the explicit
+              01/02/03 numbering reflects in the document outline.
+              list-none kills the default decimal marker since the
+              circled step number renders the order visually. */}
+          <ol className="list-none p-0 m-0 grid grid-cols-1 sm:grid-cols-3 gap-8">
             {HOW_IT_WORKS.map(step => (
-              <div key={step.step} className="text-center">
+              <li key={step.step} className="text-center">
                 <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center mx-auto mb-5">
-                  <span className="text-amber-600 font-extrabold text-sm">{step.step}</span>
+                  <span className="text-amber-600 font-extrabold text-lg">{step.step}</span>
                 </div>
                 <h3 className="text-lg font-bold text-gray-900 mb-2">{step.title}</h3>
-                <p className="text-gray-500 text-sm leading-relaxed">{step.body}</p>
-              </div>
+                <p className="text-gray-600 text-sm leading-relaxed">{step.body}</p>
+              </li>
             ))}
-          </div>
-          <div className="text-center mt-12">
-            <Link href="/apply" className="btn-primary--lg">
-              Apply to join
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-              </svg>
-            </Link>
-          </div>
+          </ol>
         </div>
       </section>
 
       {/* ── What to expect ── */}
       <section className="bg-white border-t border-gray-100">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div>
               <h2 className="section-title mb-4">What to expect</h2>
-              <p className="text-gray-500 leading-relaxed mb-8">
+              <p className="text-gray-600 leading-relaxed mb-8">
                 First events can feel daunting. Here's what actually happens when you show up to a Smileys event.
               </p>
               <ul className="space-y-5">
@@ -181,19 +191,19 @@ export default function AboutPage() {
                   { icon: '🔁', title: 'Familiar faces, fast', body: 'Members attend regularly. Within two or three events, you start recognising people. That\'s when it starts feeling like a community.' },
                 ].map(item => (
                   <li key={item.title} className="flex gap-4">
-                    <span className="text-2xl mt-0.5 shrink-0">{item.icon}</span>
+                    <span aria-hidden="true" className="text-2xl mt-0.5 shrink-0">{item.icon}</span>
                     <div>
                       <div className="font-bold text-gray-900 mb-1">{item.title}</div>
-                      <div className="text-sm text-gray-500 leading-relaxed">{item.body}</div>
+                      <div className="text-sm text-gray-600 leading-relaxed">{item.body}</div>
                     </div>
                   </li>
                 ))}
               </ul>
             </div>
-            <div className="bg-amber-50 border border-amber-100 rounded-3xl p-8 text-center">
-              <div className="text-5xl mb-5">🎉</div>
+            <div className="bg-amber-50 border border-amber-100 rounded-2xl p-8 text-center">
+              <div aria-hidden="true" className="text-5xl mb-5">🎉</div>
               <h3 className="text-xl font-extrabold text-gray-900 mb-3">Still on the fence?</h3>
-              <p className="text-gray-500 text-sm leading-relaxed mb-6">
+              <p className="text-gray-600 text-sm leading-relaxed mb-6">
                 The most common thing members say after their first event: "I wish I'd come sooner."
                 Apply takes 5 minutes. You can always say no to events until you find the right one.
               </p>
@@ -208,16 +218,16 @@ export default function AboutPage() {
 
       {/* ── Clubs preview ── */}
       <section className="bg-gray-50 border-t border-gray-100">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
           <h2 className="section-title mb-3">Find your people</h2>
-          <p className="text-gray-500 max-w-xl mb-10">
+          <p className="text-gray-600 max-w-xl mb-10">
             From sailing and wine tasting to book clubs and language exchange — our clubs are built
             around shared passions, not just shared geography.
           </p>
           <Link href="/clubs"
             className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl border border-gray-200 hover:bg-white text-gray-700 font-semibold text-sm transition-colors">
             Explore clubs
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
             </svg>
           </Link>
@@ -226,8 +236,8 @@ export default function AboutPage() {
 
       {/* ── Final CTA ── */}
       <section className="bg-amber-500">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-          <span className="text-5xl block mb-6">😊</span>
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
+          <div aria-hidden="true" className="text-5xl mb-6">😊</div>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-white mb-4">
             Ready to feel at home in Istanbul?
           </h2>

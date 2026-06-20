@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import PasswordToggle from '@/components/PasswordToggle'
 
 // Two-step delete: confirm dialog requires password (matches the route's
 // server-side bcrypt check) AND a typed-in 'DELETE' confirmation so a
@@ -12,6 +13,7 @@ export default function DeleteAccountSection() {
   const router = useRouter()
   const [open,     setOpen]     = useState(false)
   const [password, setPassword] = useState('')
+  const [showPw,   setShowPw]   = useState(false)
   const [confirm,  setConfirm]  = useState('')
   const [busy,     setBusy]     = useState(false)
   const [error,    setError]    = useState<string | null>(null)
@@ -50,7 +52,7 @@ export default function DeleteAccountSection() {
   if (!open) {
     return (
       <div className="space-y-2">
-        <p className="text-xs text-gray-500 leading-relaxed">
+        <p className="text-xs text-gray-600 leading-relaxed">
           Delete your account, your messages, your photos, and your tracking data
           permanently. Your past events and payments stay in the system as
           "Deleted Member" for accounting and event integrity.
@@ -79,14 +81,17 @@ export default function DeleteAccountSection() {
 
       <div>
         <label className="block text-xs font-medium text-gray-600 mb-1">Your password</label>
-        <input
-          type="password"
-          autoComplete="current-password"
-          value={password}
-          onChange={e => setPassword(e.target.value)}
-          required
-          className="input"
-        />
+        <div className="relative">
+          <input
+            type={showPw ? 'text' : 'password'}
+            autoComplete="current-password"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            required
+            className="input pr-12"
+          />
+          <PasswordToggle visible={showPw} onToggle={() => setShowPw(p => !p)} />
+        </div>
       </div>
 
       <div>

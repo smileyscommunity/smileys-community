@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { resolveImageUrl } from '@/lib/data'
+import PasswordToggle from '@/components/PasswordToggle'
 
 interface UserInfo {
   name: string
@@ -24,6 +25,7 @@ function ActivateForm() {
   const [bio,      setBio]      = useState('')
   const [password, setPassword] = useState('')
   const [confirm,  setConfirm]  = useState('')
+  const [showPw,   setShowPw]   = useState(false)
   const [agreed,   setAgreed]   = useState(false)
   const [loading,  setLoading]  = useState(false)
   const [error,    setError]    = useState('')
@@ -91,7 +93,7 @@ function ActivateForm() {
       <div className="bg-white rounded-2xl shadow-card p-8 text-center space-y-3">
         <div className="text-5xl">🎉</div>
         <h2 className="text-xl font-bold text-gray-900">You're all set!</h2>
-        <p className="text-sm text-gray-500">Taking you to Smileys…</p>
+        <p className="text-sm text-gray-600">Taking you to Smileys…</p>
       </div>
     )
   }
@@ -109,13 +111,13 @@ function ActivateForm() {
         )}
         <div>
           <p className="font-bold text-gray-900 text-lg">{info.name}</p>
-          <p className="text-sm text-gray-500">{info.email}</p>
+          <p className="text-sm text-gray-600">{info.email}</p>
         </div>
       </div>
 
       {info.interests.length > 0 && (
         <div>
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Your interests</p>
+          <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Your interests</p>
           <div className="flex flex-wrap gap-1.5">
             {info.interests.map(i => (
               <span key={i} className="px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-xs font-medium">{i}</span>
@@ -145,27 +147,33 @@ function ActivateForm() {
 
         <div>
           <label className="block text-sm font-semibold text-gray-700 mb-1.5">Choose a password</label>
-          <input
-            type="password"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            placeholder="At least 6 characters"
-            required
-            minLength={6}
-            className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
-          />
+          <div className="relative">
+            <input
+              type={showPw ? 'text' : 'password'}
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="At least 8 characters"
+              required
+              minLength={8}
+              className="w-full px-4 py-3 pr-12 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+            />
+            <PasswordToggle visible={showPw} onToggle={() => setShowPw(p => !p)} />
+          </div>
         </div>
 
         <div>
           <label className="block text-sm font-semibold text-gray-700 mb-1.5">Confirm password</label>
-          <input
-            type="password"
-            value={confirm}
-            onChange={e => setConfirm(e.target.value)}
-            placeholder="Repeat your password"
-            required
-            className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
-          />
+          <div className="relative">
+            <input
+              type={showPw ? 'text' : 'password'}
+              value={confirm}
+              onChange={e => setConfirm(e.target.value)}
+              placeholder="Repeat your password"
+              required
+              className="w-full px-4 py-3 pr-12 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+            />
+            <PasswordToggle visible={showPw} onToggle={() => setShowPw(p => !p)} />
+          </div>
         </div>
 
         <label className="flex items-start gap-3 cursor-pointer">
@@ -202,7 +210,7 @@ export default function ActivatePage() {
             <span className="font-bold text-xl text-gray-900">Smileys Community</span>
           </Link>
           <h1 className="text-2xl font-extrabold text-gray-900">Welcome to Smileys!</h1>
-          <p className="text-sm text-gray-500 mt-1">One last step — set a password and you're in</p>
+          <p className="text-sm text-gray-600 mt-1">One last step — set a password and you're in</p>
         </div>
         <Suspense fallback={
           <div className="bg-white rounded-2xl shadow-card p-8 text-center">

@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!user.emailVerified && user.role === 'member') {
-      return NextResponse.json({ error: 'Please verify your email before logging in. Check your inbox for the verification link.' }, { status: 403 })
+      return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
     }
 
     // 2FA required — issue a short-lived pending cookie instead of a full session

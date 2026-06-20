@@ -4,7 +4,7 @@ import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
 import { getAvailableSpots } from '@/lib/db'
-import { sendRsvpConfirmationEmail, sendWaitlistPromotedEmail, recordEmailFailure } from '@/lib/email'
+import { sendRsvpConfirmationEmail, sendSpotOpenedEmail, recordEmailFailure } from '@/lib/email'
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 import { autoJoinClub } from '@/lib/autoJoinClub'
 import { sendPushToUser } from '@/lib/push'
@@ -62,7 +62,38 @@ export async function POST(req: NextRequest, { params }: Params) {
     const onWaitlist = await prisma.waitlistEntry.findUnique({
       where: { userId_eventId: { userId: session.id, eventId } },
     })
-    if (onWaitlist) return NextResponse.json({ error: 'Already on waitlist' }, { status: 400 })
+    if (onWaitlist) {
+      // The user is on the waitlist. If a spot is currently open (an
+      // approved attendee just cancelled and triggered the "spot
+      // opened" fanout), this is a claim attempt — promote them.
+      //
+      // Race safety: the conditional `updateMany` only succeeds when
+      // spotsLeft > 0 and the decrement is atomic at the DB level, so
+      // when multiple waitlist members tap Join simultaneously exactly
+      // one wins. Same mechanism used for non-waitlist joins below.
+      //
+      // Approval-required events don't gate the claim: matches the
+      // previous auto-promote behavior, which also promoted directly
+      // to 'approved' regardless of approvalRequired.
+      const outcome = await prisma.$transaction(async (tx) => {
+        const claimed = await tx.event.updateMany({
+          where: { id: eventId, spotsLeft: { gt: 0 } },
+          data:  { spotsLeft: { decrement: 1 } },
+        })
+        if (claimed.count === 0) return { ok: false as const }
+        await tx.waitlistEntry.delete({ where: { id: onWaitlist.id } })
+        await tx.eventAttendee.create({ data: { userId: session.id, eventId, status: 'approved', stealth } })
+        return { ok: true as const }
+      })
+      if (outcome.ok) {
+        autoJoinClub(session.id, eventId).catch(() => {})
+        createNotification(session.id, 'rsvp', "You're in! 🎉", `You claimed the open spot for "${event.title}".`, `/events/${eventId}`)
+        return NextResponse.json({ ok: true, status: 'approved' })
+      }
+      // No open spot — they're still on the waitlist. Tell them so the
+      // client can render "spot just taken" rather than a generic error.
+      return NextResponse.json({ error: "That spot was just claimed — you're still on the waitlist." }, { status: 409 })
+    }
 
     // Normalize gender / nationality so 'Male', 'MALE', 'male' all compare
     // equal and 'Türkiye' / 'Turkey' / 'TR' don't accidentally bypass the
@@ -115,6 +146,15 @@ export async function POST(req: NextRequest, { params }: Params) {
         createNotification(session.id, 'waitlist', 'Added to waitlist 📋',
           `${reason} — you're #${position} on the waitlist.`,
           `/events/${eventId}`)
+        if (event.hostId) {
+          createNotification(
+            event.hostId,
+            'waitlist_joined',
+            'Someone joined your waitlist 📋',
+            `${session.name} is #${position} on the waitlist for "${event.title}"`,
+            `/host/events/${eventId}/participants`,
+          ).catch(() => {})
+        }
         return NextResponse.json({ ok: true, status: 'waitlisted', position })
       }
 
@@ -250,6 +290,15 @@ export async function POST(req: NextRequest, { params }: Params) {
       createNotification(session.id, 'waitlist', 'Added to waitlist 📋',
         `${reason} — you're #${position} on the waitlist.`,
         `/events/${eventId}`)
+      if (event.hostId) {
+        createNotification(
+          event.hostId,
+          'waitlist_joined',
+          'Someone joined your waitlist 📋',
+          `${session.name} is #${position} on the waitlist for "${event.title}"`,
+          `/host/events/${eventId}/participants`,
+        ).catch(() => {})
+      }
       return NextResponse.json({ ok: true, status: 'waitlisted', position })
     }
 
@@ -398,40 +447,73 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       }
     }
 
-    // Promote first person on waitlist (spot stays filled — no net change to spotsLeft)
-    const [next, eventRow] = await Promise.all([
-      wasApproved ? prisma.waitlistEntry.findFirst({ where: { eventId }, orderBy: { createdAt: 'asc' } }) : Promise.resolve(null),
-      prisma.event.findUnique({ where: { id: eventId }, select: { title: true, approvalRequired: true, totalSpots: true } }),
-    ])
-    if (next) {
-      await prisma.$transaction([
-        prisma.waitlistEntry.delete({ where: { id: next.id } }),
-        prisma.eventAttendee.create({ data: { userId: next.userId, eventId, status: 'approved' } }),
-      ])
-      autoJoinClub(next.userId, eventId).catch(() => {})
-      createNotification(next.userId, 'waitlist_promoted', 'Spot available! 🎉', `A spot opened up for "${eventRow?.title}" — you're in!`, `/events/${eventId}`)
-      sendPushToUser(next.userId, { title: 'Spot available! 🎉', body: `A spot opened up for "${eventRow?.title}" — you're in!`, link: `/app/events/${eventId}` }).catch(() => {})
-      // Email the promoted member (fire-and-forget)
-      ;(async () => {
-        const promoted = await prisma.user.findUnique({ where: { id: next.userId }, select: { email: true, name: true } })
-        if (promoted && eventRow?.title) {
-          const ev = await prisma.event.findUnique({ where: { id: eventId }, select: { date: true } })
-          // EM6 fix (same theme as AD-C): log SMTP failures so a
-          // promoted member who never got their "you're in" email
-          // can be traced via server logs.
-          sendWaitlistPromotedEmail(promoted.email, promoted.name ?? 'Member', eventRow.title, ev?.date ?? '', eventId)
-            .catch(async err => {
-              console.error('[rsvp DELETE waitlist-promote] sendWaitlistPromotedEmail failed', { promotedUserId: next.userId, eventId, err: String(err) })
-              await recordEmailFailure({ helper: 'sendWaitlistPromotedEmail', recipient: promoted.email, error: err, context: { userId: next.userId, eventId } })
-            })
-        }
-      })()
+    // When an approved attendee cancels, fan out a "spot opened" ping
+    // to every waitlist member. First to tap Join wins — race-safety
+    // for the claim itself lives in the POST handler, which uses the
+    // existing conditional `updateMany({ spotsLeft: { gt: 0 } })`
+    // atomic decrement pattern.
+    //
+    // Why this replaced silent auto-promote:
+    // The previous behavior promoted the first person on the waitlist
+    // to 'approved' without any action on their part. Two failure modes:
+    //   1. They no longer wanted to go → silent no-show on the day
+    //   2. They didn't see the notification in time → still a no-show
+    // Making members actively claim is a much better signal of intent
+    // and shifts the bias from "fill the seat" to "someone who wants it
+    // will fill the seat".
+    // WaitlistEntry has no FK relation to User in the schema (just a
+    // userId String column), so the user records have to be fetched
+    // separately in one batched query.
+    const eventRow = await prisma.event.findUnique({
+      where: { id: eventId },
+      select: { title: true, approvalRequired: true, totalSpots: true, date: true },
+    })
+    const waitlistEntries = wasApproved
+      ? await prisma.waitlistEntry.findMany({
+          where: { eventId },
+          orderBy: { createdAt: 'asc' },
+          select: { userId: true },
+        })
+      : []
+    const waitlistUsers = waitlistEntries.length > 0
+      ? await prisma.user.findMany({
+          where:  { id: { in: waitlistEntries.map(w => w.userId) } },
+          select: { id: true, name: true, email: true },
+        })
+      : []
+
+    if (waitlistUsers.length > 0 && eventRow) {
+      for (const u of waitlistUsers) {
+        createNotification(
+          u.id,
+          'spot_opened',
+          'Spot opened — claim it! 🚪',
+          `A spot just opened for "${eventRow.title}". First come, first served.`,
+          `/events/${eventId}`,
+        ).catch(() => {})
+        sendPushToUser(u.id, {
+          title: 'Spot opened! 🚪',
+          body:  `Quick — a spot opened for "${eventRow.title}". First come first served.`,
+          link:  `/app/events/${eventId}`,
+        }).catch(() => {})
+        // Fire-and-forget so a single SMTP failure doesn't block other
+        // members' notifications or the cancel response.
+        sendSpotOpenedEmail(u.email, u.name ?? 'Member', eventRow.title, eventRow.date ?? '', eventId)
+          .catch(async err => {
+            console.error('[rsvp DELETE spot-opened] sendSpotOpenedEmail failed', { userId: u.id, eventId, err: String(err) })
+            await recordEmailFailure({ helper: 'sendSpotOpenedEmail', recipient: u.email, error: err, context: { userId: u.id, eventId } })
+          })
+      }
     }
+
+    // The spot is now genuinely open until someone claims it — bump
+    // spotsLeft so the event page accurately shows availability. The
+    // POST handler will atomically decrement again when a waitlist
+    // member (or any RSVP) takes it.
     if (wasApproved) {
       if (eventRow?.approvalRequired) {
         await recomputeSpotsLeft(eventId, eventRow.totalSpots)
-      } else if (!next) {
-        // No waitlist — free the spot
+      } else {
         await prisma.event.update({ where: { id: eventId }, data: { spotsLeft: { increment: 1 } } })
       }
     }

@@ -146,7 +146,7 @@ function SubmittedCard({ review, onEdit, onDelete }: {
             <button type="submit" disabled={saving} className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50">
               {saving ? 'Saving…' : 'Save'}
             </button>
-            <button type="button" onClick={() => { setEditing(false); setRating(review.rating); setText(review.text) }} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 rounded-xl transition-colors">
+            <button type="button" onClick={() => { setEditing(false); setRating(review.rating); setText(review.text) }} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-700 rounded-xl transition-colors">
               Cancel
             </button>
           </div>
@@ -160,7 +160,7 @@ function SubmittedCard({ review, onEdit, onDelete }: {
               Edit
             </button>
             {confirming ? (
-              <span className="text-xs text-gray-500">
+              <span className="text-xs text-gray-600">
                 Sure?{' '}
                 <button onClick={() => onDelete(review.eventId)} className="text-red-500 hover:text-red-700 font-medium">Yes, delete</button>
                 {' · '}
@@ -241,13 +241,13 @@ export default function ReviewsPage() {
     <div className="min-h-screen bg-warm pb-20 md:pb-0">
       <div className="bg-white border-b border-gray-100">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6">
-          <div className="flex items-center gap-3 text-sm text-gray-500 mb-4">
+          <div className="flex items-center gap-3 text-sm text-gray-600 mb-4">
             <Link href="/dashboard" className="hover:text-gray-900 transition-colors">Dashboard</Link>
             <span>/</span>
             <span className="text-gray-900 font-medium">Reviews</span>
           </div>
           <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">My Reviews</h1>
-          <p className="text-base text-gray-500 mt-1">Rate events you attended and manage your reviews.</p>
+          <p className="text-base text-gray-600 mt-1">Rate events you attended and manage your reviews.</p>
 
           <div className="flex gap-2 mt-5">
             <button
@@ -287,7 +287,7 @@ export default function ReviewsPage() {
             <div className="text-center py-20 max-w-xs mx-auto">
               <div className="text-6xl mb-4">✨</div>
               <h3 className="text-lg font-bold text-gray-900 mb-2">All reviewed!</h3>
-              <p className="text-sm text-gray-500 mb-6">You've reviewed all your past events. Keep attending to share more feedback.</p>
+              <p className="text-sm text-gray-600 mb-6">You've reviewed all your past events. Keep attending to share more feedback.</p>
               <Link href="/events" className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors inline-block">
                 Browse events
               </Link>
@@ -304,7 +304,7 @@ export default function ReviewsPage() {
             <div className="text-center py-20 max-w-xs mx-auto">
               <div className="text-6xl mb-4">⭐</div>
               <h3 className="text-lg font-bold text-gray-900 mb-2">No reviews yet</h3>
-              <p className="text-sm text-gray-500 mb-6">After attending events, you can rate and share your experience here.</p>
+              <p className="text-sm text-gray-600 mb-6">After attending events, you can rate and share your experience here.</p>
               <button onClick={() => setTab('pending')} className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors">
                 See events to review
               </button>

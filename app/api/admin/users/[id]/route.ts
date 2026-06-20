@@ -236,7 +236,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // without this. Bumping tokenVersion forces them through getSession's revocation
     // path on their next request.
     if ((allowed.role !== undefined && allowed.role !== before?.role) ||
-        (allowed.status !== undefined && allowed.status !== before?.status)) {
+        (allowed.status !== undefined && allowed.status !== before?.status) ||
+        (allowed.suspendedUntil !== undefined)) {
       allowed.tokenVersion = { increment: 1 }
     }
 
@@ -244,7 +245,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     // Auto-add to blacklist on ban so they can't re-apply
     if (allowed.status === 'banned' && before?.email) {
-      prisma.blacklist.upsert({
+      await prisma.blacklist.upsert({
         where:  { email: before.email },
         create: {
           email:    before.email,
@@ -254,7 +255,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           bannedBy: session.name,
         },
         update: {},
-      }).catch(() => {})
+      }).catch(err => console.error('[user PATCH ban] blacklist upsert failed', { id, email: before.email, err: String(err) }))
     }
 
     if (allowed.role === 'moderator') {

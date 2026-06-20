@@ -46,8 +46,10 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const { title, url, emoji } = await req.json()
   if (!title?.trim()) return NextResponse.json({ error: 'Title is required' }, { status: 400 })
+  if (title.trim().length > 200) return NextResponse.json({ error: 'Title too long (max 200 chars)' }, { status: 400 })
   if (!url?.trim()) return NextResponse.json({ error: 'URL is required' }, { status: 400 })
   const trimmedUrl = url.trim()
+  if (trimmedUrl.length > 1000) return NextResponse.json({ error: 'URL too long (max 1000 chars)' }, { status: 400 })
   if (!trimmedUrl.startsWith('https://')) {
     return NextResponse.json({ error: 'URL must start with https://' }, { status: 400 })
   }

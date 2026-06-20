@@ -55,11 +55,29 @@ function ModPanel() {
   if (!total) return null
 
   return (
-    <div className="flex items-center gap-1">
-      <AlertBadge count={counts.pendingApplications} label="Applications" href="/admin/applications" color="bg-amber-500/15 text-amber-400 hover:bg-amber-500/25 border border-amber-500/20" />
-      <AlertBadge count={counts.pendingReports}       label="Reports"      href="/admin/moderation"   color="bg-red-500/15 text-red-400 hover:bg-red-500/25 border border-red-500/20"     />
-      <AlertBadge count={counts.approvalQueueEvents}  label="Events"       href="/admin/events"       color="bg-violet-500/15 text-violet-400 hover:bg-violet-500/25 border border-violet-500/20" />
-    </div>
+    <>
+      {/* Mobile: single combined alert pill that links to Mod Home.
+          Avoids the 3-badge cluster squeezing the page title on
+          narrow screens. The colour leans on the highest-severity
+          bucket present (reports = red, else amber). */}
+      <Link href="/admin/moderator"
+        className={`sm:hidden flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-semibold transition-colors ${
+          counts.pendingReports > 0
+            ? 'bg-red-500/15 text-red-400 hover:bg-red-500/25 border border-red-500/20'
+            : 'bg-amber-500/15 text-amber-400 hover:bg-amber-500/25 border border-amber-500/20'
+        }`}
+        title={`${counts.pendingApplications} apps · ${counts.pendingReports} reports · ${counts.approvalQueueEvents} events`}>
+        <span className="font-bold">{total}</span>
+        <span className="opacity-75">●</span>
+      </Link>
+
+      {/* sm+ : keep the original three independent badges. */}
+      <div className="hidden sm:flex items-center gap-1">
+        <AlertBadge count={counts.pendingApplications} label="Applications" href="/admin/applications" color="bg-amber-500/15 text-amber-400 hover:bg-amber-500/25 border border-amber-500/20" />
+        <AlertBadge count={counts.pendingReports}       label="Reports"      href="/admin/moderation"   color="bg-red-500/15 text-red-400 hover:bg-red-500/25 border border-red-500/20"     />
+        <AlertBadge count={counts.approvalQueueEvents}  label="Events"       href="/admin/events"       color="bg-violet-500/15 text-violet-400 hover:bg-violet-500/25 border border-violet-500/20" />
+      </div>
+    </>
   )
 }
 

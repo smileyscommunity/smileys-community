@@ -1,4 +1,4 @@
-import { canManageClubs } from '@/lib/access'
+import { canManageClubs, isAdminOrModerator } from '@/lib/access'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
@@ -27,7 +27,7 @@ import { computeEventSurveyRollup, aggregateRollup } from '@/lib/survey'
 export async function GET() {
   try {
     const session = await getSession()
-    if (!session || !canManageClubs(session)) {
+    if (!session || !isAdminOrModerator(session)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -35,7 +35,7 @@ export async function GET() {
       orderBy: { name: 'asc' },
       include: { _count: { select: { events: true } } },
     })
-    const clubIds = clubs.map(c => c.id)
+    const clubIds = clubs.map((c: any) => c.id)
 
     // Pending join requests grouped by club. One query covers
     // every club (vs one-per-club drift).
@@ -44,7 +44,7 @@ export async function GET() {
       where: { clubId: { in: clubIds }, status: 'pending' },
       _count: { _all: true },
     })
-    const pendingMap = new Map(pendingByClub.map(r => [r.clubId, r._count._all]))
+    const pendingMap = new Map<string, number>(pendingByClub.map((r: any) => [r.clubId, r._count._all] as [string, number]))
 
     // Quality rollup. Pull every published/archived event id in
     // one go, batch through computeEventSurveyRollup, then
@@ -54,7 +54,7 @@ export async function GET() {
       where:  { clubId: { in: clubIds }, status: { in: ['published', 'archived'] } },
       select: { id: true, clubId: true },
     })
-    const eventRollups = await computeEventSurveyRollup(events.map(e => e.id))
+    const eventRollups = await computeEventSurveyRollup(events.map((e: any) => e.id))
     const eventsByClub = new Map<string, string[]>()
     for (const e of events) {
       if (!e.clubId) continue
@@ -67,7 +67,7 @@ export async function GET() {
       qualityByClub.set(clubId, aggregateRollup(rows))
     }
 
-    return NextResponse.json(clubs.map(c => ({
+    return NextResponse.json(clubs.map((c: any) => ({
       ...c,
       pendingCount: pendingMap.get(c.id) ?? 0,
       quality:      qualityByClub.get(c.id) ?? null,

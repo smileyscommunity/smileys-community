@@ -11,31 +11,21 @@ export async function GET() {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // Get all clubs where user is a host
-    const hostClubs = await prisma.clubMembership.findMany({
-      where: { userId: session.id, role: 'host', status: 'approved' },
-      select: { clubId: true },
-    })
-    const clubIds = hostClubs.map(m => m.clubId)
-
-    // Show events they're personally hosting, co-hosting, OR events in their host clubs
     const events = await prisma.event.findMany({
-      where: {
-        OR: [
-          { hostId: session.id },
-          { cohosts: { some: { userId: session.id } } },
-          ...(clubIds.length > 0 ? [{ clubId: { in: clubIds } }] : []),
-        ],
-      },
+      where: { hostId: session.id },
       orderBy: { date: 'asc' },
       select: {
         id: true, title: true, date: true, time: true, location: true,
-        status: true, emoji: true, totalSpots: true, coverImage: true,
+        status: true, emoji: true, totalSpots: true, coverImage: true, hostId: true,
         _count: { select: { attendees: { where: { status: 'approved' } } } },
+        attendees: { where: { status: 'approved', checkedIn: true }, select: { userId: true } },
       },
     })
 
-    return NextResponse.json(events)
+    return NextResponse.json(events.map(({ attendees: checkedInList, hostId: _hostId, ...e }) => ({
+      ...e,
+      checkedInCount: checkedInList.length,
+    })))
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

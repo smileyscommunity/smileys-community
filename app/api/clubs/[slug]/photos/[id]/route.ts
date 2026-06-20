@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin } from '@/lib/access'
 import { rateLimit } from '@/lib/rateLimit'
+import { writeAudit } from '@/lib/audit'
 
 type Params = { params: Promise<{ slug: string; id: string }> }
 
@@ -32,6 +33,15 @@ export async function DELETE(_: NextRequest, { params }: Params) {
     }
   }
 
+  const adminOverride = !isOwn && isAdmin(session)
   await prisma.clubPhoto.delete({ where: { id } })
+
+  if (adminOverride) {
+    writeAudit(session.id, session.name, 'club_photo_delete', id, 'ClubPhoto', {
+      clubSlug: slug,
+      photoOwnerId: photo.userId,
+    }).catch(() => {})
+  }
+
   return NextResponse.json({ ok: true })
 }

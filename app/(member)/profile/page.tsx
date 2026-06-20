@@ -8,6 +8,8 @@ import { toast } from 'sonner'
 import { resolveImageUrl, ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
 import { COUNTRIES } from '@/lib/countries'
 import { SkeletonList } from '@/components/Skeleton'
+import { downscaleImage } from '@/lib/image-resize'
+import PasswordToggle from '@/components/PasswordToggle'
 
 const AVATAR_COLORS = [
   '#f472b6', '#60a5fa', '#fbbf24', '#f87171', '#fb923c',
@@ -46,6 +48,19 @@ const LOOKING_FOR_OPTIONS = [
   { id: 'collaboration',     label: 'Collaboration'       },
   { id: 'mentorship',        label: 'Mentorship'          },
   { id: 'activities',        label: 'Activity partners'   },
+]
+
+const INDUSTRIES = [
+  'Tech', 'Finance', 'Real Estate', 'Creative & Design', 'Marketing',
+  'Hospitality', 'Education', 'Health & Wellness', 'Legal', 'Consulting',
+  'Retail', 'Manufacturing', 'Non-profit', 'Other',
+]
+
+const PROFESSIONAL_STATUS_OPTIONS = [
+  { id: 'open_to_networking', label: '🤝 Open to networking' },
+  { id: 'hiring',             label: '🚀 Hiring / Recruiting' },
+  { id: 'seeking_advice',     label: '💡 Seeking advice'     },
+  { id: 'social_only',        label: '🥨 Social only'        },
 ]
 
 const inputCls = 'input'
@@ -138,19 +153,25 @@ export default function ProfilePage() {
     socialStyles:      [] as string[],
     lookingFor:        [] as string[],
     profileVisibility: 'everyone',
+    industry:           '',
+    professionalRole:   '',
+    professionalStatus: '',
   })
 
   const [photoUploading, setPhotoUploading] = useState(false)
   const photoInputRef = useRef<HTMLInputElement>(null)
 
   const [pwForm,    setPwForm]    = useState({ current: '', next: '', confirm: '' })
+  const [showPw,    setShowPw]    = useState(false)
   const [pwError,   setPwError]   = useState('')
   const [pwLoading, setPwLoading] = useState(false)
   const [newEmail,      setNewEmail]      = useState('')
   const [emailPassword, setEmailPassword] = useState('')
+  const [showEmailPw,   setShowEmailPw]   = useState(false)
   const [emailError,    setEmailError]    = useState('')
   const [emailLoading,  setEmailLoading]  = useState(false)
   const [deletePassword, setDeletePassword] = useState('')
+  const [showDeletePw,   setShowDeletePw]   = useState(false)
   const [deleteError,    setDeleteError]    = useState('')
   const [deleteLoading,  setDeleteLoading]  = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -180,6 +201,9 @@ export default function ProfilePage() {
         socialStyles:      Array.isArray(data.socialStyles) ? data.socialStyles : [],
         lookingFor:        Array.isArray(data.lookingFor)   ? data.lookingFor   : [],
         profileVisibility: data.profileVisibility ?? 'everyone',
+        industry:           data.industry           ?? '',
+        professionalRole:   data.professionalRole   ?? '',
+        professionalStatus: data.professionalStatus ?? '',
       })
       const eventCount = Array.isArray(attended?.attendances)
         ? attended.attendances.length
@@ -196,8 +220,9 @@ export default function ProfilePage() {
   async function handlePhotoUpload(file: File) {
     setPhotoUploading(true)
     try {
+      const upload = await downscaleImage(file)
       const fd = new FormData()
-      fd.append('file', file)
+      fd.append('file', upload)
       fd.append('folder', 'users')
       const res  = await fetch('/app/api/upload', { method: 'POST', credentials: 'include', body: fd })
       const data = await res.json()
@@ -221,10 +246,17 @@ export default function ProfilePage() {
       const fullName = `${form.firstName.trim()} ${form.lastName.trim()}`.trim()
       // Exclude firstName/lastName (merged into name) and profilePhoto (managed by upload button)
       const { firstName, lastName, profilePhoto, ...rest } = form
+      // Empty professional fields go to null so the column is cleared
+      // and the Pro directory filter can distinguish "unset" from
+      // "set to social_only".
+      const payload: Record<string, unknown> = { ...rest, name: fullName }
+      if (rest.industry           === '') payload.industry           = null
+      if (rest.professionalRole   === '') payload.professionalRole   = null
+      if (rest.professionalStatus === '') payload.professionalStatus = null
       const res = await fetch('/app/api/auth/me', {
         method: 'PATCH', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...rest, name: fullName }),
+        body: JSON.stringify(payload),
       })
       if (!res.ok) { toast.error('Failed to save'); return }
       const initials = fullName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
@@ -238,7 +270,7 @@ export default function ProfilePage() {
     setPwError('')
     if (!pwForm.current || !pwForm.next || !pwForm.confirm) { setPwError('All fields are required'); return }
     if (pwForm.next !== pwForm.confirm) { setPwError('New passwords do not match'); return }
-    if (pwForm.next.length < 6) { setPwError('Password must be at least 6 characters'); return }
+    if (pwForm.next.length < 8) { setPwError('Password must be at least 8 characters'); return }
     setPwLoading(true)
     try {
       const res = await fetch('/app/api/auth/change-password', {
@@ -320,12 +352,12 @@ export default function ProfilePage() {
 
             <div className="flex-1 min-w-0 text-center sm:text-left">
               <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900">{fullName || user.name}</h1>
-              <p className="text-sm text-gray-500 mt-0.5 truncate">{user.email}</p>
+              <p className="text-sm text-gray-600 mt-0.5 truncate">{user.email}</p>
               {stats && (
                 <div className="flex items-center justify-center sm:justify-start flex-wrap gap-x-4 gap-y-1 mt-2">
-                  <span className="text-xs text-gray-500"><span className="font-bold text-gray-900">{stats.events}</span> events</span>
-                  <span className="text-xs text-gray-500"><span className="font-bold text-gray-900">{stats.clubs}</span> clubs</span>
-                  <span className="text-xs text-gray-500">Since <span className="font-bold text-gray-900">{new Date(stats.joinedAt).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}</span></span>
+                  <span className="text-xs text-gray-600"><span className="font-bold text-gray-900">{stats.events}</span> events</span>
+                  <span className="text-xs text-gray-600"><span className="font-bold text-gray-900">{stats.clubs}</span> clubs</span>
+                  <span className="text-xs text-gray-600">Since <span className="font-bold text-gray-900">{new Date(stats.joinedAt).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}</span></span>
                 </div>
               )}
               <button onClick={() => photoInputRef.current?.click()}
@@ -348,15 +380,15 @@ export default function ProfilePage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1.5">First name</label>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">First name</label>
                   <input type="text" value={form.firstName} onChange={e => set('firstName', e.target.value)} placeholder="Ayşe" className={inputCls} />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1.5">Last name</label>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Last name</label>
                   <input type="text" value={form.lastName} onChange={e => set('lastName', e.target.value)} placeholder="Kaya" className={inputCls} />
                 </div>
                 <div className="col-span-full">
-                  <label className="block text-xs font-semibold text-gray-500 mb-1.5">
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">
                     Bio <span className="font-normal text-gray-400">{form.bio.length}/1000</span>
                   </label>
                   <textarea rows={5} value={form.bio} onChange={e => set('bio', e.target.value)}
@@ -364,7 +396,7 @@ export default function ProfilePage() {
                     className={`${inputCls} resize-none`} />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1.5">Gender</label>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Gender</label>
                   <select value={form.gender} onChange={e => set('gender', e.target.value)} className={`${inputCls} bg-white`}>
                     <option value="">Prefer not to say</option>
                     <option value="female">Female</option>
@@ -373,21 +405,21 @@ export default function ProfilePage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1.5">Nationality</label>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Nationality</label>
                   <select value={form.nationality} onChange={e => set('nationality', e.target.value)} className={inputCls}>
                     <option value="">Select country…</option>
                     {COUNTRIES.map(c => <option key={c.code} value={c.name}>{c.name}</option>)}
                   </select>
                 </div>
                 <div className="col-span-full">
-                  <label className="block text-xs font-semibold text-gray-500 mb-1.5">Neighborhood</label>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Neighborhood</label>
                   <select value={form.neighborhood} onChange={e => set('neighborhood', e.target.value)} className={inputCls}>
                     <option value="">Select…</option>
                     {ISTANBUL_NEIGHBORHOODS.map(n => <option key={n} value={n}>{n}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1.5">Phone</label>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Phone</label>
                   <input type="tel" value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="+90 555 000 0000" className={inputCls} />
                 </div>
               </div>
@@ -395,7 +427,7 @@ export default function ProfilePage() {
               {/* Avatar color */}
               {!form.profilePhoto && (
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-2">Avatar colour</label>
+                  <label className="block text-xs font-semibold text-gray-600 mb-2">Avatar colour</label>
                   <div className="flex gap-2 flex-wrap">
                     {AVATAR_COLORS.map(c => (
                       <button key={c} onClick={() => set('color', c)}
@@ -412,7 +444,7 @@ export default function ProfilePage() {
               <h2 className="font-bold text-gray-900">Social</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1.5">Instagram</label>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Instagram</label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">@</span>
                     <input type="text" value={form.instagram.replace('@', '')} onChange={e => set('instagram', e.target.value)}
@@ -420,11 +452,56 @@ export default function ProfilePage() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1.5">LinkedIn</label>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">LinkedIn</label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-medium">in/</span>
                     <input type="text" value={form.linkedin.replace(/.*linkedin\.com\/in\//i, '')} onChange={e => set('linkedin', e.target.value)}
                       placeholder="your-name" className={`${inputCls} pl-8`} />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ── Professional ── */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
+              <div className="flex items-center gap-2">
+                <h2 className="font-bold text-gray-900">Professional</h2>
+                <span className="text-[10px] font-bold bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded uppercase tracking-tight">New</span>
+              </div>
+              <p className="text-xs text-gray-400 leading-relaxed">
+                Add your career context to help other members find you for professional reasons.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Industry</label>
+                  <select value={form.industry} onChange={e => set('industry', e.target.value)} className={`${inputCls} bg-white`}>
+                    <option value="">Select industry…</option>
+                    {INDUSTRIES.map(i => <option key={i} value={i}>{i}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Role / Job Title</label>
+                  <input type="text" value={form.professionalRole} onChange={e => set('professionalRole', e.target.value)}
+                    placeholder="e.g. Founder, Designer" className={inputCls} />
+                </div>
+                <div className="col-span-full">
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Networking Goal</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {PROFESSIONAL_STATUS_OPTIONS.map(opt => {
+                      const active = form.professionalStatus === opt.id
+                      return (
+                        <button key={opt.id} type="button"
+                          onClick={() => set('professionalStatus', opt.id)}
+                          className={`text-left px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
+                            active
+                              ? 'border-amber-500 bg-amber-50 text-amber-700'
+                              : 'border-gray-100 bg-white text-gray-600 hover:border-amber-200'
+                          }`}>
+                          {opt.label}
+                        </button>
+                      )
+                    })}
                   </div>
                 </div>
               </div>
@@ -485,6 +562,86 @@ export default function ProfilePage() {
               )}
             </div>
 
+            {/* ── Professional ── opt-in surface that powers the
+                upcoming Pro directory filter without mixing into the
+                social feed. Wrapped in a subtle dark accent so it
+                visually signals "different mode" than the warm cards
+                above it. */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h2 className="font-bold text-gray-900">Professional</h2>
+                    <span className="text-[10px] font-extrabold text-amber-700 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-full uppercase tracking-widest shrink-0">Optional</span>
+                  </div>
+                  <p className="text-xs text-gray-400">Helps members find you for work conversations. Stays out of your social profile.</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Industry</label>
+                  <select value={form.industry} onChange={e => set('industry', e.target.value)} className={inputCls}>
+                    <option value="">— Pick one —</option>
+                    {INDUSTRIES.map(i => <option key={i} value={i}>{i}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Role</label>
+                  <input type="text" maxLength={60}
+                    value={form.professionalRole}
+                    onChange={e => set('professionalRole', e.target.value)}
+                    placeholder="e.g. Founder, Designer, Lawyer"
+                    className={inputCls} />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-2">Status</label>
+                <div className="flex flex-wrap gap-2">
+                  {PROFESSIONAL_STATUS_OPTIONS.map(opt => {
+                    const active = form.professionalStatus === opt.id
+                    return (
+                      <button key={opt.id} type="button"
+                        onClick={() => set('professionalStatus', active ? '' : opt.id)}
+                        className={`text-sm px-4 py-2 rounded-full font-medium transition-colors ${
+                          active ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}>
+                        {opt.label}
+                      </button>
+                    )
+                  })}
+                </div>
+                <p className="text-xs text-gray-400 mt-2">
+                  {form.professionalStatus === 'social_only'
+                    ? 'You won\'t appear in professional searches. Your industry and role stay hidden.'
+                    : form.professionalStatus
+                      ? 'Members searching the Pro directory can find you under your industry and role.'
+                      : 'Pick one to make your industry and role discoverable. Skip to keep your profile social-only.'}
+                </p>
+              </div>
+
+              {/* Pro funnel nudge — closes the loop on why these fields
+                  matter. Visible to every member filling in the section
+                  (including those who already joined the Pro waitlist —
+                  the share-with-a-friend angle still applies). Designed
+                  to feel like a hint, not an ad. */}
+              <Link href="/pro"
+                className="block bg-gradient-to-br from-zinc-900 to-zinc-950 border border-amber-500/30 rounded-xl p-4 hover:border-amber-400 transition-colors group">
+                <div className="flex items-center gap-3">
+                  <div className="text-xl shrink-0">🪪</div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] uppercase tracking-widest text-amber-400 font-extrabold mb-0.5">Smileys Pro · Coming soon</p>
+                    <p className="text-sm font-bold text-white leading-tight">
+                      Members will filter the network by industry and role.
+                    </p>
+                    <p className="text-xs text-zinc-400 mt-0.5">Founders lock in 50% off forever — reserve your spot.</p>
+                  </div>
+                  <span className="text-sm font-bold text-amber-400 shrink-0 group-hover:translate-x-0.5 transition-transform">→</span>
+                </div>
+              </Link>
+            </div>
+
             {/* ── Looking for ── */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-3">
               <h2 className="font-bold text-gray-900">Looking for</h2>
@@ -535,7 +692,7 @@ export default function ProfilePage() {
             {/* ── Email ── */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
               <h2 className="font-bold text-gray-900">Email address</h2>
-              <p className="text-sm text-gray-500">Current: <span className="font-medium text-gray-800">{user.email}</span>
+              <p className="text-sm text-gray-600">Current: <span className="font-medium text-gray-800">{user.email}</span>
                 {user.emailVerified
                   ? <span className="ml-2 text-xs text-green-600 font-medium bg-green-50 px-2 py-0.5 rounded-full">Verified</span>
                   : <span className="ml-2 text-xs text-amber-600 font-medium bg-amber-50 px-2 py-0.5 rounded-full">Unverified</span>}
@@ -544,7 +701,10 @@ export default function ProfilePage() {
               <div className="space-y-2">
                 <input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="New email address" className={inputCls} />
                 <div className="flex flex-col sm:flex-row gap-3">
-                  <input type="password" value={emailPassword} onChange={e => setEmailPassword(e.target.value)} placeholder="Confirm with password" className={`${inputCls} flex-1`} />
+                  <div className="relative flex-1">
+                    <input type={showEmailPw ? 'text' : 'password'} value={emailPassword} onChange={e => setEmailPassword(e.target.value)} placeholder="Confirm with password" className={`${inputCls} w-full pr-12`} />
+                    <PasswordToggle visible={showEmailPw} onToggle={() => setShowEmailPw(p => !p)} />
+                  </div>
                   <button onClick={handleEmailChange} disabled={emailLoading || !newEmail.trim() || !emailPassword}
                     className="px-4 py-2.5 bg-gray-900 hover:bg-gray-700 text-white text-sm font-semibold rounded-xl disabled:opacity-40 transition-colors">
                     {emailLoading ? 'Saving…' : 'Update email'}
@@ -559,17 +719,26 @@ export default function ProfilePage() {
               {pwError && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-xl">{pwError}</p>}
               <div className="space-y-3">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1.5">Current password</label>
-                  <input type="password" value={pwForm.current} onChange={e => setPwForm(f => ({ ...f, current: e.target.value }))} className={inputCls} />
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Current password</label>
+                  <div className="relative">
+                    <input type={showPw ? 'text' : 'password'} value={pwForm.current} onChange={e => setPwForm(f => ({ ...f, current: e.target.value }))} className={`${inputCls} pr-12`} />
+                    <PasswordToggle visible={showPw} onToggle={() => setShowPw(p => !p)} />
+                  </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-gray-500 mb-1.5">New password</label>
-                    <input type="password" value={pwForm.next} onChange={e => setPwForm(f => ({ ...f, next: e.target.value }))} className={inputCls} />
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">New password</label>
+                    <div className="relative">
+                      <input type={showPw ? 'text' : 'password'} value={pwForm.next} onChange={e => setPwForm(f => ({ ...f, next: e.target.value }))} className={`${inputCls} pr-12`} />
+                      <PasswordToggle visible={showPw} onToggle={() => setShowPw(p => !p)} />
+                    </div>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-gray-500 mb-1.5">Confirm</label>
-                    <input type="password" value={pwForm.confirm} onChange={e => setPwForm(f => ({ ...f, confirm: e.target.value }))} className={inputCls} />
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Confirm</label>
+                    <div className="relative">
+                      <input type={showPw ? 'text' : 'password'} value={pwForm.confirm} onChange={e => setPwForm(f => ({ ...f, confirm: e.target.value }))} className={`${inputCls} pr-12`} />
+                      <PasswordToggle visible={showPw} onToggle={() => setShowPw(p => !p)} />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -582,7 +751,7 @@ export default function ProfilePage() {
             {/* ── Privacy ── */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
               <h2 className="font-bold text-gray-900">Privacy</h2>
-              <p className="text-sm text-gray-500">Control who can see your profile in the member directory.</p>
+              <p className="text-sm text-gray-600">Control who can see your profile in the member directory.</p>
               <div className="space-y-2">
                 {([
                   { id: 'everyone',    label: 'Everyone',                   sub: 'All approved members can view your profile'       },
@@ -625,9 +794,12 @@ export default function ProfilePage() {
                     <p className="text-xs text-red-500 mt-1">Your profile and personal data will be erased. This cannot be undone.</p>
                   </div>
                   {deleteError && <p className="text-xs text-red-600 bg-white px-3 py-2 rounded-xl">{deleteError}</p>}
-                  <input type="password" value={deletePassword} onChange={e => setDeletePassword(e.target.value)}
-                    placeholder="Enter your password to confirm"
-                    className="w-full px-3 py-2.5 border border-red-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-400 bg-white" />
+                  <div className="relative">
+                    <input type={showDeletePw ? 'text' : 'password'} value={deletePassword} onChange={e => setDeletePassword(e.target.value)}
+                      placeholder="Enter your password to confirm"
+                      className="w-full px-3 py-2.5 pr-12 border border-red-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-400 bg-white" />
+                    <PasswordToggle visible={showDeletePw} onToggle={() => setShowDeletePw(p => !p)} />
+                  </div>
                   <div className="flex gap-2">
                     <button onClick={() => { setShowDeleteConfirm(false); setDeletePassword(''); setDeleteError('') }}
                       className="flex-1 py-2.5 border border-gray-200 text-gray-600 hover:bg-white text-sm font-semibold rounded-xl transition-colors">

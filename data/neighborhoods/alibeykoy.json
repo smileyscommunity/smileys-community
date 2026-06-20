@@ -1,0 +1,50 @@
+{
+  "tagline": "A working-class European side district on the Golden Horn — local markets, traditional coffee houses, and a strong community feel far from the tourist trail.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Alibeyköy Kahvehaneleri",
+          "description": "Traditional Turkish coffee houses around the main square — the social hub of the neighbourhood. Very local, very unhurried.",
+          "address": "Alibeyköy Meydanı, Eyüpsultan"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Semt Pazarı Lokantalari",
+          "description": "Simple, inexpensive lokanta restaurants serving rotating daily menus of home-style Turkish food. Beloved by the local working community.",
+          "address": "Alibeyköy, Eyüpsultan"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Alibeyköy Barajı",
+          "description": "A reservoir and surrounding green area used by locals for walking and picnics. Quiet and rarely crowded on weekdays.",
+          "address": "Alibeyköy, İstanbul",
+          "badge": "Smileys Pick"
+        },
+        {
+          "name": "Alibeyköy Semt Pazarı",
+          "description": "A lively weekly street market selling fresh produce, clothing, and household goods at very local prices.",
+          "address": "Alibeyköy, Eyüpsultan"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Alibeyköy is connected by tram (T5) and bus — getting to the city centre takes 30–40 minutes.",
+    "Primarily a residential district — better for living affordably than for leisure outings.",
+    "The reservoir area is a hidden green retreat used mostly by locals.",
+    "Very affordable rents by Istanbul standards — popular with families and long-term residents."
+  ]
+}

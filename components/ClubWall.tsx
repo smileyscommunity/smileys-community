@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { resolveImageUrl, getInitials } from '@/lib/data'
+import MentionTextarea, { MentionInput } from '@/components/MentionTextarea'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -118,7 +119,7 @@ function PollBlock({
                   {isMyVote && <span className="text-amber-500">✓</span>}
                   {opt.text}
                 </span>
-                <span className="text-xs text-gray-500 font-medium shrink-0 ml-2">{pct}%</span>
+                <span className="text-xs text-gray-600 font-medium shrink-0 ml-2">{pct}%</span>
               </div>
             </button>
           )
@@ -136,8 +137,6 @@ function ReplyForm({ slug, postId, onReply, onCancel }: {
   const [text, setText]       = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError]     = useState('')
-  const inputRef = useRef<HTMLInputElement>(null)
-  useEffect(() => { inputRef.current?.focus() }, [])
 
   async function submit() {
     if (!text.trim() || sending) return
@@ -155,12 +154,11 @@ function ReplyForm({ slug, postId, onReply, onCancel }: {
   return (
     <div className="mt-2 ml-10">
       <div className="flex gap-2 items-center">
-        <input ref={inputRef} type="text" value={text}
-          onChange={e => setText(e.target.value)}
+        <MentionInput value={text} onChange={setText}
           onKeyDown={e => { if (e.key === 'Enter') submit(); if (e.key === 'Escape') onCancel() }}
           placeholder="Write a reply… (Enter to post, Esc to cancel)"
-          maxLength={1000}
-          className="flex-1 text-sm px-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 text-gray-900 placeholder-gray-400"
+          maxLength={1000} autoFocus
+          className="text-sm px-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 text-gray-900 placeholder-gray-400"
         />
         <button onClick={submit} disabled={!text.trim() || sending}
           className="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-xl disabled:opacity-40 transition-colors shrink-0">
@@ -336,219 +334,256 @@ export default function ClubWall({ slug, canPost, currentUserId, isAdmin, canPin
     e.target.style.height = `${e.target.scrollHeight}px`
   }
 
+  const pollPosts    = posts.filter(p => p.poll)
+  const regularPosts = posts.filter(p => !p.poll)
+
   return (
-    <div className="space-y-5">
-      {/* ── Composer (text post + optional poll, polls admin/host only) ── */}
-      {canPost ? (
-        <div className="bg-white rounded-2xl shadow-card p-4">
-          <textarea ref={textareaRef} value={content} onChange={autoResize}
-            onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit() }}
-            placeholder={pollMode ? 'Add context to your poll (optional)…' : 'Share something with the club…'}
-            rows={3}
-            className="w-full text-sm text-gray-800 placeholder-gray-400 resize-none focus:outline-none leading-relaxed"
-            style={{ minHeight: 72 }}
-          />
+    <div className="space-y-8">
 
-          {pollMode && <PollComposer onChange={setPendingPoll} />}
-          {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
-
-          <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
-            <div className="flex items-center gap-2">
-              <span className={`text-xs ${content.length > 1800 ? 'text-red-500' : 'text-gray-400'}`}>{content.length} / 2000</span>
-              {/* Poll toggle — hidden from regular members. canAnnounce
-                  matches the admin/mod/host audience that can pin
-                  announcements; same authority bar for poll creation.
-                  Server gate in /api/clubs/[slug]/posts is the
-                  enforcement layer. */}
-              {canAnnounce && (
-                <button
-                  onClick={() => { setPollMode(v => !v); setPendingPoll(null) }}
-                  className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${
-                    pollMode
-                      ? 'bg-amber-100 text-amber-700 border-amber-300'
-                      : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-amber-300 hover:text-amber-600 hover:bg-amber-50'
-                  }`}
-                >
-                  📊 Poll
-                </button>
-              )}
-            </div>
-            <button onClick={submit}
-              disabled={(!content.trim() && !pendingPoll) || posting || content.length > 2000}
-              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-40">
-              {posting ? 'Posting…' : 'Post'}
-            </button>
+      {/* ── Polls ── */}
+      {(pollPosts.length > 0 || canAnnounce) && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold text-gray-600 uppercase tracking-widest flex items-center gap-1.5">
+              <span>📊</span> Polls
+            </p>
+            {canAnnounce && !pollMode && (
+              <button onClick={() => setPollMode(true)}
+                className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
+                + Create poll
+              </button>
+            )}
           </div>
-        </div>
-      ) : (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-sm text-amber-700 text-center">
-          Join this club to post on the wall.
-        </div>
-      )}
 
-      {/* ── Posts ── */}
-      {loading ? (
-        <div className="space-y-3">
-          {[1, 2, 3].map(i => (
-            <div key={i} className="bg-white rounded-2xl shadow-card p-4 animate-pulse">
-              <div className="flex gap-3">
-                <div className="w-9 h-9 rounded-full bg-gray-200 shrink-0" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-3 bg-gray-200 rounded w-1/4" />
-                  <div className="h-3 bg-gray-200 rounded w-full" />
-                  <div className="h-3 bg-gray-200 rounded w-3/4" />
-                </div>
+          {/* Poll creator — admin/host only */}
+          {pollMode && (
+            <div className="bg-white rounded-2xl shadow-card p-4 space-y-3">
+              <textarea value={content} onChange={autoResize} ref={textareaRef}
+                placeholder="Add context to your poll (optional)…"
+                rows={2}
+                className="w-full text-sm text-gray-800 placeholder-gray-400 resize-none focus:outline-none leading-relaxed"
+                style={{ minHeight: 56 }}
+              />
+              <PollComposer onChange={setPendingPoll} />
+              {error && <p className="text-xs text-red-500">{error}</p>}
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
+                <button onClick={() => { setPollMode(false); setPendingPoll(null); setContent('') }}
+                  className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:text-gray-700 transition-colors">
+                  Cancel
+                </button>
+                <button onClick={submit} disabled={!pendingPoll || posting}
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-xl transition-colors disabled:opacity-40">
+                  {posting ? 'Creating…' : 'Create poll'}
+                </button>
               </div>
             </div>
-          ))}
-        </div>
-      ) : posts.length === 0 ? (
-        <div className="bg-white rounded-2xl shadow-card p-12 text-center">
-          <span className="text-4xl block mb-3">💬</span>
-          <p className="text-gray-500 text-sm">No posts yet. Be the first to share something!</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {posts.map(post => {
-            const canDelete      = currentUserId === post.author.id || isAdmin
-            const isExpanded     = expandedReplies.has(post.id)
-            const visibleReplies = isExpanded ? post.replies : post.replies.slice(-PREVIEW_COUNT)
-            const hiddenCount    = post.replies.length - PREVIEW_COUNT
+          )}
 
-            return (
-              <div key={post.id} className={`bg-white rounded-2xl shadow-card p-4 ${post.isPinned ? 'ring-1 ring-amber-200' : ''}`}>
-
-                {/* Pinned label */}
-                {post.isPinned && (
-                  <div className="flex items-center gap-1 text-xs font-semibold text-amber-600 mb-2">
-                    <span>📌</span> Pinned
-                  </div>
-                )}
-
-                <div className="flex gap-3">
-                  <Avatar author={post.author} />
-                  <div className="flex-1 min-w-0">
-                    {/* Author row */}
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-semibold text-gray-900">{post.author.name}</span>
-                      <AuthorBadge role={post.author.role} clubRole={post.author.clubRole} />
-                      <span className="text-xs text-gray-400">{formatRelative(post.createdAt)}</span>
-                    </div>
-
-                    {/* Content */}
-                    {post.content && (
-                      <p className="text-sm text-gray-700 mt-1.5 leading-relaxed whitespace-pre-wrap break-words">{renderContent(post.content)}</p>
-                    )}
-
-                    {/* Poll */}
-                    {post.poll && (
-                      <PollBlock
-                        poll={post.poll} postId={post.id} slug={slug} canVote={!!currentUserId}
-                        onVote={handlePollVote}
-                      />
-                    )}
-
-                    {/* Reactions */}
-                    <div className="flex items-center gap-1 mt-3 flex-wrap">
-                      {REACTIONS.map(emoji => {
-                        const r       = post.reactions.find(rx => rx.emoji === emoji)
-                        const active  = r?.reactedByMe ?? false
-                        return (
-                          <button
-                            key={emoji}
-                            onClick={() => currentUserId ? toggleReaction(post.id, emoji) : undefined}
-                            className={`flex items-center gap-1 text-sm px-2 py-1 rounded-lg transition-colors ${
-                              active
-                                ? 'bg-amber-50 ring-1 ring-amber-300 font-semibold'
-                                : currentUserId ? 'hover:bg-gray-50 text-gray-400' : 'text-gray-300 cursor-default'
-                            }`}
-                          >
-                            {emoji}
-                            {r && r.count > 0 && <span className={`text-xs ${active ? 'text-amber-700' : 'text-gray-500'}`}>{r.count}</span>}
-                          </button>
-                        )
-                      })}
-
-                      {/* Reply button */}
-                      {canPost && (
-                        <button onClick={() => setReplyingTo(replyingTo === post.id ? null : post.id)}
-                          className="flex items-center gap-1.5 text-xs font-medium text-gray-400 hover:text-amber-500 transition-colors ml-1">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                          </svg>
-                          Reply{post.replies.length > 0 && ` (${post.replies.length})`}
-                        </button>
-                      )}
-
-                      {/* Pin / delete */}
-                      <div className="ml-auto flex items-center gap-2">
-                        {canPin && (
-                          <button onClick={() => togglePin(post.id, post.isPinned)}
-                            title={post.isPinned ? 'Unpin' : 'Pin to top'}
-                            className={`text-base transition-colors ${post.isPinned ? 'text-amber-500' : 'text-gray-300 hover:text-amber-400'}`}>
-                            📌
-                          </button>
-                        )}
-                        {canDelete && (
-                          <button onClick={() => deletePost(post.id)} className="text-xs text-gray-300 hover:text-red-400 transition-colors">
-                            Delete
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Replies */}
-                {post.replies.length > 0 && (
-                  <div className="mt-3 ml-12 space-y-2.5 border-l-2 border-gray-100 pl-3">
-                    {!isExpanded && hiddenCount > 0 && (
-                      <button onClick={() => setExpandedReplies(prev => new Set(prev).add(post.id))}
-                        className="text-xs text-amber-600 hover:text-amber-700 font-semibold">
-                        Show {hiddenCount} earlier {hiddenCount === 1 ? 'reply' : 'replies'}
-                      </button>
-                    )}
-                    {visibleReplies.map(reply => {
-                      const canDelReply = currentUserId === reply.author.id || isAdmin
-                      return (
-                        <div key={reply.id} className="flex gap-2 group">
-                          <Avatar author={reply.author} size="sm" />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="text-xs font-semibold text-gray-900">{reply.author.name}</span>
-                              <AuthorBadge role={reply.author.role} clubRole={reply.author.clubRole} />
-                              <span className="text-xs text-gray-400">{formatRelative(reply.createdAt)}</span>
-                            </div>
-                            <p className="text-xs text-gray-700 mt-0.5 leading-relaxed whitespace-pre-wrap break-words">{renderContent(reply.content)}</p>
-                          </div>
-                          {canDelReply && (
-                            <button onClick={() => deleteReply(post.id, reply.id)}
-                              className="text-gray-200 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 text-base leading-none shrink-0 self-start mt-0.5">
-                              ×
-                            </button>
-                          )}
-                        </div>
-                      )
-                    })}
-                    {isExpanded && post.replies.length > PREVIEW_COUNT && (
-                      <button onClick={() => setExpandedReplies(prev => { const s = new Set(prev); s.delete(post.id); return s })}
-                        className="text-xs text-gray-400 hover:text-gray-600">Show less</button>
-                    )}
-                  </div>
-                )}
-
-                {/* Reply composer */}
-                {replyingTo === post.id && (
-                  <ReplyForm slug={slug} postId={post.id}
-                    onReply={reply => handleNewReply(post.id, reply)}
-                    onCancel={() => setReplyingTo(null)}
-                  />
-                )}
-              </div>
-            )
-          })}
+          {pollPosts.map(post => renderPostCard(post))}
         </div>
       )}
+
+      {/* ── Discussion ── */}
+      <div className="space-y-3">
+        <p className="text-xs font-bold text-gray-600 uppercase tracking-widest flex items-center gap-1.5">
+          <span>💬</span> Discussion
+        </p>
+
+        {/* Composer — text only, no poll toggle */}
+        {canPost ? (
+          <div className="bg-white rounded-2xl shadow-card p-4">
+            <MentionTextarea value={pollMode ? '' : content}
+              onChange={v => { if (!pollMode) setContent(v) }}
+              onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !pollMode) submit() }}
+              placeholder="Share something with the club…"
+              rows={3}
+              className="w-full text-sm text-gray-800 placeholder-gray-400 resize-none focus:outline-none leading-relaxed"
+              style={{ minHeight: 72 }}
+              disabled={pollMode}
+              doAutoResize
+            />
+            {error && !pollMode && <p className="text-xs text-red-500 mt-1">{error}</p>}
+            <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+              <span className={`text-xs ${content.length > 1800 ? 'text-red-500' : 'text-gray-400'}`}>{pollMode ? '' : `${content.length} / 2000`}</span>
+              <button onClick={submit}
+                disabled={!content.trim() || pollMode || posting || content.length > 2000}
+                className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-40">
+                {posting ? 'Posting…' : 'Post'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-sm text-amber-700 text-center">
+            Join this club to post on the wall.
+          </div>
+        )}
+
+        {/* Posts */}
+        {loading ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="bg-white rounded-2xl shadow-card p-4 animate-pulse">
+                <div className="flex gap-3">
+                  <div className="w-9 h-9 rounded-full bg-gray-200 shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-3 bg-gray-200 rounded w-1/4" />
+                    <div className="h-3 bg-gray-200 rounded w-full" />
+                    <div className="h-3 bg-gray-200 rounded w-3/4" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : regularPosts.length === 0 ? (
+          <div className="bg-white rounded-2xl shadow-card p-8 text-center">
+            <span className="text-3xl block mb-2">💬</span>
+            <p className="text-gray-400 text-sm">No posts yet. Be the first to share something!</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {regularPosts.map(post => renderPostCard(post))}
+          </div>
+        )}
+      </div>
     </div>
   )
+
+  function renderPostCard(post: Post) {
+    const canDelete      = currentUserId === post.author.id || isAdmin
+    const isExpanded     = expandedReplies.has(post.id)
+    const visibleReplies = isExpanded ? post.replies : post.replies.slice(-PREVIEW_COUNT)
+    const hiddenCount    = post.replies.length - PREVIEW_COUNT
+
+    return (
+      <div key={post.id} className={`bg-white rounded-2xl shadow-card p-4 ${post.isPinned ? 'ring-1 ring-amber-200' : ''}`}>
+
+        {/* Pinned label */}
+        {post.isPinned && (
+          <div className="flex items-center gap-1 text-xs font-semibold text-amber-600 mb-2">
+            <span>📌</span> Pinned
+          </div>
+        )}
+
+        <div className="flex gap-3">
+          <Avatar author={post.author} />
+          <div className="flex-1 min-w-0">
+            {/* Author row */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-semibold text-gray-900">{post.author.name}</span>
+              <AuthorBadge role={post.author.role} clubRole={post.author.clubRole} />
+              <span className="text-xs text-gray-400">{formatRelative(post.createdAt)}</span>
+            </div>
+
+            {/* Content */}
+            {post.content && (
+              <p className="text-sm text-gray-700 mt-1.5 leading-relaxed whitespace-pre-wrap break-words">{renderContent(post.content)}</p>
+            )}
+
+            {/* Poll */}
+            {post.poll && (
+              <PollBlock
+                poll={post.poll} postId={post.id} slug={slug} canVote={!!currentUserId}
+                onVote={handlePollVote}
+              />
+            )}
+
+            {/* Reactions */}
+            <div className="flex items-center gap-1 mt-3 flex-wrap">
+              {REACTIONS.map(emoji => {
+                const r      = post.reactions.find(rx => rx.emoji === emoji)
+                const active = r?.reactedByMe ?? false
+                return (
+                  <button
+                    key={emoji}
+                    onClick={() => currentUserId ? toggleReaction(post.id, emoji) : undefined}
+                    className={`flex items-center gap-1 text-sm px-2 py-1 rounded-lg transition-colors ${
+                      active
+                        ? 'bg-amber-50 ring-1 ring-amber-300 font-semibold'
+                        : currentUserId ? 'hover:bg-gray-50 text-gray-400' : 'text-gray-300 cursor-default'
+                    }`}
+                  >
+                    {emoji}
+                    {r && r.count > 0 && <span className={`text-xs ${active ? 'text-amber-700' : 'text-gray-600'}`}>{r.count}</span>}
+                  </button>
+                )
+              })}
+
+              {/* Reply button */}
+              {canPost && (
+                <button onClick={() => setReplyingTo(replyingTo === post.id ? null : post.id)}
+                  className="flex items-center gap-1.5 text-xs font-medium text-gray-400 hover:text-amber-500 transition-colors ml-1">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                  </svg>
+                  Reply{post.replies.length > 0 && ` (${post.replies.length})`}
+                </button>
+              )}
+
+              {/* Pin / delete */}
+              <div className="ml-auto flex items-center gap-2">
+                {canPin && (
+                  <button onClick={() => togglePin(post.id, post.isPinned)}
+                    title={post.isPinned ? 'Unpin' : 'Pin to top'}
+                    className={`text-base transition-colors ${post.isPinned ? 'text-amber-500' : 'text-gray-300 hover:text-amber-400'}`}>
+                    📌
+                  </button>
+                )}
+                {canDelete && (
+                  <button onClick={() => deletePost(post.id)} className="text-xs text-gray-300 hover:text-red-400 transition-colors">
+                    Delete
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Replies */}
+        {post.replies.length > 0 && (
+          <div className="mt-3 ml-12 space-y-2.5 border-l-2 border-gray-100 pl-3">
+            {!isExpanded && hiddenCount > 0 && (
+              <button onClick={() => setExpandedReplies(prev => new Set(prev).add(post.id))}
+                className="text-xs text-amber-600 hover:text-amber-700 font-semibold">
+                Show {hiddenCount} earlier {hiddenCount === 1 ? 'reply' : 'replies'}
+              </button>
+            )}
+            {visibleReplies.map(reply => {
+              const canDelReply = currentUserId === reply.author.id || isAdmin
+              return (
+                <div key={reply.id} className="flex gap-2 group">
+                  <Avatar author={reply.author} size="sm" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-xs font-semibold text-gray-900">{reply.author.name}</span>
+                      <AuthorBadge role={reply.author.role} clubRole={reply.author.clubRole} />
+                      <span className="text-xs text-gray-400">{formatRelative(reply.createdAt)}</span>
+                    </div>
+                    <p className="text-xs text-gray-700 mt-0.5 leading-relaxed whitespace-pre-wrap break-words">{renderContent(reply.content)}</p>
+                  </div>
+                  {canDelReply && (
+                    <button onClick={() => deleteReply(post.id, reply.id)}
+                      className="text-gray-200 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 text-base leading-none shrink-0 self-start mt-0.5">
+                      ×
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+            {isExpanded && post.replies.length > PREVIEW_COUNT && (
+              <button onClick={() => setExpandedReplies(prev => { const s = new Set(prev); s.delete(post.id); return s })}
+                className="text-xs text-gray-400 hover:text-gray-600">Show less</button>
+            )}
+          </div>
+        )}
+
+        {/* Reply composer */}
+        {replyingTo === post.id && (
+          <ReplyForm slug={slug} postId={post.id}
+            onReply={reply => handleNewReply(post.id, reply)}
+            onCancel={() => setReplyingTo(null)}
+          />
+        )}
+      </div>
+    )
+  }
 }

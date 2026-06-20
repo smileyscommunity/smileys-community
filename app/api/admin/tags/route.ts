@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { canManageTags } from '@/lib/access'
+import { deleteCached } from '@/lib/analyticsCache'
 
 export async function POST(req: NextRequest) {
   const session = await getSession()
@@ -11,5 +12,6 @@ export async function POST(req: NextRequest) {
   if (!name?.trim() || !groupId) return NextResponse.json({ error: 'Name and groupId required' }, { status: 400 })
 
   const tag = await prisma.tag.create({ data: { name: name.trim(), emoji: emoji || '🏷️', groupId } })
+  deleteCached('tags:groups')
   return NextResponse.json(tag)
 }

@@ -94,21 +94,21 @@ export default function EventPreviewPane({ event, initialStatus }: Props) {
         <div>
           <h2 className="text-xl font-extrabold text-gray-900 leading-snug">{event.title}</h2>
           {event.hostName && (
-            <p className="text-sm text-gray-500 mt-1">Hosted by <span className="font-medium text-gray-700">{event.hostName}</span></p>
+            <p className="text-sm text-gray-600 mt-1">Hosted by <span className="font-medium text-gray-700">{event.hostName}</span></p>
           )}
         </div>
 
         {/* Meta row */}
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-gray-50 rounded-xl px-4 py-3">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-0.5">When</p>
+            <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-0.5">When</p>
             <p className="text-sm font-semibold text-gray-900">{formatDate(event.date)}</p>
-            <p className="text-xs text-gray-500">{formatTime(event.time)}</p>
+            <p className="text-xs text-gray-600">{formatTime(event.time)}</p>
           </div>
           <div className="bg-gray-50 rounded-xl px-4 py-3">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-0.5">Where</p>
+            <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-0.5">Where</p>
             <p className="text-sm font-semibold text-gray-900 truncate">{event.location || event.neighborhood}</p>
-            <p className="text-xs text-gray-500 truncate">{event.neighborhood}</p>
+            <p className="text-xs text-gray-600 truncate">{event.neighborhood}</p>
             {event.meetingUrl && (
               <a
                 href={event.meetingUrl}
@@ -180,12 +180,12 @@ export default function EventPreviewPane({ event, initialStatus }: Props) {
 
         {/* Description */}
         <div>
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">About</p>
+          <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">About</p>
           <div className="rich-content text-sm text-gray-600 leading-relaxed" dangerouslySetInnerHTML={{ __html: sanitize(event.description ?? '') }} />
         </div>
 
         {/* Details */}
-        <div className="space-y-2 text-xs text-gray-500">
+        <div className="space-y-2 text-xs text-gray-600">
           {event.price > 0 && (
             <div className="flex justify-between">
               <span>Price</span>

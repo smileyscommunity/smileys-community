@@ -278,6 +278,35 @@ export async function sendActivationEmail(email: string, name: string, token: st
   })
 }
 
+export async function sendLoginNudgeEmail(email: string, name: string, token: string, nudgeNumber: number) {
+  const url       = `${APP_URL}/activate?token=${token}`
+  const firstName = name.split(' ')[0]
+  const subject   = nudgeNumber === 1
+    ? safeSubject(`${firstName}, your Smileys account is waiting for you`)
+    : safeSubject(`Last reminder — your Smileys spot is still open, ${firstName}`)
+  await getResend().emails.send({
+    from: FROM, to: email,
+    subject,
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <div style="text-align:center;margin-bottom:28px">
+          <span style="font-size:40px">👋</span>
+          <h1 style="font-size:22px;font-weight:800;color:#111;margin:8px 0 4px">You're approved — but haven't joined yet</h1>
+          <p style="color:#6b7280;font-size:14px;margin:0;line-height:1.6">
+            Your Smileys application was accepted. We saved your spot, but you haven't set up your account yet.
+          </p>
+        </div>
+        <a href="${url}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:20px">
+          Set your password &amp; join now →
+        </a>
+        <p style="color:#9ca3af;font-size:12px;text-align:center;margin:0">
+          This link expires in 7 days. Events, clubs, and your community are waiting.
+        </p>
+      </div>
+    `,
+  })
+}
+
 export async function sendEventApprovedEmail(email: string, name: string, eventTitle: string, eventDate: string, eventNeighborhood: string, eventId: string) {
   const url = `${APP_URL}/events/${eventId}`
   await getResend().emails.send({
@@ -403,6 +432,39 @@ export async function sendWaitlistPromotedEmail(email: string, name: string, eve
           View event →
         </a>
         <p style="color:#9ca3af;font-size:12px;text-align:center">Your spot is confirmed. If plans change, please cancel so the next person can join.</p>
+      </div>
+    `,
+  })
+}
+
+// Sent to every waitlist member when an approved attendee cancels and
+// frees up a spot. First-come-first-served — whoever taps the CTA and
+// hits Join first gets in (race-safety lives in the POST /rsvp route,
+// which uses a Serializable transaction). Replaced the old "you're
+// promoted, congrats" silent flow because auto-promotion produced
+// no-shows: the first person on the waitlist often had moved on by
+// the time the spot opened. Making members actively claim is a much
+// better signal of intent.
+export async function sendSpotOpenedEmail(email: string, name: string, eventTitle: string, eventDate: string, eventId: string) {
+  const url = `${APP_URL}/events/${eventId}`
+  const firstName = name.split(' ')[0]
+  await getResend().emails.send({
+    from: FROM, to: email,
+    subject: safeSubject(`A spot just opened for "${eventTitle}" — claim it!`),
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <div style="text-align:center;margin-bottom:28px">
+          <span style="font-size:40px">🚪</span>
+          <h1 style="font-size:24px;font-weight:800;color:#111;margin:8px 0 4px">Quick, ${esc(firstName)}!</h1>
+          <p style="color:#6b7280;font-size:14px;margin:0">A spot just opened for <strong>${esc(eventTitle)}</strong>. First come, first served — claim it before someone else does.</p>
+        </div>
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:16px 20px;margin-bottom:24px">
+          <p style="color:#92400e;font-size:14px;margin:0"><strong>📅</strong> ${esc(eventDate)}</p>
+        </div>
+        <a href="${url}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:16px">
+          Claim the spot →
+        </a>
+        <p style="color:#9ca3af;font-size:12px;text-align:center">Tap Join on the event page. If someone beats you to it, you'll stay on the waitlist for next time.</p>
       </div>
     `,
   })
@@ -632,6 +694,7 @@ export async function sendListingAlertEmail(
     `,
   })
 }
+
 function stripHtml(html: string): string {
   return html
     .replace(/<br\s*\/?>/gi, '\n')
@@ -691,4 +754,81 @@ export async function sendNewsletterEmail(
   })
   if (error || !data?.id) throw error ?? new Error('Resend returned no email ID')
   return data.id
+}
+
+export async function sendEventReminderEmail(
+  userId: string,
+  email: string,
+  name: string,
+  eventTitle: string,
+  eventEmoji: string,
+  eventDate: string,
+  eventLocation: string,
+  eventId: string,
+) {
+  const unsub     = unsubscribeUrl(userId)
+  const firstName = name.split(' ')[0]
+  const url       = `${APP_URL}/events/${eventId}`
+  await getResend().emails.send({
+    from: FROM, to: email,
+    subject: safeSubject(`Reminder: ${eventTitle} ${eventEmoji} is coming up!`),
+    html: `
+      <div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <div style="text-align:center;margin-bottom:28px">
+          <span style="font-size:40px">${esc(eventEmoji)}</span>
+          <h1 style="font-size:22px;font-weight:800;color:#111;margin:8px 0 4px">Don't forget, ${esc(firstName)}!</h1>
+          <p style="color:#6b7280;font-size:14px;margin:0"><strong>${esc(eventTitle)}</strong> is coming up soon.</p>
+        </div>
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:16px 20px;margin-bottom:24px">
+          <p style="color:#92400e;font-size:14px;margin:0"><strong>📅</strong> ${esc(eventDate)}</p>
+          <p style="color:#92400e;font-size:14px;margin:6px 0 0"><strong>📍</strong> ${esc(eventLocation)}</p>
+        </div>
+        <a href="${url}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:16px">
+          View event →
+        </a>
+        <p style="color:#9ca3af;font-size:12px;text-align:center">If your plans change, please cancel your spot so others can join.</p>
+        <p style="color:#9ca3af;font-size:11px;text-align:center;margin-top:20px">
+          <a href="${unsub}" style="color:#9ca3af">Unsubscribe from event reminders</a>
+        </p>
+      </div>
+    `,
+    tags: [{ name: 'type', value: 'event_reminder' }],
+  })
+}
+
+export async function sendNoShowEmail(
+  userId: string,
+  email: string,
+  name: string,
+  eventTitle: string,
+  eventEmoji: string,
+  eventId: string,
+) {
+  const unsub     = unsubscribeUrl(userId)
+  const firstName = name.split(' ')[0]
+  const url       = `${APP_URL}/events`
+  await getResend().emails.send({
+    from: FROM, to: email,
+    subject: safeSubject(`We missed you at ${eventTitle} ${eventEmoji}`),
+    html: `
+      <div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <div style="text-align:center;margin-bottom:28px">
+          <span style="font-size:40px">${esc(eventEmoji)}</span>
+          <h1 style="font-size:22px;font-weight:800;color:#111;margin:8px 0 4px">We missed you, ${esc(firstName)}!</h1>
+          <p style="color:#6b7280;font-size:14px;margin:0">You were registered for <strong>${esc(eventTitle)}</strong> but we didn't see you there.</p>
+        </div>
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:16px 20px;margin-bottom:24px">
+          <p style="color:#92400e;font-size:14px;margin:0">No worries — life happens! Next time, if you can't make it, please cancel your spot so someone on the waitlist can join. It takes 10 seconds and makes a big difference.</p>
+        </div>
+        <a href="${url}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:16px">
+          Browse upcoming events →
+        </a>
+        <p style="color:#9ca3af;font-size:12px;text-align:center">Hope to see you at the next one 😊</p>
+        <p style="color:#9ca3af;font-size:11px;text-align:center;margin-top:20px">
+          <a href="${unsub}" style="color:#9ca3af">Unsubscribe from event reminders</a>
+        </p>
+      </div>
+    `,
+    tags: [{ name: 'type', value: 'no_show' }],
+  })
 }

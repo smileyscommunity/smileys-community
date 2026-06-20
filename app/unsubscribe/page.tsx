@@ -16,11 +16,11 @@ function UnsubscribePage() {
           <>
             <div className="text-4xl mb-4">✓</div>
             <h1 className="text-xl font-bold text-gray-900 mb-2">Unsubscribed</h1>
-            <p className="text-gray-500 text-sm mb-6">
+            <p className="text-gray-600 text-sm mb-6">
               You've been removed from Smileys Community newsletters and announcements.
               You'll still receive transactional emails (event confirmations, account updates).
             </p>
-            <Link href="/app/events" className="inline-block px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors">
+            <Link href="/events" className="inline-block px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors">
               Browse events
             </Link>
           </>
@@ -28,10 +28,10 @@ function UnsubscribePage() {
           <>
             <div className="text-4xl mb-4">✕</div>
             <h1 className="text-xl font-bold text-gray-900 mb-2">Invalid link</h1>
-            <p className="text-gray-500 text-sm mb-6">
+            <p className="text-gray-600 text-sm mb-6">
               This unsubscribe link is invalid or has expired. Please contact us if you'd like to opt out.
             </p>
-            <Link href="/app/contact" className="inline-block px-5 py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-semibold transition-colors">
+            <Link href="/contact" className="inline-block px-5 py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-semibold transition-colors">
               Contact us
             </Link>
           </>

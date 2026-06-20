@@ -35,7 +35,7 @@ export default function PendingStatusPage() {
           </div>
 
           <h1 className="text-2xl font-extrabold text-gray-900 mb-2">Application under review</h1>
-          <p className="text-gray-500 mb-6">
+          <p className="text-gray-600 mb-6">
             Hi <strong>{user.name.split(' ')[0]}</strong> — we've received your application and will review it personally.
             You'll get an email at <strong className="text-gray-700">{email}</strong> once you're approved.
           </p>
@@ -45,14 +45,14 @@ export default function PendingStatusPage() {
               <span className="text-amber-500 mt-0.5">✓</span>
               <div>
                 <p className="text-sm font-semibold text-gray-800">Application submitted</p>
-                <p className="text-xs text-gray-500">We have your details</p>
+                <p className="text-xs text-gray-600">We have your details</p>
               </div>
             </div>
             <div className="flex items-start gap-3">
               <span className="text-amber-500 mt-0.5">⋯</span>
               <div>
                 <p className="text-sm font-semibold text-gray-800">Under review</p>
-                <p className="text-xs text-gray-500">Usually within 24–48 hours</p>
+                <p className="text-xs text-gray-600">Usually within 24–48 hours</p>
               </div>
             </div>
             <div className="flex items-start gap-3">
@@ -72,7 +72,7 @@ export default function PendingStatusPage() {
             <Link href="/events" className="block w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-semibold text-sm transition-colors">
               Browse events
             </Link>
-            <button onClick={logout} className="block w-full py-3 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 text-sm transition-colors">
+            <button onClick={logout} className="block w-full py-3 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm transition-colors">
               Sign out
             </button>
           </div>

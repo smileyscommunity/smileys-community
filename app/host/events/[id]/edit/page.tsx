@@ -4,11 +4,15 @@ import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
+import { ISTANBUL_NEIGHBORHOODS, todayIstanbul } from '@/lib/data'
 import ImageUpload from '@/components/ImageUpload'
 import VibePicker from '@/components/VibePicker'
 import RichTextEditor from '@/components/RichTextEditor'
-const EMOJIS = ['⛵', '🍽️', '💬', '🎵', '🌿', '🎭', '🏃', '🎨', '🍷', '🧘', '🥾', '🎤']
+const EMOJIS = [
+  '⛵', '🍽️', '💬', '🎵', '🌿', '🎭', '🏃', '🎨', '🍷', '🧘', '🥾', '🎤',
+  '☕', '🍺', '🍸', '💃', '🎬', '📸', '🚴', '🏊', '🏋️', '📚', '🎲', '🌅',
+  '🏖️', '👨‍🍳', '🤝', '🎸', '🚢', '🌮', '🧗', '🌙', '🧁', '🥂', '🎓', '🛶',
+]
 const inputCls = 'w-full px-4 py-2.5 rounded-xl border border-zinc-700 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500 bg-zinc-800 placeholder-zinc-500'
 
 const emptyForm = {
@@ -103,19 +107,13 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
   useEffect(() => {
     Promise.all([
       fetch(`/app/api/events/${id}`, { credentials: 'include' }).then(r => r.json()),
-      fetch('/app/api/clubs', { credentials: 'include' }).then(r => r.json()),
-      fetch('/app/api/clubs/memberships', { credentials: 'include' }).then(r => r.json()),
+      fetch('/app/api/host/clubs', { credentials: 'include' }).then(r => r.ok ? r.json() : []),
       fetch('/app/api/auth/me', { credentials: 'include' }).then(r => r.json()),
       fetch(`/app/api/admin/events/${id}/cohosts`, { credentials: 'include' }).then(r => r.ok ? r.json() : []),
-    ]).then(([event, allClubs, memberships, me, cohostData]) => {
+    ]).then(([event, hostClubs, me, cohostData]) => {
       if (Array.isArray(cohostData)) setCohosts(cohostData)
       if (me?.id) setHostId(me.id)
-      const hostClubIds = new Set(
-        Array.isArray(memberships)
-          ? memberships.filter((m: any) => m.status === 'approved' && m.role === 'host').map((m: any) => m.clubId)
-          : []
-      )
-      setClubs(Array.isArray(allClubs) ? allClubs.filter((c: any) => hostClubIds.has(c.id)) : [])
+      setClubs(Array.isArray(hostClubs) ? hostClubs : [])
       if (event?.id) {
         setHostId(event.hostId ?? '')
         setForm({
@@ -162,34 +160,36 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
   async function writeWithAI() {
     setAiLoading(true)
     const club = clubs.find(c => c.id === form.clubId)
-    const res = await fetch('/app/api/host/events/describe', {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title:    form.title,
-        location: form.location,
-        vibes:    [],
-        clubName: club ? `${club.emoji} ${club.name}` : undefined,
-        notes:    aiNotes,
-      }),
-    })
-    if (res.ok) {
-      const { description } = await res.json()
-      const html = description.split(/\n\n+/).map((p: string) => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('')
-      set('description', html)
-    }
+    try {
+      const res = await fetch('/app/api/host/events/describe', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title:    form.title,
+          location: form.location,
+          vibes:    [],
+          clubName: club ? `${club.emoji} ${club.name}` : undefined,
+          notes:    aiNotes,
+        }),
+      })
+      if (res.ok) {
+        const { description } = await res.json()
+        const html = description.split(/\n\n+/).map((p: string) => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('')
+        set('description', html)
+      } else { toast.error('AI generation failed') }
+    } catch { toast.error('AI generation failed') }
     setAiLoading(false)
   }
 
   async function searchCohostMembers(q: string) {
     if (q.length < 2) { setCohostResults([]); return }
-    const res = await fetch(`/app/api/members?offset=0`, { credentials: 'include' })
+    const res = await fetch(`/app/api/search?q=${encodeURIComponent(q)}&type=members`, { credentials: 'include' })
     if (!res.ok) return
     const data = await res.json()
     const members: { id: string; name: string }[] = Array.isArray(data.members) ? data.members : []
     setCohostResults(
       members
-        .filter(m => m.name.toLowerCase().includes(q.toLowerCase()) && !cohosts.some(c => c.userId === m.id) && m.id !== hostId)
+        .filter(m => !cohosts.some(c => c.userId === m.id) && m.id !== hostId)
         .slice(0, 6)
     )
   }
@@ -210,7 +210,8 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
     } finally { setAddingCohost(false) }
   }
 
-  async function removeCohost(userId: string) {
+  async function removeCohost(userId: string, name: string) {
+    if (!confirm(`Remove ${name} as co-host?`)) return
     await fetch(`/app/api/admin/events/${id}/cohosts`, {
       method: 'DELETE', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -219,8 +220,12 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
     setCohosts(prev => prev.filter(c => c.userId !== userId))
   }
 
+  function isValidUrl(v: string) { try { new URL(v); return true } catch { return false } }
+
   async function handleSave() {
     if (!form.neighborhood) { setError('Neighborhood is required'); return }
+    if (form.meetingUrl && !isValidUrl(form.meetingUrl)) { setError('Map link must be a valid URL (https://…)'); return }
+    if (form.whatsappUrl && !isValidUrl(form.whatsappUrl)) { setError('WhatsApp URL must be a valid URL (https://…)'); return }
     setError(''); setSaving(true)
     try {
       const res = await fetch(`/app/api/admin/events/${id}`, {
@@ -343,6 +348,7 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
               ) : (
                 <select value={form.status} onChange={e => set('status', e.target.value)} className={inputCls}>
                   <option value="draft">Draft</option>
+                  <option value="pending">Submit for review</option>
                   <option value="postponed">Postponed</option>
                   <option value="cancelled">Cancelled</option>
                 </select>
@@ -360,7 +366,7 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
                   {cohosts.map(c => (
                     <div key={c.id} className="flex items-center gap-1.5 bg-zinc-700 rounded-xl px-3 py-1.5">
                       <span className="text-xs text-white font-medium">{c.user.name}</span>
-                      <button type="button" onClick={() => removeCohost(c.userId)}
+                      <button type="button" onClick={() => removeCohost(c.userId, c.user.name)}
                         className="text-zinc-400 hover:text-red-400 transition-colors text-sm leading-none ml-1">×</button>
                     </div>
                   ))}
@@ -371,6 +377,11 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
                   value={cohostSearch}
                   onChange={e => { setCohostSearch(e.target.value); searchCohostMembers(e.target.value) }}
                   className={inputCls} />
+                {cohostSearch.length >= 2 && cohostResults.length === 0 && (
+                  <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded-xl p-3 text-xs text-zinc-500 shadow-lg">
+                    No members found
+                  </div>
+                )}
                 {cohostResults.length > 0 && (
                   <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded-xl overflow-hidden shadow-lg">
                     {cohostResults.map(m => (
@@ -535,15 +546,17 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
               type="button"
               onClick={async () => {
                 setAiLoading(true)
-                const res = await fetch('/app/api/host/events/suggest-tags', {
-                  method: 'POST', credentials: 'include',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ title: form.title, description: form.description }),
-                })
-                if (res.ok) {
-                  const { tagIds } = await res.json()
-                  if (tagIds?.length) setSelectedTagIds((prev: string[]) => [...new Set([...prev, ...tagIds])])
-                }
+                try {
+                  const res = await fetch('/app/api/host/events/suggest-tags', {
+                    method: 'POST', credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title: form.title, description: form.description }),
+                  })
+                  if (res.ok) {
+                    const { tagIds } = await res.json()
+                    if (tagIds?.length) setSelectedTagIds((prev: string[]) => [...new Set([...prev, ...tagIds])])
+                  } else { toast.error('AI suggestion failed') }
+                } catch { toast.error('AI suggestion failed') }
                 setAiLoading(false)
               }}
               disabled={aiLoading || (!form.title && !form.description)}

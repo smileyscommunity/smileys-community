@@ -30,8 +30,8 @@ export async function POST(req: NextRequest) {
     // surface, but the DB-dump bcrypt-cracking risk falls fast
     // past the 12-char threshold. Existing users untouched; only
     // new + reset passwords pay this.
-    if (password.length < 12) {
-      return NextResponse.json({ error: 'Password must be at least 12 characters' }, { status: 400 })
+    if (password.length < 8) {
+      return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 })
     }
 
     const blacklisted = await prisma.blacklist.findFirst({

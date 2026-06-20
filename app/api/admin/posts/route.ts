@@ -4,7 +4,7 @@ import { getSession } from '@/lib/session'
 import { canManagePosts } from '@/lib/access'
 import { slugify } from '@/lib/slug'
 import { writeAudit } from '@/lib/audit'
-import { CATEGORIES, isCategory, TITLE_MAX, EXCERPT_MAX, BODY_MAX } from '@/app/admin/posts/constants'
+import { CATEGORIES, HANDBOOK_CATEGORIES, isKind, isValidCategory, TITLE_MAX, EXCERPT_MAX, BODY_MAX } from '@/app/admin/posts/constants'
 
 // Cover image must be a local upload path (the shape /api/upload
 // returns). External URLs in cover-image fields render as <img src>
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
   const session = await getSession()
   if (!session || !canManagePosts(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { title, excerpt, body, coverImage, status, category } = await req.json()
+  const { title, excerpt, body, coverImage, status, category, kind } = await req.json()
   const cleanTitle   = String(title   ?? '').trim()
   const cleanExcerpt = excerpt ? String(excerpt).trim() : ''
   const cleanBody    = String(body    ?? '').trim()
@@ -37,8 +37,9 @@ export async function POST(req: NextRequest) {
   if (cleanExcerpt.length > EXCERPT_MAX) return NextResponse.json({ error: `Excerpt too long (max ${EXCERPT_MAX} chars)` }, { status: 400 })
   if (cleanBody.length > BODY_MAX)       return NextResponse.json({ error: `Body too long (max ${BODY_MAX} chars)` }, { status: 400 })
 
-  // Category allowlist — previously accepted ANY string.
-  const cleanCategory = isCategory(category) ? category : CATEGORIES[0]
+  const cleanKind     = isKind(kind) ? kind : 'community'
+  const defaultCat    = cleanKind === 'handbook' ? HANDBOOK_CATEGORIES[0] : CATEGORIES[0]
+  const cleanCategory = isValidCategory(cleanKind, category) ? String(category) : defaultCat
 
   // Reject external cover image URLs — they would render as <img src>
   // on the public posts page, leaking visitor IPs / referers to a
@@ -64,6 +65,7 @@ export async function POST(req: NextRequest) {
       body:        cleanBody,
       coverImage:  cleanCover || null,
       status:      willPublish ? 'published' : 'draft',
+      kind:        cleanKind,
       category:    cleanCategory,
       authorId:    session.id,
       publishedAt: willPublish ? new Date() : null,

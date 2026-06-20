@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { resolveImageUrl } from '@/lib/data'
+import { downscaleImage } from '@/lib/image-resize'
 
 interface Photo {
   id: string
@@ -40,8 +41,9 @@ export default function EventPhotos({ eventId, photos: initial, canUpload, curre
     if (!file.type.startsWith('image/')) { setError('Only image files are allowed.'); return }
     setUploading(true); setError(null)
     try {
+      const upload = await downscaleImage(file)
       const form = new FormData()
-      form.append('file', file)
+      form.append('file', upload)
       form.append('folder', 'events')
       const up = await fetch('/app/api/upload', { method: 'POST', credentials: 'include', body: form })
       if (!up.ok) {

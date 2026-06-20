@@ -43,7 +43,7 @@ function EventCard({ e, showQr, onQr }: { e: MyEvent; showQr?: boolean; onQr?: (
           {e.status === 'pending'   && <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 shrink-0">⏳ Pending</span>}
           {e.status === 'waitlisted' && <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-600 shrink-0">#{e.waitlistPosition} waitlist</span>}
         </div>
-        <p className="text-xs text-gray-500 mt-0.5">{formatShortDate(e.date)} · {formatTime(e.time)}</p>
+        <p className="text-xs text-gray-600 mt-0.5">{formatShortDate(e.date)} · {formatTime(e.time)}</p>
         <p className="text-xs text-gray-400 mt-0.5">📍 {e.neighborhood}</p>
       </div>
       <div className="text-right shrink-0 flex flex-col items-end justify-between gap-2">
@@ -95,7 +95,7 @@ export default function MyEventsPage() {
       {qrEvent && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setQrEvent(null)}>
           <div className="bg-white rounded-3xl p-6 w-full max-w-xs text-center shadow-2xl" onClick={e => e.stopPropagation()}>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Your check-in QR</p>
+            <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Your check-in QR</p>
             <p className="font-bold text-gray-900 mb-5 leading-snug">{qrEvent.title}</p>
             <div className="flex justify-center mb-5">
               <QRCode value={`smileys-checkin:${qrEvent.id}:${user.id}`} size={200} />
@@ -112,7 +112,7 @@ export default function MyEventsPage() {
       <div className="bg-white border-b border-gray-100">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-10 pb-0">
           <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">My Events</h1>
-          <p className="text-base text-gray-500 mt-1 mb-4">{upcoming.length} upcoming · {events.length} total</p>
+          <p className="text-base text-gray-600 mt-1 mb-4">{upcoming.length} upcoming · {events.length} total</p>
           {/* Tabs */}
           <div className="flex gap-1">
             {([
@@ -123,12 +123,12 @@ export default function MyEventsPage() {
             ] as { key: Tab; label: string; count: number }[]).map(t => (
               <button key={t.key} onClick={() => setTab(t.key)}
                 className={`px-5 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
-                  tab === t.key ? 'border-amber-500 text-amber-600' : 'border-transparent text-gray-500 hover:text-gray-800'
+                  tab === t.key ? 'border-amber-500 text-amber-600' : 'border-transparent text-gray-600 hover:text-gray-800'
                 }`}>
                 {t.label}
                 {t.count > 0 && (
                   <span className={`ml-1.5 text-xs font-bold px-1.5 py-0.5 rounded-full ${
-                    tab === t.key ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500'
+                    tab === t.key ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'
                   }`}>{t.count}</span>
                 )}
               </button>
@@ -159,7 +159,7 @@ export default function MyEventsPage() {
             <h3 className="text-lg font-bold text-gray-900 mb-2">
               {tab === 'upcoming' ? 'No upcoming events' : tab === 'pending' ? 'No pending requests' : 'No past events yet'}
             </h3>
-            <p className="text-sm text-gray-500 mb-6">
+            <p className="text-sm text-gray-600 mb-6">
               {tab === 'upcoming' ? 'Find something fun and lock in your spot.'
                 : tab === 'pending' ? 'Any events awaiting approval will show up here.'
                 : 'Once you attend events, they\'ll appear here.'}

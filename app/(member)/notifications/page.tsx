@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { usePullToRefresh } from '@/hooks/usePullToRefresh'
@@ -22,12 +22,13 @@ const FILTERS: Filter[] = ['All', 'Events', 'Social', 'Admin']
 
 const FILTER_TYPES: Record<Filter, string[]> = {
   All:    [],
-  Events: ['new_event', 'event_updated', 'reminder_24h', 'reminder_2h', 'attendee_joined', 'review_request'],
+  Events: ['new_event', 'event_updated', 'reminder_24h', 'reminder_2h', 'attendee_joined', 'review_request', 'event_survey'],
   Social: ['rsvp', 'rsvp_pending', 'waitlist', 'waitlist_promoted'],
   Admin:  ['club_approved', 'club_rejected', 'host_assigned'],
 }
 
 const TYPE_ICON: Record<string, string> = {
+  checkin:             '✅',
   rsvp:                '🎉',
   rsvp_pending:        '⏳',
   waitlist:            '📋',
@@ -56,6 +57,7 @@ const TYPE_ICON: Record<string, string> = {
   connection_accepted: '🤝',
   report:              '🚩',
   application:         '👤',
+  event_survey:        '✍️',
 }
 
 function timeAgo(dateStr: string): string {
@@ -75,9 +77,15 @@ export default function NotificationsPage() {
   const [loading,        setLoading]        = useState(true)
   const [filter,         setFilter]         = useState<Filter>('All')
   const [confirmClear,   setConfirmClear]   = useState(false)
+  const [clearing,       setClearing]       = useState(false)
+  const clearedAt = useRef<number>(0)
   const router = useRouter()
 
   const load = useCallback(async () => {
+    // Don't overwrite a just-cleared state — wait 2s after clearAll before
+    // allowing a re-fetch, otherwise the visibilitychange listener can race
+    // and refill the list with pre-delete data.
+    if (Date.now() - clearedAt.current < 2000) return
     const d = await fetch('/app/api/notifications', { credentials: 'include' }).then(r => r.json())
     setNotifications(Array.isArray(d) ? d : [])
   }, [])
@@ -115,10 +123,22 @@ export default function NotificationsPage() {
   }
 
   async function clearAll() {
-    const res = await fetch('/app/api/notifications?clearAll=true', {
-      method: 'DELETE', credentials: 'include',
-    })
-    if (res.ok) { setNotifications([]); setConfirmClear(false) }
+    setClearing(true)
+    try {
+      const res = await fetch('/app/api/notifications?clearAll=true', {
+        method: 'DELETE', credentials: 'include',
+      })
+      if (res.ok) {
+        clearedAt.current = Date.now()
+        setNotifications([])
+        setConfirmClear(false)
+      } else {
+        const data = await res.json().catch(() => ({}))
+        alert(data.error ?? 'Could not clear notifications')
+      }
+    } finally {
+      setClearing(false)
+    }
   }
 
   async function dismiss(e: React.MouseEvent, id: string) {
@@ -158,7 +178,7 @@ export default function NotificationsPage() {
 
       <div className="bg-white border-b border-gray-100">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
-          <div className="flex items-center gap-3 text-sm text-gray-500 mb-4">
+          <div className="flex items-center gap-3 text-sm text-gray-600 mb-4">
             <Link href="/dashboard" className="hover:text-gray-900 transition-colors">Dashboard</Link>
             <span>/</span>
             <span className="text-gray-900 font-medium">Notifications</span>
@@ -173,7 +193,7 @@ export default function NotificationsPage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">Notifications</h1>
-              <p className="text-base text-gray-500 mt-1">{unread > 0 ? `${unread} unread` : 'All caught up'}</p>
+              <p className="text-base text-gray-600 mt-1">{unread > 0 ? `${unread} unread` : 'All caught up'}</p>
             </div>
             <div className="flex items-center gap-4 flex-wrap">
               {unread > 0 && (
@@ -184,8 +204,10 @@ export default function NotificationsPage() {
               {notifications.length > 0 && (
                 confirmClear ? (
                   <span className="flex items-center gap-2 text-sm whitespace-nowrap">
-                    <button onClick={clearAll} className="text-red-500 hover:text-red-600 font-semibold">Confirm</button>
-                    <button onClick={() => setConfirmClear(false)} className="text-gray-400 hover:text-gray-600">Cancel</button>
+                    <button onClick={clearAll} disabled={clearing} className="text-red-500 hover:text-red-600 font-semibold disabled:opacity-50">
+                      {clearing ? 'Clearing…' : 'Confirm'}
+                    </button>
+                    <button onClick={() => setConfirmClear(false)} disabled={clearing} className="text-gray-400 hover:text-gray-600 disabled:opacity-50">Cancel</button>
                   </span>
                 ) : (
                   <button onClick={() => setConfirmClear(true)} className="text-sm text-gray-400 hover:text-gray-600 font-medium whitespace-nowrap">
@@ -242,7 +264,7 @@ export default function NotificationsPage() {
               <>
                 <div className="text-6xl mb-4">🔕</div>
                 <h3 className="text-lg font-bold text-gray-900 mb-2">No {filter.toLowerCase()} notifications</h3>
-                <p className="text-sm text-gray-500 mb-6">Nothing in this category yet — check back later.</p>
+                <p className="text-sm text-gray-600 mb-6">Nothing in this category yet — check back later.</p>
                 <button
                   onClick={() => setFilter('All')}
                   className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors"
@@ -254,7 +276,7 @@ export default function NotificationsPage() {
               <>
                 <div className="text-6xl mb-4">✨</div>
                 <h3 className="text-lg font-bold text-gray-900 mb-2">You're all caught up!</h3>
-                <p className="text-sm text-gray-500 mb-6">When events update or friends join, you'll see it here.</p>
+                <p className="text-sm text-gray-600 mb-6">When events update or friends join, you'll see it here.</p>
                 <Link
                   href="/events"
                   className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors inline-block"
@@ -280,13 +302,22 @@ export default function NotificationsPage() {
                       <span className="text-sm font-semibold text-gray-900 leading-snug">{n.title}</span>
                       <span className="text-xs text-gray-400 shrink-0 mt-0.5">{timeAgo(n.createdAt)}</span>
                     </div>
-                    <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{n.body}</p>
+                    <p className="text-xs text-gray-600 mt-0.5 leading-relaxed">{n.body}</p>
+                    {n.type === 'event_survey' && n.link && (
+                      <a
+                        href={n.link}
+                        onClick={e => e.stopPropagation()}
+                        className="inline-block mt-2 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg transition-colors"
+                      >
+                        Leave feedback →
+                      </a>
+                    )}
                   </div>
                   <div className="flex flex-col items-end gap-1 shrink-0">
                     {!n.isRead && <span className="w-2 h-2 bg-amber-500 rounded-full mt-1" />}
                     <button
                       onClick={e => dismiss(e, n.id)}
-                      className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 flex items-center justify-center w-8 h-8 text-gray-300 hover:text-gray-500 transition-all rounded-lg hover:bg-gray-100"
+                      className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 flex items-center justify-center w-8 h-8 text-gray-300 hover:text-gray-600 transition-all rounded-lg hover:bg-gray-100"
                       title="Dismiss"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

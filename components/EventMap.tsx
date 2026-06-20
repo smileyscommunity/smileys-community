@@ -145,14 +145,14 @@ export default function EventMap({ events, selectedId, onSelect, attendance }: P
         <div className="absolute inset-0 flex items-center justify-center bg-gray-50/90 z-10 pointer-events-none">
           <div className="text-center">
             <div className="text-4xl mb-2">📍</div>
-            <p className="text-gray-500 font-medium text-sm">No events have coordinates yet.</p>
+            <p className="text-gray-600 font-medium text-sm">No events have coordinates yet.</p>
             <p className="text-gray-400 text-xs mt-1">Admins can add lat/lng when creating events.</p>
           </div>
         </div>
       )}
 
       {mappable.length < events.length && mappable.length > 0 && (
-        <div className="absolute top-3 right-3 z-10 bg-white/90 backdrop-blur-sm text-xs text-gray-500 px-2.5 py-1.5 rounded-lg shadow-sm border border-gray-200">
+        <div className="absolute top-3 right-3 z-10 bg-white/90 backdrop-blur-sm text-xs text-gray-600 px-2.5 py-1.5 rounded-lg shadow-sm border border-gray-200">
           {mappable.length} of {events.length} events have locations
         </div>
       )}
@@ -198,7 +198,7 @@ function MiniCard({ event, x, y, status }: { event: Event; x: number; y: number;
         )}
         <div className="p-2.5">
           <p className="text-xs font-bold text-gray-900 line-clamp-1">{event.emoji} {event.title}</p>
-          <p className="text-xs text-gray-500 mt-0.5">{fmt(event.date)} · {event.neighborhood}</p>
+          <p className="text-xs text-gray-600 mt-0.5">{fmt(event.date)} · {event.neighborhood}</p>
           <div className="flex items-center gap-2 mt-1.5">
             <span className="text-xs font-semibold text-amber-600">
               {event.price === 0 ? 'Free' : `${event.price} ${event.currency ?? 'TRY'}`}

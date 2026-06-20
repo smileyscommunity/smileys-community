@@ -51,10 +51,12 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
   const barColor    = getBarColor(fillPercent)
 
   const { status, loading, join } = useRSVP(event.id)
+  const isCancelled = event.status === 'cancelled'
 
   async function handleJoin(e: React.MouseEvent) {
     e.preventDefault()
     e.stopPropagation()
+    if (isCancelled) return
     if (status !== 'idle' && status !== 'error') return
     await join()
   }
@@ -98,6 +100,19 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
             <div className="absolute inset-0 bg-gradient-to-t from-violet-900/40 to-transparent pointer-events-none" />
           )}
 
+          {/* Cancelled overlay — wins over membersOnly tint so the banner is unambiguous.
+              Pointer-events-none lets the underlying Link still navigate. */}
+          {isCancelled && (
+            <>
+              <div className="absolute inset-0 bg-red-950/45 backdrop-grayscale pointer-events-none" />
+              <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center pointer-events-none">
+                <span className="bg-red-600 text-white text-sm font-extrabold tracking-widest uppercase px-4 py-1.5 rounded-md shadow-lg -rotate-6">
+                  Cancelled
+                </span>
+              </div>
+            </>
+          )}
+
           <EventBadges event={event} urgency={urgency} className="absolute top-3 left-3" />
 
           <span
@@ -125,11 +140,18 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
 
         {/* Content */}
         <div className="p-4">
-          <h3 className="font-bold text-gray-900 text-base leading-snug mb-2 group-hover:text-amber-600 transition-colors line-clamp-2">
-            {event.title}
-          </h3>
+          <div className="flex items-start justify-between gap-3 mb-2">
+            <h3 className="font-bold text-gray-900 text-base leading-snug group-hover:text-amber-600 transition-colors line-clamp-2">
+              {event.title}
+            </h3>
+            {event.intent === 'professional' && (
+              <span className="shrink-0 text-[9px] font-black uppercase tracking-widest bg-zinc-900 text-white px-1.5 py-0.5 rounded shadow-sm border border-zinc-800">
+                Net
+              </span>
+            )}
+          </div>
 
-          <div className="flex items-center gap-3 mb-3 text-xs text-gray-500">
+          <div className="flex items-center gap-3 mb-3 text-xs text-gray-600">
             <span
               onClick={goToNeighborhood}
               className="flex items-center gap-1 cursor-pointer hover:text-amber-600 transition-colors truncate"
@@ -178,7 +200,7 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
                 {event.attendeePreviews && event.attendeePreviews.length > 0 && (
                   <AvatarStack people={event.attendeePreviews} total={goingCount} max={3} size="sm" />
                 )}
-                <span className="text-xs text-gray-500 flex-1 truncate">
+                <span className="text-xs text-gray-600 flex-1 truncate">
                   {buildSocialLabel(event.attendeePreviews, goingCount)}
                 </span>
               </>
@@ -222,15 +244,18 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
 
             <motion.button
               onClick={handleJoin}
-              disabled={status !== 'idle'}
-              whileTap={status === 'idle' ? { scale: 0.93 } : {}}
-              className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:cursor-default overflow-hidden ${
+              disabled={isCancelled || status !== 'idle'}
+              whileTap={!isCancelled && status === 'idle' ? { scale: 0.93 } : {}}
+              className={`text-xs font-semibold py-1.5 rounded-lg transition-colors disabled:cursor-default overflow-hidden ${
+                event.spotsLeft === 0 && event.limitedSpots && status === 'idle' && !isCancelled ? 'px-2' : 'px-3'
+              } ${
+                isCancelled         ? 'bg-red-100 text-red-700'      :
                 status === 'joined'  ? 'bg-green-100 text-green-700' :
                 status === 'pending' ? 'bg-amber-100 text-amber-700' :
                 status === 'loading' ? 'bg-gray-100 text-gray-400'   :
                 status === 'error'   ? 'bg-red-100 text-red-600'     :
                 event.spotsLeft === 0 && event.limitedSpots
-                  ? 'bg-gray-100 text-gray-500'
+                  ? 'bg-violet-100 text-violet-700'
                   : 'bg-amber-500 hover:bg-amber-600 text-white'
               }`}
             >
@@ -243,11 +268,12 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
                   transition={{ duration: 0.14 }}
                   className="block"
                 >
-                  {status === 'joined'  ? '✓ Joined'    :
-                   status === 'pending' ? '⏳ Pending'   :
-                   status === 'loading' ? '…'            :
-                   status === 'error'   ? 'Error'        :
-                   event.spotsLeft === 0 && event.limitedSpots ? 'Full'   :
+                  {isCancelled         ? 'Cancelled'  :
+                   status === 'joined'  ? '✓ Joined'   :
+                   status === 'pending' ? '⏳ Pending'  :
+                   status === 'loading' ? '…'          :
+                   status === 'error'   ? 'Error'      :
+                   event.spotsLeft === 0 && event.limitedSpots ? 'Full · Join waitlist' :
                    event.approvalRequired                      ? 'Request' :
                    'Join'}
                 </motion.span>

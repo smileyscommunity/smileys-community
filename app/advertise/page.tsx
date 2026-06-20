@@ -120,7 +120,7 @@ export default function AdvertisePage() {
           <h1 className="text-5xl sm:text-6xl font-extrabold text-gray-900 tracking-tight leading-tight mb-6">
             {adv.headline ?? "Reach Istanbul's most engaged internationals"}
           </h1>
-          <p className="text-base text-gray-500 max-w-2xl leading-relaxed">
+          <p className="text-base text-gray-600 max-w-2xl leading-relaxed">
             {adv.subtitle ?? "Smileys is a curated community of expats and global professionals actively building their life in Istanbul. Advertise where trust is already built in."}
           </p>
           <div className="mt-10 flex items-center gap-4 flex-wrap">
@@ -155,7 +155,7 @@ export default function AdvertisePage() {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
           <div className="mb-14">
             <h2 className="text-3xl font-extrabold text-gray-900 mb-3">Why advertise with Smileys?</h2>
-            <p className="text-gray-500 max-w-xl">
+            <p className="text-gray-600 max-w-xl">
               Quantity is easy. Quality is rare. Our community is small by design — and that's the point.
             </p>
           </div>
@@ -164,7 +164,7 @@ export default function AdvertisePage() {
               <div key={w.title} className="bg-white rounded-2xl p-7 border border-gray-100 shadow-sm">
                 <div className="text-2xl mb-4">{w.icon}</div>
                 <h3 className="text-lg font-bold text-gray-900 mb-2">{w.title}</h3>
-                <p className="text-gray-500 text-sm leading-relaxed">{w.body}</p>
+                <p className="text-gray-600 text-sm leading-relaxed">{w.body}</p>
               </div>
             ))}
           </div>
@@ -195,7 +195,7 @@ export default function AdvertisePage() {
               </div>
             </div>
             <div>
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Industries we work with</p>
+              <p className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-4">Industries we work with</p>
               <div className="flex flex-wrap gap-2 mb-6">
                 {SECTORS.map(s => (
                   <span key={s} className="px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-100 text-amber-700 text-xs font-semibold">
@@ -203,7 +203,7 @@ export default function AdvertisePage() {
                   </span>
                 ))}
               </div>
-              <p className="text-sm text-gray-500 leading-relaxed">
+              <p className="text-sm text-gray-600 leading-relaxed">
                 Our members are actively exploring Istanbul — restaurants, fitness studios,
                 co-working spaces, real estate. They're your most receptive audience.
               </p>
@@ -217,7 +217,7 @@ export default function AdvertisePage() {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
           <div className="mb-14">
             <h2 className="text-3xl font-extrabold text-gray-900 mb-3">Advertising formats</h2>
-            <p className="text-gray-500 max-w-xl">
+            <p className="text-gray-600 max-w-xl">
               Each format is designed to feel native to the community — not intrusive. No banner blindness, no ignored ads.
             </p>
           </div>
@@ -241,7 +241,7 @@ export default function AdvertisePage() {
                 </h3>
                 <ul className="space-y-2">
                   {f.features.map(feat => (
-                    <li key={feat} className={`flex items-start gap-2 text-sm ${f.highlight ? 'text-amber-50' : 'text-gray-500'}`}>
+                    <li key={feat} className={`flex items-start gap-2 text-sm ${f.highlight ? 'text-amber-50' : 'text-gray-600'}`}>
                       <span className={`mt-0.5 shrink-0 ${f.highlight ? 'text-white' : 'text-amber-500'}`}>✓</span>
                       {feat}
                     </li>
@@ -272,7 +272,7 @@ export default function AdvertisePage() {
         <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
           <div className="mb-10">
             <h2 className="text-3xl font-extrabold text-gray-900 mb-3">Get in touch</h2>
-            <p className="text-gray-500">
+            <p className="text-gray-600">
               Tell us about your brand and what you're looking to achieve.
               We'll get back to you within 48 hours.
             </p>

@@ -1,8 +1,19 @@
 import Link from 'next/link'
+import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { resolveImageUrl } from '@/lib/data'
 import AnimatedCounter from '@/components/AnimatedCounter'
 import { loadContent } from '@/lib/content'
+
+const getWhyPageData = unstable_cache(
+  async () => Promise.all([
+    prisma.testimonial.findMany({ where: { active: true }, orderBy: [{ order: 'asc' }, { createdAt: 'desc' }] }),
+    prisma.storyPhoto.findMany({ where: { active: true }, orderBy: [{ order: 'asc' }, { createdAt: 'desc' }], take: 12 }),
+    prisma.club.findMany({ where: { isActive: true }, orderBy: { memberCount: 'desc' }, take: 8, select: { id: true, name: true, emoji: true, bgColor: true, color: true, description: true, memberCount: true, slug: true } }),
+  ]),
+  ['why-page'],
+  { revalidate: 300, tags: ['why-page'] },
+)
 
 export const metadata = {
   title: 'Why Smileys? — Find Your People in Istanbul',
@@ -14,7 +25,6 @@ export const metadata = {
   },
 }
 
-export const dynamic = 'force-dynamic'
 
 const CAT_PILL: Record<string, string> = {
   general:  'bg-gray-100 text-gray-600',
@@ -69,11 +79,7 @@ const PHILOSOPHY = [
 ]
 
 export default async function WhyPage() {
-  const [dbTestimonials, dbPhotos, clubs] = await Promise.all([
-    prisma.testimonial.findMany({ where: { active: true }, orderBy: [{ order: 'asc' }, { createdAt: 'desc' }] }),
-    prisma.storyPhoto.findMany({ where: { active: true }, orderBy: [{ order: 'asc' }, { createdAt: 'desc' }], take: 12 }),
-    prisma.club.findMany({ where: { isActive: true }, orderBy: { memberCount: 'desc' }, take: 8, select: { id: true, name: true, emoji: true, bgColor: true, color: true, description: true, memberCount: true, slug: true } }),
-  ])
+  const [dbTestimonials, dbPhotos, clubs] = await getWhyPageData()
 
   const c    = loadContent()
   const week = (c.week?.length > 0 ? c.week : null) ?? WEEK
@@ -95,7 +101,7 @@ export default async function WhyPage() {
           <p className="text-base font-semibold text-amber-600 mb-6">
             {why.tagline ?? 'A curated real-life social ecosystem for globally minded people in Istanbul.'}
           </p>
-          <p className="text-base text-gray-500 max-w-2xl leading-relaxed mb-5">
+          <p className="text-base text-gray-600 max-w-2xl leading-relaxed mb-5">
             {why.subtitle ?? 'Thousands of people arrive here every month looking for connection, friendship, and a circle they actually belong to. But most platforms feel random, transactional, or exhausting.'}
           </p>
           <p className="text-base text-gray-900 font-semibold max-w-2xl leading-relaxed mb-10">
@@ -139,7 +145,7 @@ export default async function WhyPage() {
             <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 tracking-tight mb-4">
               Not just another group.
             </h2>
-            <p className="text-lg text-gray-500 max-w-xl mx-auto">
+            <p className="text-lg text-gray-600 max-w-xl mx-auto">
               There are plenty of WhatsApp chats, Meetup pages, and nightlife groups. Here's why people choose Smileys instead.
             </p>
           </div>
@@ -148,7 +154,7 @@ export default async function WhyPage() {
               <div key={d.title} className="bg-gray-50 rounded-2xl p-6 border border-gray-100 hover:border-amber-200 hover:bg-amber-50/30 transition-colors group">
                 <div className="text-3xl mb-4">{d.icon}</div>
                 <h3 className="font-extrabold text-gray-900 mb-2 group-hover:text-amber-700 transition-colors">{d.title}</h3>
-                <p className="text-sm text-gray-500 leading-relaxed">{d.body}</p>
+                <p className="text-sm text-gray-600 leading-relaxed">{d.body}</p>
               </div>
             ))}
           </div>
@@ -160,7 +166,7 @@ export default async function WhyPage() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="mb-14">
             <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 tracking-tight mb-4">A week inside Smileys</h2>
-            <p className="text-gray-500 max-w-xl">This isn't a one-time event you forget by Monday. It's a rhythm that slowly becomes part of your life.</p>
+            <p className="text-gray-600 max-w-xl">This isn't a one-time event you forget by Monday. It's a rhythm that slowly becomes part of your life.</p>
           </div>
           <div className="space-y-3">
             {week.map((w: typeof WEEK[0], i: number) => (
@@ -193,7 +199,7 @@ export default async function WhyPage() {
                 More than events.<br />
                 <span className="text-amber-500">A real social ecosystem.</span>
               </h2>
-              <p className="text-gray-500 leading-relaxed mb-8">
+              <p className="text-gray-600 leading-relaxed mb-8">
                 The events are just the entry point. What actually happens is something deeper — people find their circle, build a life in a new city, collaborate, travel together, and stay in touch long after the event ends.
               </p>
               <ul className="space-y-3">
@@ -236,7 +242,7 @@ export default async function WhyPage() {
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="mb-12">
               <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 tracking-tight mb-4">Your next obsession is already here.</h2>
-              <p className="text-gray-500 max-w-xl">Interest-based circles for every personality. Join one. Join five. Build your Smileys world.</p>
+              <p className="text-gray-600 max-w-xl">Interest-based circles for every personality. Join one. Join five. Build your Smileys world.</p>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {clubs.map(c => (
@@ -263,7 +269,7 @@ export default async function WhyPage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="mb-14">
             <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 tracking-tight mb-4">In their own words.</h2>
-            <p className="text-gray-500 max-w-xl">Real members. No scripts. No incentives to say nice things.</p>
+            <p className="text-gray-600 max-w-xl">Real members. No scripts. No incentives to say nice things.</p>
           </div>
           <div className="columns-1 sm:columns-2 lg:columns-3 gap-5 space-y-5">
             {testimonials.map(t => {
@@ -301,7 +307,7 @@ export default async function WhyPage() {
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="mb-12">
               <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 tracking-tight mb-4">Life inside Smileys.</h2>
-              <p className="text-gray-500 max-w-xl">A glimpse of the moments, experiences, and memories our members create every week.</p>
+              <p className="text-gray-600 max-w-xl">A glimpse of the moments, experiences, and memories our members create every week.</p>
             </div>
             <div className="columns-2 sm:columns-3 lg:columns-4 gap-3 space-y-3">
               {dbPhotos.map(p => (
@@ -325,7 +331,7 @@ export default async function WhyPage() {
       <section className="py-24 bg-white">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 tracking-tight mb-4">Who's in the room?</h2>
-          <p className="text-gray-500 max-w-xl mx-auto mb-10">Smileys attracts a specific kind of person — curious, open, and genuinely interested in more than surface-level interaction.</p>
+          <p className="text-gray-600 max-w-xl mx-auto mb-10">Smileys attracts a specific kind of person — curious, open, and genuinely interested in more than surface-level interaction.</p>
           <div className="flex flex-wrap gap-3">
             {WHO.map(w => (
               <span key={w} className="px-4 py-2 bg-gray-50 border border-gray-200 rounded-full text-sm font-medium text-gray-700 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 transition-colors">
@@ -341,7 +347,7 @@ export default async function WhyPage() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="mb-14">
             <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 tracking-tight mb-4">How it works.</h2>
-            <p className="text-gray-500 max-w-xl">Simple. Human. Intentional.</p>
+            <p className="text-gray-600 max-w-xl">Simple. Human. Intentional.</p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
             {[
@@ -355,7 +361,7 @@ export default async function WhyPage() {
                 </div>
                 <div className="step-label mb-1">{s.step}</div>
                 <h3 className="text-lg font-extrabold text-gray-900 mb-2">{s.title}</h3>
-                <p className="text-sm text-gray-500 leading-relaxed">{s.desc}</p>
+                <p className="text-sm text-gray-600 leading-relaxed">{s.desc}</p>
               </div>
             ))}
           </div>
@@ -391,7 +397,7 @@ export default async function WhyPage() {
               <div key={s.title}>
                 <div className="text-3xl mb-3">{s.icon}</div>
                 <h3 className="font-bold text-gray-900 mb-2">{s.title}</h3>
-                <p className="text-sm text-gray-500 leading-relaxed">{s.desc}</p>
+                <p className="text-sm text-gray-600 leading-relaxed">{s.desc}</p>
               </div>
             ))}
           </div>

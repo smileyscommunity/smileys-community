@@ -1,0 +1,50 @@
+{
+  "tagline": "A compact, residential European side district with a strong local identity — well-connected by metro, extremely affordable, and far off the expat radar in the best possible way.",
+  "places": [
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Güngören Lokantalari",
+          "description": "Unpretentious lokanta restaurants in the district centre serving rotating daily menus of traditional Turkish food at rock-bottom prices.",
+          "address": "Güngören Merkez, İstanbul",
+          "badge": "Smileys Pick"
+        },
+        {
+          "name": "Merter Börekçiler",
+          "description": "The Merter border of Güngören has excellent börek and pastry shops popular with morning commuters.",
+          "address": "Merter, Güngören"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Güngören Semt Pazarı",
+          "description": "A lively weekly street market with fresh produce, clothing, and budget household goods. Very local and very busy.",
+          "address": "Güngören, İstanbul"
+        }
+      ]
+    },
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Merkez Kafeler",
+          "description": "Local tea houses and small cafés around the district centre — inexpensive and frequented by the neighbourhood's residents.",
+          "address": "Güngören Merkez, İstanbul"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Güngören has good metro connections (M1) — Bakırköy and the airport are accessible without a car.",
+    "One of the cheapest places to rent in Istanbul for a functional European side address.",
+    "Merter, right on its border, is worth knowing for budget clothing and fabric shopping.",
+    "Quiet and functional — good for long-term living if you value affordability over buzz."
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "tagline": "A rural-feeling retreat at the northern edge of the Belgrade Forest — horse farms, forest roads, and weekend getaway energy within Istanbul's city limits.",
+  "places": [
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Belgrad Ormanı (Kuzey Girişi)",
+          "description": "The northern reaches of the Belgrade Forest — less visited than the main entrances and wilder as a result. Long trails through ancient woodland.",
+          "address": "Belgrad Ormanı, Eyüpsultan",
+          "badge": "Must Visit",
+          "tip": "This end of the forest is significantly quieter than the Bahçeköy entrance. Bring a trail map — paths are less signed here."
+        },
+        {
+          "name": "At Çiftlikleri",
+          "description": "Several working horse farms in the Kemerburgaz area open for trail riding through the forest. A surprising experience this close to the city.",
+          "address": "Kemerburgaz, Eyüpsultan",
+          "badge": "Smileys Pick"
+        }
+      ]
+    },
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Köy Kafeleri ve Çay Bahçeleri",
+          "description": "Village tea gardens and simple cafés along the main road through Kemerburgaz — popular weekend stops for those driving to and from the forest.",
+          "address": "Kemerburgaz Köyü, Eyüpsultan"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Köy Restoranları",
+          "description": "Rustic village restaurants serving grilled meats and meze. Best on a Sunday afternoon after a forest walk.",
+          "address": "Kemerburgaz, Eyüpsultan"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Kemerburgaz is only realistically accessible by car — no meaningful public transport from the city centre.",
+    "Best as a day trip destination for hiking and horse riding rather than a base for living.",
+    "The forest roads are popular with mountain bikers and trail runners on weekends.",
+    "Combine with Göktürk for a full day out in Istanbul's green northern belt."
+  ]
+}

@@ -1,21 +1,36 @@
 import { prisma } from './prisma'
 import type { SessionUser } from './session'
+import { Role, MembershipStatus } from './constants'
 
 // ── Primitive role checks ──────────────────────────────────────────────────
+//
+// totpVerified is stored on the Session row (true only when the session was
+// created via the TOTP verify step). The column exists for future enforcement
+// — use isAdminStrict() on the most sensitive routes once all admins have
+// re-authenticated through the 2FA flow. Plain isAdmin() and
+// isAdminOrModerator() do role-only checks so existing sessions aren't
+// broken by the migration default of totpVerified=false.
 export function isAdmin(session: SessionUser): boolean {
-  return session.role === 'admin'
+  return session.role === Role.Admin
+}
+
+// Requires the session to have passed through the TOTP verify step.
+// Use on routes where a stolen password alone must not grant access
+// (e.g. bulk deletes, payment refunds, role changes).
+export function isAdminStrict(session: SessionUser): boolean {
+  return session.role === Role.Admin && session.totpVerified === true
 }
 
 export function isModerator(session: SessionUser): boolean {
-  return session.role === 'moderator'
+  return session.role === Role.Moderator
 }
 
 export function isAdminOrModerator(session: SessionUser): boolean {
-  return session.role === 'admin' || session.role === 'moderator'
+  return session.role === Role.Admin || session.role === Role.Moderator
 }
 
 export function isPartner(session: SessionUser): boolean {
-  return session.role === 'partner'
+  return session.role === Role.Partner
 }
 
 // ── City-aware authorisation ──────────────────────────────────────────────
@@ -33,7 +48,7 @@ export function isPartner(session: SessionUser): boolean {
 // Defensive: a moderator missing `session.cityId` (e.g. session issued
 // from a frame where the DB refresh hasn't run yet) fails closed.
 export function canActInCity(session: SessionUser, targetCityId?: string | null): boolean {
-  if (session.role === 'admin') return true
+  if (session.role === Role.Admin) return true
   if (session.role !== 'moderator') return false
   if (!targetCityId) return true                // resource has no city — admin/mod parity
   if (!session.cityId) return false             // moderator without a city — fail closed
@@ -43,7 +58,7 @@ export function canActInCity(session: SessionUser, targetCityId?: string | null)
 // ── Capability-based checks ────────────────────────────────────────────────
 // Finance
 export function canManagePayments(session: SessionUser): boolean {
-  return session.role === 'admin'
+  return session.role === Role.Admin
 }
 
 // Applications & vetting
@@ -66,27 +81,27 @@ export function canModerateReports(session: SessionUser, targetCityId?: string |
 
 // Partner Management
 export function canManagePartner(session: SessionUser, partnerId: string): boolean {
-  if (session.role === 'admin') return true
-  return session.role === 'partner' && session.partnerId === partnerId
+  if (session.role === Role.Admin) return true
+  return session.role === Role.Partner && session.partnerId === partnerId
 }
 
 export function canManagePartners(session: SessionUser): boolean {
-  return session.role === 'admin' || session.role === 'moderator'
+  return session.role === Role.Admin || session.role === Role.Moderator
 }
 
 // Banning (hard action — admin only)
 export function canBanUsers(session: SessionUser): boolean {
-  return session.role === 'admin'
+  return session.role === Role.Admin
 }
 
 // Suspending — admin only. Moderators must escalate to an admin.
 export function canSuspendUsers(session: SessionUser): boolean {
-  return session.role === 'admin'
+  return session.role === Role.Admin
 }
 
 // User management (Admin only: roles, bans, delete)
 export function canManageUsers(session: SessionUser): boolean {
-  return session.role === 'admin'
+  return session.role === Role.Admin
 }
 
 // User list visibility (Admin and Moderator: view profiles, but PII
@@ -99,12 +114,12 @@ export function canViewUserList(session: SessionUser, targetCityId?: string | nu
 
 // Clubs
 export function canManageClubs(session: SessionUser): boolean {
-  return session.role === 'admin'
+  return session.role === Role.Admin
 }
 
 // Tags / taxonomy
 export function canManageTags(session: SessionUser): boolean {
-  return session.role === 'admin'
+  return session.role === Role.Admin
 }
 
 // Broadcasts & notifications — moderators broadcast only to members of
@@ -117,7 +132,7 @@ export function canSendBroadcasts(session: SessionUser, targetCityId?: string | 
 
 // Analytics
 export function canViewAnalytics(session: SessionUser): boolean {
-  return session.role === 'admin'
+  return session.role === Role.Admin
 }
 
 // Audit log — moderator visibility scoped to their city when the
@@ -129,17 +144,17 @@ export function canViewAuditLog(session: SessionUser, targetCityId?: string | nu
 
 // Platform settings
 export function canManageSettings(session: SessionUser): boolean {
-  return session.role === 'admin'
+  return session.role === Role.Admin
 }
 
 // Articles / Posts
 export function canManagePosts(session: SessionUser): boolean {
-  return session.role === 'admin' || session.role === 'moderator'
+  return session.role === Role.Admin || session.role === Role.Moderator
 }
 
 // Blacklist
 export function canManageBlacklist(session: SessionUser): boolean {
-  return session.role === 'admin'
+  return session.role === Role.Admin
 }
 
 // Event message moderation — moderator scoped to events in their city.
@@ -156,18 +171,18 @@ export function canModerateEventQueue(session: SessionUser, targetCityId?: strin
 
 // Escalation
 export function canEscalate(session: SessionUser): boolean {
-  return session.role === 'admin' || session.role === 'moderator'
+  return session.role === Role.Admin || session.role === Role.Moderator
 }
 
 // Moderator oversight stats
 export function canViewModStats(session: SessionUser): boolean {
-  return session.role === 'admin' || session.role === 'moderator'
+  return session.role === Role.Admin || session.role === Role.Moderator
 }
 
 // ── Async host checks ──────────────────────────────────────────────────────
 export async function isClubHost(userId: string): Promise<boolean> {
   const count = await prisma.clubMembership.count({
-    where: { userId, status: 'approved', role: 'host' },
+    where: { userId, status: MembershipStatus.Approved, role: 'host' },
   })
   return count > 0
 }
@@ -177,7 +192,7 @@ export async function isClubHostFor(userId: string, clubId: string): Promise<boo
     where: { userId_clubId: { userId, clubId } },
     select: { status: true, role: true },
   })
-  return m?.status === 'approved' && m?.role === 'host'
+  return m?.status === MembershipStatus.Approved && m?.role === 'host'
 }
 
 // ── City-level host capabilities ──────────────────────────────────────────
@@ -206,7 +221,7 @@ export async function isCityHost(userId: string, cityId: string): Promise<boolea
     where:  { userId_cityId: { userId, cityId } },
     select: { status: true },
   })
-  return row?.status === 'approved'
+  return row?.status === MembershipStatus.Approved
 }
 
 /**
@@ -223,7 +238,7 @@ export async function isCityHost(userId: string, cityId: string): Promise<boolea
  * those need explicit promotion.
  */
 export async function canHostInCity(session: SessionUser, cityId: string): Promise<boolean> {
-  if (session.role === 'admin') return true
+  if (session.role === Role.Admin) return true
   if (await isCityConsul(session.id, cityId)) return true
   if (await isCityHost(session.id, cityId))   return true
   return false
@@ -243,7 +258,7 @@ export async function canCreateEvent(
   cityId: string,
   clubId?: string | null,
 ): Promise<boolean> {
-  if (session.role === 'admin') return true
+  if (session.role === Role.Admin) return true
   if (clubId) return isClubHostFor(session.id, clubId)
   return canHostInCity(session, cityId)
 }

@@ -732,7 +732,7 @@ function MembersPageInner() {
   // CMS overrides land via /api/content. Default headline was a one-
   // word 'Members' file-cabinet label; 'Find your people' echoes the
   // landing-page line and reads as an invitation.
-  const [hero, setHero] = useState({ badge: 'People', headline: 'Find your people', subtitle: 'Connect with the Smileys community.' })
+  const [hero, setHero] = useState({ badge: 'People', headline: 'Members', subtitle: 'Connect with the Smileys community.' })
 
   const handleConnectionChange = useCallback((updated: ConnectionRecord | null, removed?: string) => {
     if (removed) {

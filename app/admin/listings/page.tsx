@@ -10,8 +10,11 @@ const CATEGORIES = [
   { id: 'JOBS',     label: 'Jobs' },
   { id: 'SERVICES', label: 'Services' },
   { id: 'BUY_SELL', label: 'Buy & Sell' },
-  { id: 'FREE',     label: 'Free' },
-  { id: 'RECO',     label: 'Recommendations' },
+  { id: 'FREE',       label: 'Free'           },
+  { id: 'LOST_FOUND', label: 'Lost & Found'  },
+  { id: 'RECO',       label: 'Recommendations'},
+  { id: 'EXPERIENCES', label: 'Experiences'           },
+  { id: 'PETS',        label: 'Adopt a Pet'          },
 ]
 
 const CATEGORY_OPTIONS = [
@@ -19,8 +22,11 @@ const CATEGORY_OPTIONS = [
   { id: 'JOBS',     label: 'Jobs & Gigs' },
   { id: 'SERVICES', label: 'Services' },
   { id: 'BUY_SELL', label: 'Buy & Sell' },
-  { id: 'FREE',     label: 'Free Stuff' },
-  { id: 'RECO',     label: 'Recommendations' },
+  { id: 'FREE',       label: 'Free Stuff'          },
+  { id: 'LOST_FOUND', label: 'Lost & Found'        },
+  { id: 'RECO',       label: 'Recommendations'     },
+  { id: 'EXPERIENCES', label: 'Events & Experiences' },
+  { id: 'PETS',        label: 'Adopt a Pet'          },
 ]
 
 interface ListingSettings {
@@ -45,6 +51,9 @@ const CAT_COLOR: Record<string, string> = {
   BUY_SELL: 'bg-purple-500/10 text-purple-400',
   FREE:     'bg-teal-500/10 text-teal-400',
   RECO:     'bg-amber-500/10 text-amber-400',
+  LOST_FOUND:  'bg-yellow-500/10 text-yellow-400',
+  PETS:        'bg-pink-500/10 text-pink-400',
+  EXPERIENCES: 'bg-indigo-500/10 text-indigo-400',
 }
 
 interface Listing {
@@ -78,7 +87,7 @@ function Avatar({ name, color }: { name: string; color: string }) {
 }
 
 const DEFAULT_LISTING_SETTINGS: ListingSettings = {
-  enabledCategories: ['ROOMS', 'JOBS', 'SERVICES', 'BUY_SELL', 'FREE', 'RECO'],
+  enabledCategories: ['ROOMS', 'JOBS', 'SERVICES', 'BUY_SELL', 'FREE', 'LOST_FOUND', 'RECO', 'EXPERIENCES', 'PETS'],
   defaultExpiryDays: 30,
   requireApproval:   false,
   maxActivePerMember: 5,
@@ -275,7 +284,11 @@ export default function AdminListingsPage() {
           <p className="text-zinc-400 text-sm mt-1">{total} listing{total !== 1 ? 's' : ''}</p>
         </div>
         <div className="flex items-center gap-2">
-          <a href="/app/admin/listings/bulk"
+          <a href="/admin/listings/new"
+            className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold border bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20 transition-colors">
+            <span>＋</span> Add listing
+          </a>
+          <a href="/admin/listings/bulk"
             className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold border bg-zinc-800 border-zinc-700 text-zinc-300 hover:border-amber-500/40 hover:text-amber-400 transition-colors">
             <span>＋</span> Bulk add
           </a>
@@ -482,9 +495,11 @@ export default function AdminListingsPage() {
                 <tr key={l.id} className="hover:bg-zinc-800/40 transition-colors group">
                   {/* Title + description */}
                   <td className="px-5 py-4 max-w-xs">
-                    <p className="font-semibold text-zinc-100 truncate">{l.title}</p>
-                    <p className="text-xs text-zinc-500 truncate mt-0.5">{l.description}</p>
-                    {l.price && <span className="text-xs text-amber-400 font-semibold">{l.price}</span>}
+                    <Link href={`/admin/listings/${l.id}`} className="block group/t">
+                      <p className="font-semibold text-zinc-100 truncate group-hover/t:text-amber-400 transition-colors">{l.title}</p>
+                      <p className="text-xs text-zinc-500 truncate mt-0.5">{l.description}</p>
+                      {l.price && <span className="text-xs text-amber-400 font-semibold">{l.price}</span>}
+                    </Link>
                   </td>
 
                   {/* Member — click-through to /admin/users/[id] so

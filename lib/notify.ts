@@ -29,9 +29,10 @@ const PREF_KEY: Record<string, 'newEvents' | 'reminders' | 'eventUpdates' | 'joi
   profile_view:          null,
   host_message:       null,
   message:            null,
-  club_wall_post:     'wallPosts',
-  club_post_reply:    'wallReplies',
-  club_mention:       null,
+  club_wall_post:       'wallPosts',
+  club_post_reply:      'wallReplies',
+  club_mention:         null,
+  neighborhood_mention: null,
   // Hangout + visitor types — all transactional (high-signal, user-initiated).
   hangout_join:       null,
   hangout_message:    null,

@@ -108,7 +108,7 @@ export default function VibePicker({ selectedIds, onChange }: Props) {
         <div key={group.id}>
           <div className="flex items-center gap-1 mb-1.5">
             <span className="text-xs">{group.emoji}</span>
-            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">{group.name}</span>
+            <span className="text-xs font-bold text-gray-600 uppercase tracking-wider">{group.name}</span>
             <span className="hidden sm:inline text-xs text-gray-300">· {GROUP_DESC[group.name] ?? ''}</span>
           </div>
           <div className="flex flex-wrap gap-1.5">

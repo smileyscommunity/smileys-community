@@ -82,7 +82,7 @@ export async function GET() {
     // Distinct-attendees-by-RSVP-count gives us the last two steps from a
     // single groupBy that we then filter in JS.
     prisma.memberApplication.count(),
-    prisma.memberApplication.count({ where: { status: 'approved' } }),
+    prisma.user.count({ where: { status: 'approved' } }),
     prisma.eventAttendee.groupBy({
       by:     ['userId'],
       where:  { status: 'approved', user: { role: { not: 'admin' } } },

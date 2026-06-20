@@ -30,7 +30,7 @@ export default function PrivacyPage() {
             Smileys Community
           </Link>
           <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight mb-3">Privacy Policy</h1>
-          <p className="text-gray-500 text-sm">Last updated: {LAST_UPDATED}</p>
+          <p className="text-gray-600 text-sm">Last updated: {LAST_UPDATED}</p>
         </div>
       </div>
 

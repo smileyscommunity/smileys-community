@@ -165,24 +165,24 @@ export default async function DashboardPage() {
     // formerly standalone awaits
     upcomingVisitors, latestHandbook,
     // formerly batch 3 — trendingEventsRaw is deduped against featuredEvents post-fetch
-    suggestedMembers, thisWeekEvents, totalMembers, eventsThisWeek, neighborhoodEventCount, newMembers, recentPhotos, trendingEventsRaw, nearbyMembers, newClubs, latestPosts, activeHangouts,
+    suggestedMembers, thisWeekEvents, totalMembers, eventsThisWeek, neighborhoodEventCount, newMembers, recentPhotos, trendingEventsRaw, nearbyMembers, newClubs, latestPosts, activeHangouts, recentHangouts, recentConnections, recentReferences, recentRsvps,
   ] = await Promise.all([
     clubIds.length
       ? prisma.event.findMany({
           where: { clubId: { in: clubIds }, date: { gte: today }, status: 'published', id: { notIn: joinedEventIds } },
           orderBy: { date: 'asc' }, take: 4,
-          select: { id: true, title: true, date: true, time: true, emoji: true, neighborhood: true, price: true, spotsLeft: true, limitedSpots: true, coverImage: true },
+          select: { id: true, title: true, date: true, time: true, emoji: true, neighborhood: true, price: true, totalSpots: true, limitedSpots: true, coverImage: true, _count: { select: { attendees: { where: { status: 'approved' } } } } },
         })
       : userProfile?.neighborhood
         ? prisma.event.findMany({
             where: { neighborhood: userProfile.neighborhood, date: { gte: today }, status: 'published', id: { notIn: joinedEventIds } },
             orderBy: { date: 'asc' }, take: 4,
-            select: { id: true, title: true, date: true, time: true, emoji: true, neighborhood: true, price: true, spotsLeft: true, limitedSpots: true, coverImage: true },
+            select: { id: true, title: true, date: true, time: true, emoji: true, neighborhood: true, price: true, totalSpots: true, limitedSpots: true, coverImage: true, _count: { select: { attendees: { where: { status: 'approved' } } } } },
           })
         : prisma.event.findMany({
             where: { date: { gte: today }, status: 'published', id: { notIn: joinedEventIds } },
             orderBy: { date: 'asc' }, take: 4,
-            select: { id: true, title: true, date: true, time: true, emoji: true, neighborhood: true, price: true, spotsLeft: true, limitedSpots: true, coverImage: true },
+            select: { id: true, title: true, date: true, time: true, emoji: true, neighborhood: true, price: true, totalSpots: true, limitedSpots: true, coverImage: true, _count: { select: { attendees: { where: { status: 'approved' } } } } },
           }),
     clubIds.length
       ? prisma.clubMembership.findMany({
@@ -359,7 +359,7 @@ export default async function DashboardPage() {
       where: { date: { gte: today }, status: 'published', id: { notIn: joinedEventIds } },
       orderBy: { attendees: { _count: 'desc' } },
       take: 7,
-      select: { id: true, title: true, date: true, emoji: true, neighborhood: true, price: true, spotsLeft: true, limitedSpots: true, _count: { select: { attendees: true } } },
+      select: { id: true, title: true, date: true, emoji: true, neighborhood: true, price: true, totalSpots: true, spotsLeft: true, limitedSpots: true, _count: { select: { attendees: { where: { status: 'approved' } } } } },
     }),
     // Members near you: same neighborhood, excluding self
     userProfile?.neighborhood
@@ -392,6 +392,66 @@ export default async function DashboardPage() {
       select: { id: true, neighborhood: true },
       orderBy: { startsAt: 'asc' },
       take: 10,
+    }),
+    // Recent hangouts posted — feeds ClubActivityTimeline so the dashboard
+    // cross-promotes spontaneous meetups alongside club activity.
+    prisma.hangout.findMany({
+      where: { status: 'active', endsAt: { gt: new Date() }, createdAt: { gte: weekAgo }, userId: { not: session.id } },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+      select: {
+        id: true, title: true, neighborhood: true, createdAt: true,
+        user: { select: { name: true, color: true } },
+      },
+    }),
+    // Recent accepted connections — social proof that the network is active.
+    // Excludes the current user's own connections (they know about those).
+    prisma.memberConnection.findMany({
+      where: {
+        status:    'accepted',
+        updatedAt: { gte: weekAgo },
+        NOT: { OR: [{ requesterId: session.id }, { receiverId: session.id }] },
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 5,
+      select: {
+        updatedAt: true,
+        requester: { select: { name: true, color: true } },
+        receiver:  { select: { name: true, color: true } },
+      },
+    }),
+    // Recent good hangout references — reinforces the trust system.
+    // Only 'good' vibes to keep the feed positive.
+    prisma.hangoutReference.findMany({
+      where: {
+        vibe:       'good',
+        createdAt:  { gte: weekAgo },
+        fromUserId: { not: session.id },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+      select: {
+        createdAt: true,
+        fromUser:  { select: { name: true, color: true } },
+        hangout:   { select: { id: true, title: true } },
+      },
+    }),
+    // Recent RSVPs to events — feeds ClubActivityTimeline so members see
+    // when others sign up for events they might also care about.
+    prisma.eventAttendee.findMany({
+      where: {
+        status:    'approved',
+        userId:    { not: session.id },
+        joinedAt:  { gte: weekAgo },
+        event:     { status: 'published', date: { gte: today } },
+      },
+      orderBy: { joinedAt: 'desc' },
+      take: 8,
+      select: {
+        joinedAt: true,
+        user:  { select: { name: true, color: true } },
+        event: { select: { id: true, title: true, emoji: true } },
+      },
     }),
   ])
 
@@ -904,7 +964,7 @@ export default async function DashboardPage() {
                 mobile and desktop. Center column renders on every
                 viewport, so a single placement replaces the previous
                 two (mobile-only + right-rail) renders. */}
-            <ClubActivityTimeline members={recentActivity} posts={wallActivity} events={recentClubEvents} photos={recentPhotos} cap={6} />
+            <ClubActivityTimeline members={recentActivity} posts={wallActivity} events={recentClubEvents} photos={recentPhotos} rsvps={recentRsvps} newMembers={newMembers} hangouts={recentHangouts} connections={recentConnections} references={recentReferences} cap={12} />
 
             {/* Upcoming visitors — surfaces /visiting + the new wave
                 action on the dashboard. Component renders nothing when
@@ -1156,7 +1216,7 @@ export default async function DashboardPage() {
                       </div>
                       <div className="text-right shrink-0 self-center">
                         <span className="text-sm font-bold text-gray-900">{event.price === 0 ? 'Free' : `₺${event.price}`}</span>
-                        {event.limitedSpots && event.spotsLeft <= 5 && (
+                        {event.limitedSpots && event.spotsLeft > 0 && event.spotsLeft <= 5 && (
                           <p className="text-xs text-red-500 font-medium">{event.spotsLeft} left</p>
                         )}
                       </div>
@@ -1224,9 +1284,6 @@ export default async function DashboardPage() {
                       </div>
                       <div className="text-right shrink-0 self-center">
                         <span className="text-sm font-bold text-gray-900">{event.price === 0 ? 'Free' : `₺${event.price}`}</span>
-                        {event.limitedSpots && event.spotsLeft <= 5 && (
-                          <p className="text-xs text-red-500 font-medium">{event.spotsLeft} left</p>
-                        )}
                       </div>
                     </Link>
                   ))}
@@ -1257,11 +1314,8 @@ export default async function DashboardPage() {
                       </div>
                       <div className="text-right shrink-0 self-center">
                         <span className="text-xs font-bold text-violet-600 bg-violet-50 px-2 py-1 rounded-lg block">
-                          {event._count.attendees} going
+                          {event.totalSpots - event.spotsLeft} going
                         </span>
-                        {event.limitedSpots && event.spotsLeft <= 5 && (
-                          <p className="text-[10px] text-red-500 font-medium mt-0.5">{event.spotsLeft} left</p>
-                        )}
                       </div>
                     </Link>
                   ))}
@@ -1455,6 +1509,20 @@ export default async function DashboardPage() {
                 mobile (mini calendar, weather, narrow listing card). */}
             <div className="hidden lg:block space-y-4">
 
+            {/* Onboarding checklist — top of the right rail so new users see
+                the actionable thing before weather / calendar / teasers.
+                Same component as the mobile copy at the top of the center
+                column. Self-hides when all steps are done, so established
+                users see this slot collapse to nothing. */}
+            <GetStartedChecklist
+              hasProfilePhoto={!!userProfile?.profilePhoto}
+              hasBio={!!userProfile?.bio?.trim()}
+              hasNeighborhood={!!userProfile?.neighborhood}
+              interestCount={userProfile?.interests?.length ?? 0}
+              clubCount={myMemberships.length}
+              attendedCount={myAttendances.length}
+            />
+
             <IstanbulWeather />
 
             {/* Mini calendar */}
@@ -1478,7 +1546,7 @@ export default async function DashboardPage() {
                   <div className="p-4">
                     <div className="flex items-center gap-1.5 mb-2">
                       <span className="text-[10px] font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full uppercase tracking-wide">★ Featured</span>
-                      {e.limitedSpots && e.spotsLeft <= 5 && (
+                      {e.limitedSpots && e.spotsLeft > 0 && e.spotsLeft <= 5 && (
                         <span className="text-[10px] font-bold text-red-600 bg-red-100 px-1.5 py-0.5 rounded-full">{e.spotsLeft} spots left</span>
                       )}
                     </div>
@@ -1512,19 +1580,6 @@ export default async function DashboardPage() {
                 </Link>
               )
             })()}
-
-            {/* Onboarding checklist — single source of truth (also rendered
-                inline at the top of the center column on mobile where the
-                right rail is hidden). Self-hides when all steps are done. */}
-            <GetStartedChecklist
-              hasProfilePhoto={!!userProfile?.profilePhoto}
-              hasBio={!!userProfile?.bio?.trim()}
-              hasNeighborhood={!!userProfile?.neighborhood}
-              interestCount={userProfile?.interests?.length ?? 0}
-              clubCount={myMemberships.length}
-              attendedCount={myAttendances.length}
-            />
-
 
             {/* My neighborhood */}
             {userProfile?.neighborhood && (

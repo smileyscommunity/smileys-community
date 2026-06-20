@@ -6,9 +6,10 @@ import { toast } from 'sonner'
 import { useAdminLoad } from '@/lib/admin/useAdminLoad'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import { isSafeHref } from '@/lib/safeUrl'
-import { BUSINESS_CATEGORIES, DIRECTORY_LIMITS, parseGoogleMapsUrl } from '@/lib/directory'
+import { BUSINESS_CATEGORIES, DIRECTORY_LIMITS, parseGoogleMapsUrl } from '@/lib/directory-constants'
 import { DAY_KEYS, DAY_LABELS } from '@/lib/businessHours'
 import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
+import { downscaleImage } from '@/lib/image-resize'
 
 // Small reusable upload widget used inline next to the Logo and Cover
 // image URL inputs on both the admin edit drawer and the admin create
@@ -75,8 +76,9 @@ function UploadButton({
   async function upload(file: File) {
     setBusy(true)
     try {
+      const uploadFile = await downscaleImage(file)
       const fd = new FormData()
-      fd.append('file',   file)
+      fd.append('file',   uploadFile)
       fd.append('folder', 'directory')
       const r = await fetch('/app/api/upload', { method: 'POST', body: fd })
       const d = await r.json().catch(() => ({}))

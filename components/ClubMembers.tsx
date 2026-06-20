@@ -107,7 +107,7 @@ export default function ClubMembers({ slug }: { slug: string }) {
   if (members.length === 0) return (
     <div className="text-center py-12">
       <span className="text-4xl block mb-3">👋</span>
-      <p className="text-gray-500">No members yet. Be the first to join!</p>
+      <p className="text-gray-600">No members yet. Be the first to join!</p>
     </div>
   )
 
@@ -126,7 +126,7 @@ export default function ClubMembers({ slug }: { slug: string }) {
       )}
 
       {filtered.length === 0 ? (
-        <p className="text-gray-500 text-sm py-6 text-center">No members match your search.</p>
+        <p className="text-gray-600 text-sm py-6 text-center">No members match your search.</p>
       ) : (
         <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-2">
           {filtered.map(m => <MemberCard key={m.id} m={m} />)}

@@ -7,16 +7,19 @@ import { prisma } from '@/lib/prisma'
  * Co-hosts are excluded because they join for free without consuming a spot.
  */
 export async function recomputeSpotsLeft(eventId: string, totalSpots: number): Promise<void> {
+  const event = await prisma.event.findUnique({ where: { id: eventId }, select: { hostId: true } })
   const coHostIds = (await prisma.eventCoHost.findMany({
     where: { eventId },
     select: { userId: true },
   })).map(c => c.userId)
 
+  const excludedIds = [...new Set([...(event?.hostId ? [event.hostId] : []), ...coHostIds])]
+
   const approvedCount = await prisma.eventAttendee.count({
     where: {
       eventId,
       status: 'approved',
-      ...(coHostIds.length ? { NOT: { userId: { in: coHostIds } } } : {}),
+      ...(excludedIds.length ? { NOT: { userId: { in: excludedIds } } } : {}),
     },
   })
 

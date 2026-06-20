@@ -475,8 +475,54 @@ export default function AdminSettingsPage() {
           </div>
         </section>
 
+        {/* System tools */}
+        <section className="bg-zinc-900 rounded-2xl border border-zinc-800 p-6">
+          <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-widest mb-4">System tools</h2>
+          <div className="space-y-3">
+            <SystemTool
+              label="Login nudge"
+              description="Send activation reminder emails to approved members who have never logged in (max 2 per member, 7-day cooldown)."
+              endpoint="/app/api/admin/tools/login-nudge"
+              successMsg={r => `Sent ${r.sent} nudge${r.sent !== 1 ? 's' : ''}${r.failed ? ` · ${r.failed} failed` : ''} (${r.candidates} eligible)`}
+            />
+          </div>
+        </section>
 
       </div>
+    </div>
+  )
+}
+
+function SystemTool({ label, description, endpoint, successMsg }: {
+  label: string
+  description: string
+  endpoint: string
+  successMsg: (r: any) => string
+}) {
+  const [running, setRunning] = useState(false)
+  async function run() {
+    setRunning(true)
+    try {
+      const res  = await fetch(endpoint, { method: 'POST', credentials: 'include' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { toast.error(data.error ?? 'Failed'); return }
+      toast.success(successMsg(data))
+    } catch {
+      toast.error('Network error')
+    } finally {
+      setRunning(false)
+    }
+  }
+  return (
+    <div className="flex items-center justify-between py-2.5 border-b border-zinc-800 last:border-0">
+      <div>
+        <div className="text-sm font-semibold text-zinc-200">{label}</div>
+        <div className="text-xs text-zinc-500 mt-0.5">{description}</div>
+      </div>
+      <button onClick={run} disabled={running}
+        className="shrink-0 ml-4 px-3 py-1.5 text-xs font-semibold rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-200 disabled:opacity-50 transition-colors">
+        {running ? 'Running…' : 'Run now'}
+      </button>
     </div>
   )
 }

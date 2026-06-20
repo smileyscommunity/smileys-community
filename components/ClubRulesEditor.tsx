@@ -42,7 +42,7 @@ export default function ClubRulesEditor({ slug, initialRules, canEdit, dark }: P
   return (
     <div className={card}>
       <div className="flex items-center justify-between mb-4">
-        <h3 className={`font-bold ${title}`}>House rules</h3>
+        <h3 className={`font-bold ${title}`}>Club rules</h3>
         {canEdit && (
           <button onClick={() => { setEditing(v => !v); setDraft(rules ?? ''); setError('') }}
             className="text-xs text-amber-600 hover:text-amber-700 font-semibold">
@@ -53,7 +53,7 @@ export default function ClubRulesEditor({ slug, initialRules, canEdit, dark }: P
       {editing ? (
         <div className="space-y-3">
           <textarea value={draft} onChange={e => setDraft(e.target.value)}
-            rows={6} maxLength={5000} placeholder="Write your club house rules…"
+            rows={6} maxLength={5000} placeholder="Write your club rules…"
             className={`w-full text-sm px-3 py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 resize-y ${input}`} />
           <div className="flex items-center justify-between">
             <span className={`text-xs ${draft.length > 4500 ? 'text-red-500' : muted}`}>{draft.length} / 5000</span>
@@ -67,7 +67,7 @@ export default function ClubRulesEditor({ slug, initialRules, canEdit, dark }: P
       ) : rules ? (
         <p className={`text-sm ${body} leading-relaxed whitespace-pre-wrap`}>{rules}</p>
       ) : canEdit ? (
-        <p className={`text-sm ${muted}`}>No house rules yet. Click &ldquo;Add rules&rdquo; to set them.</p>
+        <p className={`text-sm ${muted}`}>No club rules yet. Click &ldquo;Add rules&rdquo; to set them.</p>
       ) : null}
     </div>
   )

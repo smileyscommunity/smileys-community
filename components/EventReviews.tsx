@@ -75,6 +75,10 @@ export default function EventReviews({ eventId, isPast }: { eventId: string; isP
   }
 
   if (loading) return null
+  // Hide the whole card for upcoming events with no reviews yet — the
+  // form is gated on isPast anyway, so the empty "No reviews yet" state
+  // is dead space members can't act on.
+  if (!isPast && reviews.length === 0) return null
 
   return (
     <div className="bg-white rounded-2xl shadow-card p-6 space-y-6">
@@ -82,8 +86,9 @@ export default function EventReviews({ eventId, isPast }: { eventId: string; isP
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-bold text-gray-900">Reviews</h2>
+          <p className="text-xs text-gray-400 mt-0.5">Help future attendees decide</p>
           {reviews.length > 0 && (
-            <div className="flex items-center gap-2 mt-1">
+            <div className="flex items-center gap-2 mt-2">
               <Stars value={Math.round(avgRating)} />
               <span className="text-sm font-semibold text-gray-700">{avgRating.toFixed(1)}</span>
               <span className="text-sm text-gray-400">({reviews.length} review{reviews.length !== 1 ? 's' : ''})</span>

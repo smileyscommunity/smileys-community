@@ -210,7 +210,7 @@ export default async function NeighborhoodPage({ params }: { params: Promise<{ s
             <MapSection lat={meta.lat} lon={meta.lon} name={name} />
           </div>
           <div className="bg-white px-4 py-3 flex items-center justify-between">
-            <span className="text-xs text-gray-500 font-medium">📍 {name}, Istanbul</span>
+            <span className="text-xs text-gray-600 font-medium">📍 {name}, Istanbul</span>
             <a href={`https://www.google.com/maps/search/${encodeURIComponent(name + ' Istanbul Turkey')}`}
               target="_blank" rel="noopener noreferrer"
               className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">

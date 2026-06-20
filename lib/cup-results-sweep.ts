@@ -1,5 +1,6 @@
 // Shared sweeper body that pulls football-data.org and writes
-// per-fixture suggestions. Called by:
+// per-fixture suggestions AND auto-commits FINISHED results.
+// Called by:
 //   - app/api/cron/sweep-cup-results (system crontab, every 5 min)
 //   - app/api/admin/cup/results/refresh (admin-triggered refresh
 //     button on the Fixtures + results tab)
@@ -9,11 +10,13 @@
 // going through the CRON_SECRET-gated endpoint.
 
 import { prisma } from './prisma'
+import { scoreFixture, rescoreAllBrackets } from './cup'
 import { fetchCupMatches, fdTlaToCupCode, fdWinnerCode, fdStageToCupRound } from './cup-external-results'
 
 export interface SweepResult {
   matchesScanned:      number
   suggested:           number
+  autoApplied:         number   // FINISHED results committed without admin click
   // How many of the suggestions also wrote team assignments for
   // a TBD knockout slot. Separate counter so admin can tell at a
   // glance whether the sweep filled in a new R32/R16/QF/SF/F row.
@@ -42,6 +45,7 @@ export async function runCupResultsSweep(): Promise<SweepResult> {
   const fdMatches = await fetchCupMatches(dateFrom, dateTo)
 
   let suggested           = 0
+  let autoApplied         = 0
   let suggestedTeams      = 0
   let skippedTeamMismatch = 0
   let skippedNoFixture    = 0
@@ -49,7 +53,11 @@ export async function runCupResultsSweep(): Promise<SweepResult> {
   for (const m of fdMatches) {
     const home = fdTlaToCupCode(m.homeTeam.tla)
     const away = fdTlaToCupCode(m.awayTeam.tla)
-    if (!home || !away) { skippedTeamMismatch += 1; continue }
+    if (!home || !away) {
+      console.warn(`[cup-sweep] TLA mismatch: home=${m.homeTeam.tla}→${home} away=${m.awayTeam.tla}→${away} status=${m.status}`)
+      skippedTeamMismatch += 1
+      continue
+    }
 
     // Find the fixture by (utcDate ±2h, homeTeam, awayTeam). A
     // ±2h tolerance covers small kickoff-time corrections we
@@ -72,7 +80,8 @@ export async function runCupResultsSweep(): Promise<SweepResult> {
       },
       orderBy: { kickoffAt: 'asc' },
       select:  {
-        id: true, winnerTeam: true, homeTeam: true, awayTeam: true, round: true,
+        id: true, round: true, winnerTeam: true, homeTeam: true, awayTeam: true,
+        homeScore: true,
         suggestedHomeScore: true, suggestedAwayScore: true, suggestedWinnerTeam: true,
         suggestedStatus: true, suggestedHomeTeam: true, suggestedAwayTeam: true,
       },
@@ -103,7 +112,8 @@ export async function runCupResultsSweep(): Promise<SweepResult> {
           },
           orderBy: { kickoffAt: 'asc' },
           select:  {
-            id: true, winnerTeam: true, homeTeam: true, awayTeam: true, round: true,
+            id: true, round: true, winnerTeam: true, homeTeam: true, awayTeam: true,
+            homeScore: true,
             suggestedHomeScore: true, suggestedAwayScore: true, suggestedWinnerTeam: true,
             suggestedStatus: true, suggestedHomeTeam: true, suggestedAwayTeam: true,
           },
@@ -114,8 +124,10 @@ export async function runCupResultsSweep(): Promise<SweepResult> {
 
     if (!fixture) { skippedNoFixture += 1; continue }
 
-    // Already committed — admin's truth is final, no overwrite.
-    if (fixture.winnerTeam) continue
+    // Already committed — homeScore being non-null means the result
+    // was applied (either by auto-apply or admin). Admin's committed
+    // truth is final; never overwrite.
+    if (fixture.homeScore !== null) continue
 
     const suggestedWinner = fdWinnerCode(m)
     const newHomeScore  = m.score.fullTime.home ?? null
@@ -124,12 +136,42 @@ export async function runCupResultsSweep(): Promise<SweepResult> {
     const newHomeTeam   = isTeamSuggestion ? home : (fixture.suggestedHomeTeam ?? null)
     const newAwayTeam   = isTeamSuggestion ? away : (fixture.suggestedAwayTeam ?? null)
 
-    // Skip-if-unchanged. Every fixture write bumps updatedAt,
-    // which is the leaderboard's ?since= watermark — so an
-    // identical suggestion re-written every 5 min would
-    // invalidate every connected member's cached leaderboard
-    // for no actual change. Comparing against the current row
-    // first avoids that.
+    // Auto-apply finished results. When football-data reports
+    // FINISHED (or AWARDED for administratively decided matches)
+    // with both scores present, commit directly instead of waiting
+    // for a manual admin click. This keeps the leaderboard live
+    // throughout a 120-match tournament without needing 120 button
+    // presses. Admin can still override any committed result via
+    // the PUT /api/admin/cup/fixtures/[id] endpoint.
+    if ((m.status === 'FINISHED' || m.status === 'AWARDED') && newHomeScore !== null && newAwayScore !== null) {
+      const applyData: Record<string, unknown> = {
+        homeScore:  newHomeScore,
+        awayScore:  newAwayScore,
+        winnerTeam: suggestedWinner ?? null,
+        // Mirror into suggested fields so the admin UI shows ⚡ Auto
+        suggestedHomeScore:  newHomeScore,
+        suggestedAwayScore:  newAwayScore,
+        suggestedWinnerTeam: suggestedWinner ?? null,
+        suggestedStatus:     newStatus,
+        suggestedAt:         new Date(),
+      }
+      if (isTeamSuggestion) {
+        applyData.homeTeam          = home
+        applyData.awayTeam          = away
+        applyData.suggestedHomeTeam = home
+        applyData.suggestedAwayTeam = away
+      }
+      await prisma.cupFixture.update({ where: { id: fixture.id }, data: applyData })
+      await scoreFixture(fixture.id)
+      // Bracket rescoring — QF/Final results move bracket scores.
+      if (fixture.round === 'qf' || fixture.round === 'final') {
+        await rescoreAllBrackets()
+      }
+      autoApplied += 1
+      continue
+    }
+
+    // Not finished yet — write suggestion only.
     const unchanged =
       fixture.suggestedHomeScore  === newHomeScore  &&
       fixture.suggestedAwayScore  === newAwayScore  &&
@@ -159,6 +201,7 @@ export async function runCupResultsSweep(): Promise<SweepResult> {
   return {
     matchesScanned: fdMatches.length,
     suggested,
+    autoApplied,
     suggestedTeams,
     skippedTeamMismatch,
     skippedNoFixture,

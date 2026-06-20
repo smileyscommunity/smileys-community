@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
   // Same shape guard for fixtureId — IDs are constructed by the
   // seed in a fixed shape, so anything else is an obvious tamper
   // attempt.
-  if (!/^2026-WC-[A-Z0-9-]{1,40}$/.test(fixtureId)) {
+  if (!/^2026-WC-[A-Za-z0-9-]{1,40}$/.test(fixtureId)) {
     return NextResponse.json({ error: 'invalid fixtureId' }, { status: 400 })
   }
 

@@ -34,6 +34,13 @@ export interface SessionUser {
   // Undefined on legacy JWTs issued before this column was added —
   // backward-compat path in getSession() accepts them until expiry.
   sessionId?: string
+  // Refreshed from DB on every request — used by isAdmin/isAdminOrModerator
+  // to enforce mandatory 2FA for privileged roles server-side.
+  totpEnabled?: boolean
+  // True when this session was created via the 2FA verify step (TOTP or
+  // backup code). Checked server-side so a valid cookie from a
+  // password-only login can't reach admin routes even when 2FA is enrolled.
+  totpVerified?: boolean
 }
 
 interface CreateOptions {
@@ -45,6 +52,10 @@ interface CreateOptions {
   // row, otherwise every profile edit pollutes /settings with a new
   // device. Read from `session.sessionId` on the caller side.
   reuseSessionId?: string
+  // Set to true when the session is created after a successful TOTP (or
+  // backup-code) verification — stored on the Session row so getSession()
+  // can surface it without trusting the JWT payload.
+  totpVerified?: boolean
 }
 
 export async function createSession(user: SessionUser, opts: CreateOptions = {}) {
@@ -57,10 +68,11 @@ export async function createSession(user: SessionUser, opts: CreateOptions = {})
     // session shouldn't change mid-flight.
     const row = await prisma.session.create({
       data: {
-        userId:    user.id,
-        userAgent: opts.userAgent?.slice(0, 500) ?? null,
-        ip:        opts.ip ?? null,
+        userId:       user.id,
+        userAgent:    opts.userAgent?.slice(0, 500) ?? null,
+        ip:           opts.ip ?? null,
         expiresAt,
+        totpVerified: opts.totpVerified ?? false,
       },
       select: { id: true },
     })
@@ -108,7 +120,7 @@ export async function getSession(): Promise<SessionUser | null> {
     const [dbUser, sessionRow] = await Promise.all([
       prisma.user.findUnique({
         where: { id: user.id },
-        select: { status: true, suspendedUntil: true, tokenVersion: true, cityId: true, email: true },
+        select: { status: true, suspendedUntil: true, tokenVersion: true, cityId: true, email: true, totpEnabled: true },
       }),
       // Skip the Session lookup when the JWT has no jti (legacy session
       // issued before the per-device column was added). Those expire
@@ -117,7 +129,7 @@ export async function getSession(): Promise<SessionUser | null> {
       jti
         ? prisma.session.findUnique({
             where:  { id: jti },
-            select: { id: true, expiresAt: true, revokedAt: true },
+            select: { id: true, expiresAt: true, revokedAt: true, totpVerified: true },
           })
         : Promise.resolve(null),
     ])
@@ -155,7 +167,7 @@ export async function getSession(): Promise<SessionUser | null> {
     // Inject the live cityId + email from the DB so capability checks
     // and audit-log attribution have fresh values even for sessions
     // issued before later edits. Avoids forcing every member to re-login.
-    return { ...user, cityId: dbUser.cityId, email: dbUser.email, sessionId: jti }
+    return { ...user, cityId: dbUser.cityId, email: dbUser.email, totpEnabled: dbUser.totpEnabled, totpVerified: sessionRow?.totpVerified ?? false, sessionId: jti }
   } catch {
     return null
   }

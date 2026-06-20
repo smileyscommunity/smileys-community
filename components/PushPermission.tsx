@@ -71,7 +71,7 @@ export default function PushPermission() {
           <span className="text-2xl shrink-0">🔔</span>
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-gray-900 text-sm">Stay in the loop</p>
-            <p className="text-gray-500 text-xs mt-0.5">Get notified about events, RSVPs, and club activity.</p>
+            <p className="text-gray-600 text-xs mt-0.5">Get notified about events, RSVPs, and club activity.</p>
             <div className="flex gap-2 mt-3">
               <button
                 onClick={handleAllow}

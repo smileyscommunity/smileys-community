@@ -1,0 +1,50 @@
+{
+  "tagline": "A growing outer Asian side district at the edge of Istanbul's forested outskirts — newer residential developments, good schools, and access to the Belgrade Forest belt.",
+  "places": [
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Çekmeköy Orman Alanları",
+          "description": "The district borders significant forested areas on the Asian outskirts — popular with locals for weekend hikes and picnics.",
+          "address": "Çekmeköy, İstanbul",
+          "badge": "Smileys Pick"
+        },
+        {
+          "name": "Çekmeköy Meydanı",
+          "description": "The central square of the district hosts a weekly market and is the social hub for residents.",
+          "address": "Çekmeköy Merkez, İstanbul"
+        }
+      ]
+    },
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Merkez Kafeler",
+          "description": "A growing number of café options around the town centre, serving the district's young residential population.",
+          "address": "Çekmeköy Merkez, İstanbul"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Semt Restoranları",
+          "description": "Neighbourhood restaurants and lokantas serving straightforward Turkish cuisine at local prices.",
+          "address": "Çekmeköy, İstanbul"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "The M5 metro line connects Çekmeköy to Üsküdar in around 30 minutes.",
+    "Popular with families seeking more space and greener surroundings than inner Istanbul.",
+    "The area is developing fast — infrastructure is improving year by year.",
+    "Best suited to longer-term residents; not a destination for short visits."
+  ]
+}

@@ -11,7 +11,6 @@
 // out keeps both files easier to scan.
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
 import { toast } from 'sonner'
 import { avatarUrl } from '@/lib/data'
 
@@ -33,7 +32,6 @@ export interface Review {
 interface Props {
   businessId:    string
   businessName:  string
-  isLoggedIn:    boolean
   currentUserId: string | null
   // True when the current viewer is the verified owner — controls
   // visibility of the reply UI under each review (and hides the form
@@ -85,7 +83,7 @@ function timeAgo(iso: string): string {
 }
 
 export default function DirectoryReviews({
-  businessId, businessName, isLoggedIn, currentUserId, isOwner, onChange, onClose,
+  businessId, businessName, currentUserId, isOwner, onChange, onClose,
 }: Props) {
   const [reviews, setReviews] = useState<Review[]>([])
   const [loading, setLoading] = useState(true)
@@ -241,7 +239,7 @@ export default function DirectoryReviews({
             <h2 className="text-base font-bold text-gray-900 truncate">{businessName}</h2>
             <div className="flex items-center gap-2 mt-1">
               <Stars value={Math.round(avg ?? 0)} />
-              <span className="text-xs text-gray-500">
+              <span className="text-xs text-gray-600">
                 {avg != null ? `${avg.toFixed(1)} · ${visible.length} review${visible.length === 1 ? '' : 's'}` : 'No reviews yet'}
               </span>
             </div>
@@ -252,7 +250,7 @@ export default function DirectoryReviews({
         {/* Scrollable body */}
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
           {/* Write/edit form. Owners can't review their own listing. */}
-          {isLoggedIn && !isOwner && (
+          {!isOwner && (
             <form onSubmit={submitReview} className="bg-amber-50 border border-amber-100 rounded-xl p-3 space-y-2">
               <p className="text-xs font-bold text-amber-900">
                 {myReview ? 'Edit your review' : 'Share your experience'}
@@ -288,17 +286,6 @@ export default function DirectoryReviews({
                 )}
               </div>
             </form>
-          )}
-
-          {!isLoggedIn && (
-            <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-center">
-              <p className="text-xs text-gray-600">
-                <Link href={`/login?next=${encodeURIComponent('/directory')}`} className="font-semibold text-amber-700 hover:underline">Log in</Link>
-                {' '}or{' '}
-                <Link href="/apply" className="font-semibold text-amber-700 hover:underline">apply to join</Link>
-                {' '}to write a review.
-              </p>
-            </div>
           )}
 
           {isOwner && (
@@ -382,7 +369,7 @@ export default function DirectoryReviews({
                               Post reply
                             </button>
                             <button onClick={() => setReplyOpen(s => ({ ...s, [r.id]: false }))}
-                              className="text-[10px] font-semibold text-gray-500 hover:text-gray-700 px-2 py-1 transition-colors">
+                              className="text-[10px] font-semibold text-gray-600 hover:text-gray-700 px-2 py-1 transition-colors">
                               Cancel
                             </button>
                           </div>

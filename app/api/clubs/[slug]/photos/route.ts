@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { isAdmin } from '@/lib/access'
 import { rateLimit } from '@/lib/rateLimit'
 
 type Params = { params: Promise<{ slug: string }> }
@@ -10,19 +11,42 @@ export async function GET(_: NextRequest, { params }: Params) {
   const club = await prisma.club.findUnique({ where: { slug }, select: { id: true } })
   if (!club) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const photos = await prisma.clubPhoto.findMany({
-    where: { clubId: club.id },
-    orderBy: { createdAt: 'desc' },
-    include: { user: { select: { id: true, name: true, color: true, profilePhoto: true } } },
-  })
+  const [clubPhotos, eventPhotos] = await Promise.all([
+    prisma.clubPhoto.findMany({
+      where: { clubId: club.id },
+      orderBy: { createdAt: 'desc' },
+      include: { user: { select: { id: true, name: true, color: true, profilePhoto: true } } },
+    }),
+    prisma.eventPhoto.findMany({
+      where: { event: { clubId: club.id } },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        user:  { select: { id: true, name: true, color: true, profilePhoto: true } },
+        event: { select: { title: true } },
+      },
+    }),
+  ])
 
-  return NextResponse.json(photos.map(p => ({
-    id:        p.id,
-    url:       p.url,
-    caption:   p.caption,
-    createdAt: p.createdAt,
-    author: { id: p.user.id, name: p.user.name, color: p.user.color, photo: p.user.profilePhoto },
-  })))
+  const merged = [
+    ...clubPhotos.map(p => ({
+      id:        p.id,
+      url:       p.url,
+      caption:   p.caption,
+      createdAt: p.createdAt,
+      source:    'club' as const,
+      author:    { id: p.user.id, name: p.user.name, color: p.user.color, photo: p.user.profilePhoto },
+    })),
+    ...eventPhotos.map(p => ({
+      id:        p.id,
+      url:       p.url,
+      caption:   p.caption ?? null,
+      createdAt: p.createdAt,
+      source:    'event' as const,
+      author:    { id: p.user.id, name: p.user.name, color: p.user.color, photo: p.user.profilePhoto },
+    })),
+  ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+
+  return NextResponse.json(merged)
 }
 
 export async function POST(req: NextRequest, { params }: Params) {
@@ -37,7 +61,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   const club = await prisma.club.findUnique({ where: { slug }, select: { id: true } })
   if (!club) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  if (session.role !== 'admin') {
+  if (!isAdmin(session)) {
     const membership = await prisma.clubMembership.findUnique({
       where: { userId_clubId: { userId: session.id, clubId: club.id } },
       select: { status: true },

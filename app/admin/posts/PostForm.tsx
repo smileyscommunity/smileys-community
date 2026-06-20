@@ -3,8 +3,9 @@
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { sanitize } from '@/lib/sanitize'
-import { CATEGORIES, TITLE_MAX, EXCERPT_MAX, BODY_MAX } from './constants'
+import RichTextEditor from '@/components/RichTextEditor'
+import { CATEGORIES, HANDBOOK_CATEGORIES, TITLE_MAX, EXCERPT_MAX, BODY_MAX } from './constants'
+import { downscaleImage } from '@/lib/image-resize'
 
 interface PostFormProps {
   initial?: {
@@ -14,6 +15,7 @@ interface PostFormProps {
     body?: string
     coverImage?: string
     status?: string
+    kind?: string
     category?: string
   }
 }
@@ -27,17 +29,18 @@ export default function PostForm({ initial = {} }: PostFormProps) {
   const [body,        setBody]        = useState(initial.body        ?? '')
   const [coverImage,  setCoverImage]  = useState(initial.coverImage  ?? '')
   const [status,      setStatus]      = useState(initial.status      ?? 'draft')
+  const [kind,        setKind]        = useState(initial.kind        ?? 'community')
   const [category,    setCategory]    = useState(initial.category    ?? 'Community')
   const [saving,      setSaving]      = useState(false)
   const [uploading,   setUploading]   = useState(false)
-  const [preview,     setPreview]     = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   async function handleImageUpload(file: File) {
     setUploading(true)
     try {
+      const upload = await downscaleImage(file)
       const fd = new FormData()
-      fd.append('file', file)
+      fd.append('file', upload)
       fd.append('folder', 'general')
       const res  = await fetch('/app/api/upload', { method: 'POST', body: fd })
       const data = await res.json()
@@ -59,6 +62,7 @@ export default function PostForm({ initial = {} }: PostFormProps) {
       const payload = {
         title, excerpt, body, coverImage,
         status: publishNow ? 'published' : status,
+        kind,
         category,
       }
       const url    = isEdit ? `/app/api/admin/posts/${initial.id}` : '/app/api/admin/posts'
@@ -82,23 +86,6 @@ export default function PostForm({ initial = {} }: PostFormProps) {
     }
   }
 
-  function renderPreview(text: string) {
-    return text
-      .split('\n\n')
-      .map((block, i) => {
-        const trimmed = block.trim()
-        if (!trimmed) return null
-        if (trimmed.startsWith('## ')) return <h2 key={i} className="text-xl font-bold text-zinc-100 mt-6 mb-2">{trimmed.slice(3)}</h2>
-        if (trimmed.startsWith('### ')) return <h3 key={i} className="text-lg font-semibold text-zinc-200 mt-4 mb-1">{trimmed.slice(4)}</h3>
-        if (trimmed.startsWith('- ')) {
-          const items = trimmed.split('\n').filter(l => l.startsWith('- ')).map(l => l.slice(2))
-          return <ul key={i} className="list-disc list-inside space-y-1 text-zinc-300 text-sm my-3">{items.map((it, j) => <li key={j}>{it}</li>)}</ul>
-        }
-        const html = sanitize(trimmed.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>'))
-        return <p key={i} className="text-zinc-300 text-sm leading-relaxed my-3" dangerouslySetInnerHTML={{ __html: html }} />
-      })
-  }
-
   return (
     <div className="p-6 max-w-4xl mx-auto">
       {/* Header */}
@@ -112,14 +99,6 @@ export default function PostForm({ initial = {} }: PostFormProps) {
           <h1 className="text-xl font-bold text-zinc-100">{isEdit ? 'Edit article' : 'New article'}</h1>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setPreview(p => !p)}
-            className={`px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${
-              preview ? 'bg-zinc-600 text-zinc-100' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700'
-            }`}
-          >
-            {preview ? 'Edit' : 'Preview'}
-          </button>
           <button
             onClick={() => handleSave(false)}
             disabled={saving}
@@ -170,41 +149,45 @@ export default function PostForm({ initial = {} }: PostFormProps) {
             )}
           </div>
 
-          {/* Body — editor or preview */}
-          {preview ? (
-            <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-5 min-h-[400px]">
-              {body.trim() ? renderPreview(body) : <p className="text-zinc-500 text-sm">Nothing to preview yet…</p>}
+          {/* Body — TipTap rich-text editor with a real toolbar. Same
+              component used in event-description editors so writers get
+              consistent affordances (B/I/U, headings, lists, color)
+              and the output is sanitisable HTML the public renderer
+              already handles. Replaces a raw textarea + homemade
+              markdown preview pane that members never warmed to. */}
+          <div>
+            <RichTextEditor value={body} onChange={setBody} placeholder="Write your article — bold, headings, lists are all in the toolbar above." />
+            <div className={`mt-2 text-right text-xs ${
+              body.length > BODY_MAX - 1000 ? 'text-red-400 font-semibold' : 'text-zinc-600'
+            }`}>
+              {body.length.toLocaleString()}/{BODY_MAX.toLocaleString()} chars
             </div>
-          ) : (
-            <div className="relative">
-              <textarea
-                value={body}
-                onChange={e => setBody(e.target.value)}
-                placeholder={`Write your article here…\n\nUse ## for headings, **bold** for emphasis, - for bullet lists.\n\nDouble-enter creates a new paragraph.`}
-                rows={22}
-                maxLength={BODY_MAX}
-                className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-sm text-zinc-300 placeholder-zinc-500 focus:outline-none focus:border-amber-500 transition-colors resize-y font-mono leading-relaxed"
-              />
-              {/* Body counter — shows total chars always; warns red when
-                  near the 50k cap so admins notice before submit fails. */}
-              <div className={`absolute bottom-3 right-3 text-xs pointer-events-none ${
-                body.length > BODY_MAX - 1000 ? 'text-red-400 font-semibold' : 'text-zinc-600'
-              }`}>
-                {body.length.toLocaleString()}/{BODY_MAX.toLocaleString()} chars
-              </div>
-            </div>
-          )}
-
-          {/* Formatting hint */}
-          {!preview && (
-            <p className="text-xs text-zinc-500">
-              <span className="font-mono">## Heading</span> · <span className="font-mono">**bold**</span> · <span className="font-mono">- list item</span> · Double-enter = new paragraph
-            </p>
-          )}
+          </div>
         </div>
 
         {/* Sidebar */}
         <div className="space-y-4">
+          {/* Type */}
+          <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-4">
+            <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-3">Type</p>
+            <div className="flex gap-2">
+              {([['community', 'Blog post'], ['handbook', 'Handbook']] as const).map(([k, label]) => (
+                <button
+                  key={k}
+                  onClick={() => {
+                    setKind(k)
+                    setCategory(k === 'handbook' ? HANDBOOK_CATEGORIES[0] : CATEGORIES[0])
+                  }}
+                  className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-colors ${
+                    kind === k ? 'bg-amber-500 text-white' : 'bg-zinc-700 text-zinc-400 hover:text-zinc-200'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Status */}
           <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-4">
             <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-3">Status</p>
@@ -229,7 +212,7 @@ export default function PostForm({ initial = {} }: PostFormProps) {
           <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-4">
             <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-3">Category</p>
             <div className="flex flex-col gap-1.5">
-              {CATEGORIES.map(cat => (
+              {(kind === 'handbook' ? HANDBOOK_CATEGORIES : CATEGORIES).map(cat => (
                 <button
                   key={cat}
                   onClick={() => setCategory(cat)}

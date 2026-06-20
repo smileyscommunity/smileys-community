@@ -1,0 +1,41 @@
+{
+  "tagline": "A quiet outer Asian side district at the foot of Aydos Forest — one of Istanbul's largest forested areas, with hiking trails and a hilltop castle ruin above the city.",
+  "places": [
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Aydos Ormanı",
+          "description": "One of Istanbul's largest urban forests — a vast green escape with walking and hiking trails. Remarkably peaceful given its proximity to the city.",
+          "address": "Aydos, Sultanbeyli",
+          "badge": "Smileys Pick",
+          "tip": "The forest is best visited on weekday mornings when it's almost empty. Weekends get busy with local families."
+        },
+        {
+          "name": "Aydos Kalesi",
+          "description": "A Byzantine-era hilltop castle ruin with sweeping views over Istanbul and the Marmara Sea on clear days. A rewarding hike to reach.",
+          "address": "Aydos Tepesi, Sultanbeyli",
+          "badge": "Must Visit"
+        }
+      ]
+    },
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Orman Kenarı Çay Bahçeleri",
+          "description": "Simple tea gardens at the edge of the forest serving çay and snacks. Rustic and very local.",
+          "address": "Aydos Ormanı Girişi, Sultanbeyli"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Aydos is best reached by car or taxi — public transport connections are limited.",
+    "Wear sturdy shoes for the castle hike; the trail is uneven and steep in places.",
+    "The hilltop view on a clear day extends to the Princes' Islands and the Marmara.",
+    "Bring water — there are no facilities inside the forest."
+  ]
+}

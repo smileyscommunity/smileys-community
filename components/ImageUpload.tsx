@@ -2,12 +2,13 @@
 
 import { useState, useRef, useCallback } from 'react'
 import { resolveImageUrl } from '@/lib/data'
+import { downscaleImage } from '@/lib/image-resize'
 
 interface Props {
   value: string
   onChange: (url: string) => void
   label?: string
-  folder?: 'events' | 'clubs' | 'users' | 'general'
+  folder?: 'events' | 'clubs' | 'users' | 'general' | 'listings'
   position?: number
   onPositionChange?: (pos: number) => void
 }
@@ -34,8 +35,9 @@ export default function ImageUpload({ value, onChange, label = 'Cover image', fo
     const tick = setInterval(() => setProgress(p => Math.min(p + 12, 85)), 120)
 
     try {
+      const upload = await downscaleImage(file)
       const fd = new FormData()
-      fd.append('file', file)
+      fd.append('file', upload)
       fd.append('folder', folder)
       const res  = await fetch('/app/api/upload', { method: 'POST', credentials: 'include', body: fd })
       const data = await res.json()

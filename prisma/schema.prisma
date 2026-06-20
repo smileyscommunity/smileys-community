@@ -7,167 +7,147 @@ datasource db {
 }
 
 model User {
-  id                String   @id @default(cuid())
-  name              String
-  email             String   @unique
-  password          String?
-  role              String   @default("member")
-  color             String   @default("#f59e0b")
-  bio               String?
-  neighborhood      String?
-  instagram         String?
-  linkedin          String?
-  lookingFor        String[]
-  profileVisibility String   @default("everyone") // everyone | connections
-  emailVerified     Boolean  @default(false)
-  joinedAt          DateTime @default(now())
+  id                                       String                  @id @default(cuid())
+  name                                     String
+  email                                    String                  @unique
+  password                                 String?
+  role                                     String                  @default("member")
+  color                                    String                  @default("#f59e0b")
+  bio                                      String?
+  neighborhood                             String?
+  instagram                                String?
+  joinedAt                                 DateTime                @default(now())
+  emailVerified                            Boolean                 @default(false)
+  interests                                String[]
+  languages                                String[]
+  lastActive                               DateTime?
+  nudgesSent                               Int                     @default(0)
+  lastNudgedAt                             DateTime?
+  membershipType                           String                  @default("free")
+  nationality                              String?
+  phone                                    String?
+  profilePhoto                             String?
+  status                                   String                  @default("approved")
+  banReason                                String?
+  bannedAt                                 DateTime?
+  gender                                   String?
+  warningCount                             Int                     @default(0)
+  referralCode                             String?                 @unique
+  referralCount                            Int                     @default(0)
+  appealNote                               String?
+  appealStatus                             String?
+  appealedAt                               DateTime?
+  checkedInCount                           Int                     @default(0)
+  partnerId                                String?
+  suspendedAt                              DateTime?
+  suspendedBy                              String?
+  suspendedUntil                           DateTime?
+  suspensionNote                           String?
+  linkedin                                 String?
+  lookingFor                               String[]
+  profileVisibility                        String                  @default("everyone")
+  totpEnabled                              Boolean                 @default(false)
+  totpSecret                               String?
+  socialStyles                             String[]
+  emailMarketing                           Boolean                 @default(true)
+  failedLoginCount                         Int                     @default(0)
+  knownIps                                 String[]
+  loginLockedUntil                         DateTime?
+  listingAlerts                            String[]
+  tokenVersion                             Int                     @default(0)
+  lastUsedTotpStep                         Int?
+  openToCoffee                             Boolean                 @default(false)
+  openToHosting                            Boolean                 @default(false)
+  openToLanguage                           Boolean                 @default(false)
+  goodHangouts                             Int                     @default(0)
+  noShowCount                              Int                     @default(0)
+  lastFingerprint                          String?
+  cityId                                   String
+  fingerprints                             String[]                @default([])
+  industry                                 String?
+  professionalRole                         String?
+  professionalStatus                       String?
+  adminNotes                               AdminNote[]
+  availabilityPulses                       AvailabilityPulse[]
+  businessClaims                           BusinessClaim[]         @relation("BusinessClaims")
+  businessClaimReviews                     BusinessClaim[]         @relation("BusinessClaimReviews")
+  businessReportsFiled                     BusinessReport[]        @relation("BusinessReportReporter")
+  businessReportsReviewed                  BusinessReport[]        @relation("BusinessReportReviewer")
+  businessReviewsAuthored                  BusinessReview[]        @relation("BusinessReviewAuthor")
+  businessReviewOwnerReplies               BusinessReview[]        @relation("BusinessReviewOwnerReply")
+  businessSaves                            BusinessSave[]          @relation("BusinessSaves")
+  businessesOwned                          Business[]              @relation("BusinessOwnership")
+  businessReviewsModerated                 Business[]              @relation("BusinessReviews")
+  businessSubmissions                      Business[]              @relation("BusinessSubmissions")
+  cityHostings                             CityHost[]
+  clubMemberships                          ClubMembership[]
+  clubPhotos                               ClubPhoto[]
+  clubPollVotes                            ClubPollVote[]
+  clubPostLikes                            ClubPostLike[]
+  clubPostReplies                          ClubPostReply[]
+  clubPosts                                ClubPost[]
+  clubSpotlights                           Club[]                  @relation("ClubSpotlight")
+  communityPollVotes                       CommunityPollVote[]
+  cupBracketPick                           CupBracketPick?
+  cupPredictions                           CupPrediction[]
+  cupDonationsReviewed                     CupPrizeDonation[]      @relation("CupDonationReviewer")
+  cupPrizesAwardedTo                       CupPrize[]              @relation("CupPrizeAwardedTo")
+  cupSponsorsAdded                         CupSponsor[]            @relation("CupSponsorAddedBy")
+  dmReactions                              DirectMessageReaction[]
+  sentMessages                             DirectMessage[]         @relation("SentMessages")
+  receivedMessages                         DirectMessage[]         @relation("ReceivedMessages")
+  joinedEvents                             EventAttendee[]
+  cohostedEvents                           EventCoHost[]
+  eventMessages                            EventMessage[]
+  eventPhotos                              EventPhoto[]
+  eventSurveys                             EventSurvey[]
+  hangoutJoins                             HangoutJoin[]
+  hangoutMessages                          HangoutMessage[]
+  hangoutReferencesGiven                   HangoutReference[]      @relation("HangoutReferencesGiven")
+  hangoutReferencesGot                     HangoutReference[]      @relation("HangoutReferencesGot")
+  hangouts                                 Hangout[]
+  listings                                 Listing[]
+  reviewedApplications                     MemberApplication[]
+  blocksReceived                           MemberBlock[]           @relation("BlockReceiver")
+  blocksGiven                              MemberBlock[]           @relation("BlockGiver")
+  connectionsReceived                      MemberConnection[]      @relation("ConnectionReceiver")
+  connectionsRequested                     MemberConnection[]      @relation("ConnectionRequester")
+  npsResponses                             MemberNPS[]
+  // Member-saves: relation names are kept verbatim so the existing
+  // @relation strings in MemberSave stay valid. The Prisma client
+  // surface becomes `prisma.memberSave` (matches what /api/members,
+  // /api/members/saved, and /api/members/[id] already call).
+  memberSaves    MemberSave[] @relation("MemberSaveOwner")
+  savedByMembers MemberSave[] @relation("MemberSaveTarget")
+  neighborhoodPostLikes                    NeighborhoodPostLike[]
+  neighborhoodPostReplies                  NeighborhoodPostReply[]
+  neighborhoodPosts                        NeighborhoodPost[]
+  newslettersSent                          Newsletter[]            @relation("NewslettersSent")
+  notifPrefs                               NotificationPreference?
+  notifications                            Notification[]
+  payments                                 Payment[]
+  posts                                    Post[]
+  profileViews                             ProfileView[]           @relation("ViewedProfile")
+  profileViewsMade                         ProfileView[]           @relation("ProfileViewer")
+  pushSubscriptions                        PushSubscription[]
+  reportsReceived                          Report[]                @relation("ReportsReceived")
+  reportsMade                              Report[]                @relation("ReportsMade")
+  reviews                                  Review[]
+  savedListings                            SavedListing[]
+  sessions                                 Session[]
+  totpBackupCodes                          TotpBackupCode[]
+  city                                     City                    @relation(fields: [cityId], references: [id])
+  partner                                  Partner?                @relation(fields: [partnerId], references: [id])
+  visitorAnnouncements                     VisitorAnnouncement[]
 
-  phone          String?
-  gender         String?
-  profilePhoto   String?
-  nationality    String?
-  languages      String[]
-  interests      String[]
-  socialStyles   String[]
-  status         String    @default("approved")
-  membershipType String    @default("free")
-  lastActive     DateTime?
-  banReason      String?
-  bannedAt       DateTime?
-  appealNote     String?
-  appealStatus   String?
-  appealedAt     DateTime?
-  warningCount   Int       @default(0)
-  suspendedAt    DateTime?
-  suspendedUntil DateTime?
-  suspendedBy    String?
-  suspensionNote String?
-  referralCode   String?   @unique
-  referralCount  Int       @default(0)
-  partnerId      String?
-  totpSecret     String?
-  totpEnabled    Boolean   @default(false)
-  // Highest TOTP step (Date.now()/30000) accepted for this user; codes at <= this
-  // step are rejected to block replay within the 30s validity window.
-  lastUsedTotpStep Int?
-  tokenVersion   Int       @default(0)
-  emailMarketing Boolean   @default(true)
-
-  // "Open to…" availability flags — surface as badges on member cards and
-  // filter on /members. Let willing matches show themselves without forcing
-  // cold messages.
-  openToCoffee     Boolean @default(false) // grab coffee with newcomers
-  openToLanguage   Boolean @default(false) // language exchange
-  openToHosting    Boolean @default(false) // host / show around visitors
-
-  joinedEvents            EventAttendee[]
-  clubMemberships         ClubMembership[]
-  reviews                 Review[]
-  payments                Payment[]
-  eventPhotos             EventPhoto[]
-  eventMessages           EventMessage[]
-  notifications           Notification[]
-  notifPrefs              NotificationPreference?
-  reviewedApplications    MemberApplication[]
-  reportsMade             Report[]                @relation("ReportsMade")
-  reportsReceived         Report[]                @relation("ReportsReceived")
-  sentMessages            DirectMessage[]         @relation("SentMessages")
-  receivedMessages        DirectMessage[]         @relation("ReceivedMessages")
-  dmReactions             DirectMessageReaction[]
-  clubPosts               ClubPost[]
-  clubPostLikes           ClubPostLike[]
-  clubPostReplies         ClubPostReply[]
-  neighborhoodPosts       NeighborhoodPost[]
-  neighborhoodPostLikes   NeighborhoodPostLike[]
-  neighborhoodPostReplies NeighborhoodPostReply[]
-  visitorAnnouncements    VisitorAnnouncement[]
-  hangouts                Hangout[]
-  hangoutJoins            HangoutJoin[]
-  hangoutMessages         HangoutMessage[]
-  hangoutReferencesGiven  HangoutReference[]      @relation("HangoutReferencesGiven")
-  hangoutReferencesGot    HangoutReference[]      @relation("HangoutReferencesGot")
-  availabilityPulses      AvailabilityPulse[]
-  clubPollVotes           ClubPollVote[]
-  clubPhotos              ClubPhoto[]
-  clubSpotlights          Club[]                  @relation("ClubSpotlight")
-  communityPollVotes      CommunityPollVote[]
-  connectionsRequested    MemberConnection[]      @relation("ConnectionRequester")
-  connectionsReceived     MemberConnection[]      @relation("ConnectionReceiver")
-  posts                   Post[]
-  adminNotes              AdminNote[]
-  cohostedEvents          EventCoHost[]
-  pushSubscriptions       PushSubscription[]
-  totpBackupCodes         TotpBackupCode[]
-  sessions                Session[]
-  listings                Listing[]
-  savedListings           SavedListing[]
-  listingAlerts           String[]
-  checkedInCount          Int                     @default(0)
-  // Hangout trust counters — denormalized for cheap reads on every hangout
-  // card. Source of truth is HangoutReference rows; these get incremented
-  // inside the same transaction that inserts a reference. If they ever
-  // drift, recompute from references in a one-off backfill script.
-  goodHangouts            Int                     @default(0)
-  noShowCount             Int                     @default(0)
-  partner                 Partner?                @relation(fields: [partnerId], references: [id])
-
-  // Multi-city scaffolding. Backfill ran on 2026-05-29 and every row
-  // got an Istanbul cityId; the column is now required. New users get
-  // their city from the apply form's targetCityId on approval.
-  cityId                  String
-  city                    City                    @relation(fields: [cityId], references: [id])
-
-  // Security
-  failedLoginCount Int       @default(0)
-  loginLockedUntil DateTime?
-  knownIps         String[]
-  // Browser FingerprintJS visitorId from the last successful login. Lets
-  // admins cross-check "is this banned user back on a fresh email?" by
-  // grepping for the same fingerprint across accounts. Cleared on signout.
-  lastFingerprint  String?
-  // A5 fix: rolling history of recent fingerprints (last 50 logins).
-  // lastFingerprint only captured the most recent device, which meant
-  // a banned user could log in once from a "clean" device to clear the
-  // trail. The array keeps the cross-account match queryable across
-  // history. Append-on-login, slice to 50, dedupe — same shape as
-  // knownIps. Default [] so existing rows stay valid without a backfill.
-  fingerprints     String[]   @default([])
-
-  // Privacy & blocking
-  profileViews     ProfileView[] @relation("ViewedProfile")
-  profileViewsMade ProfileView[] @relation("ProfileViewer")
-  blocksGiven      MemberBlock[] @relation("BlockGiver")
-  blocksReceived   MemberBlock[] @relation("BlockReceiver")
-
-  // Multi-city hosting capabilities (separate from ClubMembership
-  // role='host' which is per-club).
-  cityHostings     CityHost[]
-  // Post-event survey responses this user has submitted.
-  eventSurveys     EventSurvey[]
-  // Quarterly NPS responses — one row per (userId, period).
-  npsResponses     MemberNPS[]
-  // Smileys Cup 2026 — predictions, pre-tournament bracket pick.
-  cupPredictions   CupPrediction[]
-  cupBracketPick   CupBracketPick?
-  // Cup prize/sponsor relations — attribution + history. All
-  // SetNull on delete: removing a user shouldn't erase prize or
-  // sponsor records.
-  cupSponsorsAdded   CupSponsor[]       @relation("CupSponsorAddedBy")
-  cupPrizesAwardedTo CupPrize[]         @relation("CupPrizeAwardedTo")
-  cupDonationsReviewed CupPrizeDonation[] @relation("CupDonationReviewer")
-
-  businessSubmissions        Business[]         @relation("BusinessSubmissions")
-  businessReviewsModerated   Business[]         @relation("BusinessReviews")
-  businessesOwned            Business[]         @relation("BusinessOwnership")
-  businessClaims             BusinessClaim[]    @relation("BusinessClaims")
-  businessClaimReviews       BusinessClaim[]    @relation("BusinessClaimReviews")
-  businessReviewsAuthored    BusinessReview[]   @relation("BusinessReviewAuthor")
-  businessReviewOwnerReplies BusinessReview[]   @relation("BusinessReviewOwnerReply")
-  businessReportsFiled       BusinessReport[]   @relation("BusinessReportReporter")
-  businessReportsReviewed    BusinessReport[]   @relation("BusinessReportReviewer")
-  businessSaves              BusinessSave[]     @relation("BusinessSaves")
-  newslettersSent            Newsletter[]       @relation("NewslettersSent")
-
+  @@index([cityId, status])
+  @@index([lastActive])
+  @@index([membershipType])
+  @@index([nationality])
+  @@index([neighborhood])
+  @@index([neighborhood, status])
+  @@index([status])
+  @@index([status, joinedAt])
   @@map("users")
 }
 
@@ -176,9 +156,8 @@ model ProfileView {
   viewerId  String
   viewedId  String
   createdAt DateTime @default(now())
-
-  viewer User @relation("ProfileViewer", fields: [viewerId], references: [id], onDelete: Cascade)
-  viewed User @relation("ViewedProfile", fields: [viewedId], references: [id], onDelete: Cascade)
+  viewed    User     @relation("ViewedProfile", fields: [viewedId], references: [id], onDelete: Cascade)
+  viewer    User     @relation("ProfileViewer", fields: [viewerId], references: [id], onDelete: Cascade)
 
   @@unique([viewerId, viewedId])
   @@index([viewedId, createdAt])
@@ -190,9 +169,8 @@ model MemberBlock {
   blockerId String
   blockedId String
   createdAt DateTime @default(now())
-
-  blocker User @relation("BlockGiver", fields: [blockerId], references: [id], onDelete: Cascade)
-  blocked User @relation("BlockReceiver", fields: [blockedId], references: [id], onDelete: Cascade)
+  blocked   User     @relation("BlockReceiver", fields: [blockedId], references: [id], onDelete: Cascade)
+  blocker   User     @relation("BlockGiver", fields: [blockerId], references: [id], onDelete: Cascade)
 
   @@unique([blockerId, blockedId])
   @@index([blockerId])
@@ -202,8 +180,8 @@ model MemberBlock {
 model Partner {
   id           String   @id @default(cuid())
   name         String
-  category     String // e.g. "Cafe", "Restaurant", "Studio"
-  discount     String // e.g. "10% off everything"
+  category     String
+  discount     String
   address      String
   neighborhood String
   lat          Float?
@@ -220,21 +198,14 @@ model Partner {
   @@map("partners")
 }
 
-// SponsorLead — B2B pipeline for /advertise inquiries. Before this
-// table, advertise submissions were routed through /api/contact and
-// existed only as email, so leads were unrecoverable and there was
-// no record of which ones turned into paid sponsorships. Admins work
-// the pipeline at /admin/sponsors: new → contacted → negotiating →
-// won | lost. dealValue is the agreed amount once status is 'won' —
-// it's closed revenue for reporting, not a forecast.
 model SponsorLead {
   id         String   @id @default(cuid())
   name       String
   email      String
   company    String
-  format     String // event_sponsorship | newsletter | club_partnership | branded_event | other
+  format     String
   message    String
-  status     String   @default("new") // new | contacted | negotiating | won | lost
+  status     String   @default("new")
   dealValue  Float?
   currency   String   @default("TRY")
   adminNotes String?
@@ -251,22 +222,21 @@ model Report {
   reporterId    String
   reportedId    String
   eventId       String?
-  listingId     String?   // Marketplace flag — reportedId is the listing owner; this points to the post.
   reason        String
   details       String?
-  screenshot    String?
   status        String    @default("pending")
   reviewNote    String?
   reviewedBy    String?
   reviewedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  screenshot    String?
   escalated     Boolean   @default(false)
   escalatedNote String?
   escalatedBy   String?
   escalatedAt   DateTime?
-  createdAt     DateTime  @default(now())
-
-  reporter User @relation("ReportsMade", fields: [reporterId], references: [id], onDelete: Cascade)
-  reported User @relation("ReportsReceived", fields: [reportedId], references: [id], onDelete: Cascade)
+  listingId     String?
+  reported      User      @relation("ReportsReceived", fields: [reportedId], references: [id], onDelete: Cascade)
+  reporter      User      @relation("ReportsMade", fields: [reporterId], references: [id], onDelete: Cascade)
 
   @@index([reportedId])
   @@index([status])
@@ -279,11 +249,11 @@ model Blacklist {
   email       String?  @unique
   phone       String?
   name        String?
-  fingerprint String?
-  ipAddress   String?
   reason      String
   bannedBy    String
   createdAt   DateTime @default(now())
+  fingerprint String?
+  ipAddress   String?
 
   @@map("blacklist")
 }
@@ -293,76 +263,45 @@ model ClubMembership {
   userId   String
   clubId   String
   role     String   @default("member")
-  status   String   @default("approved")
   joinedAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  club Club @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  status   String   @default("approved")
+  club     Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, clubId])
   @@map("club_memberships")
 }
 
-// City is the foundation of the multi-city scaffolding. Istanbul is
-// the only row at launch but the schema is designed so adding Berlin
-// / Lisbon / Dubai is a row insert, not a migration.
-//
-// status drives the city's lifecycle:
-//   - launching → invite-only founding cohort, not visible publicly
-//   - live      → full membership + events
-//   - paused    → city is being wound down (no new applications)
-//
-// timezone / currency / country / lang are per-city so events,
-// payments and notifications render with the right local context.
 model City {
-  id          String   @id @default(cuid())
-  name        String   // "Istanbul"
-  slug        String   @unique // "istanbul"
-  country     String   // ISO 3166-1 alpha-2, e.g. "TR"
-  timezone    String   // IANA, e.g. "Europe/Istanbul"
-  currency    String   @default("TRY") // ISO 4217
-  // language used for default emails / push copy in the city. The app
-  // itself stays English-first; this is for outbound comms only.
-  defaultLang String   @default("en")
-  status      String   @default("launching") // launching | live | paused
-  // The city's consul — appointed local lead. One per city. Carries
-  // no auth power on its own (moderation still goes through role +
-  // canActInCity) but defines the public face of Smileys in this
-  // city: profile, contact, equity / revenue share, etc. Renders as
-  // a "Smileys [City] · [Name] ✿" badge in member-facing surfaces.
+  id           String              @id @default(cuid())
+  name         String
+  slug         String              @unique
+  country      String
+  timezone     String
+  currency     String              @default("TRY")
+  defaultLang  String              @default("en")
+  status       String              @default("launching")
+  createdAt    DateTime            @default(now())
   consulUserId String?
-  createdAt   DateTime @default(now())
-
-  users        User[]
+  cityHosts    CityHost[]
   clubs        Club[]
   events       Event[]
   applications MemberApplication[]
-  cityHosts    CityHost[]
+  users        User[]
 
   @@map("cities")
 }
 
-// CityHost is a per-city operational hosting capability — separate
-// from club hosting (ClubMembership.role='host'). A city host can
-// create events that aren't tied to a club: welcome weeks, cross-
-// club socials, holidays, civic events. Consuls and admins implicitly
-// have this capability; CityHost is for everyone else granted the
-// scope.
-//
-// status=approved is the working state; revoked stays in the table
-// for audit/history (deleting would lose the grantedBy trail). The
-// canHostInCity helper filters by status.
 model CityHost {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   userId    String
   cityId    String
-  status    String   @default("approved") // approved | revoked
-  grantedBy String?  // admin who promoted this user
-  grantedAt DateTime @default(now())
+  status    String    @default("approved")
+  grantedBy String?
+  grantedAt DateTime  @default(now())
   revokedAt DateTime?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  city City @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  city      City      @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, cityId])
   @@index([cityId])
@@ -371,137 +310,109 @@ model CityHost {
 }
 
 model Club {
-  id          String @id @default(cuid())
-  name        String
-  slug        String @unique
-  description String
-  category    String
-  emoji       String
-  color       String
-  bgColor     String
-  memberCount Int    @default(0)
-
-  whatsappUrl        String?
-  instagramUrl       String?
-  rules              String?
-  isPrivate          Boolean   @default(false)
+  id                 String           @id @default(cuid())
+  name               String
+  slug               String           @unique
+  description        String
+  category           String
+  emoji              String
+  color              String
+  bgColor            String
+  memberCount        Int              @default(0)
   coverImage         String?
-  coverImagePosition Int       @default(50)
-  location           String?
   foundedAt          DateTime?
-  isActive           Boolean   @default(true)
-  createdAt          DateTime  @default(now())
+  instagramUrl       String?
+  isPrivate          Boolean          @default(false)
+  location           String?
+  rules              String?
+  whatsappUrl        String?
+  createdAt          DateTime         @default(now())
+  isActive           Boolean          @default(true)
   spotlightUserId    String?
   spotlightNote      String?
   spotlightUpdatedAt DateTime?
-
-  events        Event[]
-  memberships   ClubMembership[]
-  posts         ClubPost[]
-  resources     ClubResource[]
-  photos        ClubPhoto[]
-  spotlightUser User?            @relation("ClubSpotlight", fields: [spotlightUserId], references: [id], onDelete: SetNull)
-
-  // Clubs are city-scoped — Sailing Istanbul is a different club from
-  // Sailing Berlin even if the category matches. Backfill ran on
-  // 2026-05-29 and every existing row got an Istanbul cityId.
-  cityId String
-  city   City   @relation(fields: [cityId], references: [id])
+  coverImagePosition Int              @default(50)
+  cityId             String
+  memberships        ClubMembership[]
+  photos             ClubPhoto[]
+  posts              ClubPost[]
+  resources          ClubResource[]
+  city               City             @relation(fields: [cityId], references: [id])
+  spotlightUser      User?            @relation("ClubSpotlight", fields: [spotlightUserId], references: [id])
+  events             Event[]
 
   @@index([cityId])
   @@map("clubs")
 }
 
 model Event {
-  id                   String    @id @default(cuid())
+  id                   String          @id @default(cuid())
   title                String
   description          String
   date                 String
   time                 String
   location             String
   neighborhood         String
-  emoji                String    @default("🎉")
-  price                Int       @default(0)
+  emoji                String          @default("🎉")
+  price                Int             @default(0)
   memberPrice          Int?
   totalSpots           Int
   spotsLeft            Int
-  limitedSpots         Boolean   @default(false)
-  isPremium            Boolean   @default(false)
-  membersOnly          Boolean   @default(false)
+  limitedSpots         Boolean         @default(false)
+  isPremium            Boolean         @default(false)
+  membersOnly          Boolean         @default(false)
+  intent               String          @default("social") // social | professional
   vibes                String[]
-  whatsappUrl          String?
-  status               String    @default("published")
-  address              String?
-  coverImage           String?
-  coverImagePosition   Int       @default(50)
-  cancelledAt          DateTime?
-  cancelReason         String?
-  isRecurring          Boolean   @default(false)
-  seriesId             String?
-  meetingUrl           String?
-  lat                  Float?
-  lng                  Float?
-  duration             Int?
-  minAge               Int?
-  maxAge               Int?
-  language             String?
-  difficulty           String?
-  refundPolicy         String?
-  registrationDeadline String?
-  endTime              String?
-  currency             String    @default("TRY")
-  approvalRequired     Boolean   @default(false)
-  featured             Boolean   @default(false)
-  genderBalance        Boolean   @default(false)
-  maleQuota            Int?
-  // Female-side cap — mirror of maleQuota. Before this existed, the male
-  // cap was the only enforcement, so an all-female RSVP wave could fill
-  // 100% of spots and males got waitlisted indefinitely. With both set,
-  // the event balances on both sides.
-  femaleQuota          Int?
-  turkishMaleQuota     Int?
-  updatedAt            DateTime  @default(now()) @updatedAt
-  // clubId is now optional. Events with a club still belong to a
-  // curated sub-brand (Sailing Club, Eat Up Istanbul); events
-  // without one are city-level events created by a CityHost or
-  // consul (welcome weeks, cross-club socials, civic events). cityId
-  // remains required regardless.
   clubId               String?
   hostId               String
-  createdAt            DateTime  @default(now())
-
-  // Set once the post-event survey dispatch has run for this event.
-  // Drives idempotency on the cron — the sweep picks events with a
-  // null surveyDispatchedAt and stamps this after notifying attendees.
+  createdAt            DateTime        @default(now())
+  whatsappUrl          String?
+  address              String?
+  cancelReason         String?
+  cancelledAt          DateTime?
+  coverImage           String?
+  difficulty           String?
+  duration             Int?
+  isRecurring          Boolean         @default(false)
+  language             String?
+  lat                  Float?
+  lng                  Float?
+  maxAge               Int?
+  meetingUrl           String?
+  minAge               Int?
+  refundPolicy         String?
+  registrationDeadline String?
+  status               String          @default("published")
+  updatedAt            DateTime        @default(now()) @updatedAt
+  approvalRequired     Boolean         @default(false)
+  currency             String          @default("TRY")
+  endTime              String?
+  genderBalance        Boolean         @default(false)
+  maleQuota            Int?
+  turkishMaleQuota     Int?
+  featured             Boolean         @default(false)
+  seriesId             String?
+  coverImagePosition   Int             @default(50)
+  femaleQuota          Int?
+  cityId               String
   surveyDispatchedAt   DateTime?
-
-  club      Club?           @relation(fields: [clubId], references: [id])
-  attendees EventAttendee[]
-  reviews   Review[]
-  payments  Payment[]
-  messages  EventMessage[]
-  tags      EventTag[]
-  cohosts   EventCoHost[]
-  photos    EventPhoto[]
-  surveys   EventSurvey[]
-
-  // Events belong to a city. Derivable from the parent club today,
-  // but storing it directly lets the events feed filter by the
-  // viewer's city in one indexed query instead of joining through
-  // clubs. Backfilled to Istanbul on 2026-05-29 and now required.
-  cityId    String
-  city      City            @relation(fields: [cityId], references: [id])
+  surveyReminderAt     DateTime?
+  attendees            EventAttendee[]
+  cohosts              EventCoHost[]
+  messages             EventMessage[]
+  photos               EventPhoto[]
+  surveys              EventSurvey[]
+  tags                 EventTag[]
+  city                 City            @relation(fields: [cityId], references: [id])
+  club                 Club?           @relation(fields: [clubId], references: [id])
+  payments             Payment[]
+  reviews              Review[]
 
   @@index([date])
   @@index([clubId])
   @@index([status])
   @@index([hostId])
   @@index([cityId])
-  // The events feed query filters by status + date and (optionally)
-  // cityId. Singles on each column let Postgres bitmap-and them, but
-  // a composite avoids the intersect step. (cityId, status, date)
-  // matches both "upcoming in my city" (default feed) and
-  // "all upcoming" (cross-city traveler view).
   @@index([cityId, status, date])
   @@map("events")
 }
@@ -513,9 +424,8 @@ model EventPhoto {
   url       String
   caption   String?
   createdAt DateTime @default(now())
-
-  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("event_photos")
 }
@@ -525,9 +435,8 @@ model EventCoHost {
   eventId String
   userId  String
   addedAt DateTime @default(now())
-
-  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event   Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([eventId, userId])
   @@index([eventId])
@@ -535,34 +444,16 @@ model EventCoHost {
   @@map("event_cohosts")
 }
 
-// Post-event safety + quality signal. Two-question survey sent ~24h
-// after an event ends. The wedge: none of the open-marketplace
-// competitors (Internations, Meetup, Couchsurfing) have the trust to
-// ask members "anything off?" — Smileys does, and that compounds.
-//
-//   anomaly       — Q1 "Anything off?". When true, the submit endpoint
-//                   auto-files a Report against the event's host so
-//                   moderators can review. anomalyNote carries the
-//                   free-text detail.
-//   wouldReturn   — Q2 "Would you go again?". The single best per-event
-//                   quality signal. Aggregates roll up to host + club
-//                   level for the curation moat.
-//
-// The userId stays server-side only — it's used to gate "one response
-// per attendee" via the unique constraint and to support follow-up
-// moderator outreach when an anomaly is reported. It's never exposed
-// to the host in any UI.
 model EventSurvey {
   id          String   @id @default(cuid())
   eventId     String
   userId      String
-  anomaly     Boolean  // "Anything off?" yes/no
-  anomalyNote String?  // optional free-text detail
-  wouldReturn Boolean  // "Would you go again?"
+  anomaly     Boolean
+  anomalyNote String?
+  wouldReturn Boolean
   createdAt   DateTime @default(now())
-
-  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([eventId, userId])
   @@index([eventId])
@@ -570,96 +461,47 @@ model EventSurvey {
   @@map("event_surveys")
 }
 
-// Smileys Cup 2026 — fixtures + member predictions.
-//
-// CupFixture is the canonical match record, seeded once for the group
-// stage and topped up as knockout matchups firm up. Group-stage rows
-// carry points=0 (we don't score them in v1 — too much data entry,
-// low signal). Knockouts run R32 → R16 → QF → SF → Final because the
-// 2026 expansion to 48 teams put the first knockout round at 32, not
-// 16. Points scale with stakes:
-//   R32  3   ·   R16  5   ·   QF  10   ·   SF  20   ·   Final  40
-//
-// homeTeam / awayTeam are nullable so we can seed knockout placeholders
-// before group results are in: a row can have homeLabel "Winner Group
-// A" with homeTeam null, then admin fills in the country code once
-// the group concludes. ISO-3 codes throughout ("BRA", "ARG").
-//
-// winnerTeam is the trigger column — when admin sets it, the scoring
-// route runs in the same transaction, awarding `points` to every
-// matching CupPrediction.
 model CupFixture {
-  id           String   @id          // "2026-WC-R32-1", "2026-WC-G-A-1"
-  round        String                 // "group" | "r32" | "r16" | "qf" | "sf" | "final"
-  group        String?                // "A"–"L" (12 groups in the 48-team format), null for knockouts
-  homeTeam     String?                // ISO-3, e.g. "BRA". Null when TBD
-  awayTeam     String?
-  homeLabel    String?                // Human label when team TBD ("Winner Group A")
-  awayLabel    String?
-  kickoffAt    DateTime
-  venue        String?
-  winnerTeam   String?                // Set by admin; triggers scoring of related predictions
-  homeScore    Int?
-  awayScore    Int?
-  points       Int      @default(0)   // 0 (group) | 3 (R32) | 5 (R16) | 10 (QF) | 20 (SF) | 40 (F)
-  // Stamp set by the cup-reminders sweeper (~30 min before kickoff)
-  // once it has pushed "lock your pick" to subscribed members. Null
-  // = not yet notified. Idempotency: once stamped, sweeper skips
-  // the row on subsequent runs so a fixture only triggers one push
-  // round, even if the cron fires multiple times inside the [T-35,
-  // T-25] window.
-  reminderSentAt DateTime?
-  // Auto-scoring suggestion written by the cup-results sweeper from
-  // football-data.org. The sweeper only writes; admin clicks "Apply"
-  // in the fixtures UI to commit the values into homeScore /
-  // awayScore / winnerTeam (which is what actually triggers the
-  // prediction-scoring transaction). Keeping the suggestion separate
-  // means a wrong external value never lands as truth — admin always
-  // has the chance to override before scoring runs.
-  //
-  // suggestedStatus tracks the API's match state at the time of the
-  // write so we can show "live" suggestions differently from
-  // "finished" ones. FINISHED is the only state the UI offers an
-  // Apply button for.
-  suggestedHomeScore  Int?
-  suggestedAwayScore  Int?
-  suggestedWinnerTeam String?
-  suggestedStatus     String?
+  id                  String          @id
+  round               String
+  group               String?
+  homeTeam            String?
+  awayTeam            String?
+  homeLabel           String?
+  awayLabel           String?
+  kickoffAt           DateTime
+  venue               String?
+  winnerTeam          String?
+  homeScore           Int?
+  awayScore           Int?
+  points              Int             @default(0)
+  updatedAt           DateTime        @updatedAt
+  createdAt           DateTime        @default(now())
+  reminderSentAt      DateTime?
   suggestedAt         DateTime?
-  // Suggested team assignments for TBD knockout slots. Written by
-  // the sweeper when football-data.org has resolved the home/away
-  // teams for a R32/R16/QF/SF/F fixture upstream (i.e., once the
-  // prior round wrapped). Admin clicks "Apply teams" in the admin
-  // UI to commit them; once committed the fixture has homeTeam +
-  // awayTeam set and the standard score-suggestion path takes over.
-  suggestedHomeTeam   String?
+  suggestedAwayScore  Int?
+  suggestedHomeScore  Int?
+  suggestedStatus     String?
+  suggestedWinnerTeam String?
   suggestedAwayTeam   String?
-  updatedAt    DateTime @updatedAt
-  createdAt    DateTime @default(now())
-
-  predictions  CupPrediction[]
+  suggestedHomeTeam   String?
+  predictions         CupPrediction[]
 
   @@index([round, kickoffAt])
   @@index([reminderSentAt, kickoffAt])
   @@map("cup_fixtures")
 }
 
-// One row per (user, fixture). Upsert semantics: re-submitting before
-// the fixture's kickoffAt overwrites. pointsAwarded is cached so the
-// leaderboard query is a single SUM without joining CupFixture every
-// time — written by the admin result-entry endpoint when winnerTeam
-// is set.
 model CupPrediction {
-  id            String   @id @default(cuid())
+  id            String     @id @default(cuid())
   userId        String
   fixtureId     String
-  pickedTeam    String                 // ISO-3
-  submittedAt   DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  pointsAwarded Int      @default(0)
-
-  user    User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  fixture CupFixture @relation(fields: [fixtureId], references: [id], onDelete: Cascade)
+  pickedTeam    String
+  submittedAt   DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  pointsAwarded Int        @default(0)
+  fixture       CupFixture @relation(fields: [fixtureId], references: [id], onDelete: Cascade)
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, fixtureId])
   @@index([userId])
@@ -667,193 +509,118 @@ model CupPrediction {
   @@map("cup_predictions")
 }
 
-// Pre-tournament bracket — one row per user, locked at first kickoff.
-// championPick must appear in semifinalists[]. semifinalists must be
-// exactly 4 distinct ISO codes. Scoring: champion 100, each correct
-// semifinalist 25 (max 100). Tiebreaker on the leaderboard is earlier
-// submittedAt.
 model CupBracketPick {
   id            String   @id @default(cuid())
   userId        String   @unique
-  championPick  String                 // ISO-3
-  semifinalists String[]               // exactly 4 ISO-3 codes
+  championPick  String
+  semifinalists String[]
   submittedAt   DateTime @default(now())
   updatedAt     DateTime @updatedAt
   pointsAwarded Int      @default(0)
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("cup_bracket_picks")
 }
 
-// Campaign — the container for any sponsored / fundraising drive.
-// The Smileys Cup is the first one (slug: 'world-cup-2026'). Future
-// tournaments (Euros 2028, Champions League final, etc.) or
-// non-tournament drives (anniversary parties, referral pushes) get
-// their own Campaign row + reuse the Sponsor/Prize/Donation
-// machinery below.
-//
-// routeSlug is the URL alias — 'cup' for the cup (so links stay at
-// /cup), or a normal slug that resolves under /campaigns/<slug>.
 model Campaign {
-  id          String   @id @default(cuid())
-  slug        String   @unique  // 'world-cup-2026', 'euros-2028', etc.
+  id          String             @id @default(cuid())
+  slug        String             @unique
   name        String
   emoji       String?
   tagline     String?
   description String?
   coverImage  String?
-  status      String   @default("active")  // 'draft' | 'active' | 'wrapped' | 'archived'
+  status      String             @default("active")
   startsAt    DateTime?
   endsAt      DateTime?
-  // Public URL alias. 'cup' keeps the existing /cup URL for the
-  // World Cup; future campaigns resolve at /campaigns/<routeSlug>.
-  routeSlug   String   @default("cup")
-  // Whether this campaign has a fixtures/results admin surface
-  // (currently /admin/cup; future tournaments would get their own).
-  // Drives the "Fixtures + results →" pill on the campaign-detail
-  // admin page so we don't have to hardcode `slug === 'world-cup-2026'`
-  // every time a new tournament campaign lands.
-  hasFixtures Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  sponsors    CupSponsor[]
-  prizes      CupPrize[]
+  routeSlug   String             @default("cup")
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  hasFixtures Boolean            @default(false)
   donations   CupPrizeDonation[]
+  prizes      CupPrize[]
+  sponsors    CupSponsor[]
 
   @@index([status])
   @@map("campaigns")
 }
 
-// Cup prizes + sponsors. Three thin models for a public-facing
-// prize board on /cup, with a member/visitor "donate a prize"
-// form that admins triage in /admin/cup. All three carry a
-// campaignId so the machinery generalizes to future Campaign rows
-// — the names keep the Cup* prefix for migration safety (table
-// names + existing imports), but conceptually these are
-// Campaign-scoped.
-//
-// Display vs back-of-house:
-//   • CupSponsor + CupPrize are display state — the visible board
-//     on /cup reads from these. Active rows render; archived
-//     rows are kept for history.
-//   • CupPrizeDonation is the submission queue. Anyone (auth not
-//     required) can POST one. Admin reviews and on approval
-//     creates the corresponding Sponsor + Prize via /admin/cup.
-//     The donation row stays as audit history.
 model CupSponsor {
-  id          String   @id @default(cuid())
-  // campaignId is nullable for migration safety — fresh installs
-  // and existing rows get populated by the seed/backfill script
-  // (scripts/seed-cup.ts upserts the world-cup-2026 Campaign).
-  // Routes always filter by campaign so the column is
-  // operationally required even though the FK is nullable.
-  campaignId  String?
-  campaign    Campaign? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  slug        String   @unique  // url-safe, used in CSS targeting / future detail pages
-  name        String
-  blurb       String?  // 1–2 sentences for the prize card
-  logoUrl     String?  // /app/api/files/... or external https
-  websiteUrl  String?
-  instagramUrl String?
-  status      String   @default("active")  // 'pending' | 'active' | 'archived'
-  // Optional FK to the User who first added them — handy for
-  // attribution when a member proposes a sponsor via the donate
-  // form.
+  id            String     @id @default(cuid())
+  slug          String     @unique
+  name          String
+  blurb         String?
+  logoUrl       String?
+  websiteUrl    String?
+  instagramUrl  String?
+  status        String     @default("active")
   addedByUserId String?
-  addedBy       User?    @relation("CupSponsorAddedBy", fields: [addedByUserId], references: [id], onDelete: SetNull)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  prizes      CupPrize[]
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  campaignId    String?
+  prizes        CupPrize[]
+  addedBy       User?      @relation("CupSponsorAddedBy", fields: [addedByUserId], references: [id])
+  campaign      Campaign?  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
   @@index([campaignId, status])
   @@map("cup_sponsors")
 }
 
 model CupPrize {
-  id          String   @id @default(cuid())
-  // Campaign FK — same nullable-for-migration pattern as
-  // CupSponsor. Seed populates.
-  campaignId  String?
-  campaign    Campaign? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  title       String
-  description String?
-  imageUrl    String?
-  // rank: 1, 2, 3 for the podium positions. null = "spot prize"
-  // (anything outside the top 3 — runners-up, raffles, etc.).
-  rank        Int?
-  status      String   @default("draft")  // 'draft' | 'active' | 'awarded' | 'archived'
-  // Optional sponsor link. Some prizes (e.g. a year of VIP from
-  // Smileys itself) don't have an external sponsor — left null.
-  sponsorId   String?
-  sponsor     CupSponsor? @relation(fields: [sponsorId], references: [id], onDelete: SetNull)
-  // Awarded-to: filled when the prize is handed out. Lets us show
-  // a "won by ___" line on archived prizes for history.
+  id              String      @id @default(cuid())
+  title           String
+  description     String?
+  imageUrl        String?
+  rank            Int?
+  status          String      @default("draft")
+  sponsorId       String?
   awardedToUserId String?
-  awardedTo       User?   @relation("CupPrizeAwardedTo", fields: [awardedToUserId], references: [id], onDelete: SetNull)
   awardedAt       DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  campaignId      String?
+  awardedTo       User?       @relation("CupPrizeAwardedTo", fields: [awardedToUserId], references: [id])
+  campaign        Campaign?   @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  sponsor         CupSponsor? @relation(fields: [sponsorId], references: [id])
+
   @@index([campaignId, status, rank])
   @@map("cup_prizes")
 }
 
 model CupPrizeDonation {
-  id          String   @id @default(cuid())
-  // Campaign FK — same nullable-for-migration pattern. Public
-  // donate form will set this from the URL slug (or default to
-  // the cup campaign when posted from /cup).
-  campaignId  String?
-  campaign    Campaign? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  // Donor identity. We collect name + email so admin can follow
-  // up. Phone optional. Organization optional (individual donors
-  // are welcome).
-  donorName        String
-  donorEmail       String
+  id                String    @id @default(cuid())
+  donorName         String
+  donorEmail        String
   donorOrganization String?
-  donorPhone       String?
-  // What they're offering.
-  prizeTitle       String
-  prizeDescription String
-  estimatedValue   Int?     // in TRY (or whatever currency, label in UI)
-  notes            String?
-  // Review state. Linked rows are stamped when an admin clicks
-  // "convert to prize" so we can trace prize ↔ donation history.
-  status           String   @default("pending")  // 'pending' | 'approved' | 'declined'
-  reviewedByUserId String?
-  reviewedBy       User?    @relation("CupDonationReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
-  reviewedAt       DateTime?
-  reviewNote       String?  // optional admin note (private)
-  linkedSponsorId  String?
-  linkedPrizeId    String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  donorPhone        String?
+  prizeTitle        String
+  prizeDescription  String
+  estimatedValue    Int?
+  notes             String?
+  status            String    @default("pending")
+  reviewedByUserId  String?
+  reviewedAt        DateTime?
+  reviewNote        String?
+  linkedSponsorId   String?
+  linkedPrizeId     String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  campaignId        String?
+  campaign          Campaign? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  reviewedBy        User?     @relation("CupDonationReviewer", fields: [reviewedByUserId], references: [id])
+
   @@index([campaignId, status, createdAt])
   @@map("cup_prize_donations")
 }
 
-// Quarterly Net Promoter Score survey. One row per (userId, period)
-// — the unique constraint prevents a user from double-responding in
-// the same quarter. Period is "YYYY-Qn" (e.g. "2026-Q2"), computed
-// at dispatch time in lib/nps.ts.
-//
-// userId stays server-side: admin endpoints never expose it. Same
-// anonymity wedge as EventSurvey — honest responses depend on the
-// member trusting nothing is traceable to their face. Soft outreach
-// to detractors (admin → "anything we can do better?") goes via
-// notification by score band, not by name.
-//
-// score is 0–10. Promoter = 9–10, Passive = 7–8, Detractor = 0–6.
-// NPS = %promoters − %detractors (range −100 to +100).
 model MemberNPS {
   id        String   @id @default(cuid())
   userId    String
-  score     Int      // 0–10
-  comment   String?  // optional free-text
-  period    String   // "YYYY-Qn", e.g. "2026-Q2"
+  score     Int
+  comment   String?
+  period    String
   createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, period])
   @@index([period, createdAt])
@@ -866,8 +633,8 @@ model TagGroup {
   name      String   @unique
   emoji     String   @default("🏷️")
   sortOrder Int      @default(0)
-  tags      Tag[]
   createdAt DateTime @default(now())
+  tags      Tag[]
 
   @@map("tag_groups")
 }
@@ -877,9 +644,9 @@ model Tag {
   name      String     @unique
   emoji     String     @default("🏷️")
   groupId   String
-  group     TagGroup   @relation(fields: [groupId], references: [id])
-  events    EventTag[]
   createdAt DateTime   @default(now())
+  events    EventTag[]
+  group     TagGroup   @relation(fields: [groupId], references: [id])
 
   @@map("tags")
 }
@@ -887,9 +654,8 @@ model Tag {
 model EventTag {
   eventId String
   tagId   String
-
-  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  tag   Tag   @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  tag     Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
   @@id([eventId, tagId])
   @@map("event_tags")
@@ -899,21 +665,17 @@ model EventAttendee {
   id        String   @id @default(cuid())
   userId    String
   eventId   String
-  status    String   @default("approved")
   checkedIn Boolean  @default(false)
-  stealth   Boolean  @default(false)
   joinedAt  DateTime @default(now())
-
-  user  User  @relation(fields: [userId], references: [id])
-  event Event @relation(fields: [eventId], references: [id])
+  status    String   @default("approved")
+  stealth   Boolean  @default(false)
+  event     Event    @relation(fields: [eventId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
 
   @@unique([userId, eventId])
   @@index([eventId])
   @@index([userId])
   @@index([status])
-  // The participants page + RSVP gender-quota counts both hit
-  // (eventId, status='approved'). Composite makes the count query
-  // an index-only scan instead of a heap fetch.
   @@index([eventId, status])
   @@map("event_attendees")
 }
@@ -925,9 +687,8 @@ model Review {
   rating    Int
   text      String
   createdAt DateTime @default(now())
-
-  user  User  @relation(fields: [userId], references: [id])
-  event Event @relation(fields: [eventId], references: [id])
+  event     Event    @relation(fields: [eventId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
 
   @@unique([userId, eventId])
   @@map("reviews")
@@ -938,131 +699,83 @@ model Payment {
   userId         String
   eventId        String
   amount         Float
-  currency       String   @default("TRY")
-  // RESERVED FIELDS — kept for future processor integration but currently
-  // unused by any code path. Don't trust the default — every payment today
-  // is collected manually (cash / wire / iyzilink) and admin reconciles via
-  // /admin/payments. The "card" default is historic; new rows will keep it
-  // until someone integrates a real processor and starts writing this
-  // field properly. CSV export + audit snapshot both surface it as-is.
   method         String   @default("card")
-  // RESERVED — never written by any code path. Future: 'iyzico' / 'stripe'
-  // / 'manual' when a processor is wired up. Reading this today returns
-  // null for every row; don't gate logic on it.
-  provider       String?
   status         String   @default("pending")
-  // RESERVED — never written by any code path. Future: processor's
-  // transaction id for reconciliation. Reading this today returns null
-  // for every row.
-  transactionRef String?
-  notes          String?
   createdAt      DateTime @default(now())
-
-  user  User  @relation(fields: [userId], references: [id])
-  event Event @relation(fields: [eventId], references: [id])
+  currency       String   @default("TRY")
+  notes          String?
+  provider       String?
+  transactionRef String?
+  event          Event    @relation(fields: [eventId], references: [id])
+  user           User     @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([eventId])
   @@index([status])
-  // The admin payments page orders by createdAt desc and pages
-  // 500 rows at a time (PR 3 cap). Index on createdAt avoids a
-  // full-table sort once the table grows past a few thousand rows.
   @@index([createdAt])
-  // The "revenue by event" groupBy in the admin stats hits
-  // (eventId, status) — composite avoids two separate index reads
-  // intersected via bitmap-and.
   @@index([eventId, status])
-  // The member-side RSVP cancel + admin participant-remove flows
-  // hit (userId, eventId, status='pending'). Same composite serves
-  // both, since the leading (userId, eventId) is the natural prefix.
   @@index([userId, eventId, status])
   @@map("payments")
 }
 
 model MemberApplication {
   id                   String    @id @default(cuid())
-  firstName            String    @default("")
-  lastName             String    @default("")
   fullName             String
   email                String
   phone                String?
-  birthdate            String?
-  gender               String?
-  country              String?
-  city                 String?
-  neighborhood         String?
-  instagram            String?
-  linkedin             String?
-  profession           String?
-  timeInCity           String?
-  reasonHere           String?
-  // Legacy essay fields — collected before the apply form was consolidated.
-  // Kept nullable so older applications keep their answers visible in admin
-  // review. New applications populate aboutCommunity instead.
-  whyJoin              String?
-  enjoyWith            String?
-  goodCommunity        String?
-  // Replaces whyJoin + enjoyWith + goodCommunity — one prompt covering all
-  // three: "What community are you looking for, and what would you bring to it?"
-  aboutCommunity       String?
-  interests            String[]
-  socialStyles         String[]
-  contribution         String?
-  groupBehavior        String?
-  removedFromCommunity String?
-  toxicBehavior        String?
-  // Replaces groupBehavior + removedFromCommunity + toxicBehavior — one
-  // prompt: "Tell us about a time you handled a difficult social situation well."
-  socialJudgment       String?
-  // Languages spoken — multi-select on apply, populates User.languages on
-  // approval (currently registration re-prompts; can later prefill).
-  languages            String[]
-  // "Open to…" pre-set at apply time; copied to User.openTo* on registration
-  // so new members land discoverable in /members filters from day 1.
-  openToCoffee         Boolean   @default(false)
-  openToLanguage       Boolean   @default(false)
-  openToHosting        Boolean   @default(false)
-  profilePhoto         String?
-  assignedClubs        String[]
-  suggestion           String?
-  suggestedBy          String?
   bio                  String?
   source               String?
-  referredBy           String?
   status               String    @default("pending")
   reviewedBy           String?
   reviewNote           String?
   createdAt            DateTime  @default(now())
   reviewedAt           DateTime?
+  city                 String?
+  instagram            String?
+  linkedin             String?
+  profession           String?
+  reasonHere           String?
+  timeInCity           String?
+  enjoyWith            String?
+  goodCommunity        String?
+  interests            String[]
+  whyJoin              String?
+  contribution         String?
+  groupBehavior        String?
+  removedFromCommunity String?
+  toxicBehavior        String?
+  profilePhoto         String?
+  assignedClubs        String[]
+  suggestedBy          String?
+  suggestion           String?
+  firstName            String    @default("")
+  lastName             String    @default("")
+  neighborhood         String?
+  country              String?
+  birthdate            String?
+  gender               String?
+  referredBy           String?
   escalated            Boolean   @default(false)
   escalatedNote        String?
   escalatedBy          String?
   escalatedAt          DateTime?
+  socialStyles         String[]
   ipAddress            String?
   userAgent            String?
   fingerprint          String?
+  disposableEmail      Boolean   @default(false)
   timezone             String?
   timezoneMismatch     Boolean   @default(false)
-  disposableEmail      Boolean   @default(false)
-  // Aggregate suspicion score computed at apply-time from the individual
-  // signals above (timezoneMismatch / disposableEmail / fingerprint or IP
-  // match / no phone / name similar to blacklist). Surfaces a single
-  // "🚨 Sus N" badge on the admin card alongside the existing fit Score,
-  // and gives admins a single dimension to sort the pending queue by when
-  // the spam wave hits.
+  aboutCommunity       String?
+  languages            String[]
+  openToCoffee         Boolean   @default(false)
+  openToHosting        Boolean   @default(false)
+  openToLanguage       Boolean   @default(false)
+  socialJudgment       String?
   suspicionScore       Int       @default(0)
-
-  // Target city for the application — routes review into that city's
-  // queue and determines which moderators see it. Backfilled to
-  // Istanbul on 2026-05-29 and now required. The apply form
-  // populates it from a city selector (defaulting to Istanbul).
-  // Note: the existing free-text `city` field above is the applicant's
-  // currently-resident city (a personal datum); targetCityId is the
-  // *community* they're applying to. Different concepts.
   targetCityId         String
+  reviewer             User?     @relation(fields: [reviewedBy], references: [id])
   targetCity           City      @relation(fields: [targetCityId], references: [id])
-
-  reviewer User? @relation(fields: [reviewedBy], references: [id])
 
   @@index([email])
   @@index([phone])
@@ -1082,16 +795,12 @@ model Notification {
   body      String
   isRead    Boolean  @default(false)
   link      String?
-  data      Json?
   createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  data      Json?
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([isRead])
-  // The per-user notification feed sorts by createdAt desc on a
-  // single-user filter. Composite lets Postgres skip the sort step
-  // for the typical "last 30 for me" query in app/api/notifications.
   @@index([userId, createdAt])
   @@map("notifications")
 }
@@ -1102,11 +811,10 @@ model EventMessage {
   userId    String
   message   String
   createdAt DateTime @default(now())
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([eventId, createdAt(sort: Asc)])
+  @@index([eventId, createdAt])
   @@index([userId])
   @@map("event_messages")
 }
@@ -1132,16 +840,6 @@ model PasswordResetToken {
   @@map("password_reset_tokens")
 }
 
-// One-time recovery codes for users with TOTP 2FA enabled. Generated as a
-// batch at enrollment; consumed at /api/auth/2fa/verify as an alternative
-// to the 6-digit TOTP code when the user has lost their device. Stored as
-// SHA-256 hashes (same rationale as the reset/verify tokens above: codes
-// are high-entropy random strings, so unsalted hashing is sufficient and
-// lets us look up by hash). `usedAt` lets users see "5 of 10 codes used".
-//
-// Cleared in two places:
-//   - DELETE /api/auth/2fa/setup (user disables 2FA)
-//   - account-deletion route
 model TotpBackupCode {
   id        String    @id @default(cuid())
   userId    String
@@ -1149,41 +847,26 @@ model TotpBackupCode {
   used      Boolean   @default(false)
   usedAt    DateTime?
   createdAt DateTime  @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("totp_backup_codes")
 }
 
-// Per-device session row. The ID is embedded as the `jti` claim in the
-// session JWT issued at login. `getSession()` checks the row exists +
-// hasn't been explicitly revoked on every authenticated request.
-//
-// Why this exists: the `tokenVersion` mechanism on User invalidates EVERY
-// session for a user at once (logout, password reset, role change), but
-// can't revoke a single device. With this table, users can see all their
-// active devices in /settings and sign out individual ones (lost laptop,
-// borrowed phone).
-//
-// Legacy compat: sessions issued before this column was added carry no
-// `jti` claim. getSession() treats those as "legacy mode" — still valid
-// until the 7-day JWT expiry, but not tracked here. After 7 days, every
-// session is tracked.
 model Session {
-  id         String    @id @default(cuid())
-  userId     String
-  userAgent  String?
-  ip         String?
-  createdAt  DateTime  @default(now())
-  lastUsedAt DateTime  @default(now())
-  expiresAt  DateTime
-  revokedAt  DateTime?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id           String    @id @default(cuid())
+  userId       String
+  userAgent    String?
+  ip           String?
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime  @default(now())
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  totpVerified Boolean   @default(false)
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, revokedAt])
-  @@index([expiresAt]) // for the cleanup sweeper
+  @@index([expiresAt])
   @@map("sessions")
 }
 
@@ -1205,13 +888,12 @@ model NotificationPreference {
   reminders    Boolean @default(true)
   eventUpdates Boolean @default(true)
   joinedEvents Boolean @default(true)
-  wallPosts    Boolean @default(true)
-  wallReplies  Boolean @default(true)
   quietHours   Boolean @default(false)
   quietFrom    Int     @default(23)
   quietTo      Int     @default(9)
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  wallReplies  Boolean @default(true)
+  wallPosts    Boolean @default(true)
+  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("notification_preferences")
 }
@@ -1236,15 +918,12 @@ model Broadcast {
   message   String
   type      String
   audience  String
-  // 'in-app' | 'email'. Default keeps pre-column rows readable as
-  // in-app; new sends record the actual channel so admins can tell
-  // which broadcasts went to mail vs only to the inbox.
-  channel   String   @default("in-app")
   clubId    String?
   eventId   String?
   sentBy    String
   sentCount Int
   createdAt DateTime @default(now())
+  channel   String   @default("in-app")
 
   @@map("broadcasts")
 }
@@ -1254,11 +933,11 @@ model AuditLog {
   adminId     String
   adminName   String
   action      String
-  description String?
   targetId    String?
   targetType  String?
   meta        Json?
   createdAt   DateTime @default(now())
+  description String?
 
   @@index([adminId])
   @@index([action])
@@ -1266,15 +945,9 @@ model AuditLog {
   @@map("audit_logs")
 }
 
-// #5 monitoring: per-sweeper liveness. Each cron handler calls
-// recordCronRun on success/failure; the admin dashboard flags
-// any sweeper that hasn't checked in within its expected
-// cadence. Without this, a sweeper silently failing (bad
-// CRON_SECRET, crashed process, DNS blip) goes un-noticed
-// until users complain that reminders aren't firing.
 model CronRun {
   id            String    @id @default(cuid())
-  name          String    @unique  // e.g. 'sweep-cup-reminders'
+  name          String    @unique
   lastSuccessAt DateTime?
   lastError     String?
   lastErrorAt   DateTime?
@@ -1285,27 +958,13 @@ model CronRun {
   @@map("cron_runs")
 }
 
-// #4 monitoring: every send*Email .catch path that previously
-// went silent now also writes a row here. Lets the admin
-// dashboard alert when SMTP/Resend is broken instead of waiting
-// for members to complain. Auto-pruned by the existing
-// retention sweeper (see /admin/retention).
 model EmailFailure {
-  id         String   @id @default(cuid())
-  // The function name from lib/email.ts, e.g. 'sendRefundEmail'
-  // — used for grouping in the dashboard ("X failures of type Y").
-  helper     String
-  // The recipient email (already in our DB; this column is for
-  // quick eyeballing without joining back through context).
-  recipient  String
-  // Error message from the helper. Capped at 500 to bound row
-  // size — full stack lives in the server console.
-  error      String
-  // Whatever context the caller had (paymentId, eventId, userId,
-  // etc.) so an admin investigating can grep their way to the
-  // specific record without leaving the dashboard.
-  context    Json?
-  createdAt  DateTime @default(now())
+  id        String   @id @default(cuid())
+  helper    String
+  recipient String
+  error     String
+  context   Json?
+  createdAt DateTime @default(now())
 
   @@index([helper])
   @@index([createdAt])
@@ -1313,21 +972,20 @@ model EmailFailure {
 }
 
 model ClubPost {
-  id        String    @id @default(cuid())
+  id        String          @id @default(cuid())
   clubId    String
   userId    String
   content   String
-  type      String    @default("post")
-  isPinned  Boolean   @default(false)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  isPinned  Boolean         @default(false)
   pinnedAt  DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-
-  club    Club            @relation(fields: [clubId], references: [id], onDelete: Cascade)
-  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  likes   ClubPostLike[]
-  replies ClubPostReply[]
-  poll    ClubPoll?
+  type      String          @default("post")
+  poll      ClubPoll?
+  likes     ClubPostLike[]
+  replies   ClubPostReply[]
+  club      Club            @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([clubId, isPinned(sort: Desc), createdAt(sort: Desc)])
   @@map("club_posts")
@@ -1336,11 +994,10 @@ model ClubPost {
 model ClubPostLike {
   postId    String
   userId    String
-  emoji     String   @default("❤️")
   createdAt DateTime @default(now())
-
-  post ClubPost @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emoji     String   @default("❤️")
+  post      ClubPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([postId, userId])
   @@map("club_post_likes")
@@ -1352,49 +1009,45 @@ model ClubPostReply {
   userId    String
   content   String
   createdAt DateTime @default(now())
-
-  post ClubPost @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      ClubPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([postId, createdAt])
   @@map("club_post_replies")
 }
 
 model ClubPoll {
-  id       String @id @default(cuid())
-  postId   String @unique
+  id       String           @id @default(cuid())
+  postId   String           @unique
   question String
-
-  post    ClubPost         @relation(fields: [postId], references: [id], onDelete: Cascade)
-  options ClubPollOption[]
-  votes   ClubPollVote[]
+  options  ClubPollOption[]
+  votes    ClubPollVote[]
+  post     ClubPost         @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@map("club_polls")
 }
 
 model ClubPollOption {
-  id     String @id @default(cuid())
+  id     String         @id @default(cuid())
   pollId String
   text   String
-  order  Int    @default(0)
-
-  poll  ClubPoll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
-  votes ClubPollVote[]
+  order  Int            @default(0)
+  poll   ClubPoll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  votes  ClubPollVote[]
 
   @@index([pollId])
   @@map("club_poll_options")
 }
 
 model ClubPollVote {
-  id        String   @id @default(cuid())
+  id        String         @id @default(cuid())
   userId    String
   pollId    String
   optionId  String
-  createdAt DateTime @default(now())
-
-  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  poll   ClubPoll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
-  option ClubPollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  createdAt DateTime       @default(now())
+  option    ClubPollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  poll      ClubPoll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, pollId])
   @@index([optionId])
@@ -1457,8 +1110,8 @@ model CommunityPollVote {
   pollId    String
   optionId  String
   createdAt DateTime            @default(now())
-  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   option    CommunityPollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, pollId])
   @@map("community_poll_votes")
@@ -1502,12 +1155,14 @@ model Post {
   status      String    @default("draft")
   category    String    @default("Community")
   authorId    String
-  author      User      @relation(fields: [authorId], references: [id])
   publishedAt DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  kind        String    @default("community")
+  author      User      @relation(fields: [authorId], references: [id])
 
   @@index([status, publishedAt])
+  @@index([kind, status, publishedAt])
   @@map("posts")
 }
 
@@ -1515,16 +1170,13 @@ model MemberConnection {
   id          String   @id @default(cuid())
   requesterId String
   receiverId  String
-  // Sorted pair of user IDs — "smaller|larger" — enforces uniqueness across the
-  // unordered pair so concurrent A->B and B->A inserts can't both succeed.
-  pairKey     String   @unique
   status      String   @default("pending")
-  note        String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
-  requester User @relation("ConnectionRequester", fields: [requesterId], references: [id], onDelete: Cascade)
-  receiver  User @relation("ConnectionReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  note        String?
+  pairKey     String   @unique
+  receiver    User     @relation("ConnectionReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  requester   User     @relation("ConnectionRequester", fields: [requesterId], references: [id], onDelete: Cascade)
 
   @@unique([requesterId, receiverId])
   @@index([receiverId])
@@ -1539,8 +1191,7 @@ model AdminNote {
   adminName String
   text      String
   createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("admin_notes")
@@ -1553,53 +1204,44 @@ model PushSubscription {
   p256dh    String
   auth      String
   createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("push_subscriptions")
 }
 
 model DirectMessage {
-  id        String   @id @default(cuid())
+  id        String                  @id @default(cuid())
   fromId    String
   toId      String
   text      String
-  // Optional image attachment — validated against the /api/upload regex
-  // (/app/api/files/<sub>/<file>.ext). text remains required; can be a single
-  // space for an image-only message.
+  isRead    Boolean                 @default(false)
+  createdAt DateTime                @default(now())
   imageUrl  String?
-  // Reply-to — self-referencing FK. SetNull (not Cascade) so deleting the
-  // original message keeps the reply visible (it just loses the quote chip).
   replyToId String?
-  isRead    Boolean  @default(false)
-  createdAt DateTime @default(now())
-
-  from      User                    @relation("SentMessages",     fields: [fromId], references: [id], onDelete: Cascade)
-  to        User                    @relation("ReceivedMessages", fields: [toId],   references: [id], onDelete: Cascade)
-  replyTo   DirectMessage?          @relation("DMReplyTo", fields: [replyToId], references: [id], onDelete: SetNull)
-  replies   DirectMessage[]         @relation("DMReplyTo")
+  deletedAt DateTime?
   reactions DirectMessageReaction[]
+  from      User                    @relation("SentMessages", fields: [fromId], references: [id], onDelete: Cascade)
+  replyTo   DirectMessage?          @relation("DMReplyTo", fields: [replyToId], references: [id])
+  replies   DirectMessage[]         @relation("DMReplyTo")
+  to        User                    @relation("ReceivedMessages", fields: [toId], references: [id], onDelete: Cascade)
 
   @@index([fromId, toId])
   @@index([toId, isRead])
   @@index([createdAt])
   @@index([replyToId])
+  @@index([deletedAt])
   @@map("direct_messages")
 }
 
-// WhatsApp-style reactions on direct messages. One emoji per user per
-// message (unique constraint); re-reacting with the same emoji removes it,
-// re-reacting with a different one switches.
 model DirectMessageReaction {
-  id        String   @id @default(cuid())
+  id        String        @id @default(cuid())
   messageId String
   userId    String
   emoji     String
-  createdAt DateTime @default(now())
-
-  message DirectMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  user    User          @relation(fields: [userId],    references: [id], onDelete: Cascade)
+  createdAt DateTime      @default(now())
+  message   DirectMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([messageId, userId])
   @@index([messageId])
@@ -1607,19 +1249,18 @@ model DirectMessageReaction {
 }
 
 model NeighborhoodPost {
-  id           String    @id @default(cuid())
+  id           String                  @id @default(cuid())
   neighborhood String
   userId       String
   content      String
   imageUrl     String?
-  isPinned     Boolean   @default(false)
+  isPinned     Boolean                 @default(false)
   pinnedAt     DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-
-  user    User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  likes   NeighborhoodPostLike[]
-  replies NeighborhoodPostReply[]
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+  likes        NeighborhoodPostLike[]
+  replies      NeighborhoodPostReply[]
+  user         User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([neighborhood, isPinned(sort: Desc), createdAt(sort: Desc)])
   @@map("neighborhood_posts")
@@ -1628,47 +1269,45 @@ model NeighborhoodPost {
 model NeighborhoodPostLike {
   postId    String
   userId    String
-  emoji     String   @default("❤️")
-  createdAt DateTime @default(now())
-
-  post NeighborhoodPost @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emoji     String           @default("❤️")
+  createdAt DateTime         @default(now())
+  post      NeighborhoodPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([postId, userId])
   @@map("neighborhood_post_likes")
 }
 
 model NeighborhoodPostReply {
-  id        String   @id @default(cuid())
+  id        String           @id @default(cuid())
   postId    String
   userId    String
   content   String
-  createdAt DateTime @default(now())
-
-  post NeighborhoodPost @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime         @default(now())
+  post      NeighborhoodPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([postId, createdAt])
   @@map("neighborhood_post_replies")
 }
 
 model Listing {
-  id           String   @id @default(cuid())
+  id           String         @id @default(cuid())
   userId       String
-  category     String // ROOMS | JOBS | BUY_SELL
+  category     String
   title        String
   description  String
   price        String?
-  photo        String?
-  contact      String? // WhatsApp link or number
-  neighborhood String? // One of lib/neighborhoods ISTANBUL_NEIGHBORHOODS, validated server-side
-  status       String   @default("active") // active | filled | expired | deleted
+  photo         String?
+  photoPosition Int     @default(50)
+  contact      String?
+  status       String         @default("active")
   expiresAt    DateTime
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  user    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  savedBy SavedListing[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  neighborhood String?
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  savedBy      SavedListing[]
 
   @@index([category, status, createdAt])
   @@index([neighborhood, status])
@@ -1676,61 +1315,38 @@ model Listing {
   @@map("listings")
 }
 
-// Spontaneous "I'm at X right now, anyone wanna join?" meetups. Lighter than
-// Events — no RSVP, no quota, no approval. Auto-expires after the window so
-// the page stays current. Members-only (real-time, contact-required).
 model Hangout {
-  id           String   @id @default(cuid())
-  userId       String   // host
-  title        String   // "Coffee at Moda İskele"
-  description  String?  // optional vibe note
-  location     String   // free-text venue name / address — Maps link in description if useful
-  neighborhood String?  // canonical Istanbul neighborhood (for filter + push targeting)
-  startsAt     DateTime
-  endsAt       DateTime
-  status       String   @default("active") // active | expired | cancelled
-  // Intent signal — 'group' means "bring whoever", 'solo' means
-  // "looking for one person." Drives the feed filter chips and the
-  // small badge on each card. Defaults to 'group' so legacy hangouts
-  // (and forgetful hosts) stay in the broad-reach pool.
-  meetMode     String   @default("group")  // 'group' | 'solo'
-  // Optional photo of the meeting spot — single image, hosted on our
-  // /app/api/files/hangouts/ tree. Resolves the "where is the group?"
-  // problem at busy cafés. Same URL shape and regex enforcement as
-  // DM image attachments.
-  photo        String?
-  createdAt    DateTime @default(now())
-
-  // Lifecycle push tracking — set by the sweeper cron so we only fire each
-  // notification once per hangout, even if the sweeper runs concurrently or
-  // restarts mid-batch.
-  notifiedStartingAt DateTime?  // "starts in 30 min" push has been sent
-  // (recap push is implicitly tracked by status === 'expired' since the
-  // sweeper finds expired hangouts by status === 'active' && endsAt < now,
-  // and flips the status as part of the same pass)
-
-  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  joins      HangoutJoin[]
-  messages   HangoutMessage[]
-  references HangoutReference[]
+  id                 String             @id @default(cuid())
+  userId             String
+  title              String
+  description        String?
+  location           String
+  neighborhood       String?
+  startsAt           DateTime
+  endsAt             DateTime
+  status             String             @default("active")
+  createdAt          DateTime           @default(now())
+  notifiedStartingAt DateTime?
+  meetMode           String             @default("group")
+  photo              String?
+  joins              HangoutJoin[]
+  messages           HangoutMessage[]
+  references         HangoutReference[]
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([status, endsAt])
-  @@index([status, startsAt])     // sweeper queries by (status, startsAt window)
+  @@index([status, startsAt])
   @@index([neighborhood, status])
   @@map("hangouts")
 }
 
-// "I'm in" — one row per member who tapped Going on a hangout. Drives the
-// avatar strip + count on each card and the recipient list for push when a
-// new message lands.
 model HangoutJoin {
   id        String   @id @default(cuid())
   hangoutId String
   userId    String
   createdAt DateTime @default(now())
-
-  hangout Hangout @relation(fields: [hangoutId], references: [id], onDelete: Cascade)
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hangout   Hangout  @relation(fields: [hangoutId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([hangoutId, userId])
   @@index([hangoutId])
@@ -1738,98 +1354,66 @@ model HangoutJoin {
   @@map("hangout_joins")
 }
 
-// Lightweight comment thread on each hangout — for "running 10min late" /
-// "we're at the back table" coordination, not full event chat.
 model HangoutMessage {
   id        String   @id @default(cuid())
   hangoutId String
   userId    String
   body      String
   createdAt DateTime @default(now())
-
-  hangout Hangout @relation(fields: [hangoutId], references: [id], onDelete: Cascade)
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hangout   Hangout  @relation(fields: [hangoutId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([hangoutId, createdAt])
   @@map("hangout_messages")
 }
 
-// Per-hangout, per-pair trust signal. Joiners reference the host; the host
-// references each joiner. The aggregate goodHangouts / noShowCount counters
-// on User are the source-of-truth-for-reads — every other surface (hangout
-// card badge, member profile, application review) defers to those numbers.
-//
-// One reference per (hangout, from, to) tuple — re-clicking a button updates
-// the existing row via vibe field, doesn't insert duplicates.
-//
-// vibe values:
-//   - 'good'    — showed up, good chat. Increments toUser.goodHangouts.
-//   - 'meh'     — showed up, fine. No counter movement (neutral).
-//   - 'no_show' — said they were coming, never appeared. Increments
-//                 toUser.noShowCount.
 model HangoutReference {
   id         String   @id @default(cuid())
   hangoutId  String
-  fromUserId String   // who left the reference
-  toUserId   String   // who's being referenced
-  vibe       String   // 'good' | 'meh' | 'no_show'
+  fromUserId String
+  toUserId   String
+  vibe       String
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+  fromUser   User     @relation("HangoutReferencesGiven", fields: [fromUserId], references: [id], onDelete: Cascade)
+  hangout    Hangout  @relation(fields: [hangoutId], references: [id], onDelete: Cascade)
+  toUser     User     @relation("HangoutReferencesGot", fields: [toUserId], references: [id], onDelete: Cascade)
 
-  hangout  Hangout @relation(fields: [hangoutId], references: [id], onDelete: Cascade)
-  fromUser User    @relation("HangoutReferencesGiven", fields: [fromUserId], references: [id], onDelete: Cascade)
-  toUser   User    @relation("HangoutReferencesGot",   fields: [toUserId],   references: [id], onDelete: Cascade)
-
-  @@unique([hangoutId, fromUserId, toUserId])  // one ref per pair per hangout
-  @@index([toUserId, vibe])                     // for any rebuilds of the counters
+  @@unique([hangoutId, fromUserId, toUserId])
+  @@index([toUserId, vibe])
   @@index([hangoutId])
   @@map("hangout_references")
 }
 
-// Lightweight "I'm around" pulse — between "I'd love to meet someone in
-// theory" and "I'm posting a real hangout at X cafe at Y time." A user
-// drops one of these to signal "free for the next few hours, message me
-// if you're nearby." Surfaces in the hangouts feed as a different card
-// type so it drives activity when no one's posted a real hangout.
-//
-// One active pulse per user at a time — posting a new one replaces the
-// old one (enforced by the route handler, not the schema, so we can keep
-// historical rows if we ever want a "you've been around 12 times" badge).
-// 4-hour max TTL — fresh-only signal, enforced at create time.
 model AvailabilityPulse {
   id           String   @id @default(cuid())
   userId       String
-  neighborhood String?  // canonical Istanbul neighborhood (filter + targeting)
-  note         String?  // "down for coffee" / "drinks after work" / etc.
-  until        DateTime // when this pulse stops being visible
+  neighborhood String?
+  note         String?
+  until        DateTime
   createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([until])                  // feed query is `until > now`
-  @@index([neighborhood, until])    // neighborhood-scoped feed
-  @@index([userId])                 // for "find my active pulse"
+  @@index([until])
+  @@index([neighborhood, until])
+  @@index([userId])
   @@map("availability_pulses")
 }
 
-// "I'm visiting Istanbul" announcements — anonymous-friendly so non-members
-// can post before they sign up (Couchsurfing-style growth lever). Contact
-// info is gated client-side behind login to discourage scraping.
 model VisitorAnnouncement {
   id           String   @id @default(cuid())
-  userId       String?  // null when a non-member posts; linked when a member does
-  name         String   // display name as entered
-  email        String?  // shown only to logged-in members
-  fromCity     String?  // "Berlin", "Mumbai"…
-  intro        String   // why visiting / what they want
-  startsOn     String   // YYYY-MM-DD
-  endsOn       String   // YYYY-MM-DD
-  neighborhood String?  // primary area
-  contact      String?  // WhatsApp / Telegram / Instagram — gated client-side
-  status       String   @default("active") // active | expired | removed
+  userId       String?
+  name         String
+  email        String?
+  fromCity     String?
+  intro        String
+  startsOn     String
+  endsOn       String
+  neighborhood String?
+  contact      String?
+  status       String   @default("active")
   createdAt    DateTime @default(now())
-
-  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user         User?    @relation(fields: [userId], references: [id])
 
   @@index([status, endsOn])
   @@index([neighborhood, status])
@@ -1840,9 +1424,8 @@ model SavedListing {
   userId    String
   listingId String
   savedAt   DateTime @default(now())
-
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([userId, listingId])
   @@index([userId])
@@ -1858,7 +1441,7 @@ model RateLimit {
 }
 
 model Business {
-  id              String    @id @default(cuid())
+  id              String           @id @default(cuid())
   name            String
   category        String
   description     String
@@ -1869,55 +1452,30 @@ model Business {
   instagram       String?
   logo            String?
   coverImage      String?
-  isExpatOwned    Boolean   @default(false)
-  isExpatFriendly Boolean   @default(false)
+  isExpatOwned    Boolean          @default(false)
+  isExpatFriendly Boolean          @default(false)
   languages       String?
-  // Optional precise coordinates. When unset the map view falls back
-  // to neighborhood centroid + a deterministic per-id offset (so
-  // multiple businesses in the same neighborhood don't all stack on
-  // the same pin). Set via /admin/directory once the address is
-  // confirmed.
+  isApproved      Boolean          @default(false)
+  isActive        Boolean          @default(true)
+  submittedById   String?
+  reviewedById    String?
+  reviewedAt      DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @default(now()) @updatedAt
+  claimedAt       DateTime?
+  claimedById     String?
   latitude        Float?
   longitude       Float?
-  // Weekly hours. Shape: { mon: "09:00-22:00" | null, ..., sun: ... }
-  // null/missing day = closed. Stored as JSON because the structure
-  // is fixed and small; querying isn't needed (the "Open now" badge
-  // is computed in JS at render time).
   hours           Json?
-  // Free-form "Smileys members get 10% off" perk advertised on the
-  // card. Capped client- and server-side to keep it from competing
-  // with the business name visually.
   memberDiscount  String?
-  // Admin-curated sub-tags: "Vegan", "Brunch", "Late-night",
-  // "Wheelchair accessible", cuisines, etc. Filters become much
-  // sharper than the 10 top-level categories alone. Postgres native
-  // array — queryable, easy to render as chips.
-  tags            String[] @default([])
-  isApproved      Boolean   @default(false)
-  isActive        Boolean   @default(true)
-  // submittedBy is nullable + SetNull so a directory entry survives the
-  // submitter's account deletion (attributionDisplay falls back to "a
-  // member"). Without this, deleting any active member with a single
-  // submission would be blocked by the FK constraint.
-  submittedById   String?
-  submittedBy     User?     @relation("BusinessSubmissions", fields: [submittedById], references: [id], onDelete: SetNull)
-  reviewedById    String?
-  reviewedBy      User?     @relation("BusinessReviews", fields: [reviewedById], references: [id], onDelete: SetNull)
-  reviewedAt      DateTime?
-  // Verified owner (set when admin approves a BusinessClaim). Surfaced
-  // on the directory card as a "Verified owner" badge. Future PRs may
-  // grant the owner self-serve edit permissions on their own listing.
-  // SetNull on owner deletion — business stays in directory, claim
-  // history is the source of truth for who used to own it.
-  claimedById     String?
-  claimedBy       User?     @relation("BusinessOwnership", fields: [claimedById], references: [id], onDelete: SetNull)
-  claimedAt       DateTime?
+  tags            String[]         @default([])
   claims          BusinessClaim[]
-  reviews         BusinessReview[]
   reports         BusinessReport[]
+  reviews         BusinessReview[]
   saves           BusinessSave[]
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @default(now()) @updatedAt
+  claimedBy       User?            @relation("BusinessOwnership", fields: [claimedById], references: [id])
+  reviewedBy      User?            @relation("BusinessReviews", fields: [reviewedById], references: [id])
+  submittedBy     User?            @relation("BusinessSubmissions", fields: [submittedById], references: [id])
 
   @@index([isApproved, isActive])
   @@index([category])
@@ -1925,40 +1483,21 @@ model Business {
   @@map("businesses")
 }
 
-// Member ratings + short text reviews on directory entries. One row per
-// (business, author) — re-rating the same business edits the existing
-// row in place. Aggregate stats (avg rating, count) are computed on
-// read rather than denormalized; we have <200 businesses and an MVP
-// expectation of <50 reviews each, so a Prisma groupBy at list time is
-// fine and avoids the "denorm drift" class of bug.
 model BusinessReview {
-  id          String    @id @default(cuid())
-  businessId  String
-  business    Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  // Cascade on author deletion — a review without its author is just
-  // unattributed text; user-content cleanup is the expected behavior
-  // when a member deletes their account.
-  authorId    String
-  author      User      @relation("BusinessReviewAuthor", fields: [authorId], references: [id], onDelete: Cascade)
-  rating      Int       // 1..5, enforced in the API layer
-  comment     String?
-
-  // Verified-owner reply. Surfaced as an "Owner's response" nested
-  // under the review. Owners can edit/clear their reply; deleting the
-  // review (by the original author) deletes the reply with it via the
-  // FK cascade above. SetNull on owner deletion preserves the reply
-  // text but un-attributes it.
-  ownerReply      String?
-  ownerReplyAt    DateTime?
-  ownerReplyById  String?
-  ownerReplyBy    User?     @relation("BusinessReviewOwnerReply", fields: [ownerReplyById], references: [id], onDelete: SetNull)
-
-  // Admin moderation flag. Hidden reviews don't render on the public
-  // page or count toward the aggregate, but stay in the DB so the
-  // author + admins can see the moderation history.
-  isHidden        Boolean   @default(false)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @default(now()) @updatedAt
+  id             String    @id @default(cuid())
+  businessId     String
+  authorId       String
+  rating         Int
+  comment        String?
+  ownerReply     String?
+  ownerReplyAt   DateTime?
+  ownerReplyById String?
+  isHidden       Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @default(now()) @updatedAt
+  author         User      @relation("BusinessReviewAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  business       Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  ownerReplyBy   User?     @relation("BusinessReviewOwnerReply", fields: [ownerReplyById], references: [id])
 
   @@unique([businessId, authorId])
   @@index([businessId, isHidden])
@@ -1966,46 +1505,32 @@ model BusinessReview {
   @@map("business_reviews")
 }
 
-// Member-submitted "report a problem" on a directory entry. Common
-// reasons: closed, wrong info, inappropriate content. Anonymous reports
-// are allowed (reporterId is nullable) so a casual visitor can still
-// flag a closed shop without making an account; we rely on the
-// rate-limit + admin triage to keep spam in check.
 model BusinessReport {
-  id            String    @id @default(cuid())
-  businessId    String
-  business      Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  reporterId    String?
-  reporter      User?     @relation("BusinessReportReporter", fields: [reporterId], references: [id], onDelete: SetNull)
-  reason        String    // closed | wrong_info | inappropriate | other
-  message       String?
-  status        String    @default("pending") // pending | resolved | dismissed
-  reviewedById  String?
-  reviewedBy    User?     @relation("BusinessReportReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
-  reviewedAt    DateTime?
-  createdAt     DateTime  @default(now())
+  id           String    @id @default(cuid())
+  businessId   String
+  reporterId   String?
+  reason       String
+  message      String?
+  status       String    @default("pending")
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  business     Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  reporter     User?     @relation("BusinessReportReporter", fields: [reporterId], references: [id])
+  reviewedBy   User?     @relation("BusinessReportReviewer", fields: [reviewedById], references: [id])
 
   @@index([status, createdAt])
   @@index([businessId])
   @@map("business_reports")
 }
 
-// Member-saved directory entries — the "starred" / favorites surface
-// at /directory/saved.
-//
-// @@index([businessId, createdAt]) feeds the trending-sort query in
-// GET /api/directory?sort=trending (counts saves in the last 7 days
-// per business). @@index([userId, createdAt]) feeds the personal
-// saved list. Unique on the pair so toggling is idempotent.
 model BusinessSave {
   id         String   @id @default(cuid())
-  // Saves are personal data — cascade with the user on account
-  // deletion (alongside any other user-content cleanup).
   userId     String
-  user       User     @relation("BusinessSaves", fields: [userId], references: [id], onDelete: Cascade)
   businessId String
-  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
   createdAt  DateTime @default(now())
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user       User     @relation("BusinessSaves", fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, businessId])
   @@index([businessId, createdAt])
@@ -2013,68 +1538,92 @@ model BusinessSave {
   @@map("business_saves")
 }
 
-// Google-Business-style claim flow. A logged-in member asserts ownership
-// of an existing directory entry with a short proof message; an admin
-// approves or rejects via /admin/directory. Approval flips
-// Business.claimedById to the claimant.
-//
-// `@@unique([businessId, claimantId])` prevents the same person from
-// re-spamming claims for the same business — a rejected claim sticks
-// in the row, and a re-claim attempt has to edit the existing one
-// (or admin has to delete the row, which is the resolution path).
-// Sent newsletter log. Each row records one blast to the opted-in list.
-// recipientCount is snapshotted at send time so the number stays
-// meaningful even if members unsubscribe later.
 model Newsletter {
-  id             String   @id @default(cuid())
-  subject        String
-  bodyHtml       String   @db.Text
-  recipientCount Int
-  sentById       String
-  sentBy         User     @relation("NewslettersSent", fields: [sentById], references: [id], onDelete: Restrict)
-  sentAt           DateTime  @default(now())
-  segment          String    @default("all")
-  status           String    @default("sent")   // 'scheduled' | 'sending' | 'sent'
+  id               String               @id @default(cuid())
+  subject          String
+  bodyHtml         String
+  recipientCount   Int
+  sentById         String
+  sentAt           DateTime             @default(now())
+  clickCount       Int                  @default(0)
+  openCount        Int                  @default(0)
   scheduledFor     DateTime?
-  openCount        Int       @default(0)
-  clickCount       Int       @default(0)
-  unsubscribeCount Int       @default(0)
+  segment          String               @default("all")
+  status           String               @default("sent")
+  unsubscribeCount Int                  @default(0)
   emailLogs        NewsletterEmailLog[]
+  sentBy           User                 @relation("NewslettersSent", fields: [sentById], references: [id])
 
   @@index([sentAt(sort: Desc)])
   @@map("newsletters")
 }
 
-// Maps each individual Resend email ID back to the newsletter blast it belongs to.
-// The webhook handler uses this to credit opens/clicks to the right newsletter.
 model NewsletterEmailLog {
   id           String     @id @default(cuid())
   newsletterId String
-  newsletter   Newsletter @relation(fields: [newsletterId], references: [id], onDelete: Cascade)
   resendId     String     @unique
   createdAt    DateTime   @default(now())
+  newsletter   Newsletter @relation(fields: [newsletterId], references: [id], onDelete: Cascade)
 
   @@index([newsletterId])
   @@map("newsletter_email_logs")
 }
 
 model BusinessClaim {
-  id            String    @id @default(cuid())
-  businessId    String
-  business      Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  // Cascade on claimant deletion — pending claims tied to a deleted
-  // user have no meaning anymore.
-  claimantId    String
-  claimant      User      @relation("BusinessClaims", fields: [claimantId], references: [id], onDelete: Cascade)
-  message       String    // proof / why they're the owner
-  status        String    @default("pending") // pending | approved | rejected
-  reviewedById  String?
-  reviewedBy    User?     @relation("BusinessClaimReviews", fields: [reviewedById], references: [id], onDelete: SetNull)
-  reviewedAt    DateTime?
-  createdAt     DateTime  @default(now())
+  id           String    @id @default(cuid())
+  businessId   String
+  claimantId   String
+  message      String
+  status       String    @default("pending")
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  business     Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  claimant     User      @relation("BusinessClaims", fields: [claimantId], references: [id], onDelete: Cascade)
+  reviewedBy   User?     @relation("BusinessClaimReviews", fields: [reviewedById], references: [id])
 
   @@unique([businessId, claimantId])
   @@index([status])
   @@index([businessId])
   @@map("business_claims")
+}
+
+// Same fix as ProWaitlistEntry — the introspect rewrote this from the
+// original camelCase MemberSave into snake_case `member_saves`, which
+// renamed the Prisma client surface to `prisma.member_saves` and broke
+// every `prisma.memberSave.*` call across the members API. @@map
+// preserves the DB table name so no migration is required.
+model MemberSave {
+  userId  String
+  savedId String
+  savedAt DateTime @default(now())
+
+  owner  User @relation("MemberSaveOwner",  fields: [userId],  references: [id], onDelete: Cascade)
+  target User @relation("MemberSaveTarget", fields: [savedId], references: [id], onDelete: Cascade)
+
+  @@id([userId, savedId])
+  @@index([userId])
+  @@map("member_saves")
+}
+
+// Restored from an accidental introspect that flattened the original
+// camelCase ProWaitlistEntry model into a snake_case `pro_waitlist`,
+// which broke `prisma.proWaitlistEntry` references across the Pro
+// stack (landing page, admin view, API route, dashboard nudge). The
+// @@map keeps the DB table name unchanged so no migration is needed.
+model ProWaitlistEntry {
+  id         String   @id @default(cuid())
+  userId     String?
+  name       String
+  email      String   @unique
+  industry   String?
+  role       String?
+  status     String   @default("waitlisted")
+  adminNotes String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("pro_waitlist")
 }

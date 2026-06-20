@@ -39,7 +39,7 @@ export default function DigitalCard({ user }: Props) {
         <div className="px-6 pt-5 pb-1 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-lg leading-none">😊</span>
-            <span className="text-[11px] font-bold tracking-[0.18em] text-gray-500 uppercase">Smileys</span>
+            <span className="text-[11px] font-bold tracking-[0.18em] text-gray-600 uppercase">Smileys</span>
           </div>
           {joinYear && (
             <span className="text-[10px] font-semibold tracking-[0.15em] text-gray-400 uppercase">

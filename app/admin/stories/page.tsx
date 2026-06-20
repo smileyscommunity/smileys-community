@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { resolveImageUrl } from '@/lib/data'
+import { downscaleImage } from '@/lib/image-resize'
 
 // Server caps mirrored here for inline UI feedback. The actual writes
 // trim and re-cap server-side via the testimonials and story-photos
@@ -166,8 +167,9 @@ export default function StoriesPage() {
   async function uploadPhoto(file: File) {
     setUploading(true)
     try {
+      const upload = await downscaleImage(file)
       const fd = new FormData()
-      fd.append('file', file)
+      fd.append('file', upload)
       fd.append('folder', 'general')
       const res  = await fetch('/app/api/upload', { method: 'POST', credentials: 'include', body: fd })
       const data = await res.json()

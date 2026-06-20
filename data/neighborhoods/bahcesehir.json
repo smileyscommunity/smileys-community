@@ -1,0 +1,56 @@
+{
+  "tagline": "A master-planned residential community on Istanbul's far European side — wide streets, lakes, green parks, and a quieter suburban pace that feels unlike the rest of the city.",
+  "places": [
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Göl Kenarı Kafeler",
+          "description": "Café terraces overlooking the Bahçeşehir lakes — the social centre of the neighbourhood on weekend mornings.",
+          "address": "Bahçeşehir Gölleri, Başakşehir",
+          "badge": "Smileys Pick"
+        },
+        {
+          "name": "AVM Kafeler (Bahçeşehir)",
+          "description": "Several shopping centres in Bahçeşehir host branches of popular Turkish café chains — convenient and reliably good.",
+          "address": "Bahçeşehir, Başakşehir"
+        }
+      ]
+    },
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Bahçeşehir Gölleri",
+          "description": "A series of artificial lakes with promenades, cycling paths, and picnic areas. The centrepiece of the neighbourhood and excellent for morning walks.",
+          "address": "Bahçeşehir, Başakşehir",
+          "badge": "Must Visit"
+        },
+        {
+          "name": "Tema Park",
+          "description": "A large natural park adjacent to Bahçeşehir used for weekend family outings, cycling, and nature walks.",
+          "address": "Bahçeşehir, İstanbul"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Göl Kenarı Restoranları",
+          "description": "A strip of restaurants along the lakefront serving Turkish and international cuisine. Lively on weekend evenings.",
+          "address": "Bahçeşehir Gölleri, Başakşehir"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Bahçeşehir is car-friendly by design — having your own transport makes life much easier here.",
+    "The M3 metro line connects Bahçeşehir to the city centre but it takes 40+ minutes.",
+    "Great option for families — spacious, safe, and green in a way central Istanbul isn't.",
+    "The lake area is beautiful in autumn when the surrounding trees change colour."
+  ]
+}

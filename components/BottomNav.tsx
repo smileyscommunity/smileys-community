@@ -6,7 +6,6 @@ import { useAuth } from '@/contexts/AuthContext'
 import { resolveImageUrl } from '@/lib/data'
 import { usePendingConnections } from '@/hooks/usePendingConnections'
 import { useState, useEffect, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
 import AccountMenu from '@/components/AccountMenu'
 
 function useUnreadMessages(isLoggedIn: boolean) {
@@ -227,34 +226,21 @@ export default function BottomNav() {
           dismissed via backdrop or by tapping a menu item. Renders the
           same AccountMenu shared with the desktop dropdown so the two
           surfaces never drift. */}
-      <AnimatePresence>
-        {sheetOpen && (
-          <>
-            <motion.div
-              key="account-sheet-backdrop"
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              onClick={() => setSheetOpen(false)}
-              className="fixed inset-0 z-[60] bg-black/40 md:hidden"
-              aria-hidden="true"
-            />
-            <motion.div
-              key="account-sheet"
-              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-              transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-              className="fixed bottom-0 left-0 right-0 z-[61] bg-white rounded-t-3xl shadow-2xl max-h-[85vh] overflow-y-auto md:hidden safe-area-pb"
-              role="dialog"
-              aria-modal="true"
-            >
-              {/* Grab handle — visual affordance that this is a sheet */}
-              <div className="flex justify-center pt-2 pb-1">
-                <div className="w-10 h-1 rounded-full bg-gray-300" />
-              </div>
-              <AccountMenu onItemClick={() => setSheetOpen(false)} />
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+      <div
+        className={`fixed inset-0 z-[60] bg-black/40 md:hidden transition-opacity duration-150 ${sheetOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+        onClick={() => setSheetOpen(false)}
+        aria-hidden="true"
+      />
+      <div
+        className={`fixed bottom-0 left-0 right-0 z-[61] bg-white rounded-t-3xl shadow-2xl max-h-[85vh] overflow-y-auto md:hidden safe-area-pb transition-transform duration-[220ms] ease-out ${sheetOpen ? 'translate-y-0' : 'translate-y-full'}`}
+        role="dialog"
+        aria-modal="true"
+      >
+        <div className="flex justify-center pt-2 pb-1">
+          <div className="w-10 h-1 rounded-full bg-gray-300" />
+        </div>
+        <AccountMenu onItemClick={() => setSheetOpen(false)} />
+      </div>
     </>
   )
 }

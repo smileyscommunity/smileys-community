@@ -13,8 +13,14 @@ interface Message {
   user: { id: string; name: string; color: string }
 }
 
-export default function EventMessages({ eventId }: { eventId: string }) {
+export default function EventMessages({ eventId, eventDate }: { eventId: string; eventDate: string }) {
   const { user, isLoggedIn } = useAuth()
+
+  // Discussion auto-locks 14 days post-event so dead-air messages don't
+  // dilute the page and Reviews becomes the canonical post-event surface.
+  // Server enforces the same window in the POST handler.
+  const lockedAt   = new Date(eventDate); lockedAt.setDate(lockedAt.getDate() + 15) // start of day 15 = end of day 14
+  const isLocked   = Date.now() >= lockedAt.getTime()
   const [messages,   setMessages]   = useState<Message[]>([])
   const [text,       setText]       = useState('')
   const [sending,    setSending]    = useState(false)
@@ -63,6 +69,7 @@ export default function EventMessages({ eventId }: { eventId: string }) {
     <div className="bg-white rounded-2xl shadow-card overflow-hidden">
       <div className="px-5 py-4 border-b border-gray-100">
         <h2 className="font-bold text-gray-900">Discussion ({messages.length})</h2>
+        <p className="text-xs text-gray-400 mt-0.5">Chat with attendees{isLocked ? ' · closed' : ''}</p>
       </div>
 
       <div className="divide-y divide-gray-50 max-h-80 overflow-y-auto">
@@ -103,7 +110,11 @@ export default function EventMessages({ eventId }: { eventId: string }) {
         <div ref={bottomRef} />
       </div>
 
-      {isLoggedIn ? (
+      {isLocked ? (
+        <div className="px-5 py-4 border-t border-gray-100 text-center text-sm text-gray-400">
+          Discussion closed — leave a <span className="font-semibold text-gray-600">Review</span> above instead.
+        </div>
+      ) : isLoggedIn ? (
         <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
           <input
             type="text"

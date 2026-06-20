@@ -1,0 +1,52 @@
+{
+  "tagline": "A leafy, upscale suburb in the Belgrade Forest belt on Istanbul's northern European edge — gated communities, equestrian clubs, and a village-within-nature feel that few Istanbullus even know exists.",
+  "places": [
+    {
+      "category": "Things to Do",
+      "emoji": "🗺️",
+      "items": [
+        {
+          "name": "Belgrad Ormanı",
+          "description": "One of Istanbul's oldest and most beautiful urban forests — ancient water reservoirs, dense woodland, and excellent walking and cycling trails.",
+          "address": "Belgrad Ormanı, Eyüpsultan",
+          "badge": "Must Visit",
+          "tip": "Enter from the Göktürk side to avoid the busier Bahçeköy entrance. Peaceful and uncrowded on weekdays."
+        },
+        {
+          "name": "Ata Spor Binicilik Kulübü",
+          "description": "One of several equestrian clubs in the Göktürk area offering horse riding lessons and trail rides through the forest.",
+          "address": "Göktürk, Eyüpsultan"
+        }
+      ]
+    },
+    {
+      "category": "Coffee",
+      "emoji": "☕",
+      "items": [
+        {
+          "name": "Göktürk Köy Kafeleri",
+          "description": "Relaxed café terraces in the village centre and along the forest roads — excellent for a slow weekend brunch after a morning hike.",
+          "address": "Göktürk Köyü, Eyüpsultan",
+          "badge": "Smileys Pick"
+        }
+      ]
+    },
+    {
+      "category": "Food",
+      "emoji": "🍽️",
+      "items": [
+        {
+          "name": "Köy Restoranları",
+          "description": "A handful of village restaurants serving classic Turkish meze and grills. Unhurried and perfect for long weekend lunches.",
+          "address": "Göktürk Köyü, Eyüpsultan"
+        }
+      ]
+    }
+  ],
+  "tips": [
+    "Göktürk is best reached by car — public transport is very limited from the city centre.",
+    "The Belgrade Forest is one of the best day trips from Istanbul; combine with a Göktürk café stop.",
+    "Rents are high by Istanbul standards — this is premium suburban living.",
+    "Very quiet during the week; village cafés fill up with families on Sundays."
+  ]
+}

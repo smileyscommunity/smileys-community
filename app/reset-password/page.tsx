@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
+import PasswordToggle from '@/components/PasswordToggle'
 
 function ResetPasswordForm() {
   const router       = useRouter()
@@ -12,6 +13,7 @@ function ResetPasswordForm() {
 
   const [password, setPassword] = useState('')
   const [confirm,  setConfirm]  = useState('')
+  const [showPw,   setShowPw]   = useState(false)
   const [loading,  setLoading]  = useState(false)
   const [error,    setError]    = useState('')
   const [done,     setDone]     = useState(false)
@@ -60,26 +62,32 @@ function ResetPasswordForm() {
           )}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">{isActivate ? 'Choose a password' : 'New password'}</label>
-            <input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="At least 6 characters"
-              required
-              minLength={6}
-              className="input"
-            />
+            <div className="relative">
+              <input
+                type={showPw ? 'text' : 'password'}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="At least 8 characters"
+                required
+                minLength={8}
+                className="input pr-12"
+              />
+              <PasswordToggle visible={showPw} onToggle={() => setShowPw(p => !p)} />
+            </div>
           </div>
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">Confirm new password</label>
-            <input
-              type="password"
-              value={confirm}
-              onChange={e => setConfirm(e.target.value)}
-              placeholder="Repeat your password"
-              required
-              className="input"
-            />
+            <div className="relative">
+              <input
+                type={showPw ? 'text' : 'password'}
+                value={confirm}
+                onChange={e => setConfirm(e.target.value)}
+                placeholder="Repeat your password"
+                required
+                className="input pr-12"
+              />
+              <PasswordToggle visible={showPw} onToggle={() => setShowPw(p => !p)} />
+            </div>
           </div>
           <button
             type="submit"
@@ -88,7 +96,7 @@ function ResetPasswordForm() {
           >
             {loading ? 'Saving…' : isActivate ? 'Activate my account →' : 'Set new password'}
           </button>
-          <p className="text-center text-sm text-gray-500">
+          <p className="text-center text-sm text-gray-600">
             <Link href="/login" className="text-amber-600 font-semibold hover:underline">Back to sign in</Link>
           </p>
         </form>
@@ -107,7 +115,7 @@ export default function ResetPasswordPage() {
             <span className="font-bold text-xl text-gray-900">Smileys Community</span>
           </Link>
           <h1 className="text-2xl font-extrabold text-gray-900">Activate your account</h1>
-          <p className="text-sm text-gray-500 mt-1">One last step — choose a password and you're in</p>
+          <p className="text-sm text-gray-600 mt-1">One last step — choose a password and you're in</p>
         </div>
         <Suspense>
           <ResetPasswordForm />
