@@ -25,11 +25,6 @@ export default function DigitalCard({ user }: Props) {
   const joinYear = user.joinedAt ? new Date(user.joinedAt).getFullYear() : null
   const qrValue = `smileys:member:${user.id}`
   const c = user.color
-  // Membership tier — only premium/vip are worth surfacing; free/standard
-  // members get the clean default (no badge).
-  const tier = user.membershipType === 'vip' ? 'VIP'
-    : user.membershipType === 'premium' ? 'Premium'
-    : null
 
   return (
     <div ref={cardRef} className="w-full max-w-sm mx-auto select-none">
@@ -77,14 +72,6 @@ export default function DigitalCard({ user }: Props) {
           <h2 className="mt-5 text-[22px] font-extrabold text-gray-900 tracking-tight text-center leading-tight">
             {user.name}
           </h2>
-          {tier && (
-            <span
-              className="mt-2 text-[10px] font-bold tracking-[0.18em] uppercase px-2.5 py-1 rounded-full"
-              style={{ color: c, backgroundColor: c + '14', border: `1px solid ${c}22` }}
-            >
-              {tier} Member
-            </span>
-          )}
           {user.neighborhood && (
             <p className="mt-1 text-[13px] text-gray-400">{user.neighborhood}</p>
           )}
