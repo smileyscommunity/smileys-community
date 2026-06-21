@@ -37,6 +37,7 @@ const TYPE_ICON: Record<string, string> = {
   // Admin/moderator-only — distinct icon so directory submissions
   // stand out from generic 'system' bell entries.
   directory_submission: '📋',
+  membership_upgraded:  '⭐',
   connection_request:  '🤝',
   connection_accepted: '🤝',
   report:              '🚩',

@@ -51,6 +51,9 @@ const PREF_KEY: Record<string, 'newEvents' | 'reminders' | 'eventUpdates' | 'joi
   // moderator team gets a distinct bell entry (with its own icon) and
   // an email. Transactional — never gated by prefs.
   directory_submission: null,
+  // Fired when an admin grants premium/VIP. Transactional — a status
+  // change the member should always hear about.
+  membership_upgraded: null,
   // Survey nudges — transactional in spirit (quarterly, low volume,
   // signal-bearing). Always delivered so a muted "newEvents" pref
   // doesn't silently swallow the community-pulse signal.

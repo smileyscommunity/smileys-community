@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { createNotification } from '@/lib/notify'
+import { sendPremiumUpgradeEmail } from '@/lib/email'
 import { writeAudit } from '@/lib/audit'
 import { computeEventSurveyRollup, aggregateRollup } from '@/lib/survey'
 
@@ -132,7 +133,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // for the audit log anyway so this isn't an extra round-trip.
     const target = await prisma.user.findUnique({
       where: { id },
-      select: { role: true, status: true, name: true, email: true, phone: true, suspendedUntil: true, cityId: true },
+      select: { role: true, status: true, name: true, email: true, phone: true, suspendedUntil: true, cityId: true, membershipType: true },
     })
     if (!target) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
@@ -242,6 +243,21 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     const user = await prisma.user.update({ where: { id }, data: allowed })
+
+    // Premium/VIP grant → celebrate it (in-app + email). Fires only when
+    // moving INTO a paid tier the member wasn't already in, so re-saving
+    // an already-premium member doesn't re-notify.
+    if (allowed.membershipType && allowed.membershipType !== before?.membershipType
+        && (allowed.membershipType === 'premium' || allowed.membershipType === 'vip')) {
+      const tierLabel = allowed.membershipType === 'vip' ? 'VIP' : 'Premium'
+      createNotification(id, 'membership_upgraded', `🎉 You're now a ${tierLabel} member!`,
+        `Your Smileys membership has been upgraded to ${tierLabel}. Your badge now shows across the community.`,
+        '/profile').catch(() => {})
+      if (before?.email) {
+        sendPremiumUpgradeEmail(before.email, before.name ?? 'there', tierLabel).catch(err =>
+          console.error('[user PATCH membership] upgrade email failed', { id, err: String(err) }))
+      }
+    }
 
     // Auto-add to blacklist on ban so they can't re-apply
     if (allowed.status === 'banned' && before?.email) {

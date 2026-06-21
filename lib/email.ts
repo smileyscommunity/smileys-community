@@ -220,6 +220,34 @@ export async function sendAdminNewDirectorySubmissionEmail(submitterName: string
   })
 }
 
+// Celebratory note when an admin upgrades a member to premium/VIP.
+// Pairs with the in-app 'membership_upgraded' notification.
+export async function sendPremiumUpgradeEmail(email: string, name: string, tier: string) {
+  await getResend().emails.send({
+    from: FROM, to: email,
+    subject: `You're now a Smileys ${tier} member 🎉`,
+    text: `Hi ${name},
+
+Great news — your Smileys membership has been upgraded to ${tier}.
+
+Your ${tier} badge now appears across the community: on your profile, in the member directory, and on your digital member card.
+
+Thanks for being part of Smileys.
+
+Warmly,
+Smileys Community Team`,
+    html: `
+      <div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#1f2937;max-width:520px">
+        <p>Hi ${esc(name)},</p>
+        <p>Great news — your Smileys membership has been upgraded to <strong>${esc(tier)}</strong> 🎉</p>
+        <p>Your <strong>${esc(tier)}</strong> badge now appears across the community: on your profile, in the member directory, and on your digital member card.</p>
+        <p>Thanks for being part of Smileys.</p>
+        <p style="margin-top:24px">Warmly,<br/><strong>Smileys Community Team</strong> 💛</p>
+      </div>
+    `,
+  })
+}
+
 export async function sendApplicationRejectedEmail(email: string, name: string, message?: string) {
   const body = message?.trim()
     ? message.trim()
