@@ -247,7 +247,7 @@ export default async function NeighborhoodPage({ params }: { params: Promise<{ s
           <h2 className="text-2xl font-extrabold text-white mb-3">Want to join these events?</h2>
           <p className="text-gray-400 mb-7 text-sm">Smileys is an application-based community. Apply once, attend everything.</p>
           <div className="flex items-center justify-center gap-3 flex-wrap">
-            <Link href="/apply" className="px-6 py-3 rounded-2xl bg-amber-500 text-white font-bold text-sm hover:bg-amber-600 transition-colors shadow-sm">
+            <Link href="/apply" className="px-6 py-3 rounded-xl bg-amber-500 text-white font-bold text-sm hover:bg-amber-600 transition-colors shadow-sm">
               Apply to join
             </Link>
             <Link href="/neighborhoods" className="px-6 py-3 rounded-2xl border border-white/10 text-gray-300 font-semibold text-sm hover:bg-white/5 transition-colors">
