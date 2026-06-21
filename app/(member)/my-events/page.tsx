@@ -6,6 +6,8 @@ import Image from 'next/image'
 import { formatShortDate, formatTime, resolveImageUrl, todayIstanbul } from '@/lib/data'
 import { useAuth } from '@/contexts/AuthContext'
 import dynamic from 'next/dynamic'
+import EmptyState from '@/components/EmptyState'
+import { SkeletonList } from '@/components/Skeleton'
 
 const QRCode = dynamic(() => import('@/components/QRCode'), { ssr: false })
 
@@ -139,37 +141,16 @@ export default function MyEventsPage() {
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
         {loading ? (
-          <div className="space-y-3">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 animate-pulse">
-                <div className="flex gap-4">
-                  <div className="w-16 h-16 rounded-xl bg-gray-100 shrink-0" />
-                  <div className="flex-1 space-y-2 py-1">
-                    <div className="h-4 bg-gray-100 rounded w-2/3" />
-                    <div className="h-3 bg-gray-100 rounded w-1/2" />
-                    <div className="h-3 bg-gray-100 rounded w-1/3" />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+          <SkeletonList rows={3} />
         ) : displayed.length === 0 ? (
-          <div className="text-center py-20 max-w-xs mx-auto">
-            <div className="text-6xl mb-4">{tab === 'upcoming' ? '📅' : tab === 'pending' ? '⏳' : '🎊'}</div>
-            <h3 className="text-lg font-bold text-gray-900 mb-2">
-              {tab === 'upcoming' ? 'No upcoming events' : tab === 'pending' ? 'No pending requests' : 'No past events yet'}
-            </h3>
-            <p className="text-sm text-gray-600 mb-6">
-              {tab === 'upcoming' ? 'Find something fun and lock in your spot.'
-                : tab === 'pending' ? 'Any events awaiting approval will show up here.'
-                : 'Once you attend events, they\'ll appear here.'}
-            </p>
-            {tab !== 'pending' && (
-              <Link href="/events" className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors inline-block">
-                Browse events
-              </Link>
-            )}
-          </div>
+          <EmptyState
+            icon={tab === 'upcoming' ? '📅' : tab === 'pending' ? '⏳' : '🎊'}
+            title={tab === 'upcoming' ? 'No upcoming events' : tab === 'pending' ? 'No pending requests' : 'No past events yet'}
+            body={tab === 'upcoming' ? 'Find something fun and lock in your spot.'
+              : tab === 'pending' ? 'Any events awaiting approval will show up here.'
+              : "Once you attend events, they'll appear here."}
+            action={tab !== 'pending' ? { label: 'Browse events', href: '/events' } : undefined}
+          />
         ) : (
           <div className={`space-y-3 ${tab === 'past' ? 'opacity-80' : ''}`}>
             {displayed.map(e => (

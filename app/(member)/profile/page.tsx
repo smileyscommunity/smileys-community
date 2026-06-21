@@ -706,7 +706,7 @@ export default function ProfilePage() {
                     <PasswordToggle visible={showEmailPw} onToggle={() => setShowEmailPw(p => !p)} />
                   </div>
                   <button onClick={handleEmailChange} disabled={emailLoading || !newEmail.trim() || !emailPassword}
-                    className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl disabled:opacity-40 transition-colors">
+                    className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-colors">
                     {emailLoading ? 'Saving…' : 'Update email'}
                   </button>
                 </div>
@@ -743,7 +743,7 @@ export default function ProfilePage() {
                 </div>
               </div>
               <button onClick={handleChangePassword} disabled={pwLoading}
-                className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl disabled:opacity-40 transition-colors">
+                className="btn-primary w-full">
                 {pwLoading ? 'Saving…' : 'Update password'}
               </button>
             </div>
@@ -797,7 +797,7 @@ export default function ProfilePage() {
                   <div className="relative">
                     <input type={showDeletePw ? 'text' : 'password'} value={deletePassword} onChange={e => setDeletePassword(e.target.value)}
                       placeholder="Enter your password to confirm"
-                      className="w-full px-3 py-2.5 pr-12 border border-red-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-400 bg-white" />
+                      className="input input-error pr-12" />
                     <PasswordToggle visible={showDeletePw} onToggle={() => setShowDeletePw(p => !p)} />
                   </div>
                   <div className="flex gap-2">

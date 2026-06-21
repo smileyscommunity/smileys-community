@@ -14,6 +14,7 @@ import DirectoryOwnerEdit from '@/components/DirectoryOwnerEdit'
 import DirectorySaveButton from '@/components/DirectorySaveButton'
 import { getOpenStatus } from '@/lib/businessHours'
 import dynamic from 'next/dynamic'
+import { SkeletonCard } from '@/components/Skeleton'
 
 // Leaflet hits `window` on import, so the map can't render during SSR
 // or the static-paths analysis. Dynamic-import with ssr:false keeps the
@@ -612,14 +613,7 @@ function DirectoryPageInner() {
         {loading ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
             {Array.from({ length: 10 }).map((_, i) => (
-              <div key={i} className="bg-white rounded-2xl shadow-sm overflow-hidden animate-pulse">
-                <div className="w-full aspect-[4/3] bg-gray-200" />
-                <div className="p-3 space-y-2">
-                  <div className="h-3.5 bg-gray-200 rounded-full w-3/4" />
-                  <div className="h-3 bg-gray-200 rounded-full w-1/2" />
-                  <div className="h-8 bg-gray-100 rounded-lg mt-3" />
-                </div>
-              </div>
+              <SkeletonCard key={i} />
             ))}
           </div>
         ) : visible.length === 0 ? (

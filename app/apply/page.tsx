@@ -380,7 +380,7 @@ function ApplyForm() {
               id="target-city"
               value={targetCitySlug}
               onChange={e => setTargetCitySlug(e.target.value)}
-              className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-amber-500"
+              className="input bg-white"
             >
               {cities.map(c => (
                 <option key={c.slug} value={c.slug}>
@@ -456,8 +456,8 @@ function ApplyForm() {
             <h2 className="font-bold text-gray-900 text-base mb-1">Basic Information</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-2">First name *</label>
-                <input type="text" value={form.firstName}
+                <label htmlFor="ap-firstname" className="block text-xs font-semibold text-gray-600 mb-2">First name *</label>
+                <input id="ap-firstname" type="text" value={form.firstName}
                   onChange={e => set('firstName', e.target.value)}
                   onBlur={e => validateField('firstName', e.target.value)}
                   autoComplete="given-name"
@@ -465,8 +465,8 @@ function ApplyForm() {
                 {fieldErrors.firstName && <p className="text-xs text-red-500 mt-1">{fieldErrors.firstName}</p>}
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-2">Last name *</label>
-                <input type="text" value={form.lastName}
+                <label htmlFor="ap-lastname" className="block text-xs font-semibold text-gray-600 mb-2">Last name *</label>
+                <input id="ap-lastname" type="text" value={form.lastName}
                   onChange={e => set('lastName', e.target.value)}
                   onBlur={e => validateField('lastName', e.target.value)}
                   autoComplete="family-name"
@@ -476,14 +476,14 @@ function ApplyForm() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-2">Date of birth</label>
-                <input type="date" value={form.birthdate} onChange={e => set('birthdate', e.target.value)}
+                <label htmlFor="ap-birthdate" className="block text-xs font-semibold text-gray-600 mb-2">Date of birth</label>
+                <input id="ap-birthdate" type="date" value={form.birthdate} onChange={e => set('birthdate', e.target.value)}
                   autoComplete="bday"
                   max={new Date().toISOString().split('T')[0]} className={inputCls} />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-2">Country *</label>
-                <select value={form.country}
+                <label htmlFor="ap-country" className="block text-xs font-semibold text-gray-600 mb-2">Country *</label>
+                <select id="ap-country" value={form.country}
                   onChange={e => set('country', e.target.value)}
                   onBlur={e => validateField('country', e.target.value)}
                   autoComplete="country-name"
@@ -495,8 +495,9 @@ function ApplyForm() {
               </div>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-2">Gender *</label>
+              <label htmlFor="ap-gender" className="block text-xs font-semibold text-gray-600 mb-2">Gender *</label>
               <select
+                id="ap-gender"
                 value={form.gender}
                 onChange={e => { set('gender', e.target.value); validateField('gender', e.target.value) }}
                 onBlur={e => validateField('gender', e.target.value)}
@@ -511,8 +512,8 @@ function ApplyForm() {
               {fieldErrors.gender && <p className="text-xs text-red-500 mt-1">{fieldErrors.gender}</p>}
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-2">Neighborhood / Area *</label>
-              <select value={form.neighborhood}
+              <label htmlFor="ap-neighborhood" className="block text-xs font-semibold text-gray-600 mb-2">Neighborhood / Area *</label>
+              <select id="ap-neighborhood" value={form.neighborhood}
                 onChange={e => { set('neighborhood', e.target.value); validateField('neighborhood', e.target.value) }}
                 className={fieldCls(fieldErrors.neighborhood)}>
                 <option value="">Select your neighborhood…</option>
@@ -523,8 +524,8 @@ function ApplyForm() {
               {fieldErrors.neighborhood && <p className="text-xs text-red-500 mt-1">{fieldErrors.neighborhood}</p>}
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-2">Phone (WhatsApp) *</label>
-              <input type="tel" value={form.phone}
+              <label htmlFor="ap-phone" className="block text-xs font-semibold text-gray-600 mb-2">Phone (WhatsApp) *</label>
+              <input id="ap-phone" type="tel" value={form.phone}
                 onChange={e => set('phone', e.target.value)}
                 onBlur={e => validateField('phone', e.target.value)}
                 inputMode="tel"
@@ -533,8 +534,8 @@ function ApplyForm() {
               {fieldErrors.phone && <p className="text-xs text-red-500 mt-1">{fieldErrors.phone}</p>}
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-2">Email *</label>
-              <input type="email" value={form.email}
+              <label htmlFor="ap-email" className="block text-xs font-semibold text-gray-600 mb-2">Email *</label>
+              <input id="ap-email" type="email" value={form.email}
                 onChange={e => set('email', e.target.value)}
                 onBlur={e => validateField('email', e.target.value)}
                 inputMode="email"
@@ -550,29 +551,29 @@ function ApplyForm() {
           {step === 1 && <>
             <h2 className="font-bold text-gray-900 text-base mb-1">About You</h2>
             <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-2">What do you do professionally?</label>
-              <input type="text" value={form.profession} onChange={e => set('profession', e.target.value)}
+              <label htmlFor="ap-profession" className="block text-xs font-semibold text-gray-600 mb-2">What do you do professionally?</label>
+              <input id="ap-profession" type="text" value={form.profession} onChange={e => set('profession', e.target.value)}
                 placeholder="e.g. Product designer, entrepreneur…" className={inputCls} />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-2">How long have you been in Istanbul?</label>
-              <input type="text" value={form.timeInCity} onChange={e => set('timeInCity', e.target.value)}
+              <label htmlFor="ap-time" className="block text-xs font-semibold text-gray-600 mb-2">How long have you been in Istanbul?</label>
+              <input id="ap-time" type="text" value={form.timeInCity} onChange={e => set('timeInCity', e.target.value)}
                 placeholder="e.g. 3 years, just arrived…" className={inputCls} />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-2">What brings you here?</label>
-              <input type="text" value={form.reasonHere} onChange={e => set('reasonHere', e.target.value)}
+              <label htmlFor="ap-reason" className="block text-xs font-semibold text-gray-600 mb-2">What brings you here?</label>
+              <input id="ap-reason" type="text" value={form.reasonHere} onChange={e => set('reasonHere', e.target.value)}
                 placeholder="e.g. Work, relocated, digital nomad…" className={inputCls} />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-2">Anything else you'd like us to know?</label>
-              <textarea rows={3} value={form.bio} onChange={e => set('bio', e.target.value)}
+              <label htmlFor="ap-bio" className="block text-xs font-semibold text-gray-600 mb-2">Anything else you&apos;d like us to know?</label>
+              <textarea id="ap-bio" rows={3} value={form.bio} onChange={e => set('bio', e.target.value)}
                 placeholder="What you're passionate about, looking for…"
                 className={`${inputCls} resize-none`} />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-2">How did you hear about us?</label>
-              <select value={form.source} onChange={e => set('source', e.target.value)} className={`${inputCls} bg-white`}>
+              <label htmlFor="ap-source" className="block text-xs font-semibold text-gray-600 mb-2">How did you hear about us?</label>
+              <select id="ap-source" value={form.source} onChange={e => set('source', e.target.value)} className={`${inputCls} bg-white`}>
                 <option value="">Select…</option>
                 <option value="instagram">Instagram</option>
                 <option value="friend">Friend / referral</option>
@@ -588,10 +589,10 @@ function ApplyForm() {
           {step === 2 && <>
             <h2 className="font-bold text-gray-900 text-base mb-1">Community Fit</h2>
             <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-2">
+              <label htmlFor="ap-community" className="block text-xs font-semibold text-gray-600 mb-2">
                 What kind of community are you looking for — and what would you bring to it?
               </label>
-              <textarea rows={6} value={form.aboutCommunity} onChange={e => set('aboutCommunity', e.target.value)}
+              <textarea id="ap-community" rows={6} value={form.aboutCommunity} onChange={e => set('aboutCommunity', e.target.value)}
                 placeholder="The community you're hoping to find, the people you'd love to spend time with, what you'd add to the mix…"
                 className={`${inputCls} resize-none`} />
               <p className="text-xs text-gray-400 mt-1">A few sentences is plenty. Specific beats long.</p>
@@ -699,10 +700,10 @@ function ApplyForm() {
             <div className="pt-4 mt-2 border-t border-gray-100">
               <h3 className="font-bold text-gray-900 text-sm mb-3">Social Judgment</h3>
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-2">
+                <label htmlFor="ap-social" className="block text-xs font-semibold text-gray-600 mb-2">
                   Tell us about a time you handled a difficult social situation well.
                 </label>
-                <textarea rows={4} value={form.socialJudgment} onChange={e => set('socialJudgment', e.target.value)}
+                <textarea id="ap-social" rows={4} value={form.socialJudgment} onChange={e => set('socialJudgment', e.target.value)}
                   placeholder="A few sentences — what happened, what you did, how it landed."
                   className={`${inputCls} resize-none`} />
               </div>
@@ -710,8 +711,8 @@ function ApplyForm() {
 
             <h2 className="font-bold text-gray-900 text-base mb-1 pt-6 mt-4 border-t border-gray-100">Verification</h2>
             <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-2">Profile photo <span className="text-red-400">*</span></label>
-              <input ref={photoInputRef} type="file" accept="image/*" className="hidden"
+              <label htmlFor="ap-photo" className="block text-xs font-semibold text-gray-600 mb-2">Profile photo <span className="text-red-400">*</span></label>
+              <input id="ap-photo" ref={photoInputRef} type="file" accept="image/*" className="hidden"
                 onChange={e => e.target.files?.[0] && handlePhotoUpload(e.target.files[0])} />
               {localPhoto || form.profilePhoto ? (
                 <div className="flex items-center gap-4">

@@ -110,9 +110,9 @@ export default function ContactPage() {
 
                     {/* Topic selector */}
                     <div>
-                      <label className="block text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide">
-                        What's this about?
-                      </label>
+                      <p className="block text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide">
+                        What&apos;s this about?
+                      </p>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                         {TOPICS.map(t => (
                           <button key={t.value} type="button"
@@ -132,15 +132,17 @@ export default function ContactPage() {
                     {/* Name + email */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-xs font-semibold text-gray-600 mb-1.5">Your name</label>
+                        <label htmlFor="ct-name" className="block text-xs font-semibold text-gray-600 mb-1.5">Your name</label>
                         <input
+                          id="ct-name"
                           type="text" value={form.name} onChange={e => set('name', e.target.value)}
                           placeholder="Ayşe Kaya" required className={inputCls}
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-gray-600 mb-1.5">Email address</label>
+                        <label htmlFor="ct-email" className="block text-xs font-semibold text-gray-600 mb-1.5">Email address</label>
                         <input
+                          id="ct-email"
                           type="email" value={form.email} onChange={e => set('email', e.target.value)}
                           placeholder="you@example.com" required className={inputCls}
                         />
@@ -149,11 +151,12 @@ export default function ContactPage() {
 
                     {/* Message */}
                     <div>
-                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                      <label htmlFor="ct-message" className="block text-xs font-semibold text-gray-600 mb-1.5">
                         Message
                         <span className="text-gray-400 font-normal ml-1">({form.message.length}/1000)</span>
                       </label>
                       <textarea
+                        id="ct-message"
                         value={form.message} onChange={e => set('message', e.target.value.slice(0, 1000))}
                         placeholder="Tell us what's on your mind…"
                         rows={6} required
@@ -166,7 +169,7 @@ export default function ContactPage() {
                     <button
                       type="submit"
                       disabled={loading || !form.name.trim() || !form.email.trim() || !form.message.trim()}
-                      className="w-full py-3.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm transition-colors disabled:opacity-50"
+                      className="btn-primary w-full text-sm"
                     >
                       {loading ? 'Sending…' : 'Send message'}
                     </button>

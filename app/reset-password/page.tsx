@@ -92,7 +92,7 @@ function ResetPasswordForm() {
           <button
             type="submit"
             disabled={loading || !token}
-            className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl transition-colors disabled:opacity-50 text-sm"
+            className="btn-primary w-full text-sm"
           >
             {loading ? 'Saving…' : isActivate ? 'Activate my account →' : 'Set new password'}
           </button>

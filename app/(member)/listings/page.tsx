@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { resolveImageUrl, avatarUrl, ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
 import { toast } from 'sonner'
+import { SkeletonCard } from '@/components/Skeleton'
 
 const CATEGORIES = [
   { id: 'ALL',      label: 'All',             emoji: '🗂️', activeCls: 'bg-amber-500 text-white border-amber-500'         },
@@ -826,14 +827,7 @@ function ListingsInner() {
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {[...Array(8)].map((_, i) => (
-              <div key={i} className="bg-white rounded-2xl overflow-hidden border border-gray-100">
-                <div className="h-28 bg-gray-100 animate-pulse" />
-                <div className="p-4 space-y-3">
-                  <div className="h-4 bg-gray-100 animate-pulse rounded-lg w-3/4" />
-                  <div className="h-3 bg-gray-100 animate-pulse rounded-lg" />
-                  <div className="h-3 bg-gray-100 animate-pulse rounded-lg w-2/3" />
-                </div>
-              </div>
+              <SkeletonCard key={i} />
             ))}
           </div>
         ) : listings.length === 0 ? (

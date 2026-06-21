@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { resolveImageUrl, getInitials } from '@/lib/data'
+import EmptyState from '@/components/EmptyState'
+import { SkeletonList } from '@/components/Skeleton'
 
 interface Conversation {
   partner: { id: string; name: string; color: string; profilePhoto: string | null }
@@ -69,27 +71,14 @@ export default function MessagesPage() {
 
       <div className="max-w-2xl mx-auto px-4 sm:px-6 py-4">
         {loading ? (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden divide-y divide-gray-100">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="flex items-center gap-4 px-5 py-4 animate-pulse">
-                <div className="w-12 h-12 rounded-full bg-gray-200 shrink-0" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-4 bg-gray-200 rounded-full w-1/3" />
-                  <div className="h-3 bg-gray-200 rounded-full w-2/3" />
-                </div>
-                <div className="h-3 bg-gray-200 rounded-full w-10 shrink-0" />
-              </div>
-            ))}
-          </div>
+          <SkeletonList rows={3} />
         ) : convs.length === 0 ? (
-          <div className="text-center py-20 max-w-xs mx-auto">
-            <div className="text-6xl mb-4">💬</div>
-            <h3 className="text-lg font-bold text-gray-900 mb-2">No messages yet</h3>
-            <p className="text-sm text-gray-600 mb-6">Start a conversation from any member's profile.</p>
-            <Link href="/members" className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors inline-block">
-              Browse members
-            </Link>
-          </div>
+          <EmptyState
+            icon="💬"
+            title="No messages yet"
+            body="Start a conversation from any member's profile."
+            action={{ label: 'Browse members', href: '/members' }}
+          />
         ) : (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden divide-y divide-gray-100">
             {convs.map(c => (

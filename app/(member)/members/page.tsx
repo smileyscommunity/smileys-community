@@ -9,6 +9,8 @@ import { countryFlag } from '@/lib/countries'
 import { useAuth } from '@/contexts/AuthContext'
 import ReportButton from '@/components/ReportButton'
 import AdBannerStrip from '@/components/AdBannerStrip'
+import EmptyState from '@/components/EmptyState'
+import { SkeletonCard } from '@/components/Skeleton'
 
 interface ConnectionUser {
   id: string; name: string; color: string
@@ -1104,33 +1106,18 @@ function MembersPageInner() {
         {(loading || filterLoading) && (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
             {Array.from({ length: 12 }).map((_, i) => (
-              <div key={i} className="bg-white rounded-2xl shadow-card overflow-hidden animate-pulse">
-                <div className="w-full aspect-square bg-gray-200" />
-                <div className="p-3 space-y-2">
-                  <div className="h-3.5 bg-gray-200 rounded-full w-3/4" />
-                  <div className="h-3 bg-gray-200 rounded-full w-1/2" />
-                  <div className="flex gap-3 pt-1.5 border-t border-gray-100 mt-1">
-                    <div className="h-3 bg-gray-200 rounded-full w-8" />
-                    <div className="h-3 bg-gray-200 rounded-full w-8" />
-                  </div>
-                </div>
-              </div>
+              <SkeletonCard key={i} />
             ))}
           </div>
         )}
 
         {!loading && !filterLoading && visible.length === 0 && (
-          <div className="text-center py-20 max-w-xs mx-auto">
-            <div className="text-6xl mb-4">🔍</div>
-            <h2 className="text-lg font-bold text-gray-900 mb-2">No members found</h2>
-            <p className="text-sm text-gray-600 mb-6">Try a different name, neighborhood, or interest.</p>
-            <button
-              onClick={() => { setSearch(''); setRoleFilter('All') }}
-              className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors"
-            >
-              Clear search
-            </button>
-          </div>
+          <EmptyState
+            icon="🔍"
+            title="No members found"
+            body="Try a different name, neighborhood, or interest."
+            action={{ label: 'Clear search', onClick: () => { setSearch(''); setRoleFilter('All') } }}
+          />
         )}
 
         {!loading && !filterLoading && visible.length > 0 && (

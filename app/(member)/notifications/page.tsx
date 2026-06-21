@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { usePullToRefresh } from '@/hooks/usePullToRefresh'
 import SwipeRow from '@/components/SwipeRow'
+import EmptyState from '@/components/EmptyState'
+import { SkeletonList } from '@/components/Skeleton'
 
 interface Notification {
   id:        string
@@ -246,46 +248,23 @@ export default function NotificationsPage() {
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
         {loading ? (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden divide-y divide-gray-100">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="flex items-start gap-4 px-5 py-4 animate-pulse">
-                <div className="w-8 h-8 rounded-full bg-gray-200 shrink-0 mt-0.5" />
-                <div className="flex-1 space-y-2 py-0.5">
-                  <div className="h-3.5 bg-gray-200 rounded-full w-3/4" />
-                  <div className="h-3 bg-gray-200 rounded-full w-full" />
-                </div>
-                <div className="h-3 bg-gray-200 rounded-full w-10 shrink-0 mt-1" />
-              </div>
-            ))}
-          </div>
+          <SkeletonList rows={6} />
         ) : filtered.length === 0 ? (
-          <div className="text-center py-20 max-w-xs mx-auto">
-            {filter !== 'All' ? (
-              <>
-                <div className="text-6xl mb-4">🔕</div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2">No {filter.toLowerCase()} notifications</h3>
-                <p className="text-sm text-gray-600 mb-6">Nothing in this category yet — check back later.</p>
-                <button
-                  onClick={() => setFilter('All')}
-                  className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors"
-                >
-                  Show all notifications
-                </button>
-              </>
-            ) : (
-              <>
-                <div className="text-6xl mb-4">✨</div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2">You're all caught up!</h3>
-                <p className="text-sm text-gray-600 mb-6">When events update or friends join, you'll see it here.</p>
-                <Link
-                  href="/events"
-                  className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors inline-block"
-                >
-                  Browse events
-                </Link>
-              </>
-            )}
-          </div>
+          filter !== 'All' ? (
+            <EmptyState
+              icon="🔕"
+              title={`No ${filter.toLowerCase()} notifications`}
+              body="Nothing in this category yet — check back later."
+              action={{ label: 'Show all notifications', onClick: () => setFilter('All') }}
+            />
+          ) : (
+            <EmptyState
+              icon="✨"
+              title="You're all caught up!"
+              body="When events update or friends join, you'll see it here."
+              action={{ label: 'Browse events', href: '/events' }}
+            />
+          )
         ) : (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden divide-y divide-gray-50">
             {filtered.map(n => (

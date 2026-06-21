@@ -459,7 +459,7 @@ function OnboardingInner() {
 
               <button
                 onClick={next}
-                className="w-full py-4 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-base transition-colors shadow-sm mb-3"
+                className="btn-primary--lg w-full mb-3"
               >
                 Get started — it&apos;s free
               </button>
@@ -714,7 +714,7 @@ function OnboardingInner() {
             </p>
             <Link
               href="/apply"
-              className="w-full py-4 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-base transition-colors shadow-sm flex items-center justify-center gap-2 mb-4"
+              className="btn-primary--lg w-full mb-4"
             >
               Submit an application
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -830,7 +830,7 @@ function OnboardingInner() {
                     <Turnstile onVerify={setTurnstileToken} onExpire={() => setTurnstileToken('')} />
 
                     <button type="submit" disabled={isSubmitting}
-                      className="w-full py-4 rounded-2xl bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white font-bold text-base transition-colors shadow-sm">
+                      className="btn-primary--lg w-full disabled:opacity-50 disabled:cursor-not-allowed">
                       {isSubmitting ? 'Creating account…' : 'Create my account'}
                     </button>
                   </>
@@ -893,7 +893,7 @@ function OnboardingInner() {
             )}
             <Link
               href="/login"
-              className="w-full py-4 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-base transition-colors shadow-sm flex items-center justify-center gap-2"
+              className="btn-primary--lg w-full"
             >
               Go to sign in
             </Link>

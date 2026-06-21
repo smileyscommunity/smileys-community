@@ -240,7 +240,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading || (turnstileRequired && !turnstileToken)}
-                className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl transition-colors disabled:opacity-50 text-sm"
+                className="btn-primary w-full text-sm"
               >
                 {loading ? 'Signing in…' : 'Sign in'}
               </button>
@@ -281,7 +281,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading || totpCode.length !== 6}
-                className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl transition-colors disabled:opacity-50 text-sm"
+                className="btn-primary w-full text-sm"
               >
                 {loading ? 'Verifying…' : 'Verify'}
               </button>

@@ -141,7 +141,7 @@ export default function ProWaitlistForm({ initialEmail, initialName, alreadyJoin
       <button
         type="submit"
         disabled={loading || (!isLoggedIn && (!name.trim() || !email.trim()))}
-        className="w-full py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-sm transition-colors disabled:opacity-40">
+        className="w-full py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-sm transition-colors disabled:opacity-50">
         {loading
           ? 'Reserving…'
           : foundersRemaining > 0

@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { resolveImageUrl } from '@/lib/data'
+import EmptyState from '@/components/EmptyState'
+import { SkeletonCard } from '@/components/Skeleton'
 
 interface Partner {
   id: string
@@ -150,32 +152,17 @@ export default function PerksPage() {
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {[...Array(6)].map((_, i) => (
-              <div key={i} className="bg-white rounded-2xl shadow-card overflow-hidden animate-pulse">
-                <div className="h-32 bg-gray-200" />
-                <div className="p-4 space-y-3">
-                  <div className="flex gap-3">
-                    <div className="w-12 h-12 rounded-xl bg-gray-200 shrink-0" />
-                    <div className="flex-1 space-y-2 pt-1">
-                      <div className="h-4 bg-gray-200 rounded w-2/3" />
-                      <div className="h-3 bg-gray-100 rounded w-1/2" />
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <SkeletonCard key={i} />
             ))}
           </div>
         ) : visible.length === 0 ? (
-          <div className="text-center py-20">
-            <span className="text-5xl block mb-4">🏪</span>
-            <h3 className="text-lg font-bold text-gray-900 mb-2">
-              {partners.length === 0 ? 'No partners yet' : 'No results'}
-            </h3>
-            <p className="text-sm text-gray-600">
-              {partners.length === 0
-                ? 'Check back soon — we\'re adding local businesses.'
-                : 'Try a different search or category.'}
-            </p>
-          </div>
+          <EmptyState
+            icon="🏪"
+            title={partners.length === 0 ? 'No partners yet' : 'No results'}
+            body={partners.length === 0
+              ? "Check back soon — we're adding local businesses."
+              : 'Try a different search or category.'}
+          />
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {visible.map(p => <PartnerCard key={p.id} p={p} />)}
