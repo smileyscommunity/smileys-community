@@ -893,7 +893,7 @@ function OnboardingInner() {
             )}
             <Link
               href="/login"
-              className="w-full py-4 rounded-2xl bg-gray-900 hover:bg-gray-800 text-white font-bold text-base transition-colors shadow-sm flex items-center justify-center gap-2"
+              className="w-full py-4 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-base transition-colors shadow-sm flex items-center justify-center gap-2"
             >
               Go to sign in
             </Link>

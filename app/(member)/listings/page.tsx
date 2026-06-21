@@ -10,7 +10,7 @@ import { toast } from 'sonner'
 
 const CATEGORIES = [
   { id: 'ALL',      label: 'All',             emoji: '🗂️', activeCls: 'bg-amber-500 text-white border-amber-500'         },
-  { id: 'MINE',     label: 'Mine',            emoji: '👤', activeCls: 'bg-gray-700 text-white border-gray-700'           },
+  { id: 'MINE',     label: 'Mine',            emoji: '👤', activeCls: 'bg-amber-500 text-white border-amber-500'         },
   { id: 'SAVED',    label: 'Saved',           emoji: '❤️', activeCls: 'bg-red-500 text-white border-red-500'             },
   { id: 'ROOMS',    label: 'Rooms',           emoji: '🏠', activeCls: 'bg-blue-500 text-white border-blue-500'           },
   { id: 'JOBS',     label: 'Jobs',            emoji: '💼', activeCls: 'bg-green-500 text-white border-green-500'         },

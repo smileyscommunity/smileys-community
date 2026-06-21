@@ -706,7 +706,7 @@ export default function ProfilePage() {
                     <PasswordToggle visible={showEmailPw} onToggle={() => setShowEmailPw(p => !p)} />
                   </div>
                   <button onClick={handleEmailChange} disabled={emailLoading || !newEmail.trim() || !emailPassword}
-                    className="px-4 py-2.5 bg-gray-900 hover:bg-gray-700 text-white text-sm font-semibold rounded-xl disabled:opacity-40 transition-colors">
+                    className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl disabled:opacity-40 transition-colors">
                     {emailLoading ? 'Saving…' : 'Update email'}
                   </button>
                 </div>
@@ -743,7 +743,7 @@ export default function ProfilePage() {
                 </div>
               </div>
               <button onClick={handleChangePassword} disabled={pwLoading}
-                className="w-full py-2.5 bg-gray-900 hover:bg-gray-700 text-white text-sm font-bold rounded-xl disabled:opacity-40 transition-colors">
+                className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl disabled:opacity-40 transition-colors">
                 {pwLoading ? 'Saving…' : 'Update password'}
               </button>
             </div>
