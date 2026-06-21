@@ -75,6 +75,10 @@ interface Member {
   openToCoffee?:   boolean
   openToLanguage?: boolean
   openToHosting?:  boolean
+  // True when this is a 'connections only' member the viewer isn't
+  // connected to — the card shows identity + neighborhood only, and the
+  // full profile is gated until they connect.
+  restricted?: boolean
 }
 
 function displayRole(m: Member): { label: string; cls: string } {
@@ -257,8 +261,9 @@ function ConnectButton({ m, currentUserId, connections, onConnectionChange }: {
   )
 }
 
-function MemberModal({ m, onClose, currentUserId, currentUserRole, myClubIds, myEventIds, members, connections, onConnectionChange }: {
+function MemberModal({ m, onClose, currentUserId, currentUserRole, viewerPrivileged, myClubIds, myEventIds, members, connections, onConnectionChange }: {
   m: Member; onClose: () => void; currentUserId: string; currentUserRole: string
+  viewerPrivileged: boolean
   myClubIds: string[]; myEventIds: string[]; members: Member[]
   connections: ConnectionRecord[]
   onConnectionChange: (updated: ConnectionRecord | null, removed?: string) => void
@@ -269,7 +274,9 @@ function MemberModal({ m, onClose, currentUserId, currentUserRole, myClubIds, my
   const commonClubs = m.clubs.filter(c => myClubIds.includes(c.id))
   const commonEvents = myEventIds.filter(id => (m.eventIds ?? []).includes(id)).length
 
-  const isPrivileged = currentUserRole === 'admin' || currentUserRole === 'moderator'
+  // Admins, moderators, and club hosts see full profiles regardless of
+  // connection. currentUserRole still drives nothing else here.
+  const isPrivileged = viewerPrivileged || currentUserRole === 'admin' || currentUserRole === 'moderator'
 
   const conn = connections.find(c =>
     (c.requesterId === currentUserId && c.receiverId === m.id) ||
@@ -625,6 +632,12 @@ const MemberCard = memo(function MemberCard({ m, onSelect, connectionStatus, han
           {connectionStatus === 'pending' && (
             <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">●</span>
           )}
+          {m.restricted && (
+            <span title="Private profile — connect to view"
+              className="flex items-center gap-0.5 bg-gray-900/70 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm backdrop-blur-sm">
+              🔒 Private
+            </span>
+          )}
         </div>
 
         {/* Online dot */}
@@ -867,7 +880,9 @@ function MembersPageInner() {
   const pendingRequests = connections.filter(c => c.receiverId === user.id && c.status === 'pending')
   const connectedCount  = connections.filter(c => c.status === 'accepted').length
 
-  const isPrivilegedUser = user.role === 'admin' || user.role === 'moderator'
+  // Admins, moderators, and club hosts get full directory + profile
+  // access (moderation / event management) regardless of connection.
+  const isPrivilegedUser = user.role === 'admin' || user.role === 'moderator' || !!user.isClubHost
 
   // O(1) connection status lookup — built once when connections or user changes,
   // not re-scanned on every card render.
@@ -891,7 +906,7 @@ function MembersPageInner() {
 
   return (
     <div className="min-h-screen bg-warm pb-20 md:pb-0">
-      {selected && <MemberModal m={selected} onClose={() => setSelected(null)} currentUserId={user.id} currentUserRole={user.role} myClubIds={myClubIds} myEventIds={myEventIds} members={members} connections={connections} onConnectionChange={handleConnectionChange} />}
+      {selected && <MemberModal m={selected} onClose={() => setSelected(null)} currentUserId={user.id} currentUserRole={user.role} viewerPrivileged={isPrivilegedUser} myClubIds={myClubIds} myEventIds={myEventIds} members={members} connections={connections} onConnectionChange={handleConnectionChange} />}
 
       <div className="bg-white border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-0">

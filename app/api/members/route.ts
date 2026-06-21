@@ -53,32 +53,24 @@ export async function GET(req: NextRequest) {
     b.blockerId === session.id ? b.blockedId : b.blockerId
   ))]
 
-  // Hard reciprocity: a viewer who hides their own profile
-  // ('connections only') only sees their connections in the directory.
-  // Hiding yourself also hides everyone else from you, so privacy isn't
-  // a one-way mirror. For 'everyone' viewers this filter is a no-op.
+  // Private-account model: 'connections only' members STAY in the
+  // directory (so they're discoverable and can be sent connection
+  // requests), but their card is redacted to name + photo + neighborhood
+  // until the viewer is connected. Full details unlock for: the member
+  // themselves, accepted connections, and admins/moderators/club hosts
+  // (who need full access for moderation / event management).
   //
-  // Admins, moderators, and club hosts are exempt — they need full
-  // directory access for moderation / event management regardless of
-  // their own privacy setting.
-  const viewer = await prisma.user.findUnique({
-    where:  { id: session.id },
-    select: { profileVisibility: true },
+  // Fetch the viewer's accepted-connection IDs + privilege once so the
+  // result mapping below can decide per-card whether to redact.
+  const conns = await prisma.memberConnection.findMany({
+    where: {
+      status: 'accepted',
+      OR: [{ requesterId: session.id }, { receiverId: session.id }],
+    },
+    select: { requesterId: true, receiverId: true },
   })
-  let reciprocityFilter: Prisma.UserWhereInput = {}
-  if (viewer?.profileVisibility === 'connections'
-      && !isAdminOrModerator(session)
-      && !(await isClubHost(session.id))) {
-    const conns = await prisma.memberConnection.findMany({
-      where: {
-        status: 'accepted',
-        OR: [{ requesterId: session.id }, { receiverId: session.id }],
-      },
-      select: { requesterId: true, receiverId: true },
-    })
-    const connectionIds = conns.map(c => c.requesterId === session.id ? c.receiverId : c.requesterId)
-    reciprocityFilter = { id: { in: [...connectionIds, session.id] } }
-  }
+  const connectionIds = new Set(conns.map(c => c.requesterId === session.id ? c.receiverId : c.requesterId))
+  const privileged = isAdminOrModerator(session) || await isClubHost(session.id)
 
   const roleIn = ['member', 'moderator', 'admin']
 
@@ -87,18 +79,11 @@ export async function GET(req: NextRequest) {
   // OR/NOT with dynamic conditions at the same level.
   const where: Prisma.UserWhereInput = {
     AND: [
-      // Exclude members who've set profileVisibility:'connections' — they
-      // opted out of general member discovery. Always include the viewer.
-      {
-        OR: [
-          { profileVisibility: 'everyone' },
-          { id: session.id },
-        ],
-      },
+      // Everyone is listed regardless of privacy setting — 'connections
+      // only' members appear as redacted cards (see result mapping), not
+      // hidden. Discovery for all; details gated per-card.
       // Exclude blocked users (and users who blocked the viewer).
       blockedIds.length > 0 ? { id: { notIn: blockedIds } } : {},
-      // Reciprocity: restrict hidden viewers to their connections.
-      reciprocityFilter,
       openFilter,
       searchFilter,
       savedOnly && savedIds !== null
@@ -122,6 +107,7 @@ export async function GET(req: NextRequest) {
         neighborhood: true, nationality: true, interests: true,
         languages: true, profilePhoto: true, joinedAt: true, role: true,
         instagram: true, lastActive: true, socialStyles: true,
+        profileVisibility: true,
         openToCoffee: true, openToLanguage: true, openToHosting: true,
         clubMemberships: {
           where: { status: 'approved' },
@@ -136,32 +122,56 @@ export async function GET(req: NextRequest) {
     prisma.user.count({ where }),
     prisma.user.count({
       where: {
-        AND: [
-          reciprocityFilter,
-          {
-            status: 'approved',
-            clubMemberships: { some: { role: 'host', status: 'approved' } },
-          },
-        ],
+        status: 'approved',
+        clubMemberships: { some: { role: 'host', status: 'approved' } },
       },
     }),
     prisma.user.count({
-      where: { AND: [reciprocityFilter, { status: 'approved', role: 'admin' }] },
+      where: { status: 'approved', role: 'admin' },
     }),
     prisma.memberSave.count({ where: { userId: session.id } }),
   ])
 
-  const result = members.map(m => ({
-    id: m.id, name: m.name, color: m.color, bio: m.bio,
-    neighborhood: m.neighborhood, nationality: m.nationality,
-    interests: m.interests, languages: m.languages,
-    socialStyles: m.socialStyles,
-    profilePhoto: m.profilePhoto, joinedAt: m.joinedAt,
-    role: m.role, instagram: m.instagram, lastActive: m.lastActive,
-    isHost:      m.clubMemberships.some(cm => cm.role === 'host'),
-    clubs:       m.clubMemberships.map(cm => ({ ...cm.club, isHost: cm.role === 'host' })),
-    eventsCount: m._count.joinedEvents,
-  }))
+  const result = members.map(m => {
+    // A 'connections only' member is redacted unless the viewer is
+    // allowed full access: themselves, an accepted connection, or a
+    // privileged role (admin/moderator/club host).
+    const restricted =
+      m.profileVisibility === 'connections' &&
+      m.id !== session.id &&
+      !privileged &&
+      !connectionIds.has(m.id)
+
+    if (restricted) {
+      // Minimal locked card: identity + neighborhood only. Personal
+      // details (bio, interests, languages, socials, clubs) are gated
+      // behind a connection — the full profile 404s for non-connections.
+      return {
+        id: m.id, name: m.name, color: m.color, bio: null,
+        neighborhood: m.neighborhood, nationality: null,
+        interests: [] as string[], languages: [] as string[],
+        socialStyles: [] as string[],
+        profilePhoto: m.profilePhoto, joinedAt: m.joinedAt,
+        role: m.role, instagram: null, lastActive: null,
+        isHost: false, clubs: [] as { id: string; name: string; emoji: string | null; slug: string; isHost: boolean }[],
+        eventsCount: 0,
+        restricted: true,
+      }
+    }
+
+    return {
+      id: m.id, name: m.name, color: m.color, bio: m.bio,
+      neighborhood: m.neighborhood, nationality: m.nationality,
+      interests: m.interests, languages: m.languages,
+      socialStyles: m.socialStyles,
+      profilePhoto: m.profilePhoto, joinedAt: m.joinedAt,
+      role: m.role, instagram: m.instagram, lastActive: m.lastActive,
+      isHost:      m.clubMemberships.some(cm => cm.role === 'host'),
+      clubs:       m.clubMemberships.map(cm => ({ ...cm.club, isHost: cm.role === 'host' })),
+      eventsCount: m._count.joinedEvents,
+      restricted: false,
+    }
+  })
 
   return NextResponse.json({ members: result, total, hostTotal, adminTotal, savedTotal, hasMore: offset + PAGE_SIZE < total, isFiltered: isHost || adminOnly || savedOnly })
 }

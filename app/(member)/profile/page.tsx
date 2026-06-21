@@ -755,7 +755,7 @@ export default function ProfilePage() {
               <div className="space-y-2">
                 {([
                   { id: 'everyone',    label: 'Everyone',                   sub: 'All approved members can view your profile'       },
-                  { id: 'connections', label: 'Connections only',           sub: 'Only your connections can view it — and in return, you’ll only see your connections in the directory too' },
+                  { id: 'connections', label: 'Connections only',           sub: 'You still appear in the directory, but your bio, interests, clubs and socials stay locked until someone connects with you' },
                 ] as { id: string; label: string; sub: string }[]).map(opt => (
                   <label key={opt.id}
                     className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-colors ${

@@ -67,41 +67,20 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   if (!user) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  // Hard reciprocity: a viewer who hides their own profile
-  // ('connections only') can only open the profiles of people they're
-  // connected with. Hiding yourself also hides everyone else from you,
-  // so privacy can't be a one-way mirror. Reuses the connection row
-  // already fetched above. 404 (not 403) to match the symmetric case.
-  //
-  // Admins, moderators, and club hosts are exempt — they need to view
-  // any profile for moderation / event management regardless of their
-  // own privacy setting.
-  if (session.id !== id && connection?.status !== 'accepted'
-      && !isAdminOrModerator(session)) {
-    const viewer = await prisma.user.findUnique({
-      where:  { id: session.id },
-      select: { profileVisibility: true },
-    })
-    if (viewer?.profileVisibility === 'connections' && !(await isClubHost(session.id))) {
-      return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    }
-  }
-
-  // Honour profileVisibility:'connections'. Viewing your own profile always
-  // works. Anyone else needs an accepted MemberConnection to proceed — return
-  // 404 rather than 403 so the viewer doesn't know the profile exists.
-  if (session.id !== id && user.profileVisibility === 'connections') {
-    const conn = await prisma.memberConnection.findFirst({
-      where: {
-        status: 'accepted',
-        OR: [
-          { requesterId: session.id, receiverId: id },
-          { requesterId: id, receiverId: session.id },
-        ],
-      },
-      select: { id: true },
-    })
-    if (!conn) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  // Private-account model: a 'connections only' member's full profile is
+  // gated. Viewing your own always works; everyone else needs an accepted
+  // MemberConnection. Admins, moderators, and club hosts are exempt
+  // (moderation / event management). 404 rather than 403 so the viewer
+  // can't tell whether the profile exists. Reuses the connection row
+  // already fetched above — no extra query.
+  if (
+    session.id !== id &&
+    user.profileVisibility === 'connections' &&
+    connection?.status !== 'accepted' &&
+    !isAdminOrModerator(session) &&
+    !(await isClubHost(session.id))
+  ) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
   // Count of approved members this user brought in — drives the
