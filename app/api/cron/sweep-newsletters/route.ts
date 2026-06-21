@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { sendNewsletterEmail, recordEmailFailure } from '@/lib/email'
+import { checkCronAuth } from '@/lib/cronAuth'
 
 const BATCH_SIZE     = 50
 const BATCH_DELAY_MS = 1000
@@ -21,10 +22,8 @@ function recipientWhere(segment: Segment) {
 }
 
 export async function POST(req: NextRequest) {
-  const secret = process.env.CRON_SECRET
-  if (!secret || req.headers.get('Authorization') !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const denied = checkCronAuth(req)
+  if (denied) return denied
 
   // Find newsletters scheduled for now or earlier that haven't been sent yet
   const due = await prisma.newsletter.findMany({

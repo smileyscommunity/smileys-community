@@ -1,6 +1,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { getEvents, getClubs } from '@/lib/db'
 import { getSession } from '@/lib/session'
@@ -11,7 +12,44 @@ import { resolveImageUrl, todayIstanbul } from '@/lib/data'
 import { loadContent } from '@/lib/content'
 import ActivityTicker from '@/components/ActivityTicker'
 
-export const dynamic = 'force-dynamic'
+// The landing-page data is identical for every anonymous visitor (logged-in
+// users are redirected away before it's read), so cache it for 60s instead
+// of re-running ~6 queries on every hit to the highest-traffic page.
+const getHomeData = unstable_cache(
+  async () => {
+    const today = new Date().toISOString().split('T')[0]
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+
+    const [{ events }, clubs, neighborhoodCounts, testimonials, recentMembers, totalRsvps] = await Promise.all([
+      getEvents({ limit: 3, upcoming: true }),
+      getClubs(),
+      prisma.event.groupBy({
+        by: ['neighborhood'],
+        where: { date: { gte: today } },
+        _count: { _all: true },
+        orderBy: { _count: { neighborhood: 'desc' } },
+        take: 6,
+      }),
+      prisma.testimonial.findMany({ where: { active: true }, orderBy: [{ order: 'asc' }], take: 3 }),
+      prisma.user.findMany({
+        where: { status: 'approved', role: 'member', joinedAt: { gte: sevenDaysAgo } },
+        select: { name: true, nationality: true },
+        orderBy: { joinedAt: 'desc' },
+        take: 6,
+      }),
+      prisma.eventAttendee.count({
+        where: {
+          status: 'approved',
+          event: { status: 'published', date: { gte: today }, membersOnly: false },
+        },
+      }),
+    ])
+
+    return { events, clubs, neighborhoodCounts, testimonials, recentMembers, totalRsvps }
+  },
+  ['home-page-data'],
+  { revalidate: 60, tags: ['home'] },
+)
 
 const steps = [
   {
@@ -41,33 +79,7 @@ export default async function HomePage() {
     else redirect('/dashboard')
   }
 
-  const today = new Date().toISOString().split('T')[0]
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-
-  const [{ events }, clubs, neighborhoodCounts, testimonials, recentMembers, totalRsvps] = await Promise.all([
-    getEvents({ limit: 3, upcoming: true }),
-    getClubs(),
-    prisma.event.groupBy({
-      by: ['neighborhood'],
-      where: { date: { gte: today } },
-      _count: { _all: true },
-      orderBy: { _count: { neighborhood: 'desc' } },
-      take: 6,
-    }),
-    prisma.testimonial.findMany({ where: { active: true }, orderBy: [{ order: 'asc' }], take: 3 }),
-    prisma.user.findMany({
-      where: { status: 'approved', role: 'member', joinedAt: { gte: sevenDaysAgo } },
-      select: { name: true, nationality: true },
-      orderBy: { joinedAt: 'desc' },
-      take: 6,
-    }),
-    prisma.eventAttendee.count({
-      where: {
-        status: 'approved',
-        event: { status: 'published', date: { gte: today }, membersOnly: false },
-      },
-    }),
-  ])
+  const { events, clubs, neighborhoodCounts, testimonials, recentMembers, totalRsvps } = await getHomeData()
 
   const topNeighborhoods = neighborhoodCounts.map(c => ({
     name:       c.neighborhood,

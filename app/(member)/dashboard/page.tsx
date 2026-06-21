@@ -63,9 +63,13 @@ export default async function DashboardPage() {
   const weekEndStr = weekEnd.toISOString().split('T')[0]
 
   const [myAttendances, myMemberships, eventsThisMonth, userProfile, , unreviewedRaw, weeklyVisitors, recentListings] = await Promise.all([
+    // Lightweight: only ids + dates are needed for the id lists, counts,
+    // and month/streak math. Full event objects for the upcoming cards
+    // come from the separate (take: 5) query below — avoids loading every
+    // attendance's full event payload.
     prisma.eventAttendee.findMany({
       where: { userId: session.id, status: 'approved' },
-      include: { event: { select: { id: true, title: true, date: true, time: true, neighborhood: true, emoji: true, price: true, coverImage: true, limitedSpots: true, spotsLeft: true, lat: true, lng: true } } },
+      select: { eventId: true, event: { select: { date: true } } },
       orderBy: { joinedAt: 'desc' },
     }),
     prisma.clubMembership.findMany({
@@ -100,13 +104,26 @@ export default async function DashboardPage() {
     }),
   ])
 
+  // Upcoming attendances with full event payload — the only place that
+  // needs the heavy event fields (cards + map). Bounded to 5. Pulled
+  // OUT of the Promise.all above because the 9-tuple inference was
+  // narrowing this query's event shape to the lightweight {date} of
+  // the first eventAttendee query, breaking `.title` access at build
+  // time (local `tsc --noEmit` didn't catch it; `next build` did).
+  const upcomingAttendances = await prisma.eventAttendee.findMany({
+    where: { userId: session.id, status: 'approved', event: { date: { gte: today } } },
+    include: { event: { select: { id: true, title: true, date: true, time: true, neighborhood: true, emoji: true, price: true, coverImage: true, limitedSpots: true, spotsLeft: true, lat: true, lng: true } } },
+    orderBy: [{ event: { date: 'asc' } }],
+    take: 5,
+  })
+
   const unreviewed = unreviewedRaw
     .filter((a) => a.event.reviews.length === 0)
     .map((a) => ({ id: a.event.id, title: a.event.title, emoji: a.event.emoji }))
 
   const clubIds        = myMemberships.map((m) => m.clubId)
   const joinedEventIds = myAttendances.map((a) => a.eventId)
-  const upcomingEvents = myAttendances.filter((a) => a.event.date >= today).sort((a, b) => a.event.date.localeCompare(b.event.date)).slice(0, 5)
+  const upcomingEvents = upcomingAttendances
   const clubs          = myMemberships.map((m) => m.club)
   const pastEventIds   = myAttendances.filter((a) => a.event.date < today).map((a) => a.eventId)
 

@@ -31,7 +31,7 @@ export async function GET() {
       ],
     }
 
-    const [events, reviews, attendeeStats] = await Promise.all([
+    const [events, reviews, totalAttendees, uniqueGroups] = await Promise.all([
       prisma.event.count({ where: eventWhere }),
 
       prisma.review.aggregate({
@@ -40,14 +40,20 @@ export async function GET() {
         _count: { rating: true },
       }),
 
-      prisma.eventAttendee.findMany({
+      // Total approved attendances (count, not row fetch).
+      prisma.eventAttendee.count({
         where: { event: eventWhere, status: 'approved' },
-        select: { userId: true },
+      }),
+
+      // Distinct members: one row per unique userId instead of loading
+      // every attendance row to build a Set in memory.
+      prisma.eventAttendee.groupBy({
+        by: ['userId'],
+        where: { event: eventWhere, status: 'approved' },
       }),
     ])
 
-    const totalAttendees = attendeeStats.length
-    const uniqueMembers  = new Set(attendeeStats.map(a => a.userId)).size
+    const uniqueMembers  = uniqueGroups.length
     const averageRating  = reviews._avg.rating ?? 0
     const reviewCount    = reviews._count.rating
 
