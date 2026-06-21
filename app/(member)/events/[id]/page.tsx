@@ -28,7 +28,10 @@ function absoluteImageUrl(coverImage: string | null | undefined): string {
   if (!coverImage) return `${APP_URL}/api/og`
   const resolved = resolveImageUrl(coverImage)
   if (resolved.startsWith('http')) return resolved
-  return `${SITE_URL}${resolved}`
+  // ?w=1200 hits the file route's PREVIEW resize: aspect-preserved
+  // JPEG q75 ~250 KB. Keeps WhatsApp / iMessage / X under their
+  // ~600 KB OG-image cap and shrinks the in-page hero load too.
+  return `${SITE_URL}${resolved}?w=1200`
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
@@ -510,25 +513,39 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
 
           <hr className="border-gray-100" />
 
-          {/* Live Status — only shown on the day of the event */}
-          {event.date === today && !isPast && (
-            <div className="bg-green-50 border border-green-100 rounded-2xl p-4 mb-6 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="relative flex h-2.5 w-2.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
-                </span>
-                <span className="text-sm font-bold text-green-900 uppercase tracking-wider">Live Now</span>
+          {/* Live Status — show from 2h before start through 4h after.
+              Earlier shape was "anywhere on event day" which fired
+              "Live Now" at 6am for an 8pm event. Time-of-day gate uses
+              Istanbul as the offset (no DST in TR since 2016, so +03:00
+              is stable). Cancelled events are gated out entirely — the
+              status banner / strikethrough already tells the story. */}
+          {(() => {
+            if (event.status === 'cancelled') return null
+            const eventStartMs = Date.parse(`${event.date}T${event.time}:00+03:00`)
+            const nowMs        = Date.now()
+            const showLive     = Number.isFinite(eventStartMs)
+              && nowMs >= eventStartMs - 2 * 60 * 60_000
+              && nowMs <  eventStartMs + 4 * 60 * 60_000
+            if (!showLive) return null
+            return (
+              <div className="bg-green-50 border border-green-100 rounded-2xl p-4 mb-6 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
+                  </span>
+                  <span className="text-sm font-bold text-green-900 uppercase tracking-wider">Live Now</span>
+                </div>
+                <div className="text-sm font-semibold text-green-800">
+                  {checkedInCount > 0 ? (
+                    <span>✨ {checkedInCount} arrived</span>
+                  ) : (
+                    <span className="opacity-60 italic">Waiting for arrivals...</span>
+                  )}
+                </div>
               </div>
-              <div className="text-sm font-semibold text-green-800">
-                {checkedInCount > 0 ? (
-                  <span>✨ {checkedInCount} arrived</span>
-                ) : (
-                  <span className="opacity-60 italic">Waiting for arrivals...</span>
-                )}
-              </div>
-            </div>
-          )}
+            )
+          })()}
 
           {/* About */}
           <div>

@@ -21,7 +21,12 @@ function absoluteImageUrl(coverImage: string | null | undefined): string {
   if (!coverImage) return `${APP_URL}/api/og`
   const resolved = resolveImageUrl(coverImage)
   if (resolved.startsWith('http')) return resolved
-  return `${SITE_URL}${resolved}`
+  // ?w=1200 triggers the file route's preview resize: 1200-wide,
+  // JPEG quality 75, aspect preserved. WhatsApp / iMessage / X all
+  // drop OG images > ~600 KB; club covers can run 2 MB+ at original
+  // size, so the resized variant is the difference between a rich
+  // preview card and a bare link.
+  return `${SITE_URL}${resolved}?w=1200`
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {

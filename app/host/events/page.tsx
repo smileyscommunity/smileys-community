@@ -78,7 +78,7 @@ function EventRow({ e, saving, onDuplicate, onStatusChange, isPast }: { e: Event
           {e.coverImage ? (
             <img src={resolveImageUrl(e.coverImage)} alt={e.title} className="w-14 h-14 rounded-lg object-cover hover:opacity-80 transition-opacity" />
           ) : (
-            <div className="w-14 h-14 rounded-lg bg-zinc-800 flex items-center justify-center text-2xl hover:bg-zinc-700 transition-colors">{e.emoji}</div>
+            <div aria-hidden="true" className="w-14 h-14 rounded-lg bg-zinc-800 flex items-center justify-center text-2xl hover:bg-zinc-700 transition-colors">{e.emoji}</div>
           )}
         </Link>
         <div className="flex-1 min-w-0">
@@ -222,7 +222,7 @@ export default function HostEventsPage() {
         <div className="text-zinc-500 text-sm">Loading…</div>
       ) : displayed.length === 0 ? (
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-12 text-center">
-          <div className="text-4xl mb-3">{tab === 'upcoming' ? '🎉' : tab === 'pending' ? '✅' : '📚'}</div>
+          <div aria-hidden="true" className="text-4xl mb-3">{tab === 'upcoming' ? '🎉' : tab === 'pending' ? '✅' : '📚'}</div>
           <div className="text-zinc-300 font-medium mb-1">
             {tab === 'upcoming' ? 'No upcoming events' : tab === 'pending' ? 'Nothing awaiting review' : 'No past events'}
           </div>

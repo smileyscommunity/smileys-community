@@ -198,6 +198,28 @@ export async function sendAdminNewApplicationEmail(applicantName: string, applic
   })
 }
 
+// Fires once per directory submission (non-admin submitters only — admin
+// submissions are auto-approved). Sent to the same single ADMIN_EMAIL
+// inbox the application emails go to; the in-app + push notifications
+// in lib/notify.ts still fan out to every admin / moderator.
+export async function sendAdminNewDirectorySubmissionEmail(submitterName: string, businessName: string) {
+  const adminEmail = process.env.ADMIN_EMAIL ?? 'info@smileyscommunity.com'
+  await getResend().emails.send({
+    from: FROM, to: adminEmail,
+    subject: safeSubject(`New directory submission: ${businessName}`),
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <h2 style="font-size:18px;font-weight:700;color:#111;margin:0 0 16px">New business submitted to the directory</h2>
+        <p style="color:#374151;font-size:14px;margin:0 0 8px"><strong>Business:</strong> ${esc(businessName)}</p>
+        <p style="color:#374151;font-size:14px;margin:0 0 24px"><strong>Submitted by:</strong> ${esc(submitterName)}</p>
+        <a href="${APP_URL}/admin/directory" style="display:inline-block;background:#111;color:#fff;font-weight:600;font-size:14px;padding:12px 24px;border-radius:10px;text-decoration:none">
+          Review submission →
+        </a>
+      </div>
+    `,
+  })
+}
+
 export async function sendApplicationRejectedEmail(email: string, name: string, message?: string) {
   const body = message?.trim()
     ? message.trim()

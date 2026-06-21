@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
+import { sendAdminNewDirectorySubmissionEmail } from '@/lib/email'
 import { rateLimit, getIp } from '@/lib/rateLimit'
 import { isSafeHref } from '@/lib/safeUrl'
 import {
@@ -124,6 +125,18 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Cover image — accept only paths that point at the /api/files/
+    // directory subfolder. Anything else (external URL, listings/users
+    // subfolder, JS-injected string) gets dropped to null so a malicious
+    // submission can't ship a tracking pixel or unrelated asset.
+    let coverImage: string | null = null
+    if (typeof body.coverImage === 'string' && body.coverImage.trim()) {
+      const raw = body.coverImage.trim()
+      if (/^\/app\/api\/files\/directory\/[\w-]+\.(jpg|jpeg|png|webp|gif)$/i.test(raw)) {
+        coverImage = raw
+      }
+    }
+
     // Auto-approve only for admin role. Moderators submitting their own
     // listings still go through review — they're trusted enough to triage
     // but not to publish directly without a second pair of eyes.
@@ -140,6 +153,7 @@ export async function POST(req: NextRequest) {
         website,
         instagram,
         languages,
+        coverImage,
         isExpatOwned:    !!body.isExpatOwned,
         isExpatFriendly: !!body.isExpatFriendly,
         submittedById: session.id,
@@ -152,15 +166,25 @@ export async function POST(req: NextRequest) {
         where: { role: { in: ['admin', 'moderator'] } },
         select: { id: true },
       })
+      // In-app + push, fanned out to every admin/moderator. Switched
+      // from the generic 'system' type to 'directory_submission' so
+      // these get a distinct 📋 icon in the bell (previously buried
+      // among any other system entries with the fallback 🔔).
       await Promise.all(admins.map(a =>
         createNotification(
           a.id,
-          'system',
+          'directory_submission',
           'New business submission',
           `${session.name} submitted "${business.name}" for directory approval`,
           '/admin/directory',
         ),
       ))
+      // Single-recipient email to the ADMIN_EMAIL inbox — same shape as
+      // sendAdminNewApplicationEmail. Non-blocking + catches its own
+      // failures so a Resend hiccup doesn't roll back the submission.
+      sendAdminNewDirectorySubmissionEmail(session.name, business.name).catch(e => {
+        console.error('Directory submission email failed:', e)
+      })
     }
 
     return NextResponse.json({ ok: true, id: business.id, approved: business.isApproved })

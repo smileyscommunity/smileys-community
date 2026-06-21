@@ -33,7 +33,7 @@ export default function HostClubsPage() {
         <div className="text-zinc-500 text-sm">Loading…</div>
       ) : clubs.length === 0 ? (
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-12 text-center">
-          <div className="text-4xl mb-3">🏛️</div>
+          <div aria-hidden="true" className="text-4xl mb-3">🏛️</div>
           <div className="text-zinc-300 font-medium mb-1">No clubs assigned</div>
           <div className="text-zinc-500 text-sm">Ask an admin to assign you as a host of a club.</div>
         </div>
@@ -45,7 +45,7 @@ export default function HostClubsPage() {
               href={`/host/clubs/${club.slug}`}
               className="bg-zinc-900 border border-zinc-800 hover:border-zinc-600 rounded-xl p-4 flex items-center gap-4 transition-colors group"
             >
-              <div className="w-14 h-14 rounded-xl bg-zinc-800 flex items-center justify-center text-3xl shrink-0">
+              <div aria-hidden="true" className="w-14 h-14 rounded-xl bg-zinc-800 flex items-center justify-center text-3xl shrink-0">
                 {club.emoji}
               </div>
               <div className="flex-1 min-w-0">

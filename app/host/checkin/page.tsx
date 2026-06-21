@@ -44,7 +44,7 @@ function EventList() {
   if (events.length === 0) {
     return (
       <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-10 text-center">
-        <div className="text-3xl mb-2">📅</div>
+        <div aria-hidden="true" className="text-3xl mb-2">📅</div>
         <div className="text-zinc-400 text-sm">No events today.</div>
       </div>
     )
@@ -55,7 +55,7 @@ function EventList() {
       {events.map(e => (
         <button key={e.id} onClick={() => router.push(`/host/checkin?event=${e.id}`)}
           className="w-full flex items-center gap-4 bg-zinc-900 border border-zinc-800 rounded-xl p-4 hover:border-zinc-600 transition-colors text-left">
-          <span className="text-3xl">{e.emoji}</span>
+          <span aria-hidden="true" className="text-3xl">{e.emoji}</span>
           <div className="min-w-0">
             <div className="text-sm font-medium text-white truncate">{e.title}</div>
             <div className="text-xs text-zinc-400 mt-0.5">{e.time}</div>

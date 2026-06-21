@@ -95,8 +95,11 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       url: `${APP_URL}/posts/${slug}`,
       siteName: 'Smileys Community',
       type: 'article',
+      // ?w=1200 hits the file route's PREVIEW resize: 1200-wide JPEG
+      // q75, aspect preserved. WhatsApp / iMessage / X all drop OG
+      // images > ~600 KB; original PNGs from posts run multi-MB.
       images: post.coverImage
-        ? [{ url: `${SITE_URL}${resolveImageUrl(post.coverImage)}`, secureUrl: `${SITE_URL}${resolveImageUrl(post.coverImage)}`, width: 1200, height: 630, alt: post.title }]
+        ? [{ url: `${SITE_URL}${resolveImageUrl(post.coverImage)}?w=1200`, secureUrl: `${SITE_URL}${resolveImageUrl(post.coverImage)}?w=1200`, width: 1200, height: 630, alt: post.title }]
         : [{ url: `${APP_URL}/api/og`, secureUrl: `${APP_URL}/api/og`, width: 1200, height: 630 }],
     },
     twitter: {

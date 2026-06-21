@@ -462,51 +462,6 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            {/* ── Professional ── */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
-              <div className="flex items-center gap-2">
-                <h2 className="font-bold text-gray-900">Professional</h2>
-                <span className="text-[10px] font-bold bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded uppercase tracking-tight">New</span>
-              </div>
-              <p className="text-xs text-gray-400 leading-relaxed">
-                Add your career context to help other members find you for professional reasons.
-              </p>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Industry</label>
-                  <select value={form.industry} onChange={e => set('industry', e.target.value)} className={`${inputCls} bg-white`}>
-                    <option value="">Select industry…</option>
-                    {INDUSTRIES.map(i => <option key={i} value={i}>{i}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Role / Job Title</label>
-                  <input type="text" value={form.professionalRole} onChange={e => set('professionalRole', e.target.value)}
-                    placeholder="e.g. Founder, Designer" className={inputCls} />
-                </div>
-                <div className="col-span-full">
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Networking Goal</label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {PROFESSIONAL_STATUS_OPTIONS.map(opt => {
-                      const active = form.professionalStatus === opt.id
-                      return (
-                        <button key={opt.id} type="button"
-                          onClick={() => set('professionalStatus', opt.id)}
-                          className={`text-left px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
-                            active
-                              ? 'border-amber-500 bg-amber-50 text-amber-700'
-                              : 'border-gray-100 bg-white text-gray-600 hover:border-amber-200'
-                          }`}>
-                          {opt.label}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-              </div>
-            </div>
-
             {/* ── Languages ── */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-3">
               <h2 className="font-bold text-gray-900">Languages</h2>

@@ -7,7 +7,10 @@ import MemberProfileClient from './MemberProfileClient'
 function absolutePhoto(photo: string | null | undefined): string | undefined {
   if (!photo) return undefined
   const resolved = resolveImageUrl(photo)
-  return resolved.startsWith('http') ? resolved : `${SITE_URL}${resolved}`
+  // ?w=1200 hits the file route's PREVIEW resize: aspect-preserved
+  // JPEG q75 keeps the OG image under WhatsApp / iMessage / X's
+  // ~600 KB cap. Member upload originals are 1200×1200 PNG, ~1-3 MB.
+  return resolved.startsWith('http') ? resolved : `${SITE_URL}${resolved}?w=1200`
 }
 
 export async function generateMetadata(

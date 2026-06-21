@@ -77,7 +77,7 @@ export default function HostDashboard() {
       {/* Clubs shortcut for moderator-only users */}
       {canClubs && !canEvents && (
         <Link href="/host/clubs" className="block bg-zinc-900 border border-zinc-800 hover:border-amber-500/50 rounded-xl p-6 mb-6 transition-colors group">
-          <div className="text-2xl mb-2">🏛️</div>
+          <div aria-hidden="true" className="text-2xl mb-2">🏛️</div>
           <div className="text-white font-semibold group-hover:text-amber-400 transition-colors">Go to My Clubs</div>
           <div className="text-zinc-500 text-sm mt-0.5">Manage announcements, spotlight, rules, resources and photos.</div>
         </Link>
@@ -128,7 +128,7 @@ export default function HostDashboard() {
         <div className="text-zinc-500 text-sm">Loading…</div>
       ) : upcoming.length === 0 ? (
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-8 text-center">
-          <div className="text-3xl mb-2">🎉</div>
+          <div aria-hidden="true" className="text-3xl mb-2">🎉</div>
           <div className="text-zinc-400 text-sm">No upcoming events. Create your first one!</div>
           <Link href="/host/events/new" className="inline-block mt-4 text-xs bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg font-medium transition-colors">
             Create Event
@@ -140,7 +140,7 @@ export default function HostDashboard() {
             <div key={e.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-start gap-3 min-w-0">
-                  <span className="text-2xl shrink-0">{e.emoji}</span>
+                  <span aria-hidden="true" className="text-2xl shrink-0">{e.emoji}</span>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <Link href={`/host/events/${e.id}/edit`} className="text-sm font-medium text-white hover:text-amber-400 transition-colors truncate">{e.title}</Link>
@@ -172,7 +172,7 @@ export default function HostDashboard() {
               <div key={e.id} className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4 opacity-60">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-start gap-3 min-w-0">
-                    <span className="text-2xl shrink-0">{e.emoji}</span>
+                    <span aria-hidden="true" className="text-2xl shrink-0">{e.emoji}</span>
                     <div className="min-w-0">
                       <Link href={`/host/events/${e.id}/edit`} className="text-sm font-medium text-white hover:text-amber-400 transition-colors truncate block">{e.title}</Link>
                       <div className="text-xs text-zinc-400 mt-0.5">{e.date} · {e.location}</div>

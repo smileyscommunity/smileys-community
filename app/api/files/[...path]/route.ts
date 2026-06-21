@@ -12,7 +12,11 @@ export const runtime = 'nodejs'
 // Anything else (or no `?w=` at all) serves the original. Bounded
 // allowlist + immutable cache means each variant is computed at
 // most once per (file, width) per process / CDN cache window.
-const SIZED: ReadonlySet<number> = new Set([64, 96, 128, 256])
+// SIZED: small square thumbs (avatar-shaped, fit: cover).
+// PREVIEW: wider non-square fit-inside for OG/social-card previews
+// where WhatsApp / iMessage / X drop images > ~600 KB.
+const SIZED:   ReadonlySet<number> = new Set([64, 96, 128, 256])
+const PREVIEW: ReadonlySet<number> = new Set([800, 1200])
 
 const MIME: Record<string, string> = {
   '.jpg':  'image/jpeg',
@@ -93,7 +97,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
   // keep working.
   const widthParam = req.nextUrl.searchParams.get('w')
   const width      = widthParam ? Number(widthParam) : null
-  const wantSized  = width !== null && SIZED.has(width)
+  const wantSized   = width !== null && SIZED.has(width)
+  const wantPreview = width !== null && PREVIEW.has(width)
   let body: Buffer | Uint8Array = raw
   let mime = MIME[ext] ?? 'application/octet-stream'
   if (wantSized) {
@@ -104,6 +109,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
       // Corrupted or unsupported file — fall back to the raw bytes.
       // Better to serve the original than a silent 500 that shows
       // a broken image or blank slot in the UI.
+    }
+  } else if (wantPreview) {
+    // Preserve aspect; resize to fit inside a width × width box (height
+    // floats). JPEG quality 75 lands a 1200-wide variant under ~250 KB
+    // for typical club covers — small enough that WhatsApp / iMessage
+    // / X all keep the preview image. Originals stay reachable without
+    // `?w` so existing links keep working.
+    try {
+      body = await sharp(raw).resize({ width, withoutEnlargement: true }).jpeg({ quality: 75 }).toBuffer()
+      mime = 'image/jpeg'
+    } catch {
+      // Fall back to raw on any sharp error.
     }
   }
 

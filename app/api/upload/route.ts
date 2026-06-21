@@ -41,10 +41,12 @@ export async function POST(req: NextRequest) {
       isClubHost = !!hostMembership
     }
 
-    // Regular members can upload event/club/hangout photos; downstream API
-    // routes enforce per-feature auth (e.g. the hangouts POST checks the
-    // returned URL against a regex before storing).
-    const isMemberUpload = folder === 'events' || folder === 'clubs' || folder === 'hangouts' || folder === 'listings'
+    // Regular members can upload event/club/hangout/listing/directory
+    // photos; downstream API routes enforce per-feature auth (e.g. the
+    // hangouts POST checks the returned URL against a regex before
+    // storing). Directory submissions go through admin review unless
+    // the submitter is an admin, so misuse gets caught there.
+    const isMemberUpload = folder === 'events' || folder === 'clubs' || folder === 'hangouts' || folder === 'listings' || folder === 'directory'
 
     if (!isPrivileged && !isClubHost && !isMemberUpload && folder !== 'users') {
       return NextResponse.json({ error: 'You can only upload profile photos.' }, { status: 403 })

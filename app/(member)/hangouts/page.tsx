@@ -604,7 +604,7 @@ export default function HangoutsPage() {
             const anyFilterOn = modeFilter !== 'all' || neighborhoodFilter !== null || languageOnly
             return (
               <div className="text-center py-16">
-                <div className="text-5xl mb-3">☕</div>
+                <div aria-hidden="true" className="text-5xl mb-3">☕</div>
                 <p className="text-base font-bold text-gray-900 mb-1">
                   {anyFilterOn ? 'Nothing matches your filters' : 'Nothing right now'}
                 </p>

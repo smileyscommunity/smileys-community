@@ -32,7 +32,10 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const pageUrl = `${APP_URL}/listings/${id}`
 
   const photo = listing.photo ? resolveImageUrl(listing.photo) : null
-  const imageUrl = photo?.startsWith('http') ? photo : photo ? `${SITE_URL}${photo}` : `${APP_URL}/api/og`
+  // ?w=1200 hits the file route's PREVIEW resize so the OG image
+  // lands under WhatsApp / iMessage / X's ~600 KB cap. External
+  // photos (already-http) ship as-is.
+  const imageUrl = photo?.startsWith('http') ? photo : photo ? `${SITE_URL}${photo}?w=1200` : `${APP_URL}/api/og`
 
   return {
     title,
@@ -102,7 +105,7 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
     <div className="min-h-screen bg-warm pb-24 md:pb-0">
 
       {/* Back nav */}
-      <div className="bg-white border-b border-gray-100 sticky top-0 z-10">
+      <div className="bg-white/90 backdrop-blur border-b border-gray-100 sticky top-0 z-10">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
           <Link href="/listings" className="p-1.5 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

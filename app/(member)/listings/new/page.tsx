@@ -95,7 +95,7 @@ export default function NewListingPage() {
         <form onSubmit={handleSubmit} className="space-y-6 pb-8">
           {/* Category */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Category</label>
+            <p className="block text-sm font-semibold text-gray-700 mb-2">Category</p>
             <div className="grid grid-cols-3 gap-2">
               {CATEGORIES.map(cat => (
                 <button
@@ -117,8 +117,9 @@ export default function NewListingPage() {
 
           {/* Title */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Title</label>
+            <label htmlFor="nl-title" className="block text-sm font-semibold text-gray-700 mb-1.5">Title</label>
             <input
+              id="nl-title"
               type="text"
               value={title}
               onChange={e => setTitle(e.target.value)}
@@ -141,8 +142,9 @@ export default function NewListingPage() {
 
           {/* Description */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Description</label>
+            <label htmlFor="nl-description" className="block text-sm font-semibold text-gray-700 mb-1.5">Description</label>
             <textarea
+              id="nl-description"
               value={description}
               onChange={e => setDesc(e.target.value)}
               maxLength={2000}
@@ -155,10 +157,11 @@ export default function NewListingPage() {
 
           {/* Price */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+            <label htmlFor="nl-price" className="block text-sm font-semibold text-gray-700 mb-1.5">
               Price <span className="text-gray-400 font-normal">(optional)</span>
             </label>
             <input
+              id="nl-price"
               type="text"
               value={price}
               onChange={e => setPrice(e.target.value)}
@@ -170,10 +173,11 @@ export default function NewListingPage() {
 
           {/* Neighborhood */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+            <label htmlFor="nl-neighborhood" className="block text-sm font-semibold text-gray-700 mb-1.5">
               Neighborhood {category === 'ROOMS' ? <span className="text-gray-600 font-normal">(recommended)</span> : <span className="text-gray-400 font-normal">(optional)</span>}
             </label>
             <select
+              id="nl-neighborhood"
               value={neighborhood}
               onChange={e => setNeighborhood(e.target.value)}
               className="input bg-white"
@@ -186,10 +190,11 @@ export default function NewListingPage() {
 
           {/* WhatsApp contact */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+            <label htmlFor="nl-contact" className="block text-sm font-semibold text-gray-700 mb-1.5">
               WhatsApp contact <span className="text-gray-400 font-normal">(optional)</span>
             </label>
             <input
+              id="nl-contact"
               type="text"
               value={contact}
               onChange={e => setContact(e.target.value)}
@@ -201,9 +206,9 @@ export default function NewListingPage() {
 
           {/* Photo */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+            <p className="block text-sm font-semibold text-gray-700 mb-1.5">
               Photo <span className="text-gray-400 font-normal">(optional)</span>
-            </label>
+            </p>
             {photo ? (
               <div>
                 <div className="relative w-full h-40 rounded-xl overflow-hidden">

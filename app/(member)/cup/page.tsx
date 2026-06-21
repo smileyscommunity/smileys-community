@@ -884,7 +884,7 @@ function BracketSummary({ bracket, accessState }: { bracket: BracketPick | null;
         <div className="flex items-center gap-3 flex-wrap min-w-0">
           <h2 className="text-xs font-bold text-gray-600 uppercase tracking-wider whitespace-nowrap">Your bracket</h2>
           <div className="flex items-center gap-2 text-sm">
-            <span className="text-base shrink-0">👑</span>
+            <span aria-hidden="true" className="text-base shrink-0">👑</span>
             <span className="font-bold text-gray-900">{teamLabel(bracket.championPick)}</span>
           </div>
           <div className="flex items-center gap-1 text-xs">
@@ -944,7 +944,7 @@ function BracketCard({
           <div>
             <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wider mb-1">Champion · 100 pts</p>
             <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl">
-              <span className="text-lg">👑</span>
+              <span aria-hidden="true" className="text-lg">👑</span>
               <span className="text-sm font-bold text-gray-900">{teamLabel(row.championPick)}</span>
             </div>
           </div>
@@ -2276,7 +2276,7 @@ function Leaderboard() {
           spotlight worth giving). */}
       {hasScores && (
         <div className="px-5 py-3 bg-gradient-to-r from-amber-50 to-amber-100/60 border-b border-amber-100 flex items-center gap-3">
-          <span className="text-xl shrink-0">🥇</span>
+          <span aria-hidden="true" className="text-xl shrink-0">🥇</span>
           <div className="flex-1 min-w-0">
             <h3 className="text-[10px] font-bold text-amber-700 uppercase tracking-widest">Top of the table</h3>
             <p className="text-sm font-extrabold text-amber-900 truncate">{top.name}</p>

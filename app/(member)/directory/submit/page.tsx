@@ -1,16 +1,18 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
+import { ISTANBUL_NEIGHBORHOODS, resolveImageUrl } from '@/lib/data'
 import { BUSINESS_CATEGORIES, DIRECTORY_LIMITS } from '@/lib/directory-constants'
+import { downscaleImage } from '@/lib/image-resize'
 
 const EMPTY_FORM = {
   name: '', category: '', description: '',
   neighborhood: '', address: '', phone: '',
   website: '', instagram: '', languages: '',
+  coverImage: '',
   isExpatOwned: false, isExpatFriendly: false,
 }
 
@@ -59,6 +61,8 @@ export default function SubmitBusinessPage() {
   const [done,       setDone]       = useState(false)
   const [autoApproved, setAutoApproved] = useState(false)
   const [error,      setError]      = useState<string | null>(null)
+  const [uploading,  setUploading]  = useState(false)
+  const photoInputRef = useRef<HTMLInputElement>(null)
 
   // Wait for the auth bootstrap so we don't flash the form to logged-in
   // members before useAuth resolves, or the pitch to a member who's
@@ -69,6 +73,32 @@ export default function SubmitBusinessPage() {
 
   function set(k: string, v: unknown) {
     setForm(prev => ({ ...prev, [k]: v }))
+  }
+
+  async function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    setError(null)
+    try {
+      const upload = await downscaleImage(file)
+      const fd = new FormData()
+      fd.append('file', upload)
+      fd.append('folder', 'directory')
+      const res  = await fetch('/app/api/upload', { method: 'POST', body: fd, credentials: 'include' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.url) {
+        setError(data?.error || 'Upload failed. Try a smaller image.')
+        return
+      }
+      set('coverImage', data.url)
+    } catch {
+      setError('Upload failed. Try a smaller image.')
+    } finally {
+      setUploading(false)
+      // Reset the input so picking the same file again still re-fires onChange.
+      if (photoInputRef.current) photoInputRef.current.value = ''
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -240,9 +270,60 @@ export default function SubmitBusinessPage() {
           </div>
         </div>
 
+        {/* Cover photo — optional. Submitters previously had no way
+            to attach a photo at submission time, so listings shipped
+            without a cover and fell back to the 🏢 emoji placeholder
+            in the directory grid. Single image, capped via the file
+            route + downscaleImage(); admins can swap it later. */}
+        <div>
+          <p className={labelCls}>Cover photo <span className="text-gray-400 font-normal">(optional)</span></p>
+          {form.coverImage ? (
+            <div className="relative">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={resolveImageUrl(form.coverImage)}
+                alt="Cover preview"
+                className="w-full h-40 object-cover rounded-xl border border-gray-200"
+              />
+              <button
+                type="button"
+                onClick={() => set('coverImage', '')}
+                aria-label="Remove cover photo"
+                className="absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors"
+              >
+                Remove
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => photoInputRef.current?.click()}
+              disabled={uploading}
+              className="w-full border-2 border-dashed border-gray-200 rounded-xl py-6 flex flex-col items-center justify-center gap-1 text-xs text-gray-500 hover:border-amber-300 hover:text-amber-600 transition-colors disabled:opacity-50"
+            >
+              {uploading ? (
+                <span>Uploading…</span>
+              ) : (
+                <>
+                  <span aria-hidden="true" className="text-2xl">📷</span>
+                  <span>Click to upload a photo</span>
+                </>
+              )}
+            </button>
+          )}
+          <input
+            ref={photoInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handlePhoto}
+            className="hidden"
+            disabled={uploading}
+          />
+        </div>
+
         {error && <p className="text-xs text-red-500">{error}</p>}
 
-        <button type="submit" disabled={submitting}
+        <button type="submit" disabled={submitting || uploading}
           className="w-full bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-semibold py-3 rounded-xl transition-colors text-sm">
           {submitting ? 'Submitting…' : 'Submit for Review'}
         </button>

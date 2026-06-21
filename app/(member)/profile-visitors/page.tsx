@@ -30,7 +30,7 @@ export default function ProfileVisitorsPage() {
 
   return (
     <div className="min-h-screen bg-warm pb-20">
-      <div className="bg-white border-b border-gray-100 sticky top-0 z-10">
+      <div className="bg-white/90 backdrop-blur border-b border-gray-100 sticky top-0 z-10">
         <div className="max-w-xl mx-auto px-4 py-3 flex items-center gap-3">
           <Link href="/dashboard" className="p-1.5 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

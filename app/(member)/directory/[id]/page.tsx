@@ -43,7 +43,8 @@ export async function generateMetadata({ params }: RouteParams): Promise<Metadat
   if (!b) {
     return { title: 'Business not found — Smileys Community' }
   }
-  const cover = b.coverImage ? `${SITE_URL}${resolveImageUrl(b.coverImage)}` : `${APP_URL}/api/og`
+  // ?w=1200 keeps the OG image under WhatsApp/iMessage/X's ~600 KB cap.
+  const cover = b.coverImage ? `${SITE_URL}${resolveImageUrl(b.coverImage)}?w=1200` : `${APP_URL}/api/og`
   const title = `${b.name}${b.neighborhood ? ` · ${b.neighborhood}` : ''} — Smileys Community`
   const desc  = b.description.length > 155 ? `${b.description.slice(0, 152)}…` : b.description
   const url   = `${APP_URL}/directory/${b.id}`
@@ -130,10 +131,12 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
         : 'LocalBusiness'
 
   const meta = business.neighborhood ? getNeighborhoodMeta(business.neighborhood) : null
+  // ?w=1200: see absoluteImageUrl comment above. Crawlers ingesting
+  // JSON-LD pick up images at the same size as the OG variant.
   const ldImage = business.coverImage
-    ? `${SITE_URL}${resolveImageUrl(business.coverImage)}`
+    ? `${SITE_URL}${resolveImageUrl(business.coverImage)}?w=1200`
     : business.logo
-      ? `${SITE_URL}${resolveImageUrl(business.logo)}`
+      ? `${SITE_URL}${resolveImageUrl(business.logo)}?w=1200`
       : undefined
 
   const ld: Record<string, unknown> = {

@@ -34,6 +34,9 @@ const TYPE_ICON: Record<string, string> = {
   club_wall_post:      '📝',
   club_post_reply:     '💬',
   club_mention:        '💬',
+  // Admin/moderator-only — distinct icon so directory submissions
+  // stand out from generic 'system' bell entries.
+  directory_submission: '📋',
   connection_request:  '🤝',
   connection_accepted: '🤝',
   report:              '🚩',

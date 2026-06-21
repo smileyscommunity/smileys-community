@@ -143,13 +143,39 @@ export async function getEvents(options?: {
   cityId?: string
 }): Promise<{ events: Event[]; total: number }> {
   const { limit = 24, offset = 0, upcoming, cityId } = options ?? {}
-  const today = new Date(new Date().toLocaleString('en-CA', { timeZone: 'Europe/Istanbul' }).split(',')[0]).toISOString().split('T')[0]
+  // Istanbul date + time of day, computed together so they stay
+  // consistent across midnight. en-CA → YYYY-MM-DD / HH:MM:SS.
+  const istanbulParts = new Date().toLocaleString('en-CA', {
+    timeZone: 'Europe/Istanbul',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  })
+  // en-CA renders as "YYYY-MM-DD, HH:MM" — split + normalize.
+  const [today, currentHM] = istanbulParts.split(', ')
+  // Drop events whose start was > 2h ago — keeps in-progress events
+  // visible but removes finished ones. Subtract 2h from the current
+  // Istanbul time; if that underflows past midnight, clamp to 00:00
+  // (events that crossed midnight from a previous day are already
+  // excluded by the `date >= today` lower bound).
+  const [chH, chM] = currentHM.split(':').map(Number)
+  const cutoffMins  = Math.max(0, chH * 60 + chM - 120)
+  const cutoffTime  = `${String(Math.floor(cutoffMins / 60)).padStart(2, '0')}:${String(cutoffMins % 60).padStart(2, '0')}`
+
   // Include 'cancelled' so the EventCard banner is reachable — members
   // who heard about an event before it was killed need to see WHY it
   // disappeared from their feed, not silently lose it. The card itself
   // grays out, stamps "Cancelled" across the cover, and disables Join.
   const baseWhere = upcoming === true
-    ? { date: { gte: today }, status: { in: ['published', 'cancelled'] } }
+    ? {
+        // Date.gt today catches future days. Same-day events show
+        // only when their start time hasn't already passed beyond
+        // the 2-hour grace window above.
+        OR: [
+          { date: { gt: today } },
+          { AND: [{ date: today }, { time: { gte: cutoffTime } }] },
+        ],
+        status: { in: ['published', 'cancelled'] },
+      }
     : upcoming === false
     ? { date: { lt: today }, status: { in: ['published', 'archived', 'cancelled'] } }
     : {}

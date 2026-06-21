@@ -47,6 +47,10 @@ const PREF_KEY: Record<string, 'newEvents' | 'reminders' | 'eventUpdates' | 'joi
   new_hangout:        'newEvents',
   visitor_announced:  null,
   listing_new:        null,
+  // Admin-only: fired on every non-admin directory submission so the
+  // moderator team gets a distinct bell entry (with its own icon) and
+  // an email. Transactional — never gated by prefs.
+  directory_submission: null,
   // Survey nudges — transactional in spirit (quarterly, low volume,
   // signal-bearing). Always delivered so a muted "newEvents" pref
   // doesn't silently swallow the community-pulse signal.
