@@ -601,9 +601,12 @@ const MemberCard = memo(function MemberCard({ m, onSelect, connectionStatus, han
     : false
   const isConnected = connectionStatus === 'accepted' || connectionStatus === 'privileged'
 
+  const displayName = isConnected ? m.name : m.name.split(' ')[0]
+
   return (
     <button
       onClick={() => onSelect(m)}
+      aria-label={`View ${displayName}'s profile`}
       className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden text-left hover:-translate-y-0.5 hover:shadow-md hover:border-gray-200 transition-all duration-200 w-full flex flex-col group"
     >
       {/* Portrait photo */}
@@ -644,8 +647,9 @@ const MemberCard = memo(function MemberCard({ m, onSelect, connectionStatus, han
 
         {/* Online dot */}
         {isOnline && (
-          <span className="absolute bottom-2 left-2 flex items-center gap-1">
+          <span className="absolute bottom-2 left-2 flex items-center gap-1" title="Active recently">
             <span className="w-2 h-2 bg-green-400 border-2 border-white rounded-full shadow-sm" />
+            <span className="sr-only">Active recently</span>
           </span>
         )}
 
@@ -661,7 +665,7 @@ const MemberCard = memo(function MemberCard({ m, onSelect, connectionStatus, han
         <div>
           <div className="flex items-center gap-1.5 min-w-0">
             <p className="font-bold text-gray-900 text-sm leading-tight truncate">
-              {isConnected ? m.name : m.name.split(' ')[0]}
+              {displayName}
             </p>
             {m.isHost && (
               <span className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500 text-white">Host</span>
@@ -669,6 +673,11 @@ const MemberCard = memo(function MemberCard({ m, onSelect, connectionStatus, han
           </div>
           {isConnected && m.neighborhood && (
             <p className="text-[11px] text-gray-400 truncate mt-0.5">📍 {m.neighborhood}</p>
+          )}
+          {m.restricted && (
+            <p className="text-[11px] text-gray-400 mt-0.5 flex items-center gap-1">
+              <span aria-hidden="true">🔒</span> Connect to view profile
+            </p>
           )}
         </div>
 
