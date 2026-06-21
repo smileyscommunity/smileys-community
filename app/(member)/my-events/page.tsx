@@ -112,7 +112,8 @@ export default function MyEventsPage() {
 
       {/* Header */}
       <div className="bg-white border-b border-gray-100">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-10 pb-0">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-0">
+          <div className="max-w-3xl">
           <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">My Events</h1>
           <p className="text-base text-gray-600 mt-1 mb-4">{upcoming.length} upcoming · {events.length} total</p>
           {/* Tabs */}
@@ -136,10 +137,12 @@ export default function MyEventsPage() {
               </button>
             ))}
           </div>
+          </div>
         </div>
       </div>
 
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="max-w-3xl">
         {loading ? (
           <SkeletonList rows={3} />
         ) : displayed.length === 0 ? (
@@ -160,6 +163,7 @@ export default function MyEventsPage() {
             ))}
           </div>
         )}
+        </div>
       </div>
     </div>
   )

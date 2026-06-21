@@ -285,12 +285,15 @@ export default function SettingsPage() {
   return (
     <div className="min-h-screen bg-warm">
       <div className="bg-white border-b border-gray-100">
-        <div className="max-w-xl mx-auto px-4 sm:px-6 pt-10 pb-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-4">
+          <div className="max-w-xl">
           <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">Settings</h1>
           <p className="text-base text-gray-600 mt-1">Manage your account and preferences</p>
+          </div>
         </div>
       </div>
-      <div className="max-w-xl mx-auto px-4 py-8 space-y-5">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-xl space-y-5">
 
         {/* Change password */}
         <Section title="Change Password" description="Use a strong password you don't use elsewhere">
@@ -428,6 +431,7 @@ export default function SettingsPage() {
         <Section title="Delete account" description="Permanent. Cannot be undone.">
           <DeleteAccountSection />
         </Section>
+        </div>
       </div>
     </div>
   )

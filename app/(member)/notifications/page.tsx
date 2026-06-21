@@ -179,7 +179,8 @@ export default function NotificationsPage() {
       </div>
 
       <div className="bg-white border-b border-gray-100">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="max-w-3xl">
           <div className="flex items-center gap-3 text-sm text-gray-600 mb-4">
             <Link href="/dashboard" className="hover:text-gray-900 transition-colors">Dashboard</Link>
             <span>/</span>
@@ -243,10 +244,12 @@ export default function NotificationsPage() {
               </button>
             ))}
           </div>
+          </div>
         </div>
       </div>
 
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="max-w-3xl">
         {loading ? (
           <SkeletonList rows={6} />
         ) : filtered.length === 0 ? (
@@ -309,6 +312,7 @@ export default function NotificationsPage() {
             ))}
           </div>
         )}
+        </div>
       </div>
     </div>
   )

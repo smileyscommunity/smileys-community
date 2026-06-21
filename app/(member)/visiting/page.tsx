@@ -73,7 +73,8 @@ export default async function VisitingPage() {
           the public surfaces (/guide, /about, /handbook, /posts).
           The previous icon-on-left layout was the odd one out. */}
       <div className="bg-gradient-to-b from-amber-50/40 to-white border-b border-gray-100">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-10 pb-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-8">
+          <div className="max-w-3xl">
           <p className="text-xs font-bold uppercase tracking-widest text-amber-600 mb-2">
             <span aria-hidden="true">👋</span> Newcomers & Visitors
           </p>
@@ -90,10 +91,12 @@ export default async function VisitingPage() {
             </svg>
             Post your visit
           </Link>
+          </div>
         </div>
       </div>
 
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        <div className="max-w-3xl">
 
         {/* Cross-link to /handbook — visitors landing here are the exact
             audience for the long-form survival reads. Closes the loop
@@ -113,6 +116,7 @@ export default async function VisitingPage() {
             <span className="text-sm font-bold text-gray-700 shrink-0 group-hover:translate-x-0.5 transition-transform">→</span>
           </div>
         </Link>
+        </div>
       </div>
     </div>
   )

@@ -137,7 +137,8 @@ export default async function GuidePage() {
           tagline more breathing room and removes the icon-vs-text
           alignment that was crowding mobile. */}
       <div className="bg-gradient-to-b from-amber-50/40 to-white border-b border-gray-100">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-8 pb-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-6">
+          <div className="max-w-3xl">
           <p className="text-xs font-bold uppercase tracking-widest text-amber-600 mb-2">🗺️ Istanbul Guide</p>
           <h1 className="text-3xl sm:text-5xl font-extrabold text-gray-900 tracking-tight leading-[1.05]">
             Quick links members trust.
@@ -145,6 +146,7 @@ export default async function GuidePage() {
           <p className="text-base text-gray-600 leading-relaxed mt-3 max-w-xl">
             Apps, services, and websites for getting around and settling into Istanbul — vetted by the Smileys team. Updated regularly.
           </p>
+          </div>
         </div>
       </div>
 
@@ -154,7 +156,8 @@ export default async function GuidePage() {
           in-view header just below the sticky bar (~52px tall). */}
       <GuideStickyNav navItems={navItems} />
 
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 space-y-0">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="max-w-3xl space-y-0">
 
         {/* Banner — one inner per banner.type, then wrap in <a> (or
             fragment) depending on whether banner.link is set. Was 6
@@ -301,6 +304,7 @@ export default async function GuidePage() {
             be served to members and visitors. */}
         <GuideCTA />
 
+        </div>
       </div>
     </div>
   )

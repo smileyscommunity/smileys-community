@@ -31,7 +31,8 @@ export default function ProfileVisitorsPage() {
   return (
     <div className="min-h-screen bg-warm pb-20">
       <div className="bg-white/90 backdrop-blur border-b border-gray-100 sticky top-0 z-10">
-        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+          <div className="max-w-3xl flex items-center gap-3">
           <Link href="/dashboard" className="p-1.5 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -41,10 +42,12 @@ export default function ProfileVisitorsPage() {
             <h1 className="text-base font-bold text-gray-900">Profile Visitors</h1>
             <p className="text-xs text-gray-400">Last 30 days</p>
           </div>
+          </div>
         </div>
       </div>
 
-      <div className="max-w-3xl mx-auto px-4 pt-5">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-5">
+        <div className="max-w-3xl">
         {loading ? (
           <div className="space-y-3">
             {Array.from({ length: 6 }).map((_, i) => (
@@ -114,6 +117,7 @@ export default function ProfileVisitorsPage() {
             })}
           </div>
         )}
+        </div>
       </div>
     </div>
   )
