@@ -12,7 +12,7 @@ interface Cmd {
 
 interface SearchResults {
   events:  { id: string; title: string; date: string; emoji: string; neighborhood: string }[]
-  members: { id: string; name: string; color: string; profilePhoto: string | null; neighborhood: string | null }[]
+  members: { id: string; name: string; color: string; profilePhoto: string | null; neighborhood: string | null; restricted?: boolean }[]
   clubs:   { id: string; name: string; emoji: string; slug: string; memberCount: number }[]
 }
 
@@ -199,7 +199,10 @@ export default function CommandPalette() {
                             </div>
                           )}
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium text-gray-900 truncate">{m.name}</p>
+                            <p className="font-medium text-gray-900 truncate flex items-center gap-1">
+                              {m.name}
+                              {m.restricted && <span title="Private profile" className="text-xs shrink-0">🔒</span>}
+                            </p>
                             {m.neighborhood && <p className="text-xs text-gray-400">{m.neighborhood}</p>}
                           </div>
                         </Command.Item>

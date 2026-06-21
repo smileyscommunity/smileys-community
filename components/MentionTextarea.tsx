@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { resolveImageUrl, getInitials } from '@/lib/data'
 
-interface Member { id: string; name: string; color: string; photo: string | null }
+interface Member { id: string; name: string; color: string; photo: string | null; restricted?: boolean }
 
 function getMentionQuery(value: string, cursor: number): string | null {
   const match = value.slice(0, cursor).match(/@(\w+)$/)
@@ -39,6 +39,7 @@ function MemberDropdown({
               : <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0" style={{ backgroundColor: m.color }}>{getInitials(m.name)}</div>
             }
             <span className="text-sm font-medium text-gray-800">{m.name}</span>
+            {m.restricted && <span title="Private profile" className="text-xs">🔒</span>}
             <span className="text-xs text-amber-500 ml-auto">@{m.name.split(' ')[0]}</span>
           </button>
         )

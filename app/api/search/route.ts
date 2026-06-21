@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
 import { todayIstanbul } from '@/lib/data'
+import { restrictedSetFor } from '@/lib/memberPrivacy'
 
 export async function GET(req: NextRequest) {
   const session = await getSession()
@@ -43,7 +44,7 @@ export async function GET(req: NextRequest) {
           { neighborhood: { contains: q, mode: 'insensitive' } },
         ],
       },
-      select: { id: true, name: true, color: true, profilePhoto: true, neighborhood: true },
+      select: { id: true, name: true, color: true, profilePhoto: true, neighborhood: true, profileVisibility: true },
       take: 5,
     }),
     prisma.club.findMany({
@@ -56,5 +57,14 @@ export async function GET(req: NextRequest) {
     }),
   ])
 
-  return NextResponse.json({ events, members, clubs })
+  // Flag 'connections only' members the viewer can't fully see so the
+  // command palette can show a 🔒 hint. Strip profileVisibility from the
+  // payload — the boolean is all the client needs.
+  const restricted = await restrictedSetFor(session, members)
+  const membersOut = members.map(({ profileVisibility, ...m }) => ({
+    ...m,
+    restricted: restricted.has(m.id),
+  }))
+
+  return NextResponse.json({ events, members: membersOut, clubs })
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { restrictedSetFor } from '@/lib/memberPrivacy'
 
 export async function GET(req: NextRequest) {
   const session = await getSession()
@@ -15,15 +16,21 @@ export async function GET(req: NextRequest) {
       id:     { not: session.id },
       name:   { startsWith: q, mode: 'insensitive' },
     },
-    select: { id: true, name: true, color: true, profilePhoto: true },
+    select: { id: true, name: true, color: true, profilePhoto: true, profileVisibility: true },
     take:    6,
     orderBy: { name: 'asc' },
   })
 
+  // Flag 'connections only' members the viewer can't fully see, so the
+  // UI can show a 🔒 hint. Name still returned (search-by-name needs it);
+  // only the lock indicator is added.
+  const restricted = await restrictedSetFor(session, users)
+
   return NextResponse.json(users.map(u => ({
-    id:    u.id,
-    name:  u.name,
-    color: u.color,
-    photo: u.profilePhoto,
+    id:         u.id,
+    name:       u.name,
+    color:      u.color,
+    photo:      u.profilePhoto,
+    restricted: restricted.has(u.id),
   })))
 }
