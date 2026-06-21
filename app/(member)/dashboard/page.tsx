@@ -542,7 +542,7 @@ export default async function DashboardPage() {
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <p className="text-amber-700 text-sm font-medium mb-1">{getGreeting()} 👋</p>
-              <h1 className="text-2xl sm:text-4xl font-extrabold text-gray-900 tracking-tight truncate">
+              <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 tracking-tight truncate">
                 {session.name.split(' ')[0]}
               </h1>
               {nextEvent && (
