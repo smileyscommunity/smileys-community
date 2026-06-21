@@ -115,7 +115,7 @@ export default function PerksPage() {
     <div className="min-h-screen bg-warm pb-24 md:pb-0">
       {/* Header */}
       <div className="bg-white border-b border-gray-100">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-10 pb-0">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-10 pb-0">
           <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">Member Perks</span>
           <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">Local Perks</h1>
           <p className="text-base text-gray-600 mt-1 mb-5">Exclusive discounts at local businesses — just show your Smileys profile.</p>
@@ -148,7 +148,7 @@ export default function PerksPage() {
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {[...Array(6)].map((_, i) => (
