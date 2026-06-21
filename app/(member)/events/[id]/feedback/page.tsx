@@ -103,10 +103,12 @@ export default function FeedbackPage({ params }: { params: Promise<{ id: string 
     )
   }
 
-  // The eligible form. Two questions, large tap targets, optional
-  // free-text only when anomaly === true so the form stays minimal
-  // for the common "nothing weird, would go again" path.
-  const canSubmit = anomaly !== null && wouldReturn !== null
+  // The eligible form. Two questions, large tap targets. When anomaly
+  // === true a written note is REQUIRED (min 10 chars) — an empty flag
+  // files a report moderators can't action. The common "nothing weird,
+  // would go again" path stays a two-tap submit.
+  const noteOk     = anomaly !== true || anomalyNote.trim().length >= 10
+  const canSubmit  = anomaly !== null && wouldReturn !== null && noteOk
   return (
     <Shell>
       <div className="text-xs text-zinc-500 uppercase tracking-widest mb-2">Quick feedback</div>
@@ -122,13 +124,21 @@ export default function FeedbackPage({ params }: { params: Promise<{ id: string 
           <Choice label="Yes — flag it" active={anomaly === true}  onClick={() => setAnomaly(true)}  variant="warn" />
         </div>
         {anomaly === true && (
-          <textarea
-            value={anomalyNote}
-            onChange={e => setAnomalyNote(e.target.value)}
-            placeholder="What happened? Moderators read this, not the host. The more detail the better."
-            rows={4}
-            className="w-full mt-2 px-3 py-2 text-sm bg-zinc-900 border border-zinc-700 rounded-xl text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-amber-500 resize-none"
-          />
+          <div className="mt-2">
+            <textarea
+              value={anomalyNote}
+              onChange={e => setAnomalyNote(e.target.value)}
+              placeholder="What happened? Moderators read this, not the host. The more detail the better."
+              rows={4}
+              required
+              className="w-full px-3 py-2 text-sm bg-zinc-900 border border-zinc-700 rounded-xl text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-amber-500 resize-none"
+            />
+            <p className="text-xs text-zinc-500 mt-1">
+              {anomalyNote.trim().length < 10
+                ? `Required — add a bit of detail so moderators can act (${anomalyNote.trim().length}/10).`
+                : 'Thanks — this gives moderators something to act on.'}
+            </p>
+          </div>
         )}
       </div>
 

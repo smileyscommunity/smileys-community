@@ -86,6 +86,14 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
   const anomalyNote = typeof body.anomalyNote === 'string' ? body.anomalyNote.trim().slice(0, 2000) : null
 
+  // When the responder flags an anomaly, a written explanation is
+  // mandatory. An empty flag auto-files a report moderators can't act
+  // on ("(no details provided)") — exactly the dead-end we hit before.
+  // 10-char floor keeps it meaningful without being onerous.
+  if (body.anomaly && (!anomalyNote || anomalyNote.length < 10)) {
+    return NextResponse.json({ error: 'Please describe what felt off (at least 10 characters) so moderators can act on it.' }, { status: 400 })
+  }
+
   const event = await prisma.event.findUnique({
     where:  { id },
     select: { id: true, title: true, date: true, endTime: true, hostId: true },
