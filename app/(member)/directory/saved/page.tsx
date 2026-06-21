@@ -95,7 +95,7 @@ export default function SavedDirectoryPage() {
           <div className="flex flex-col sm:flex-row sm:items-start gap-4">
             <div className="flex-1">
               <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">Your list</span>
-              <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">★ Saved businesses</h1>
+              <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">★ Saved businesses</h1>
               {!loading && (
                 <p className="text-sm text-gray-600 mt-1">
                   {items.length} {items.length === 1 ? 'place' : 'places'} you starred for later
@@ -147,7 +147,7 @@ export default function SavedDirectoryPage() {
                     <div className="absolute top-2 left-2 flex flex-col gap-1">
                       {b.isExpatOwned    && <span className="bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-tight">Expat-owned</span>}
                       {b.isExpatFriendly && <span className="bg-teal-500  text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-tight">Expat-friendly</span>}
-                      {b.memberDiscount  && <span className="bg-fuchsia-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-tight max-w-[140px] truncate">💸 {b.memberDiscount}</span>}
+                      {b.memberDiscount  && <span className="bg-fuchsia-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-tight max-w-[140px] truncate">💸 {b.memberDiscount}</span>}
                     </div>
                     {logo && (
                       <div className="absolute bottom-2 right-2 w-9 h-9 rounded-xl overflow-hidden border-2 border-white shadow-sm bg-white">

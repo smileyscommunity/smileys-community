@@ -136,7 +136,7 @@ function ClaimWidget({ b }: { b: Business }) {
           maxLength={1000}
           autoFocus
           placeholder="e.g. I'm the founder; my email is owner@example.com"
-          className="w-full text-xs bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
+          className="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
         />
         <div className="flex gap-1.5 mt-2">
           <button
@@ -206,7 +206,7 @@ function BusinessCard({
               identity badges. Truncated so a wordy admin entry doesn't
               overflow the cover. */}
           {b.memberDiscount && (
-            <span className="bg-fuchsia-500 text-white text-[11px] font-bold px-1.5 py-0.5 rounded-full leading-tight max-w-[140px] truncate" title={b.memberDiscount}>
+            <span className="bg-fuchsia-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-tight max-w-[140px] truncate" title={b.memberDiscount}>
               <span aria-hidden="true">💸 </span>{b.memberDiscount}
             </span>
           )}

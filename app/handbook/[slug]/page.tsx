@@ -62,7 +62,7 @@ export default async function HandbookArticlePage({ params }: Params) {
 
   return (
     <main className="bg-white">
-      <article className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16"><article className="max-w-2xl">
         {/* Breadcrumb */}
         <nav className="flex items-center gap-2 text-xs text-gray-600 mb-6 flex-wrap">
           <Link href="/handbook" className="hover:text-amber-600 font-semibold">📖 Handbook</Link>
@@ -182,7 +182,7 @@ export default async function HandbookArticlePage({ params }: Params) {
         <div className="mt-12 pt-6 border-t border-gray-100">
           <Link href="/handbook" className="text-sm text-amber-600 font-bold hover:underline">← Back to the Handbook</Link>
         </div>
-      </article>
+      </article></div>
     </main>
   )
 }

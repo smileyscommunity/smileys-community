@@ -49,18 +49,18 @@ export default async function HandbookCategoryPage({ params }: Params) {
   return (
     <main className="bg-gray-50 min-h-screen">
       <section className="bg-white border-b border-gray-100">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12"><div className="max-w-3xl">
           <Link href="/handbook" className="text-xs text-amber-600 font-semibold hover:underline">← The Handbook</Link>
           <div className="flex items-center gap-3 mt-4 mb-3">
             <span className="text-4xl">{cat.emoji}</span>
             <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 leading-tight">{cat.label}</h1>
           </div>
           <p className="text-sm text-gray-600 max-w-xl leading-relaxed">{cat.tagline}</p>
-        </div>
+        </div></div>
       </section>
 
       <section>
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-3">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10"><div className="max-w-3xl space-y-3">
           {articles.length === 0 ? (
             <div className="text-center py-16 text-sm text-gray-600 bg-white rounded-2xl border border-dashed border-gray-200">
               No articles in this category yet — first ones coming soon.
@@ -80,7 +80,7 @@ export default async function HandbookCategoryPage({ params }: Params) {
               )}
             </Link>
           ))}
-        </div>
+        </div></div>
       </section>
     </main>
   )

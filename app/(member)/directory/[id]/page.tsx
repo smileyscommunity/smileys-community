@@ -264,7 +264,7 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
           <div className="flex gap-2 mt-4 flex-wrap">
             {business.isExpatOwned    && <span className="bg-amber-100 text-amber-700 text-xs font-bold px-2.5 py-1 rounded-full">👤 Expat-owned</span>}
             {business.isExpatFriendly && <span className="bg-teal-100 text-teal-700 text-xs font-bold px-2.5 py-1 rounded-full">🌍 Expat-friendly</span>}
-            {business.memberDiscount  && <span className="bg-fuchsia-100 text-fuchsia-700 text-xs font-bold px-2.5 py-1 rounded-full">💸 {business.memberDiscount}</span>}
+            {business.memberDiscount  && <span className="bg-fuchsia-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-full">💸 {business.memberDiscount}</span>}
             {openStatus && (
               openStatus.open
                 ? <span className="bg-emerald-100 text-emerald-700 text-xs font-bold px-2.5 py-1 rounded-full">🟢 Open · until {openStatus.closesAt}</span>
@@ -308,7 +308,7 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
         {/* Quick-info grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
           {business.address && (
-            <div className="bg-white rounded-xl border border-gray-100 p-4">
+            <div className="bg-white rounded-2xl border border-gray-100 p-4">
               <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-1">Address</p>
               <p className="text-sm text-gray-800">📍 {business.address}</p>
               {lat != null && lon != null && (
@@ -323,7 +323,7 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
             </div>
           )}
           {business.phone && /^[+\d\s\-()]{4,40}$/.test(business.phone) && (
-            <div className="bg-white rounded-xl border border-gray-100 p-4">
+            <div className="bg-white rounded-2xl border border-gray-100 p-4">
               <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-1">Phone</p>
               <a href={`tel:${business.phone.replace(/[^\d+]/g, '')}`} className="text-sm text-gray-800 hover:text-amber-700">
                 📞 {business.phone}
@@ -331,7 +331,7 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
             </div>
           )}
           {business.website && isSafeHref(business.website) && (
-            <div className="bg-white rounded-xl border border-gray-100 p-4">
+            <div className="bg-white rounded-2xl border border-gray-100 p-4">
               <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-1">Website</p>
               <a href={business.website} target="_blank" rel="noopener noreferrer nofollow" className="text-sm text-amber-700 hover:underline break-all">
                 🌐 {business.website.replace(/^https?:\/\//, '')}
@@ -339,7 +339,7 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
             </div>
           )}
           {business.instagram && /^[A-Za-z0-9._]{1,30}$/.test(business.instagram.replace(/^@/, '')) && (
-            <div className="bg-white rounded-xl border border-gray-100 p-4">
+            <div className="bg-white rounded-2xl border border-gray-100 p-4">
               <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-1">Instagram</p>
               <a href={`https://instagram.com/${business.instagram.replace(/^@/, '')}`} target="_blank" rel="noopener noreferrer nofollow" className="text-sm text-pink-600 hover:underline">
                 📸 @{business.instagram.replace(/^@/, '')}
@@ -347,13 +347,13 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
             </div>
           )}
           {business.languages && (
-            <div className="bg-white rounded-xl border border-gray-100 p-4">
+            <div className="bg-white rounded-2xl border border-gray-100 p-4">
               <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-1">Languages</p>
               <p className="text-sm text-gray-800">🗣 {business.languages}</p>
             </div>
           )}
           {business.tags.length > 0 && (
-            <div className="bg-white rounded-xl border border-gray-100 p-4 sm:col-span-2">
+            <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:col-span-2">
               <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-2">Tags</p>
               <div className="flex flex-wrap gap-1.5">
                 {business.tags.map(t => (
@@ -372,7 +372,7 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
 
         {/* Hours card */}
         {hours && DAY_KEYS.some(d => hours[d] && isValidRange(hours[d] ?? '')) && (
-          <div className="bg-white rounded-xl border border-gray-100 p-4 mt-4">
+          <div className="bg-white rounded-2xl border border-gray-100 p-4 mt-4">
             <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-2">Hours</p>
             <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-sm">
               {DAY_KEYS.map(d => {

@@ -71,7 +71,7 @@ export default async function HandbookPage() {
       {/* Hero — warmer than /pro, signalling "useful + welcoming"
           rather than "exclusive". The handbook is for everyone. */}
       <section className="bg-gradient-to-br from-amber-50 via-orange-50 to-white border-b border-amber-100">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-amber-200 text-amber-700 text-[11px] font-bold tracking-widest uppercase mb-6">
             📖 The Handbook
           </div>
@@ -87,7 +87,7 @@ export default async function HandbookPage() {
 
       {/* Categories */}
       <section className="bg-white border-b border-gray-100">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-6">Browse by topic</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {CATEGORIES.map(cat => {
@@ -119,7 +119,7 @@ export default async function HandbookPage() {
           gets discovery love beyond just sitting in its category bucket. */}
       {featured && (
         <section className="bg-gray-50 border-b border-gray-100">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
             <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-6">Latest article</h2>
             <Link href={`/handbook/${featured.slug}`} className="block bg-white rounded-2xl border border-gray-200 p-7 hover:border-amber-300 hover:shadow-md transition-all group">
               <div className="flex items-center gap-2 mb-3 text-xs text-gray-600">
@@ -145,7 +145,7 @@ export default async function HandbookPage() {
           as a "want the scannable version?" follow-up instead of an
           interruption between Categories and Featured. */}
       <section className="bg-white border-b border-gray-100">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <Link href="/guide"
             className="block bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-2xl px-5 py-4 transition-colors group">
             <div className="flex items-center gap-4">
