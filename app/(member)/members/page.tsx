@@ -463,12 +463,23 @@ function MemberModal({ m, onClose, currentUserId, currentUserRole, viewerPrivile
             </div>
           </div>
 
-          {/* Locked state — not connected */}
+          {/* Locked state — not connected. Restricted (the member chose
+              'connections only') gets privacy-specific copy; everyone else
+              gets the general "connect to see more" gating. */}
           {!isConnected && m.id !== currentUserId && (
             <div className="px-4 pb-5 pt-3 flex flex-col items-center text-center gap-2">
               <div className="text-3xl">🔒</div>
-              <p className="text-sm font-semibold text-gray-700">Connect to see more</p>
-              <p className="text-xs text-gray-400">Bio, interests, clubs, and social links are only visible to connected members.</p>
+              {m.restricted ? (
+                <>
+                  <p className="text-sm font-semibold text-gray-700">This profile is private</p>
+                  <p className="text-xs text-gray-400">{m.name.split(' ')[0]} keeps their profile to connections only. Send a request — once they accept, you’ll see their full profile.</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-semibold text-gray-700">Connect to see more</p>
+                  <p className="text-xs text-gray-400">Bio, interests, clubs, and social links are only visible to connected members.</p>
+                </>
+              )}
             </div>
           )}
 
