@@ -24,7 +24,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         id: true, name: true, color: true, bio: true,
         neighborhood: true, nationality: true, interests: true,
         languages: true, profilePhoto: true, joinedAt: true, role: true,
-        instagram: true, socialStyles: true, lastActive: true, profileVisibility: true,
+        instagram: true, socialStyles: true, lastActive: true, profileVisibility: true, membershipType: true,
         referralCode: true,
         goodHangouts: true,
         industry: true, professionalRole: true, professionalStatus: true,
@@ -137,6 +137,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     profilePhoto: user.profilePhoto,
     joinedAt:     user.joinedAt,
     role:         user.role,
+    membershipType: user.membershipType,
     instagram:    user.instagram,
     // Professional fields surfaced only when the member opted in to a
     // non-social_only status. Treating null/social_only the same way

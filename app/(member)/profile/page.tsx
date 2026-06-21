@@ -10,6 +10,7 @@ import { COUNTRIES } from '@/lib/countries'
 import { SkeletonList } from '@/components/Skeleton'
 import { downscaleImage } from '@/lib/image-resize'
 import PasswordToggle from '@/components/PasswordToggle'
+import MembershipBadge from '@/components/MembershipBadge'
 
 const AVATAR_COLORS = [
   '#f472b6', '#60a5fa', '#fbbf24', '#f87171', '#fb923c',
@@ -351,7 +352,10 @@ export default function ProfilePage() {
               onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload(f) }} />
 
             <div className="flex-1 min-w-0 text-center sm:text-left">
-              <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">{fullName || user.name}</h1>
+              <div className="flex items-center justify-center sm:justify-start gap-2 flex-wrap">
+                <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">{fullName || user.name}</h1>
+                <MembershipBadge membershipType={user.membershipType} className="text-xs px-2.5 py-1" />
+              </div>
               <p className="text-sm text-gray-600 mt-0.5 truncate">{user.email}</p>
               {stats && (
                 <div className="flex items-center justify-center sm:justify-start flex-wrap gap-x-4 gap-y-1 mt-2">

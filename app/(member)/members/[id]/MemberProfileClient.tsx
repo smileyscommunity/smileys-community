@@ -7,6 +7,7 @@ import { countryFlag } from '@/lib/countries'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from 'sonner'
 import { SkeletonCard, SkeletonCircle, SkeletonLine } from '@/components/Skeleton'
+import MembershipBadge from '@/components/MembershipBadge'
 import posthog from 'posthog-js'
 
 interface ReceivedReference {
@@ -46,6 +47,7 @@ interface MemberProfile {
   profilePhoto: string | null
   joinedAt: string | null
   role: string
+  membershipType?: string | null
   instagram: string | null
   linkedin: string | null
   industry: string | null
@@ -417,6 +419,7 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
               {member.role === 'moderator' && (
                 <span className="text-xs font-semibold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">Mod</span>
               )}
+              <MembershipBadge membershipType={member.membershipType} className="text-xs px-2 py-0.5" />
               {member.clubs.length > 0 && (
                 <span className="text-xs font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Host</span>
               )}

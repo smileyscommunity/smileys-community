@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import ReportButton from '@/components/ReportButton'
 import AdBannerStrip from '@/components/AdBannerStrip'
 import EmptyState from '@/components/EmptyState'
+import MembershipBadge from '@/components/MembershipBadge'
 import { SkeletonCard } from '@/components/Skeleton'
 
 interface ConnectionUser {
@@ -81,6 +82,7 @@ interface Member {
   // connected to — the card shows identity + neighborhood only, and the
   // full profile is gated until they connect.
   restricted?: boolean
+  membershipType?: string | null
 }
 
 function displayRole(m: Member): { label: string; cls: string } {
@@ -446,6 +448,7 @@ function MemberModal({ m, onClose, currentUserId, currentUserRole, viewerPrivile
                 <h2 className="text-base font-extrabold text-gray-900 truncate">
                   {isConnected || m.id === currentUserId ? m.name : m.name.split(' ')[0]}
                 </h2>
+                <MembershipBadge membershipType={m.membershipType} className="shrink-0 text-[10px] px-2 py-0.5" />
                 {conn?.status === 'accepted' && (
                   <span className="text-xs font-semibold bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full flex items-center gap-0.5 shrink-0">
                     <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -681,6 +684,7 @@ const MemberCard = memo(function MemberCard({ m, onSelect, connectionStatus, han
             {m.isHost && (
               <span className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500 text-white">Host</span>
             )}
+            <MembershipBadge membershipType={m.membershipType} className="shrink-0 text-[10px] px-1.5 py-0.5" />
           </div>
           {isConnected && m.neighborhood && (
             <p className="text-[11px] text-gray-400 truncate mt-0.5">📍 {m.neighborhood}</p>

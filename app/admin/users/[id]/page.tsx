@@ -256,6 +256,20 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
     }
   }
 
+  const changeMembership = async (membershipType: string) => {
+    const res = await fetch(`/app/api/admin/users/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ membershipType }),
+    })
+    if (res.ok) {
+      setUser(u => u ? { ...u, membershipType } : null)
+      toast.success(`Membership set to ${membershipType}`)
+    } else {
+      toast.error('Could not update membership')
+    }
+  }
+
   const [clubAssignments,  setClubAssignments]  = useState<{ clubId: string; clubName: string; emoji: string }[]>([])
   const [profileForm,   setProfileForm]   = useState({
     nationality: '', neighborhood: '', instagram: '',
@@ -464,6 +478,23 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                 Revoke privileges
               </button>
             )}
+
+            {/* Membership tier — admin-granted (no self-serve payment yet) */}
+            <div className="mt-3">
+              <p className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wide mb-1.5">Membership</p>
+              <div className="grid grid-cols-3 gap-2">
+                {(['free', 'premium', 'vip'] as const).map(t => (
+                  <button key={t} onClick={() => changeMembership(t)} disabled={user.membershipType === t}
+                    className={`py-2 rounded-xl border font-bold text-xs capitalize transition-colors ${
+                      user.membershipType === t
+                        ? 'bg-amber-500 text-white border-amber-500 cursor-default'
+                        : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-400 border-zinc-700'
+                    }`}>
+                    {t}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
           {/* Direct WhatsApp Message — Quick template */}

@@ -2,6 +2,7 @@
 
 import { useRef } from 'react'
 import QRCode from '@/components/QRCode'
+import MembershipBadge from '@/components/MembershipBadge'
 import { resolveImageUrl } from '@/lib/data'
 
 interface Props {
@@ -72,6 +73,7 @@ export default function DigitalCard({ user }: Props) {
           <h2 className="mt-5 text-[22px] font-extrabold text-gray-900 tracking-tight text-center leading-tight">
             {user.name}
           </h2>
+          <MembershipBadge membershipType={user.membershipType} className="mt-2 text-[10px] px-2.5 py-1" />
           {user.neighborhood && (
             <p className="mt-1 text-[13px] text-gray-400">{user.neighborhood}</p>
           )}
