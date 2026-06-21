@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
+import { isAdminOrModerator, isClubHost } from '@/lib/access'
 
 const PAGE_SIZE = 100
 
@@ -52,6 +53,33 @@ export async function GET(req: NextRequest) {
     b.blockerId === session.id ? b.blockedId : b.blockerId
   ))]
 
+  // Hard reciprocity: a viewer who hides their own profile
+  // ('connections only') only sees their connections in the directory.
+  // Hiding yourself also hides everyone else from you, so privacy isn't
+  // a one-way mirror. For 'everyone' viewers this filter is a no-op.
+  //
+  // Admins, moderators, and club hosts are exempt — they need full
+  // directory access for moderation / event management regardless of
+  // their own privacy setting.
+  const viewer = await prisma.user.findUnique({
+    where:  { id: session.id },
+    select: { profileVisibility: true },
+  })
+  let reciprocityFilter: Prisma.UserWhereInput = {}
+  if (viewer?.profileVisibility === 'connections'
+      && !isAdminOrModerator(session)
+      && !(await isClubHost(session.id))) {
+    const conns = await prisma.memberConnection.findMany({
+      where: {
+        status: 'accepted',
+        OR: [{ requesterId: session.id }, { receiverId: session.id }],
+      },
+      select: { requesterId: true, receiverId: true },
+    })
+    const connectionIds = conns.map(c => c.requesterId === session.id ? c.receiverId : c.requesterId)
+    reciprocityFilter = { id: { in: [...connectionIds, session.id] } }
+  }
+
   const roleIn = ['member', 'moderator', 'admin']
 
   // Build the full where — each clause is ANDed together by Prisma's default.
@@ -69,6 +97,8 @@ export async function GET(req: NextRequest) {
       },
       // Exclude blocked users (and users who blocked the viewer).
       blockedIds.length > 0 ? { id: { notIn: blockedIds } } : {},
+      // Reciprocity: restrict hidden viewers to their connections.
+      reciprocityFilter,
       openFilter,
       searchFilter,
       savedOnly && savedIds !== null
@@ -106,12 +136,17 @@ export async function GET(req: NextRequest) {
     prisma.user.count({ where }),
     prisma.user.count({
       where: {
-        status: 'approved',
-        clubMemberships: { some: { role: 'host', status: 'approved' } },
+        AND: [
+          reciprocityFilter,
+          {
+            status: 'approved',
+            clubMemberships: { some: { role: 'host', status: 'approved' } },
+          },
+        ],
       },
     }),
     prisma.user.count({
-      where: { status: 'approved', role: 'admin' },
+      where: { AND: [reciprocityFilter, { status: 'approved', role: 'admin' }] },
     }),
     prisma.memberSave.count({ where: { userId: session.id } }),
   ])

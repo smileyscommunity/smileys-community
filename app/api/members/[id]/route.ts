@@ -4,6 +4,7 @@ import { getSession } from '@/lib/session'
 import { todayIstanbul } from '@/lib/data'
 import { rateLimit, getIp } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
+import { isAdminOrModerator, isClubHost } from '@/lib/access'
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
@@ -65,6 +66,26 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   ])
 
   if (!user) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // Hard reciprocity: a viewer who hides their own profile
+  // ('connections only') can only open the profiles of people they're
+  // connected with. Hiding yourself also hides everyone else from you,
+  // so privacy can't be a one-way mirror. Reuses the connection row
+  // already fetched above. 404 (not 403) to match the symmetric case.
+  //
+  // Admins, moderators, and club hosts are exempt — they need to view
+  // any profile for moderation / event management regardless of their
+  // own privacy setting.
+  if (session.id !== id && connection?.status !== 'accepted'
+      && !isAdminOrModerator(session)) {
+    const viewer = await prisma.user.findUnique({
+      where:  { id: session.id },
+      select: { profileVisibility: true },
+    })
+    if (viewer?.profileVisibility === 'connections' && !(await isClubHost(session.id))) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    }
+  }
 
   // Honour profileVisibility:'connections'. Viewing your own profile always
   // works. Anyone else needs an accepted MemberConnection to proceed — return

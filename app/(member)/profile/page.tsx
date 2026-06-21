@@ -629,7 +629,7 @@ export default function ProfilePage() {
               <Link href="/pro"
                 className="block bg-gradient-to-br from-zinc-900 to-zinc-950 border border-amber-500/30 rounded-xl p-4 hover:border-amber-400 transition-colors group">
                 <div className="flex items-center gap-3">
-                  <div className="text-xl shrink-0">🪪</div>
+                  <div aria-hidden="true" className="text-xl shrink-0">🪪</div>
                   <div className="flex-1 min-w-0">
                     <p className="text-[10px] uppercase tracking-widest text-amber-400 font-extrabold mb-0.5">Smileys Pro · Coming soon</p>
                     <p className="text-sm font-bold text-white leading-tight">
@@ -755,7 +755,7 @@ export default function ProfilePage() {
               <div className="space-y-2">
                 {([
                   { id: 'everyone',    label: 'Everyone',                   sub: 'All approved members can view your profile'       },
-                  { id: 'connections', label: 'Connections only',           sub: 'Only people you are connected with can view it'   },
+                  { id: 'connections', label: 'Connections only',           sub: 'Only your connections can view it — and in return, you’ll only see your connections in the directory too' },
                 ] as { id: string; label: string; sub: string }[]).map(opt => (
                   <label key={opt.id}
                     className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-colors ${
