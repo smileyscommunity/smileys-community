@@ -2,6 +2,7 @@
 
 import * as Sentry from '@sentry/nextjs'
 import { useEffect } from 'react'
+import { BRAND_AMBER } from '@/lib/constants'
 
 export default function GlobalError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
@@ -23,7 +24,7 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
             </p>
             <button
               onClick={reset}
-              style={{ padding: '12px 24px', borderRadius: '12px', background: '#f59e0b', color: '#fff', fontWeight: 600, fontSize: '14px', border: 'none', cursor: 'pointer' }}
+              style={{ padding: '12px 24px', borderRadius: '12px', background: BRAND_AMBER, color: '#fff', fontWeight: 600, fontSize: '14px', border: 'none', cursor: 'pointer' }}
             >
               Try again
             </button>

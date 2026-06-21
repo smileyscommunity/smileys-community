@@ -2,6 +2,12 @@
 // the app. Import these instead of writing raw strings so a typo becomes
 // a compile-time error rather than a silent auth bypass.
 
+// Brand accent (Tailwind amber-500). Use the `amber-500` Tailwind class in
+// JSX/CSS where possible; this hex constant is for the contexts that can't
+// take a class — `themeColor` metadata, the root global-error boundary,
+// and as the fallback for dynamic per-user colors.
+export const BRAND_AMBER = '#f59e0b'
+
 export const Role = {
   Admin:     'admin',
   Moderator: 'moderator',

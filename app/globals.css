@@ -133,8 +133,8 @@
   .rich-content ul { list-style-type: disc; padding-left: 1.25rem; margin-bottom: 0.5rem; }
   .rich-content ol { list-style-type: decimal; padding-left: 1.25rem; margin-bottom: 0.5rem; }
   .rich-content li { margin-bottom: 0.25rem; }
-  .rich-content a { color: #d97706; text-decoration: underline; }
-  .rich-content a:hover { color: #b45309; }
+  .rich-content a { @apply text-amber-600 underline; }
+  .rich-content a:hover { @apply text-amber-700; }
 }
 
 /* Leaflet map — override Tailwind preflight resets that break tile rendering */

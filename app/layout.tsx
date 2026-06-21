@@ -10,6 +10,7 @@ import { AuthProvider } from '@/contexts/AuthContext'
 import BottomNav from '@/components/BottomNav'
 import ServiceWorkerRegistration from '@/components/ServiceWorkerRegistration'
 import ClientOnlyComponents from '@/components/ClientOnlyComponents'
+import { BRAND_AMBER } from '@/lib/constants'
 
 import { APP_URL } from '@/lib/env'
 import { loadContent } from '@/lib/content'
@@ -46,7 +47,7 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
-  themeColor: '#f59e0b',
+  themeColor: BRAND_AMBER,
 }
 
 // `headers()` call below forces every page in the app to be dynamically
