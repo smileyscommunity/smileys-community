@@ -659,12 +659,19 @@ const MemberCard = memo(function MemberCard({ m, onSelect, connectionStatus, han
           )}
         </div>
 
-        {/* Online dot */}
-        {isOnline && (
-          <span className="absolute bottom-2 left-2 flex items-center gap-1" title="Active recently">
-            <span className="w-2 h-2 bg-green-400 border-2 border-white rounded-full shadow-sm" />
-            <span className="sr-only">Active recently</span>
-          </span>
+        {/* Bottom-left status cluster: online dot + Host badge, above the gradient */}
+        {(isOnline || m.isHost) && (
+          <div className="absolute bottom-2 left-2 z-10 flex items-center gap-1.5">
+            {isOnline && (
+              <span className="flex items-center" title="Active recently">
+                <span className="w-2 h-2 bg-green-400 border-2 border-white rounded-full shadow-sm" />
+                <span className="sr-only">Active recently</span>
+              </span>
+            )}
+            {m.isHost && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500 text-white shadow-sm">Host</span>
+            )}
+          </div>
         )}
 
         {/* Bottom gradient overlay with flag */}
@@ -681,9 +688,6 @@ const MemberCard = memo(function MemberCard({ m, onSelect, connectionStatus, han
             <p className="font-bold text-gray-900 text-sm leading-tight truncate">
               {displayName}
             </p>
-            {m.isHost && (
-              <span className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500 text-white">Host</span>
-            )}
             <MembershipBadge membershipType={m.membershipType} className="shrink-0 text-[10px] px-1.5 py-0.5" />
           </div>
           {isConnected && m.neighborhood && (
