@@ -9,7 +9,7 @@ import { resolveImageUrl, avatarUrl, ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
 import { toast } from 'sonner'
 
 const CATEGORIES = [
-  { id: 'ALL',      label: 'All',             emoji: '🗂️', activeCls: 'bg-gray-900 text-white border-gray-900'           },
+  { id: 'ALL',      label: 'All',             emoji: '🗂️', activeCls: 'bg-amber-500 text-white border-amber-500'         },
   { id: 'MINE',     label: 'Mine',            emoji: '👤', activeCls: 'bg-gray-700 text-white border-gray-700'           },
   { id: 'SAVED',    label: 'Saved',           emoji: '❤️', activeCls: 'bg-red-500 text-white border-red-500'             },
   { id: 'ROOMS',    label: 'Rooms',           emoji: '🏠', activeCls: 'bg-blue-500 text-white border-blue-500'           },
@@ -689,12 +689,15 @@ function ListingsInner() {
             )}
           </div>
 
-          {/* Category pills + alerts bell. On mobile the pills get their
-              own row so the last pill doesn't get clipped by the neighborhood
-              select sitting next to them. */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-            <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 flex-1 min-w-0 -mx-4 px-4 sm:mx-0 sm:px-0">
-              {CATEGORIES.map(cat => {
+          {/* Category pills sit on their own row at every breakpoint.
+              The neighborhood select + alert bell drop to a row below
+              so the rightmost pills never collide with the select on
+              desktop — earlier attempts to fit both in one row kept
+              breaking on certain widths. */}
+          <div className="flex flex-col gap-2 sm:gap-3">
+            <div className="relative min-w-0 overflow-hidden -mx-4 px-4 sm:mx-0 sm:px-0">
+              <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+                {CATEGORIES.map(cat => {
                 const isActive = category === cat.id
                 return (
                   <button
@@ -716,6 +719,12 @@ function ListingsInner() {
                   </button>
                 )
               })}
+              </div>
+              {/* Right-edge fade — visually separates the scrollable pill
+                  row from the neighborhood select on its right. Without
+                  this the last pill clipped right up against the select.
+                  pointer-events-none so clicks still reach the pill. */}
+              <div aria-hidden="true" className="pointer-events-none absolute right-0 top-0 bottom-1 w-8 bg-gradient-to-l from-white to-transparent hidden sm:block" />
             </div>
 
             <div className="flex items-center gap-2 shrink-0">

@@ -224,7 +224,7 @@ export default function NeighborhoodGrid({ groups }: { groups: Group[] }) {
         <div className="flex gap-2 flex-wrap">
           <button onClick={() => setActiveSide(null)}
             className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
-              activeSide === null ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+              activeSide === null ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
             }`}>
             All areas
           </button>

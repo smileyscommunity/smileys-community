@@ -561,7 +561,7 @@ function DirectoryPageInner() {
               <button key={s} onClick={() => setSort(s)}
                 className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold border whitespace-nowrap transition-all ${
                   sort === s
-                    ? 'bg-gray-900 text-white border-gray-900'
+                    ? 'bg-amber-500 text-white border-amber-500'
                     : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
                 }`}>
                 <span aria-hidden="true">{s === 'recent' ? '🆕' : '🔥'}</span> {s === 'recent' ? 'Recent' : 'Trending'}
@@ -579,7 +579,7 @@ function DirectoryPageInner() {
               <button key={f.id} onClick={() => setType(f.id)}
                 className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold border whitespace-nowrap transition-all ${
                   type === f.id
-                    ? 'bg-gray-900 text-white border-gray-900'
+                    ? 'bg-amber-500 text-white border-amber-500'
                     : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
                 }`}>
                 {f.icon && <span aria-hidden="true">{f.icon}</span>} {f.label}
