@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { getSession, createSession, deleteSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
+import { isClubHost } from '@/lib/access'
 
 // Pull userAgent + IP from the inbound request when /me has no NextRequest
 // argument (GET). Same shape as lib/rateLimit.ts getIp — kept inline to
@@ -137,6 +138,13 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'Instagram handle too long' }, { status: 400 })
     if (data.linkedin && String(data.linkedin).length > 100)
       return NextResponse.json({ error: 'LinkedIn too long' }, { status: 400 })
+
+    // Hosts can't go private — members must be able to find and view the
+    // people running events/clubs. Silently force club hosts back to
+    // 'everyone' if they try to set 'connections only'.
+    if (data.profileVisibility === 'connections' && await isClubHost(session.id)) {
+      data.profileVisibility = 'everyone'
+    }
 
     const updated = await prisma.user.update({ where: { id: session.id }, data })
 

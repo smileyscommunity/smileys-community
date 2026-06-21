@@ -711,11 +711,16 @@ export default function ProfilePage() {
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
               <h2 className="font-bold text-gray-900">Privacy</h2>
               <p className="text-sm text-gray-600">Control who can see your profile in the member directory.</p>
+              {user.isClubHost && (
+                <p className="text-xs text-blue-600 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2">
+                  As a host, your profile stays visible to everyone so members can find the people running events and clubs.
+                </p>
+              )}
               <div className="space-y-2">
                 {([
                   { id: 'everyone',    label: 'Everyone',                   sub: 'All approved members can view your profile'       },
                   { id: 'connections', label: 'Connections only',           sub: 'You still appear in the directory, but your bio, interests, clubs and socials stay locked until someone connects with you' },
-                ] as { id: string; label: string; sub: string }[]).map(opt => (
+                ] as { id: string; label: string; sub: string }[]).filter(opt => !user.isClubHost || opt.id === 'everyone').map(opt => (
                   <label key={opt.id}
                     className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-colors ${
                       form.profileVisibility === opt.id
