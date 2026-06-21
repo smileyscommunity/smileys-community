@@ -297,7 +297,7 @@ export default function HangoutsPage() {
   return (
     <div className="min-h-screen bg-warm pb-16">
       <div className="bg-white border-b border-gray-100">
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 pt-8 pb-6">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-8 pb-6">
           {/* Header — stacks vertically on mobile so the two action buttons
               get a full row of their own (side by side, equal width).
               Desktop keeps the original side-by-side title/actions layout. */}
@@ -338,7 +338,7 @@ export default function HangoutsPage() {
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 space-y-6">
 
         {/* Recap nudge — only shows when the user has past hangouts waiting
             for a reference. Explains what recap is so it doesn't feel random. */}
