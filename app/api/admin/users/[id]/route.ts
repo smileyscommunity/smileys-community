@@ -280,6 +280,21 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     if (allowed.status && allowed.status !== before?.status) {
+      // Keep club memberCount in sync with bans: a banned member shouldn't
+      // be counted, and unbanning restores the count. Membership rows are
+      // preserved either way, so an unban brings the member back intact.
+      if (allowed.status === 'banned' || before?.status === 'banned') {
+        const approvedClubs = await prisma.clubMembership.findMany({
+          where:  { userId: id, status: 'approved' },
+          select: { clubId: true },
+        })
+        if (approvedClubs.length) {
+          const delta = allowed.status === 'banned' ? { decrement: 1 } : { increment: 1 }
+          await prisma.$transaction(approvedClubs.map(m =>
+            prisma.club.update({ where: { id: m.clubId }, data: { memberCount: delta } })
+          ))
+        }
+      }
       if (allowed.status === 'banned') {
         const reason = typeof allowed.banReason === 'string' && allowed.banReason ? allowed.banReason : 'violation of community guidelines'
         createNotification(id, 'rsvp', 'Your account has been suspended', `Your account was suspended: ${reason}. Contact us if you believe this is a mistake.`).catch(() => {})
@@ -329,6 +344,14 @@ export async function DELETE(_: NextRequest, { params }: Params) {
       select: { id: true, amount: true, currency: true, status: true, eventId: true, createdAt: true },
     })
 
+    // Approved club memberships are about to be deleted in the cascade —
+    // decrement each club's memberCount in the same transaction so the
+    // cached counts don't drift high (root cause of recount problems).
+    const approvedClubs = await prisma.clubMembership.findMany({
+      where:  { userId: id, status: 'approved' },
+      select: { clubId: true },
+    })
+
     // PaymentLog inserts live inside the $transaction so they roll
     // back together with the cascade if any step fails — admin
     // retrying after a partial failure won't see ghost "deleted"
@@ -348,6 +371,9 @@ export async function DELETE(_: NextRequest, { params }: Params) {
           })),
         }),
       ] : []),
+      ...approvedClubs.map(m =>
+        prisma.club.update({ where: { id: m.clubId }, data: { memberCount: { decrement: 1 } } })
+      ),
       prisma.eventAttendee.deleteMany({ where: { userId: id } }),
       prisma.clubMembership.deleteMany({ where: { userId: id } }),
       prisma.notification.deleteMany({ where: { userId: id } }),

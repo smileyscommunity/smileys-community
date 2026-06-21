@@ -30,7 +30,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // against users in their own city; admins act globally.
     const reported = await prisma.user.findUnique({
       where:  { id: report.reportedId },
-      select: { name: true, cityId: true },
+      select: { name: true, cityId: true, status: true },
     })
     if (!isAdmin(session) && reported && session.cityId !== reported.cityId) {
       return NextResponse.json({ error: 'Cross-city moderation is admin-only' }, { status: 403 })
@@ -89,6 +89,20 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     if (action === 'ban') {
+      // Decrement club memberCount for this user's approved memberships so a
+      // banned member stops inflating club counts. Guarded so re-banning an
+      // already-banned user can't double-decrement.
+      if (reported?.status !== 'banned') {
+        const approvedClubs = await prisma.clubMembership.findMany({
+          where:  { userId: report.reportedId, status: 'approved' },
+          select: { clubId: true },
+        })
+        if (approvedClubs.length) {
+          await prisma.$transaction(approvedClubs.map(m =>
+            prisma.club.update({ where: { id: m.clubId }, data: { memberCount: { decrement: 1 } } })
+          ))
+        }
+      }
       await prisma.user.update({
         where: { id: report.reportedId },
         data: {

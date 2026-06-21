@@ -73,6 +73,17 @@ export async function POST(req: NextRequest) {
   // account partially scrubbed. Prisma's interactive transaction
   // automatically rolls back on any throw.
   await prisma.$transaction(async tx => {
+    // ── 0. Decrement club memberCount for each approved membership ─────────
+    // Must run before the membership rows are deleted below, or the cached
+    // counts drift permanently high (the source of the recount problem).
+    const approvedClubs = await tx.clubMembership.findMany({
+      where:  { userId: id, status: 'approved' },
+      select: { clubId: true },
+    })
+    for (const m of approvedClubs) {
+      await tx.club.update({ where: { id: m.clubId }, data: { memberCount: { decrement: 1 } } })
+    }
+
     // ── 1. Hard delete: PII / inbox / tracking / transient state ──────────
     await Promise.all([
       tx.pushSubscription.deleteMany({ where: { userId: id } }),
