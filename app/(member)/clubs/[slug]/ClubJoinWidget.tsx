@@ -6,14 +6,17 @@ import posthog from 'posthog-js'
 interface Props {
   club: { id: string; name: string; slug: string; isPrivate: boolean }
   initialStatus: 'approved' | 'pending' | null
+  isHost?: boolean
 }
 
-export default function ClubJoinWidget({ club, initialStatus }: Props) {
-  const [status,   setStatus]   = useState(initialStatus)
-  const [loading,  setLoading]  = useState(false)
+export default function ClubJoinWidget({ club, initialStatus, isHost = false }: Props) {
+  const [status,  setStatus]  = useState(initialStatus)
+  const [host,    setHost]    = useState(isHost)
+  const [loading, setLoading] = useState(false)
+  const [error,   setError]   = useState('')
 
   async function join() {
-    setLoading(true)
+    setLoading(true); setError('')
     const res = await fetch(`/app/api/clubs/${club.slug}/membership`, {
       method: 'POST', credentials: 'include',
     })
@@ -27,12 +30,15 @@ export default function ClubJoinWidget({ club, initialStatus }: Props) {
         is_private: club.isPrivate,
         status:     data.status,
       })
+    } else {
+      const d = await res.json().catch(() => ({}))
+      setError(d.error ?? 'Could not join')
     }
     setLoading(false)
   }
 
   async function leave() {
-    setLoading(true)
+    setLoading(true); setError('')
     const res = await fetch(`/app/api/clubs/${club.slug}/membership`, {
       method: 'DELETE', credentials: 'include',
     })
@@ -44,6 +50,26 @@ export default function ClubJoinWidget({ club, initialStatus }: Props) {
         previous_status: status,
       })
       setStatus(null)
+    } else {
+      const d = await res.json().catch(() => ({}))
+      setError(d.error ?? 'Could not leave')
+    }
+    setLoading(false)
+  }
+
+  async function stepDown() {
+    setLoading(true); setError('')
+    const res = await fetch(`/app/api/clubs/${club.slug}/membership`, {
+      method: 'PATCH', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: 'member' }),
+    })
+    if (res.ok) {
+      setHost(false)
+      posthog.capture('club_host_step_down', { club_id: club.id, club_slug: club.slug })
+    } else {
+      const d = await res.json().catch(() => ({}))
+      setError(d.error ?? 'Could not step down')
     }
     setLoading(false)
   }
@@ -57,11 +83,25 @@ export default function ClubJoinWidget({ club, initialStatus }: Props) {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
             </svg>
           </span>
-          <h3 className="font-bold text-gray-900">You&apos;re a member</h3>
+          <h3 className="font-bold text-gray-900">{host ? "You're a host" : "You're a member"}</h3>
         </div>
         <p className="text-sm text-gray-600 mb-5">
-          You have full access to this club&apos;s events and community.
+          {host
+            ? 'You help run this club. Step down to a regular member anytime — your membership stays.'
+            : "You have full access to this club's events and community."}
         </p>
+        {error && (
+          <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2 mb-3">{error}</p>
+        )}
+        {host && (
+          <button
+            onClick={stepDown}
+            disabled={loading}
+            className="w-full py-2.5 mb-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-40"
+          >
+            {loading ? 'Working…' : 'Step down as host'}
+          </button>
+        )}
         <button
           onClick={leave}
           disabled={loading}
@@ -80,6 +120,9 @@ export default function ClubJoinWidget({ club, initialStatus }: Props) {
         <p className="text-sm text-amber-600 font-medium bg-amber-50 rounded-xl px-3 py-2 mb-4">
           Your request to join is awaiting approval.
         </p>
+        {error && (
+          <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2 mb-3">{error}</p>
+        )}
         <button
           onClick={leave}
           disabled={loading}
@@ -97,6 +140,9 @@ export default function ClubJoinWidget({ club, initialStatus }: Props) {
       <p className="text-sm text-gray-600 mb-5">
         Become a member to get early access to events, exclusive content, and connect with the community.
       </p>
+      {error && (
+        <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2 mb-3">{error}</p>
+      )}
       <button
         onClick={join}
         disabled={loading}

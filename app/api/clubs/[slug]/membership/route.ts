@@ -59,6 +59,50 @@ export async function POST(_: NextRequest, { params }: Params) {
   }
 }
 
+// Self-demote: a host can step down to a regular member while keeping
+// their club membership (so they don't have to leave the club just to
+// stop hosting). Only your own membership, only host → member.
+export async function PATCH(req: NextRequest, { params }: Params) {
+  try {
+    const session = await getSession()
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const body = await req.json().catch(() => ({}))
+    if (body.role !== 'member') {
+      return NextResponse.json({ error: 'Only stepping down to member is supported' }, { status: 400 })
+    }
+
+    const { slug } = await params
+    const club = await prisma.club.findUnique({ where: { slug } })
+    if (!club) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+    const membership = await prisma.clubMembership.findUnique({
+      where:  { userId_clubId: { userId: session.id, clubId: club.id } },
+      select: { role: true, status: true },
+    })
+    if (!membership || membership.role !== 'host') {
+      return NextResponse.json({ error: 'You are not a host of this club' }, { status: 400 })
+    }
+
+    // Don't orphan the club — require another host before stepping down.
+    const hostCount = await prisma.clubMembership.count({
+      where: { clubId: club.id, role: 'host', status: 'approved' },
+    })
+    if (hostCount <= 1) {
+      return NextResponse.json({ error: 'You are the only host. Assign another host or contact an admin before stepping down.' }, { status: 400 })
+    }
+
+    await prisma.clubMembership.update({
+      where: { userId_clubId: { userId: session.id, clubId: club.id } },
+      data:  { role: 'member' },
+    })
+    return NextResponse.json({ ok: true })
+  } catch (e) {
+    console.error(e)
+    return NextResponse.json({ error: 'Server error' }, { status: 500 })
+  }
+}
+
 export async function DELETE(_: NextRequest, { params }: Params) {
   try {
     const session = await getSession()
@@ -68,7 +112,23 @@ export async function DELETE(_: NextRequest, { params }: Params) {
     const club = await prisma.club.findUnique({ where: { slug } })
     if (!club) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-    const membership = await prisma.clubMembership.delete({
+    const membership = await prisma.clubMembership.findUnique({
+      where:  { userId_clubId: { userId: session.id, clubId: club.id } },
+      select: { role: true, status: true },
+    })
+    if (!membership) return NextResponse.json({ ok: true })
+
+    // Don't orphan the club — the last host must hand off before leaving.
+    if (membership.role === 'host' && membership.status === 'approved') {
+      const hostCount = await prisma.clubMembership.count({
+        where: { clubId: club.id, role: 'host', status: 'approved' },
+      })
+      if (hostCount <= 1) {
+        return NextResponse.json({ error: 'You are the only host. Assign another host or contact an admin before leaving.' }, { status: 400 })
+      }
+    }
+
+    await prisma.clubMembership.delete({
       where: { userId_clubId: { userId: session.id, clubId: club.id } },
     })
 

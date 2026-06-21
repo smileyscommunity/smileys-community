@@ -236,6 +236,7 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
           <ClubJoinWidget
             club={{ id: club.id, name: club.name, slug: club.slug, isPrivate: club.isPrivate ?? false }}
             initialStatus={membershipStatus}
+            isHost={isClubHost}
           />
         </div>
       )}
@@ -377,6 +378,7 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
             <ClubJoinWidget
               club={{ id: club.id, name: club.name, slug: club.slug, isPrivate: club.isPrivate ?? false }}
               initialStatus={membershipStatus}
+              isHost={isClubHost}
               />
 
             <SocialShare
