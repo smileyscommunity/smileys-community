@@ -421,7 +421,7 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
               )}
               <MembershipBadge membershipType={member.membershipType} className="text-xs px-2 py-0.5" />
               {member.clubs.length > 0 && (
-                <span className="text-xs font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Host</span>
+                <span className="text-xs font-semibold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Host</span>
               )}
               {!isOwnProfile && isAccepted && (
                 <span className="text-xs font-semibold bg-green-100 text-green-700 px-2 py-0.5 rounded-full flex items-center gap-1">

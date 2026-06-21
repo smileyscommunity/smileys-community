@@ -406,7 +406,7 @@ function MemberModal({ m, onClose, currentUserId, currentUserRole, viewerPrivile
   )
 
   const roleBadge = m.isHost
-    ? <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-amber-500 text-white">Host</span>
+    ? <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-blue-500 text-white">Host</span>
     : <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${role.cls}`}>{role.label}</span>
 
   return (
@@ -669,7 +669,7 @@ const MemberCard = memo(function MemberCard({ m, onSelect, connectionStatus, han
               </span>
             )}
             {m.isHost && (
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500 text-white shadow-sm">Host</span>
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-500 text-white shadow-sm">Host</span>
             )}
           </div>
         )}
