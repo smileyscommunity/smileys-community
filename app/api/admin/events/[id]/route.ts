@@ -215,9 +215,13 @@ export async function PUT(req: NextRequest, { params }: Params) {
       await recomputeSpotsLeft(id, event.totalSpots)
     }
 
-    // Propagate changes to all future events in the same series (except date/time which are per-event)
+    // Propagate changes to all future events in the same series. `date` and
+    // `registrationDeadline` stay per-occurrence (each instance has its own),
+    // but `time` DOES propagate — a recurring event keeps the same time each
+    // occurrence, so editing the time with "apply to series" should update
+    // every future instance (was silently excluded before).
     if (applyToSeries && before.seriesId) {
-      const SERIES_EXCLUDED = new Set(['date', 'time', 'registrationDeadline', 'seriesId', 'tags'])
+      const SERIES_EXCLUDED = new Set(['date', 'registrationDeadline', 'seriesId', 'tags'])
       const seriesData: Record<string, unknown> = {}
       for (const [k, v] of Object.entries(data)) {
         if (!SERIES_EXCLUDED.has(k)) seriesData[k] = v
