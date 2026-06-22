@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { confirmToast } from '@/lib/confirmToast'
 import Link from 'next/link'
 import { toast } from 'sonner'
 
@@ -179,7 +180,7 @@ export default function AdminListingsPage() {
   // current filter could show it — the previous unconditional
   // .filter() vanished restored items mid-list on the "all" view.
   async function handleDelete(id: string) {
-    if (!confirm('Remove this listing?')) return
+    if (!(await confirmToast('Remove this listing?'))) return
     const res = await fetch(`/app/api/admin/listings/${id}`, { method: 'DELETE', credentials: 'include' })
     if (!res.ok) {
       const d = await res.json().catch(() => ({}))

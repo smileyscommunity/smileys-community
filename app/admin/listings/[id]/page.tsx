@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { confirmToast } from '@/lib/confirmToast'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -317,7 +318,7 @@ export default function AdminListingDetailPage() {
             </button>
           )}
           {listing.status !== 'deleted' && (
-            <button onClick={() => { if (confirm('Delete this listing?')) handleStatus('deleted') }}
+            <button onClick={async () => { if (await confirmToast('Delete this listing?')) handleStatus('deleted') }}
               className="px-4 py-2 text-sm font-semibold rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition-colors">
               Delete
             </button>

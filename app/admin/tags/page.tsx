@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { confirmToast } from '@/lib/confirmToast'
 import { toast } from 'sonner'
 import { useAdminLoad } from '@/lib/admin/useAdminLoad'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
@@ -81,7 +82,7 @@ export default function TagsPage() {
   // Delete, server 500'd, the group was gone from the UI but
   // stayed in the DB. State now waits for confirmation.
   async function deleteGroup(id: string) {
-    if (!confirm('Delete this group and all its tags?')) return
+    if (!(await confirmToast('Delete this group and all its tags?'))) return
     const res = await fetch(`/app/api/admin/tag-groups/${id}`, { method: 'DELETE', credentials: 'include' })
     if (!res.ok) {
       const d = await res.json().catch(() => ({}))
@@ -137,7 +138,7 @@ export default function TagsPage() {
   // Same fix as deleteGroup — was lying about success on
   // server failures.
   async function deleteTag(id: string, groupId: string) {
-    if (!confirm('Delete this tag?')) return
+    if (!(await confirmToast('Delete this tag?'))) return
     const res = await fetch(`/app/api/admin/tags/${id}`, { method: 'DELETE', credentials: 'include' })
     if (!res.ok) {
       const d = await res.json().catch(() => ({}))

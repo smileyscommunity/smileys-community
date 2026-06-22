@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, Fragment, Suspense } from 'react'
+import { confirmToast } from '@/lib/confirmToast'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { toast } from 'sonner'
 import { useAdminLoad } from '@/lib/admin/useAdminLoad'
@@ -264,7 +265,7 @@ function AdminPaymentsPageInner() {
   }
 
   async function deletePayment(id: string) {
-    if (!confirm('Delete this payment record?\n\nThis writes a snapshot to the audit log before deleting — the action is logged and visible to other admins.')) return
+    if (!(await confirmToast('Delete this payment record?\n\nThis writes a snapshot to the audit log before deleting — the action is logged and visible to other admins.'))) return
     await withBusy(id, async () => {
       const res = await fetch('/app/api/admin/payments', {
         method: 'DELETE',

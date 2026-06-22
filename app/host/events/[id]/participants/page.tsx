@@ -1,6 +1,7 @@
 'use client'
 
 import { toast } from 'sonner'
+import { confirmToast } from '@/lib/confirmToast'
 
 import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
@@ -97,7 +98,7 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
   }
 
   async function reject(userId: string) {
-    if (!confirm('Reject this request?')) return
+    if (!(await confirmToast('Reject this request?'))) return
     const res = await fetch(`/app/api/admin/events/${id}/participants`, {
       method: 'PATCH', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },

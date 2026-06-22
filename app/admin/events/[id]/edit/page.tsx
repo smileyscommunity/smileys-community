@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, use } from 'react'
+import { confirmToast } from '@/lib/confirmToast'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
@@ -300,7 +301,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
   }
 
   async function handleDelete() {
-    if (!confirm('Delete this event?')) return
+    if (!(await confirmToast('Delete this event?'))) return
     const res = await fetch(`/app/api/admin/events/${id}`, { method: 'DELETE', credentials: 'include' })
     if (res.ok) router.push('/admin/events')
   }

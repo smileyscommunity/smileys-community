@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, use } from 'react'
+import { confirmToast } from '@/lib/confirmToast'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { formatDate } from '@/lib/data'
@@ -76,7 +77,7 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
   }
 
   async function rejectAttendee(userId: string) {
-    if (!confirm('Reject and remove this request?')) return
+    if (!(await confirmToast('Reject and remove this request?'))) return
     setBusy(userId)
     const res = await fetch(`/app/api/admin/events/${id}/participants`, {
       method: 'PATCH', credentials: 'include',
@@ -88,7 +89,7 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
   }
 
   async function removeAttendee(userId: string) {
-    if (!confirm('Remove this attendee?')) return
+    if (!(await confirmToast('Remove this attendee?'))) return
     setBusy(userId)
     const res = await fetch(`/app/api/admin/events/${id}/participants`, {
       method: 'DELETE', credentials: 'include',
@@ -181,7 +182,7 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
   }
 
   async function notifyNoShows(count: number) {
-    if (!confirm(`Send email + in-app notification to ${count} no-show${count !== 1 ? 's' : ''}?`)) return
+    if (!(await confirmToast(`Send email + in-app notification to ${count} no-show${count !== 1 ? 's' : ''}?`))) return
     setNotifying(true)
     try {
       const res = await fetch(`/app/api/admin/events/${id}/notify-noshows`, {

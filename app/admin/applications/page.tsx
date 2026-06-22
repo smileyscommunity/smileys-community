@@ -1,6 +1,7 @@
 'use client'
 
 import { toast } from 'sonner'
+import { confirmToast } from '@/lib/confirmToast'
 
 import Link from 'next/link'
 import { useState, useEffect, useMemo, useRef, Suspense } from 'react'
@@ -400,7 +401,7 @@ function AdminApplicationsPageInner() {
     if (status === 'rejected') {
       const app = apps.find(a => a.id === id)
       const name = app?.fullName ?? 'this applicant'
-      if (!confirm(`Reject ${name} without a personalized message?\n\nThe standard rejection email will still go out — but they won't get any context. Open the review modal if you want to add a note.`)) return
+      if (!(await confirmToast(`Reject ${name} without a personalized message?\n\nThe standard rejection email will still go out — but they won't get any context. Open the review modal if you want to add a note.`))) return
     }
     setDeciding(prev => { const s = new Set(prev); s.add(id); return s })
     try {
@@ -1254,7 +1255,7 @@ function AdminApplicationsPageInner() {
                       {(selected.fingerprint || selected.ipAddress) && (
                         <button
                           onClick={async () => {
-                            if (!confirm('Blacklist this device/IP? Future applications from same device will be auto-rejected.')) return
+                            if (!(await confirmToast('Blacklist this device/IP? Future applications from same device will be auto-rejected.'))) return
                             const res = await fetch('/app/api/admin/blacklist', {
                               method: 'POST', credentials: 'include',
                               headers: { 'Content-Type': 'application/json' },

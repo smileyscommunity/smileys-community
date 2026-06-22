@@ -1,6 +1,7 @@
 'use client'
 
 import { toast } from 'sonner'
+import { confirmToast } from '@/lib/confirmToast'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import Link from 'next/link'
@@ -128,7 +129,7 @@ export default function AdminParticipantsPage() {
   }
 
   async function reject(userId: string, eventId: string) {
-    if (!confirm('Reject this request?')) return
+    if (!(await confirmToast('Reject this request?'))) return
     const res = await fetch(`/app/api/admin/events/${eventId}/participants`, {
       method: 'PATCH', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -145,7 +146,7 @@ export default function AdminParticipantsPage() {
   }
 
   async function remove(userId: string, eventId: string) {
-    if (!confirm('Remove this attendee from the event?')) return
+    if (!(await confirmToast('Remove this attendee from the event?'))) return
     const res = await fetch(`/app/api/admin/events/${eventId}/participants`, {
       method: 'DELETE', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },

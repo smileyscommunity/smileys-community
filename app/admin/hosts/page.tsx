@@ -8,6 +8,7 @@
 // page loads in one round trip regardless of club count.
 
 import { useEffect, useMemo, useState } from 'react'
+import { confirmToast } from '@/lib/confirmToast'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { getInitials } from '@/lib/data'
@@ -180,7 +181,7 @@ function HostCard({ host, onChanged }: { host: Host; onChanged: () => void }) {
   const isInactive = host.eventCount90d === 0
 
   async function demote(clubId: string, clubName: string) {
-    if (!confirm(`Demote ${host.user.name} from ${clubName} (role → member)?`)) return
+    if (!(await confirmToast(`Demote ${host.user.name} from ${clubName} (role → member)?`))) return
     setBusyClubId(clubId)
     try {
       const res = await fetch(`/app/api/admin/clubs/${clubId}/memberships`, {
@@ -326,7 +327,7 @@ function PromotePanel({ onSaved, onCancel }: { onSaved: () => void; onCancel: ()
   async function promote(userId: string, userName: string) {
     if (!clubId) return
     const clubName = clubs?.find(c => c.id === clubId)?.name ?? 'club'
-    if (!confirm(`Promote ${userName} to host of ${clubName}?`)) return
+    if (!(await confirmToast(`Promote ${userName} to host of ${clubName}?`))) return
     setBusy(true)
     try {
       const res = await fetch(`/app/api/admin/clubs/${clubId}/memberships`, {

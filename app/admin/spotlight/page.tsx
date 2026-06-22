@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { confirmToast } from '@/lib/confirmToast'
 import Link from 'next/link'
 import { resolveImageUrl } from '@/lib/data'
 import { toast } from 'sonner'
@@ -86,7 +87,7 @@ export default function SpotlightPage() {
   // 404 if there was nothing to clear).
   async function clearSpotlight() {
     if (!current) return
-    if (!confirm(`Clear the current spotlight (${current.user.name})? The dashboard will fall back to its default.`)) return
+    if (!(await confirmToast(`Clear the current spotlight (${current.user.name})? The dashboard will fall back to its default.`))) return
     setSaving(true)
     try {
       const res = await fetch('/app/api/admin/spotlight', { method: 'DELETE', credentials: 'include' })

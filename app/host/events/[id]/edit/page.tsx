@@ -4,6 +4,7 @@ import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { confirmToast } from '@/lib/confirmToast'
 import { ISTANBUL_NEIGHBORHOODS, todayIstanbul } from '@/lib/data'
 import ImageUpload from '@/components/ImageUpload'
 import VibePicker from '@/components/VibePicker'
@@ -211,7 +212,7 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
   }
 
   async function removeCohost(userId: string, name: string) {
-    if (!confirm(`Remove ${name} as co-host?`)) return
+    if (!(await confirmToast(`Remove ${name} as co-host?`))) return
     await fetch(`/app/api/admin/events/${id}/cohosts`, {
       method: 'DELETE', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -250,7 +251,7 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
   }
 
   async function handleDelete() {
-    if (!confirm('Delete this event?')) return
+    if (!(await confirmToast('Delete this event?'))) return
     const res = await fetch(`/app/api/admin/events/${id}`, { method: 'DELETE', credentials: 'include' })
     if (res.ok) router.push('/host/events')
   }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { confirmToast } from '@/lib/confirmToast'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { resolveImageUrl } from '@/lib/data'
@@ -100,7 +101,7 @@ export default function AdminPartnersPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Delete this partner? Assigned users will revert to member role.')) return
+    if (!(await confirmToast('Delete this partner? Assigned users will revert to member role.'))) return
     const res = await fetch('/app/api/admin/partners', {
       method: 'DELETE', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { confirmToast } from '@/lib/confirmToast'
 import Link from 'next/link'
 import { resolveImageUrl } from '@/lib/data'
 
@@ -76,7 +77,7 @@ export default function ContactsPage() {
   }
 
   async function remove(id: string) {
-    if (!confirm('Remove this connection?')) return
+    if (!(await confirmToast('Remove this connection?'))) return
     const res = await fetch(`/app/api/connections/${id}`, { method: 'DELETE', credentials: 'include' })
     if (res.ok) {
       setSent(prev => prev.filter(c => c.id !== id))

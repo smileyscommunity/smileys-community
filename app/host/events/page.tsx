@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { confirmToast } from '@/lib/confirmToast'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
@@ -166,7 +167,7 @@ export default function HostEventsPage() {
   }
 
   async function handleStatusChange(id: string, status: string) {
-    if (status === 'cancelled' && !confirm('Cancel this event? Attendees will be notified.')) return
+    if (status === 'cancelled' && !(await confirmToast('Cancel this event? Attendees will be notified.'))) return
     setSavingId(id)
     const res = await fetch(`/app/api/admin/events/${id}`, {
       method: 'PUT', credentials: 'include',
