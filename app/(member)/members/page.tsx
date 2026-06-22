@@ -709,9 +709,9 @@ const MemberCard = memo(function MemberCard({ m, onSelect, connectionStatus, han
         {/* "Open to…" availability pills — small, emoji-led so they read at a glance. */}
         {(m.openToCoffee || m.openToLanguage || m.openToHosting) && (
           <div className="flex flex-wrap gap-1">
-            {m.openToCoffee   && <span title="Open to coffee with newcomers"  className="text-[10px] px-1.5 py-0.5 bg-amber-50 text-amber-700 border border-amber-100 rounded-full">☕</span>}
-            {m.openToLanguage && <span title="Open to language exchange"      className="text-[10px] px-1.5 py-0.5 bg-blue-50  text-blue-700  border border-blue-100  rounded-full">🗣️</span>}
-            {m.openToHosting  && <span title="Open to hosting visitors"       className="text-[10px] px-1.5 py-0.5 bg-green-50 text-green-700 border border-green-100 rounded-full">🏠</span>}
+            {m.openToCoffee   && <span title="Open to coffee with newcomers"  aria-label="Open to coffee with newcomers"  className="text-[10px] px-1.5 py-0.5 bg-amber-50 text-amber-700 border border-amber-100 rounded-full">☕</span>}
+            {m.openToLanguage && <span title="Open to language exchange"      aria-label="Open to language exchange"      className="text-[10px] px-1.5 py-0.5 bg-blue-50  text-blue-700  border border-blue-100  rounded-full">🗣️</span>}
+            {m.openToHosting  && <span title="Open to hosting visitors"       aria-label="Open to hosting visitors"       className="text-[10px] px-1.5 py-0.5 bg-green-50 text-green-700 border border-green-100 rounded-full">🏠</span>}
           </div>
         )}
 

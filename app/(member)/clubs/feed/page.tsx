@@ -44,7 +44,7 @@ function EventItem({ item }: { item: FeedItem }) {
             {item.date ? formatDate(item.date) : ''}{item.time ? ` · ${item.time}` : ''}{item.neighborhood ? ` · ${item.neighborhood}` : ''}
           </p>
           {item.price !== undefined && (
-            <p className="text-xs text-gray-400 mt-1">{item.price === 0 ? 'Free' : `₺${item.price}`}</p>
+            <p className="text-xs text-gray-600 mt-1">{item.price === 0 ? 'Free' : `₺${item.price}`}</p>
           )}
         </div>
         <svg className="w-4 h-4 text-gray-300 shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -125,7 +125,7 @@ export default function ClubFeedPage() {
     <div className="min-h-screen bg-warm pb-16">
       <div className="bg-white/90 backdrop-blur border-b border-gray-100 sticky top-0 z-10">
         <div className="max-w-xl mx-auto px-4 py-3 flex items-center gap-3">
-          <Link href="/clubs" className="p-1.5 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors">
+          <Link href="/clubs" aria-label="Back" className="p-2.5 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>

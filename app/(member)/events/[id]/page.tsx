@@ -100,13 +100,13 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
           <div className="bg-white rounded-2xl shadow-card p-6 w-full space-y-4">
             <p className="text-sm font-semibold text-gray-700">🔒 Members only</p>
             <p className="text-sm text-gray-600">You need to be an approved Smileys member to view event details.</p>
+            <Link href="/apply"
+              className="block w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm transition-colors text-center">
+              Apply to join
+            </Link>
             <Link href="/login"
               className="block w-full py-3 rounded-xl bg-amber-400 hover:bg-amber-500 text-white font-bold text-sm transition-colors text-center">
               Log in
-            </Link>
-            <Link href="/apply"
-              className="block w-full py-3 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 font-semibold text-sm transition-colors text-center">
-              Apply to join
             </Link>
           </div>
         </div>
@@ -258,7 +258,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
       {/* Back */}
       <div className="bg-white border-b border-gray-100 sticky top-0 z-10">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
-          <Link href="/events" className="p-1.5 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors">
+          <Link href="/events" aria-label="Back" className="p-2.5 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
@@ -557,7 +557,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                 <div className="flex items-center justify-between">
                   <h2 className="text-base font-bold text-gray-900">Location</h2>
                   {mapsHref && (
-                    <a href={mapsHref} target="_blank" rel="noopener noreferrer" className="text-xs text-amber-600 font-bold hover:underline">
+                    <a href={mapsHref} target="_blank" rel="noopener noreferrer" className="text-xs text-amber-600 font-bold underline underline-offset-2">
                       View on Google Maps →
                     </a>
                   )}
@@ -670,7 +670,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                           {u.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
                         </div>
                       )}
-                      <span className="text-xs text-gray-400 group-hover:text-amber-600 transition-colors text-center truncate w-full leading-tight flex items-center justify-center gap-0.5">
+                      <span className="text-xs text-gray-600 group-hover:text-amber-600 transition-colors text-center truncate w-full leading-tight flex items-center justify-center gap-0.5">
                         {u.name.split(' ')[0]}
                         {flag && <span className="text-xs">{flag}</span>}
                       </span>

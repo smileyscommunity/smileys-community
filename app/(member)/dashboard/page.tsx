@@ -639,7 +639,10 @@ export default async function DashboardPage() {
               )
               const cls = 'bg-white border border-amber-100 rounded-xl px-2 py-2.5 text-center'
               return s.href ? (
-                <Link key={s.label} href={s.href} className={`${cls} hover:border-amber-300 transition-colors`}>{inner}</Link>
+                <Link key={s.label} href={s.href} className={`${cls} relative hover:border-amber-300 transition-colors`}>
+                  <span aria-hidden="true" className="absolute top-1 right-1.5 text-[11px] font-bold text-amber-500 leading-none">→</span>
+                  {inner}
+                </Link>
               ) : (
                 <div key={s.label} className={cls}>{inner}</div>
               )
@@ -1009,7 +1012,7 @@ export default async function DashboardPage() {
                       <span className="text-xl shrink-0">{event.emoji}</span>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-semibold text-gray-900 group-hover:text-red-700 transition-colors truncate">{event.title}</p>
-                        <p className="text-xs text-gray-400 mt-0.5">{formatDate(event.date)} · 📍 {event.neighborhood}</p>
+                        <p className="text-xs text-gray-600 mt-0.5">{formatDate(event.date)} · 📍 {event.neighborhood}</p>
                       </div>
                       <span className="text-xs font-extrabold text-red-600 bg-red-100 px-2 py-1 rounded-lg shrink-0">{event.spotsLeft} left</span>
                     </Link>

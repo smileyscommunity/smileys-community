@@ -588,7 +588,7 @@ export default function HangoutsPage() {
         )}
 
         {loading ? (
-          <p className="text-center text-gray-400 text-sm py-10">Loading…</p>
+          <div className="space-y-3">{[0,1,2].map(i => (<div key={i} className="bg-white rounded-2xl shadow-card p-4 animate-pulse"><div className="flex items-center gap-3 mb-3"><div className="w-10 h-10 rounded-full bg-gray-200 shrink-0" /><div className="flex-1 space-y-2"><div className="h-3 w-1/2 bg-gray-200 rounded" /><div className="h-3 w-1/3 bg-gray-200 rounded" /></div></div><div className="h-3 w-full bg-gray-200 rounded mb-2" /><div className="h-3 w-4/5 bg-gray-200 rounded" /></div>))}</div>
         ) : (() => {
           // Apply all three filters in order. modeFilter + neighborhoodFilter
           // are exclusive single-select; language is an independent toggle.
@@ -929,6 +929,7 @@ function HangoutCard({ h, currentUser, onCancel, onMutated }: {
         )}
 
         <button onClick={() => setThreadOpen(o => !o)}
+          aria-label="Toggle comments" aria-expanded={threadOpen}
           className="text-xs font-semibold text-gray-600 hover:text-gray-900 shrink-0 flex items-center gap-1">
           💬 {h.messageCount > 0 && <span>{h.messageCount}</span>}
         </button>

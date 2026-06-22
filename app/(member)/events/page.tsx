@@ -277,7 +277,7 @@ function AppEventsPageInner() {
               {tab === 'upcoming' && (
                 <button
                   onClick={() => setShowMap(v => !v)}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold transition-colors border ${
+                  className={`flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors border ${
                     showMap ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-gray-600 border-gray-200 hover:border-amber-400 hover:text-amber-600'
                   }`}
                 >

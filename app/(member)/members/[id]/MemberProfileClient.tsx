@@ -76,6 +76,7 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
   const [loading,      setLoading]      = useState(true)
   const [blocked,      setBlocked]      = useState(false)
   const [blocking,     setBlocking]     = useState(false)
+  const [confirmingBlock, setConfirmingBlock] = useState(false)
   const [connecting,   setConnecting]   = useState(false)
   const [connStatus,   setConnStatus]   = useState<string | null>(null)
   const [connId,       setConnId]       = useState<string | null>(null)
@@ -232,7 +233,6 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
   }
 
   async function handleBlock() {
-    if (!confirm(`Block ${member!.name}? They won't be able to see your profile or message you.`)) return
     setBlocking(true)
     const res = await fetch('/app/api/members/block', {
       method: 'POST', credentials: 'include',
@@ -240,6 +240,7 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
       body: JSON.stringify({ userId: member!.id }),
     })
     setBlocking(false)
+    setConfirmingBlock(false)
     if (res.ok) { setBlocked(true); toast.success(`${member!.name} has been blocked.`) }
   }
 
@@ -290,7 +291,7 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
       {/* Back nav */}
       <div className="bg-white/90 backdrop-blur border-b border-gray-100 sticky top-0 z-10">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
-          <Link href="/members" className="p-1.5 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors">
+          <Link href="/members" aria-label="Back" className="p-2.5 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
@@ -305,7 +306,7 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
                 onClick={handleSave}
                 disabled={saving}
                 aria-label={isSaved ? 'Remove from saved' : 'Save member'}
-                className="p-1.5 rounded-lg text-gray-400 hover:text-amber-500 hover:bg-amber-50 transition-colors disabled:opacity-50">
+                className="p-2.5 rounded-lg text-gray-400 hover:text-amber-500 hover:bg-amber-50 transition-colors disabled:opacity-50">
                 <svg className={`w-5 h-5 ${isSaved ? 'fill-amber-500 text-amber-500' : 'fill-none'}`} stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
                 </svg>
@@ -317,7 +318,7 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
               {/* ⋯ actions menu */}
               <div className="relative" ref={menuRef}>
                 <button onClick={() => setMenuOpen(o => !o)}
-                  className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                  className="p-2.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
                   aria-label="More options">
                   <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                     <circle cx="5" cy="12" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="19" cy="12" r="1.5" />
@@ -335,7 +336,7 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
                     </button>
                     <div className="h-px bg-gray-100" />
                     <button
-                      onClick={() => { setMenuOpen(false); if (!blocking) { blocked ? handleUnblock() : handleBlock() } }}
+                      onClick={() => { setMenuOpen(false); if (!blocking) { blocked ? handleUnblock() : setConfirmingBlock(true) } }}
                       disabled={blocking}
                       className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-red-500 hover:bg-red-50 transition-colors text-left disabled:opacity-50">
                       <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -726,15 +727,29 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
               Report
             </button>
             <span className="w-px h-3 bg-gray-200" />
-            <button
-              onClick={blocked ? handleUnblock : handleBlock}
-              disabled={blocking}
-              className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-600 transition-colors disabled:opacity-50">
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-              </svg>
-              {blocked ? `Unblock ${member.name.split(' ')[0]}` : `Block ${member.name.split(' ')[0]}`}
-            </button>
+            {confirmingBlock && !blocked ? (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-red-700 font-semibold">Block {member.name.split(' ')[0]}?</span>
+                <button onClick={handleBlock} disabled={blocking}
+                  className="text-xs px-2 py-1 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold disabled:opacity-50">
+                  {blocking ? '…' : 'Yes, block'}
+                </button>
+                <button onClick={() => setConfirmingBlock(false)} disabled={blocking}
+                  className="text-xs px-2 py-1 hover:bg-gray-100 text-gray-600 rounded-lg font-medium disabled:opacity-50">
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={blocked ? handleUnblock : () => setConfirmingBlock(true)}
+                disabled={blocking}
+                className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-600 transition-colors disabled:opacity-50">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                </svg>
+                {blocked ? `Unblock ${member.name.split(' ')[0]}` : `Block ${member.name.split(' ')[0]}`}
+              </button>
+            )}
           </div>
         )}
       </div>

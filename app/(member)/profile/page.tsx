@@ -623,12 +623,6 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            {/* Save */}
-            <button onClick={handleSave} disabled={saving || !form.firstName.trim()}
-              className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl disabled:opacity-40 transition-colors">
-              {saving ? 'Saving…' : 'Save profile'}
-            </button>
-
             {/* ── Notification preferences ── */}
             <Link href="/settings"
               className="flex items-center justify-between bg-white rounded-2xl shadow-sm border border-gray-100 p-5 hover:border-amber-200 transition-colors group">
@@ -737,6 +731,14 @@ export default function ProfilePage() {
                 ))}
               </div>
             </div>
+
+            {/* Save — placed after the last editable profile field
+                (Privacy) so members editing the lower sections don't
+                have to scroll back up to commit their changes. */}
+            <button onClick={handleSave} disabled={saving || !form.firstName.trim()}
+              className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl disabled:opacity-40 transition-colors">
+              {saving ? 'Saving…' : 'Save profile'}
+            </button>
 
             {/* ── Actions ── */}
             <div className="space-y-3 pb-4">

@@ -118,6 +118,11 @@ export default function ClubTabs({
           <div className="bg-white rounded-2xl shadow-card p-12 text-center">
             <span className="text-4xl block mb-3">📅</span>
             <p className="text-gray-600">No events scheduled yet. Check back soon!</p>
+            <button
+              onClick={() => setTab('wall')}
+              className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-amber-600 hover:text-amber-700 transition-colors">
+              Visit the Wall →
+            </button>
           </div>
         )
       ) : tab === 'wall' ? (

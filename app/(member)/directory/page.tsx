@@ -285,7 +285,7 @@ function BusinessCard({
                 <span className="text-gray-600 group-hover/r:text-amber-700">{b.reviewCount} review{b.reviewCount === 1 ? '' : 's'}</span>
               </>
             ) : (
-              <span className="text-gray-400 group-hover/r:text-amber-700">No reviews yet — be the first</span>
+              <span className="text-gray-600 group-hover/r:text-amber-700">No reviews yet — be the first</span>
             )}
           </button>
           {/* Claim trigger sits inside the info block as a small link

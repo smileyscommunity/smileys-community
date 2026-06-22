@@ -288,10 +288,12 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
               )
             })()}
 
-            <div className="bg-white rounded-2xl shadow-card p-8 mb-8">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">About this club</h2>
-              <p className="text-gray-600 leading-relaxed text-base">{club.description}</p>
-            </div>
+            {club.description && (
+              <div className="bg-white rounded-2xl shadow-card p-8 mb-8">
+                <h2 className="text-xl font-bold text-gray-900 mb-4">About this club</h2>
+                <p className="text-gray-600 leading-relaxed text-base">{club.description}</p>
+              </div>
+            )}
 
             {/* House rules — community-wide first, then club-specific.
                 Native <details> disclosure so members see the summary
@@ -425,7 +427,7 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
                           )}
                           <div className="min-w-0">
                             <p className="text-sm font-semibold text-gray-900 truncate">{user.name}</p>
-                            {user.bio && <p className="text-xs text-gray-400 truncate">{user.bio}</p>}
+                            {user.bio && <p className="text-xs text-gray-600 truncate">{user.bio}</p>}
                           </div>
                           <span className="ml-auto text-xs font-bold px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 shrink-0">Host</span>
                         </div>
