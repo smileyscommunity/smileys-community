@@ -154,20 +154,30 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
     setBusy(null)
   }
 
-  async function remindAttendees(count: number) {
-    if (!confirm(`Send reminder email + notification to ${count} attendee${count !== 1 ? 's' : ''}?`)) return
-    setReminding(true)
-    try {
-      const res = await fetch(`/app/api/admin/events/${id}/remind-attendees`, {
-        method: 'POST', credentials: 'include',
-      })
-      const data = await res.json()
-      if (res.ok) toast.success(`Reminded ${data.emailed} via email · ${data.notified} in-app`)
-      else toast.error(data.error ?? 'Failed to send reminders')
-    } catch {
-      toast.error('Failed to send reminders')
-    }
-    setReminding(false)
+  // In-app confirm (sonner) instead of window.confirm() — native dialogs
+  // are suppressed in the installed PWA / some mobile browsers, which made
+  // "Remind all" silently do nothing on mobile.
+  function remindAttendees(count: number) {
+    toast(`Send reminder email + notification to ${count} attendee${count !== 1 ? 's' : ''}?`, {
+      action: {
+        label: 'Send',
+        onClick: async () => {
+          setReminding(true)
+          try {
+            const res = await fetch(`/app/api/admin/events/${id}/remind-attendees`, {
+              method: 'POST', credentials: 'include',
+            })
+            const data = await res.json()
+            if (res.ok) toast.success(`Reminded ${data.emailed} via email · ${data.notified} in-app`)
+            else toast.error(data.error ?? 'Failed to send reminders')
+          } catch {
+            toast.error('Failed to send reminders')
+          } finally {
+            setReminding(false)
+          }
+        },
+      },
+    })
   }
 
   async function notifyNoShows(count: number) {
