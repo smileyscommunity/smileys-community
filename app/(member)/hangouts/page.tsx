@@ -96,17 +96,24 @@ function formatWindow(startsAt: string, endsAt: string) {
   return `${prefix}${fmtTime(s)}–${fmtTime(e)}`
 }
 
+// A <input type="datetime-local"> value is LOCAL wall-clock time, so the
+// default must be built from local components — toISOString() returns UTC
+// and prefilled the input ~3h behind in Istanbul.
+function toLocalInputValue(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
 function defaultStartsAt(): string {
   // 15 min from now, rounded — covers "I'm walking there"
   const d = new Date(Date.now() + 15 * 60_000)
   d.setSeconds(0, 0)
-  return d.toISOString().slice(0, 16) // YYYY-MM-DDTHH:MM
+  return toLocalInputValue(d) // YYYY-MM-DDTHH:MM (local)
 }
 function defaultEndsAt(): string {
   // 2 hours after default start — typical café hangout window
   const d = new Date(Date.now() + 2 * 60 * 60_000 + 15 * 60_000)
   d.setSeconds(0, 0)
-  return d.toISOString().slice(0, 16)
+  return toLocalInputValue(d)
 }
 
 export default function HangoutsPage() {

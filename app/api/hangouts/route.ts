@@ -175,9 +175,11 @@ export async function POST(req: NextRequest) {
     //       — they've signaled interest in the area with their feet
     // Union the two, dedupe, exclude the host. createNotification gives every
     // recipient an inbox row AND a push, so missed-push users still see it.
-    if (safeNeighborhood) {
-      (async () => {
-        try {
+    ;(async () => {
+      try {
+        const audience = new Set<string>()
+
+        if (safeNeighborhood) {
           const [locals, pastJoiners] = await Promise.all([
             prisma.user.findMany({
               where:  { neighborhood: safeNeighborhood, status: 'approved', id: { not: session.id } },
@@ -195,24 +197,35 @@ export async function POST(req: NextRequest) {
               distinct: ['userId'],
             }),
           ])
-          const audience = new Set<string>()
           for (const u of locals)      audience.add(u.id)
           for (const j of pastJoiners) audience.add(j.userId)
-
-          for (const userId of audience) {
-            createNotification(
-              userId,
-              'new_hangout',
-              `☕ Hangout in ${safeNeighborhood}`,
-              `${created.title} — ${created.location}`,
-              `/hangouts`,
-            ).catch(() => {})
+        } else {
+          // No neighborhood → fall back to the host's accepted connections,
+          // so the hangout still reaches someone instead of nobody.
+          const conns = await prisma.memberConnection.findMany({
+            where:  { status: 'accepted', OR: [{ requesterId: session.id }, { receiverId: session.id }] },
+            select: { requesterId: true, receiverId: true },
+          })
+          for (const c of conns) {
+            audience.add(c.requesterId === session.id ? c.receiverId : c.requesterId)
           }
-        } catch (e) {
-          console.error('[hangout fanout]', e)
         }
-      })()
-    }
+
+        audience.delete(session.id)
+        const heading = safeNeighborhood ? `☕ Hangout in ${safeNeighborhood}` : `☕ ${created.title}`
+        for (const userId of audience) {
+          createNotification(
+            userId,
+            'new_hangout',
+            heading,
+            `${created.title} — ${created.location}`,
+            `/hangouts`,
+          ).catch(() => {})
+        }
+      } catch (e) {
+        console.error('[hangout fanout]', e)
+      }
+    })()
 
     return NextResponse.json({ id: created.id }, { status: 201 })
   } catch (e) {
