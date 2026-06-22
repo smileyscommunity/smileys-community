@@ -35,8 +35,8 @@ export default function CookieBanner() {
           transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
           className="fixed bottom-0 left-0 right-0 z-[60] pb-[env(safe-area-inset-bottom)]"
         >
-          {/* Offset above mobile bottom nav */}
-          <div className="md:bottom-0 mb-16 md:mb-0 mx-3 mb-3 md:mx-0">
+          {/* Offset above the mobile bottom nav (mb-16); flush on desktop. */}
+          <div className="mb-16 md:mb-0 mx-3 md:mx-0">
             <div className="md:max-w-2xl md:mx-auto md:mb-6 bg-gray-900 text-white rounded-2xl shadow-2xl px-5 py-4 flex flex-col sm:flex-row items-start sm:items-center gap-4">
               <div className="flex-1 min-w-0">
                 <p className="text-sm leading-relaxed text-gray-200">
