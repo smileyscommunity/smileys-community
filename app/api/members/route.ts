@@ -30,9 +30,13 @@ export async function GET(req: NextRequest) {
 
   const searchFilter: Prisma.UserWhereInput = search ? {
     OR: [
-      { name:         { contains: search, mode: 'insensitive' } },
-      { neighborhood: { contains: search, mode: 'insensitive' } },
-      { nationality:  { contains: search, mode: 'insensitive' } },
+      { name: { contains: search, mode: 'insensitive' } },
+      // Neighborhood + nationality are hidden on a private member's locked
+      // card, so only match them on publicly-visible profiles — otherwise a
+      // search could confirm a 'connections only' member's hidden attributes
+      // (binary-search a nationality string against the redacted card).
+      { profileVisibility: 'everyone', neighborhood: { contains: search, mode: 'insensitive' } },
+      { profileVisibility: 'everyone', nationality:  { contains: search, mode: 'insensitive' } },
     ],
   } : {}
 

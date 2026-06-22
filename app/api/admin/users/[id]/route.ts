@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { createNotification } from '@/lib/notify'
 import { sendPremiumUpgradeEmail } from '@/lib/email'
+import { isPremium } from '@/lib/membership'
 import { writeAudit } from '@/lib/audit'
 import { computeEventSurveyRollup, aggregateRollup } from '@/lib/survey'
 
@@ -244,11 +245,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     const user = await prisma.user.update({ where: { id }, data: allowed })
 
-    // Premium/VIP grant → celebrate it (in-app + email). Fires only when
-    // moving INTO a paid tier the member wasn't already in, so re-saving
-    // an already-premium member doesn't re-notify.
+    // Premium/VIP grant → celebrate it (in-app + email). Fires only on a
+    // genuine upgrade FROM a non-paid tier INTO a paid one — so re-saving an
+    // already-premium member, or a VIP→Premium *downgrade*, never sends a
+    // "🎉 you're now Premium" message.
     if (allowed.membershipType && allowed.membershipType !== before?.membershipType
-        && (allowed.membershipType === 'premium' || allowed.membershipType === 'vip')) {
+        && isPremium(allowed.membershipType as string) && !isPremium(before?.membershipType)) {
       const tierLabel = allowed.membershipType === 'vip' ? 'VIP' : 'Premium'
       createNotification(id, 'membership_upgraded', `🎉 You're now a ${tierLabel} member!`,
         `Your Smileys membership has been upgraded to ${tierLabel}. Your badge now shows across the community.`,

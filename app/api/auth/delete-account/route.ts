@@ -28,11 +28,11 @@ import { rateLimit } from '@/lib/rateLimit'
 //   - ProfileView, MemberBlock, Connection
 //   - PasswordResetToken, EmailVerificationToken
 //   - EventPhoto, ClubPhoto (user-uploaded media)
-//   - HangoutJoin, HangoutPulse, AvailabilityPulse
-//   - ClubMembership, UserCity, CityHost
+//   - HangoutJoin, AvailabilityPulse
+//   - ClubMembership, CityHost
 //   - CupPrediction, CupBracketPick, MemberNPS
 //   - ClubPostLike, ClubPollVote, CommunityPollVote, NeighborhoodPostLike
-//   - WaitlistEntry, ReviewRequest, SavedListing, MemberConnection
+//   - WaitlistEntry, SavedListing, MemberConnection
 //   - HangoutReference where this user was the writer (fromUserId)
 //   - Fingerprint history + knownIps on the User row itself
 //
