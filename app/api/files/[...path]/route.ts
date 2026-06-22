@@ -27,7 +27,7 @@ const MIME: Record<string, string> = {
 }
 
 const UPLOAD_ROOT = join(process.cwd(), 'public', 'uploads')
-const VALID_FOLDERS = ['events', 'clubs', 'users', 'general', 'applications', 'posts', 'neighborhoods', 'directory', 'listings']
+const VALID_FOLDERS = ['events', 'clubs', 'users', 'general', 'applications', 'posts', 'neighborhoods', 'directory', 'listings', 'hangouts']
 const VALID_FILE = /^[\w\-]+\.(jpg|jpeg|png|webp|gif)$/i
 
 // Tiny in-process cache: filename → boolean (is an approved
