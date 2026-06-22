@@ -23,7 +23,7 @@ function SectionHeader({ title, count, color, badge, children }: {
   title: string; count: number; color: string; badge?: string; children?: React.ReactNode
 }) {
   return (
-    <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800 bg-zinc-900/80">
+    <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-zinc-800 bg-zinc-900/80">
       <div className="flex items-center gap-2">
         <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${color}`}>{count}</span>
         <span className="font-bold text-white text-sm">{title}</span>
