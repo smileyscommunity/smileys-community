@@ -62,7 +62,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
       select: {
         hostId: true, clubId: true, cityId: true, date: true, time: true, location: true, title: true,
         neighborhood: true, price: true, memberPrice: true, totalSpots: true,
-        emoji: true, isPremium: true, membersOnly: true, limitedSpots: true, status: true,
+        emoji: true, isPremium: true, membersOnly: true, limitedSpots: true, isFirstTimerFriendly: true, status: true,
         seriesId: true,
       }
     })
@@ -85,7 +85,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
       'title', 'date', 'time', 'location', 'neighborhood', 'address', 'description',
       ...(admin ? ['totalSpots', 'spotsLeft'] : []),
       'price', 'memberPrice', 'emoji', 'isPremium',
-      'membersOnly', 'limitedSpots', 'vibes', 'status', 'coverImage', 'coverImagePosition', 'meetingUrl',
+      'membersOnly', 'limitedSpots', 'isFirstTimerFriendly', 'vibes', 'status', 'coverImage', 'coverImagePosition', 'meetingUrl',
       'whatsappUrl', 'minAge', 'maxAge', 'language', 'difficulty', 'refundPolicy',
       'registrationDeadline', 'endTime', 'currency', 'approvalRequired', 'isRecurring',
       'lat', 'lng', 'featured', 'genderBalance', 'maleQuota', 'femaleQuota', 'turkishMaleQuota',

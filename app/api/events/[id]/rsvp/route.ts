@@ -7,6 +7,7 @@ import { getAvailableSpots } from '@/lib/db'
 import { sendRsvpConfirmationEmail, sendSpotOpenedEmail, recordEmailFailure } from '@/lib/email'
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 import { autoJoinClub } from '@/lib/autoJoinClub'
+import { stampFirstEventRsvp } from '@/lib/firstEvent'
 import { sendPushToUser } from '@/lib/push'
 
 type Params = { params: Promise<{ id: string }> }
@@ -48,6 +49,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       if (existing) return NextResponse.json({ error: 'Already joined' }, { status: 400 })
       await prisma.eventAttendee.create({ data: { userId: session.id, eventId, status: 'approved', stealth } })
       autoJoinClub(session.id, eventId).catch(() => {})
+      stampFirstEventRsvp(session.id, eventId).catch(() => {})
       createNotification(session.id, 'rsvp', 'You\'re in! 🎉', `Your spot for "${event.title}" is confirmed.`, `/events/${eventId}`)
       return NextResponse.json({ ok: true, status: 'approved' })
     }
@@ -87,6 +89,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       })
       if (outcome.ok) {
         autoJoinClub(session.id, eventId).catch(() => {})
+        stampFirstEventRsvp(session.id, eventId).catch(() => {})
         createNotification(session.id, 'rsvp', "You're in! 🎉", `You claimed the open spot for "${event.title}".`, `/events/${eventId}`)
         return NextResponse.json({ ok: true, status: 'approved' })
       }
@@ -303,6 +306,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     }
 
     autoJoinClub(session.id, eventId).catch(() => {})
+    stampFirstEventRsvp(session.id, eventId).catch(() => {})
 
     createNotification(session.id, 'rsvp', 'You\'re in! 🎉', `Your spot for "${event.title}" is confirmed.`, `/events/${eventId}`)
 

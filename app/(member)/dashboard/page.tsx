@@ -22,6 +22,7 @@ import ClubActivityTimeline from '@/components/ClubActivityTimeline'
 import DashboardVisitorsStrip from '@/components/DashboardVisitorsStrip'
 import PartnersBanner from '@/components/PartnersBanner'
 import GetStartedChecklist from '@/components/GetStartedChecklist'
+import FirstEventBlock from '@/components/FirstEventBlock'
 import Image from 'next/image'
 
 export const dynamic = 'force-dynamic'
@@ -887,6 +888,11 @@ export default async function DashboardPage() {
               renders first so the dashboard opens onto something the
               member can act on, not their own profile card. */}
           <div className="order-1 lg:order-2 flex-1 min-w-0 space-y-6">
+
+            {/* Newcomer activation: members who have never RSVP'd lead with a
+                hand-picked first event — signed-in→first-RSVP is the biggest
+                funnel leak. Self-hides the moment they join one. */}
+            {myAttendances.length === 0 && <FirstEventBlock />}
 
             {/* Urgent-first: system announcement + pending connection
                 requests (action items) used to live in the left rail,

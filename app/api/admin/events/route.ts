@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json()
     const { title, date, time, location, neighborhood, clubId, hostId, description,
-            totalSpots, price, memberPrice, emoji, isPremium, membersOnly, limitedSpots,
+            totalSpots, price, memberPrice, emoji, isPremium, membersOnly, limitedSpots, isFirstTimerFriendly,
             vibes, tagIds, tags, status, coverImage, coverImagePosition, meetingUrl, whatsappUrl, address,
             minAge, maxAge, language, difficulty,
             refundPolicy, registrationDeadline, endTime, currency, approvalRequired,
@@ -239,6 +239,7 @@ export async function POST(req: NextRequest) {
         isPremium:            isPremium ?? false,
         membersOnly:          membersOnly ?? false,
         limitedSpots:         limitedSpots ?? true,
+        isFirstTimerFriendly: isFirstTimerFriendly ?? false,
         vibes:                vibes ?? [],
         status:               eventStatus,
         coverImage:           coverImage           ?? null,
