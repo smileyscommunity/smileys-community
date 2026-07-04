@@ -24,6 +24,9 @@ export default function LoginPage() {
   const [resendSent,     setResendSent]     = useState(false)
   const [resendLoading,  setResendLoading]  = useState(false)
   const [turnstileToken, setTurnstileToken] = useState('')
+  // Bumped on every failed login — Turnstile tokens are single-use, so the
+  // widget must mint a fresh one or every retry fails "human verification".
+  const [turnstileReset, setTurnstileReset] = useState(0)
   const [step,          setStep]          = useState<'credentials' | '2fa'>('credentials')
   const [totpCode,      setTotpCode]      = useState('')
   const [fingerprint,   setFingerprint]   = useState('')
@@ -65,6 +68,8 @@ export default function LoginPage() {
 
       if (!res.ok) {
         setError(data.error ?? 'Login failed')
+        setTurnstileToken('')
+        setTurnstileReset(n => n + 1)
         return
       }
 
@@ -233,7 +238,7 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              <Turnstile onVerify={setTurnstileToken} onExpire={() => setTurnstileToken('')} />
+              <Turnstile onVerify={setTurnstileToken} onExpire={() => setTurnstileToken('')} resetSignal={turnstileReset} />
               {turnstileRequired && !turnstileToken && !loading && (
                 <p className="text-center text-xs text-gray-400">Complete the verification above to continue</p>
               )}

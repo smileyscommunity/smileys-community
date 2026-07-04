@@ -70,15 +70,15 @@ export default async function HandbookPage() {
     <main>
       {/* Hero — warmer than /pro, signalling "useful + welcoming"
           rather than "exclusive". The handbook is for everyone. */}
-      <section className="bg-gradient-to-br from-amber-50 via-orange-50 to-white border-b border-amber-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-amber-200 text-amber-700 text-[11px] font-bold tracking-widest uppercase mb-6">
+      <section className="bg-white border-b border-gray-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-6">
+          <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">
             📖 The Handbook
-          </div>
-          <h1 className="text-4xl sm:text-6xl font-extrabold text-gray-900 tracking-tight leading-[1.05] mb-5">
-            Living in Istanbul,<br /> <span className="text-amber-600">decoded.</span>
+          </span>
+          <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">
+            Living in Istanbul, <span className="text-amber-600">decoded.</span>
           </h1>
-          <p className="text-base sm:text-lg text-gray-600 max-w-xl leading-relaxed">
+          <p className="text-base text-gray-600 mt-1 max-w-xl">
             Residence permits, bank accounts, schools, doctors, transport — the canonical answers,
             written by Smileys members who actually lived through them.
           </p>

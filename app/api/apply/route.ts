@@ -131,7 +131,13 @@ export async function POST(req: NextRequest) {
     // Blacklist check — email, phone, fingerprint, IP
     // Filter out null/empty values — an empty {} in Prisma OR matches ALL records,
     // which would block every applicant whenever any blacklist entry exists.
-    const ip = (req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip') ?? '').split(',')[0].trim() || null
+    // Trusted IP only (Nginx x-real-ip / last XFF hop, normalised) — the raw
+    // first XFF entry is client-spoofable, which would let a blacklisted or
+    // rate-limited applicant forge a fresh IP to evade the velocity/blacklist/
+    // cooldown checks below (all keyed on this value). Also validated, so it's
+    // safe to interpolate into the getIpTimezone() fetch URL.
+    const trustedIp = getIp(req)
+    const ip = trustedIp === 'unknown' ? null : trustedIp
     const fingerprint = typeof _fp === 'string' && _fp.length > 0 ? _fp.slice(0, 64) : null
     const blacklistConditions = [
       cleanEmail  ? { email: cleanEmail }   : null,
@@ -146,14 +152,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'This application cannot be accepted.' }, { status: 403 })
     }
 
-    // Duplicate / rejected applicant checks — use generic message to prevent enumeration
-    const existingEmail = await prisma.memberApplication.findFirst({ where: { email: cleanEmail } })
-    if (existingEmail) {
+    // Duplicate / rejected applicant checks — use generic message to prevent enumeration.
+    // Policy: rejection is a 90-day cooldown, not a lifetime ban. Pending and
+    // approved applications always block a duplicate; rejected ones only block
+    // inside the cooldown window (velocity auto-rejects have reviewedAt null,
+    // so age those by createdAt instead).
+    const cooldownDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
+    const emailApps = await prisma.memberApplication.findMany({
+      where: { email: cleanEmail },
+      select: { status: true, reviewedAt: true, createdAt: true },
+    })
+    const emailBlocked = emailApps.some(a =>
+      a.status !== 'rejected' || (a.reviewedAt ?? a.createdAt) >= cooldownDate
+    )
+    if (emailBlocked) {
       return NextResponse.json({ error: 'This application cannot be accepted.' }, { status: 409 })
     }
 
-    // 90-day cooldown after rejection (phone, fingerprint, or IP)
-    const cooldownDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
+    // 90-day cooldown after rejection (phone or IP)
     // Build OR conditions, filtering out nulls to avoid Prisma empty-object
     // matching all records when a field isn't provided.
     // Fingerprint intentionally excluded from cooldown: non-unique on the free
@@ -172,18 +188,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'This application cannot be accepted.' }, { status: 409 })
     }
 
-    if (cleanPhone) {
-      const phoneMatch = await prisma.memberApplication.findFirst({
-        where: { phone: cleanPhone, status: 'rejected' },
-      })
-      if (phoneMatch) {
-        return NextResponse.json({ error: 'This application cannot be accepted.' }, { status: 409 })
-      }
-    }
+    // (No unconditional phone match here — the cooldown check above already
+    // covers phone within the 90-day window; matching all-time would make
+    // rejection a lifetime ban, contradicting the cooldown policy.)
 
     if (cleanInstagram) {
       const igMatch = await prisma.memberApplication.findFirst({
-        where: { instagram: cleanInstagram, status: 'rejected' },
+        where: { instagram: cleanInstagram, status: 'rejected', reviewedAt: { gte: cooldownDate } },
       })
       if (igMatch) {
         return NextResponse.json({ error: 'This application cannot be accepted.' }, { status: 409 })

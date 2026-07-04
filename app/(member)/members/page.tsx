@@ -636,7 +636,7 @@ const MemberCard = memo(function MemberCard({ m, onSelect, connectionStatus, han
         <div className="absolute top-2 right-2 flex items-center gap-1">
           {hangingOut && (
             <span title="Has an active hangout — see /hangouts"
-              className="flex items-center gap-1 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">
+              className="flex items-center gap-1 bg-green-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">
               <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
               Hangout
             </span>
@@ -886,11 +886,24 @@ function MembersPageInner() {
   const activeMembers  = filteredMembers ?? members
   const hangoutHostIds = useMemo(() => new Set(hangouts.map(h => h.user.id)), [hangouts])
 
-  const visible = useMemo(() =>
-    activeMembers
+  const visible = useMemo(() => {
+    const q = search.toLowerCase()
+    // Relevance tier when a search is active: name matches on top, then
+    // interests/clubs/nationality, then neighborhood-only. Without this,
+    // searching "Levent" (a common Turkish name AND an Istanbul district)
+    // buried the actual Levents under everyone who lives in the
+    // neighborhood.
+    const nameHit = (m: typeof activeMembers[number]) => m.name.toLowerCase().includes(q)
+    const otherHit = (m: typeof activeMembers[number]) =>
+      m.nationality?.toLowerCase().includes(q) ||
+      m.interests.some(i => i.toLowerCase().includes(q)) ||
+      m.clubs.some(c => c.name.toLowerCase().includes(q))
+    const relevance = (m: typeof activeMembers[number]) =>
+      nameHit(m) ? 0 : otherHit(m) ? 1 : 2
+
+    return activeMembers
       .filter(m => {
         if (!search) return true
-        const q = search.toLowerCase()
         return (
           m.name.toLowerCase().includes(q) ||
           m.neighborhood?.toLowerCase().includes(q) ||
@@ -900,12 +913,15 @@ function MembersPageInner() {
         )
       })
       .sort((a, b) => {
+        if (search) {
+          const rel = relevance(a) - relevance(b)
+          if (rel !== 0) return rel
+        }
         if (sort === 'active')  return b.eventsCount - a.eventsCount
         if (sort === 'az')      return a.name.localeCompare(b.name)
         return new Date(b.joinedAt).getTime() - new Date(a.joinedAt).getTime()
-      }),
-    [activeMembers, search, sort]
-  )
+      })
+  }, [activeMembers, search, sort])
 
   const pendingRequests = connections.filter(c => c.receiverId === user.id && c.status === 'pending')
   const connectedCount  = connections.filter(c => c.status === 'accepted').length
@@ -942,7 +958,7 @@ function MembersPageInner() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-0">
           <div className="flex flex-col sm:flex-row sm:items-start gap-4 mb-6">
             <div className="flex-1">
-              <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">{hero.badge}</span>
+              <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">🤝 {hero.badge}</span>
               <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">{hero.headline}</h1>
               {/* Was 'X members · Y hosts · Z admins' — hosts/admins are
                   subsets of members so the · merge implied parallel

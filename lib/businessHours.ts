@@ -93,7 +93,10 @@ function nowInIstanbul(): { dayKey: DayKey; minutes: number } {
   // without dragging in moment or date-fns.
   const parts = new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Europe/Istanbul',
-    hour: '2-digit', minute: '2-digit', hour12: false,
+    // hourCycle 'h23' — hour12:false renders midnight as "24" on some ICU
+    // builds, which would make minutes-since-midnight ~1440 instead of ~0
+    // and break open/closed status for the first hour after midnight.
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
     weekday: 'short',
   }).formatToParts(now)
   let hh = 0, mm = 0, weekdayShort = 'Sun'

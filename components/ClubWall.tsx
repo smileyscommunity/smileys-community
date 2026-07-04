@@ -3,6 +3,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { resolveImageUrl, getInitials } from '@/lib/data'
 import MentionTextarea, { MentionInput } from '@/components/MentionTextarea'
+import { confirmToast } from '@/lib/confirmToast'
+import RichText from '@/components/RichText'
+import FormatToolbar from '@/components/FormatToolbar'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -16,7 +19,7 @@ interface Poll {
 }
 interface Reply { id: string; content: string; createdAt: string; author: PostAuthor }
 interface Post {
-  id: string; content: string; createdAt: string; isPinned: boolean
+  id: string; content: string; createdAt: string; editedAt?: string | null; isPinned: boolean
   author: PostAuthor; reactions: Reaction[]; poll: Poll | null; replies: Reply[]
 }
 
@@ -26,15 +29,6 @@ const REACTIONS = ['❤️', '👍', '🔥', '😂']
 const PREVIEW_COUNT = 2
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function renderContent(text: string) {
-  const parts = text.split(/(@\w+)/g)
-  return parts.map((part, i) =>
-    /^@\w+$/.test(part)
-      ? <span key={i} className="font-semibold text-amber-600">{part}</span>
-      : <span key={i}>{part}</span>
-  )
-}
 
 function formatRelative(iso: string): string {
   const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
@@ -237,7 +231,12 @@ export default function ClubWall({ slug, canPost, currentUserId, isAdmin, canPin
   const [pendingPoll,    setPendingPoll]    = useState<{ question: string; options: string[] } | null>(null)
   const [replyingTo,     setReplyingTo]     = useState<string | null>(null)
   const [expandedReplies, setExpandedReplies] = useState<Set<string>>(new Set())
+  const [editingId,      setEditingId]      = useState<string | null>(null)
+  const [editDraft,      setEditDraft]      = useState('')
+  const [savingEdit,     setSavingEdit]     = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const composeRef  = useRef<HTMLTextAreaElement | null>(null)
+  const editRef     = useRef<HTMLTextAreaElement | null>(null)
 
   useEffect(() => {
     fetch(`/app/api/clubs/${slug}/posts`, { credentials: 'include' })
@@ -294,9 +293,36 @@ export default function ClubWall({ slug, canPost, currentUserId, isAdmin, canPin
   }
 
   async function deletePost(postId: string) {
-    if (!confirm('Delete this post?')) return
+    if (!(await confirmToast('Delete this post?'))) return
     const res = await fetch(`/app/api/clubs/${slug}/posts/${postId}`, { method: 'DELETE', credentials: 'include' })
     if (res.ok) setPosts(prev => prev.filter(p => p.id !== postId))
+  }
+
+  function startEdit(post: Post) { setEditingId(post.id); setEditDraft(post.content); setError('') }
+  function cancelEdit() { setEditingId(null); setEditDraft('') }
+
+  async function saveEdit(postId: string) {
+    if (!editDraft.trim() || savingEdit) return
+    setSavingEdit(true); setError('')
+    try {
+      const res = await fetch(`/app/api/clubs/${slug}/posts/${postId}`, {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: editDraft }),
+      })
+      if (res.ok) {
+        const updated = await res.json()
+        setPosts(prev => prev.map(p => p.id === postId ? { ...p, content: updated.content, editedAt: updated.editedAt } : p))
+        cancelEdit()
+      } else {
+        const d = await res.json().catch(() => ({}))
+        setError(d.error ?? 'Failed to save')
+      }
+    } catch {
+      setError('Failed to save')
+    } finally {
+      setSavingEdit(false)
+    }
   }
 
   async function deleteReply(postId: string, replyId: string) {
@@ -392,6 +418,9 @@ export default function ClubWall({ slug, canPost, currentUserId, isAdmin, canPin
         {/* Composer — text only, no poll toggle */}
         {canPost ? (
           <div className="bg-white rounded-2xl shadow-card p-4">
+            {!pollMode && (
+              <FormatToolbar getEl={() => composeRef.current} value={content} onChange={setContent} />
+            )}
             <MentionTextarea value={pollMode ? '' : content}
               onChange={v => { if (!pollMode) setContent(v) }}
               onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !pollMode) submit() }}
@@ -401,6 +430,7 @@ export default function ClubWall({ slug, canPost, currentUserId, isAdmin, canPin
               style={{ minHeight: 72 }}
               disabled={pollMode}
               doAutoResize
+              innerRef={composeRef}
             />
             {error && !pollMode && <p className="text-xs text-red-500 mt-1">{error}</p>}
             <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
@@ -449,7 +479,7 @@ export default function ClubWall({ slug, canPost, currentUserId, isAdmin, canPin
   )
 
   function renderPostCard(post: Post) {
-    const canDelete      = currentUserId === post.author.id || isAdmin
+    const canDelete      = currentUserId === post.author.id || isAdmin || canPin
     const isExpanded     = expandedReplies.has(post.id)
     const visibleReplies = isExpanded ? post.replies : post.replies.slice(-PREVIEW_COUNT)
     const hiddenCount    = post.replies.length - PREVIEW_COUNT
@@ -472,11 +502,34 @@ export default function ClubWall({ slug, canPost, currentUserId, isAdmin, canPin
               <span className="text-sm font-semibold text-gray-900">{post.author.name}</span>
               <AuthorBadge role={post.author.role} clubRole={post.author.clubRole} />
               <span className="text-xs text-gray-400">{formatRelative(post.createdAt)}</span>
+              {post.editedAt && <span className="text-[11px] italic text-gray-400">· edited</span>}
             </div>
 
             {/* Content */}
-            {post.content && (
-              <p className="text-sm text-gray-700 mt-1.5 leading-relaxed whitespace-pre-wrap break-words">{renderContent(post.content)}</p>
+            {editingId === post.id ? (
+              <div className="mt-1.5">
+                <FormatToolbar getEl={() => editRef.current} value={editDraft} onChange={setEditDraft} />
+                <textarea
+                  ref={editRef}
+                  value={editDraft}
+                  onChange={e => setEditDraft(e.target.value)}
+                  rows={4}
+                  maxLength={2000}
+                  autoFocus
+                  className="w-full text-sm rounded-xl border border-gray-200 px-3 py-2 leading-relaxed text-gray-800 resize-y focus:outline-none focus:ring-2 focus:ring-amber-400"
+                />
+                {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+                <div className="flex items-center gap-2 mt-2">
+                  <button onClick={() => saveEdit(post.id)} disabled={!editDraft.trim() || savingEdit}
+                    className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-40">
+                    {savingEdit ? 'Saving…' : 'Save'}
+                  </button>
+                  <button onClick={cancelEdit}
+                    className="px-3 py-1.5 text-xs font-semibold text-gray-400 hover:text-amber-600 transition-colors">Cancel</button>
+                </div>
+              </div>
+            ) : post.content && (
+              <p className="text-sm text-gray-700 mt-1.5 leading-relaxed whitespace-pre-wrap break-words"><RichText text={post.content} /></p>
             )}
 
             {/* Poll */}
@@ -519,8 +572,13 @@ export default function ClubWall({ slug, canPost, currentUserId, isAdmin, canPin
                 </button>
               )}
 
-              {/* Pin / delete */}
-              <div className="ml-auto flex items-center gap-2">
+              {/* Edit / pin / delete */}
+              <div className="ml-auto flex items-center gap-3">
+                {currentUserId === post.author.id && post.content && editingId !== post.id && (
+                  <button onClick={() => startEdit(post)} className="text-xs text-gray-400 hover:text-amber-600 transition-colors">
+                    Edit
+                  </button>
+                )}
                 {canPin && (
                   <button onClick={() => togglePin(post.id, post.isPinned)}
                     title={post.isPinned ? 'Unpin' : 'Pin to top'}
@@ -548,7 +606,7 @@ export default function ClubWall({ slug, canPost, currentUserId, isAdmin, canPin
               </button>
             )}
             {visibleReplies.map(reply => {
-              const canDelReply = currentUserId === reply.author.id || isAdmin
+              const canDelReply = currentUserId === reply.author.id || isAdmin || canPin
               return (
                 <div key={reply.id} className="flex gap-2 group">
                   <Avatar author={reply.author} size="sm" />
@@ -558,7 +616,7 @@ export default function ClubWall({ slug, canPost, currentUserId, isAdmin, canPin
                       <AuthorBadge role={reply.author.role} clubRole={reply.author.clubRole} />
                       <span className="text-xs text-gray-400">{formatRelative(reply.createdAt)}</span>
                     </div>
-                    <p className="text-xs text-gray-700 mt-0.5 leading-relaxed whitespace-pre-wrap break-words">{renderContent(reply.content)}</p>
+                    <p className="text-xs text-gray-700 mt-0.5 leading-relaxed whitespace-pre-wrap break-words"><RichText text={reply.content} /></p>
                   </div>
                   {canDelReply && (
                     <button onClick={() => deleteReply(post.id, reply.id)}

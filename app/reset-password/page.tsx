@@ -45,7 +45,16 @@ function ResetPasswordForm() {
   }
 
   return (
-    <div className="bg-white rounded-2xl shadow-card p-7">
+    <>
+      <div className="text-center mb-8">
+        <Link href="/" className="inline-flex items-center gap-2 mb-6">
+          <span className="text-3xl">😊</span>
+          <span className="font-bold text-xl text-gray-900">Smileys Community</span>
+        </Link>
+        <h1 className="text-2xl font-extrabold text-gray-900">{isActivate ? 'Activate your account' : 'Reset your password'}</h1>
+        <p className="text-sm text-gray-600 mt-1">{isActivate ? "One last step — choose a password and you're in" : 'Choose a new password for your account'}</p>
+      </div>
+      <div className="bg-white rounded-2xl shadow-card p-7">
       {done ? (
         <div className="text-center space-y-3">
           <div className="flex items-center justify-center gap-2 text-green-700 bg-green-50 border border-green-100 px-4 py-3 rounded-xl text-sm font-medium">
@@ -101,7 +110,8 @@ function ResetPasswordForm() {
           </p>
         </form>
       )}
-    </div>
+      </div>
+    </>
   )
 }
 
@@ -109,14 +119,6 @@ export default function ResetPasswordPage() {
   return (
     <div className="min-h-screen bg-warm flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <Link href="/" className="inline-flex items-center gap-2 mb-6">
-            <span className="text-3xl">😊</span>
-            <span className="font-bold text-xl text-gray-900">Smileys Community</span>
-          </Link>
-          <h1 className="text-2xl font-extrabold text-gray-900">Activate your account</h1>
-          <p className="text-sm text-gray-600 mt-1">One last step — choose a password and you're in</p>
-        </div>
         <Suspense>
           <ResetPasswordForm />
         </Suspense>

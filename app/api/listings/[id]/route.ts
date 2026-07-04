@@ -2,18 +2,23 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin } from '@/lib/access'
+import { redactListingForGuest } from '@/lib/listingsPublic'
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   // Public read — paired with the public /listings browse page so Google can
-  // crawl individual listings.
+  // crawl individual listings. Guests see a teaser (no contact, photo, full
+  // description, or poster identity); members get the full record.
   const { id } = await params
-  const listing = await prisma.listing.findUnique({
-    where: { id, status: 'active' },
-    include: { user: { select: { id: true, name: true, color: true, profilePhoto: true } } },
-  })
+  const [listing, session] = await Promise.all([
+    prisma.listing.findUnique({
+      where: { id, status: 'active' },
+      include: { user: { select: { id: true, name: true, color: true, profilePhoto: true } } },
+    }),
+    getSession(),
+  ])
   if (!listing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  return NextResponse.json(listing)
+  return NextResponse.json(session ? listing : redactListingForGuest(listing))
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

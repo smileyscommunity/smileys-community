@@ -55,7 +55,10 @@ const eventInclude = {
   _count: { select: { attendees: { where: { status: 'approved' as const } } } },
   tags: { include: { tag: { include: { group: true } } } },
   attendees: {
-    where: { status: 'approved' as const },
+    // stealth: the detail page already hides stealth RSVPs; without the
+    // same filter here they leaked into card avatar previews. hidden:
+    // admin-hidden accounts stay out of every member-facing list.
+    where: { status: 'approved' as const, stealth: false, user: { hiddenFromMembers: false } },
     take: 5,
     orderBy: { joinedAt: 'desc' as const },
     select: { user: { select: { id: true, name: true, color: true, profilePhoto: true } } },
@@ -133,6 +136,29 @@ async function enrichHosts(events: Event[]): Promise<Event[]> {
   }))
 }
 
+/**
+ * Guest-facing projection of an event for logged-out viewers. The events
+ * list + detail are public for SEO/discovery, but the precise venue and
+ * who's attending are the payoff of joining — withhold them until login.
+ * Mirrors redactListingForGuest in lib/listingsPublic.ts.
+ *
+ * Keeps: title, date/time, neighbourhood, cover, price, and the "X going"
+ * count (which EventCard derives from totalSpots − spotsLeft, not from the
+ * previews). Strips: exact street address + GPS, chat/meeting links, and
+ * attendee names/photos.
+ */
+export function redactEventForGuest(event: Event): Event {
+  return {
+    ...event,
+    address:          undefined,
+    lat:              null,
+    lng:              null,
+    meetingUrl:       undefined,
+    whatsappUrl:      undefined,
+    attendeePreviews: [],
+  }
+}
+
 export async function getEvents(options?: {
   limit?: number
   offset?: number
@@ -148,17 +174,23 @@ export async function getEvents(options?: {
   const istanbulParts = new Date().toLocaleString('en-CA', {
     timeZone: 'Europe/Istanbul',
     year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', hour12: false,
+    // hourCycle 'h23' (not hour12:false) — the latter makes some ICU builds
+    // render midnight as "24:MM" instead of "00:MM", which then computes a
+    // bogus ~19:00 cutoff and hides all of today's daytime events for the
+    // first hour after midnight.
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
   })
   // en-CA renders as "YYYY-MM-DD, HH:MM" — split + normalize.
   const [today, currentHM] = istanbulParts.split(', ')
-  // Drop events whose start was > 2h ago — keeps in-progress events
-  // visible but removes finished ones. Subtract 2h from the current
-  // Istanbul time; if that underflows past midnight, clamp to 00:00
-  // (events that crossed midnight from a previous day are already
-  // excluded by the `date >= today` lower bound).
-  const [chH, chM] = currentHM.split(':').map(Number)
-  const cutoffMins  = Math.max(0, chH * 60 + chM - 120)
+  // Drop events whose start was > 5h ago — keeps in-progress events
+  // visible for a typical event's duration but removes finished ones.
+  // Subtract 5h from the current Istanbul time; if that underflows past
+  // midnight, clamp to 00:00 (events that crossed midnight from a previous
+  // day are already excluded by the `date >= today` lower bound).
+  // `% 24` defends against any residual "24:MM" midnight rendering.
+  const [chHraw, chM] = currentHM.split(':').map(Number)
+  const chH = chHraw % 24
+  const cutoffMins  = Math.max(0, chH * 60 + chM - 300)
   const cutoffTime  = `${String(Math.floor(cutoffMins / 60)).padStart(2, '0')}:${String(cutoffMins % 60).padStart(2, '0')}`
 
   // Include 'cancelled' so the EventCard banner is reachable — members
@@ -195,10 +227,22 @@ export async function getEvents(options?: {
     take: limit,
     skip: offset,
   })
-  const [events, total] = await Promise.all([
+  // Waitlist counts for the sold-out events on this page — shown on the
+  // card's "Join waitlist" CTA as social proof of demand. One grouped
+  // query for the page, only when a sold-out event is present at all.
+  const soldOutIds = rows.filter(e => e.limitedSpots && (e.spotsLeft ?? 0) <= 0).map(e => e.id)
+  const [events, total, waitCounts] = await Promise.all([
     enrichHosts(rows.map(e => mapEvent(e))),
     prisma.event.count({ where }),
+    soldOutIds.length
+      ? prisma.waitlistEntry.groupBy({ by: ['eventId'], where: { eventId: { in: soldOutIds } }, _count: { _all: true } })
+      : Promise.resolve([]),
   ])
+  const waitByEvent = new Map(waitCounts.map(w => [w.eventId, w._count._all]))
+  for (const e of events) {
+    const n = waitByEvent.get(e.id)
+    if (n) e.waitlistCount = n
+  }
   return { events, total }
 }
 
@@ -215,19 +259,17 @@ export async function getEventById(id: string): Promise<Event | undefined> {
 export async function getEventsByClub(clubId: string): Promise<Event[]> {
   const today = todayIstanbul()
 
-  // Free events are only shown within 7 days of their date.
-  // Paid events are always visible regardless of how far ahead they are.
-  const oneWeekAhead = todayIstanbul(7)
-
+  // Show every upcoming club event, regardless of price or distance.
+  // The 7-day cap that lives in the global feed (getEvents) is wrong
+  // here: members visit a club page specifically to see what's
+  // scheduled next, and recurring clubs (book club, language meetups)
+  // routinely sit 3-4 weeks out. Hiding those is hiding the answer
+  // the page is supposed to give.
   const rows = await prisma.event.findMany({
     where: {
       clubId,
       status: { in: ['published', 'cancelled'] },
       date: { gte: today },
-      OR: [
-        { price: { gt: 0 } },
-        { price: 0, date: { lte: oneWeekAhead } },
-      ],
     },
     include: eventInclude,
     orderBy: { date: 'asc' },

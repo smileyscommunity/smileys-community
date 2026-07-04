@@ -7,6 +7,7 @@ import { sendPremiumUpgradeEmail } from '@/lib/email'
 import { isPremium } from '@/lib/membership'
 import { writeAudit } from '@/lib/audit'
 import { computeEventSurveyRollup, aggregateRollup } from '@/lib/survey'
+import { formatName } from '@/lib/data'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -169,7 +170,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       'status', 'role', 'membershipType', 'banReason', 'bannedAt',
       'appealStatus', 'bio', 'neighborhood', 'instagram', 'phone', 'nationality',
       'languages', 'interests', 'color', 'name',
-      'suspendedUntil', 'suspensionNote', 'partnerId'
+      'suspendedUntil', 'suspensionNote', 'partnerId',
+      'hiddenFromMembers', 'email'
     ] as const
 
     const allowed: Record<string, unknown> = {}
@@ -196,6 +198,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 })
     }
 
+    if (typeof allowed.name === 'string') {
+      allowed.name = formatName(allowed.name)
+      if (!allowed.name) return NextResponse.json({ error: 'Name cannot be empty' }, { status: 400 })
+    }
+
     // Validate enum values
     if (allowed.role !== undefined && !['admin', 'moderator', 'member'].includes(allowed.role as string)) {
       return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
@@ -210,6 +217,32 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // typo (or a compromised admin session writing junk).
     if (allowed.membershipType !== undefined && !['free', 'premium', 'vip'].includes(allowed.membershipType as string)) {
       return NextResponse.json({ error: 'Invalid membershipType' }, { status: 400 })
+    }
+    if (allowed.hiddenFromMembers !== undefined && typeof allowed.hiddenFromMembers !== 'boolean') {
+      return NextResponse.json({ error: 'Invalid hiddenFromMembers' }, { status: 400 })
+    }
+    // Email change — admin-only in practice (mod restriction above), since
+    // email is the login identifier. Normalize, validate, and enforce
+    // uniqueness with a clear error instead of a P2002 500. No-op values
+    // are dropped so routine profile saves don't trip the checks or audit.
+    if (allowed.email !== undefined) {
+      if (typeof allowed.email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(allowed.email.trim())) {
+        return NextResponse.json({ error: 'Invalid email address' }, { status: 400 })
+      }
+      allowed.email = allowed.email.trim().toLowerCase()
+      if (allowed.email === target.email) {
+        delete allowed.email
+      } else {
+        const taken = await prisma.user.findUnique({ where: { email: allowed.email as string }, select: { id: true } })
+        if (taken) return NextResponse.json({ error: 'That email is already in use by another account' }, { status: 409 })
+      }
+    }
+    // The no-op email drop above can leave nothing to update (e.g. a
+    // profile save that only re-sent the current email) — succeed quietly
+    // instead of tripping prisma with an empty data object.
+    if (Object.keys(allowed).length === 0) {
+      const unchanged = await prisma.user.findUnique({ where: { id } })
+      return NextResponse.json(unchanged)
     }
 
     // Prevent demoting/banning/suspending yourself
@@ -274,6 +307,20 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         },
         update: {},
       }).catch(err => console.error('[user PATCH ban] blacklist upsert failed', { id, email: before.email, err: String(err) }))
+    }
+
+    if (allowed.email !== undefined) {
+      writeAudit(session.id, session.name, 'user.email_change', id, 'user',
+        { from: before.email, to: allowed.email, name: before?.name },
+        `Email changed for ${before?.name ?? id}: ${before.email} → ${allowed.email}`,
+      )
+    }
+
+    if (allowed.hiddenFromMembers !== undefined) {
+      writeAudit(session.id, session.name, 'user.visibility_change', id, 'user',
+        { hiddenFromMembers: allowed.hiddenFromMembers, name: before?.name },
+        `${before?.name ?? id} ${allowed.hiddenFromMembers ? 'hidden from' : 'restored to'} the members list`,
+      )
     }
 
     if (allowed.role === 'moderator') {

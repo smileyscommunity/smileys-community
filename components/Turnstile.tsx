@@ -16,11 +16,16 @@ declare global {
 interface Props {
   onVerify: (token: string) => void
   onExpire?: () => void
+  // Tokens are single-use: a failed submit consumes the current one and
+  // every retry with it fails verification until the page is reloaded.
+  // Bump this counter after a failed submit to make the widget mint a
+  // fresh token (onVerify fires again when it's ready).
+  resetSignal?: number
 }
 
 const SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? ''
 
-export default function Turnstile({ onVerify, onExpire }: Props) {
+export default function Turnstile({ onVerify, onExpire, resetSignal }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const widgetId     = useRef<string | null>(null)
   const onVerifyRef  = useRef(onVerify)
@@ -57,6 +62,11 @@ export default function Turnstile({ onVerify, onExpire }: Props) {
 
     return () => { if (widgetId.current) window.turnstile?.remove(widgetId.current) }
   }, [])
+
+  useEffect(() => {
+    if (!resetSignal) return
+    if (widgetId.current && window.turnstile) window.turnstile.reset(widgetId.current)
+  }, [resetSignal])
 
   if (!SITE_KEY) return null
 

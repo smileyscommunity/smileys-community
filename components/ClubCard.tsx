@@ -4,9 +4,13 @@ import { Club, formatShortDate } from '@/lib/data'
 interface ClubCardProps {
   club: Club
   showJoin?: boolean
+  // Marketing surfaces (homepage) pass true so a backfilled club without
+  // a scheduled event just omits the line instead of advertising a
+  // "No upcoming events" dead-end to prospects.
+  hideEmptyNextEvent?: boolean
 }
 
-export default function ClubCard({ club, showJoin = false }: ClubCardProps) {
+export default function ClubCard({ club, showJoin = false, hideEmptyNextEvent = false }: ClubCardProps) {
   return (
     <Link href={`/clubs/${club.slug}`} className="group block">
       <div className="card group-hover:-translate-y-1 transition-transform duration-300 h-full">
@@ -39,7 +43,7 @@ export default function ClubCard({ club, showJoin = false }: ClubCardProps) {
               </svg>
               <span className="truncate">{formatShortDate(club.nextEvent.date)} · {club.nextEvent.title}</span>
             </div>
-          ) : (
+          ) : hideEmptyNextEvent ? null : (
             <div className="mt-3 text-xs text-gray-400">No upcoming events</div>
           )}
 

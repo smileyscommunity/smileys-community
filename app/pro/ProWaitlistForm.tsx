@@ -26,6 +26,8 @@ export default function ProWaitlistForm({ initialEmail, initialName, alreadyJoin
   const [result,    setResult]    = useState<{ position: number; founderCap: number; isFounder: boolean } | null>(null)
   const [honeypot,       setHoneypot]       = useState('')
   const [turnstileToken, setTurnstileToken] = useState('')
+  // Bumped after a failed submit — Turnstile tokens are single-use, so retries need a fresh one
+  const [turnstileReset, setTurnstileReset] = useState(0)
   const loadedAt = useRef(Date.now())
 
   const isLoggedIn = !!initialEmail
@@ -49,7 +51,12 @@ export default function ProWaitlistForm({ initialEmail, initialName, alreadyJoin
         }),
       })
       const data = await res.json()
-      if (!res.ok) { setError(data.error ?? 'Something went wrong'); return }
+      if (!res.ok) {
+        setError(data.error ?? 'Something went wrong')
+        setTurnstileToken('')
+        setTurnstileReset(n => n + 1)
+        return
+      }
       setResult(data)
     } finally {
       setLoading(false)
@@ -134,7 +141,7 @@ export default function ProWaitlistForm({ initialEmail, initialName, alreadyJoin
 
       {!isLoggedIn && (
         <div className="mb-4">
-          <Turnstile onVerify={setTurnstileToken} onExpire={() => setTurnstileToken('')} />
+          <Turnstile onVerify={setTurnstileToken} onExpire={() => setTurnstileToken('')} resetSignal={turnstileReset} />
         </div>
       )}
 

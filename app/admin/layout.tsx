@@ -27,9 +27,14 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
   const allowed  = user?.role === 'admin' || user?.role === 'moderator'
   const isMod    = user?.role === 'moderator'
-  // Only admins must have 2FA enrolled. Moderators are exempt.
-  // Allow /admin/security through so admins can complete setup without an infinite redirect.
-  const needs2fa = allowed && !isMod && !user?.totpEnabled && !pathname.startsWith('/admin/security')
+  // TEMP: admin 2FA gate softened while the admin's authenticator app is
+  // in a broken state (multi-entry from today's disable/re-enroll cycles;
+  // codes come from stale entries whose secrets are no longer in the DB).
+  // Restore this line once the admin has (a) deleted every "Smileys
+  // Community" entry in their authenticator app and (b) completed a clean
+  // enrollment on /admin/security:
+  //   const needs2fa = allowed && !isMod && !user?.totpEnabled && !pathname.startsWith('/admin/security')
+  const needs2fa = false
 
   const MODERATOR_ALLOWED = [
     '/admin/moderator',

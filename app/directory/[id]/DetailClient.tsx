@@ -53,6 +53,7 @@ export default function DetailClient({
   business, initialIsSaved, initialMyReviewId, currentUserId, ownerEditPayload,
 }: Props) {
   const [reviewsOpen, setReviewsOpen] = useState(false)
+  const isGuest = !currentUserId
 
   // Soft refresh after a write — toast plus a hint for the user, since
   // we can't unilaterally re-fetch a server component from the client.
@@ -67,22 +68,32 @@ export default function DetailClient({
   return (
     <>
       <div className="flex flex-wrap items-center gap-3 mt-5 pt-4 border-t border-gray-100">
-        {/* Save (anyone can see; anon viewers bounce to /login) */}
-        <DirectorySaveButton
-          businessId={business.id}
-          businessName={business.name}
-          initialSaved={initialIsSaved}
-        />
-
-        {/* Write/Edit a review — opens the existing drawer component.
-            The label flips to "Edit my review" when the caller already
-            has one on this business. */}
-        <button
-          onClick={() => setReviewsOpen(true)}
-          className="text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-xl px-3 py-1.5 transition-colors"
-        >
-          ★ {initialMyReviewId ? 'Edit my review' : 'Write a review'}
-        </button>
+        {/* Save + Write-review — member actions. Guests get a single
+            "Sign in to save / review" CTA that returns them here after
+            login, instead of clicking save and getting a generic 401
+            toast. */}
+        {isGuest ? (
+          <Link
+            href={`/login?return=/directory/${business.id}`}
+            className="text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-xl px-3 py-1.5 transition-colors"
+          >
+            Sign in to save or review
+          </Link>
+        ) : (
+          <>
+            <DirectorySaveButton
+              businessId={business.id}
+              businessName={business.name}
+              initialSaved={initialIsSaved}
+            />
+            <button
+              onClick={() => setReviewsOpen(true)}
+              className="text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-xl px-3 py-1.5 transition-colors"
+            >
+              ★ {initialMyReviewId ? 'Edit my review' : 'Write a review'}
+            </button>
+          </>
+        )}
 
         {/* Verified-owner self-edit — only visible to the owner. */}
         {business.isMine && (
@@ -93,8 +104,9 @@ export default function DetailClient({
         )}
 
         {/* Claim CTA — only when no verified owner yet. Links back to
-            /directory where the in-place claim chip lives. */}
-        {!business.hasClaimedOwner && (
+            /directory where the in-place claim chip lives. Hidden for
+            guests; the claim flow requires a signed-in account anyway. */}
+        {!business.hasClaimedOwner && !isGuest && (
           <Link
             href="/directory"
             className="text-xs font-semibold text-gray-600 hover:text-amber-700 hover:underline"
@@ -104,10 +116,13 @@ export default function DetailClient({
           </Link>
         )}
 
-        {/* Report a problem — anyone (logged-in or anon). */}
-        <div className="ml-auto">
-          <DirectoryReportButton businessId={business.id} businessName={business.name} />
-        </div>
+        {/* Report a problem — member-only (anon spam-flags would be
+            noisy). */}
+        {!isGuest && (
+          <div className="ml-auto">
+            <DirectoryReportButton businessId={business.id} businessName={business.name} />
+          </div>
+        )}
       </div>
 
       {/* Reviews drawer — full read/write surface. We open it from

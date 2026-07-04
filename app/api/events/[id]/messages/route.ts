@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
+import { createNotification } from '@/lib/notify'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -12,13 +13,21 @@ export async function GET(req: NextRequest, { params }: Params) {
 
     const { id: eventId } = await params
 
-    // Only approved attendees (or admins) can read the event chat
+    // The event host, cohosts, and approved attendees (plus admins) can read
+    // the event chat. Hosts/cohosts are NOT in the attendee list, so they must
+    // be checked explicitly — otherwise they 403 on their own event's
+    // discussion (the bug this fixes).
     if (session.role !== 'admin') {
-      const attendee = await prisma.eventAttendee.findUnique({
-        where: { userId_eventId: { userId: session.id, eventId } },
-        select: { status: true },
-      })
-      if (attendee?.status !== 'approved') {
+      const [event, attendee, cohost] = await Promise.all([
+        prisma.event.findUnique({ where: { id: eventId }, select: { hostId: true } }),
+        prisma.eventAttendee.findUnique({
+          where: { userId_eventId: { userId: session.id, eventId } },
+          select: { status: true },
+        }),
+        prisma.eventCoHost.findFirst({ where: { eventId, userId: session.id }, select: { id: true } }),
+      ])
+      const allowed = event?.hostId === session.id || !!cohost || attendee?.status === 'approved'
+      if (!allowed) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
     }
@@ -50,21 +59,26 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     // Discussion auto-locks 14 days post-event (UI hides the input;
     // this is the server-side guard for the same window).
-    const event = await prisma.event.findUnique({ where: { id: eventId }, select: { date: true } })
+    const event = await prisma.event.findUnique({ where: { id: eventId }, select: { date: true, hostId: true, title: true } })
     if (!event) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     const lockedAt = new Date(event.date); lockedAt.setDate(lockedAt.getDate() + 15)
     if (Date.now() >= lockedAt.getTime()) {
       return NextResponse.json({ error: 'Discussion closed for this event' }, { status: 403 })
     }
 
-    // Only approved attendees (or admins) can post
+    // The host, cohosts, and approved attendees (plus admins) can post — same
+    // set that can read. Hosts/cohosts aren't attendees, so check explicitly.
     if (session.role !== 'admin') {
-      const attendee = await prisma.eventAttendee.findUnique({
-        where: { userId_eventId: { userId: session.id, eventId } },
-        select: { status: true },
-      })
-      if (attendee?.status !== 'approved') {
-        return NextResponse.json({ error: 'You must be an approved attendee to message' }, { status: 403 })
+      const [attendee, cohost] = await Promise.all([
+        prisma.eventAttendee.findUnique({
+          where: { userId_eventId: { userId: session.id, eventId } },
+          select: { status: true },
+        }),
+        prisma.eventCoHost.findFirst({ where: { eventId, userId: session.id }, select: { id: true } }),
+      ])
+      const allowed = event.hostId === session.id || !!cohost || attendee?.status === 'approved'
+      if (!allowed) {
+        return NextResponse.json({ error: 'You must be the host or an approved attendee to message' }, { status: 403 })
       }
     }
 
@@ -76,6 +90,28 @@ export async function POST(req: NextRequest, { params }: Params) {
       data: { eventId, userId: session.id, message: message.trim() },
       include: { user: { select: { id: true, name: true, color: true } } },
     })
+
+    // Notify the people in this event — host, cohosts, and approved attendees —
+    // except the sender. Fire-and-forget so the post response isn't blocked.
+    ;(async () => {
+      try {
+        const [attendees, cohosts] = await Promise.all([
+          prisma.eventAttendee.findMany({ where: { eventId, status: 'approved' }, select: { userId: true } }),
+          prisma.eventCoHost.findMany({ where: { eventId }, select: { userId: true } }),
+        ])
+        const recipients = new Set<string>([event.hostId, ...attendees.map(a => a.userId), ...cohosts.map(c => c.userId)])
+        recipients.delete(session.id)
+
+        const title = `💬 ${created.user.name} in ${event.title}`
+        const body  = created.message.slice(0, 140)
+        for (const userId of recipients) {
+          createNotification(userId, 'event_message', title, body, `/events/${eventId}`).catch(() => {})
+        }
+      } catch (e) {
+        console.error('[event-msg fanout]', e)
+      }
+    })()
+
     return NextResponse.json(created)
   } catch (e) {
     console.error(e)

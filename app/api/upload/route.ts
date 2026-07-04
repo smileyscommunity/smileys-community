@@ -69,12 +69,27 @@ export async function POST(req: NextRequest) {
 
     const raw = Buffer.from(await file.arrayBuffer())
 
+    // iOS Safari sends 0-byte files for iCloud photos that aren't
+    // downloaded to the device ("Optimize iPhone Storage"). Name and
+    // mime type look valid, content is empty — call it out precisely
+    // instead of letting the magic sniff misreport it as a bad format.
+    if (raw.length === 0) {
+      return NextResponse.json({ error: "The photo arrived empty — this usually means it's stored in iCloud and not on your phone. Open it once in the Photos app, then try again." }, { status: 400 })
+    }
+
     // Magic-byte sniff — reject anything whose content doesn't match an
     // allowed image format, regardless of the filename extension. Defense-
     // in-depth before Sharp's decoder, and fast-fails on PHP/script
     // payloads with image extensions.
     if (!detectImageFormat(raw)) {
-      return NextResponse.json({ error: 'File is not a valid image (JPG, PNG, WebP, GIF)' }, { status: 400 })
+      // Log what actually arrived — name/type lie routinely (HEIC with a
+      // .jpg name is the classic), and the magic bytes in the log are the
+      // only way to diagnose a user's "can't upload" report after the fact.
+      console.warn('[upload] magic-sniff reject', {
+        name: file.name, type: file.type, size: file.size,
+        head: raw.subarray(0, 12).toString('hex'),
+      })
+      return NextResponse.json({ error: 'This photo format isn\'t supported — we accept JPG, PNG, WebP and GIF. iPhone tip: screenshot the photo and upload that, or set Settings → Camera → Formats to "Most Compatible".' }, { status: 400 })
     }
 
     let buffer: Buffer

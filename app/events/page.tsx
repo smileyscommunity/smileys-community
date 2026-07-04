@@ -56,7 +56,7 @@ type Tab = 'upcoming' | 'past'
 const PAGE_SIZE = 24
 
 function AppEventsPageInner() {
-  const { user } = useAuth()
+  const { user, isLoggedIn } = useAuth()
   const searchParams = useSearchParams()
   const router       = useRouter()
   const pathname     = usePathname()
@@ -124,22 +124,32 @@ function AppEventsPageInner() {
   // One-shot mount fetches that don't depend on tab: hero copy from the
   // CMS + live hangouts. Batched in a single Promise.all so React can
   // commit both setStates in one render instead of two sequential ones.
+  // /api/hangouts is member-only — skip it for guests rather than eat a
+  // 401 on every public-page load.
   useEffect(() => {
     Promise.all([
       fetch('/app/api/content').then(r => r.json()).catch(() => null),
-      fetch('/app/api/hangouts', { credentials: 'include' }).then(r => r.json()).catch(() => null),
+      isLoggedIn
+        ? fetch('/app/api/hangouts', { credentials: 'include' }).then(r => r.json()).catch(() => null)
+        : Promise.resolve(null),
     ]).then(([content, hg]) => {
       if (content?.events)             setHero(h => ({ ...h, ...content.events }))
       if (Array.isArray(hg?.hangouts)) setHangouts(hg.hangouts)
     })
-  }, [])
+  }, [isLoggedIn])
 
   useEffect(() => {
     setLoading(true)
+    // /api/events/attending is member-only — skip for guests rather than
+    // 401 on every page load. Guests see an empty attendance map, which
+    // collapses the "Going" filter to a no-op and renders cards without
+    // the joined/pending pill.
     Promise.all([
       loadEvents(tab, true),
       fetch('/app/api/tags').then(r => r.json()),
-      fetch('/app/api/events/attending', { credentials: 'include' }).then(r => r.json()),
+      isLoggedIn
+        ? fetch('/app/api/events/attending', { credentials: 'include' }).then(r => r.json())
+        : Promise.resolve([]),
     ]).then(([, grps, att]) => {
       setGroups(Array.isArray(grps) ? grps : [])
       if (Array.isArray(att)) {
@@ -150,7 +160,7 @@ function AppEventsPageInner() {
         setAttendance(map)
       }
     }).finally(() => setLoading(false))
-  }, [tab])
+  }, [tab, isLoggedIn])
 
   async function handleLoadMore() {
     setLoadingMore(true)
@@ -267,7 +277,7 @@ function AppEventsPageInner() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-0">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">{hero.badge}</span>
+              <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">🗓️ {hero.badge}</span>
               <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">{hero.headline}</h1>
               <p className="text-base text-gray-600 mt-1">{hero.subtitle}</p>
             </div>
@@ -574,10 +584,31 @@ function AppEventsPageInner() {
 
             {/* Invite banner — moved below "Load more" so it doesn't break
                 the card-grid → load-more reading rhythm. Lives at the
-                very bottom of the page now. */}
+                very bottom of the page now.
+                Guests see an Apply CTA instead — they need to join Smileys
+                first before they can invite anyone else. */}
             {events.length > 0 && (
               <div className="mt-10 px-1">
-                <InviteBanner variant="strip" />
+                {isLoggedIn ? (
+                  <InviteBanner variant="strip" />
+                ) : (
+                  <Link href="/apply" className="group block">
+                    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-amber-500 to-orange-400 px-5 py-4 flex items-center justify-between gap-4">
+                      <div className="absolute -top-4 -right-4 w-24 h-24 rounded-full bg-white/10" />
+                      <div className="absolute -bottom-6 right-12 w-16 h-16 rounded-full bg-white/10" />
+                      <div className="relative z-10 flex items-center gap-3">
+                        <span className="text-2xl">✨</span>
+                        <div>
+                          <p className="text-sm font-bold text-white leading-tight">Want to join these events?</p>
+                          <p className="text-xs text-amber-100 mt-0.5">Apply to Smileys — it's free</p>
+                        </div>
+                      </div>
+                      <span className="relative z-10 shrink-0 text-xs font-bold text-white bg-white/20 group-hover:bg-white/30 transition-colors px-3 py-1.5 rounded-full">
+                        Apply →
+                      </span>
+                    </div>
+                  </Link>
+                )}
               </div>
             )}
           </>

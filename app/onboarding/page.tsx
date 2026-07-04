@@ -254,6 +254,8 @@ function OnboardingInner() {
   const [showPassword,           setShowPassword]           = useState(false)
   const [submitted,              setSubmitted]              = useState(false)
   const [turnstileToken,         setTurnstileToken]         = useState('')
+  // Bumped after a failed submit — Turnstile tokens are single-use, so retries need a fresh one
+  const [turnstileReset,         setTurnstileReset]         = useState(0)
   const [accountStatus,          setAccountStatus]          = useState<'approved' | 'pending'>('pending')
   const [clubs,                  setClubs]                  = useState<Club[]>([])
   const [events,                 setEvents]                 = useState<Event[]>([])
@@ -405,7 +407,12 @@ function OnboardingInner() {
         }),
       })
       const data = await res.json()
-      if (!res.ok) { setError('email', { message: data.error ?? 'Registration failed' }); return }
+      if (!res.ok) {
+        setError('email', { message: data.error ?? 'Registration failed' })
+        setTurnstileToken('')
+        setTurnstileReset(n => n + 1)
+        return
+      }
 
       // A2 full fix: server no longer creates an auto-session.
       // Both new-registration and already-registered responses
@@ -417,6 +424,8 @@ function OnboardingInner() {
       setSubmitted(true)
     } catch {
       setError('email', { message: 'Something went wrong. Try again.' })
+      setTurnstileToken('')
+      setTurnstileReset(n => n + 1)
     }
   }
 
@@ -827,7 +836,7 @@ function OnboardingInner() {
                       </div>
                     </div>
 
-                    <Turnstile onVerify={setTurnstileToken} onExpire={() => setTurnstileToken('')} />
+                    <Turnstile onVerify={setTurnstileToken} onExpire={() => setTurnstileToken('')} resetSignal={turnstileReset} />
 
                     <button type="submit" disabled={isSubmitting}
                       className="btn-primary--lg w-full disabled:opacity-50 disabled:cursor-not-allowed">

@@ -9,10 +9,10 @@ import { resolveImageUrl, avatarUrl, ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
 import { toast } from 'sonner'
 import { SkeletonCard } from '@/components/Skeleton'
 
-const CATEGORIES = [
+const CATEGORIES: Array<{ id: string; label: string; emoji: string; activeCls: string; memberOnly?: boolean }> = [
   { id: 'ALL',      label: 'All',             emoji: '🗂️', activeCls: 'bg-amber-500 text-white border-amber-500'         },
-  { id: 'MINE',     label: 'Mine',            emoji: '👤', activeCls: 'bg-amber-500 text-white border-amber-500'         },
-  { id: 'SAVED',    label: 'Saved',           emoji: '❤️', activeCls: 'bg-red-500 text-white border-red-500'             },
+  { id: 'MINE',     label: 'Mine',            emoji: '👤', activeCls: 'bg-amber-500 text-white border-amber-500', memberOnly: true },
+  { id: 'SAVED',    label: 'Saved',           emoji: '❤️', activeCls: 'bg-red-500 text-white border-red-500',     memberOnly: true },
   { id: 'ROOMS',    label: 'Rooms',           emoji: '🏠', activeCls: 'bg-blue-500 text-white border-blue-500'           },
   { id: 'JOBS',     label: 'Jobs',            emoji: '💼', activeCls: 'bg-green-500 text-white border-green-500'         },
   { id: 'SERVICES', label: 'Services',        emoji: '🛠️', activeCls: 'bg-orange-500 text-white border-orange-500'       },
@@ -94,16 +94,20 @@ async function copyShare(id: string): Promise<boolean> {
     await navigator.clipboard.writeText(url)
     return true
   } catch {
-    prompt('Copy this link:', url)
+    // navigator.clipboard can be unavailable (older/embedded webviews); a
+    // native prompt() is suppressed in the installed PWA, so surface the link
+    // in a toast the user can long-press to copy instead.
+    toast(url, { description: 'Long-press to copy this link' })
     return false
   }
 }
 
-function ListingModal({ listing, currentUserId, isSaved, onToggleSave, onClose, onDelete, onMarkFilled, onRenew }: {
+function ListingModal({ listing, currentUserId, isLoggedIn, isSaved, onToggleSave, onClose, onDelete, onMarkFilled, onRenew }: {
   listing: Listing
   // null = not signed in. Previous shape used '' and 'guest' as
   // sentinels; consumers now pass `isLoggedIn ? user.id : null`.
   currentUserId: string | null
+  isLoggedIn: boolean
   isSaved: boolean
   onToggleSave: (id: string) => void
   onClose: () => void
@@ -185,11 +189,13 @@ function ListingModal({ listing, currentUserId, isSaved, onToggleSave, onClose, 
               style={{ objectPosition: `center ${listing.photoPosition ?? 50}%` }}
               className="object-cover" />
             <div className="absolute top-3 right-3 flex items-center gap-2">
+              {isLoggedIn && (
               <button onClick={() => onToggleSave(listing.id)} aria-label={isSaved ? 'Unsave listing' : 'Save listing'} className={`w-8 h-8 rounded-full backdrop-blur-sm flex items-center justify-center transition-colors ${isSaved ? 'bg-red-500 text-white' : 'bg-black/30 text-white hover:bg-black/50'}`} title={isSaved ? 'Unsave' : 'Save'}>
                 <svg aria-hidden="true" className="w-4 h-4" fill={isSaved ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                 </svg>
               </button>
+              )}
               <button onClick={handleShare} aria-label="Copy link to listing" className="w-8 h-8 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/50 transition-colors" title="Copy link">
                 {copied ? <span aria-hidden="true">✓</span> : (
                   <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -204,11 +210,13 @@ function ListingModal({ listing, currentUserId, isSaved, onToggleSave, onClose, 
           <div className={`relative h-28 shrink-0 bg-gradient-to-br ${cat?.header ?? 'from-amber-400 to-amber-500'} flex items-center justify-center`}>
             <span aria-hidden="true" className="text-6xl opacity-70 select-none">{emoji}</span>
             <div className="absolute top-3 right-3 flex items-center gap-2">
+              {isLoggedIn && (
               <button onClick={() => onToggleSave(listing.id)} aria-label={isSaved ? 'Unsave listing' : 'Save listing'} className={`w-8 h-8 rounded-full backdrop-blur-sm flex items-center justify-center transition-colors ${isSaved ? 'bg-red-500 text-white' : 'bg-black/20 text-white hover:bg-black/40'}`} title={isSaved ? 'Unsave' : 'Save'}>
                 <svg aria-hidden="true" className="w-4 h-4" fill={isSaved ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                 </svg>
               </button>
+              )}
               <button onClick={handleShare} aria-label="Copy link to listing" className="w-8 h-8 rounded-full bg-black/20 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/40 transition-colors" title="Copy link">
                 {copied ? <span aria-hidden="true">✓</span> : (
                   <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -248,6 +256,12 @@ function ListingModal({ listing, currentUserId, isSaved, onToggleSave, onClose, 
 
         {/* Actions */}
         <div className="p-4 border-t border-gray-100 space-y-2 shrink-0">
+          {isGuest && (
+            <Link href={`/login?return=/listings/${listing.id}`}
+              className="block text-center w-full py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-2xl transition-colors">
+              Sign in to see contact & full details →
+            </Link>
+          )}
           {waHref && (
             <a href={waHref} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 w-full py-3 bg-[#25D366] hover:bg-[#1ebe5d] text-white text-sm font-bold rounded-2xl transition-colors">
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
@@ -322,9 +336,10 @@ function ListingModal({ listing, currentUserId, isSaved, onToggleSave, onClose, 
   )
 }
 
-function ListingCard({ listing, onClick, isSaved, onToggleSave }: {
+function ListingCard({ listing, onClick, isLoggedIn, isSaved, onToggleSave }: {
   listing: Listing
   onClick: () => void
+  isLoggedIn: boolean
   isSaved: boolean
   onToggleSave: (id: string) => void
 }) {
@@ -411,6 +426,7 @@ function ListingCard({ listing, onClick, isSaved, onToggleSave }: {
             </div>
           )}
           <p className="text-[11px] text-gray-600 truncate flex-1">{listing.user.name}</p>
+          {isLoggedIn && (
           <button
             onClick={async e => {
               e.stopPropagation()
@@ -423,6 +439,7 @@ function ListingCard({ listing, onClick, isSaved, onToggleSave }: {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
             </svg>
           </button>
+          )}
           <button
             onClick={async e => {
               e.stopPropagation()
@@ -507,11 +524,12 @@ function ListingsInner() {
   }, [showAlertMenu])
 
   useEffect(() => {
+    if (!isLoggedIn) return
     fetch('/app/api/me/listing-alerts', { credentials: 'include' })
       .then(r => r.json())
       .then(d => setAlertCategories(d.listingAlerts ?? []))
       .catch(() => {})
-  }, [])
+  }, [isLoggedIn])
 
   const fetchListings = useCallback(async (cat: string, nbhd: string, q: string, offset: number, append = false) => {
     const params = new URLSearchParams({ offset: String(offset) })
@@ -640,6 +658,7 @@ function ListingsInner() {
         <ListingModal
           listing={selected}
           currentUserId={currentUserId}
+          isLoggedIn={isLoggedIn}
           isSaved={savedSet.has(selected.id)}
           onToggleSave={toggleSave}
           onClose={() => setSelected(null)}
@@ -655,21 +674,21 @@ function ListingsInner() {
           <div className="flex items-start justify-between gap-4 mb-6">
             <div>
               <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-3 py-1.5 mb-4">
-                Members only
+                📋 Classifieds
               </span>
               <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">Community Board</h1>
-              <p className="text-base text-gray-600 mt-2 max-w-xl">
+              <p className="text-base text-gray-600 mt-1 max-w-xl">
                 Rooms, jobs, services & more — posted by Smileys members for Smileys members.
               </p>
             </div>
             <Link
-              href="/listings/new"
+              href={isLoggedIn ? '/listings/new' : '/login?return=/listings/new'}
               className="hidden sm:flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors shrink-0 shadow-sm"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
-              Post a listing
+              {isLoggedIn ? 'Post a listing' : 'Sign in to post'}
             </Link>
           </div>
 
@@ -698,7 +717,7 @@ function ListingsInner() {
           <div className="flex flex-col gap-2 sm:gap-3">
             <div className="relative min-w-0 overflow-hidden -mx-4 px-4 sm:mx-0 sm:px-0">
               <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
-                {CATEGORIES.map(cat => {
+                {CATEGORIES.filter(c => isLoggedIn || !c.memberOnly).map(cat => {
                 const isActive = category === cat.id
                 return (
                   <button
@@ -744,6 +763,7 @@ function ListingsInner() {
               {ISTANBUL_NEIGHBORHOODS.map(n => <option key={n} value={n}>{n}</option>)}
             </select>
 
+            {isLoggedIn && (
             <div className="relative shrink-0" ref={alertMenuRef}>
               <button
                 onClick={() => setShowAlertMenu(v => !v)}
@@ -792,6 +812,7 @@ function ListingsInner() {
                 </div>
               )}
             </div>
+            )}
             </div>
           </div>
         </div>
@@ -803,13 +824,13 @@ function ListingsInner() {
         {/* Mobile post button */}
         <div className="sm:hidden mb-6">
           <Link
-            href="/listings/new"
+            href={isLoggedIn ? '/listings/new' : '/login?return=/listings/new'}
             className="flex items-center justify-center gap-2 w-full py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors shadow-sm"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            Post a listing
+            {isLoggedIn ? 'Post a listing' : 'Sign in to post'}
           </Link>
         </div>
 
@@ -854,13 +875,13 @@ function ListingsInner() {
             {category !== 'SAVED' && !debouncedSearch && (
               <div className="flex items-center justify-center gap-3 flex-wrap">
                 <Link
-                  href="/listings/new"
+                  href={isLoggedIn ? '/listings/new' : '/login?return=/listings/new'}
                   className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold px-6 py-3 rounded-xl transition-colors shadow-sm"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
-                  Post a listing
+                  {isLoggedIn ? 'Post a listing' : 'Sign in to post'}
                 </Link>
                 {category !== 'ALL' && (
                   <button
@@ -881,6 +902,7 @@ function ListingsInner() {
                   key={l.id}
                   listing={l}
                   onClick={() => setSelected(l)}
+                  isLoggedIn={isLoggedIn}
                   isSaved={savedSet.has(l.id)}
                   onToggleSave={toggleSave}
                 />

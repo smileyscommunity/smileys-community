@@ -1,4 +1,6 @@
 export function getUrgency(spotsLeft: number, totalSpots: number, limitedSpots: boolean, fillPercent: number) {
+  if (limitedSpots && spotsLeft <= 0)
+    return { label: 'Sold out', bg: 'bg-amber-100 shadow-sm', text: 'text-amber-700', pulse: false }
   if (limitedSpots && spotsLeft <= 2)
     return { label: `🔥 Only ${spotsLeft} left`, bg: 'bg-red-500', text: 'text-white', pulse: true }
   if (limitedSpots && spotsLeft <= 5)

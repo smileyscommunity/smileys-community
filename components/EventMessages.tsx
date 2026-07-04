@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 
 import { getInitials } from '@/lib/data'
+import RichText from '@/components/RichText'
 
 interface Message {
   id:        string
@@ -94,7 +95,7 @@ export default function EventMessages({ eventId, eventDate }: { eventId: string;
                     {new Date(msg.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
-                <p className="text-sm text-gray-700 mt-0.5 leading-relaxed">{msg.message}</p>
+                <p className="text-sm text-gray-700 mt-0.5 leading-relaxed whitespace-pre-wrap break-words"><RichText text={msg.message} /></p>
               </div>
               {(isOwn || isAdmin) && (
                 <button

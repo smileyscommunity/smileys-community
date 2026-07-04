@@ -5,6 +5,7 @@ import { sendListingAlertEmail, recordEmailFailure } from '@/lib/email'
 import { createNotification } from '@/lib/notify'
 import { rateLimit } from '@/lib/rateLimit'
 import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
+import { redactListingForGuest } from '@/lib/listingsPublic'
 
 const PAGE_SIZE = 20
 
@@ -72,7 +73,12 @@ export async function GET(req: NextRequest) {
     : []
   const savedIds = savedRows.map(r => r.listingId)
 
-  return NextResponse.json({ listings, total, hasMore: offset + PAGE_SIZE < total, savedIds })
+  // Guests see a teaser projection — no contact, no photo, truncated
+  // description, anonymized poster. The page itself is public for SEO,
+  // but the details are member-only.
+  const projected = session ? listings : listings.map(redactListingForGuest)
+
+  return NextResponse.json({ listings: projected, total, hasMore: offset + PAGE_SIZE < total, savedIds })
 }
 
 export async function POST(req: NextRequest) {

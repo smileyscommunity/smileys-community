@@ -11,20 +11,55 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (!session) return NextResponse.json({ error: 'Not logged in' }, { status: 401 })
 
   const { slug, postId } = await params
-  const { isPinned } = await req.json()
+  const { isPinned, content } = await req.json()
 
   // IDOR fix: scope the post lookup by the slug's clubId so a host of club
   // A cannot pin a post in club B by passing `/api/clubs/A/posts/<B-post-id>`.
   // We fetch club + post + (conditionally) membership in parallel.
   const [club, post] = await Promise.all([
     prisma.club.findUnique({ where: { slug }, select: { id: true } }),
-    prisma.clubPost.findUnique({ where: { id: postId }, select: { id: true, clubId: true } }),
+    prisma.clubPost.findUnique({ where: { id: postId }, select: { id: true, clubId: true, userId: true } }),
   ])
   if (!club || !post || post.clubId !== club.id) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
-  // Only club hosts, admins, or moderators can pin
+  // ── Edit content ──────────────────────────────────────────────────────────
+  // Authors can edit their own posts/announcements; club hosts, admins, and
+  // moderators can edit any (same authority that lets them delete).
+  if (typeof content === 'string') {
+    if (!await rateLimit(`post-edit:${session.id}`, 30, 60_000)) {
+      return NextResponse.json({ error: 'Too many edits' }, { status: 429 })
+    }
+    const trimmed = content.trim()
+    if (!trimmed)              return NextResponse.json({ error: 'Content is required' }, { status: 400 })
+    if (trimmed.length > 2000) return NextResponse.json({ error: 'Post too long (max 2000 chars)' }, { status: 400 })
+
+    // Admins/mods can edit anything. Otherwise the editor must still be an
+    // approved member of THIS club: an owner who was removed/suspended must
+    // not be able to keep rewriting their old posts, and a host can edit any.
+    if (!isAdminOrModerator(session)) {
+      const membership = await prisma.clubMembership.findUnique({
+        where: { userId_clubId: { userId: session.id, clubId: club.id } },
+        select: { role: true, status: true },
+      })
+      const isApprovedMember = membership?.status === 'approved'
+      const isHost           = isApprovedMember && membership?.role === 'host'
+      const isOwner          = post.userId === session.id
+      if (!isHost && !(isOwner && isApprovedMember)) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+    }
+
+    const updated = await prisma.clubPost.update({
+      where: { id: postId },
+      data: { content: trimmed, editedAt: new Date() },
+      select: { id: true, content: true, editedAt: true },
+    })
+    return NextResponse.json(updated)
+  }
+
+  // ── Pin / unpin (club hosts, admins, or moderators only) ──────────────────
   const isPrivilegedPin = isAdminOrModerator(session)
   if (!isPrivilegedPin) {
     const membership = await prisma.clubMembership.findUnique({

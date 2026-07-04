@@ -85,3 +85,30 @@ export function communityWhatsappUrl(url: string | undefined | null): string | n
   if (!parsed.pathname.startsWith('/channel/')) return null
   return parsed.toString()
 }
+
+/**
+ * Compare two social URLs (Instagram, WhatsApp, anything) for the
+ * "same destination" question, ignoring cosmetic differences a human
+ * wouldn't notice: protocol, leading `www.`, host case, and a
+ * trailing slash on the path. Used to dedupe the community footer's
+ * IG/WA icons on club pages when a club admin pasted the community
+ * URL (with `www.`) and the community settings serve it without.
+ * Plain `===` rejected those as different and rendered the same
+ * Instagram twice.
+ */
+export function sameSocialUrl(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false
+  const norm = (u: string): string | null => {
+    try {
+      const url = new URL(u.trim())
+      const host = url.hostname.toLowerCase().replace(/^www\./, '')
+      // Host is case-insensitive, but the PATH is not: WhatsApp invite/
+      // channel codes (chat.whatsapp.com/AbCd…) are case-sensitive, so two
+      // distinct groups must not normalise equal and hide a real CTA.
+      const path = url.pathname.replace(/\/+$/, '')
+      return `${host}${path}`
+    } catch { return null }
+  }
+  const na = norm(a), nb = norm(b)
+  return !!na && na === nb
+}

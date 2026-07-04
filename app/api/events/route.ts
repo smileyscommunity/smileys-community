@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getEvents } from '@/lib/db'
+import { getEvents, redactEventForGuest } from '@/lib/db'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
 
@@ -24,6 +24,10 @@ export async function GET(req: NextRequest) {
   //   - Logged-out viewers see Istanbul-or-no-filter via no session;
   //     keep the behaviour simple by not filtering when no city is
   //     resolved.
+  // Resolved once: used both for default city-scoping and to decide
+  // whether the viewer gets full events or the redacted guest projection.
+  const session = await getSession()
+
   let cityId: string | undefined
   if (searchParams.get('all') !== '1') {
     const slug = searchParams.get('city')?.trim()
@@ -32,11 +36,13 @@ export async function GET(req: NextRequest) {
       const c = await prisma.city.findUnique({ where: { slug }, select: { id: true } })
       cityId = c?.id
     } else {
-      const session = await getSession()
       cityId = session?.cityId
     }
   }
 
   const { events, total } = await getEvents({ limit, offset, upcoming, cityId })
-  return NextResponse.json({ events, total, hasMore: offset + events.length < total })
+  // Logged-out viewers get the public teaser: no exact address/GPS, no
+  // chat/meeting links, no attendee identities (the "X going" count stays).
+  const projected = session ? events : events.map(redactEventForGuest)
+  return NextResponse.json({ events: projected, total, hasMore: offset + events.length < total })
 }

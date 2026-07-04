@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { resolveImageUrl } from '@/lib/data'
-import { downscaleImage } from '@/lib/image-resize'
+import { downscaleImage, ImageUploadError } from '@/lib/image-resize'
 
 interface Photo {
   id: string
@@ -65,8 +65,11 @@ export default function EventPhotos({ eventId, photos: initial, canUpload, curre
         const d = await res.json().catch(() => ({}))
         setError(d.error ?? 'Could not save photo.')
       }
-    } catch {
-      setError('Upload failed. Please try again.')
+    } catch (e) {
+      // ImageUploadError carries a user-facing, actionable message
+      // (0-byte iCloud photo, unconvertible oversized file) — show it
+      // verbatim instead of the generic fallback.
+      setError(e instanceof ImageUploadError ? e.message : 'Upload failed. Please try again.')
     } finally {
       setUploading(false)
     }

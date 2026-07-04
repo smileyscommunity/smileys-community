@@ -273,7 +273,7 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
                    status === 'pending' ? '⏳ Pending'  :
                    status === 'loading' ? '…'          :
                    status === 'error'   ? 'Error'      :
-                   event.spotsLeft === 0 && event.limitedSpots ? 'Full · Join waitlist' :
+                   event.spotsLeft === 0 && event.limitedSpots ? `Full · Join waitlist${event.waitlistCount ? ` (${event.waitlistCount})` : ''}` :
                    event.approvalRequired                      ? 'Request' :
                    'Join'}
                 </motion.span>

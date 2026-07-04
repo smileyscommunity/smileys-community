@@ -10,6 +10,8 @@ export default function ForgotPasswordPage() {
   const [sent,           setSent]           = useState(false)
   const [error,          setError]          = useState('')
   const [turnstileToken, setTurnstileToken] = useState('')
+  // Bumped after a failed submit — Turnstile tokens are single-use, so retries need a fresh one
+  const [turnstileReset, setTurnstileReset] = useState(0)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -22,10 +24,17 @@ export default function ForgotPasswordPage() {
         body: JSON.stringify({ email, _cf: turnstileToken }),
       })
       const data = await res.json()
-      if (!res.ok) { setError(data.error ?? 'Something went wrong'); return }
+      if (!res.ok) {
+        setError(data.error ?? 'Something went wrong')
+        setTurnstileToken('')
+        setTurnstileReset(n => n + 1)
+        return
+      }
       setSent(true)
     } catch {
       setError('Something went wrong. Try again.')
+      setTurnstileToken('')
+      setTurnstileReset(n => n + 1)
     } finally {
       setLoading(false)
     }
@@ -83,7 +92,7 @@ export default function ForgotPasswordPage() {
                   className="input"
                 />
               </div>
-              <Turnstile onVerify={setTurnstileToken} onExpire={() => setTurnstileToken('')} />
+              <Turnstile onVerify={setTurnstileToken} onExpire={() => setTurnstileToken('')} resetSignal={turnstileReset} />
               <button
                 type="submit"
                 disabled={loading}

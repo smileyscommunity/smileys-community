@@ -20,8 +20,12 @@ const getHomeData = unstable_cache(
     const today = new Date().toISOString().split('T')[0]
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
 
-    const [{ events }, clubs, neighborhoodCounts, testimonials, recentMembers, totalRsvps] = await Promise.all([
-      getEvents({ limit: 3, upcoming: true }),
+    const weekAhead = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+
+    const [{ events }, clubs, neighborhoodCounts, testimonials, recentMembers, openSpotsAgg] = await Promise.all([
+      // Fetch extra so sold-out events don't hog the 3 homepage slots —
+      // joinable events are preferred below, sold-out ones only backfill.
+      getEvents({ limit: 6, upcoming: true }),
       getClubs(),
       prisma.event.groupBy({
         by: ['neighborhood'],
@@ -37,15 +41,20 @@ const getHomeData = unstable_cache(
         orderBy: { joinedAt: 'desc' },
         take: 6,
       }),
-      prisma.eventAttendee.count({
+      // Aggregate open capacity across this week's public events — feeds
+      // the ticker's scarcity line. Aggregate so it's never wrong at the
+      // per-event level the way "Only 0 left" was.
+      prisma.event.aggregate({
+        _sum: { spotsLeft: true },
         where: {
-          status: 'approved',
-          event: { status: 'published', date: { gte: today }, membersOnly: false },
+          status: 'published', limitedSpots: true, membersOnly: false,
+          spotsLeft: { gt: 0 }, date: { gte: today, lte: weekAhead },
         },
       }),
     ])
 
-    return { events, clubs, neighborhoodCounts, testimonials, recentMembers, totalRsvps }
+    const openSpotsThisWeek = openSpotsAgg._sum.spotsLeft ?? 0
+    return { events, clubs, neighborhoodCounts, testimonials, recentMembers, openSpotsThisWeek }
   },
   ['home-page-data'],
   { revalidate: 60, tags: ['home'] },
@@ -79,7 +88,7 @@ export default async function HomePage() {
     else redirect('/dashboard')
   }
 
-  const { events, clubs, neighborhoodCounts, testimonials, recentMembers, totalRsvps } = await getHomeData()
+  const { events, clubs, neighborhoodCounts, testimonials, recentMembers, openSpotsThisWeek } = await getHomeData()
 
   const topNeighborhoods = neighborhoodCounts.map(c => ({
     name:       c.neighborhood,
@@ -88,15 +97,37 @@ export default async function HomePage() {
     meta:       getNeighborhoodMeta(c.neighborhood),
   }))
 
-  const featuredEvents = events
-  const featuredClubs  = clubs.slice(0, 4)
+  // getEvents includes cancelled events on purpose (members need to see
+  // why something left their feed) — but the marketing homepage is for
+  // prospects, and a big CANCELLED card in a showcase slot kills trust.
+  // Drop those entirely, then prefer joinable events; sold-out ones only
+  // backfill if fewer than 3 joinable exist. Order within each group is
+  // preserved.
+  const liveEvents = events.filter(e => e.status !== 'cancelled')
+  const soldOut = (e: (typeof events)[number]) => e.limitedSpots && e.spotsLeft <= 0
+  const featuredEvents = [
+    ...liveEvents.filter(e => !soldOut(e)),
+    ...liveEvents.filter(soldOut),
+  ].slice(0, 3)
+  // getClubs sorts alphabetically — slicing that head is an alphabet
+  // lottery that can fill the homepage with dormant clubs. Show clubs
+  // with an upcoming event first (soonest first); backfill with the
+  // biggest clubs only if fewer than 4 have something scheduled.
+  const featuredClubs = [
+    ...clubs.filter(c => c.nextEvent).sort((a, b) => a.nextEvent!.date.localeCompare(b.nextEvent!.date)),
+    ...clubs.filter(c => !c.nextEvent).sort((a, b) => b.memberCount - a.memberCount),
+  ].slice(0, 4)
 
   const tickerItems: { emoji: string; text: string }[] = [
     ...recentMembers.map(m => ({
       emoji: '🌱',
       text: `${m.name.split(' ')[0]} just joined`,
     })),
-    ...(totalRsvps > 0 ? [{ emoji: '🎟️', text: `${totalRsvps} RSVPs for upcoming events` }] : []),
+    // Scarcity reads as urgency only while the number is small — a huge
+    // count would signal emptiness, so the line simply drops out then.
+    ...(openSpotsThisWeek > 0 && openSpotsThisWeek <= 25
+      ? [{ emoji: '🔥', text: `Only ${openSpotsThisWeek} open spot${openSpotsThisWeek !== 1 ? 's' : ''} across this week's events` }]
+      : []),
     { emoji: '✦', text: 'Applications reviewed by hand' },
     { emoji: '📍', text: 'Based in Istanbul' },
     { emoji: '🤝', text: 'Real friendships, not followers' },
@@ -139,7 +170,7 @@ export default async function HomePage() {
                   sees the side image instead, so hide at lg+. */}
               <div className="lg:hidden relative aspect-[3/2] rounded-2xl overflow-hidden shadow-xl mb-10">
                 <Image
-                  src="/images/hero-istanbul.jpg"
+                  src="/app/images/hero-istanbul.jpg"
                   alt="Friends gathered on an Istanbul rooftop at sunset"
                   fill
                   unoptimized
@@ -148,7 +179,7 @@ export default async function HomePage() {
                 />
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-4 mb-16">
+              <div className="flex flex-col sm:flex-row gap-4 mb-3">
                 <Link href="/apply" className="btn-primary text-base px-8 py-4">
                   Apply to join
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -159,6 +190,11 @@ export default async function HomePage() {
                   Browse clubs
                 </Link>
               </div>
+              {/* Commitment info at the moment of decision — cost, wait time,
+                  and what approval means, so "Apply" isn't a leap of faith. */}
+              <p className="text-xs text-gray-500 mb-16">
+                Free to join · Applications reviewed by hand in 2–3 days · Pay only for events you attend
+              </p>
 
               <div className="grid grid-cols-2 gap-x-6 gap-y-8">
                 {stats.map((stat: { value: string; label: string }) => (
@@ -177,7 +213,7 @@ export default async function HomePage() {
                 desktop-only. */}
             <div className="hidden lg:block relative h-[520px] rounded-2xl overflow-hidden shadow-xl">
               <Image
-                src="/images/hero-istanbul.jpg"
+                src="/app/images/hero-istanbul.jpg"
                 alt="Friends gathered on an Istanbul rooftop at sunset"
                 fill
                 priority
@@ -259,7 +295,7 @@ export default async function HomePage() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {featuredClubs.map((club) => (
-              <ClubCard key={club.id} club={club} />
+              <ClubCard key={club.id} club={club} hideEmptyNextEvent />
             ))}
           </div>
           <div className="text-center mt-10 md:hidden">

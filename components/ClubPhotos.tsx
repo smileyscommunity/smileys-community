@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { resolveImageUrl, getInitials } from '@/lib/data'
 import { downscaleImage } from '@/lib/image-resize'
+import { confirmToast } from '@/lib/confirmToast'
 
 interface PhotoAuthor { id: string; name: string; color: string; photo: string | null }
 interface Photo { id: string; url: string; caption: string | null; createdAt: string; source?: 'club' | 'event'; author: PhotoAuthor }
@@ -67,7 +68,7 @@ export default function ClubPhotos({ slug, canUpload, isMember, currentUserId, i
   }
 
   async function deletePhoto(id: string) {
-    if (!confirm('Delete this photo?')) return
+    if (!(await confirmToast('Delete this photo?'))) return
     const res = await fetch(`/app/api/clubs/${slug}/photos/${id}`, { method: 'DELETE', credentials: 'include' })
     if (res.ok) setPhotos(prev => prev.filter(p => p.id !== id))
   }

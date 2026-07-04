@@ -52,14 +52,15 @@ export interface FdMatch {
 export type CupRound = 'group' | 'r32' | 'r16' | 'qf' | 'sf' | 'final'
 
 // football-data.org's `stage` value → our internal round name.
-// 'LAST_16' is the historically common code for the round of 16;
-// FIFA 2026's 48-team format adds a round of 32 between group
-// stage and last 16. Either ROUND_OF_16 or LAST_16 may appear in
-// the wild depending on the competition season; map both.
+// FD historically used LAST_16 for the round of 16 and follows the
+// same LAST_N pattern for the 48-team format's round of 32. Map
+// both LAST_N and the ROUND_OF_N aliases so we don't regress if
+// FD ever normalises to the latter.
 export function fdStageToCupRound(stage?: string): CupRound | null {
   switch (stage) {
     case 'GROUP_STAGE':       return 'group'
     case 'ROUND_OF_32':       return 'r32'
+    case 'LAST_32':           return 'r32'
     case 'ROUND_OF_16':       return 'r16'
     case 'LAST_16':           return 'r16'
     case 'QUARTER_FINALS':    return 'qf'

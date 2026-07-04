@@ -342,6 +342,12 @@ function AdminApplicationsPageInner() {
   }
 
   async function decide(id: string, status: 'approved' | 'rejected') {
+    // Nudge (not a hard gate) for an internal note on rejections — an empty
+    // reviewNote turns every future "did we reject this person, and why?"
+    // into archaeology. One line now saves that dig later.
+    if (status === 'rejected' && !reviewNote.trim()) {
+      if (!(await confirmToast('Reject without an internal note?\n\nA one-line reason ("empty essays", "fake IG", "duplicate") is what future-you checks when this person re-applies. Reject anyway?'))) return
+    }
     setSaving(true)
     const res = await fetch('/app/api/admin/applications', {
       method: 'PATCH', credentials: 'include',
@@ -401,14 +407,17 @@ function AdminApplicationsPageInner() {
     if (status === 'rejected') {
       const app = apps.find(a => a.id === id)
       const name = app?.fullName ?? 'this applicant'
-      if (!(await confirmToast(`Reject ${name} without a personalized message?\n\nThe standard rejection email will still go out — but they won't get any context. Open the review modal if you want to add a note.`))) return
+      if (!(await confirmToast(`Reject ${name} without a personalized message?\n\nThe standard rejection email will still go out — but they won't get any context, and no internal note will be recorded for future reviews. Open the review modal to add either.`))) return
     }
     setDeciding(prev => { const s = new Set(prev); s.add(id); return s })
     try {
       const res = await fetch('/app/api/admin/applications', {
         method: 'PATCH', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, status, reviewNote: '', assignedClubs: status === 'approved' && defaultClubId ? [defaultClubId] : [] }),
+        // Breadcrumb note so a rejected row is never wholly unexplained —
+        // "quick reject" tells future reviewers it was a deliberate one-tap
+        // decision from the queue, not a batch sweep or a detailed review.
+        body: JSON.stringify({ id, status, reviewNote: status === 'rejected' ? 'Quick-rejected from queue (no note left)' : '', assignedClubs: status === 'approved' && defaultClubId ? [defaultClubId] : [] }),
       })
       if (res.ok) {
         setApps(prev => prev.map(a => a.id === id ? { ...a, status } : a))
@@ -440,7 +449,7 @@ function AdminApplicationsPageInner() {
       ok: await fetch('/app/api/admin/applications', {
         method: 'PATCH', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, status, reviewNote: '', assignedClubs: status === 'approved' && defaultClubId ? [defaultClubId] : [] }),
+        body: JSON.stringify({ id, status, reviewNote: status === 'rejected' ? 'Bulk-rejected from queue' : '', assignedClubs: status === 'approved' && defaultClubId ? [defaultClubId] : [] }),
       }).then(r => r.ok).catch(() => false),
     })))
     const ok = new Set(results.filter(r => r.ok).map(r => r.id))

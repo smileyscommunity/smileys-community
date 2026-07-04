@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { toast } from 'sonner'
 import { usePullToRefresh } from '@/hooks/usePullToRefresh'
 import SwipeRow from '@/components/SwipeRow'
 import EmptyState from '@/components/EmptyState'
@@ -136,7 +137,7 @@ export default function NotificationsPage() {
         setConfirmClear(false)
       } else {
         const data = await res.json().catch(() => ({}))
-        alert(data.error ?? 'Could not clear notifications')
+        toast.error(data.error ?? 'Could not clear notifications')
       }
     } finally {
       setClearing(false)

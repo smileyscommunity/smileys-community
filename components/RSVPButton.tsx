@@ -71,7 +71,7 @@ export default function RSVPButton({ eventId, hostId, spotsLeft, price, memberPr
               Pending approval
             </div>
             <button onClick={leave} disabled={loading}
-              className="w-full py-2 text-xs text-gray-400 hover:text-red-500 transition-colors">
+              className="w-full py-2.5 text-sm font-semibold text-gray-500 hover:text-red-600 border border-gray-200 hover:border-red-300 hover:bg-red-50 rounded-xl transition-colors">
               {loading ? 'Cancelling…' : 'Cancel request'}
             </button>
           </motion.div>
@@ -84,7 +84,7 @@ export default function RSVPButton({ eventId, hostId, spotsLeft, price, memberPr
               You're attending
             </div>
             <button onClick={handleLeave} disabled={loading}
-              className="w-full py-2 text-xs text-gray-400 hover:text-red-500 transition-colors">
+              className="w-full py-2.5 text-sm font-semibold text-gray-500 hover:text-red-600 border border-gray-200 hover:border-red-300 hover:bg-red-50 rounded-xl transition-colors">
               {loading ? 'Cancelling…' : 'Cancel registration'}
             </button>
           </motion.div>
@@ -97,7 +97,7 @@ export default function RSVPButton({ eventId, hostId, spotsLeft, price, memberPr
               Waitlisted {position ? `— #${position}` : ''}
             </div>
             <button onClick={leave} disabled={loading}
-              className="w-full py-2 text-xs text-gray-400 hover:text-red-500 transition-colors">
+              className="w-full py-2.5 text-sm font-semibold text-gray-500 hover:text-red-600 border border-gray-200 hover:border-red-300 hover:bg-red-50 rounded-xl transition-colors">
               {loading ? 'Removing…' : 'Leave waitlist'}
             </button>
           </motion.div>

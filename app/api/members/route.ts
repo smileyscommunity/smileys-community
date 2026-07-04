@@ -88,6 +88,9 @@ export async function GET(req: NextRequest) {
       // hidden. Discovery for all; details gated per-card.
       // Exclude blocked users (and users who blocked the viewer).
       blockedIds.length > 0 ? { id: { notIn: blockedIds } } : {},
+      // Admin-hidden accounts (staff, test, opted-out members) never
+      // appear in the directory, for any viewer.
+      { hiddenFromMembers: false },
       openFilter,
       searchFilter,
       savedOnly && savedIds !== null
@@ -127,11 +130,12 @@ export async function GET(req: NextRequest) {
     prisma.user.count({
       where: {
         status: 'approved',
+        hiddenFromMembers: false,
         clubMemberships: { some: { role: 'host', status: 'approved' } },
       },
     }),
     prisma.user.count({
-      where: { status: 'approved', role: 'admin' },
+      where: { status: 'approved', hiddenFromMembers: false, role: 'admin' },
     }),
     prisma.memberSave.count({ where: { userId: session.id } }),
   ])

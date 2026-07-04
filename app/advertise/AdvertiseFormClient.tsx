@@ -22,6 +22,8 @@ export default function AdvertiseFormClient() {
   const [error,     setError]     = useState('')
   const [honeypot,       setHoneypot]       = useState('')
   const [turnstileToken, setTurnstileToken] = useState('')
+  // Bumped after a failed submit — Turnstile tokens are single-use, so retries need a fresh one
+  const [turnstileReset, setTurnstileReset] = useState(0)
   const loadedAt = useRef(Date.now())
 
   function set(k: keyof typeof form, v: string) {
@@ -49,7 +51,12 @@ export default function AdvertiseFormClient() {
         }),
       })
       const data = await res.json()
-      if (!res.ok) { setError(data.error ?? 'Something went wrong'); return }
+      if (!res.ok) {
+        setError(data.error ?? 'Something went wrong')
+        setTurnstileToken('')
+        setTurnstileReset(n => n + 1)
+        return
+      }
       setSubmitted(true)
     } finally {
       setLoading(false)
@@ -126,7 +133,7 @@ export default function AdvertiseFormClient() {
           />
         </div>
 
-        <Turnstile onVerify={setTurnstileToken} onExpire={() => setTurnstileToken('')} />
+        <Turnstile onVerify={setTurnstileToken} onExpire={() => setTurnstileToken('')} resetSignal={turnstileReset} />
 
         <button
           type="submit"

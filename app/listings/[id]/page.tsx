@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { resolveImageUrl, avatarUrl } from '@/lib/data'
 import { APP_URL, SITE_URL } from '@/lib/env'
+import { redactListingForGuest } from '@/lib/listingsPublic'
 
 export const dynamic = 'force-dynamic'
 
@@ -82,9 +83,14 @@ function timeAgo(date: Date) {
 
 export default async function ListingDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const [listing, session] = await Promise.all([getListing(id), getSession()])
+  const [raw, session] = await Promise.all([getListing(id), getSession()])
 
-  if (!listing) notFound()
+  if (!raw) notFound()
+
+  // Guests get the teaser projection (no contact, photo, full
+  // description, or poster identity). The page is intentionally
+  // public for SEO; details unlock on sign-in.
+  const listing = session ? raw : redactListingForGuest(raw)
 
   const cat    = CAT_META[listing.category]
   const emoji  = CAT_EMOJI[listing.category] ?? '📌'
@@ -99,7 +105,7 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
         : `https://wa.me/${listing.contact.replace(/\D/g, '')}`)
     : null
 
-  const isOwner = session?.id === listing.user.id
+  const isOwner = session?.id === raw.user.id
 
   return (
     <div className="min-h-screen bg-warm pb-24 md:pb-0">

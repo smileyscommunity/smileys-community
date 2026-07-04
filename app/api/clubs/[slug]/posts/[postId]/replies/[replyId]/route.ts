@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdmin } from '@/lib/access'
+import { isAdminOrModerator } from '@/lib/access'
 import { rateLimit } from '@/lib/rateLimit'
 
 type Params = { params: Promise<{ slug: string; postId: string; replyId: string }> }
@@ -23,7 +23,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
 
   const isOwn  = reply.userId === session.id
 
-  if (!isOwn && !isAdmin(session)) {
+  if (!isOwn && !isAdminOrModerator(session)) {
     const membership = await prisma.clubMembership.findUnique({
       where: { userId_clubId: { userId: session.id, clubId: reply.post.clubId } },
       select: { role: true, status: true },

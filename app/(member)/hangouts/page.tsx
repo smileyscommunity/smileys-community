@@ -78,42 +78,55 @@ interface HangoutMessage {
   user:      JoinerSummary
 }
 
+// Hangout times are always shown in Istanbul time, never the viewer's
+// device timezone — the community is Istanbul-based, so a member abroad
+// (or with a misconfigured device clock) still sees the local meet time.
+const TZ = 'Europe/Istanbul'
 function formatWindow(startsAt: string, endsAt: string) {
   const s = new Date(startsAt)
   const e = new Date(endsAt)
-  const sameDay = s.toDateString() === e.toDateString()
   const now = new Date()
   const minsToStart = Math.round((s.getTime() - now.getTime()) / 60_000)
 
-  const fmtTime = (d: Date) => d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+  const fmtTime = (d: Date) => d.toLocaleTimeString('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit' })
+  // Day comparisons in Istanbul, not the device tz.
+  const istDay = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: TZ })
 
   let prefix = ''
   if (minsToStart < 0)        prefix = 'Now · '
   else if (minsToStart < 60)  prefix = `In ${minsToStart}m · `
-  else if (sameDay)           prefix = 'Today · '
-  else                        prefix = s.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) + ' · '
+  else if (istDay(s) === istDay(now)) prefix = 'Today · '
+  else                        prefix = s.toLocaleDateString('en-GB', { timeZone: TZ, weekday: 'short', day: 'numeric', month: 'short' }) + ' · '
 
   return `${prefix}${fmtTime(s)}–${fmtTime(e)}`
 }
 
-// A <input type="datetime-local"> value is LOCAL wall-clock time, so the
-// default must be built from local components — toISOString() returns UTC
-// and prefilled the input ~3h behind in Istanbul.
-function toLocalInputValue(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+// The datetime-local input represents ISTANBUL wall-clock time (the
+// hangout's meet time), not the creator's device time. Format the default
+// as Istanbul wall-clock so the input + the stored value stay consistent
+// regardless of where the creator's device clock is. sv-SE → "YYYY-MM-DD
+// HH:MM:SS"; swap the space for T and drop seconds.
+function toIstanbulInputValue(d: Date): string {
+  return d.toLocaleString('sv-SE', { timeZone: TZ }).replace(' ', 'T').slice(0, 16)
+}
+// Inverse: a datetime-local value ("YYYY-MM-DDTHH:MM") is the Istanbul
+// wall-clock meet time. Turkey is UTC+3 year-round (no DST since 2016, the
+// same assumption the event pages make), so tag it +03:00 to get the correct
+// UTC instant regardless of the creator's device timezone.
+function istanbulInputToISO(local: string): string {
+  return new Date(`${local}:00+03:00`).toISOString()
 }
 function defaultStartsAt(): string {
   // 15 min from now, rounded — covers "I'm walking there"
   const d = new Date(Date.now() + 15 * 60_000)
   d.setSeconds(0, 0)
-  return toLocalInputValue(d) // YYYY-MM-DDTHH:MM (local)
+  return toIstanbulInputValue(d) // YYYY-MM-DDTHH:MM (Istanbul)
 }
 function defaultEndsAt(): string {
   // 2 hours after default start — typical café hangout window
   const d = new Date(Date.now() + 2 * 60 * 60_000 + 15 * 60_000)
   d.setSeconds(0, 0)
-  return toLocalInputValue(d)
+  return toIstanbulInputValue(d)
 }
 
 export default function HangoutsPage() {
@@ -219,8 +232,8 @@ export default function HangoutsPage() {
         body: JSON.stringify({
           title, location, neighborhood: neighborhood || undefined,
           description: description || undefined,
-          startsAt: new Date(startsAt).toISOString(),
-          endsAt:   new Date(endsAt).toISOString(),
+          startsAt: istanbulInputToISO(startsAt),
+          endsAt:   istanbulInputToISO(endsAt),
           meetMode,
           photo: photo || undefined,
         }),
@@ -311,9 +324,9 @@ export default function HangoutsPage() {
               Desktop keeps the original side-by-side title/actions layout. */}
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-3 mb-1">
             <div>
-              <p className="text-xs font-bold uppercase tracking-widest text-amber-600 mb-1">Spontaneous</p>
-              <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">Hangouts</h1>
-              <p className="text-sm text-gray-600 mt-1">&quot;I&apos;m at X right now — join me?&quot;</p>
+              <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">☕ Spontaneous</span>
+              <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">Hangouts</h1>
+              <p className="text-base text-gray-600 mt-1">&quot;I&apos;m at X right now — join me?&quot;</p>
             </div>
             <div className="flex items-center gap-2 w-full sm:w-auto sm:shrink-0">
               {/* Recap entry point — anyone who's had a recent hangout can

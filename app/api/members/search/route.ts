@@ -13,6 +13,9 @@ export async function GET(req: NextRequest) {
   const users = await prisma.user.findMany({
     where: {
       status: 'approved',
+      // Admin-hidden accounts stay out of mention autocomplete too —
+      // surfacing them here would leak what the directory hides.
+      hiddenFromMembers: false,
       id:     { not: session.id },
       name:   { startsWith: q, mode: 'insensitive' },
     },

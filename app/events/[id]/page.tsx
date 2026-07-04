@@ -8,6 +8,7 @@ import { formatDate, formatTime, vibeConfig, resolveImageUrl, avatarUrl, getInit
 import { countryFlag } from '@/lib/countries'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { restrictedSetFor } from '@/lib/memberPrivacy'
 import { SITE_URL, APP_URL } from '@/lib/env'
 import RSVPButton from '@/components/RSVPButton'
 import EventMessages from '@/components/EventMessages'
@@ -81,32 +82,183 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
   const session = await getSession()
 
   if (!session) {
-    const coverUrl = event.coverImage ? absoluteImageUrl(event.coverImage) : null
+    // Public teaser. /events and individual event pages are public for SEO
+    // (Google indexes "salsa night istanbul" → lands on a real page with
+    // cover, description, date, time, neighborhood, host). RSVP, messages,
+    // attendee list, and private address/links stay member-only — the page
+    // pushes the user to /apply for the unlock.
+    const eventUrl = `${APP_URL}/events/${id}`
+    const guestJsonLd = {
+      '@context': 'https://schema.org',
+      '@type':    'Event',
+      name:        event.title,
+      description: event.description
+        ? event.description.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 500)
+        : `${event.emoji} ${event.title} in ${event.neighborhood}, Istanbul`,
+      startDate:   `${event.date}T${event.time ?? '00:00'}:00+03:00`,
+      eventStatus: 'https://schema.org/EventScheduled',
+      eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
+      location: {
+        '@type': 'Place',
+        name:    event.location || event.neighborhood || 'Istanbul',
+        address: {
+          '@type':         'PostalAddress',
+          addressLocality: 'Istanbul',
+          addressCountry:  'TR',
+        },
+      },
+      image: absoluteImageUrl(event.coverImage) || undefined,
+      url:   eventUrl,
+      organizer: { '@type': 'Organization', name: 'Smileys Community', url: SITE_URL },
+    }
+
+    const goingCount = await prisma.eventAttendee.count({
+      where: { eventId: id, status: 'approved' },
+    })
+
+    const vibes = event.vibes ?? []
+
     return (
-      <div className="min-h-screen bg-warm flex flex-col">
-        {coverUrl && (
-          <div className="relative w-full h-52 sm:h-72 shrink-0">
-            <Image src={resolveImageUrl(event.coverImage!)} alt={event.title} fill className="object-cover" sizes="100vw" priority
-              style={{ objectPosition: `center ${event.coverImagePosition ?? 50}%` }} />
-            <div className="absolute inset-0 bg-gradient-to-b from-black/20 to-black/60" />
-          </div>
-        )}
-        <div className="flex-1 flex flex-col items-center justify-center px-6 py-12 text-center max-w-md mx-auto w-full">
-          <div className={`text-6xl mb-4 ${!coverUrl ? 'mt-12' : ''}`}>{event.emoji}</div>
-          <h1 className="text-2xl font-extrabold text-gray-900 mb-2">{event.title}</h1>
-          <p className="text-sm text-gray-600 mb-6">
-            {formatDate(event.date)} · {event.neighborhood}
-          </p>
-          <div className="bg-white rounded-2xl shadow-card p-6 w-full space-y-4">
-            <p className="text-sm font-semibold text-gray-700">🔒 Members only</p>
-            <p className="text-sm text-gray-600">You need to be an approved Smileys member to view event details.</p>
-            <Link href="/apply"
-              className="block w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm transition-colors text-center">
-              Apply to join
+      <div className="min-h-screen bg-warm pb-32">
+        <script
+          type="application/ld+json"
+          nonce={nonce}
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(guestJsonLd)
+              .replace(/</g, '\\u003c')
+              .replace(/\u2028/g, '\\u2028')
+              .replace(/\u2029/g, '\\u2029'),
+          }}
+        />
+
+        {/* Back nav */}
+        <div className="bg-white border-b border-gray-100 sticky top-0 z-10">
+          <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
+            <Link href="/events" aria-label="Back" className="p-2.5 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
             </Link>
-            <Link href="/login"
-              className="block w-full py-3 rounded-xl bg-amber-400 hover:bg-amber-500 text-white font-bold text-sm transition-colors text-center">
-              Log in
+            <span className="font-semibold text-gray-900 text-sm truncate flex-1">{event.title}</span>
+            <div className="flex items-center gap-1 shrink-0">
+              <AddToCalendar
+                title={event.title}
+                date={event.date}
+                time={event.time}
+                location={event.location ?? event.neighborhood ?? ''}
+                description={event.description ? event.description.replace(/<[^>]+>/g, '') : ''}
+                url={eventUrl}
+                compact
+              />
+              <ShareButton
+                title={event.title}
+                url={eventUrl}
+                cacheKey={event.coverImage ? event.coverImage.match(/\/(\d+)-/)?.[1]?.slice(-8) : undefined}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="max-w-2xl mx-auto">
+          {/* Cover */}
+          {event.coverImage ? (
+            <div className="relative w-full h-48 sm:h-72">
+              <Image src={resolveImageUrl(event.coverImage)} alt={event.title} fill className="object-cover" sizes="100vw" priority
+                style={{ objectPosition: `center ${event.coverImagePosition ?? 50}%` }} />
+            </div>
+          ) : (
+            <div className="w-full h-48 sm:h-72 bg-gradient-to-br from-amber-100 to-orange-100 flex items-center justify-center">
+              <span className="text-8xl select-none">{event.emoji}</span>
+            </div>
+          )}
+
+          <div className="px-4 sm:px-6 py-6 space-y-6">
+            {/* Title + meta */}
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight mb-3">
+                {event.title}
+              </h1>
+              <div className="space-y-2 text-sm text-gray-600">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-base">📅</span>
+                  <span className="font-medium">{formatDate(event.date)} · {formatTime(event.time)}</span>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <span className="text-base">📍</span>
+                  <span>{event.neighborhood}</span>
+                </div>
+                {event.price > 0 && (
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-base">💰</span>
+                    <span>{event.price} {event.currency ?? 'TRY'}</span>
+                  </div>
+                )}
+                {goingCount > 0 && (
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-base">👥</span>
+                    <span><span className="font-semibold text-gray-800">{goingCount}</span> {goingCount === 1 ? 'person is' : 'people are'} going</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Description */}
+            {event.description && (
+              <div
+                className="prose prose-sm max-w-none text-gray-700 leading-relaxed"
+                dangerouslySetInnerHTML={{ __html: sanitize(event.description) }}
+              />
+            )}
+
+            {/* Vibes */}
+            {vibes.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {vibes.map(v => {
+                  const cfg = vibeConfig[v as keyof typeof vibeConfig]
+                  return (
+                    <span key={v} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-100">
+                      {cfg?.emoji && <span>{cfg.emoji}</span>}
+                      {v}
+                    </span>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Host */}
+            {event.hostName && (
+              <div className="flex items-center gap-3 pt-4 border-t border-gray-100">
+                {event.hostPhoto ? (
+                  <Image src={avatarUrl(event.hostPhoto, 96) ?? ''} alt={event.hostName} width={40} height={40} className="w-10 h-10 rounded-full object-cover" />
+                ) : (
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold"
+                    style={{ backgroundColor: event.hostColor ?? '#f59e0b' }}>
+                    {getInitials(event.hostName)}
+                  </div>
+                )}
+                <div>
+                  <p className="text-xs text-gray-400">Hosted by</p>
+                  <p className="font-semibold text-gray-900 text-sm">{event.hostName}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Sticky CTA */}
+        <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t border-gray-100 p-4 z-20">
+          <div className="max-w-2xl mx-auto flex items-center gap-3">
+            <div className="flex-1 hidden sm:block">
+              <p className="text-sm font-semibold text-gray-800">Want to join?</p>
+              <p className="text-xs text-gray-500">Sign in to RSVP, or apply to Smileys</p>
+            </div>
+            <Link href={`/login?return=/events/${id}`}
+              className="flex-1 sm:flex-none text-center px-5 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold transition-colors">
+              Sign in to RSVP
+            </Link>
+            <Link href="/apply"
+              className="flex-1 sm:flex-none text-center px-5 py-3 rounded-xl bg-white border border-amber-200 text-amber-700 hover:bg-amber-50 text-sm font-bold transition-colors">
+              Apply
             </Link>
           </div>
         </div>
@@ -126,11 +278,11 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
 
   const [attendees, totalAttendeeCount, waitlisted, club, myAttendance, eventPhotos] = await Promise.all([
     prisma.eventAttendee.findMany({
-      where: { eventId: id, status: 'approved', stealth: false, userId: { notIn: [event.hostId, ...cohostIds] } },
+      where: { eventId: id, status: 'approved', stealth: false, user: { hiddenFromMembers: false }, userId: { notIn: [event.hostId, ...cohostIds] } },
       orderBy: { joinedAt: 'asc' },
       select: {
         checkedIn: true,
-        user: { select: { id: true, name: true, color: true, profilePhoto: true, gender: true, nationality: true } }
+        user: { select: { id: true, name: true, color: true, profilePhoto: true, gender: true, nationality: true, profileVisibility: true } }
       },
     }),
     prisma.eventAttendee.count({
@@ -138,15 +290,21 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
     }),
     prisma.waitlistEntry.findMany({
       where: { eventId: id },
-      take: 12,
       orderBy: { createdAt: 'asc' },
       select: { userId: true },
     }).then(async entries => {
-      if (!entries.length) return []
-      return prisma.user.findMany({
-        where: { id: { in: entries.map(e => e.userId) } },
+      const total = entries.length
+      if (!total) return { users: [] as { id: string; name: string; color: string; profilePhoto: string | null; nationality: string | null }[], total: 0 }
+      // Only render a preview — an uncapped grid balloons the DOM (and the
+      // user query) for events with a long waitlist.
+      const shownIds = entries.slice(0, 12).map(e => e.userId)
+      const rows = await prisma.user.findMany({
+        where: { id: { in: shownIds }, hiddenFromMembers: false },
         select: { id: true, name: true, color: true, profilePhoto: true, nationality: true },
       })
+      // Preserve waitlist (createdAt) order — findMany by id doesn't guarantee it.
+      const byId = new Map(rows.map(u => [u.id, u]))
+      return { users: shownIds.map(uid => byId.get(uid)!).filter(Boolean), total }
     }),
     event.clubId
       ? prisma.club.findFirst({ where: { id: event.clubId } })
@@ -164,6 +322,15 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
   ])
   const cohosts = cohostRecords
   const checkedInCount = attendees.filter(a => a.checkedIn).length
+
+  // Private ('connections') attendees the viewer isn't connected to: keep them
+  // in the grid (name + photo, like the directory), but hide the private
+  // nationality attribute. Cheap — returns empty for privileged viewers or when
+  // no attendee is 'connections'-visibility.
+  const restrictedAttendees = await restrictedSetFor(
+    session,
+    attendees.map(a => ({ id: a.user.id, profileVisibility: a.user.profileVisibility })),
+  )
 
   const hasCoords    = event.lat != null && event.lng != null
   const mapsHref      = event.meetingUrl
@@ -626,7 +793,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                       )}
                       <span className="text-xs text-gray-600 group-hover:text-amber-600 transition-colors text-center truncate w-full leading-tight flex items-center justify-center gap-0.5">
                         {a.user.name.split(' ')[0]}
-                        {countryFlag((a.user as any).nationality) && (
+                        {!restrictedAttendees.has(a.user.id) && countryFlag((a.user as any).nationality) && (
                           <span className="text-xs">{countryFlag((a.user as any).nationality)}</span>
                         )}
                       </span>
@@ -649,13 +816,13 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
           {attendees.length > 0 && <hr className="border-gray-100" />}
 
           {/* Waitlist */}
-          {waitlisted.length > 0 && (
+          {waitlisted.total > 0 && (
             <div>
               <h2 className="text-base font-bold text-gray-900 mb-3">
-                Waitlist <span className="text-gray-400 font-normal">({waitlisted.length})</span>
+                Waitlist <span className="text-gray-400 font-normal">({waitlisted.total})</span>
               </h2>
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-                {waitlisted.map(u => {
+                {waitlisted.users.map(u => {
                   const photo = avatarUrl(u.profilePhoto, 128)
                   const flag  = countryFlag(u.nationality)
                   return (
@@ -678,10 +845,15 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                   )
                 })}
               </div>
+              {waitlisted.total > waitlisted.users.length && (
+                <p className="text-xs text-gray-400 mt-2">
+                  +{waitlisted.total - waitlisted.users.length} more
+                </p>
+              )}
             </div>
           )}
 
-          {waitlisted.length > 0 && <hr className="border-gray-100" />}
+          {waitlisted.total > 0 && <hr className="border-gray-100" />}
 
           {/* Club — mobile only */}
           {club && (

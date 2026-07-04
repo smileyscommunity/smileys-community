@@ -72,16 +72,15 @@ export default async function VisitingPage() {
       {/* Hero — typographic, pill eyebrow + h1 to match the rest of
           the public surfaces (/guide, /about, /handbook, /posts).
           The previous icon-on-left layout was the odd one out. */}
-      <div className="bg-gradient-to-b from-amber-50/40 to-white border-b border-gray-100">
+      <div className="bg-white border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-8">
-          <div className="max-w-3xl">
-          <p className="text-xs font-bold uppercase tracking-widest text-amber-600 mb-2">
-            <span aria-hidden="true">👋</span> Newcomers & Visitors
-          </p>
-          <h1 className="text-3xl sm:text-5xl font-extrabold text-gray-900 tracking-tight leading-[1.05]">
+          <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">
+            <span aria-hidden="true">👋</span> Newcomers &amp; Visitors
+          </span>
+          <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">
             Visiting Istanbul?
           </h1>
-          <p className="text-base text-gray-600 leading-relaxed mt-3 max-w-xl">
+          <p className="text-base text-gray-600 mt-1 max-w-xl">
             Tell us when you&apos;re coming. Locals will reach out for coffee, tips, and intros before you arrive.
           </p>
           <Link href="/visiting/new"
@@ -91,7 +90,6 @@ export default async function VisitingPage() {
             </svg>
             Post your visit
           </Link>
-          </div>
         </div>
       </div>
 

@@ -66,6 +66,7 @@ export async function GET(req: NextRequest) {
         // (non-Turkish users with local-format numbers were getting their
         // links mangled to '90xxx' before this).
         lastActive: true, phone: true, password: true, lastFingerprint: true, nationality: true,
+        hiddenFromMembers: true,
       },
     })
 

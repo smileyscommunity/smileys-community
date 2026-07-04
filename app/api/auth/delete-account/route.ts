@@ -85,50 +85,51 @@ export async function POST(req: NextRequest) {
     }
 
     // ── 1. Hard delete: PII / inbox / tracking / transient state ──────────
-    await Promise.all([
-      tx.pushSubscription.deleteMany({ where: { userId: id } }),
-      tx.notificationPreference.deleteMany({ where: { userId: id } }),
-      tx.notification.deleteMany({ where: { userId: id } }),
-      tx.profileView.deleteMany({ where: { OR: [{ viewerId: id }, { viewedId: id }] } }),
-      tx.memberBlock.deleteMany({ where: { OR: [{ blockerId: id }, { blockedId: id }] } }),
-      tx.memberConnection.deleteMany({ where: { OR: [{ requesterId: id }, { receiverId: id }] } }),
-      tx.emailVerificationToken.deleteMany({ where: { userId: id } }),
-      tx.passwordResetToken.deleteMany({ where: { userId: id } }),
-      tx.totpBackupCode.deleteMany({ where: { userId: id } }),
-      tx.session.deleteMany({ where: { userId: id } }),
-      tx.eventPhoto.deleteMany({ where: { userId: id } }),
-      tx.clubPhoto.deleteMany({ where: { userId: id } }),
-      tx.hangoutJoin.deleteMany({ where: { userId: id } }),
-      tx.availabilityPulse.deleteMany({ where: { userId: id } }),
-      tx.clubMembership.deleteMany({ where: { userId: id } }),
-      tx.cityHost.deleteMany({ where: { userId: id } }),
-      tx.cupPrediction.deleteMany({ where: { userId: id } }),
-      tx.cupBracketPick.deleteMany({ where: { userId: id } }),
-      tx.memberNPS.deleteMany({ where: { userId: id } }),
-      tx.clubPostLike.deleteMany({ where: { userId: id } }),
-      tx.clubPollVote.deleteMany({ where: { userId: id } }),
-      tx.communityPollVote.deleteMany({ where: { userId: id } }),
-      tx.neighborhoodPostLike.deleteMany({ where: { userId: id } }),
-      tx.waitlistEntry.deleteMany({ where: { userId: id } }),
-      tx.savedListing.deleteMany({ where: { userId: id } }),
-      tx.hangoutReference.deleteMany({ where: { fromUserId: id } }),
-    ])
+    // Sequential, not Promise.all: an interactive transaction runs on a
+    // single connection, so concurrent tx queries only trip pg's
+    // "client.query() while already executing" warning (a hard error in
+    // pg@9) — and Prisma serializes them anyway, so there's no speedup lost.
+    await tx.pushSubscription.deleteMany({ where: { userId: id } })
+    await tx.notificationPreference.deleteMany({ where: { userId: id } })
+    await tx.notification.deleteMany({ where: { userId: id } })
+    await tx.profileView.deleteMany({ where: { OR: [{ viewerId: id }, { viewedId: id }] } })
+    await tx.memberBlock.deleteMany({ where: { OR: [{ blockerId: id }, { blockedId: id }] } })
+    await tx.memberConnection.deleteMany({ where: { OR: [{ requesterId: id }, { receiverId: id }] } })
+    await tx.emailVerificationToken.deleteMany({ where: { userId: id } })
+    await tx.passwordResetToken.deleteMany({ where: { userId: id } })
+    await tx.totpBackupCode.deleteMany({ where: { userId: id } })
+    await tx.session.deleteMany({ where: { userId: id } })
+    await tx.eventPhoto.deleteMany({ where: { userId: id } })
+    await tx.clubPhoto.deleteMany({ where: { userId: id } })
+    await tx.hangoutJoin.deleteMany({ where: { userId: id } })
+    await tx.availabilityPulse.deleteMany({ where: { userId: id } })
+    await tx.clubMembership.deleteMany({ where: { userId: id } })
+    await tx.cityHost.deleteMany({ where: { userId: id } })
+    await tx.cupPrediction.deleteMany({ where: { userId: id } })
+    await tx.cupBracketPick.deleteMany({ where: { userId: id } })
+    await tx.memberNPS.deleteMany({ where: { userId: id } })
+    await tx.clubPostLike.deleteMany({ where: { userId: id } })
+    await tx.clubPollVote.deleteMany({ where: { userId: id } })
+    await tx.communityPollVote.deleteMany({ where: { userId: id } })
+    await tx.neighborhoodPostLike.deleteMany({ where: { userId: id } })
+    await tx.waitlistEntry.deleteMany({ where: { userId: id } })
+    await tx.savedListing.deleteMany({ where: { userId: id } })
+    await tx.hangoutReference.deleteMany({ where: { fromUserId: id } })
 
     // ── 2. Anonymize content authored by the user ─────────────────────────
     // The containing thread / post / listing stays readable, but the
     // user's words are replaced. Image references are nulled where
-    // applicable so deleted-account photos don't render.
-    await Promise.all([
-      tx.directMessage.updateMany({ where: { fromId: id }, data: { text: DELETED_BODY, imageUrl: null } }),
-      tx.eventMessage.updateMany({ where: { userId: id }, data: { message: DELETED_BODY } }),
-      tx.clubPostReply.updateMany({ where: { userId: id }, data: { content: DELETED_BODY } }),
-      tx.neighborhoodPostReply.updateMany({ where: { userId: id }, data: { content: DELETED_BODY } }),
-      tx.hangoutMessage.updateMany({ where: { userId: id }, data: { body: DELETED_BODY } }),
-      tx.clubPost.updateMany({ where: { userId: id }, data: { content: DELETED_BODY } }),
-      tx.neighborhoodPost.updateMany({ where: { userId: id }, data: { content: DELETED_BODY, imageUrl: null } }),
-      tx.listing.updateMany({ where: { userId: id }, data: { description: DELETED_BODY, photo: null, status: 'expired' } }),
-      tx.visitorAnnouncement.updateMany({ where: { userId: id }, data: { intro: DELETED_BODY } }),
-    ])
+    // applicable so deleted-account photos don't render. Sequential for the
+    // same single-connection reason as above.
+    await tx.directMessage.updateMany({ where: { fromId: id }, data: { text: DELETED_BODY, imageUrl: null } })
+    await tx.eventMessage.updateMany({ where: { userId: id }, data: { message: DELETED_BODY } })
+    await tx.clubPostReply.updateMany({ where: { userId: id }, data: { content: DELETED_BODY } })
+    await tx.neighborhoodPostReply.updateMany({ where: { userId: id }, data: { content: DELETED_BODY } })
+    await tx.hangoutMessage.updateMany({ where: { userId: id }, data: { body: DELETED_BODY } })
+    await tx.clubPost.updateMany({ where: { userId: id }, data: { content: DELETED_BODY } })
+    await tx.neighborhoodPost.updateMany({ where: { userId: id }, data: { content: DELETED_BODY, imageUrl: null } })
+    await tx.listing.updateMany({ where: { userId: id }, data: { description: DELETED_BODY, photo: null, status: 'expired' } })
+    await tx.visitorAnnouncement.updateMany({ where: { userId: id }, data: { intro: DELETED_BODY } })
 
     // ── 3. Anonymize the User row itself ─────────────────────────────────
     // Status: banned is what evicts the session in getSession(); bump

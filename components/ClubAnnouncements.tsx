@@ -2,9 +2,12 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { resolveImageUrl, getInitials } from '@/lib/data'
+import RichText from '@/components/RichText'
+import FormatToolbar from '@/components/FormatToolbar'
+import { confirmToast } from '@/lib/confirmToast'
 
 interface Author { id: string; name: string; color: string; photo: string | null; role: string; clubRole: string | null }
-interface Announcement { id: string; content: string; type: string; createdAt: string; isPinned: boolean; author: Author }
+interface Announcement { id: string; content: string; type: string; createdAt: string; editedAt?: string | null; isPinned: boolean; author: Author }
 
 function formatRelative(iso: string): string {
   const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
@@ -26,14 +29,6 @@ function Avatar({ author }: { author: Author }) {
   )
 }
 
-function renderContent(text: string) {
-  return text.split(/(@\w+)/g).map((part, i) =>
-    /^@\w+$/.test(part)
-      ? <span key={i} className="font-semibold text-amber-600">{part}</span>
-      : <span key={i}>{part}</span>
-  )
-}
-
 interface Props {
   slug: string
   canAnnounce: boolean
@@ -48,7 +43,11 @@ export default function ClubAnnouncements({ slug, canAnnounce, currentUserId, is
   const [content, setContent] = useState('')
   const [posting, setPosting] = useState(false)
   const [error, setError]     = useState('')
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editDraft, setEditDraft] = useState('')
+  const [savingEdit, setSavingEdit] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const editRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     fetch(`/app/api/clubs/${slug}/posts?type=announcement`, { credentials: 'include' })
@@ -75,9 +74,40 @@ export default function ClubAnnouncements({ slug, canAnnounce, currentUserId, is
   }
 
   async function deleteItem(id: string) {
-    if (!confirm('Delete this announcement?')) return
+    if (!(await confirmToast('Delete this announcement?'))) return
     const res = await fetch(`/app/api/clubs/${slug}/posts/${id}`, { method: 'DELETE', credentials: 'include' })
     if (res.ok) setItems(prev => prev.filter(a => a.id !== id))
+  }
+
+  function startEdit(item: Announcement) {
+    setEditingId(item.id)
+    setEditDraft(item.content)
+    setError('')
+  }
+  function cancelEdit() { setEditingId(null); setEditDraft('') }
+
+  async function saveEdit(id: string) {
+    if (!editDraft.trim() || savingEdit) return
+    setSavingEdit(true); setError('')
+    try {
+      const res = await fetch(`/app/api/clubs/${slug}/posts/${id}`, {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: editDraft }),
+      })
+      if (res.ok) {
+        const updated = await res.json()
+        setItems(prev => prev.map(a => a.id === id ? { ...a, content: updated.content, editedAt: updated.editedAt } : a))
+        cancelEdit()
+      } else {
+        const d = await res.json().catch(() => ({}))
+        setError(d.error ?? 'Failed to save')
+      }
+    } catch {
+      setError('Failed to save')
+    } finally {
+      setSavingEdit(false)
+    }
   }
 
   function autoResize(e: React.ChangeEvent<HTMLTextAreaElement>) {
@@ -96,6 +126,8 @@ export default function ClubAnnouncements({ slug, canAnnounce, currentUserId, is
   const author_  = dark ? 'text-white' : 'text-gray-900'
   const time_    = dark ? 'text-zinc-500' : 'text-gray-400'
   const del_     = dark ? 'text-zinc-600 hover:text-red-400' : 'text-gray-300 hover:text-red-400'
+  const edit_    = dark ? 'text-zinc-500 hover:text-amber-400' : 'text-gray-400 hover:text-amber-600'
+  const editBox  = dark ? 'bg-zinc-950 border-zinc-700 text-zinc-200' : 'bg-white border-gray-200 text-gray-800'
   const body_    = dark ? 'text-zinc-300' : 'text-gray-700'
   const empty_   = dark ? 'text-zinc-500' : 'text-gray-600'
   const skelBg   = dark ? 'bg-zinc-700' : 'bg-gray-200'
@@ -105,6 +137,7 @@ export default function ClubAnnouncements({ slug, canAnnounce, currentUserId, is
       {canAnnounce && (
         <div className={card}>
           <p className="text-xs font-bold text-amber-700 mb-2 flex items-center gap-1">📢 Announcement</p>
+          <FormatToolbar getEl={() => textareaRef.current} value={content} onChange={setContent} dark={dark} />
           <textarea ref={textareaRef} value={content} onChange={autoResize}
             onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit() }}
             placeholder="Post an announcement to your club…"
@@ -156,14 +189,47 @@ export default function ClubAnnouncements({ slug, canAnnounce, currentUserId, is
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className={`text-sm font-semibold ${author_}`}>{item.author.name}</span>
                       <span className={`text-xs ${time_}`}>{formatRelative(item.createdAt)}</span>
-                      {canDelete && (
-                        <button onClick={() => deleteItem(item.id)}
-                          className={`ml-auto text-xs ${del_} transition-colors`}>Delete</button>
+                      {item.editedAt && <span className={`text-[11px] italic ${time_}`}>· edited</span>}
+                      {(canDelete || currentUserId === item.author.id) && editingId !== item.id && (
+                        <span className="ml-auto flex items-center gap-3">
+                          {currentUserId === item.author.id && (
+                            <button onClick={() => startEdit(item)}
+                              className={`text-xs ${edit_} transition-colors`}>Edit</button>
+                          )}
+                          {canDelete && (
+                            <button onClick={() => deleteItem(item.id)}
+                              className={`text-xs ${del_} transition-colors`}>Delete</button>
+                          )}
+                        </span>
                       )}
                     </div>
-                    <p className={`text-sm ${body_} mt-1.5 leading-relaxed whitespace-pre-wrap break-words`}>
-                      {renderContent(item.content)}
-                    </p>
+                    {editingId === item.id ? (
+                      <div className="mt-1.5">
+                        <FormatToolbar getEl={() => editRef.current} value={editDraft} onChange={setEditDraft} dark={dark} />
+                        <textarea
+                          ref={editRef}
+                          value={editDraft}
+                          onChange={e => setEditDraft(e.target.value)}
+                          rows={4}
+                          maxLength={2000}
+                          autoFocus
+                          className={`w-full text-sm rounded-xl border px-3 py-2 leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-amber-400 ${editBox}`}
+                        />
+                        {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+                        <div className="flex items-center gap-2 mt-2">
+                          <button onClick={() => saveEdit(item.id)} disabled={!editDraft.trim() || savingEdit}
+                            className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-40">
+                            {savingEdit ? 'Saving…' : 'Save'}
+                          </button>
+                          <button onClick={cancelEdit}
+                            className={`px-3 py-1.5 text-xs font-semibold ${edit_} transition-colors`}>Cancel</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className={`text-sm ${body_} mt-1.5 leading-relaxed whitespace-pre-wrap break-words`}>
+                        <RichText text={item.content} />
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>

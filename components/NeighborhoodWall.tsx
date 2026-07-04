@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { resolveImageUrl, getInitials } from '@/lib/data'
 import MentionTextarea, { MentionInput } from '@/components/MentionTextarea'
+import { confirmToast } from '@/lib/confirmToast'
 
 function renderContent(text: string) {
   const parts = text.split(/(@\w+)/g)
@@ -88,7 +89,7 @@ function PostRow({
 
   async function deletePost() {
     setMenu(false)
-    if (!confirm('Delete this post?')) return
+    if (!(await confirmToast('Delete this post?'))) return
     const res = await fetch(`/app/api/neighborhoods/${slug}/posts/${post.id}`, {
       method: 'DELETE', credentials: 'include',
     })

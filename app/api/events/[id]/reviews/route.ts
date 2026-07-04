@@ -8,6 +8,11 @@ type Params = { params: Promise<{ id: string }> }
 
 export async function GET(_: NextRequest, { params }: Params) {
   try {
+    // Member-only: only past attendees can review, so the reviewer list is a
+    // de-facto attendance list — don't expose it to unauthenticated callers.
+    const session = await getSession()
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
     const { id: eventId } = await params
     const reviews = await prisma.review.findMany({
       where: { eventId },

@@ -28,6 +28,10 @@ model User {
   phone                                    String?
   profilePhoto                             String?
   status                                   String                  @default("approved")
+  // Admin-set: excluded from the member directory (list + counts) while
+  // keeping full account access. For staff/test accounts or members who
+  // ask not to be listed — softer than banning, invisible to the member.
+  hiddenFromMembers                        Boolean                 @default(false)
   banReason                                String?
   bannedAt                                 DateTime?
   gender                                   String?
@@ -978,6 +982,7 @@ model ClubPost {
   content   String
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
+  editedAt  DateTime?
   isPinned  Boolean         @default(false)
   pinnedAt  DateTime?
   type      String          @default("post")

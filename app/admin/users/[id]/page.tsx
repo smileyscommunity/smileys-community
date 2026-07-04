@@ -125,6 +125,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
       .then(d => {
         setUser(d)
         setProfileForm({
+          email: d.email || '',
           nationality: d.nationality || '',
           neighborhood: d.neighborhood || '',
           instagram: d.instagram || '',
@@ -272,7 +273,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
 
   const [clubAssignments,  setClubAssignments]  = useState<{ clubId: string; clubName: string; emoji: string }[]>([])
   const [profileForm,   setProfileForm]   = useState({
-    nationality: '', neighborhood: '', instagram: '',
+    email: '', nationality: '', neighborhood: '', instagram: '',
     languages: '', interests: '', bio: '', partnerId: '',
     industry: '', professionalRole: '', professionalStatus: '',
   })
@@ -534,6 +535,12 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
           <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5 space-y-4">
             <h3 className="text-sm font-bold text-white uppercase tracking-wider">Quick Edit</h3>
             <div className="space-y-3">
+              <div>
+                <label className="text-[10px] font-bold text-zinc-500 uppercase block mb-1">Email</label>
+                <input type="email" value={profileForm.email} onChange={e => setProfileForm({ ...profileForm, email: e.target.value })}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-amber-500" />
+                <p className="text-[10px] text-zinc-600 mt-1">Login identifier — after a change they sign in with the new address.</p>
+              </div>
               <div>
                 <label className="text-[10px] font-bold text-zinc-500 uppercase block mb-1">Nationality</label>
                 <input type="text" value={profileForm.nationality} onChange={e => setProfileForm({ ...profileForm, nationality: e.target.value })}

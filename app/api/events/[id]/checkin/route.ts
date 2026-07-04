@@ -109,7 +109,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
             'checkin_count',
             `${event.emoji} ${checkedInUser?.name ?? 'Someone'} just checked in`,
             `${checkedInCount}/${totalCount} checked in to ${event.title}`,
-            `/events/${eventId}/checkin`,
+            `/host/checkin?event=${eventId}`,
           ).catch(() => {})
         }
 
@@ -133,7 +133,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
               'checkin_started',
               `${event.emoji} Check-in started`,
               `${event.title} — first attendee just checked in`,
-              `/events/${eventId}/checkin`,
+              `/admin/checkin?event=${eventId}`,
             ).catch(() => {})
           }
 

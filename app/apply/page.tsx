@@ -10,7 +10,7 @@ import { COUNTRIES } from '@/lib/countries'
 import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
 import FingerprintJS from '@fingerprintjs/fingerprintjs'
 import posthog from 'posthog-js'
-import { downscaleImage } from '@/lib/image-resize'
+import { downscaleImage, ImageUploadError } from '@/lib/image-resize'
 
 const step0Schema = z.object({
   firstName:    z.string().min(1, 'First name is required'),
@@ -87,6 +87,8 @@ function ApplyForm() {
 
   const [honeypot,       setHoneypot]       = useState('')
   const [turnstileToken, setTurnstileToken] = useState('')
+  // Bumped after a failed submit — Turnstile tokens are single-use, so retries need a fresh one
+  const [turnstileReset, setTurnstileReset] = useState(0)
   const [fingerprint,    setFingerprint]    = useState('')
   const [browserTz,      setBrowserTz]      = useState('')
 
@@ -221,15 +223,18 @@ function ApplyForm() {
       // exceed the 10 MB Next.js body limit and used to fail silently
       // with "Failed to parse body as FormData". Cap the long edge at
       // 1080px and re-encode as JPEG@0.85 — plenty for a profile shot.
-      const uploadFile = await downscaleImage(file, 1080, 0.85).catch(() => file)
+      const uploadFile = await downscaleImage(file, 1080, 0.85)
       const fd = new FormData()
       fd.append('file', uploadFile, 'profile.jpg')
       const res  = await fetch('/app/api/apply/upload', { method: 'POST', body: fd })
       const data = await res.json()
       if (data.url) set('profilePhoto', data.url)
       else setSubmitError(data.error ?? 'Photo upload failed')
-    } catch {
-      setSubmitError('Photo upload failed')
+    } catch (e) {
+      // ImageUploadError carries a user-facing, actionable message
+      // (0-byte iCloud photo, unconvertible oversized file) — show it
+      // verbatim instead of the generic fallback.
+      setSubmitError(e instanceof ImageUploadError ? e.message : 'Photo upload failed')
     } finally {
       setPhotoUploading(false)
     }
@@ -250,7 +255,7 @@ function ApplyForm() {
       setFieldErrors({})
     }
     if (step === STEPS.length - 1) {
-      if (!form.profilePhoto) { setSubmitError('Please upload a profile photo'); return false }
+      if (!form.profilePhoto) { setSubmitError('Please upload a real photo of yourself — it\'s required for review'); return false }
       if (!agreements.a1 || !agreements.a2 || !agreements.a3) { setSubmitError('Please agree to all terms'); return false }
     }
     return true
@@ -294,7 +299,12 @@ function ApplyForm() {
         body: JSON.stringify({ ...form, interests, socialStyles, languages, referredBy: refCode || undefined, targetCitySlug, _hp: honeypot, _cf: turnstileToken, _fp: fingerprint, _tz: browserTz }),
       })
       const data = await res.json()
-      if (!res.ok) { showError(data.error ?? 'Failed to submit'); return }
+      if (!res.ok) {
+        showError(data.error ?? 'Failed to submit')
+        setTurnstileToken('')
+        setTurnstileReset(n => n + 1)
+        return
+      }
       posthog.capture('application_submitted', {
         source:      form.source,
         interests:   interests,
@@ -306,6 +316,8 @@ function ApplyForm() {
       try { localStorage.removeItem(DRAFT_KEY) } catch {}
     } catch {
       showError('Something went wrong. Please try again.')
+      setTurnstileToken('')
+      setTurnstileReset(n => n + 1)
     } finally {
       setSaving(false)
     }
@@ -710,8 +722,9 @@ function ApplyForm() {
             </div>
 
             <h2 className="font-bold text-gray-900 text-base mb-1 pt-6 mt-4 border-t border-gray-100">Verification</h2>
+            <p className="text-xs text-gray-400 mb-3">We review every application personally — a real photo of you is required and helps us keep the community genuine.</p>
             <div>
-              <label htmlFor="ap-photo" className="block text-xs font-semibold text-gray-600 mb-2">Profile photo <span className="text-red-400">*</span></label>
+              <label htmlFor="ap-photo" className="block text-xs font-semibold text-gray-600 mb-2">Profile photo — a real photo of you <span className="text-red-400">*</span></label>
               <input id="ap-photo" ref={photoInputRef} type="file" accept="image/*" className="hidden"
                 onChange={e => e.target.files?.[0] && handlePhotoUpload(e.target.files[0])} />
               {localPhoto || form.profilePhoto ? (
@@ -725,8 +738,8 @@ function ApplyForm() {
                   className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-8 flex flex-col items-center gap-2 hover:border-amber-400 transition-colors disabled:opacity-50">
                   {photoUploading ? <span className="text-sm text-gray-400">Uploading…</span> : <>
                     <span className="text-3xl">📸</span>
-                    <span className="text-sm font-medium text-gray-600">Click to upload a clear photo</span>
-                    <span className="text-xs text-gray-400">JPG or PNG, max 4MB</span>
+                    <span className="text-sm font-medium text-gray-600">Upload a real photo of you</span>
+                    <span className="text-xs text-gray-400 px-4 text-center">Face clearly visible — no logos, avatars, or group shots. JPG or PNG, max 4MB</span>
                   </>}
                 </button>
               )}
@@ -778,7 +791,7 @@ function ApplyForm() {
         {/* Turnstile — shown above buttons on last step */}
         {step === STEPS.length - 1 && (
           <div className="mt-5">
-            <Turnstile onVerify={setTurnstileToken} onExpire={() => setTurnstileToken('')} />
+            <Turnstile onVerify={setTurnstileToken} onExpire={() => setTurnstileToken('')} resetSignal={turnstileReset} />
           </div>
         )}
 

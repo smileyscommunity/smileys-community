@@ -12,6 +12,8 @@ export default function AppealPage() {
   const [submitted, setSubmitted] = useState(false)
   const [honeypot,       setHoneypot]       = useState('')
   const [turnstileToken, setTurnstileToken] = useState('')
+  // Bumped after a failed submit — Turnstile tokens are single-use, so retries need a fresh one
+  const [turnstileReset, setTurnstileReset] = useState(0)
   const loadedAt = useRef(Date.now())
 
   async function handleSubmit(e: React.FormEvent) {
@@ -25,7 +27,12 @@ export default function AppealPage() {
         body: JSON.stringify({ email: email.trim(), note: note.trim(), _hp: honeypot, _t: loadedAt.current, _cf: turnstileToken }),
       })
       const data = await res.json()
-      if (!res.ok) { setError(data.error ?? 'Something went wrong'); return }
+      if (!res.ok) {
+        setError(data.error ?? 'Something went wrong')
+        setTurnstileToken('')
+        setTurnstileReset(n => n + 1)
+        return
+      }
       setSubmitted(true)
     } finally {
       setLoading(false)
@@ -86,7 +93,7 @@ export default function AppealPage() {
                   />
                   <p className="text-xs text-gray-400 mt-1">{note.length}/500 characters</p>
                 </div>
-                <Turnstile onVerify={setTurnstileToken} onExpire={() => setTurnstileToken('')} />
+                <Turnstile onVerify={setTurnstileToken} onExpire={() => setTurnstileToken('')} resetSignal={turnstileReset} />
                 <button
                   type="submit" disabled={loading || !email.trim() || !note.trim()}
                   className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm transition-colors disabled:opacity-50"

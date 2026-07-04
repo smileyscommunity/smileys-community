@@ -30,6 +30,12 @@ export async function verifyTurnstile(token: string, ip?: string): Promise<boole
       body:    JSON.stringify(body),
     })
     const data = await res.json()
+    if (data.success !== true) {
+      // 'timeout-or-duplicate' = stale/reused token (user should reload the
+      // page); 'invalid-input-secret' = env problem. Logging the code turns
+      // a vague "verification failed" report into a one-grep diagnosis.
+      console.warn('[turnstile] rejected:', data['error-codes'] ?? 'no error codes')
+    }
     return data.success === true
   } catch (err) {
     console.error('[turnstile] verification request failed:', err)

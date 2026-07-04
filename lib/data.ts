@@ -109,6 +109,9 @@ export interface Event {
   limitedSpots: boolean
   spotsLeft: number
   totalSpots: number
+  // Populated by getEvents for sold-out events only — waitlist demand
+  // shown on the card's "Join waitlist" CTA. Absent elsewhere.
+  waitlistCount?: number
   price: number
   tags: string[]
   vibes: VibeTag[]
@@ -235,4 +238,37 @@ export function formatTime(timeStr: string): string {
 
 export function getInitials(name: string): string {
   return name.trim().split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
+}
+
+/**
+ * Normalise a human name for consistent display: trim, collapse internal
+ * whitespace, and capitalise the first letter of each word (sub-tokens
+ * split on hyphen / apostrophe handled too, so "al khazraji" →
+ * "Al Khazraji" and "o'brien" → "O'Brien").
+ *
+ * Deliberately conservative: it ONLY upper-cases a leading lowercase
+ * letter and NEVER force-lowercases the rest of a token. That preserves
+ * intentional casing ("McKenzie", initials like "R.G", İbrahim) and — the
+ * reason this matters here — avoids the Turkish dotted/dotless-i pitfall.
+ * The community mixes Turkish and Latin names, and there is no single
+ * locale that can safely lower-case an ALL-CAPS name for both (Turkish
+ * rules mangle "OPPI"→"oppı", default rules mangle "KAYIŞ"→"kayiş"). So
+ * ALL-CAPS tokens are left untouched and must be cleaned up by hand.
+ */
+export function formatName(name: string): string {
+  const fixToken = (tok: string): string => {
+    if (!tok || tok === '-' || tok === "'") return tok
+    const first = tok[0]
+    // Only act when the first char is a lowercase letter; leave the rest as-is.
+    if (first === first.toLowerCase() && first !== first.toUpperCase()) {
+      return first.toUpperCase() + tok.slice(1)
+    }
+    return tok
+  }
+  return name
+    .trim()
+    .replace(/\s+/g, ' ')
+    .split(' ')
+    .map(word => word.split(/([-'])/).map(fixToken).join(''))
+    .join(' ')
 }

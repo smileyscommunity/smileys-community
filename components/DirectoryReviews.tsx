@@ -12,6 +12,7 @@
 
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import { confirmToast } from '@/lib/confirmToast'
 import { avatarUrl } from '@/lib/data'
 
 interface ReviewAuthor { id: string; name: string; color: string; profilePhoto: string | null }
@@ -164,7 +165,7 @@ export default function DirectoryReviews({
 
   async function deleteReview() {
     if (!myReview) return
-    if (!confirm('Delete your review?')) return
+    if (!(await confirmToast('Delete your review?'))) return
     try {
       const r = await fetch(`/app/api/directory/${businessId}/reviews/${myReview.id}`, {
         method: 'DELETE', credentials: 'include',
@@ -203,7 +204,7 @@ export default function DirectoryReviews({
   }
 
   async function deleteReply(reviewId: string) {
-    if (!confirm('Clear your reply?')) return
+    if (!(await confirmToast('Clear your reply?'))) return
     try {
       const r = await fetch(`/app/api/directory/${businessId}/reviews/${reviewId}/reply`, {
         method: 'DELETE', credentials: 'include',

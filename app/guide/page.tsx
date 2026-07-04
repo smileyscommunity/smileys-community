@@ -136,17 +136,15 @@ export default async function GuidePage() {
       {/* Hero — typographic, no avatar block. Gives the title and
           tagline more breathing room and removes the icon-vs-text
           alignment that was crowding mobile. */}
-      <div className="bg-gradient-to-b from-amber-50/40 to-white border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-6">
-          <div className="max-w-3xl">
-          <p className="text-xs font-bold uppercase tracking-widest text-amber-600 mb-2">🗺️ Istanbul Guide</p>
-          <h1 className="text-3xl sm:text-5xl font-extrabold text-gray-900 tracking-tight leading-[1.05]">
+      <div className="bg-white border-b border-gray-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-6">
+          <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">🗺️ Istanbul Guide</span>
+          <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">
             Quick links members trust.
           </h1>
-          <p className="text-base text-gray-600 leading-relaxed mt-3 max-w-xl">
+          <p className="text-base text-gray-600 mt-1 max-w-xl">
             Apps, services, and websites for getting around and settling into Istanbul — vetted by the Smileys team. Updated regularly.
           </p>
-          </div>
         </div>
       </div>
 

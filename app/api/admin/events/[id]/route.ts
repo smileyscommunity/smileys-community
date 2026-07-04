@@ -157,6 +157,21 @@ export async function PUT(req: NextRequest, { params }: Params) {
       if (key in data) data[key] = val
     }
 
+    // Reconcile the validator's null-permissive output with the schema's
+    // NOT NULL columns. The validator allows null for every Int field
+    // (the UI clears them to "" for "no value"), but `price`, `totalSpots`,
+    // and `spotsLeft` are NOT NULL in the schema — passing null straight
+    // through made prisma.event.update() throw
+    // "Argument `price` must not be null" 22 times in the recent log when
+    // a free event got edited.
+    //   - price: null → 0 (free event is the natural meaning of "no price")
+    //   - totalSpots / spotsLeft: null → drop from the update (no change),
+    //     since these have no schema default a "0" coercion would corrupt
+    //     capacity.
+    if (data.price === null) data.price = 0
+    if (data.totalSpots === null) delete data.totalSpots
+    if (data.spotsLeft  === null) delete data.spotsLeft
+
     // Cross-field checks.
     const N = (x: unknown) => typeof x === 'number' ? x : null
     if (N(data.minAge) !== null && N(data.maxAge) !== null && (data.maxAge as number) < (data.minAge as number)) {

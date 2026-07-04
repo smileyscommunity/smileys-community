@@ -8,6 +8,7 @@ import { rateLimit, getIp } from '@/lib/rateLimit'
 import { verifyTurnstile } from '@/lib/turnstile'
 import { hashToken } from '@/lib/tokenHash'
 import { getPostHogClient, trackServer } from '@/lib/posthog-server'
+import { formatName } from '@/lib/data'
 
 const COLORS = ['#f472b6','#60a5fa','#fbbf24','#f87171','#fb923c','#e879f9','#34d399','#a78bfa','#22d3ee','#4ade80']
 
@@ -22,7 +23,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Human verification failed. Please try again.' }, { status: 400 })
     }
 
-    if (!name || !email || !password || !phone || !nationality || !languages?.length || !interests?.length) {
+    if (!name || !name.trim() || !email || !password || !phone || !nationality || !languages?.length || !interests?.length) {
       return NextResponse.json({ error: 'All fields are required' }, { status: 400 })
     }
     // A4 fix: 12-char min. NIST + modern guidance moved past 8
@@ -104,7 +105,7 @@ export async function POST(req: NextRequest) {
     const langsFromReg = Array.isArray(languages) ? languages : []
     const user = await prisma.user.create({
       data: {
-        name:         name.trim(),
+        name:         formatName(name),
         email:        normalizedEmail,
         password:     hashed,
         color,

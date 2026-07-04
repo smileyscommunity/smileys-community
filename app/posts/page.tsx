@@ -49,15 +49,15 @@ export default async function PostsPage() {
   return (
     <main className="min-h-screen bg-warm">
       {/* Hero */}
-      <section className="bg-gradient-to-b from-amber-50/40 to-white border-b border-gray-100">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase mb-6">
-            <span aria-hidden="true">✦</span> Community Articles
+      <section className="bg-white border-b border-gray-100">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-6">
+          <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">
+            📰 Community Articles
           </span>
-          <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 tracking-tight mb-4">
-            Stories & guides
+          <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 tracking-tight">
+            Stories &amp; guides
           </h1>
-          <p className="text-lg text-gray-600 max-w-xl">
+          <p className="text-base text-gray-600 mt-1 max-w-xl">
             Club spotlights, event recaps, Istanbul guides, and tips for making the most of Smileys.
           </p>
         </div>

@@ -95,6 +95,7 @@ export async function GET(req: NextRequest, { params }: Params) {
     content:   p.content,
     type:      p.type,
     createdAt: p.createdAt,
+    editedAt:  p.editedAt,
     isPinned:  p.isPinned,
     author:    buildAuthor(p.user),
     reactions: buildReactions(p.likes, session?.id).reactions,

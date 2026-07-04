@@ -132,9 +132,9 @@ export default async function HangoutPermalinkPage({ params }: PageProps) {
                 {hangout.neighborhood && <span className="text-gray-600"> · {hangout.neighborhood}</span>}
               </p>
               <p>🕒 <span className="font-medium">
-                {hangout.startsAt.toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                {hangout.startsAt.toLocaleString('en-GB', { timeZone: 'Europe/Istanbul', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                 {' – '}
-                {hangout.endsAt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                {hangout.endsAt.toLocaleTimeString('en-GB', { timeZone: 'Europe/Istanbul', hour: '2-digit', minute: '2-digit' })}
               </span></p>
             </div>
 
@@ -185,7 +185,7 @@ export default async function HangoutPermalinkPage({ params }: PageProps) {
                     <div className="flex-1 min-w-0">
                       <p className="text-xs">
                         <span className="font-semibold text-gray-900">{m.user.name}</span>
-                        <span className="text-gray-400"> · {m.createdAt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
+                        <span className="text-gray-400"> · {m.createdAt.toLocaleTimeString('en-GB', { timeZone: 'Europe/Istanbul', hour: '2-digit', minute: '2-digit' })}</span>
                       </p>
                       <p className="text-sm text-gray-800 whitespace-pre-wrap">{m.body}</p>
                     </div>

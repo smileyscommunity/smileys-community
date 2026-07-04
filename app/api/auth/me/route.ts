@@ -3,6 +3,7 @@ import { headers } from 'next/headers'
 import { getSession, createSession, deleteSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import { isClubHost } from '@/lib/access'
+import { formatName } from '@/lib/data'
 
 // Pull userAgent + IP from the inbound request when /me has no NextRequest
 // argument (GET). Same shape as lib/rateLimit.ts getIp — kept inline to
@@ -132,6 +133,13 @@ export async function PATCH(req: NextRequest) {
     // Length limits
     if (data.name && String(data.name).length > 100)
       return NextResponse.json({ error: 'Name too long' }, { status: 400 })
+    if (typeof data.name === 'string') {
+      data.name = formatName(data.name)
+      // formatName trims + collapses whitespace, so a blank/whitespace-only
+      // submission normalises to '' — reject it rather than persist an empty
+      // name that breaks initials/avatars downstream.
+      if (!data.name) return NextResponse.json({ error: 'Name is required' }, { status: 400 })
+    }
     if (data.bio && String(data.bio).length > 1000)
       return NextResponse.json({ error: 'Bio too long' }, { status: 400 })
     if (data.instagram && String(data.instagram).length > 100)

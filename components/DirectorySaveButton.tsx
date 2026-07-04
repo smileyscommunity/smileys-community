@@ -2,8 +2,12 @@
 
 // Star/save toggle on each directory card. Optimistic toggle, rolls
 // back on a !ok response so the UI doesn't drift from the server.
+// Anon viewers are bounced to /login on click — the directory index
+// is public for SEO so this button renders for guests too.
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useAuth } from '@/contexts/AuthContext'
 import { toast } from 'sonner'
 
 export default function DirectorySaveButton({
@@ -13,11 +17,17 @@ export default function DirectorySaveButton({
   businessName: string
   initialSaved: boolean
 }) {
+  const router = useRouter()
+  const { isLoggedIn } = useAuth()
   const [saved, setSaved] = useState(initialSaved)
   const [busy,  setBusy]  = useState(false)
 
   async function toggle(e: React.MouseEvent) {
     e.stopPropagation()
+    if (!isLoggedIn) {
+      router.push(`/login?return=/directory/${businessId}`)
+      return
+    }
     if (busy) return
     setBusy(true)
     const next = !saved

@@ -62,15 +62,18 @@ interface TextareaProps {
   style?: React.CSSProperties
   doAutoResize?: boolean
   autoFocus?: boolean
+  // Optional external handle on the underlying textarea (e.g. for a
+  // formatting toolbar that wraps the live selection in markdown).
+  innerRef?: React.MutableRefObject<HTMLTextAreaElement | null>
 }
 
 export default function MentionTextarea({
   value, onChange, onKeyDown,
-  placeholder, rows, maxLength, className, disabled, style, doAutoResize, autoFocus,
+  placeholder, rows, maxLength, className, disabled, style, doAutoResize, autoFocus, innerRef,
 }: TextareaProps) {
   const [suggestions, setSuggestions] = useState<Member[]>([])
   const [activeIdx, setActiveIdx]     = useState(0)
-  const taRef   = useRef<HTMLTextAreaElement>(null)
+  const taRef   = useRef<HTMLTextAreaElement | null>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
   const timer   = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -142,7 +145,7 @@ export default function MentionTextarea({
 
   return (
     <div ref={wrapRef} className="relative">
-      <textarea ref={taRef} value={value} onChange={handleChange} onKeyDown={handleKeyDown}
+      <textarea ref={el => { taRef.current = el; if (innerRef) innerRef.current = el }} value={value} onChange={handleChange} onKeyDown={handleKeyDown}
         placeholder={placeholder} rows={rows} maxLength={maxLength}
         className={className} disabled={disabled} style={style} autoFocus={autoFocus}
       />

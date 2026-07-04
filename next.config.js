@@ -3,6 +3,14 @@ const { withSentryConfig } = require('@sentry/nextjs')
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   basePath: '/app',
+  experimental: {
+    // Next's default 10MB middleware body cap made oversized photo uploads
+    // die as "Failed to parse body as FormData" 500s before the upload
+    // route's own 5MB check could return a clean error. 20mb matches
+    // nginx's client_max_body_size so nginx stays the outer limit and
+    // every oversized upload gets an actionable message from our code.
+    middlewareClientMaxBodySize: '20mb',
+  },
   images: {
     remotePatterns: [
       {

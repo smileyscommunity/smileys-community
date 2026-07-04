@@ -6,8 +6,24 @@ import * as Sentry from '@sentry/nextjs'
 export default function Error({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
     Sentry.captureException(error)
-    // Stale chunk after a deploy — hard reload to pick up new bundles
-    if (error?.message?.includes('Cannot find module') || error?.message?.includes('ChunkLoadError') || error?.message?.includes('Loading chunk')) {
+    // Stale chunk after a deploy — the cached client bundle references a
+    // module ID that the new server build doesn't ship, so webpack-runtime
+    // throws on the missing factory. Auto-reload pulls fresh bundles
+    // instead of leaving the user on "Something went wrong" until they
+    // manually hard-refresh. Patterns observed in prod:
+    //   - "Cannot find module" / "ChunkLoadError" / "Loading chunk"
+    //   - "Cannot read properties of undefined (reading 'call')" from
+    //     webpack-runtime.js — same root cause surfaced differently when
+    //     a server component references a chunk that vanished from the
+    //     new build (the digest in pm2 logs is the giveaway).
+    const msg = error?.message ?? ''
+    const stack = error?.stack ?? ''
+    const isStaleChunk =
+      msg.includes('Cannot find module') ||
+      msg.includes('ChunkLoadError') ||
+      msg.includes('Loading chunk') ||
+      (msg.includes("Cannot read properties of undefined (reading 'call')") && stack.includes('webpack-runtime'))
+    if (isStaleChunk) {
       window.location.reload()
     }
   }, [error])

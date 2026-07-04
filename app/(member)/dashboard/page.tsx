@@ -38,7 +38,9 @@ function getGreeting() {
   const hour = Number(new Intl.DateTimeFormat('en-US', {
     timeZone: 'Europe/Istanbul',
     hour:     'numeric',
-    hour12:   false,
+    // hourCycle 'h23' — hour12:false can render midnight as "24", which
+    // would fall through to "Good evening" at midnight instead of morning.
+    hourCycle: 'h23',
   }).format(new Date()))
   if (hour < 12) return 'Good morning'
   if (hour < 17) return 'Good afternoon'

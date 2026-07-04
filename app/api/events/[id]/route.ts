@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getEventById } from '@/lib/db'
+import { getEventById, redactEventForGuest } from '@/lib/db'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import { isAdminOrModerator } from '@/lib/access'
@@ -10,6 +10,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!event) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const session = await getSession()
+
+  // Logged-out viewers get the public teaser — also hides GPS + attendee
+  // identities, matching the list endpoint's guest projection.
+  if (!session) {
+    return NextResponse.json(redactEventForGuest(event))
+  }
 
   // The private venue address + chat/meeting links are the payoff of being
   // approved for the event — they must NOT leak to logged-in members who

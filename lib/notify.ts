@@ -8,6 +8,10 @@ const PREF_KEY: Record<string, 'newEvents' | 'reminders' | 'eventUpdates' | 'joi
   reminder_2h:       'reminders',
   event_updated:     'eventUpdates',
   attendee_joined:   'joinedEvents',
+  event_message:     'joinedEvents',
+  // Photos added to an event you attended — same "activity on my event"
+  // signal class as messages, so the same preference gates it.
+  event_photos:      'joinedEvents',
   review_request:    'reminders',
   // transactional — always deliver:
   rsvp:               null,
@@ -102,6 +106,28 @@ export async function createNotification(
         await prisma.notification.update({
           where: { id: existing.id },
           data: { title: `${count} people joined your event`, body: `${count} people have joined "${eventName}"` },
+        })
+        return
+      }
+    }
+
+    // Bundle event_photos within 6 hours — a post-event upload burst
+    // becomes one evolving notification per attendee, not one ping per
+    // photo. Only the first photo triggers a push (same trade-off as
+    // the attendee_joined bundling above).
+    if (type === 'event_photos' && link) {
+      const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000)
+      const existing = await prisma.notification.findFirst({
+        where: { userId, type: 'event_photos', link, isRead: false, createdAt: { gte: sixHoursAgo } },
+        orderBy: { createdAt: 'desc' },
+      })
+      if (existing) {
+        const match = existing.title.match(/(\d+) new photos/)
+        const count = match ? parseInt(match[1]) + 1 : 2
+        const eventName = existing.body.match(/"(.+)"/)?.[1] ?? 'an event you attended'
+        await prisma.notification.update({
+          where: { id: existing.id },
+          data: { title: `📸 ${count} new photos`, body: `${count} photos were added to "${eventName}"` },
         })
         return
       }

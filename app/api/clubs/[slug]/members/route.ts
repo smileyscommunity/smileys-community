@@ -52,7 +52,7 @@ export async function GET(req: NextRequest, { params }: Params) {
 
   const [memberships, connections] = await Promise.all([
     prisma.clubMembership.findMany({
-      where: { clubId: club.id, status: 'approved', user: { status: { not: 'banned' } } },
+      where: { clubId: club.id, status: 'approved', user: { status: { not: 'banned' }, hiddenFromMembers: false } },
       orderBy: [{ role: 'desc' }, { joinedAt: 'asc' }],
       select: {
         role: true,

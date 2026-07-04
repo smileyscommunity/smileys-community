@@ -197,7 +197,12 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
       <script
         type="application/ld+json"
         // eslint-disable-next-line react/no-danger
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(ld) }}
+        // Escape so member-submitted business fields (name/description/address)
+        // can't break out of the <script> block — a "</script><script>…"
+        // payload would otherwise be stored XSS. Same escaping as the events page.
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(ld).replace(/</g, '\\u003c'),
+        }}
       />
 
       {/* Hero cover */}

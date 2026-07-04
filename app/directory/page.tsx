@@ -78,6 +78,7 @@ interface Business {
 // Claim state arrives as a prop (server-batched at the directory query
 // level) so we don't need a per-card /api/.../claim fetch on mount.
 function ClaimWidget({ b }: { b: Business }) {
+  const { isLoggedIn } = useAuth()
   const [state,   setState]   = useState(b.myClaimStatus)
   const [open,    setOpen]    = useState(false)
   const [message, setMessage] = useState('')
@@ -87,6 +88,10 @@ function ClaimWidget({ b }: { b: Business }) {
   // the business name (see BusinessCard) so it sits with the title
   // rather than as a CTA-shaped block at the bottom.
   if (b.hasClaimedOwner) return null
+  // Guests can browse the directory but claiming requires a signed-in
+  // account (the POST endpoint is gated). Hide the chip rather than
+  // tease then 401.
+  if (!isLoggedIn) return null
 
   if (state === 'pending') {
     return <p className="text-xs text-amber-600 italic">Claim pending review</p>
@@ -480,7 +485,7 @@ function DirectoryPageInner() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-0">
           <div className="flex flex-col sm:flex-row sm:items-start gap-4 mb-6">
             <div className="flex-1">
-              <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">Discover</span>
+              <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">🧭 Discover</span>
               <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">Directory</h1>
               {!loading && (
                 <p className="text-base text-gray-600 mt-1">
@@ -516,9 +521,9 @@ function DirectoryPageInner() {
                   </button>
                 ))}
               </div>
-              <Link href="/directory/submit"
+              <Link href={isLoggedIn ? '/directory/submit' : '/login?return=/directory/submit'}
                 className="shrink-0 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors">
-                + Submit
+                {isLoggedIn ? '+ Submit' : 'Sign in to submit'}
               </Link>
             </div>
           </div>
@@ -546,13 +551,16 @@ function DirectoryPageInner() {
           <div className="relative">
             <div className="flex gap-2 pb-4 overflow-x-auto scrollbar-hide">
             {/* Saved-only quick link → personal /directory/saved sub-page
-                (bookmarkable + shareable). */}
-            <Link
-              href="/directory/saved"
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold border whitespace-nowrap bg-amber-500 text-white border-amber-500 hover:bg-amber-600 hover:border-amber-600 transition-all"
-            >
-              ★ Saved
-            </Link>
+                (bookmarkable + shareable). Member-only — guests don't have
+                anything to show there. */}
+            {isLoggedIn && (
+              <Link
+                href="/directory/saved"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold border whitespace-nowrap bg-amber-500 text-white border-amber-500 hover:bg-amber-600 hover:border-amber-600 transition-all"
+              >
+                ★ Saved
+              </Link>
+            )}
 
             {/* Sort pill — toggles between Recent (default) and Trending
                 (last 7 days by save count). Sits at the front of the
@@ -630,9 +638,9 @@ function DirectoryPageInner() {
                   Clear filters
                 </button>
               )}
-              <Link href="/directory/submit"
+              <Link href={isLoggedIn ? '/directory/submit' : '/login?return=/directory/submit'}
                 className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors">
-                Submit a Business
+                {isLoggedIn ? 'Submit a Business' : 'Sign in to submit'}
               </Link>
             </div>
           </div>
