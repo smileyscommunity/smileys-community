@@ -51,19 +51,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
     }
 
-    // Account lockout check. A3 fix: the message used to read
-    // "Account locked due to too many failed attempts" which
-    // confirmed the email belonged to a real account. An attacker
-    // who probed past the 10-attempt threshold got a free yes/no
-    // answer on whether each email was registered. Now we return
-    // the same generic 429 we use for the IP-level rate limit so
-    // the two states are indistinguishable from the outside.
-    if (user.loginLockedUntil && user.loginLockedUntil > new Date()) {
-      return NextResponse.json({ error: 'Too many attempts. Try again later.' }, { status: 429 })
-    }
-
+    // Verify the password FIRST, then enforce lockout only on a WRONG guess
+    // (below). A correct password always succeeds even while "locked" — this
+    // closes a lockout-DoS: an attacker who knows a victim's email could
+    // otherwise submit 10 wrong passwords (rotating IPs) to lock the real
+    // owner out for an hour. Brute-force protection is unchanged: after 10
+    // failures, further wrong attempts are rejected for an hour, capping
+    // online guessing at ~10/hour/account.
     const valid = await bcrypt.compare(password, user.password)
     if (!valid) {
+      // Locked → reject further wrong guesses. Same generic 429 as the IP
+      // limit (A3 fix: a distinct "account locked" message would confirm the
+      // email is registered). Does NOT increment while locked, so the counter
+      // can't run away.
+      if (user.loginLockedUntil && user.loginLockedUntil > new Date()) {
+        return NextResponse.json({ error: 'Too many attempts. Try again later.' }, { status: 429 })
+      }
       const newCount = (user.failedLoginCount ?? 0) + 1
       const lockUntil = newCount >= 10 ? new Date(Date.now() + 60 * 60_000) : null
       await prisma.user.update({
