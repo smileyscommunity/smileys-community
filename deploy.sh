@@ -128,6 +128,11 @@ ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-availability-pulses.sh && (crontab
 echo "→ Registering login-nudge sweeper crontab..."
 ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-login-nudge.sh && (crontab -l 2>/dev/null | grep -v 'sweep-login-nudge' ; echo '0 7 * * * $REMOTE/scripts/sweep-login-nudge.sh >> /var/log/sweep-login-nudge.log 2>&1') | crontab -"
 
+# Daily DB backup — 02:00 UTC (05:00 Istanbul), low-traffic window. Dumps to
+# /root/db-backups (outside the repo so rsync --delete can't wipe it), keeps 14.
+echo "→ Registering daily DB backup crontab..."
+ssh "$SERVER" "chmod +x $REMOTE/scripts/db-backup.sh && (crontab -l 2>/dev/null | grep -v 'db-backup' ; echo '0 2 * * * $REMOTE/scripts/db-backup.sh >> /var/log/db-backup.log 2>&1') | crontab -"
+
 echo "→ Seeding Smileys Cup 2026 fixtures..."
 ssh "$SERVER" "cd $REMOTE && npx tsx --env-file=.env scripts/seed-cup.ts"
 
