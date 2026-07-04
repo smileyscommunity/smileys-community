@@ -32,6 +32,7 @@ interface Analytics {
     topHostsOfPeriod:  { id: string; name: string; color: string; profilePhoto: string | null; count: number }[]
   }
   funnel:  { applications: number; approved: number; firstEvent: number; repeat: number }
+  firstEventMatcher: { shown: number; clicked: number; rsvped: number; attended: number; clickRate: number; rsvpRate: number; baselineRsvpRate: number }
   cohorts: { cohort: string; size: number; within30Pct: number; within90Pct: number; everPct: number }[]
   hostPipeline: {
     pending:          number
@@ -573,6 +574,64 @@ function AnalyticsInner() {
                       </div>
                     )
                   })
+                })()}
+              </div>
+            </section>
+          )}
+
+          {/* ── "Your First Event" matcher ──────────────────────────────────
+              Attribution funnel for the newcomer recommendation block. The
+              headline is rec→RSVP rate vs. the signed-in→RSVP baseline: green
+              means seeing a rec beats the baseline. Hidden until it's shown to
+              anyone. Attended is host-recorded check-ins → treat as a floor. */}
+          {data.firstEventMatcher.shown > 0 && (
+            <section>
+              <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3">First-event matcher</h2>
+              <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5 space-y-4">
+                {(() => {
+                  const m = data.firstEventMatcher
+                  const beatsBaseline = m.rsvpRate >= m.baselineRsvpRate
+                  const stages = [
+                    { label: 'Shown a rec', value: m.shown,    color: '#a78bfa', prev: m.shown },
+                    { label: 'Clicked',     value: m.clicked,  color: '#60a5fa', prev: m.shown },
+                    { label: 'RSVP’d',      value: m.rsvped,   color: '#f59e0b', prev: m.shown },
+                    { label: 'Attended',    value: m.attended, color: '#34d399', prev: m.rsvped },
+                  ]
+                  const top = stages[0].value || 1
+                  return (
+                    <>
+                      {/* Headline: rec→RSVP vs baseline */}
+                      <div className="flex items-baseline justify-between">
+                        <span className="text-xs font-semibold text-zinc-300">Rec → RSVP rate</span>
+                        <div className="flex items-baseline gap-2">
+                          <span className={`text-lg font-extrabold ${beatsBaseline ? 'text-green-400' : 'text-amber-400'}`}>{m.rsvpRate}%</span>
+                          <span className="text-xs text-zinc-500">vs {m.baselineRsvpRate}% baseline</span>
+                          <span className={`text-xs font-bold ${beatsBaseline ? 'text-green-400' : 'text-red-400'}`}>
+                            {beatsBaseline ? '▲' : '▼'} {Math.abs(Math.round((m.rsvpRate - m.baselineRsvpRate) * 10) / 10)}pt
+                          </span>
+                        </div>
+                      </div>
+                      {stages.map((s, i) => {
+                        const widthPct = Math.round((s.value / top) * 100)
+                        const convPct  = s.prev > 0 ? Math.round((s.value / s.prev) * 100) : 0
+                        return (
+                          <div key={s.label}>
+                            <div className="flex items-baseline justify-between mb-1">
+                              <span className="text-xs font-semibold text-zinc-300">{s.label}</span>
+                              <div className="flex items-baseline gap-2">
+                                <span className="text-sm font-bold text-white">{s.value.toLocaleString()}</span>
+                                {i > 0 && <span className="text-xs font-bold text-zinc-400">({convPct}%)</span>}
+                              </div>
+                            </div>
+                            <div className="h-3 bg-zinc-800 rounded-full overflow-hidden">
+                              <div className="h-full rounded-full transition-all" style={{ width: `${Math.max(widthPct, 2)}%`, backgroundColor: s.color }} />
+                            </div>
+                          </div>
+                        )
+                      })}
+                      <p className="text-[11px] text-zinc-500 pt-1">Since launch · distinct members · attended = host check-ins (a floor)</p>
+                    </>
+                  )
                 })()}
               </div>
             </section>

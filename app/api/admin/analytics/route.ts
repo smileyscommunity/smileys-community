@@ -444,6 +444,34 @@ export async function GET(req: NextRequest) {
       repeat:       repeatRsvpData.filter(r => r._count.userId > 1).length,
     }
 
+    // ── "Your First Event" matcher funnel ─────────────────────────────────────
+    // Attribution for the newcomer recommendation block. Distinct members
+    // shown a rec → clicked → RSVP'd (all-time since launch). rsvpRate is the
+    // headline: does seeing a rec convert to RSVP above the signed-in→RSVP
+    // baseline (~45%)? attended joins host-recorded check-ins, so treat it as
+    // a floor, not an exact count. Separate queries — the main Promise.all is
+    // already at TS's inference ceiling.
+    const [femShown, femClicked, femRsvped] = await Promise.all([
+      prisma.eventRecommendation.findMany({ distinct: ['userId'], select: { userId: true } }),
+      prisma.eventRecommendation.findMany({ where: { clickedAt: { not: null } }, distinct: ['userId'], select: { userId: true } }),
+      prisma.eventRecommendation.findMany({ where: { rsvpedAt:  { not: null } }, distinct: ['userId'], select: { userId: true } }),
+    ])
+    const femAttendedRows = await prisma.$queryRaw<{ n: bigint }[]>`
+      SELECT count(DISTINCT r."userId") AS n
+      FROM event_recommendations r
+      JOIN event_attendees a
+        ON a."userId" = r."userId" AND a."eventId" = r."eventId" AND a."checkedIn" = true`
+    const femShownCount = femShown.length
+    const firstEventMatcher = {
+      shown:            femShownCount,
+      clicked:          femClicked.length,
+      rsvped:           femRsvped.length,
+      attended:         Number(femAttendedRows[0]?.n ?? 0),
+      clickRate:        femShownCount ? Math.round((femClicked.length / femShownCount) * 1000) / 10 : 0,
+      rsvpRate:         femShownCount ? Math.round((femRsvped.length  / femShownCount) * 1000) / 10 : 0,
+      baselineRsvpRate: 45.1,
+    }
+
     // ── Cohort retention ─────────────────────────────────────────────────────
     // Group approved members by joinedAt month. Cohort count scales with the
     // period selector: 30d=1 cohort, 90d=3, 6m=6, 12m=12. For each cohort:
@@ -628,6 +656,7 @@ export async function GET(req: NextRequest) {
           .sort((a, b) => b.approved - a.approved)
       })(),
       funnel,
+      firstEventMatcher,
       cohorts,
       // Health / moderation velocity — fleshes out the previously-thin Health
       // tab. Mean time to action is the headline mod-efficiency metric;
