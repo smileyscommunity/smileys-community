@@ -96,6 +96,7 @@ function mapEvent(e: any, spotsLeft?: number): Event {
     featured:         e.featured         ?? false,
     genderBalance:    e.genderBalance    ?? false,
     maleQuota:        e.maleQuota        ?? null,
+    femaleQuota:      e.femaleQuota      ?? null,
     turkishMaleQuota: e.turkishMaleQuota ?? null,
     isRecurring:      e.isRecurring ?? false,
     isFirstTimerFriendly: e.isFirstTimerFriendly ?? false,

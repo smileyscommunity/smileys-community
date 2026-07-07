@@ -125,6 +125,7 @@ export interface Event {
   approvalRequired?: boolean
   genderBalance?: boolean
   maleQuota?: number | null
+  femaleQuota?: number | null
   turkishMaleQuota?: number | null
   status?: string
   address?: string
