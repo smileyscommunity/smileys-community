@@ -72,17 +72,19 @@ export default function CommandPalette() {
   const isHost  = user?.isClubHost === true
 
   const staticCommands: Cmd[] = [
+    // Two visible clusters: "Navigate" is discovery (browse the
+    // community), "You" is personal (your own stuff, hub first).
     { id: 'events',        label: 'Events',        hint: 'Browse upcoming events',     icon: '📅', group: 'Navigate', action: () => go('/events')        },
     { id: 'clubs',         label: 'Clubs',          hint: 'Explore clubs',              icon: '🏛️', group: 'Navigate', action: () => go('/clubs')         },
     { id: 'members',       label: 'Members',        hint: 'Discover the community',     icon: '👥', group: 'Navigate', action: () => go('/members')       },
     { id: 'hangouts',      label: 'Hangouts',       hint: 'Live meetups happening now',  icon: '🤝', group: 'Navigate', action: () => go('/hangouts')      },
     { id: 'board',         label: 'Board',          hint: 'Rooms, jobs & more',         icon: '📋', group: 'Navigate', action: () => go('/listings')      },
     { id: 'directory',     label: 'Directory',      hint: 'Local businesses & services', icon: '🏢', group: 'Navigate', action: () => go('/directory')     },
-    { id: 'my-events',     label: 'My Events',      hint: 'Your events & QR codes',     icon: '🎟️', group: 'Navigate', action: () => go('/my-events')     },
-    { id: 'messages',      label: 'Messages',       hint: 'Direct messages',            icon: '💬', group: 'Navigate', action: () => go('/messages')      },
-    { id: 'notifications', label: 'Notifications',  hint: 'Your notifications',         icon: '🔔', group: 'Navigate', action: () => go('/notifications') },
-    { id: 'dashboard',     label: 'Dashboard',      hint: 'Your personal dashboard',    icon: '⬛', group: 'Navigate', action: () => go('/dashboard')     },
-    { id: 'profile',       label: 'Profile',        hint: 'Edit your profile',          icon: '👤', group: 'Navigate', action: () => go('/profile')       },
+    { id: 'dashboard',     label: 'Dashboard',      hint: 'Your personal dashboard',    icon: '⬛', group: 'You', action: () => go('/dashboard')     },
+    { id: 'my-events',     label: 'My Events',      hint: 'Your events & QR codes',     icon: '🎟️', group: 'You', action: () => go('/my-events')     },
+    { id: 'messages',      label: 'Messages',       hint: 'Direct messages',            icon: '💬', group: 'You', action: () => go('/messages')      },
+    { id: 'notifications', label: 'Notifications',  hint: 'Your notifications',         icon: '🔔', group: 'You', action: () => go('/notifications') },
+    { id: 'profile',       label: 'Profile',        hint: 'Edit your profile',          icon: '👤', group: 'You', action: () => go('/profile')       },
 
     ...(isAdmin ? [
       { id: 'a-dash',         label: 'Admin Dashboard',  hint: 'Overview & stats',           icon: '⬛', group: 'Admin', action: () => go('/admin')                      },
