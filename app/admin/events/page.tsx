@@ -9,8 +9,8 @@ import { useAdminLoad } from '@/lib/admin/useAdminLoad'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import NotifyAttendeesModal from '@/components/admin/NotifyAttendeesModal'
 
-type TabKey = 'all' | 'upcoming' | 'pending' | 'archived'
-const TAB_KEYS: TabKey[] = ['all', 'upcoming', 'pending', 'archived']
+type TabKey = 'all' | 'upcoming' | 'pending' | 'cancelled' | 'archived'
+const TAB_KEYS: TabKey[] = ['all', 'upcoming', 'pending', 'cancelled', 'archived']
 
 interface AdminEvent {
   id: string; title: string; date: string; time: string; emoji: string
@@ -442,9 +442,10 @@ function AdminEventsPageInner() {
 
   const visible = useMemo(() => {
     const filtered = baseFiltered.filter(e => {
-      if (tabStatus === 'upcoming') return isUpcoming(e)
-      if (tabStatus === 'archived') return e.status === 'archived'
-      if (tabStatus === 'pending')  return e.status === 'pending'
+      if (tabStatus === 'upcoming')  return isUpcoming(e)
+      if (tabStatus === 'archived')  return e.status === 'archived'
+      if (tabStatus === 'pending')   return e.status === 'pending'
+      if (tabStatus === 'cancelled') return e.status === 'cancelled'
       return true  // 'all'
     })
     // Upcoming: soonest first. Past/All: latest first.
@@ -452,10 +453,11 @@ function AdminEventsPageInner() {
     return [...filtered].sort((a, b) => b.date.localeCompare(a.date))
   }, [baseFiltered, tabStatus, isUpcoming])
 
-  const { upcomingCount, pendingCount, archivedCount } = useMemo(() => ({
-    upcomingCount: baseFiltered.filter(isUpcoming).length,
-    pendingCount:  baseFiltered.filter(e => e.status === 'pending').length,
-    archivedCount: baseFiltered.filter(e => e.status === 'archived').length,
+  const { upcomingCount, pendingCount, cancelledCount, archivedCount } = useMemo(() => ({
+    upcomingCount:  baseFiltered.filter(isUpcoming).length,
+    pendingCount:   baseFiltered.filter(e => e.status === 'pending').length,
+    cancelledCount: baseFiltered.filter(e => e.status === 'cancelled').length,
+    archivedCount:  baseFiltered.filter(e => e.status === 'archived').length,
   }), [baseFiltered, isUpcoming])
 
   return (
@@ -489,10 +491,11 @@ function AdminEventsPageInner() {
             // Tab counts mirror the active search / club / date filters
             // — same fix as /admin/users. The 'All' count reads from the
             // search-narrowed baseFiltered, not the raw fetch.
-            { key: 'all',      label: 'All',      count: baseFiltered.length },
-            { key: 'upcoming', label: 'Upcoming', count: upcomingCount       },
-            { key: 'pending',  label: 'Pending',  count: pendingCount        },
-            { key: 'archived', label: 'Past',     count: archivedCount       },
+            { key: 'all',       label: 'All',       count: baseFiltered.length },
+            { key: 'upcoming',  label: 'Upcoming',  count: upcomingCount       },
+            { key: 'pending',   label: 'Pending',   count: pendingCount        },
+            { key: 'cancelled', label: 'Cancelled', count: cancelledCount      },
+            { key: 'archived',  label: 'Past',      count: archivedCount       },
           ] as const).map(tab => (
             <button key={tab.key} onClick={() => setTabStatus(tab.key)}
               className={`shrink-0 px-3 py-2 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
