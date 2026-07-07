@@ -98,6 +98,7 @@ function mapEvent(e: any, spotsLeft?: number): Event {
     maleQuota:        e.maleQuota        ?? null,
     turkishMaleQuota: e.turkishMaleQuota ?? null,
     isRecurring:      e.isRecurring ?? false,
+    isFirstTimerFriendly: e.isFirstTimerFriendly ?? false,
     seriesId:         e.seriesId    ?? null,
     hostId:           e.hostId,
     hostName:         '',

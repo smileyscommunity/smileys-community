@@ -143,6 +143,7 @@ export interface Event {
   endTime?: string | null
   cancelReason?: string | null
   isRecurring?: boolean
+  isFirstTimerFriendly?: boolean
   seriesId?: string | null
   featured?: boolean
   attendeePreviews?: { id: string; name: string; color: string; profilePhoto?: string | null }[]
