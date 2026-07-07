@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma'
 import { resolveImageUrl, avatarUrl } from '@/lib/data'
 import { APP_URL, SITE_URL } from '@/lib/env'
 import { sanitize } from '@/lib/sanitize'
+import ArticleInlineEditor from '@/components/ArticleInlineEditor'
 
 const getPost = unstable_cache(
   async (slug: string) => prisma.post.findUnique({
@@ -144,6 +145,17 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
 
       {/* Article */}
       <article className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+       <ArticleInlineEditor
+         postId={post.id}
+         initial={{
+           title:      post.title,
+           excerpt:    post.excerpt ?? '',
+           body:       post.body,
+           category:   post.category,
+           status:     post.status,
+           coverImage: post.coverImage,
+         }}
+       >
         {/* Meta */}
         <div className="flex items-center gap-2 mb-4">
           <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${categoryColors[post.category] ?? 'bg-gray-100 text-gray-600'}`}>
@@ -181,6 +193,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
         <div className="prose-like">
           {renderBody(post.body)}
         </div>
+       </ArticleInlineEditor>
 
         {/* CTA */}
         <div className="mt-16 p-8 bg-amber-500 rounded-2xl text-center">
