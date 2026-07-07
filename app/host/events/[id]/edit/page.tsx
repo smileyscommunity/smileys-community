@@ -348,6 +348,7 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
                 </div>
               ) : (
                 <select value={form.status} onChange={e => set('status', e.target.value)} className={inputCls}>
+                  <option value="published">Published (live)</option>
                   <option value="draft">Draft</option>
                   <option value="pending">Submit for review</option>
                   <option value="postponed">Postponed</option>
