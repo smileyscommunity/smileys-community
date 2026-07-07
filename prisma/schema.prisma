@@ -861,6 +861,7 @@ model EventMessage {
   userId    String
   message   String
   createdAt DateTime @default(now())
+  editedAt  DateTime?
   event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
