@@ -502,6 +502,17 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                   </span>
                 </span>
               )}
+              {event.isFirstTimerFriendly && (
+                <span className="group/tip relative inline-flex">
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full cursor-default">
+                    👋 First-timer friendly
+                  </span>
+                  <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 invisible opacity-0 group-hover/tip:visible group-hover/tip:opacity-100 transition-opacity duration-150">
+                    <span className="block bg-gray-900 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg whitespace-nowrap shadow-lg">A welcoming, low-commitment event — perfect if it&apos;s your first time</span>
+                    <span className="block w-2 h-2 bg-gray-900 rotate-45 mx-auto -mt-1" />
+                  </span>
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-3 flex-wrap mb-4">
               <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">

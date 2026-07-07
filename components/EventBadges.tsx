@@ -3,7 +3,7 @@
 import type { Event } from '@/lib/data'
 
 interface Props {
-  event: Pick<Event, 'membersOnly' | 'isPremium' | 'genderBalance'>
+  event: Pick<Event, 'membersOnly' | 'isPremium' | 'genderBalance' | 'isFirstTimerFriendly'>
   urgency?: { label: string; bg: string; text: string; pulse: boolean } | null
   className?: string
 }
@@ -39,6 +39,11 @@ export default function EventBadges({ event, urgency, className = '' }: Props) {
       {event.genderBalance && (
         <Tip text="Spots split equally between men & women for a balanced mix">
           <span className="badge bg-pink-500 text-white gap-1 shadow-sm">⚖️ Gender balanced</span>
+        </Tip>
+      )}
+      {event.isFirstTimerFriendly && (
+        <Tip text="A welcoming, low-commitment event — perfect if it's your first time">
+          <span className="badge bg-emerald-500 text-white gap-1 shadow-sm">👋 First-timer friendly</span>
         </Tip>
       )}
       {urgency && (
