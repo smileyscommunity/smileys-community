@@ -70,6 +70,11 @@ posthog.init(process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN!, {
   api_host: '/app/ingest',
   ui_host: 'https://eu.posthog.com',
   defaults: '2026-01-30',
+  // Turn on PostHog Error Tracking (exception autocapture). Unhandled errors and
+  // promise rejections become $exception events auto-linked to the session replay,
+  // so client-side JS errors (e.g. on the activation flow) are visible in PostHog
+  // — where the funnel + replays live — not only in Sentry.
+  capture_exceptions: true,
 })
 
 export const onRouterTransitionStart = Sentry.captureRouterTransitionStart
