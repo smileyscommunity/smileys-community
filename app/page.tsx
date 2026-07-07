@@ -196,11 +196,13 @@ export default async function HomePage() {
                 Free to join · Applications reviewed by hand in 2–3 days · Pay only for events you attend
               </p>
 
-              <div className="grid grid-cols-2 gap-x-6 gap-y-8">
+              {/* One row of 4 from sm up; 2×2 only on narrow phones where
+                  four abreast would crush the labels. */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-8">
                 {stats.map((stat: { value: string; label: string }) => (
                   <div key={stat.label}>
-                    <div className="text-3xl md:text-4xl font-extrabold text-gray-900 tracking-tight">{stat.value}</div>
-                    <div className="text-sm text-gray-600 mt-1 uppercase tracking-wider font-medium">{stat.label}</div>
+                    <div className="text-2xl md:text-3xl font-extrabold text-gray-900 tracking-tight">{stat.value}</div>
+                    <div className="text-xs text-gray-600 mt-1 uppercase tracking-wider font-medium">{stat.label}</div>
                   </div>
                 ))}
               </div>
@@ -211,7 +213,10 @@ export default async function HomePage() {
                 is set (next.js#45888). The image only renders at lg+ via
                 hidden lg:block, so the unoptimized 533KB JPEG cost is
                 desktop-only. */}
-            <div className="hidden lg:block relative h-[520px] rounded-2xl overflow-hidden shadow-xl">
+            {/* -top-10 lifts the image ~40px above its centered position so
+                its top edge sits closer to the headline instead of hanging
+                low against the taller text column (stats push the center down). */}
+            <div className="hidden lg:block relative -top-10 h-[520px] rounded-2xl overflow-hidden shadow-xl">
               <Image
                 src="/app/images/hero-istanbul.jpg"
                 alt="Friends gathered on an Istanbul rooftop at sunset"
