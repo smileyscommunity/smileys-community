@@ -17,7 +17,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id } = await params
   const today = todayIstanbul()
 
-  const [user, upcomingEvents, connection, hangoutsHosted, hangoutsJoined, savedRow, activePulse] = await Promise.all([
+  const [user, upcomingEvents, connection, hangoutsHosted, hangoutsJoined, savedRow, activePulse, activeHangout] = await Promise.all([
     prisma.user.findFirst({
       where: { id, status: 'approved', role: { in: ['member', 'moderator', 'admin'] } },
       select: {
@@ -69,6 +69,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       where:   { userId: id, until: { gte: new Date() } },
       orderBy: { until: 'desc' },
       select:  { neighborhood: true, note: true, until: true },
+    }),
+    // Active hangout this member is hosting right now — powers a live
+    // "hosting a hangout now" badge alongside the pulse badge.
+    prisma.hangout.findFirst({
+      where:   { userId: id, status: 'active', endsAt: { gte: new Date() } },
+      orderBy: { startsAt: 'asc' },
+      select:  { id: true, title: true, neighborhood: true, startsAt: true },
     }),
   ])
 
@@ -172,6 +179,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     // non-expired availability pulse.
     activePulse: activePulse
       ? { neighborhood: activePulse.neighborhood, note: activePulse.note, until: activePulse.until }
+      : null,
+    // Live "hosting a hangout now" signal — null unless they have an active
+    // hangout that hasn't ended.
+    activeHangout: activeHangout
+      ? { id: activeHangout.id, title: activeHangout.title, neighborhood: activeHangout.neighborhood, startsAt: activeHangout.startsAt }
       : null,
   })
 }

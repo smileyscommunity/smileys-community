@@ -94,9 +94,15 @@ export async function GET(req: NextRequest) {
       { hiddenFromMembers: false },
       openFilter,
       searchFilter,
-      // "Around now" — only members with a live (non-expired) availability
-      // pulse. Uses the AvailabilityPulse back-relation on User.
-      aroundNow ? { availabilityPulses: { some: { until: { gte: new Date() } } } } : {},
+      // "Around now" — members available to meet right now: either a live
+      // (non-expired) availability pulse OR an active hangout they're hosting.
+      // Uses the AvailabilityPulse / Hangout back-relations on User.
+      aroundNow
+        ? { OR: [
+            { availabilityPulses: { some: { until: { gte: new Date() } } } },
+            { hangouts: { some: { status: 'active', endsAt: { gte: new Date() } } } },
+          ] }
+        : {},
       savedOnly && savedIds !== null
         ? { id: { in: savedIds }, status: 'approved', role: { in: roleIn } }
         : isHost

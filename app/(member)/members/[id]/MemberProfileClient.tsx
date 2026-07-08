@@ -70,6 +70,9 @@ interface MemberProfile {
   // Live availability pulse — non-null while the member is flagged as free
   // to meet up (until >= now). Powers the "🟢 Free to meet now" badge.
   activePulse?: { neighborhood: string | null; note: string | null; until: string } | null
+  // Active hangout they're hosting right now — powers the "hosting a
+  // hangout now" badge.
+  activeHangout?: { id: string; title: string; neighborhood: string | null; startsAt: string } | null
 }
 
 // Live "free to meet now" badge — shown while a member has a non-expired
@@ -91,6 +94,22 @@ function FreeNowBadge({ pulse }: { pulse: { neighborhood: string | null; note: s
       {pulse.neighborhood && <span className="font-semibold text-green-600">· {pulse.neighborhood}</span>}
       <span className="font-medium text-green-500">· {window}</span>
     </div>
+  )
+}
+
+// Live "hosting a hangout now" badge — links to the hangout. Mirrors the
+// FreeNowBadge, in a distinct amber so the two live signals don't blur.
+function HostingNowBadge({ hangout }: { hangout: { id: string; title: string; neighborhood: string | null } }) {
+  return (
+    <Link href="/hangouts"
+      className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full w-fit hover:bg-amber-100 transition-colors">
+      <span className="relative flex h-1.5 w-1.5">
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500"></span>
+      </span>
+      ☕ Hosting a hangout now
+      {hangout.neighborhood && <span className="font-semibold text-amber-600">· {hangout.neighborhood}</span>}
+    </Link>
   )
 }
 
@@ -459,6 +478,7 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
               )}
             </div>
             {member.activePulse && <FreeNowBadge pulse={member.activePulse} />}
+            {member.activeHangout && <HostingNowBadge hangout={member.activeHangout} />}
             <div className="flex flex-wrap gap-3 text-sm text-gray-600">
               {member.neighborhood && <span>📍 {member.neighborhood}</span>}
               {member.joinedAt && <span>Joined {new Date(member.joinedAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</span>}

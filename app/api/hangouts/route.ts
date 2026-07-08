@@ -179,14 +179,27 @@ export async function POST(req: NextRequest) {
       try {
         const audience = new Set<string>()
 
+        // Always reach the host's accepted connections — a friend starting a
+        // hangout is worth a ping wherever it is (previously this was only a
+        // fallback when no neighborhood was set, so connections missed
+        // neighborhood-tagged hangouts).
+        const conns = await prisma.memberConnection.findMany({
+          where:  { status: 'accepted', OR: [{ requesterId: session.id }, { receiverId: session.id }] },
+          select: { requesterId: true, receiverId: true },
+        })
+        for (const c of conns) {
+          audience.add(c.requesterId === session.id ? c.receiverId : c.requesterId)
+        }
+
+        // Plus, when the hangout names a neighborhood, the locals there and
+        // people who've joined hangouts there before ("would be interested
+        // again").
         if (safeNeighborhood) {
           const [locals, pastJoiners] = await Promise.all([
             prisma.user.findMany({
               where:  { neighborhood: safeNeighborhood, status: 'approved', id: { not: session.id } },
               select: { id: true },
             }),
-            // Distinct users who've joined any past hangout in this
-            // neighborhood — proxy for "would be interested again."
             prisma.hangoutJoin.findMany({
               where:    {
                 hangout:  { neighborhood: safeNeighborhood },
@@ -199,16 +212,6 @@ export async function POST(req: NextRequest) {
           ])
           for (const u of locals)      audience.add(u.id)
           for (const j of pastJoiners) audience.add(j.userId)
-        } else {
-          // No neighborhood → fall back to the host's accepted connections,
-          // so the hangout still reaches someone instead of nobody.
-          const conns = await prisma.memberConnection.findMany({
-            where:  { status: 'accepted', OR: [{ requesterId: session.id }, { receiverId: session.id }] },
-            select: { requesterId: true, receiverId: true },
-          })
-          for (const c of conns) {
-            audience.add(c.requesterId === session.id ? c.receiverId : c.requesterId)
-          }
         }
 
         audience.delete(session.id)
