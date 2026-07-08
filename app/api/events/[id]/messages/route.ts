@@ -151,3 +151,47 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }
+
+export async function PATCH(req: NextRequest, { params }: Params) {
+  try {
+    const session = await getSession()
+    if (!session) return NextResponse.json({ error: 'Not logged in' }, { status: 401 })
+
+    if (!await rateLimit(`event-msg:${session.id}`, 20, 60_000)) {
+      return NextResponse.json({ error: 'Too many edits' }, { status: 429 })
+    }
+
+    const { id: eventId } = await params
+    const { messageId, message } = await req.json()
+    if (!message?.trim()) return NextResponse.json({ error: 'Message required' }, { status: 400 })
+    if (message.trim().length > 2000) return NextResponse.json({ error: 'Message too long (max 2000 chars)' }, { status: 400 })
+
+    const msg = await prisma.eventMessage.findUnique({ where: { id: messageId } })
+    if (!msg || msg.eventId !== eventId) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+    // Only the message author or an admin may edit. (Delete lets the same
+    // set act; edit is stricter than post in that hosts/attendees can only
+    // touch their OWN messages.)
+    if (msg.userId !== session.id && session.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    // Same 14-day lock as posting — no edits once the discussion closes.
+    const event = await prisma.event.findUnique({ where: { id: eventId }, select: { date: true } })
+    if (!event) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    const lockedAt = new Date(event.date); lockedAt.setDate(lockedAt.getDate() + 15)
+    if (Date.now() >= lockedAt.getTime()) {
+      return NextResponse.json({ error: 'Discussion closed for this event' }, { status: 403 })
+    }
+
+    const updated = await prisma.eventMessage.update({
+      where: { id: messageId },
+      data:  { message: message.trim(), editedAt: new Date() },
+      include: { user: { select: { id: true, name: true, color: true } } },
+    })
+    return NextResponse.json(updated)
+  } catch (e) {
+    console.error(e)
+    return NextResponse.json({ error: 'Server error' }, { status: 500 })
+  }
+}

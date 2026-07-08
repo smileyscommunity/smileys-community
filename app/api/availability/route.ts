@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
+import { createNotification } from '@/lib/notify'
 import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
 
 // Lightweight "I'm around" pulses — the bridge between "I want to meet
@@ -88,6 +89,42 @@ export async function POST(req: NextRequest) {
         until,
       },
     })
+
+    // Fire-and-forget: let the poster's accepted connections know they're
+    // around. When the pulse names a neighborhood, only ping connections who
+    // live there ("nearby"); otherwise ping all accepted connections. Each
+    // send is gated by the newEvents pref + quiet hours inside
+    // createNotification, so muted members don't get pulse pings. Doesn't
+    // block the 201.
+    ;(async () => {
+      try {
+        const conns = await prisma.memberConnection.findMany({
+          where:  { status: 'accepted', OR: [{ requesterId: session.id }, { receiverId: session.id }] },
+          select: { requesterId: true, receiverId: true },
+        })
+        const connIds = [...new Set(conns.map(c => c.requesterId === session.id ? c.receiverId : c.requesterId))]
+          .filter(uid => uid !== session.id)
+        if (connIds.length === 0) return
+
+        let audience = connIds
+        if (safeNeighborhood) {
+          const locals = await prisma.user.findMany({
+            where:  { id: { in: connIds }, neighborhood: safeNeighborhood },
+            select: { id: true },
+          })
+          audience = locals.map(u => u.id)
+        }
+        if (audience.length === 0) return
+
+        const title = '🟢 A connection is free to meet'
+        const body  = `${session.name} is around${safeNeighborhood ? ` in ${safeNeighborhood}` : ''}${created.note ? ` — ${created.note}` : ''}`
+        for (const uid of audience) {
+          createNotification(uid, 'availability_pulse', title, body, '/hangouts').catch(() => {})
+        }
+      } catch (e) {
+        console.error('[pulse fanout]', e)
+      }
+    })()
 
     return NextResponse.json({ id: created.id, until: created.until }, { status: 201 })
   } catch (e) {

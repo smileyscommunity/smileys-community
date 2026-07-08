@@ -49,6 +49,11 @@ const PREF_KEY: Record<string, 'newEvents' | 'reminders' | 'eventUpdates' | 'joi
   // hangout broadcasts — it's the same "something is happening near you"
   // signal class.
   new_hangout:        'newEvents',
+  // Availability-pulse broadcast to the poster's accepted connections
+  // ("X is free to meet now"). Same "something near you" signal class as
+  // new_hangout, so the newEvents preference + quiet hours gate it too —
+  // members who muted broadcasts don't get pinged.
+  availability_pulse: 'newEvents',
   visitor_announced:  null,
   listing_new:        null,
   // Admin-only: fired on every non-admin directory submission so the

@@ -39,6 +39,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ connection: updated })
   }
 
+  // Only an explicit 'decline' deletes the request. Previously ANY non-accept
+  // action (a typo like 'accepted', an omitted field, a garbled retry) fell
+  // through here and permanently destroyed the pending request with a 200.
+  if (action !== 'decline') {
+    return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
+  }
+
   // decline — delete the record
   await prisma.memberConnection.delete({ where: { id } })
   trackServer(session, 'connection_declined', {

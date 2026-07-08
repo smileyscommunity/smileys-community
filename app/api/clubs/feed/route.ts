@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
+import { todayIstanbul } from '@/lib/data'
 
 export async function GET() {
   const session = await getSession()
@@ -21,7 +22,10 @@ export async function GET() {
   const clubMap = Object.fromEntries(memberships.map(m => [m.clubId, m.club]))
 
   const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-  const today  = new Date().toISOString().split('T')[0]
+  // Istanbul date, not UTC — between 00:00–03:00 Istanbul UTC is still the
+  // previous calendar day, so a UTC "today" showed events that already
+  // happened in Istanbul as upcoming. Every other date compare uses this.
+  const today  = todayIstanbul()
 
   const [events, posts] = await Promise.all([
     prisma.event.findMany({

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { todayIstanbul } from '@/lib/data'
 
 // GET /api/cup/watch-parties
 //
@@ -22,10 +23,16 @@ export async function GET() {
   // listed strings is present. Case-sensitive in Prisma's typed API,
   // so we cast both spellings admins may use ("World Cup",
   // "World Cup 2026").
+  // Lower bound = later of today and the tournament start. Previously this
+  // pinned to the static TOURNAMENT_START, so mid-tournament the "next 6" were
+  // the 6 EARLIEST (already-finished) watch parties and genuinely upcoming
+  // ones never surfaced.
+  const today  = todayIstanbul()
+  const fromDate = today > TOURNAMENT_START ? today : TOURNAMENT_START
   const events = await prisma.event.findMany({
     where: {
       status: 'published',
-      date:   { gte: TOURNAMENT_START, lte: TOURNAMENT_END },
+      date:   { gte: fromDate, lte: TOURNAMENT_END },
       vibes:  { hasSome: ['World Cup', 'World Cup 2026'] },
     },
     orderBy: [{ date: 'asc' }, { time: 'asc' }],

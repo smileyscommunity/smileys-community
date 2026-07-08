@@ -17,7 +17,7 @@ interface AdminEvent {
   status: string; totalSpots: number; spotsLeft: number; clubId: string
   hostId: string | null; neighborhood: string; coverImage: string | null
   price: number; currency: string; membersOnly: boolean; featured: boolean
-  isRecurring: boolean; seriesId: string | null
+  isRecurring: boolean; seriesId: string | null; isFirstTimerFriendly: boolean
   _count: { attendees: number }
   host: { id: string; name: string; color: string; profilePhoto: string | null } | null
   // Survey rollup from the post-event safety survey. Null when no
@@ -716,6 +716,7 @@ function AdminEventsPageInner() {
                         <span>{event.neighborhood}</span>
                         {isFeatured && <span className="text-amber-400">★</span>}
                         {event.membersOnly && <span className="text-violet-400">🔒</span>}
+                        {event.isFirstTimerFriendly && <span title="First-timer friendly">👋</span>}
                         {event.seriesId && <span className="text-cyan-400" title="Part of a recurring series">🔁</span>}
                       </div>
                     </div>
@@ -788,6 +789,7 @@ function AdminEventsPageInner() {
                         </Link>
                         {isFeatured && <span className="text-amber-400 text-xs shrink-0">★</span>}
                         {event.membersOnly && <span className="text-violet-400 text-xs shrink-0">🔒</span>}
+                        {event.isFirstTimerFriendly && <span className="text-xs shrink-0" title="First-timer friendly">👋</span>}
                         {event.seriesId && <span className="text-cyan-400 text-xs shrink-0" title="Recurring series">🔁</span>}
                       </div>
                       <div className="text-xs text-zinc-500 mt-0.5 truncate">{club?.emoji} {club?.name} · {event.neighborhood}</div>

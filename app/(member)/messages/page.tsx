@@ -39,8 +39,13 @@ export default function MessagesPage() {
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
-    const d = await fetch('/app/api/messages', { credentials: 'include' }).then(r => r.json())
-    setConvs(Array.isArray(d) ? d : [])
+    // Polls every 5s — swallow transient network failures (offline, tab
+    // backgrounded, deploy blip). An uncaught reject here fired "Failed to
+    // fetch" into error tracking on every hiccup; the next tick recovers.
+    try {
+      const d = await fetch('/app/api/messages', { credentials: 'include' }).then(r => r.json())
+      setConvs(Array.isArray(d) ? d : [])
+    } catch { /* transient — next poll retries */ }
   }, [])
 
   useEffect(() => {

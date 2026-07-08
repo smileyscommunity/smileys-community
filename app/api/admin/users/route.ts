@@ -37,7 +37,10 @@ export async function GET(req: NextRequest) {
     // Admins can override the view per-city via `?city=<id>` to drill
     // into one city's roster (useful for multi-city audits).
     const cityFilter: { cityId?: string } = (() => {
-      if (!sessionIsAdmin(session)) return session.cityId ? { cityId: session.cityId } : {}
+      // Fail CLOSED for a city-less moderator — an empty filter used to fall
+      // through to `{}` (all cities), exposing the full cross-city roster
+      // (incl. banReason/appealNote/lastFingerprint). Match nothing instead.
+      if (!sessionIsAdmin(session)) return { cityId: session.cityId ?? '__no_city__' }
       const cityId = params.get('city')
       return cityId ? { cityId } : {}
     })()

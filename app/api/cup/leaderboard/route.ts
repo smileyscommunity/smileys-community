@@ -42,8 +42,20 @@ export async function GET(req: Request) {
   if (sinceParam) {
     const sinceMs = Date.parse(sinceParam)
     if (!Number.isNaN(sinceMs)) {
-      const watermark = await prisma.cupFixture.aggregate({ _max: { updatedAt: true } })
-      const maxMs = watermark._max.updatedAt?.getTime() ?? 0
+      // Watermark on fixtures AND picks. Keying on fixture updatedAt alone
+      // meant that during the group stage (before any knockout result) new
+      // players locking in never advanced the watermark, so ?since= clients
+      // 304'd forever and the "N of M playing" board froze.
+      const [fx, pred, brk] = await Promise.all([
+        prisma.cupFixture.aggregate({ _max: { updatedAt: true } }),
+        prisma.cupPrediction.aggregate({ _max: { updatedAt: true } }),
+        prisma.cupBracketPick.aggregate({ _max: { updatedAt: true } }),
+      ])
+      const maxMs = Math.max(
+        fx._max.updatedAt?.getTime()   ?? 0,
+        pred._max.updatedAt?.getTime() ?? 0,
+        brk._max.updatedAt?.getTime()  ?? 0,
+      )
       if (maxMs <= sinceMs) return new Response(null, { status: 304 })
     }
   }

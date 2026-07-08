@@ -67,6 +67,50 @@ interface MemberProfile {
   // Count of members this person brought in via referral — drives the
   // "🤝 Brought in N members" trust badge. Server omits when zero.
   broughtInCount?: number
+  // Live availability pulse — non-null while the member is flagged as free
+  // to meet up (until >= now). Powers the "🟢 Free to meet now" badge.
+  activePulse?: { neighborhood: string | null; note: string | null; until: string } | null
+  // Active hangout they're hosting right now — powers the "hosting a
+  // hangout now" badge.
+  activeHangout?: { id: string; title: string; neighborhood: string | null; startsAt: string } | null
+}
+
+// Live "free to meet now" badge — shown while a member has a non-expired
+// availability pulse. Mirrors the green live-dot style used elsewhere.
+function FreeNowBadge({ pulse }: { pulse: { neighborhood: string | null; note: string | null; until: string } }) {
+  const until    = new Date(pulse.until)
+  const minsLeft = Math.max(0, Math.round((until.getTime() - Date.now()) / 60_000))
+  if (minsLeft === 0) return null
+  const window = minsLeft >= 60
+    ? `until ${until.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
+    : `${minsLeft}m left`
+  return (
+    <div className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-green-700 bg-green-50 border border-green-200 px-2.5 py-1 rounded-full w-fit">
+      <span className="relative flex h-1.5 w-1.5">
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500"></span>
+      </span>
+      Free to meet now
+      {pulse.neighborhood && <span className="font-semibold text-green-600">· {pulse.neighborhood}</span>}
+      <span className="font-medium text-green-500">· {window}</span>
+    </div>
+  )
+}
+
+// Live "hosting a hangout now" badge — links to the hangout. Mirrors the
+// FreeNowBadge, in a distinct amber so the two live signals don't blur.
+function HostingNowBadge({ hangout }: { hangout: { id: string; title: string; neighborhood: string | null } }) {
+  return (
+    <Link href="/hangouts"
+      className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full w-fit hover:bg-amber-100 transition-colors">
+      <span className="relative flex h-1.5 w-1.5">
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500"></span>
+      </span>
+      ☕ Hosting a hangout now
+      {hangout.neighborhood && <span className="font-semibold text-amber-600">· {hangout.neighborhood}</span>}
+    </Link>
+  )
 }
 
 export default function MemberProfileClient({ params }: { params: Promise<{ id: string }> }) {
@@ -158,9 +202,10 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
   const isOwnProfile  = me?.id === member.id
   const isAccepted       = connStatus === 'accepted'
   // Role-based messaging — admin / moderator / club host can DM any
-  // member regardless of connection state. Used to suppress the
-  // Connect button for these roles (they don't need to send a
-  // request to reach the inbox).
+  // member regardless of connection state (staff for moderation, hosts
+  // to reach their club members). This ONLY unlocks the Message button;
+  // it must NOT hide Connect — a host is still a peer who may want to
+  // send connection requests (see the CTA row below).
   const canMessageByRole = !isOwnProfile && (me?.role === 'admin' || me?.role === 'moderator' || me?.isClubHost === true)
   const canMessage       = !isOwnProfile && (isAccepted || canMessageByRole)
 
@@ -433,6 +478,8 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
                 </span>
               )}
             </div>
+            {member.activePulse && <FreeNowBadge pulse={member.activePulse} />}
+            {member.activeHangout && <HostingNowBadge hangout={member.activeHangout} />}
             <div className="flex flex-wrap gap-3 text-sm text-gray-600">
               {member.neighborhood && <span>📍 {member.neighborhood}</span>}
               {member.joinedAt && <span>Joined {new Date(member.joinedAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</span>}
@@ -509,14 +556,14 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
         </div>
 
         {/* Connect / Message CTA — prominent row below the profile
-            card. Three branches:
+            card. Branches can combine:
             • Incoming pending (you're the receiver) → Accept + Decline
-            • Outgoing pending (you sent it)         → Requested · tap to withdraw
-            • No connection                          → Connect
-            Admin / moderator / club host always see Message (their
-            inbox isn't gated by connection state) — Connect is
-            suppressed because they don't need to send a request to
-            reach the DM. */}
+            • Not yet connected                      → Connect / Requested
+            • Connected, or admin/mod/host           → Message
+            Admin / moderator / club host also get Message regardless of
+            connection state — but they STILL see Connect (it's a peer
+            action), so a host can both connect and message. When Connect
+            and Message render together, Message drops to secondary style. */}
         {!isOwnProfile && (
           <div className="flex gap-3">
             {/* A — incoming pending: receiver acts in-place */}
@@ -540,10 +587,11 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
               </>
             )}
 
-            {/* B — Connect / Requested — hidden for admin/mod/host
-                (they can already message), and for the receiver-pending
-                state handled above. */}
-            {!isAccepted && !canMessageByRole && (connStatus !== 'pending' || connIsReq) && (
+            {/* B — Connect / Requested — shown to everyone who isn't
+                already connected, including admin/mod/host (a role gives
+                a Message bypass, not a reason to lose Connect). The
+                receiver-pending state is handled by branch A above. */}
+            {!isAccepted && (connStatus !== 'pending' || connIsReq) && (
               <button
                 onClick={handleConnect}
                 disabled={connecting}
@@ -570,10 +618,17 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
               </button>
             )}
 
-            {/* C — Message — connected, or role-based bypass. */}
+            {/* C — Message — connected, or role-based bypass. Primary
+                amber when it's the main action (connected); secondary
+                grey when it shares the row with Connect (host/staff on a
+                not-yet-connected profile) so the hierarchy stays clear. */}
             {(isAccepted || canMessageByRole) && (
               <Link href={`/messages/${member.id}`}
-                className="flex-1 flex items-center justify-center gap-2 py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-2xl transition-colors shadow-sm">
+                className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold rounded-2xl transition-colors shadow-sm ${
+                  isAccepted
+                    ? 'bg-amber-500 hover:bg-amber-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}>
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                 </svg>

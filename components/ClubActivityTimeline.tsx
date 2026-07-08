@@ -67,6 +67,15 @@ type NewHangout = {
   user: { name: string; color: string }
 }
 
+type NewPulse = {
+  id: string
+  neighborhood: string | null
+  note: string | null
+  until: Date | string
+  createdAt: Date | string
+  user: { name: string; color: string }
+}
+
 type NewClub = {
   id: string
   name: string
@@ -174,6 +183,7 @@ interface Props {
   rsvps?:       EventRsvp[]
   newMembers?:  NewMember[]
   hangouts?:    NewHangout[]
+  pulses?:      NewPulse[]
   connections?: NewConnection[]
   references?:  GoodReference[]
   newClubs?:    NewClub[]
@@ -199,6 +209,7 @@ type TimelineItem =
   | { kind: 'rsvp';       ts: number; data: EventRsvp     }
   | { kind: 'newmember';  ts: number; data: NewMember     }
   | { kind: 'hangout';    ts: number; data: NewHangout    }
+  | { kind: 'pulse';      ts: number; data: NewPulse      }
   | { kind: 'connection'; ts: number; data: NewConnection }
   | { kind: 'reference';  ts: number; data: GoodReference }
   | { kind: 'club';       ts: number; data: NewClub       }
@@ -239,7 +250,7 @@ function Avatar({ name, color }: { name: string; color: string }) {
   )
 }
 
-export default function ClubActivityTimeline({ members, posts, events, photos = [], rsvps = [], newMembers = [], hangouts = [], connections = [], references = [], newClubs = [], listings = [], businesses = [], eventReviews = [], placeReviews = [], visitors = [], hangoutJoins = [], hoodPosts = [], resources = [], testimonials = [], cupPicks = [], cupDonations = [], cap = 6 }: Props) {
+export default function ClubActivityTimeline({ members, posts, events, photos = [], rsvps = [], newMembers = [], hangouts = [], pulses = [], connections = [], references = [], newClubs = [], listings = [], businesses = [], eventReviews = [], placeReviews = [], visitors = [], hangoutJoins = [], hoodPosts = [], resources = [], testimonials = [], cupPicks = [], cupDonations = [], cap = 6 }: Props) {
   const merged: TimelineItem[] = [
     ...members    .map(m => ({ kind: 'member'     as const, ts: new Date(m.joinedAt).getTime(),   data: m })),
     ...posts      .map(p => ({ kind: 'post'       as const, ts: new Date(p.createdAt).getTime(),  data: p })),
@@ -248,6 +259,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
     ...rsvps      .map(r => ({ kind: 'rsvp'       as const, ts: new Date(r.joinedAt).getTime(),   data: r })),
     ...newMembers .map(m => ({ kind: 'newmember'  as const, ts: new Date(m.joinedAt).getTime(),   data: m })),
     ...hangouts   .map(h => ({ kind: 'hangout'    as const, ts: new Date(h.createdAt).getTime(),  data: h })),
+    ...pulses     .map(p => ({ kind: 'pulse'      as const, ts: new Date(p.createdAt).getTime(),  data: p })),
     ...connections.map(c => ({ kind: 'connection' as const, ts: new Date(c.updatedAt).getTime(),  data: c })),
     ...references .map(r => ({ kind: 'reference'  as const, ts: new Date(r.createdAt).getTime(),  data: r })),
     ...newClubs   .map(c => ({ kind: 'club'       as const, ts: new Date(c.createdAt).getTime(),  data: c })),
@@ -272,11 +284,26 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
   const PER_KIND_CAP = 3
   const kindCounts: Partial<Record<TimelineItem['kind'], number>> = {}
   const items: TimelineItem[] = []
+  // Pin the "happening right now" signals to the front first — availability
+  // pulses and active hangouts. Both are time-boxed (expire in hours), so
+  // they must not lose a visible slot to a newer-but-less-urgent item (a
+  // photo, an RSVP). Still bounded by the per-kind cap; `merged` is already
+  // recency-sorted so we take the freshest of each.
+  const PINNED = new Set<TimelineItem['kind']>(['pulse', 'hangout'])
   for (const it of merged) {
+    if (!PINNED.has(it.kind)) continue
+    if (items.length >= cap) break
     if ((kindCounts[it.kind] ?? 0) >= PER_KIND_CAP) continue
     kindCounts[it.kind] = (kindCounts[it.kind] ?? 0) + 1
     items.push(it)
+  }
+  // Then fill the remaining slots by recency, per-kind capped as before.
+  for (const it of merged) {
+    if (PINNED.has(it.kind)) continue
     if (items.length >= cap) break
+    if ((kindCounts[it.kind] ?? 0) >= PER_KIND_CAP) continue
+    kindCounts[it.kind] = (kindCounts[it.kind] ?? 0) + 1
+    items.push(it)
   }
 
   if (items.length === 0) return null
@@ -377,6 +404,22 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                   {neighborhood && <span className="text-gray-500"> · {neighborhood}</span>}
                   {' — '}
                   <span className="font-semibold text-amber-600">{title}</span>
+                </p>
+                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
+              </Link>
+            )
+          }
+          if (it.kind === 'pulse') {
+            const { neighborhood, note, user } = it.data
+            return (
+              <Link key={`pl-${i}`} href="/hangouts"
+                    className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
+                <Avatar name={user.name} color={user.color} />
+                <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
+                  <span className="font-semibold">{user.name.split(' ')[0]}</span>
+                  {' is around to hang out'}
+                  {neighborhood && <span className="text-gray-500"> · {neighborhood}</span>}
+                  {note && <span className="text-gray-400"> — {note}</span>}
                 </p>
                 <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
               </Link>

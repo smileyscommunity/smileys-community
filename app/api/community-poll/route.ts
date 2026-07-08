@@ -60,6 +60,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid option' }, { status: 400 })
   }
 
+  // Only the active poll accepts votes. GET only ever returns the active poll,
+  // but a replayed/guessed pollId could otherwise mutate a closed poll's tally.
+  const poll = await prisma.communityPoll.findUnique({
+    where: { id: pollId },
+    select: { active: true },
+  })
+  if (!poll || !poll.active) {
+    return NextResponse.json({ error: 'This poll is closed' }, { status: 400 })
+  }
+
   await prisma.communityPollVote.upsert({
     where:  { userId_pollId: { userId: session.id, pollId } },
     create: { userId: session.id, pollId, optionId },

@@ -17,7 +17,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id } = await params
   const today = todayIstanbul()
 
-  const [user, upcomingEvents, connection, hangoutsHosted, hangoutsJoined, savedRow] = await Promise.all([
+  const [user, upcomingEvents, connection, hangoutsHosted, hangoutsJoined, savedRow, activePulse, activeHangout] = await Promise.all([
     prisma.user.findFirst({
       where: { id, status: 'approved', role: { in: ['member', 'moderator', 'admin'] } },
       select: {
@@ -63,6 +63,20 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           select: { savedId: true },
         })
       : Promise.resolve(null),
+    // Active availability pulse — powers a live "free to meet now" badge on
+    // the profile while the member's pulse hasn't expired (until >= now).
+    prisma.availabilityPulse.findFirst({
+      where:   { userId: id, until: { gte: new Date() } },
+      orderBy: { until: 'desc' },
+      select:  { neighborhood: true, note: true, until: true },
+    }),
+    // Active hangout this member is hosting right now — powers a live
+    // "hosting a hangout now" badge alongside the pulse badge.
+    prisma.hangout.findFirst({
+      where:   { userId: id, status: 'active', endsAt: { gte: new Date() } },
+      orderBy: { startsAt: 'asc' },
+      select:  { id: true, title: true, neighborhood: true, startsAt: true },
+    }),
   ])
 
   if (!user) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -161,5 +175,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     // members who haven't invited anyone yet.
     broughtInCount,
     isSaved: savedRow !== null,
+    // Live "free to meet now" signal — null unless the member has a
+    // non-expired availability pulse.
+    activePulse: activePulse
+      ? { neighborhood: activePulse.neighborhood, note: activePulse.note, until: activePulse.until }
+      : null,
+    // Live "hosting a hangout now" signal — null unless they have an active
+    // hangout that hasn't ended.
+    activeHangout: activeHangout
+      ? { id: activeHangout.id, title: activeHangout.title, neighborhood: activeHangout.neighborhood, startsAt: activeHangout.startsAt }
+      : null,
   })
 }

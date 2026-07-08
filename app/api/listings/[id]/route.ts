@@ -33,6 +33,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  // A deleted listing is terminal for the owner. Self-delete and moderator
+  // removal both set status:'deleted', so without this guard an owner could
+  // PATCH {status:'active'} or {renew:true} to resurrect a listing a mod
+  // took down. Only admins can act on a deleted listing (e.g. to restore it).
+  if (listing.status === 'deleted' && !isAdmin(session)) {
+    return NextResponse.json({ error: 'This listing was removed and can no longer be changed' }, { status: 403 })
+  }
+
   const { status, renew } = await req.json()
 
   if (renew) {

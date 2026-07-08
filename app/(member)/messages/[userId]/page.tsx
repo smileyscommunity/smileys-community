@@ -94,14 +94,18 @@ export default function ThreadPage({ params }: { params: Promise<{ userId: strin
     const url = since
       ? `/app/api/messages/${otherId}?since=${encodeURIComponent(since)}`
       : `/app/api/messages/${otherId}`
-    const d = await fetch(url, { credentials: 'include' }).then(r => r.json())
-    if (!Array.isArray(d)) return
-    if (since) {
-      if (d.length > 0) setMessages(prev => [...prev, ...d])
-    } else {
-      setMessages(d)
-    }
-    if (d.length > 0) lastMsgRef.current = d[d.length - 1].createdAt
+    // Polls every 4s — swallow transient network failures so a blip doesn't
+    // throw "Failed to fetch" into error tracking; the next tick recovers.
+    try {
+      const d = await fetch(url, { credentials: 'include' }).then(r => r.json())
+      if (!Array.isArray(d)) return
+      if (since) {
+        if (d.length > 0) setMessages(prev => [...prev, ...d])
+      } else {
+        setMessages(d)
+      }
+      if (d.length > 0) lastMsgRef.current = d[d.length - 1].createdAt
+    } catch { /* transient — next poll retries */ }
   }, [otherId])
 
   // Fetch partner info independently so we have it even with no messages,

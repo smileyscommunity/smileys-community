@@ -11,6 +11,7 @@ interface Message {
   id:        string
   message:   string
   createdAt: string
+  editedAt?: string | null
   user: { id: string; name: string; color: string }
 }
 
@@ -26,6 +27,9 @@ export default function EventMessages({ eventId, eventDate }: { eventId: string;
   const [text,       setText]       = useState('')
   const [sending,    setSending]    = useState(false)
   const [initialised, setInitialised] = useState(false)
+  const [editingId,  setEditingId]  = useState<string | null>(null)
+  const [editDraft,  setEditDraft]  = useState('')
+  const [savingEdit, setSavingEdit] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -66,6 +70,32 @@ export default function EventMessages({ eventId, eventDate }: { eventId: string;
     if (res.ok) setMessages(prev => prev.filter(m => m.id !== messageId))
   }
 
+  function startEdit(msg: Message) {
+    setEditingId(msg.id)
+    setEditDraft(msg.message)
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+    setEditDraft('')
+  }
+
+  async function handleSaveEdit(messageId: string) {
+    if (!editDraft.trim() || savingEdit) return
+    setSavingEdit(true)
+    const res = await fetch(`/app/api/events/${eventId}/messages`, {
+      method: 'PATCH', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messageId, message: editDraft.trim() }),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      setMessages(prev => prev.map(m => (m.id === messageId ? updated : m)))
+      cancelEdit()
+    }
+    setSavingEdit(false)
+  }
+
   return (
     <div className="bg-white rounded-2xl shadow-card overflow-hidden">
       <div className="px-5 py-4 border-b border-gray-100">
@@ -94,16 +124,57 @@ export default function EventMessages({ eventId, eventDate }: { eventId: string;
                     {' '}
                     {new Date(msg.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
                   </span>
+                  {msg.editedAt && <span className="text-xs text-gray-300 italic">(edited)</span>}
                 </div>
-                <p className="text-sm text-gray-700 mt-0.5 leading-relaxed whitespace-pre-wrap break-words"><RichText text={msg.message} /></p>
+                {editingId === msg.id ? (
+                  <div className="mt-1.5 flex flex-col gap-2">
+                    <textarea
+                      value={editDraft}
+                      onChange={e => setEditDraft(e.target.value)}
+                      rows={2}
+                      autoFocus
+                      className="w-full text-sm px-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 text-gray-900 resize-y"
+                    />
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleSaveEdit(msg.id)}
+                        disabled={!editDraft.trim() || savingEdit}
+                        className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg disabled:opacity-40 transition-colors"
+                      >
+                        {savingEdit ? 'Saving…' : 'Save'}
+                      </button>
+                      <button
+                        onClick={cancelEdit}
+                        disabled={savingEdit}
+                        className="px-3 py-1.5 border border-gray-200 text-gray-500 text-xs font-semibold rounded-lg hover:bg-gray-50 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-700 mt-0.5 leading-relaxed whitespace-pre-wrap break-words"><RichText text={msg.message} /></p>
+                )}
               </div>
-              {(isOwn || isAdmin) && (
-                <button
-                  onClick={() => handleDelete(msg.id)}
-                  className="text-gray-200 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 shrink-0 text-lg leading-none mt-0.5"
-                >
-                  ×
-                </button>
+              {(isOwn || isAdmin) && editingId !== msg.id && (
+                <div className="flex items-center gap-1.5 shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {isOwn && !isLocked && (
+                    <button
+                      onClick={() => startEdit(msg)}
+                      title="Edit"
+                      className="text-gray-300 hover:text-amber-500 transition-colors text-sm leading-none"
+                    >
+                      ✎
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleDelete(msg.id)}
+                    title="Delete"
+                    className="text-gray-200 hover:text-red-400 transition-colors text-lg leading-none"
+                  >
+                    ×
+                  </button>
+                </div>
               )}
             </div>
           )

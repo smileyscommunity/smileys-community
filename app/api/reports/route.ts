@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
       '🚨 New report',
       `${session.name} reported ${reportedUser.name} for ${reasonLabel}.`,
       '/admin/moderation'
-    ))
+    ).catch(() => {}))
 
     // Pattern alert — count distinct reports against this user in the last
     // 30 days. ≥3 means people are organically flagging the same person, not
@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
             `⚠️ ${reportedUser.name} has ${recentCount} reports in 30 days`,
             `Pattern alert — ≥3 different reports about the same member. Worth reviewing the account directly.`,
             `/admin/users/${reportedId}`,
-          ))
+          ).catch(() => {}))
         }
       } catch (e) { console.error('[report aggregation alert]', e) }
     })()
