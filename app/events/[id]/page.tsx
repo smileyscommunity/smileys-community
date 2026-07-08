@@ -40,11 +40,19 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const event = await getEventById(id)
   if (!event) return {}
 
-  const title       = `${event.title} — Smileys Community`
+  // Share previews must always carry the date. It leads the description
+  // (platforms truncate from the end) and sits in the title too, for
+  // platforms that render only title + image. Previously the date only
+  // appeared in the no-description fallback, so most shared events showed
+  // no date at all.
+  const shareDate   = new Date(event.date + 'T00:00:00')
+    .toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+  const title       = `${event.title} · ${shareDate} — Smileys Community`
+  const when        = `📅 ${formatDate(event.date)} · ${formatTime(event.time)}${event.neighborhood ? ` · ${event.neighborhood}` : ''}`
   const plainDesc   = event.description
-    ? event.description.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 155)
-    : `${formatDate(event.date)} · ${event.location || event.neighborhood} · Join us at Smileys Community Istanbul`
-  const description = plainDesc
+    ? event.description.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+    : `Join us at Smileys Community Istanbul`
+  const description = `${when} — ${plainDesc}`.slice(0, 155)
   const imageUrl    = absoluteImageUrl(event.coverImage)
   const pageUrl     = `${APP_URL}/events/${id}`
 
@@ -151,7 +159,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                 compact
               />
               <ShareButton
-                title={event.title}
+                title={`${event.title} · ${formatDate(event.date)}`}
                 url={eventUrl}
                 cacheKey={event.coverImage ? event.coverImage.match(/\/(\d+)-/)?.[1]?.slice(-8) : undefined}
               />
@@ -190,7 +198,10 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                 {event.price > 0 && (
                   <div className="flex items-center gap-2.5">
                     <span className="text-base">💰</span>
-                    <span>{event.price} {event.currency ?? 'TRY'}</span>
+                    <span>
+                      {event.price} {event.currency ?? 'TRY'}
+                      <span className="text-gray-400"> · {event.payTo === 'smileys' ? 'collected by Smileys' : 'paid at the venue'}</span>
+                    </span>
                   </div>
                 )}
                 {goingCount > 0 && (
@@ -442,7 +453,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
               compact
             />
             <ShareButton
-              title={event.title}
+              title={`${event.title} · ${formatDate(event.date)}`}
               url={`${APP_URL}/events/${event.id}`}
               cacheKey={event.coverImage ? event.coverImage.match(/\/(\d+)-/)?.[1]?.slice(-8) : undefined}
             />
@@ -498,6 +509,17 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                   </span>
                   <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 invisible opacity-0 group-hover/tip:visible group-hover/tip:opacity-100 transition-opacity duration-150">
                     <span className="block bg-gray-900 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg whitespace-nowrap shadow-lg">Spots split equally between men & women for a balanced mix</span>
+                    <span className="block w-2 h-2 bg-gray-900 rotate-45 mx-auto -mt-1" />
+                  </span>
+                </span>
+              )}
+              {event.isFirstTimerFriendly && (
+                <span className="group/tip relative inline-flex">
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full cursor-default">
+                    👋 First-timer friendly
+                  </span>
+                  <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 invisible opacity-0 group-hover/tip:visible group-hover/tip:opacity-100 transition-opacity duration-150">
+                    <span className="block bg-gray-900 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg whitespace-nowrap shadow-lg">A welcoming, low-commitment event — perfect if it&apos;s your first time</span>
                     <span className="block w-2 h-2 bg-gray-900 rotate-45 mx-auto -mt-1" />
                   </span>
                 </span>
