@@ -52,9 +52,15 @@ export async function POST(req: NextRequest) {
     })
     return NextResponse.json({ saved: false })
   } else {
-    await prisma.memberSave.create({
-      data: { userId: session.id, savedId: memberId },
-    })
+    try {
+      await prisma.memberSave.create({
+        data: { userId: session.id, savedId: memberId },
+      })
+    } catch (e) {
+      // P2002 (unique violation) = a concurrent double-tap already created the
+      // save. The toggle is idempotent, so swallow it and report saved.
+      if (!(e && typeof e === 'object' && (e as { code?: string }).code === 'P2002')) throw e
+    }
     return NextResponse.json({ saved: true })
   }
 }

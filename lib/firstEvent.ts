@@ -156,7 +156,9 @@ export async function getFirstEventRecommendations(userId: string, limit = 3): P
       emoji: true, coverImage: true, price: true, spotsLeft: true,
       isFirstTimerFriendly: true,
       tags: { select: { tagId: true } },
-      _count: { select: { attendees: true } },
+      // Approved only — counting pending/waitlist/cancelled RSVPs inflated the
+      // "N going" social-proof score, boosting events that hadn't earned it.
+      _count: { select: { attendees: { where: { status: 'approved' } } } },
     },
     orderBy: { date: 'asc' },
     take: 100,

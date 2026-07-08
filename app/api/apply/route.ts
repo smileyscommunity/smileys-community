@@ -114,7 +114,7 @@ export async function POST(req: NextRequest) {
     const wantedSlug = targetCitySlug?.trim() || 'istanbul'
     const targetCity = await prisma.city.findUnique({
       where: { slug: wantedSlug },
-      select: { id: true, status: true },
+      select: { id: true, status: true, name: true },
     })
     if (!targetCity || targetCity.status === 'paused') {
       return NextResponse.json({ error: `Applications to "${wantedSlug}" aren't open right now.` }, { status: 400 })
@@ -276,7 +276,10 @@ export async function POST(req: NextRequest) {
         birthdate:   birthdate  || null,
         gender:      gender     || null,
         country:     country    || null,
-        city:        'Istanbul',
+        // The applicant's target city name, not a hardcoded 'Istanbul' — a
+        // Berlin applicant was stored with targetCityId=Berlin but city="Istanbul",
+        // mislabeling them in every admin view/export that reads the string.
+        city:        targetCity.name,
         neighborhood,
         instagram:   cleanInstagram,
         linkedin:    linkedin   || null,

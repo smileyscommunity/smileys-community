@@ -13,6 +13,10 @@ function read() {
 }
 
 export async function GET() {
+  // Member data (name/photo/neighborhood/bio) — require login, matching the
+  // rest of the directory. Was previously an open, unauthenticated read.
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const data = read()
   if (!data.userId) return NextResponse.json(null)
   const user = await prisma.user.findUnique({
