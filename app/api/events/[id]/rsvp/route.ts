@@ -207,11 +207,15 @@ export async function POST(req: NextRequest, { params }: Params) {
       // turn into a credit-to-the-member when admin marks the row
       // paid downstream.
       const safeAmount = Math.max(0, Number(event.price) || 0)
+      // Ledger rows only exist for money that actually flows through us —
+      // venue-paid events (payTo='venue') otherwise pile up phantom
+      // pendings that nobody ever reconciles.
+      const weCollect = event.payTo === 'smileys'
       await prisma.$transaction([
         prisma.eventAttendee.create({
           data: { userId: session.id, eventId, status: 'pending', stealth },
         }),
-        ...(safeAmount > 0 ? [
+        ...(safeAmount > 0 && weCollect ? [
           prisma.payment.create({
             data: { userId: session.id, eventId, amount: safeAmount, currency: event.currency ?? 'TRY', status: 'pending' },
           }),
@@ -274,7 +278,8 @@ export async function POST(req: NextRequest, { params }: Params) {
       // approval-required path above so a misconfigured event.price
       // can't land a negative payment row in either flow.
       const safeAmount = Math.max(0, Number(event.price) || 0)
-      if (safeAmount > 0) {
+      // Same payTo guard as the approval-required path above.
+      if (safeAmount > 0 && event.payTo === 'smileys') {
         await tx.payment.create({
           data: { userId: session.id, eventId, amount: safeAmount, currency: event.currency ?? 'TRY', status: 'pending' },
         })

@@ -80,6 +80,7 @@ function mapEvent(e: any, spotsLeft?: number): Event {
     emoji:        e.emoji,
     price:        e.price,
     memberPrice:  e.memberPrice ?? undefined,
+    payTo:        e.payTo ?? 'venue',
     totalSpots:   e.totalSpots,
     spotsLeft:    spotsLeft ?? Math.max(0, e.spotsLeft ?? 0),
     limitedSpots: e.limitedSpots,
@@ -96,8 +97,10 @@ function mapEvent(e: any, spotsLeft?: number): Event {
     featured:         e.featured         ?? false,
     genderBalance:    e.genderBalance    ?? false,
     maleQuota:        e.maleQuota        ?? null,
+    femaleQuota:      e.femaleQuota      ?? null,
     turkishMaleQuota: e.turkishMaleQuota ?? null,
     isRecurring:      e.isRecurring ?? false,
+    isFirstTimerFriendly: e.isFirstTimerFriendly ?? false,
     seriesId:         e.seriesId    ?? null,
     hostId:           e.hostId,
     hostName:         '',
@@ -209,8 +212,23 @@ export async function getEvents(options?: {
         status: { in: ['published', 'cancelled'] },
       }
     : upcoming === false
-    ? { date: { lt: today }, status: { in: ['published', 'archived', 'cancelled'] } }
-    : {}
+    ? {
+        // Exact mirror of the upcoming filter so the two buckets are
+        // complementary — every event lands in exactly one. Without the
+        // same-day arm, today's already-started events (start > 5h ago)
+        // drop out of Upcoming but never reach Past, vanishing entirely
+        // until midnight. Past = earlier days, plus today's events whose
+        // start time has passed the same 5h cutoff used above.
+        OR: [
+          { date: { lt: today } },
+          { AND: [{ date: today }, { time: { lt: cutoffTime } }] },
+        ],
+        status: { in: ['published', 'archived', 'cancelled'] },
+      }
+    // No `upcoming` param → all time, but STILL restrict to publicly-visible
+    // statuses. Previously this fell through to `{}` (no status/date filter),
+    // so a hand-crafted GET /api/events leaked draft/pending/flagged events.
+    : { status: { in: ['published', 'archived', 'cancelled'] } }
   const where = cityId ? { ...baseWhere, cityId } : baseWhere
 
   // event.findMany must complete first because enrichHosts needs

@@ -39,7 +39,7 @@ export default function NewEventPage() {
   const [form, setForm] = useState({
     title: '', date: '', time: '', location: '', neighborhood: '',
     address: '', clubId: '', hostId: '', description: '',
-    totalSpots: '20', price: '', memberPrice: '',
+    totalSpots: '20', price: '', memberPrice: '', payTo: 'venue',
     emoji: '🎉', status: 'published',
     isPremium: false, membersOnly: false, limitedSpots: true, isFirstTimerFriendly: false, isRecurring: false,
     approvalRequired: false,
@@ -489,6 +489,13 @@ export default function NewEventPage() {
           <div>
             <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Member price</label>
             <input type="number" min="0" value={form.memberPrice} onChange={e => set('memberPrice', e.target.value)} placeholder="Optional" className={inputCls} />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Paid to</label>
+            <select value={form.payTo} onChange={e => set('payTo', e.target.value)} className={inputCls}>
+              <option value="venue">Venue / organizer (at the door)</option>
+              <option value="smileys">Smileys (we collect)</option>
+            </select>
           </div>
           <div>
             <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Min age</label>

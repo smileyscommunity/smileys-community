@@ -44,6 +44,7 @@ export async function GET(req: NextRequest) {
         status: true, totalSpots: true, spotsLeft: true, clubId: true, hostId: true,
         neighborhood: true, coverImage: true, price: true, currency: true,
         membersOnly: true, featured: true, isRecurring: true, seriesId: true,
+        isFirstTimerFriendly: true,
         _count: { select: { attendees: { where: { status: 'approved' } } } },
       },
     })
@@ -85,7 +86,7 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json()
     const { title, date, time, location, neighborhood, clubId, hostId, description,
-            totalSpots, price, memberPrice, emoji, isPremium, membersOnly, limitedSpots, isFirstTimerFriendly,
+            totalSpots, price, memberPrice, payTo, emoji, isPremium, membersOnly, limitedSpots, isFirstTimerFriendly,
             vibes, tagIds, tags, status, coverImage, coverImagePosition, meetingUrl, whatsappUrl, address,
             minAge, maxAge, language, difficulty,
             refundPolicy, registrationDeadline, endTime, currency, approvalRequired,
@@ -143,6 +144,10 @@ export async function POST(req: NextRequest) {
 
     const parsedPrice       = numField(price,       'price',       { min: 0, max: 100000 })
     const parsedMemberPrice = numField(memberPrice, 'memberPrice', { min: 0, max: 100000, allowNull: true })
+    // Closed set — payTo drives whether RSVP creates payment ledger rows.
+    if (payTo != null && payTo !== '' && payTo !== 'venue' && payTo !== 'smileys') {
+      return NextResponse.json({ error: 'payTo must be venue or smileys' }, { status: 400 })
+    }
     // totalSpots historically defaulted to 20 when omitted — preserve
     // that contract by treating undefined/null/empty as nullable here
     // and falling back below. Non-numeric / negative / > 10000 still
@@ -235,6 +240,7 @@ export async function POST(req: NextRequest) {
         // be null (when memberPrice was omitted) but never NaN.
         price:                parsedPrice as number,
         memberPrice:          parsedMemberPrice as number | null,
+        payTo:                payTo || 'venue',
         emoji:                emoji || '🎉',
         isPremium:            isPremium ?? false,
         membersOnly:          membersOnly ?? false,

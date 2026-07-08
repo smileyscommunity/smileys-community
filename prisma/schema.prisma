@@ -361,6 +361,11 @@ model Event {
   emoji                String          @default("🎉")
   price                Int             @default(0)
   memberPrice          Int?
+  // Who collects the ticket money: 'venue' (member pays the venue/organizer
+  // directly — no payment ledger rows) or 'smileys' (we collect — RSVP
+  // creates a pending payment to reconcile). Default matches reality: most
+  // priced events are venue-paid.
+  payTo                String          @default("venue")
   totalSpots           Int
   spotsLeft            Int
   limitedSpots         Boolean         @default(false)
@@ -861,6 +866,7 @@ model EventMessage {
   userId    String
   message   String
   createdAt DateTime @default(now())
+  editedAt  DateTime?
   event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 

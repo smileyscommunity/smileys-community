@@ -84,7 +84,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
     const ALLOWED_FIELDS = [
       'title', 'date', 'time', 'location', 'neighborhood', 'address', 'description',
       ...(admin ? ['totalSpots', 'spotsLeft'] : []),
-      'price', 'memberPrice', 'emoji', 'isPremium',
+      'price', 'memberPrice', 'payTo', 'emoji', 'isPremium',
       'membersOnly', 'limitedSpots', 'isFirstTimerFriendly', 'vibes', 'status', 'coverImage', 'coverImagePosition', 'meetingUrl',
       'whatsappUrl', 'minAge', 'maxAge', 'language', 'difficulty', 'refundPolicy',
       'registrationDeadline', 'endTime', 'currency', 'approvalRequired', 'isRecurring',
@@ -105,6 +105,11 @@ export async function PUT(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Meeting URL must start with https://' }, { status: 400 })
     if ('whatsappUrl' in rest && !safeHttps(rest.whatsappUrl))
       return NextResponse.json({ error: 'WhatsApp URL must start with https://' }, { status: 400 })
+
+    // Closed set — payTo drives whether RSVP creates payment ledger rows.
+    if ('payTo' in rest && rest.payTo !== 'venue' && rest.payTo !== 'smileys') {
+      return NextResponse.json({ error: 'payTo must be venue or smileys' }, { status: 400 })
+    }
 
     // Hosts cannot reassign event ownership or move to an unmanaged club
     if (clubHost) {
