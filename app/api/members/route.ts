@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
   const isHost    = req.nextUrl.searchParams.get('isHost') === 'true'
   const adminOnly = req.nextUrl.searchParams.get('adminOnly') === 'true'
   const savedOnly = req.nextUrl.searchParams.get('savedOnly') === 'true'
+  const aroundNow = req.nextUrl.searchParams.get('aroundNow') === 'true'
   const openTo    = req.nextUrl.searchParams.get('openTo')
   const search    = req.nextUrl.searchParams.get('search')?.trim() ?? ''
 
@@ -93,6 +94,9 @@ export async function GET(req: NextRequest) {
       { hiddenFromMembers: false },
       openFilter,
       searchFilter,
+      // "Around now" — only members with a live (non-expired) availability
+      // pulse. Uses the AvailabilityPulse back-relation on User.
+      aroundNow ? { availabilityPulses: { some: { until: { gte: new Date() } } } } : {},
       savedOnly && savedIds !== null
         ? { id: { in: savedIds }, status: 'approved', role: { in: roleIn } }
         : isHost
@@ -140,6 +144,16 @@ export async function GET(req: NextRequest) {
     prisma.memberSave.count({ where: { userId: session.id } }),
   ])
 
+  // Which of the returned members currently have a live pulse — one batched
+  // query keyed on the page's member IDs, surfaced as a per-card `activePulse`
+  // flag (drives the "🟢 free now" badge).
+  const pulseUserIds = new Set(
+    (await prisma.availabilityPulse.findMany({
+      where:  { until: { gte: new Date() }, userId: { in: members.map(m => m.id) } },
+      select: { userId: true },
+    })).map(p => p.userId),
+  )
+
   const result = members.map(m => {
     // A 'connections only' member is redacted unless the viewer is
     // allowed full access: themselves, an accepted connection, or a
@@ -164,6 +178,7 @@ export async function GET(req: NextRequest) {
         membershipType: m.membershipType,
         isHost: false, clubs: [] as { id: string; name: string; emoji: string | null; slug: string; isHost: boolean }[],
         eventsCount: 0,
+        activePulse: pulseUserIds.has(m.id),
         restricted: true,
       }
     }
@@ -179,6 +194,7 @@ export async function GET(req: NextRequest) {
       isHost:      m.clubMemberships.some(cm => cm.role === 'host'),
       clubs:       m.clubMemberships.map(cm => ({ ...cm.club, isHost: cm.role === 'host' })),
       eventsCount: m._count.joinedEvents,
+      activePulse: pulseUserIds.has(m.id),
       restricted: false,
     }
   })
