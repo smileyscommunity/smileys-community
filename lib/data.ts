@@ -120,11 +120,15 @@ export interface Event {
   membersOnly: boolean
   intent?: 'social' | 'professional'
   memberPrice?: number
+  // Who collects the ticket money: 'venue' (pay at the door — default) or
+  // 'smileys' (we collect; RSVP creates a payment ledger row).
+  payTo?: 'venue' | 'smileys'
   whatsappUrl?: string
   currency?: string
   approvalRequired?: boolean
   genderBalance?: boolean
   maleQuota?: number | null
+  femaleQuota?: number | null
   turkishMaleQuota?: number | null
   status?: string
   address?: string
@@ -143,6 +147,7 @@ export interface Event {
   endTime?: string | null
   cancelReason?: string | null
   isRecurring?: boolean
+  isFirstTimerFriendly?: boolean
   seriesId?: string | null
   featured?: boolean
   attendeePreviews?: { id: string; name: string; color: string; profilePhoto?: string | null }[]
@@ -271,4 +276,53 @@ export function formatName(name: string): string {
     .split(' ')
     .map(word => word.split(/([-'])/).map(fixToken).join(''))
     .join(' ')
+}
+
+/**
+ * The stronger cleanup formatName deliberately refuses to do: de-shout
+ * ALL-CAPS words ("Burak YİĞİTGÜLSÜN" → "Burak Yiğitgülsün"). Safe here —
+ * unlike formatName — because the caller supplies the member's nationality,
+ * which resolves the Turkish dotted/dotless-i ambiguity ("YILMAZ" is
+ * "Yılmaz" for a Turkish member but "Yilmaz" under default rules).
+ *
+ * Words of 1–3 letters are left as typed even when all-caps: members use
+ * deliberate initials as privacy surnames ("Nina AE", "Naz MDT"), and at
+ * that length there's no telling initials from a shouted name. Exception:
+ * when the name also contains a shouted word of 4+ letters, the whole name
+ * was evidently typed in caps-lock, so short all-caps words are de-shouted
+ * with it ("Phuong NGO NGOC" → "Phuong Ngo Ngoc").
+ *
+ * Used by the nightly name-hygiene sweeper (app/api/cron/sweep-name-hygiene),
+ * not on the write path.
+ */
+export function fixNameCasing(name: string, nationality?: string | null): string {
+  const locale = nationality === 'Turkey' ? 'tr-TR' : undefined
+  const lower  = (s: string) => locale ? s.toLocaleLowerCase(locale) : s.toLowerCase()
+  const upper  = (s: string) => locale ? s.toLocaleUpperCase(locale) : s.toUpperCase()
+
+  const words = name.trim().replace(/\s+/g, ' ').split(' ')
+  const lettersOf  = (word: string) => word.replace(/[-'.]/g, '')
+  const allCaps    = (s: string) => s === upper(s) && s !== lower(s)
+  // Caps-lock context: one shouted word of 4+ letters means the short
+  // all-caps words next to it are shoutings too, not initials.
+  const capsLocked = words.some(w => lettersOf(w).length >= 4 && allCaps(lettersOf(w)))
+  const minLen     = capsLocked ? 2 : 4
+
+  const deshouted = words
+    .map(word => {
+      const letters = lettersOf(word)
+      if (letters.length < minLen || !allCaps(letters)) return word
+      return word
+        .split(/([-'])/)
+        .map(tok => {
+          if (!tok || tok === '-' || tok === "'") return tok
+          const rest = lower(tok)
+          return upper(rest[0]) + rest.slice(1)
+        })
+        .join('')
+    })
+    .join(' ')
+
+  // formatName still runs last for the lowercase-first-letter fixes.
+  return formatName(deshouted)
 }

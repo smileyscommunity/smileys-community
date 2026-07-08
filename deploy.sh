@@ -128,6 +128,12 @@ ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-availability-pulses.sh && (crontab
 echo "→ Registering login-nudge sweeper crontab..."
 ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-login-nudge.sh && (crontab -l 2>/dev/null | grep -v 'sweep-login-nudge' ; echo '0 7 * * * $REMOTE/scripts/sweep-login-nudge.sh >> /var/log/sweep-login-nudge.log 2>&1') | crontab -"
 
+# Nightly name-hygiene sweep — re-cases member names (ALL-CAPS + lowercase
+# first letters) using each member's nationality for the Turkish-i rules.
+# 03:20 UTC (06:20 Istanbul), after the DB backup.
+echo "→ Registering name-hygiene sweeper crontab..."
+ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-name-hygiene.sh && (crontab -l 2>/dev/null | grep -v 'sweep-name-hygiene' ; echo '20 3 * * * $REMOTE/scripts/sweep-name-hygiene.sh >> /var/log/sweep-name-hygiene.log 2>&1') | crontab -"
+
 # Daily DB backup — 02:00 UTC (05:00 Istanbul), low-traffic window. Dumps to
 # /root/db-backups (outside the repo so rsync --delete can't wipe it), keeps 14.
 echo "→ Registering daily DB backup crontab..."

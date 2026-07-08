@@ -242,6 +242,8 @@ export default function ProfilePage() {
 
   async function handleSave() {
     if (!form.firstName.trim()) { toast.error('First name is required'); return }
+    if (!form.lastName.trim())  { toast.error('Last name is required'); return }
+    if (!form.nationality)      { toast.error('Nationality is required'); return }
     setSaving(true)
     try {
       const fullName = `${form.firstName.trim()} ${form.lastName.trim()}`.trim()
@@ -259,7 +261,11 @@ export default function ProfilePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
-      if (!res.ok) { toast.error('Failed to save'); return }
+      if (!res.ok) {
+        const err = await res.json().catch(() => null)
+        toast.error(err?.error ?? 'Failed to save')
+        return
+      }
       const initials = fullName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
       setUser({ ...user, name: fullName, initials, color: form.color, bio: form.bio, neighborhood: form.neighborhood, instagram: form.instagram, profilePhoto: form.profilePhoto || undefined })
       toast.success('Profile saved')
@@ -384,11 +390,11 @@ export default function ProfilePage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">First name</label>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">First name <span className="text-red-400">*</span></label>
                   <input type="text" value={form.firstName} onChange={e => set('firstName', e.target.value)} placeholder="Ayşe" className={inputCls} />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Last name</label>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Last name <span className="text-red-400">*</span></label>
                   <input type="text" value={form.lastName} onChange={e => set('lastName', e.target.value)} placeholder="Kaya" className={inputCls} />
                 </div>
                 <div className="col-span-full">
@@ -409,9 +415,9 @@ export default function ProfilePage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Nationality</label>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Nationality <span className="text-red-400">*</span></label>
                   <select value={form.nationality} onChange={e => set('nationality', e.target.value)} className={inputCls}>
-                    <option value="">Select country…</option>
+                    <option value="" disabled>Select country…</option>
                     {COUNTRIES.map(c => <option key={c.code} value={c.name}>{c.name}</option>)}
                   </select>
                 </div>

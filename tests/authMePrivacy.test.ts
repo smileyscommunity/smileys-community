@@ -49,3 +49,52 @@ describe('auth/me PATCH — hosts cannot go private', () => {
     )
   })
 })
+
+describe('auth/me PATCH — name and nationality are mandatory', () => {
+  it('rejects a blank name', async () => {
+    const res = await PATCH(req({ name: '   ' }))
+    expect(res.status).toBe(400)
+    expect(prisma.user.update).not.toHaveBeenCalled()
+  })
+
+  it('rejects a single-word name (last name cleared)', async () => {
+    const res = await PATCH(req({ name: 'Ayşe' }))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toBe('Last name is required')
+    expect(prisma.user.update).not.toHaveBeenCalled()
+  })
+
+  it('accepts a first + last name', async () => {
+    const res = await PATCH(req({ name: 'Ayşe Kaya' }))
+    expect(res.status).toBe(200)
+    expect(prisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ name: 'Ayşe Kaya' }) }),
+    )
+  })
+
+  it.each([['', 'empty string'], [null, 'null'], ['   ', 'whitespace'], [42, 'non-string']])(
+    'rejects clearing nationality with %s',
+    async (value) => {
+      const res = await PATCH(req({ nationality: value }))
+      expect(res.status).toBe(400)
+      expect((await res.json()).error).toBe('Nationality is required')
+      expect(prisma.user.update).not.toHaveBeenCalled()
+    },
+  )
+
+  it('accepts and trims a valid nationality', async () => {
+    const res = await PATCH(req({ nationality: ' Turkey ' }))
+    expect(res.status).toBe(200)
+    expect(prisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ nationality: 'Turkey' }) }),
+    )
+  })
+
+  it('leaves name and nationality untouched when not in the payload', async () => {
+    const res = await PATCH(req({ bio: 'hello' }))
+    expect(res.status).toBe(200)
+    const data = (prisma.user.update as any).mock.calls[0][0].data
+    expect('name' in data).toBe(false)
+    expect('nationality' in data).toBe(false)
+  })
+})

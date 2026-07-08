@@ -118,6 +118,16 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
+    // Nationality is mandatory (it drives the profile flag) — members can
+    // change it but never clear it.
+    if ('nationality' in data) {
+      const v = data.nationality
+      if (typeof v !== 'string' || !v.trim() || v.length > 60) {
+        return NextResponse.json({ error: 'Nationality is required' }, { status: 400 })
+      }
+      data.nationality = v.trim()
+    }
+
     // profilePhoto must be a local upload path or empty
     if ('profilePhoto' in body) {
       const photo = body.profilePhoto
@@ -134,11 +144,15 @@ export async function PATCH(req: NextRequest) {
     if (data.name && String(data.name).length > 100)
       return NextResponse.json({ error: 'Name too long' }, { status: 400 })
     if (typeof data.name === 'string') {
-      data.name = formatName(data.name)
+      const name = formatName(data.name)
       // formatName trims + collapses whitespace, so a blank/whitespace-only
       // submission normalises to '' — reject it rather than persist an empty
       // name that breaks initials/avatars downstream.
-      if (!data.name) return NextResponse.json({ error: 'Name is required' }, { status: 400 })
+      if (!name) return NextResponse.json({ error: 'Name is required' }, { status: 400 })
+      // First AND last name are mandatory: the profile form merges them into
+      // one field, so a single word means the last name was cleared.
+      if (!name.includes(' ')) return NextResponse.json({ error: 'Last name is required' }, { status: 400 })
+      data.name = name
     }
     if (data.bio && String(data.bio).length > 1000)
       return NextResponse.json({ error: 'Bio too long' }, { status: 400 })
