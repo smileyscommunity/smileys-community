@@ -185,7 +185,7 @@ export default async function DashboardPage() {
     // formerly standalone awaits
     upcomingVisitors, latestHandbook,
     // formerly batch 3 — trendingEventsRaw is deduped against featuredEvents post-fetch
-    suggestedMembers, thisWeekEvents, totalMembers, eventsThisWeek, neighborhoodEventCount, newMembers, recentPhotos, trendingEventsRaw, nearbyMembers, newClubs, latestPosts, activeHangouts, recentHangouts, recentConnections, recentReferences, recentRsvps, recentlyCreatedClubs, recentBusinesses,
+    suggestedMembers, thisWeekEvents, totalMembers, eventsThisWeek, neighborhoodEventCount, newMembers, recentPhotos, trendingEventsRaw, nearbyMembers, newClubs, latestPosts, activeHangouts, recentHangouts, recentPulses, recentConnections, recentReferences, recentRsvps, recentlyCreatedClubs, recentBusinesses,
     // activity-wall extras
     recentEventReviews, recentPlaceReviews, recentHangoutJoins, recentHoodPosts, recentResources, recentTestimonials, recentCupPicks, recentCupDonations,
   ] = await Promise.all([
@@ -437,6 +437,18 @@ export default async function DashboardPage() {
       take: 5,
       select: {
         id: true, title: true, neighborhood: true, createdAt: true,
+        user: { select: { name: true, color: true } },
+      },
+    }),
+    // Active availability pulses — members flagging they're free to meet up
+    // right now. Non-expired only (until >= now); feeds ClubActivityTimeline
+    // alongside hangouts. Excludes the viewer's own, last 7 days.
+    prisma.availabilityPulse.findMany({
+      where: { until: { gte: new Date() }, createdAt: { gte: weekAgo }, userId: { not: session.id } },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+      select: {
+        id: true, neighborhood: true, note: true, until: true, createdAt: true,
         user: { select: { name: true, color: true } },
       },
     }),
@@ -1120,7 +1132,7 @@ export default async function DashboardPage() {
                 mobile and desktop. Center column renders on every
                 viewport, so a single placement replaces the previous
                 two (mobile-only + right-rail) renders. */}
-            <ClubActivityTimeline members={recentActivity} posts={wallActivity} events={recentClubEvents} photos={recentPhotos} rsvps={recentRsvps} newMembers={newMembers} hangouts={recentHangouts} connections={recentConnections} references={recentReferences} newClubs={recentlyCreatedClubs} listings={wallListings} businesses={recentBusinesses} eventReviews={recentEventReviews} placeReviews={recentPlaceReviews} visitors={wallVisitors} hangoutJoins={recentHangoutJoins} hoodPosts={wallHoodPosts} resources={recentResources} testimonials={recentTestimonials} cupPicks={recentCupPicks} cupDonations={recentCupDonations} cap={12} />
+            <ClubActivityTimeline members={recentActivity} posts={wallActivity} events={recentClubEvents} photos={recentPhotos} rsvps={recentRsvps} newMembers={newMembers} hangouts={recentHangouts} pulses={recentPulses} connections={recentConnections} references={recentReferences} newClubs={recentlyCreatedClubs} listings={wallListings} businesses={recentBusinesses} eventReviews={recentEventReviews} placeReviews={recentPlaceReviews} visitors={wallVisitors} hangoutJoins={recentHangoutJoins} hoodPosts={wallHoodPosts} resources={recentResources} testimonials={recentTestimonials} cupPicks={recentCupPicks} cupDonations={recentCupDonations} cap={12} />
 
             {/* Upcoming visitors — surfaces /visiting + the new wave
                 action on the dashboard. Component renders nothing when
