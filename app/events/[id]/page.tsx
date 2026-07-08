@@ -200,7 +200,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                     <span className="text-base">💰</span>
                     <span>
                       {event.price} {event.currency ?? 'TRY'}
-                      <span className="text-gray-400"> · {event.payTo === 'smileys' ? 'collected by Smileys' : 'paid at the venue'}</span>
+                      <span className="text-gray-400"> · {event.payTo === 'smileys' ? 'pay in advance' : 'pay at the event'}</span>
                     </span>
                   </div>
                 )}

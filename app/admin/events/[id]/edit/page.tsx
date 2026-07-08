@@ -631,10 +631,10 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
             <input type="number" min="0" value={form.memberPrice} onChange={e => set('memberPrice', e.target.value)} placeholder="Optional" className={inputCls} />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Paid to</label>
+            <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Who collects payment?</label>
             <select value={form.payTo} onChange={e => set('payTo', e.target.value)} className={inputCls}>
-              <option value="venue">Venue / organizer (at the door)</option>
-              <option value="smileys">Smileys (we collect)</option>
+              <option value="venue">At the event — venue or organizer collects</option>
+              <option value="smileys">Smileys — we collect and reconcile</option>
             </select>
           </div>
           <div>
