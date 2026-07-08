@@ -1,11 +1,15 @@
 'use client'
 
 import { useEffect } from 'react'
-import * as Sentry from '@sentry/nextjs'
+import posthog from 'posthog-js'
 
 export default function Error({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
-    Sentry.captureException(error)
+    // Route React error-boundary crashes to PostHog error tracking. PostHog's
+    // capture_exceptions only autocaptures *unhandled* errors; a boundary
+    // catches the error first, so without this explicit capture these render
+    // crashes would go untracked.
+    posthog.captureException(error)
     // Stale chunk after a deploy — the cached client bundle references a
     // module ID that the new server build doesn't ship, so webpack-runtime
     // throws on the missing factory. Auto-reload pulls fresh bundles

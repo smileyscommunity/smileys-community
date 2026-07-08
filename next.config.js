@@ -1,4 +1,3 @@
-const { withSentryConfig } = require('@sentry/nextjs')
 const { withPostHogConfig } = require('@posthog/nextjs-config')
 
 /** @type {import('next').NextConfig} */
@@ -79,14 +78,6 @@ const nextConfig = {
   },
 }
 
-const withSentry = withSentryConfig(nextConfig, {
-  org: process.env.SENTRY_ORG,
-  project: process.env.SENTRY_PROJECT,
-  silent: true,
-  widenClientFileUpload: true,
-  hideSourceMaps: true,
-})
-
 // Upload browser source maps to PostHog error tracking so client exceptions
 // get readable, symbolicated stack traces instead of minified frames. Runs
 // during the local `next build`; deleteAfterUpload keeps the maps out of the
@@ -94,13 +85,12 @@ const withSentry = withSentryConfig(nextConfig, {
 //
 // GUARDED on POSTHOG_API_KEY — a personal API key (scopes: "error tracking
 // write" + "organization read") set in .env.local on the build machine. Until
-// that env var is present this is a complete no-op and the build is unchanged,
-// so it's safe to ship before the key exists.
+// that env var is present this is a complete no-op and the build is unchanged.
 module.exports = process.env.POSTHOG_API_KEY
-  ? withPostHogConfig(withSentry, {
+  ? withPostHogConfig(nextConfig, {
       personalApiKey: process.env.POSTHOG_API_KEY,
       projectId:      process.env.POSTHOG_PROJECT_ID || '185891',
       host:           'https://eu.posthog.com',
       sourcemaps:     { enabled: true, deleteAfterUpload: true },
     })
-  : withSentry
+  : nextConfig

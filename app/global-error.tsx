@@ -1,12 +1,12 @@
 'use client'
 
-import * as Sentry from '@sentry/nextjs'
+import posthog from 'posthog-js'
 import { useEffect } from 'react'
 import { BRAND_AMBER } from '@/lib/constants'
 
 export default function GlobalError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
-    Sentry.captureException(error)
+    posthog.captureException(error)
     if (error?.message?.includes('Cannot find module') || error?.message?.includes('ChunkLoadError') || error?.message?.includes('Loading chunk')) {
       window.location.reload()
     }
