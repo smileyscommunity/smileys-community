@@ -560,10 +560,9 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
                         {payBusy === a.userId ? '…' : payments[a.userId]?.status === 'paid' ? '₺ Paid' : '₺ Unpaid'}
                       </button>
                     )}
-                    {a.checkedIn
-                      ? <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-green-500/15 text-green-400">✓ In</span>
-                      : <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-zinc-700/60 text-zinc-500">Not yet</span>
-                    }
+                    {/* No status pill — the check-in button's color carries
+                        the state (gray = not in, green = checked in), and on
+                        mobile the pill was crushing names to two letters. */}
                     <button onClick={() => toggleCheckin(a.userId, a.checkedIn)} disabled={toggling === a.userId}
                       title={a.checkedIn ? 'Undo check-in' : 'Check in'}
                       className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors disabled:opacity-40 ${a.checkedIn ? 'bg-green-500 text-white' : 'bg-zinc-700 text-zinc-400 hover:bg-zinc-600'}`}>
