@@ -67,6 +67,31 @@ interface MemberProfile {
   // Count of members this person brought in via referral — drives the
   // "🤝 Brought in N members" trust badge. Server omits when zero.
   broughtInCount?: number
+  // Live availability pulse — non-null while the member is flagged as free
+  // to meet up (until >= now). Powers the "🟢 Free to meet now" badge.
+  activePulse?: { neighborhood: string | null; note: string | null; until: string } | null
+}
+
+// Live "free to meet now" badge — shown while a member has a non-expired
+// availability pulse. Mirrors the green live-dot style used elsewhere.
+function FreeNowBadge({ pulse }: { pulse: { neighborhood: string | null; note: string | null; until: string } }) {
+  const until    = new Date(pulse.until)
+  const minsLeft = Math.max(0, Math.round((until.getTime() - Date.now()) / 60_000))
+  if (minsLeft === 0) return null
+  const window = minsLeft >= 60
+    ? `until ${until.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
+    : `${minsLeft}m left`
+  return (
+    <div className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-green-700 bg-green-50 border border-green-200 px-2.5 py-1 rounded-full w-fit">
+      <span className="relative flex h-1.5 w-1.5">
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500"></span>
+      </span>
+      Free to meet now
+      {pulse.neighborhood && <span className="font-semibold text-green-600">· {pulse.neighborhood}</span>}
+      <span className="font-medium text-green-500">· {window}</span>
+    </div>
+  )
 }
 
 export default function MemberProfileClient({ params }: { params: Promise<{ id: string }> }) {
@@ -433,6 +458,7 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
                 </span>
               )}
             </div>
+            {member.activePulse && <FreeNowBadge pulse={member.activePulse} />}
             <div className="flex flex-wrap gap-3 text-sm text-gray-600">
               {member.neighborhood && <span>📍 {member.neighborhood}</span>}
               {member.joinedAt && <span>Joined {new Date(member.joinedAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</span>}
