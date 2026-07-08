@@ -44,6 +44,9 @@ export interface FdMatch {
     winner:   'HOME_TEAM' | 'AWAY_TEAM' | 'DRAW' | null
     duration: string                                       // 'REGULAR' | 'EXTRA_TIME' | 'PENALTY_SHOOTOUT'
     fullTime: { home: number | null; away: number | null }
+    // Present on shootout matches. FD's fullTime already includes the
+    // shootout goals; penalties is the shootout tally alone.
+    penalties?: { home: number | null; away: number | null }
   }
 }
 
@@ -126,14 +129,30 @@ export function fdTlaToCupCode(tla: string | null | undefined): string | null {
 
 // Derive the winning team's ISO code from a football-data score
 // object. Returns null for draws (group stage allows draws — no
-// winner), for matches that haven't resolved (winner === null),
-// or for matches where we can't resolve either team's TLA.
+// winner), for matches that haven't resolved, or for matches where
+// we can't resolve either team's TLA.
 export function fdWinnerCode(match: FdMatch): string | null {
-  const w = match.score.winner
-  if (!w || w === 'DRAW') return null
   const homeCode = fdTlaToCupCode(match.homeTeam.tla)
   const awayCode = fdTlaToCupCode(match.awayTeam.tla)
+  const w = match.score.winner
   if (w === 'HOME_TEAM') return homeCode
   if (w === 'AWAY_TEAM') return awayCode
+  if (w === 'DRAW') return null
+
+  // winner === null. FD sometimes lags setting `winner` on shootout
+  // matches even when status is FINISHED (seen live: SUI–COL in the
+  // 2026 R16 sat FINISHED + PENALTY_SHOOTOUT with winner null, which
+  // stalled the sweeper for a day). For a FINISHED match, fullTime
+  // includes the shootout goals, so an unequal fullTime is decisive.
+  if (match.status !== 'FINISHED') return null
+  const { home, away } = match.score.fullTime
+  if (home != null && away != null && home !== away) {
+    return home > away ? homeCode : awayCode
+  }
+  // Last resort: unequal shootout tally (fullTime equal or missing).
+  const p = match.score.penalties
+  if (p && p.home != null && p.away != null && p.home !== p.away) {
+    return p.home > p.away ? homeCode : awayCode
+  }
   return null
 }
