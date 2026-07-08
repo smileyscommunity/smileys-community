@@ -15,9 +15,27 @@ import React from 'react'
 // to wrap non-space content (WhatsApp-style). This keeps pre-existing plain
 // text from being reformatted: snake_case / file_names, multiplication
 // (`2 * 3`), bullet lines (`* item`), and mid-word markers are all left alone.
-const TOKEN_RE = /(https?:\/\/[^\s]+)|((?<![A-Za-z0-9])\*(?!\s)[^*\n]+?(?<!\s)\*(?![A-Za-z0-9]))|((?<![A-Za-z0-9])_(?!\s)[^_\n]+?(?<!\s)_(?![A-Za-z0-9]))|(@\w+)/g
+//
+// NB: this deliberately uses NO lookbehind. Negative lookbehind ((?<!…))
+// throws "invalid group specifier name" on Safari/iOS < 16.4 and crashes
+// every page that renders RichText. The word-boundary and no-edge-space
+// checks that were lookbehinds are enforced in JS below (see isEmphasis).
+const TOKEN_RE = /(https?:\/\/[^\s]+)|(\*[^*\n]+\*)|(_[^_\n]+_)|(@\w+)/g
 // Punctuation that commonly trails a URL in prose but isn't part of it.
 const URL_TRAIL_RE = /[.,!?;:)\]]+$/
+const ALNUM = /[A-Za-z0-9]/
+
+// Validate a candidate *bold* / _italic_ token the way the old lookbehinds
+// did: the marker must not butt against an alphanumeric on either side, and
+// the wrapped content must not start or end with whitespace.
+function isEmphasis(token: string, text: string, index: number): boolean {
+  const before = text[index - 1]
+  const after  = text[index + token.length]
+  if (before !== undefined && ALNUM.test(before)) return false
+  if (after  !== undefined && ALNUM.test(after))  return false
+  const inner = token.slice(1, -1)
+  return !/^\s/.test(inner) && !/\s$/.test(inner)
+}
 
 export function RichText({ text }: { text: string }) {
   if (!text) return null
@@ -45,10 +63,14 @@ export function RichText({ text }: { text: string }) {
           className="text-amber-600 underline break-all hover:text-amber-700">{href}</a>,
       )
       if (trail) nodes.push(<React.Fragment key={key++}>{trail}</React.Fragment>)
-    } else if (bold) {
+    } else if (bold && isEmphasis(bold, text, m.index)) {
       nodes.push(<strong key={key++} className="font-semibold">{bold.slice(1, -1)}</strong>)
-    } else if (italic) {
+    } else if (italic && isEmphasis(italic, text, m.index)) {
       nodes.push(<em key={key++}>{italic.slice(1, -1)}</em>)
+    } else if (bold || italic) {
+      // Marker pair that failed the word-boundary / no-edge-space test —
+      // render it verbatim so plain text like `2*3` or snake_case is untouched.
+      nodes.push(<React.Fragment key={key++}>{bold || italic}</React.Fragment>)
     } else if (mention) {
       nodes.push(<span key={key++} className="font-semibold text-amber-600">{mention}</span>)
     }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { canManagePosts } from '@/lib/access'
@@ -77,6 +78,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       wasPublished, nowPublished },
     `${action === 'post.publish' ? 'Published' : action === 'post.unpublish' ? 'Unpublished' : 'Updated'} article "${post.title}"`,
   )
+  // Bust the cached public article + listing pages (unstable_cache tag)
+  // so inline/admin edits show immediately instead of after the 300s TTL.
+  revalidateTag('posts')
   return NextResponse.json(post)
 }
 
@@ -94,5 +98,6 @@ export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id:
       authorId: snapshot.authorId, publishedAt: snapshot.publishedAt?.toISOString() ?? null },
     `Deleted ${snapshot.status} post "${snapshot.title}" (${snapshot.category})`,
   )
+  revalidateTag('posts')
   return NextResponse.json({ ok: true })
 }
