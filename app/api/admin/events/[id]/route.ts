@@ -4,6 +4,7 @@ import { getSession } from '@/lib/session'
 import { isAdmin, isAdminOrModerator, isClubHost, isClubHostFor } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
 import { writeAudit, getDiff } from '@/lib/audit'
+import { normalizePaymentContact } from '@/lib/safeUrl'
 import { sendEventCancelledEmail, recordEmailFailure } from '@/lib/email'
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 
@@ -84,7 +85,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
     const ALLOWED_FIELDS = [
       'title', 'date', 'time', 'location', 'neighborhood', 'address', 'description',
       ...(admin ? ['totalSpots', 'spotsLeft'] : []),
-      'price', 'memberPrice', 'payTo', 'emoji', 'isPremium',
+      'price', 'memberPrice', 'payTo', 'paymentContact', 'emoji', 'isPremium',
       'membersOnly', 'limitedSpots', 'isFirstTimerFriendly', 'vibes', 'status', 'coverImage', 'coverImagePosition', 'meetingUrl',
       'whatsappUrl', 'minAge', 'maxAge', 'language', 'difficulty', 'refundPolicy',
       'registrationDeadline', 'endTime', 'currency', 'approvalRequired', 'isRecurring',
@@ -109,6 +110,13 @@ export async function PUT(req: NextRequest, { params }: Params) {
     // Closed set — payTo drives whether RSVP creates payment ledger rows.
     if ('payTo' in rest && rest.payTo !== 'venue' && rest.payTo !== 'smileys') {
       return NextResponse.json({ error: 'payTo must be venue or smileys' }, { status: 400 })
+    }
+    if ('paymentContact' in rest) {
+      const contact = normalizePaymentContact(rest.paymentContact)
+      if (contact instanceof Error) {
+        return NextResponse.json({ error: contact.message }, { status: 400 })
+      }
+      rest.paymentContact = contact
     }
 
     // Hosts cannot reassign event ownership or move to an unmanaged club

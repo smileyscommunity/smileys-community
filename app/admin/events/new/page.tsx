@@ -39,7 +39,7 @@ export default function NewEventPage() {
   const [form, setForm] = useState({
     title: '', date: '', time: '', location: '', neighborhood: '',
     address: '', clubId: '', hostId: '', description: '',
-    totalSpots: '20', price: '', memberPrice: '', payTo: 'venue',
+    totalSpots: '20', price: '', memberPrice: '', payTo: 'venue', paymentContact: '',
     emoji: '🎉', status: 'published',
     isPremium: false, membersOnly: false, limitedSpots: true, isFirstTimerFriendly: false, isRecurring: false,
     approvalRequired: false,
@@ -497,6 +497,13 @@ export default function NewEventPage() {
               <option value="smileys">Smileys — we collect and reconcile</option>
             </select>
           </div>
+          {form.payTo === 'smileys' && (
+            <div>
+              <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Payment contact (WhatsApp)</label>
+              <input type="text" value={form.paymentContact} onChange={e => set('paymentContact', e.target.value)}
+                placeholder="+90 555 000 0000" className={inputCls} />
+            </div>
+          )}
           <div>
             <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Min age</label>
             <input type="number" min="0" value={form.minAge} onChange={e => set('minAge', e.target.value)} placeholder="Optional" className={inputCls} />

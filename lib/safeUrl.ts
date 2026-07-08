@@ -25,3 +25,27 @@ export function isSafeHref(url: string | null | undefined): boolean {
   // Absolute URLs — restrict scheme allowlist.
   return /^https:\/\//i.test(url) || /^mailto:/i.test(url)
 }
+
+/**
+ * Normalize an admin-supplied payment contact into a canonical wa.me link.
+ *
+ * Accepts:
+ *   - a phone number ("+90 555 123 4567", "0555 123 45 67", "905551234567")
+ *   - a wa.me / api.whatsapp.com link
+ *   - empty / null → null (clears the field)
+ *
+ * Returns the normalized `https://wa.me/<digits>` string, null when
+ * clearing, or an Error describing why the input was rejected.
+ */
+export function normalizePaymentContact(v: unknown): string | null | Error {
+  if (v === undefined || v === null || v === '') return null
+  if (typeof v !== 'string') return new Error('paymentContact must be a string')
+  const s = v.trim()
+  const fromLink = s.match(/^https:\/\/(?:wa\.me\/|api\.whatsapp\.com\/send\/?\?phone=)(\+?\d[\d]*)/i)
+  const raw = fromLink ? fromLink[1] : s
+  const digits = raw.replace(/[\s\-().+]/g, '')
+  if (!/^\d{7,15}$/.test(digits)) {
+    return new Error('paymentContact must be a phone number or wa.me link')
+  }
+  return `https://wa.me/${digits}`
+}

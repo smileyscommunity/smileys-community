@@ -81,6 +81,7 @@ function mapEvent(e: any, spotsLeft?: number): Event {
     price:        e.price,
     memberPrice:  e.memberPrice ?? undefined,
     payTo:        e.payTo ?? 'venue',
+    paymentContact: e.paymentContact ?? undefined,
     totalSpots:   e.totalSpots,
     spotsLeft:    spotsLeft ?? Math.max(0, e.spotsLeft ?? 0),
     limitedSpots: e.limitedSpots,
@@ -158,6 +159,7 @@ export function redactEventForGuest(event: Event): Event {
     lng:              null,
     meetingUrl:       undefined,
     whatsappUrl:      undefined,
+    paymentContact:   undefined,
     attendeePreviews: [],
   }
 }

@@ -366,6 +366,10 @@ model Event {
   // creates a pending payment to reconcile). Default matches reality: most
   // priced events are venue-paid.
   payTo                String          @default("venue")
+  // wa.me link for the person who handles advance payments (normalized from
+  // a phone number in the admin form). Shown to members next to the
+  // pay-in-advance note; redacted for guests like whatsappUrl.
+  paymentContact       String?
   totalSpots           Int
   spotsLeft            Int
   limitedSpots         Boolean         @default(false)

@@ -123,6 +123,8 @@ export interface Event {
   // Who collects the ticket money: 'venue' (pay at the door — default) or
   // 'smileys' (we collect; RSVP creates a payment ledger row).
   payTo?: 'venue' | 'smileys'
+  // wa.me link of the person handling advance payments (redacted for guests).
+  paymentContact?: string
   whatsappUrl?: string
   currency?: string
   approvalRequired?: boolean

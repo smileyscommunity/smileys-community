@@ -32,7 +32,7 @@ const inputCls = 'bg-zinc-800 border border-zinc-700 text-white placeholder-zinc
 const emptyForm = {
   title: '', date: '', time: '', location: '', neighborhood: '',
   address: '', clubId: '', hostId: '', description: '',
-  totalSpots: '20', price: '0', memberPrice: '', payTo: 'venue',
+  totalSpots: '20', price: '0', memberPrice: '', payTo: 'venue', paymentContact: '',
   emoji: '🎉', status: 'published',
   isPremium: false, membersOnly: false, limitedSpots: true, isFirstTimerFriendly: false, isRecurring: false,
   approvalRequired: false,
@@ -126,6 +126,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
           price:        String(event.price        ?? 0),
           memberPrice:  String(event.memberPrice  ?? ''),
           payTo:        event.payTo ?? 'venue',
+          paymentContact: event.paymentContact ?? '',
           emoji:        event.emoji        ?? '🎉',
           status:       event.status       ?? 'published',
           isPremium:    event.isPremium    ?? false,
@@ -637,6 +638,13 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
               <option value="smileys">Smileys — we collect and reconcile</option>
             </select>
           </div>
+          {form.payTo === 'smileys' && (
+            <div>
+              <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Payment contact (WhatsApp)</label>
+              <input type="text" value={form.paymentContact} onChange={e => set('paymentContact', e.target.value)}
+                placeholder="+90 555 000 0000" className={inputCls} />
+            </div>
+          )}
           <div>
             <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Min age</label>
             <input type="number" min="0" value={form.minAge} onChange={e => set('minAge', e.target.value)} placeholder="Optional" className={inputCls} />

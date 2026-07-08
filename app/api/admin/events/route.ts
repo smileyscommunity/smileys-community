@@ -5,6 +5,7 @@ import { getSession } from '@/lib/session'
 import { isAdmin, isModerator, isClubHost, isClubHostFor } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
 import { todayIstanbul } from '@/lib/data'
+import { normalizePaymentContact } from '@/lib/safeUrl'
 import { computeEventSurveyRollup } from '@/lib/survey'
 
 export async function GET(req: NextRequest) {
@@ -86,7 +87,7 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json()
     const { title, date, time, location, neighborhood, clubId, hostId, description,
-            totalSpots, price, memberPrice, payTo, emoji, isPremium, membersOnly, limitedSpots, isFirstTimerFriendly,
+            totalSpots, price, memberPrice, payTo, paymentContact, emoji, isPremium, membersOnly, limitedSpots, isFirstTimerFriendly,
             vibes, tagIds, tags, status, coverImage, coverImagePosition, meetingUrl, whatsappUrl, address,
             minAge, maxAge, language, difficulty,
             refundPolicy, registrationDeadline, endTime, currency, approvalRequired,
@@ -147,6 +148,10 @@ export async function POST(req: NextRequest) {
     // Closed set — payTo drives whether RSVP creates payment ledger rows.
     if (payTo != null && payTo !== '' && payTo !== 'venue' && payTo !== 'smileys') {
       return NextResponse.json({ error: 'payTo must be venue or smileys' }, { status: 400 })
+    }
+    const contact = normalizePaymentContact(paymentContact)
+    if (contact instanceof Error) {
+      return NextResponse.json({ error: contact.message }, { status: 400 })
     }
     // totalSpots historically defaulted to 20 when omitted — preserve
     // that contract by treating undefined/null/empty as nullable here
@@ -241,6 +246,7 @@ export async function POST(req: NextRequest) {
         price:                parsedPrice as number,
         memberPrice:          parsedMemberPrice as number | null,
         payTo:                payTo || 'venue',
+        paymentContact:       contact,
         emoji:                emoji || '🎉',
         isPremium:            isPremium ?? false,
         membersOnly:          membersOnly ?? false,

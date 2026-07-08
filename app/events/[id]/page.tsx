@@ -552,11 +552,12 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                       <span className="font-medium">{event.price} {event.currency ?? 'TRY'}</span>
                       <span className="text-gray-400"> · {event.payTo === 'smileys' ? 'pay in advance' : 'pay at the event'}</span>
                     </span>
-                    {/* Advance payment is arranged over WhatsApp — same group
-                        link already shown to members further down the page. */}
-                    {event.payTo === 'smileys' && event.whatsappUrl && (
+                    {/* Advance payment is arranged over WhatsApp — a direct
+                        contact when the event has one, else the group link
+                        already shown to members further down the page. */}
+                    {event.payTo === 'smileys' && (event.paymentContact || event.whatsappUrl) && (
                       <a
-                        href={event.whatsappUrl}
+                        href={event.paymentContact || event.whatsappUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-50 border border-green-200 hover:bg-green-100 px-2 py-0.5 rounded-full transition-colors"
