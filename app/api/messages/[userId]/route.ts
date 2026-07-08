@@ -16,6 +16,20 @@ export async function GET(req: NextRequest, { params }: Params) {
     const { searchParams } = new URL(req.url)
     const since = searchParams.get('since')
 
+    // Block gate — a blocked user shouldn't keep reading the thread (the send
+    // path already blocks; the read path didn't). Admins/moderators bypass so
+    // they can read any conversation for moderation, matching POST.
+    if (!isAdminOrModerator(session)) {
+      const block = await prisma.memberBlock.findFirst({
+        where: { OR: [
+          { blockerId: session.id, blockedId: otherId },
+          { blockerId: otherId, blockedId: session.id },
+        ] },
+        select: { id: true },
+      })
+      if (block) return NextResponse.json({ error: 'You cannot view this conversation' }, { status: 403 })
+    }
+
     const messages = await prisma.directMessage.findMany({
       where: {
         OR: [

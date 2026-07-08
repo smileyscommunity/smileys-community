@@ -11,6 +11,7 @@ import UserAvatar from '@/components/UserAvatar'
 interface AttendeeUser { id: string; name: string; color: string; email: string; profilePhoto?: string | null; gender?: string | null; nationality?: string | null; phone?: string | null; noShowCount?: number }
 interface Attendee    { userId: string; status: string; checkedIn: boolean; joinedAt: string; isStaff?: boolean; user: AttendeeUser }
 interface WaitlistEntry { id: string; userId: string; createdAt: string; user: AttendeeUser }
+interface PaymentRow  { id: string; userId: string; status: string; amount: number; currency: string }
 
 function Row({ children }: { children: React.ReactNode }) {
   return (
@@ -40,6 +41,10 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
   const [event,     setEvent]     = useState<Event | null>(null)
   const [attendees, setAttendees] = useState<Attendee[]>([])
   const [waitlist,  setWaitlist]  = useState<WaitlistEntry[]>([])
+  // userId → live payment row (paid/pending). Only rendered for
+  // Smileys-collected priced events.
+  const [payments,  setPayments]  = useState<Record<string, PaymentRow>>({})
+  const [payBusy,   setPayBusy]   = useState<string | null>(null)
   const [loading,   setLoading]   = useState(true)
   const [toggling,  setToggling]  = useState<string | null>(null)
   const [busy,      setBusy]      = useState<string | null>(null)
@@ -61,6 +66,14 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
       const mergeNoShow = (a: Attendee): Attendee => ({ ...a, user: { ...a.user, noShowCount: noShowMap.get(a.userId) ?? 0 } })
       setAttendees(Array.isArray(data.attendees) ? data.attendees.map(mergeNoShow) : [])
       setWaitlist(Array.isArray(data.waitlist)   ? data.waitlist  : [])
+      if (Array.isArray(data.payments)) {
+        // Latest row per user, 'paid' winning over a stray older 'pending'.
+        const map: Record<string, PaymentRow> = {}
+        for (const p of data.payments as PaymentRow[]) {
+          if (!map[p.userId] || map[p.userId].status !== 'paid') map[p.userId] = p
+        }
+        setPayments(map)
+      }
       setAllUsers(userList)
     }).finally(() => setLoading(false))
   }, [id])
@@ -109,6 +122,26 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
     })
     if (res.ok) setAttendees(prev => prev.map(a => a.userId === userId ? { ...a, checkedIn: !current } : a))
     setToggling(null)
+  }
+
+  async function togglePaid(userId: string, currentlyPaid: boolean) {
+    setPayBusy(userId)
+    try {
+      const res = await fetch(`/app/api/admin/events/${id}/participants`, {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, action: currentlyPaid ? 'markUnpaid' : 'markPaid' }),
+      })
+      const data = await res.json()
+      if (res.ok && data.payment) {
+        setPayments(prev => ({ ...prev, [userId]: data.payment }))
+      } else {
+        toast.error(data.error ?? 'Could not update payment')
+      }
+    } catch {
+      toast.error('Network error — check your connection')
+    }
+    setPayBusy(null)
   }
 
   async function removeWaitlist(userId: string) {
@@ -216,6 +249,13 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
   const maleCount    = nonStaff.filter(a => a.user.gender === 'male').length
   const maleQuota    = (event as any).maleQuota   as number | null
   const femaleQuota  = (event as any).femaleQuota as number | null
+  // Payment checklist — only when Smileys collects the money for a priced
+  // event. Staff (host/cohosts) don't pay.
+  const trackPayments = event.payTo === 'smileys' && event.price > 0
+  const paidCount     = trackPayments ? nonStaff.filter(a => payments[a.userId]?.status === 'paid').length : 0
+  const outstanding   = trackPayments
+    ? nonStaff.reduce((s, a) => payments[a.userId]?.status === 'paid' ? s : s + (payments[a.userId]?.amount ?? event.price), 0)
+    : 0
 
 
   return (
@@ -242,12 +282,18 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
       </div>
 
       {/* Stats */}
-      <div className={`grid gap-2 ${turkishMaleQuota ? 'grid-cols-5' : 'grid-cols-4'}`}>
+      <div className={`grid gap-2 ${['grid-cols-4', 'grid-cols-5', 'grid-cols-6'][(turkishMaleQuota ? 1 : 0) + (trackPayments ? 1 : 0)]}`}>
         {[
           { label: 'Going',      value: goingCount,         color: 'text-white',        sub: `/ ${event.totalSpots}` },
           { label: 'Checked in', value: checkedInCount,     color: 'text-green-400',    sub: `${Math.round((checkedInCount / Math.max(goingCount,1))*100)}%` },
           { label: 'Pending',    value: pending.length,     color: pending.length  > 0 ? 'text-amber-400'  : 'text-zinc-600', sub: 'needs action' },
           { label: 'Waitlist',   value: waitlist.length,    color: waitlist.length > 0 ? 'text-violet-400' : 'text-zinc-600', sub: 'in queue' },
+          ...(trackPayments ? [{
+            label: '₺ Paid',
+            value: paidCount,
+            color: paidCount >= goingCount && goingCount > 0 ? 'text-green-400' : 'text-amber-400',
+            sub: `/ ${goingCount} · ₺${outstanding} due`,
+          }] : []),
           ...(turkishMaleQuota ? [{
             label: '🇹🇷 TR male',
             value: turkishMaleCount,
@@ -464,8 +510,9 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
             {approved.length > 0 && (
               <button
                 onClick={() => {
-                  const headers = ['Name', 'Email', 'Status', 'Checked In']
-                  const rows = approved.map(a => [a.user.name, a.user.email, a.status, a.checkedIn ? 'Yes' : 'No'])
+                  const headers = ['Name', 'Email', 'Status', 'Checked In', ...(trackPayments ? ['Paid'] : [])]
+                  const rows = approved.map(a => [a.user.name, a.user.email, a.status, a.checkedIn ? 'Yes' : 'No',
+                    ...(trackPayments ? [payments[a.userId]?.status === 'paid' ? 'Yes' : 'No'] : [])])
                   const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
                   const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([csv], { type: 'text/csv' })), download: `${event?.title ?? 'event'}-attendees.csv` })
                   a.click()
@@ -499,6 +546,20 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
+                    {trackPayments && !a.isStaff && (
+                      <button
+                        onClick={() => togglePaid(a.userId, payments[a.userId]?.status === 'paid')}
+                        disabled={payBusy === a.userId}
+                        title={payments[a.userId]?.status === 'paid' ? 'Mark as unpaid' : 'Mark as paid'}
+                        className={`text-xs font-bold px-2 py-1 rounded-lg transition-colors disabled:opacity-40 ${
+                          payments[a.userId]?.status === 'paid'
+                            ? 'bg-green-500/15 text-green-400 hover:bg-green-500/25'
+                            : 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20'
+                        }`}
+                      >
+                        {payBusy === a.userId ? '…' : payments[a.userId]?.status === 'paid' ? '₺ Paid' : '₺ Unpaid'}
+                      </button>
+                    )}
                     {a.checkedIn
                       ? <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-green-500/15 text-green-400">✓ In</span>
                       : <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-zinc-700/60 text-zinc-500">Not yet</span>

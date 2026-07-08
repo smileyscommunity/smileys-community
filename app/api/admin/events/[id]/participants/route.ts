@@ -113,7 +113,7 @@ export async function GET(_: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const [attendeesRaw, waitlistRaw, cohosts, eventRow] = await Promise.all([
+    const [attendeesRaw, waitlistRaw, cohosts, eventRow, payments] = await Promise.all([
       prisma.eventAttendee.findMany({
         where: { eventId },
         include: { user: { select: userSelect } },
@@ -125,6 +125,13 @@ export async function GET(_: NextRequest, { params }: Params) {
       }),
       prisma.eventCoHost.findMany({ where: { eventId }, select: { userId: true } }),
       prisma.event.findUnique({ where: { id: eventId }, select: { hostId: true } }),
+      // Payment checklist for Smileys-collected events — live ledger rows
+      // only (cancelled/refunded are history, not door state).
+      prisma.payment.findMany({
+        where:   { eventId, status: { in: ['pending', 'paid'] } },
+        select:  { id: true, userId: true, status: true, amount: true, currency: true },
+        orderBy: { createdAt: 'asc' },
+      }),
     ])
 
     const excludeIds = new Set([
@@ -145,7 +152,7 @@ export async function GET(_: NextRequest, { params }: Params) {
     const userMap = Object.fromEntries(waitlistUsers.map(u => [u.id, u]))
     const waitlist = waitlistRaw.map(w => ({ ...w, user: userMap[w.userId] }))
 
-    return NextResponse.json({ attendees, waitlist })
+    return NextResponse.json({ attendees, waitlist, payments })
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
@@ -221,7 +228,60 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (!await canManageEvent(session.id, eventId, session.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
-    const { userId, action } = await req.json() // action: 'approve' | 'reject'
+    const { userId, action } = await req.json() // action: 'approve' | 'reject' | 'markPaid' | 'markUnpaid'
+
+    // Payment checklist ops — money handling is admin-only. Hosts manage
+    // attendance above, but flipping paid states on Smileys-collected
+    // events stays with admins (they reconcile the bank side).
+    if (action === 'markPaid' || action === 'markUnpaid') {
+      if (session.role !== 'admin') {
+        return NextResponse.json({ error: 'Admin only' }, { status: 403 })
+      }
+      const evt = await prisma.event.findUnique({
+        where: { id: eventId }, select: { title: true, price: true, currency: true },
+      })
+      if (!evt) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
+      const existing = await prisma.payment.findFirst({
+        where:   { userId, eventId, status: { in: ['pending', 'paid'] } },
+        orderBy: { createdAt: 'desc' },
+      })
+
+      if (action === 'markPaid') {
+        if (existing?.status === 'paid') return NextResponse.json({ ok: true, payment: existing })
+        let payment
+        if (existing) {
+          payment = await prisma.payment.update({ where: { id: existing.id }, data: { status: 'paid' } })
+          await prisma.paymentLog.create({
+            data: { paymentId: existing.id, adminId: session.id, adminName: session.name,
+                    fromStatus: 'pending', toStatus: 'paid', note: `Marked paid on participants checklist ("${evt.title}")` },
+          })
+        } else {
+          // No ledger row — RSVP predates the payTo flip, or the member was
+          // added directly by an admin. Create it as paid so the checklist
+          // and the payments overview agree.
+          payment = await prisma.payment.create({
+            data: { userId, eventId, amount: Math.max(0, Number(evt.price) || 0),
+                    currency: evt.currency ?? 'TRY', status: 'paid', method: 'manual' },
+          })
+          await prisma.paymentLog.create({
+            data: { paymentId: payment.id, adminId: session.id, adminName: session.name,
+                    fromStatus: null, toStatus: 'paid', note: `Created + marked paid on participants checklist ("${evt.title}")` },
+          })
+        }
+        return NextResponse.json({ ok: true, payment })
+      }
+
+      // markUnpaid — only meaningful as an undo of 'paid'.
+      if (!existing || existing.status !== 'paid') {
+        return NextResponse.json({ error: 'No paid payment to revert' }, { status: 400 })
+      }
+      const payment = await prisma.payment.update({ where: { id: existing.id }, data: { status: 'pending' } })
+      await prisma.paymentLog.create({
+        data: { paymentId: existing.id, adminId: session.id, adminName: session.name,
+                fromStatus: 'paid', toStatus: 'pending', note: `Reverted to unpaid on participants checklist ("${evt.title}")` },
+      })
+      return NextResponse.json({ ok: true, payment })
+    }
 
     const [event, user] = await Promise.all([
       prisma.event.findUnique({ where: { id: eventId }, select: { title: true, status: true, spotsLeft: true, date: true, neighborhood: true, turkishMaleQuota: true, genderBalance: true, maleQuota: true, femaleQuota: true, totalSpots: true, approvalRequired: true } }),
