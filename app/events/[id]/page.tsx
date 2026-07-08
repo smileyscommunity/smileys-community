@@ -557,7 +557,9 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                         already shown to members further down the page. */}
                     {event.payTo === 'smileys' && (event.paymentContact || event.whatsappUrl) && (
                       <a
-                        href={event.paymentContact || event.whatsappUrl}
+                        href={event.paymentContact
+                          ? `${event.paymentContact}?text=${encodeURIComponent(`Hi! I'd like to arrange payment for "${event.title}" (${formatDate(event.date)}) 😊`)}`
+                          : event.whatsappUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-50 border border-green-200 hover:bg-green-100 px-2 py-0.5 rounded-full transition-colors"
