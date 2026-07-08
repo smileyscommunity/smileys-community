@@ -38,3 +38,6 @@ next-env.d.ts
 
 # Claude Code project-local state (settings, agent-installed skills)
 .claude/
+
+# Local DB dumps — full member PII, never in git (server keeps its own in /root/db-backups)
+backups/
