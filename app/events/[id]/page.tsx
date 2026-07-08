@@ -544,6 +544,15 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                 <span className="text-base">📅</span>
                 <span className="font-medium">{formatDate(event.date)} · {formatTime(event.time)}</span>
               </div>
+              {event.price > 0 && (
+                <div className="flex items-center gap-2.5 text-sm text-gray-600">
+                  <span className="text-base">💰</span>
+                  <span>
+                    <span className="font-medium">{event.price} {event.currency ?? 'TRY'}</span>
+                    <span className="text-gray-400"> · {event.payTo === 'smileys' ? 'pay in advance' : 'pay at the event'}</span>
+                  </span>
+                </div>
+              )}
               <div className="flex items-center gap-2.5 text-sm text-gray-600">
                 <span className="text-base">📍</span>
                 {canSeeLocation ? (
