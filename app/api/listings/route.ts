@@ -37,9 +37,12 @@ export async function GET(req: NextRequest) {
     : {}
 
   // ?mine=true — show the current user's own listings including expired/filled
-  // so they can see and manage everything they've posted.
+  // so they can see and manage everything they've posted. Both guards must
+  // require a session: an anonymous ?mine=true previously dropped the status
+  // filter (mine) AND the owner scope (no session), returning every listing
+  // of every status — incl. deleted/expired — to a logged-out visitor.
   const mineFilter = mine && session ? { userId: session.id } : {}
-  const statusFilter = mine ? {} : { status: 'active' }
+  const statusFilter = mine && session ? {} : { status: 'active' }
 
   const where = {
     ...statusFilter,
