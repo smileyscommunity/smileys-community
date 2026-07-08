@@ -83,6 +83,9 @@ interface Member {
   // full profile is gated until they connect.
   restricted?: boolean
   membershipType?: string | null
+  // True while the member has a live availability pulse — drives the
+  // "🟢 free now" card badge and the "Around now" filter.
+  activePulse?: boolean
 }
 
 function displayRole(m: Member): { label: string; cls: string } {
@@ -417,40 +420,50 @@ function MemberModal({ m, onClose, currentUserId, currentUserRole, viewerPrivile
         role="dialog"
         aria-modal="true"
         aria-label={`${m.name} profile`}
-        className="relative bg-white w-full md:max-w-md rounded-t-3xl md:rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row max-h-[90vh]"
+        className="relative bg-white w-full md:max-w-md rounded-t-3xl md:rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
         onClick={e => e.stopPropagation()}
       >
         {/* Close */}
-        <button onClick={onClose} className="absolute top-3 right-3 z-10 p-1.5 rounded-full bg-black/20 hover:bg-black/30 transition-colors">
-          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <button onClick={onClose} aria-label="Close profile" className="absolute top-3 right-3 z-10 p-1.5 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors">
+          <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
 
-        {/* Photo — compact on mobile, left column on desktop */}
-        <div className="relative w-full h-48 md:w-44 md:h-full md:shrink-0 bg-gray-100">
-          {photo ? (
-            <img src={photo} alt={m.name} className="w-full h-full object-cover" style={{ objectPosition: '50% 10%' }} />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-5xl font-bold text-white" style={{ backgroundColor: m.color }}>
-              {getInitials(m.name)}
-            </div>
-          )}
-          <div className="absolute bottom-2 left-2">{roleBadge}</div>
-        </div>
-
-        {/* Content — scrollable */}
+        {/* Content — scrollable. Layout mirrors the standalone /members/[id]
+            page: photo thumbnail beside the identity, full-width action row,
+            then captioned About / Interests sections — instead of the old
+            full-bleed cover photo with details scattered below it. */}
         <div className="flex-1 overflow-y-auto">
-          {/* Identity — always visible */}
-          <div className="px-4 pt-3 pb-1">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 min-w-0">
-                <h2 className="text-base font-extrabold text-gray-900 truncate">
-                  {isConnected || m.id === currentUserId ? m.name : m.name.split(' ')[0]}
-                </h2>
-                <MembershipBadge membershipType={m.membershipType} className="shrink-0 text-[10px] px-2 py-0.5" />
+          {/* Identity header — always visible */}
+          <div className="px-4 pt-5 pb-1">
+            <div className="flex items-start gap-4">
+              <div className="relative shrink-0">
+                {photo ? (
+                  <img src={photo} alt={m.name} className="w-24 h-24 rounded-2xl object-cover" style={{ objectPosition: '50% 20%' }} />
+                ) : (
+                  <div className="w-24 h-24 rounded-2xl flex items-center justify-center text-3xl font-bold text-white" style={{ backgroundColor: m.color }}>
+                    {getInitials(m.name)}
+                  </div>
+                )}
+              </div>
+              <div className="flex-1 min-w-0 pt-1 pr-7">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-lg font-extrabold text-gray-900 leading-tight">
+                    {isConnected || m.id === currentUserId ? m.name : m.name.split(' ')[0]}
+                    {(isConnected || m.id === currentUserId) && flag && <span className="ml-1.5 text-base font-normal">{flag}</span>}
+                  </h2>
+                  <MembershipBadge membershipType={m.membershipType} className="shrink-0 text-[10px] px-2 py-0.5" />
+                  {/* Role badge only when it carries information — plain
+                      'Member' is the default and just eats space. */}
+                  {(m.isHost || m.role === 'admin' || m.role === 'moderator') && roleBadge}
+                </div>
+                <p className="text-xs text-gray-400 mt-1.5">
+                  {(isConnected || m.id === currentUserId) && m.neighborhood ? <>📍 {m.neighborhood} · </> : null}
+                  Joined {new Date(m.joinedAt).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}
+                </p>
                 {conn?.status === 'accepted' && (
-                  <span className="text-xs font-semibold bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full flex items-center gap-0.5 shrink-0">
+                  <span className="inline-flex items-center gap-0.5 mt-1.5 text-xs font-semibold bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">
                     <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                     </svg>
@@ -458,12 +471,42 @@ function MemberModal({ m, onClose, currentUserId, currentUserRole, viewerPrivile
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                {m.id !== currentUserId && (
-                  <ConnectButton m={m} currentUserId={currentUserId} connections={connections} onConnectionChange={onConnectionChange} />
+            </div>
+
+            {/* Action row — full-width buttons like the profile page. Once
+                connected, Message leads and disconnect shrinks to a text
+                link so the destructive action never dominates. */}
+            {m.id !== currentUserId && (
+              <div className="flex items-center gap-3 mt-4">
+                {conn?.status === 'accepted' ? (
+                  <>
+                    <Link href={`/messages/${m.id}`} onClick={onClose}
+                      className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                      </svg>
+                      Message
+                    </Link>
+                    <ConnectButton m={m} currentUserId={currentUserId} connections={connections} onConnectionChange={onConnectionChange} />
+                  </>
+                ) : (
+                  <>
+                    <div className="flex-1 [&>button]:w-full [&>button]:justify-center">
+                      <ConnectButton m={m} currentUserId={currentUserId} connections={connections} onConnectionChange={onConnectionChange} />
+                    </div>
+                    {isPrivileged && (
+                      <Link href={`/messages/${m.id}`} onClick={onClose}
+                        className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-xl transition-colors">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                        </svg>
+                        Message
+                      </Link>
+                    )}
+                  </>
                 )}
               </div>
-            </div>
+            )}
           </div>
 
           {/* Locked state — not connected. Restricted (the member chose
@@ -489,27 +532,9 @@ function MemberModal({ m, onClose, currentUserId, currentUserRole, viewerPrivile
           {/* Full profile — connected or own profile */}
           {(isConnected || m.id === currentUserId) && (
             <>
-              <div className="px-4 pb-1">
-                {flag && <span className="text-base">{flag}</span>}
-                <div className="flex items-center justify-between gap-2 mt-0.5">
-                  {m.neighborhood
-                    ? <p className="text-xs text-gray-400">📍 {m.neighborhood}</p>
-                    : <span />
-                  }
-                  {m.id !== currentUserId && (conn?.status === 'accepted' || isPrivileged) && (
-                    <Link href={`/messages/${m.id}`} onClick={onClose}
-                      className="flex items-center gap-1 px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg transition-colors shrink-0">
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                      </svg>
-                      Message
-                    </Link>
-                  )}
-                </div>
-              </div>
-
-              {/* Stats row */}
-              <div className="flex divide-x divide-gray-100 border-y border-gray-100 mx-4 my-2">
+              {/* Stats row — flag/neighborhood/joined moved into the header,
+                  so this is just the activity numbers now */}
+              <div className="flex divide-x divide-gray-100 border-y border-gray-100 mx-4 my-3">
                 <div className="flex-1 py-2 text-center">
                   <p className="text-sm font-extrabold text-gray-900">🎟 {m.eventsCount}</p>
                   <p className="text-xs text-gray-400">{commonEvents > 0 ? `${commonEvents} shared` : 'Events'}</p>
@@ -517,10 +542,6 @@ function MemberModal({ m, onClose, currentUserId, currentUserRole, viewerPrivile
                 <div className="flex-1 py-2 text-center">
                   <p className="text-sm font-extrabold text-gray-900">🏛 {m.clubs.length}</p>
                   <p className="text-xs text-gray-400">Clubs</p>
-                </div>
-                <div className="flex-1 py-2 text-center">
-                  <p className="text-sm font-extrabold text-gray-900">📅 {new Date(m.joinedAt).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}</p>
-                  <p className="text-xs text-gray-400">Joined</p>
                 </div>
               </div>
 
@@ -641,6 +662,13 @@ const MemberCard = memo(function MemberCard({ m, onSelect, connectionStatus, han
               Hangout
             </span>
           )}
+          {m.activePulse && (
+            <span title="Free to meet up right now"
+              className="flex items-center gap-1 bg-emerald-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">
+              <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+              Free now
+            </span>
+          )}
           {connectionStatus === 'accepted' && (
             <span className="flex items-center gap-0.5 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">
               <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -736,6 +764,133 @@ const MemberCard = memo(function MemberCard({ m, onSelect, connectionStatus, han
   )
 })
 
+// Mobile flash-card deck — browse members one at a time, swiping (or tapping
+// the arrows) through the same filtered/sorted list as the grid. Privacy
+// mirrors MemberCard/MemberModal: first-name-only, bio/neighborhood/interests
+// gated behind a connection. Deliberately NO swipe-left/right verdict
+// mechanic — it's a browse mode, not a rating game (no addictive loops).
+function MemberFlashCards({ members, currentUserId, connections, onConnectionChange, onSelect, getConnectionStatus, onNearEnd }: {
+  members: Member[]
+  currentUserId: string
+  connections: ConnectionRecord[]
+  onConnectionChange: (updated: ConnectionRecord | null, removed?: string) => void
+  onSelect: (m: Member) => void
+  getConnectionStatus: (id: string) => string | undefined
+  onNearEnd?: () => void
+}) {
+  const [index, setIndex] = useState(0)
+  const [dx, setDx] = useState(0)
+  const touchX = useRef<number | null>(null)
+
+  // Filters can shrink the list under the cursor — clamp, don't crash.
+  const i = members.length ? Math.min(index, members.length - 1) : 0
+  const m: Member | undefined = members[i]
+
+  useEffect(() => {
+    if (onNearEnd && members.length > 0 && members.length - i <= 5) onNearEnd()
+  }, [i, members.length, onNearEnd])
+
+  if (!m) return null
+
+  const status      = getConnectionStatus(m.id)
+  const isConnected = status === 'accepted' || status === 'privileged'
+  const isSelf      = m.id === currentUserId
+  const flag        = countryFlag(m.nationality)
+  const photo       = resolveImageUrl(m.profilePhoto)
+  const displayName = isConnected || isSelf ? m.name : m.name.split(' ')[0]
+
+  const go = (dir: 1 | -1) => {
+    setDx(0)
+    setIndex(Math.min(Math.max(i + dir, 0), members.length - 1))
+  }
+
+  return (
+    <div className="max-w-sm mx-auto select-none">
+      <div
+        className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden"
+        style={{ transform: `translateX(${dx}px) rotate(${dx / 40}deg)`, transition: dx === 0 ? 'transform 0.2s' : 'none' }}
+        onTouchStart={e => { touchX.current = e.touches[0].clientX }}
+        onTouchMove={e => { if (touchX.current !== null) setDx(e.touches[0].clientX - touchX.current) }}
+        onTouchEnd={() => {
+          const d = dx
+          touchX.current = null
+          if (d < -60) go(1)
+          else if (d > 60) go(-1)
+          else setDx(0)
+        }}
+      >
+        <button onClick={() => onSelect(m)} className="block w-full text-left" aria-label={`View ${displayName}'s profile`}>
+          <div className="relative w-full aspect-[4/5] bg-gray-100">
+            {photo ? (
+              <img src={photo} alt={displayName} className="w-full h-full object-cover" style={{ objectPosition: '50% 20%' }} draggable={false} />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-6xl font-bold text-white" style={{ backgroundColor: m.color }}>
+                {getInitials(m.name)}
+              </div>
+            )}
+            <div className="absolute bottom-0 inset-x-0 h-24 bg-gradient-to-t from-black/60 to-transparent" />
+            <div className="absolute bottom-3 left-4 right-4">
+              <p className="text-white text-2xl font-extrabold drop-shadow-sm truncate">
+                {displayName} {flag && <span className="text-xl">{flag}</span>}
+              </p>
+              <p className="text-white/80 text-xs mt-0.5">
+                {isConnected && m.neighborhood ? `📍 ${m.neighborhood} · ` : ''}
+                Joined {new Date(m.joinedAt).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}
+              </p>
+            </div>
+            {m.isHost && <span className="absolute top-3 left-3 text-[10px] font-bold px-2 py-1 rounded-full bg-blue-500 text-white shadow-sm">Host</span>}
+            {m.restricted && (
+              <span className="absolute top-3 right-3 flex items-center gap-0.5 bg-gray-900/70 text-white text-[10px] font-bold px-2 py-1 rounded-full backdrop-blur-sm">🔒 Private</span>
+            )}
+          </div>
+        </button>
+
+        <div className="p-4 space-y-3">
+          {isConnected && m.bio ? (
+            <p className="text-sm text-gray-600 leading-relaxed line-clamp-3">{m.bio}</p>
+          ) : !isConnected && !isSelf ? (
+            <p className="text-xs text-gray-400">
+              🔒 {m.restricted ? `${displayName} keeps their profile to connections only.` : 'Bio and interests unlock when you connect.'}
+            </p>
+          ) : null}
+
+          {isConnected && m.interests.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {m.interests.slice(0, 5).map(int => (
+                <span key={int} className="px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-100 rounded-full text-xs font-medium">{int}</span>
+              ))}
+              {m.interests.length > 5 && <span className="text-xs text-gray-300 self-center">+{m.interests.length - 5}</span>}
+            </div>
+          )}
+
+          {!isSelf && (
+            <div className="flex items-center gap-2">
+              <ConnectButton m={m} currentUserId={currentUserId} connections={connections} onConnectionChange={onConnectionChange} />
+              {isConnected && (
+                <Link href={`/messages/${m.id}`} className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg transition-colors">
+                  💬 Message
+                </Link>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between mt-4 px-2">
+        <button onClick={() => go(-1)} disabled={i === 0} aria-label="Previous member"
+          className="w-11 h-11 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center text-gray-600 disabled:opacity-30">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+        </button>
+        <p className="text-xs text-gray-400 font-medium">{i + 1} / {members.length}</p>
+        <button onClick={() => go(1)} disabled={i === members.length - 1} aria-label="Next member"
+          className="w-11 h-11 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center text-gray-600 disabled:opacity-30">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+        </button>
+      </div>
+    </div>
+  )
+}
+
 type RoleFilter = 'All' | 'Hosts' | 'Admins' | 'Saved'
 type SortOption = 'newest' | 'active' | 'az'
 
@@ -763,7 +918,12 @@ function MembersPageInner() {
   const [roleFilter,   setRoleFilter]   = useState<RoleFilter>('All')
   // ?openTo= filter — only one active at a time (matches the role-pill UX).
   const [openToFilter, setOpenToFilter] = useState<'' | 'coffee' | 'language' | 'hosting'>('')
+  // "Around now" — only members with a live availability pulse.
+  const [aroundNow,    setAroundNow]    = useState(false)
   const [sort,         setSort]         = useState<SortOption>('newest')
+  // Mobile-only view mode: the classic grid or the one-at-a-time flash-card
+  // deck. Desktop always renders the grid regardless of this state.
+  const [view,         setView]         = useState<'grid' | 'cards'>('grid')
   const [selected,     setSelected]     = useState<Member | null>(null)
   const [myClubIds,    setMyClubIds]    = useState<string[]>([])
   const [myEventIds,   setMyEventIds]   = useState<string[]>([])
@@ -850,7 +1010,7 @@ function MembersPageInner() {
   useEffect(() => {
     const trimmed = search.trim()
     // No active filters at all → fall back to the initial member list.
-    if (roleFilter === 'All' && !openToFilter && !trimmed) { setFilteredMembers(null); return }
+    if (roleFilter === 'All' && !openToFilter && !aroundNow && !trimmed) { setFilteredMembers(null); return }
 
     // Debounce search input so typing "yasemin" fires one fetch, not seven.
     // role/openTo changes don't need debouncing (single click) but routing
@@ -863,6 +1023,7 @@ function MembersPageInner() {
       if (roleFilter === 'Admins') params.set('adminOnly', 'true')
       if (roleFilter === 'Saved')  params.set('savedOnly', 'true')
       if (openToFilter)            params.set('openTo', openToFilter)
+      if (aroundNow)               params.set('aroundNow', 'true')
       if (trimmed)                 params.set('search', trimmed)
       fetch(`/app/api/members?${params}`, { credentials: 'include' })
         .then(r => r.json())
@@ -871,7 +1032,7 @@ function MembersPageInner() {
         .finally(() => setFilterLoading(false))
     }, delay)
     return () => clearTimeout(t)
-  }, [roleFilter, openToFilter, search])
+  }, [roleFilter, openToFilter, aroundNow, search])
 
   async function loadMore() {
     setLoadingMore(true)
@@ -949,6 +1110,14 @@ function MembersPageInner() {
   }, [connectionStatusMap, isPrivilegedUser])
 
   const handleSelectMember = useCallback((m: Member) => setSelected(m), [])
+
+  // Deck auto-pagination: when the flash-card cursor nears the end of the
+  // loaded list, fetch the next page. Same eligibility rules as the grid's
+  // "Load more" button (no server-side paging under search/role filters).
+  const handleDeckNearEnd = useCallback(() => {
+    if (hasMore && !loadingMore && !search && roleFilter === 'All') loadMore()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasMore, loadingMore, search, roleFilter, members.length])
 
   return (
     <div className="min-h-screen bg-warm pb-20 md:pb-0">
@@ -1057,6 +1226,25 @@ function MembersPageInner() {
             {/* Divider — open-to filters are an orthogonal dimension to role */}
             <div className="w-px bg-gray-200 my-1.5 shrink-0" />
 
+            {/* "Around now" — members with a live availability pulse. Green +
+                live-dot so it reads as the time-sensitive filter it is. */}
+            <button
+              onClick={() => setAroundNow(v => !v)}
+              aria-pressed={aroundNow}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold border whitespace-nowrap transition-all ${
+                aroundNow
+                  ? 'bg-green-50 text-green-700 border-green-300'
+                  : 'bg-white text-gray-600 border-gray-200 hover:border-green-200'
+              }`}
+              title="Members who are free to meet up right now"
+            >
+              <span className="relative flex h-1.5 w-1.5">
+                {aroundNow && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />}
+                <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${aroundNow ? 'bg-green-500' : 'bg-gray-400'}`} />
+              </span>
+              Around now
+            </button>
+
             {([
               { id: 'coffee',   emoji: '☕', label: 'Coffee'   },
               { id: 'language', emoji: '🗣️', label: 'Language' },
@@ -1078,6 +1266,21 @@ function MembersPageInner() {
                 </button>
               )
             })}
+
+            {/* Mobile-only flash-card view toggle — desktop always shows the grid */}
+            <div className="w-px bg-gray-200 my-1.5 shrink-0 sm:hidden" />
+            <button
+              onClick={() => setView(v => v === 'cards' ? 'grid' : 'cards')}
+              aria-pressed={view === 'cards'}
+              className={`sm:hidden flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold border whitespace-nowrap transition-all ${
+                view === 'cards'
+                  ? 'bg-amber-50 text-amber-700 border-amber-300'
+                  : 'bg-white text-gray-600 border-gray-200 hover:border-amber-200'
+              }`}
+              title="Browse members one at a time"
+            >
+              <span>🃏</span> Cards
+            </button>
           </div>
         </div>
       </div>
@@ -1166,13 +1369,28 @@ function MembersPageInner() {
 
         {!loading && !filterLoading && visible.length > 0 && (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+            {view === 'cards' && (
+              <div className="sm:hidden">
+                <MemberFlashCards
+                  members={visible}
+                  currentUserId={user.id}
+                  connections={connections}
+                  onConnectionChange={handleConnectionChange}
+                  onSelect={handleSelectMember}
+                  getConnectionStatus={getConnectionStatus}
+                  onNearEnd={handleDeckNearEnd}
+                />
+              </div>
+            )}
+            <div className={`grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 ${view === 'cards' ? 'hidden sm:grid' : 'grid'}`}>
               {visible.map(m => (
                 <MemberCard key={m.id} m={m} onSelect={handleSelectMember} connectionStatus={getConnectionStatus(m.id)} hangingOut={hangoutHostIds.has(m.id)} />
               ))}
             </div>
             {hasMore && !search && roleFilter === 'All' && (
-              <div className="flex flex-col items-center gap-2 mt-8">
+              // Deck auto-paginates, so the manual button is desktop/grid-only
+              // while cards view is active on mobile.
+              <div className={`flex-col items-center gap-2 mt-8 ${view === 'cards' ? 'hidden sm:flex' : 'flex'}`}>
                 <p className="text-sm text-gray-400">Showing {members.length} of {total} members</p>
                 <button
                   onClick={loadMore}
