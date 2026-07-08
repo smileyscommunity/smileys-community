@@ -38,7 +38,7 @@ export default async function NeighborhoodSections({
   const [
     upcomingRaw, pastCount, locals, hostCounts,
     totalLocals, allEventCounts, communityPhotos, wallPostCount,
-    activeListings, upcomingVisitors, activeHangouts, businesses,
+    activeListings, upcomingVisitors, activeHangouts, businesses, activePulses,
   ] = await Promise.all([
     prisma.event.findMany({
       where:   { neighborhood: name, date: { gte: today }, status: 'published' },
@@ -133,6 +133,20 @@ export default async function NeighborhoodSections({
         isExpatOwned: true, isExpatFriendly: true,
       },
     }),
+    // Members who've pulsed that they're free to meet up in this neighborhood
+    // right now (non-expired). Pulses are member-only content (the /hangouts
+    // feed gates on session), so only fetch when the viewer is logged in.
+    myId
+      ? prisma.availabilityPulse.findMany({
+          where:   { neighborhood: name, until: { gte: now } },
+          orderBy: { createdAt: 'desc' },
+          take:    6,
+          select:  {
+            id: true, note: true, until: true, createdAt: true,
+            user: { select: { id: true, name: true, color: true, profilePhoto: true } },
+          },
+        })
+      : Promise.resolve([]),
   ])
 
   const hosts = hostCounts.length > 0
@@ -560,6 +574,47 @@ export default async function NeighborhoodSections({
                       </h3>
                       <p className="text-[11px] text-gray-400">{b.category}</p>
                       <p className="text-xs text-gray-600 line-clamp-2 mt-1">{b.description}</p>
+                    </div>
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Members free to meet up right now in this neighborhood (availability
+          pulses). Member-only signal (gated on myId), non-expired only.
+          Silent when empty. Sits above hangouts because "free right now" is
+          the most time-sensitive signal on the page. */}
+      {myId && activePulses.length > 0 && (
+        <div className="pt-6 border-t border-gray-100">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">Around right now in {name}</h2>
+            <Link href="/hangouts"
+              className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
+              See all →
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {activePulses.map(p => {
+              const until    = new Date(p.until)
+              const minsLeft = Math.max(0, Math.round((until.getTime() - now.getTime()) / 60_000))
+              const window   = minsLeft >= 60
+                ? `until ${until.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
+                : `${minsLeft}m left`
+              const avatar = p.user.profilePhoto ? avatarUrl(p.user.profilePhoto, 64) : null
+              return (
+                <Link key={p.id} href={`/members/${p.user.id}`} className="group block">
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hover:shadow-md hover:-translate-y-0.5 transition-all h-full">
+                    <p className="text-xs font-bold text-green-700 uppercase tracking-wide mb-2">🟢 Free to meet · {window}</p>
+                    {p.note && <p className="text-sm text-gray-800 mb-3 line-clamp-2">{p.note}</p>}
+                    <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
+                      {avatar
+                        ? <img src={avatar} alt={p.user.name} className="w-6 h-6 rounded-full object-cover shrink-0" />
+                        : <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0"
+                            style={{ backgroundColor: p.user.color }}>{p.user.name[0]}</div>}
+                      <span className="text-xs text-gray-600 truncate">{p.user.name}</span>
                     </div>
                   </div>
                 </Link>

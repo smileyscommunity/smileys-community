@@ -52,7 +52,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const data: Record<string, unknown> = {}
 
   if ('status' in body) {
-    const ALLOWED = ['active', 'deleted', 'expired']
+    const ALLOWED = ['active', 'deleted', 'expired', 'filled']
     if (!ALLOWED.includes(body.status)) return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
     data.status = body.status
   }

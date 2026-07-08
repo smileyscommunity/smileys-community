@@ -185,7 +185,9 @@ export default async function DashboardPage() {
     // formerly standalone awaits
     upcomingVisitors, latestHandbook,
     // formerly batch 3 — trendingEventsRaw is deduped against featuredEvents post-fetch
-    suggestedMembers, thisWeekEvents, totalMembers, eventsThisWeek, neighborhoodEventCount, newMembers, recentPhotos, trendingEventsRaw, nearbyMembers, newClubs, latestPosts, activeHangouts, recentHangouts, recentConnections, recentReferences, recentRsvps,
+    suggestedMembers, thisWeekEvents, totalMembers, eventsThisWeek, neighborhoodEventCount, newMembers, recentPhotos, trendingEventsRaw, nearbyMembers, newClubs, latestPosts, activeHangouts, recentHangouts, recentPulses, recentConnections, recentReferences, recentRsvps, recentlyCreatedClubs, recentBusinesses,
+    // activity-wall extras
+    recentEventReviews, recentPlaceReviews, recentHangoutJoins, recentHoodPosts, recentResources, recentTestimonials, recentCupPicks, recentCupDonations,
   ] = await Promise.all([
     clubIds.length
       ? prisma.event.findMany({
@@ -204,28 +206,42 @@ export default async function DashboardPage() {
             orderBy: { date: 'asc' }, take: 4,
             select: { id: true, title: true, date: true, time: true, emoji: true, neighborhood: true, price: true, totalSpots: true, limitedSpots: true, coverImage: true, _count: { select: { attendees: { where: { status: 'approved' } } } } },
           }),
-    clubIds.length
-      ? prisma.clubMembership.findMany({
-          where: { clubId: { in: clubIds }, userId: { not: session.id }, status: 'approved', joinedAt: { gte: weekAgo } },
-          include: { user: { select: { name: true, color: true } }, club: { select: { name: true, emoji: true, slug: true } } },
-          orderBy: { joinedAt: 'desc' }, take: 5,
-        })
-      : Promise.resolve([]),
+    // Club joins for the activity wall. Members of clubs see their own
+    // clubs' joins; members of none fall back to community-wide joins
+    // (public clubs only) so newcomers — the people who most need to
+    // see a lively wall — don't get an empty club section.
+    prisma.clubMembership.findMany({
+      where: {
+        ...(clubIds.length
+          ? { clubId: { in: clubIds } }
+          : { club: { isPrivate: false, isActive: true } }),
+        userId: { not: session.id }, status: 'approved', joinedAt: { gte: weekAgo },
+      },
+      include: { user: { select: { name: true, color: true } }, club: { select: { name: true, emoji: true, slug: true } } },
+      orderBy: { joinedAt: 'desc' }, take: 5,
+    }),
     prisma.eventAttendee.findMany({
       where: { userId: session.id, status: 'pending' },
       include: { event: { select: { id: true, title: true, date: true, emoji: true } } },
       orderBy: { joinedAt: 'desc' }, take: 3,
     }),
-    clubIds.length
-      ? prisma.clubPost.findMany({
-          where: { clubId: { in: clubIds }, type: { in: ['post', 'announcement'] } },
-          orderBy: { createdAt: 'desc' }, take: 4,
-          include: {
-            user: { select: { name: true, color: true, profilePhoto: true } },
-            club: { select: { name: true, emoji: true, slug: true } },
-          },
-        })
-      : Promise.resolve([]),
+    // Club wall posts — same no-clubs fallback as joins above. The
+    // isPrivate filter matters here: private-club posts must not
+    // leak onto a non-member's dashboard.
+    prisma.clubPost.findMany({
+      where: {
+        ...(clubIds.length
+          ? { clubId: { in: clubIds } }
+          : { club: { isPrivate: false, isActive: true } }),
+        type: { in: ['post', 'announcement'] },
+      },
+      orderBy: { createdAt: 'desc' }, take: 4,
+      include: {
+        user: { select: { name: true, color: true, profilePhoto: true } },
+        club: { select: { name: true, emoji: true, slug: true } },
+        poll: { select: { question: true } },
+      },
+    }),
     // Who's going: familiar faces (past co-attendees) going to upcoming events
     pastEventIds.length > 0
       ? prisma.eventAttendee.findMany({
@@ -277,19 +293,19 @@ export default async function DashboardPage() {
     // for next month still surfaces as "new in your clubs". Exclude
     // events already on the user's calendar — the timeline is about
     // *discovery*, not nagging members about RSVPs they've made.
-    clubIds.length
-      ? prisma.event.findMany({
-          where: {
-            clubId:    { in: clubIds },
-            status:    'published',
-            createdAt: { gte: twoWeeksAgo },
-            id:        { notIn: joinedEventIds },
-          },
-          orderBy: { createdAt: 'desc' },
-          take: 5,
-          include: { club: { select: { name: true, emoji: true, slug: true } } },
-        })
-      : Promise.resolve([]),
+    prisma.event.findMany({
+      where: {
+        ...(clubIds.length
+          ? { clubId: { in: clubIds } }
+          : { club: { isPrivate: false, isActive: true } }),
+        status:    'published',
+        createdAt: { gte: twoWeeksAgo },
+        id:        { notIn: joinedEventIds },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+      include: { club: { select: { name: true, emoji: true, slug: true } } },
+    }),
     // Referral stats — reuses userProfile.referralCode (already loaded in
     // batch 1) instead of a redundant prisma.user.findUnique. Self-hides
     // when the user has no referral code or no successful referrals.
@@ -424,6 +440,18 @@ export default async function DashboardPage() {
         user: { select: { name: true, color: true } },
       },
     }),
+    // Active availability pulses — members flagging they're free to meet up
+    // right now. Non-expired only (until >= now); feeds ClubActivityTimeline
+    // alongside hangouts. Excludes the viewer's own, last 7 days.
+    prisma.availabilityPulse.findMany({
+      where: { until: { gte: new Date() }, createdAt: { gte: weekAgo }, userId: { not: session.id } },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+      select: {
+        id: true, neighborhood: true, note: true, until: true, createdAt: true,
+        user: { select: { name: true, color: true } },
+      },
+    }),
     // Recent accepted connections — social proof that the network is active.
     // Excludes the current user's own connections (they know about those).
     prisma.memberConnection.findMany({
@@ -473,7 +501,119 @@ export default async function DashboardPage() {
         event: { select: { id: true, title: true, emoji: true } },
       },
     }),
+    // Clubs created in the last 14 days — feeds ClubActivityTimeline so a
+    // brand-new club gets dashboard visibility while it has zero members.
+    prisma.club.findMany({
+      where:   { isActive: true, createdAt: { gte: twoWeeksAgo } },
+      orderBy: { createdAt: 'desc' },
+      take: 3,
+      select: { id: true, name: true, slug: true, emoji: true, createdAt: true },
+    }),
+    // Newly approved directory places — only after moderation so
+    // unreviewed submissions never surface on the dashboard.
+    prisma.business.findMany({
+      where:   { isApproved: true, isActive: true, createdAt: { gte: twoWeeksAgo } },
+      orderBy: { createdAt: 'desc' },
+      take: 3,
+      select: { id: true, name: true, category: true, createdAt: true },
+    }),
+    // Event reviews — 4★+ only, mirroring the 'good'-vibes filter on
+    // hangout references so the wall stays celebratory, not gripey.
+    prisma.review.findMany({
+      where:   { rating: { gte: 4 }, createdAt: { gte: weekAgo }, userId: { not: session.id } },
+      orderBy: { createdAt: 'desc' },
+      take: 4,
+      select: {
+        rating: true, createdAt: true,
+        user:  { select: { name: true, color: true } },
+        event: { select: { id: true, title: true, emoji: true } },
+      },
+    }),
+    // Directory reviews — 4★+, not moderated away, on live places only.
+    prisma.businessReview.findMany({
+      where: {
+        rating:    { gte: 4 },
+        isHidden:  false,
+        createdAt: { gte: weekAgo },
+        authorId:  { not: session.id },
+        business:  { isApproved: true, isActive: true },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 3,
+      select: {
+        rating: true, createdAt: true,
+        author:   { select: { name: true, color: true } },
+        business: { select: { id: true, name: true } },
+      },
+    }),
+    // Hangout joins — joining is as strong a social signal as posting.
+    prisma.hangoutJoin.findMany({
+      where:   { createdAt: { gte: weekAgo }, userId: { not: session.id }, hangout: { status: 'active' } },
+      orderBy: { createdAt: 'desc' },
+      take: 4,
+      select: {
+        createdAt: true,
+        user:    { select: { name: true, color: true } },
+        hangout: { select: { id: true, title: true } },
+      },
+    }),
+    // Neighborhood wall posts.
+    prisma.neighborhoodPost.findMany({
+      where:   { createdAt: { gte: weekAgo }, userId: { not: session.id } },
+      orderBy: { createdAt: 'desc' },
+      take: 4,
+      select: {
+        id: true, content: true, neighborhood: true, createdAt: true,
+        user: { select: { name: true, color: true } },
+      },
+    }),
+    // New resources added in the user's clubs.
+    clubIds.length
+      ? prisma.clubResource.findMany({
+          where:   { clubId: { in: clubIds }, createdAt: { gte: twoWeeksAgo } },
+          orderBy: { createdAt: 'desc' },
+          take: 3,
+          select: { id: true, title: true, emoji: true, createdAt: true, club: { select: { name: true, emoji: true, slug: true } } },
+        })
+      : Promise.resolve([]),
+    // Fresh member testimonials (admin-curated, active only).
+    prisma.testimonial.findMany({
+      where:   { active: true, createdAt: { gte: twoWeeksAgo } },
+      orderBy: { createdAt: 'desc' },
+      take: 2,
+      select: { id: true, memberName: true, quote: true, createdAt: true },
+    }),
+    // Cup predictions — seasonal banter while the campaign runs.
+    prisma.cupPrediction.findMany({
+      where:   { submittedAt: { gte: weekAgo }, userId: { not: session.id } },
+      orderBy: { submittedAt: 'desc' },
+      take: 3,
+      select: { pickedTeam: true, submittedAt: true, user: { select: { name: true, color: true } } },
+    }),
+    // Approved Cup prize donations — celebrate sponsors; pending ones
+    // stay hidden until an admin reviews them.
+    prisma.cupPrizeDonation.findMany({
+      where:   { status: 'approved', createdAt: { gte: twoWeeksAgo } },
+      orderBy: { createdAt: 'desc' },
+      take: 2,
+      select: { id: true, donorName: true, donorOrganization: true, prizeTitle: true, createdAt: true },
+    }),
   ])
+
+  // Activity wall reuses the batch-1 recentListings (already active-only,
+  // own excluded) — just narrowed to the wall's 7-day freshness window so
+  // a stale board doesn't surface month-old listings as "activity".
+  const wallListings = recentListings.filter(l => new Date(l.createdAt) >= weekAgo)
+
+  // Same reuse for visitor announcements: upcomingVisitors already holds
+  // active, member-posted, soon-starting announcements — the wall only
+  // wants the freshly *posted* ones.
+  const wallVisitors = upcomingVisitors
+    .filter(v => new Date(v.createdAt) >= weekAgo)
+    .map(v => ({ id: v.id, name: v.name, fromCity: v.fromCity, createdAt: v.createdAt }))
+
+  // Neighborhood pages route by slug, but posts store the display name.
+  const wallHoodPosts = recentHoodPosts.map(p => ({ ...p, slug: neighborhoodToSlug(p.neighborhood) }))
 
   // Build poll data for widget
   let pollForWidget = null
@@ -992,7 +1132,7 @@ export default async function DashboardPage() {
                 mobile and desktop. Center column renders on every
                 viewport, so a single placement replaces the previous
                 two (mobile-only + right-rail) renders. */}
-            <ClubActivityTimeline members={recentActivity} posts={wallActivity} events={recentClubEvents} photos={recentPhotos} rsvps={recentRsvps} newMembers={newMembers} hangouts={recentHangouts} connections={recentConnections} references={recentReferences} cap={12} />
+            <ClubActivityTimeline members={recentActivity} posts={wallActivity} events={recentClubEvents} photos={recentPhotos} rsvps={recentRsvps} newMembers={newMembers} hangouts={recentHangouts} pulses={recentPulses} connections={recentConnections} references={recentReferences} newClubs={recentlyCreatedClubs} listings={wallListings} businesses={recentBusinesses} eventReviews={recentEventReviews} placeReviews={recentPlaceReviews} visitors={wallVisitors} hangoutJoins={recentHangoutJoins} hoodPosts={wallHoodPosts} resources={recentResources} testimonials={recentTestimonials} cupPicks={recentCupPicks} cupDonations={recentCupDonations} cap={12} />
 
             {/* Upcoming visitors — surfaces /visiting + the new wave
                 action on the dashboard. Component renders nothing when

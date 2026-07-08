@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
+import posthog from 'posthog-js'
 import { useAuth } from '@/contexts/AuthContext'
 import { resolveImageUrl } from '@/lib/data'
 import PasswordToggle from '@/components/PasswordToggle'
@@ -57,6 +58,13 @@ function ActivateForm() {
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Something went wrong'); return }
       setUser({ id: data.id, name: data.name, initials: data.initials, color: data.color, role: data.role, bio: data.bio, emailVerified: data.emailVerified })
+      // Tie this first session (and its replay) to the member by distinctId, the
+      // same way the login flow does — activation was previously anonymous, so these
+      // newcomers showed up in PostHog as throwaway UUIDs. New activations are always
+      // non-staff; person props stay PII-light (we join on distinctId server-side).
+      posthog.opt_in_capturing()
+      posthog.identify(data.id, { role: data.role })
+      posthog.capture('account_activated', { role: data.role })
       setDone(true)
       setTimeout(() => router.push('/dashboard'), 1500)
     } catch {
