@@ -284,11 +284,24 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
   const PER_KIND_CAP = 3
   const kindCounts: Partial<Record<TimelineItem['kind'], number>> = {}
   const items: TimelineItem[] = []
+  // Pin active pulses to the front first. A pulse is a "free right now"
+  // signal that expires in a few hours, so it must not lose a visible slot
+  // to a newer-but-less-urgent item (a photo, an RSVP). Still bounded by the
+  // per-kind cap; `merged` is already recency-sorted so we take the freshest.
   for (const it of merged) {
+    if (it.kind !== 'pulse') continue
+    if ((kindCounts.pulse ?? 0) >= PER_KIND_CAP) break
+    kindCounts.pulse = (kindCounts.pulse ?? 0) + 1
+    items.push(it)
+    if (items.length >= cap) break
+  }
+  // Then fill the remaining slots by recency, per-kind capped as before.
+  for (const it of merged) {
+    if (it.kind === 'pulse') continue
+    if (items.length >= cap) break
     if ((kindCounts[it.kind] ?? 0) >= PER_KIND_CAP) continue
     kindCounts[it.kind] = (kindCounts[it.kind] ?? 0) + 1
     items.push(it)
-    if (items.length >= cap) break
   }
 
   if (items.length === 0) return null
