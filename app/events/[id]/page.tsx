@@ -1004,6 +1004,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                 memberPrice={event.memberPrice}
                 membersOnly={event.membersOnly}
                 currency={event.currency}
+                payTo={event.payTo}
               />
               {myAttendance?.status === 'approved' && !isPast && (
                 <div className="mt-2">
@@ -1099,6 +1100,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
             memberPrice={event.memberPrice}
             membersOnly={event.membersOnly}
             currency={event.currency}
+            payTo={event.payTo}
           />
         </div>
       )}

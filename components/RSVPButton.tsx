@@ -14,11 +14,14 @@ interface Props {
   memberPrice?: number
   membersOnly:  boolean
   currency?:    string
+  // Who collects the money — 'venue' (pay at the event) shows "Join",
+  // 'smileys' (we collect) shows "Buy ticket". See Event.payTo.
+  payTo?:       'venue' | 'smileys'
 }
 
 const SYMBOLS: Record<string, string> = { TRY: '₺', USD: '$', EUR: '€', GBP: '£' }
 
-export default function RSVPButton({ eventId, hostId, spotsLeft, price, memberPrice, membersOnly, currency = 'TRY' }: Props) {
+export default function RSVPButton({ eventId, hostId, spotsLeft, price, memberPrice, membersOnly, currency = 'TRY', payTo = 'venue' }: Props) {
   const { isLoggedIn, user } = useAuth()
   const { status, position, loading, checked, join, leave } = useRSVP(eventId)
   const sym = SYMBOLS[currency] ?? currency
@@ -140,7 +143,8 @@ export default function RSVPButton({ eventId, hostId, spotsLeft, price, memberPr
                    membersOnly ? 'Attend' :
                    memberPrice !== undefined ? `Join — ${sym}${memberPrice} (member)` :
                    price === 0 ? 'Join free' :
-                   `Buy ticket — ${sym}${price}`}
+                   payTo === 'smileys' ? `Buy ticket — ${sym}${price}` :
+                   `Join — ${sym}${price} at the event`}
                 </motion.span>
               </AnimatePresence>
             </motion.button>
@@ -183,10 +187,21 @@ export default function RSVPButton({ eventId, hostId, spotsLeft, price, memberPr
           onClick={() => setConfirmCancel(false)}>
           <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full" onClick={e => e.stopPropagation()}>
             <h3 className="font-bold text-gray-900 text-lg mb-2">Cancel your spot?</h3>
-            <p className="text-sm text-gray-600 mb-1">
-              This event costs <strong>{sym}{price}</strong>. Cancelling now may forfeit your payment depending on the refund policy.
-            </p>
-            <p className="text-xs text-gray-400 mb-5">If you paid, contact the organiser to arrange a refund.</p>
+            {payTo === 'smileys' ? (
+              <>
+                <p className="text-sm text-gray-600 mb-1">
+                  This event costs <strong>{sym}{price}</strong>. Cancelling now may forfeit your payment depending on the refund policy.
+                </p>
+                <p className="text-xs text-gray-400 mb-5">If you paid, contact the organiser to arrange a refund.</p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-gray-600 mb-1">
+                  This is a paid event (<strong>{sym}{price}</strong> at the event) with limited spots.
+                </p>
+                <p className="text-xs text-gray-400 mb-5">If your plans changed, cancelling frees the spot for someone on the waitlist.</p>
+              </>
+            )}
             <div className="flex gap-2">
               <button onClick={() => setConfirmCancel(false)}
                 className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
