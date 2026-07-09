@@ -11,12 +11,15 @@ import { todayIstanbul } from '@/lib/data'
 // not a nag loop: reminderSentAt on the payment row is stamped after
 // the send, and stamped rows are never picked up again.
 //
-// Two passes per event:
+// Three passes:
 //   1. BACKFILL — approved non-staff attendees with no live payment row
 //      (RSVP predated the payTo flip, or admin added them directly) get
 //      a pending row created, so the checklist / this sweeper / the
 //      payments overview all agree on who owes.
 //   2. REMIND — pending rows with reminderSentAt NULL → notify + stamp.
+//   3. CLOSE — rows still pending 3+ days after their event auto-cancel
+//      with a 'never collected' log, so the ledger can't re-accumulate
+//      the phantom-pending pile that was hand-cleaned on 2026-07-08.
 //
 // Runs hourly via system crontab; see scripts/sweep-payment-reminders.sh.
 //
@@ -103,10 +106,35 @@ async function runSweep() {
     }
   }
 
-  if (created || reminded) {
-    console.log(`[cron sweep-payment-reminders] backfilled ${created} rows, reminded ${reminded} attendees`)
+  // Pass 3: post-event ledger hygiene. Still pending 3+ days after the
+  // event means the money was never collected — close the row (history
+  // stays queryable via PaymentLog; repeat no-payers become visible).
+  // Not scoped to payTo: catches strays on events whose payTo changed too.
+  const staleCutoff = todayIstanbul(-3)
+  const stale = await prisma.payment.findMany({
+    where:  { status: 'pending', event: { date: { lt: staleCutoff } } },
+    select: { id: true, event: { select: { title: true } } },
+  })
+  if (stale.length) {
+    await prisma.$transaction([
+      prisma.payment.updateMany({
+        where: { id: { in: stale.map(p => p.id) } },
+        data:  { status: 'cancelled' },
+      }),
+      prisma.paymentLog.createMany({
+        data: stale.map(p => ({
+          paymentId: p.id, adminId: 'system', adminName: 'Payment sweeper',
+          fromStatus: 'pending', toStatus: 'cancelled',
+          note: `Auto-cancelled: not collected within 3 days after "${p.event.title}"`,
+        })),
+      }),
+    ])
   }
-  return { events: events.length, backfilled: created, reminded }
+
+  if (created || reminded || stale.length) {
+    console.log(`[cron sweep-payment-reminders] backfilled ${created} rows, reminded ${reminded} attendees, auto-cancelled ${stale.length} stale pendings`)
+  }
+  return { events: events.length, backfilled: created, reminded, autoCancelled: stale.length }
 }
 
 export async function POST(req: NextRequest) {
