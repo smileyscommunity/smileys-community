@@ -23,11 +23,33 @@ type Filter = 'All' | 'Events' | 'Social' | 'Admin'
 
 const FILTERS: Filter[] = ['All', 'Events', 'Social', 'Admin']
 
+// Buckets built from the notification types that actually exist in prod.
+// Previously Social held only RSVP types (which are event-lifecycle) and
+// the genuinely social ones — connections, messages, club activity,
+// hangouts — mapped to NO tab, so "Social" showed the wrong list and most
+// notifications were findable only under All.
 const FILTER_TYPES: Record<Filter, string[]> = {
   All:    [],
-  Events: ['new_event', 'event_updated', 'reminder_24h', 'reminder_2h', 'attendee_joined', 'review_request', 'event_survey'],
-  Social: ['rsvp', 'rsvp_pending', 'waitlist', 'waitlist_promoted'],
-  Admin:  ['club_approved', 'club_rejected', 'host_assigned'],
+  Events: [
+    'new_event', 'event_updated', 'event_cancelled', 'reminder_24h', 'reminder_2h',
+    'attendee_joined', 'review_request', 'event_survey', 'rsvp', 'rsvp_pending',
+    'waitlist', 'waitlist_joined', 'waitlist_promoted', 'spot_opened',
+    'checkin', 'checkin_started', 'checkin_count', 'event_message', 'event_photos',
+    'host_message', 'payment_reminder',
+  ],
+  Social: [
+    'connection_request', 'connection_accepted', 'connection_suggestion',
+    'message', 'profile_view', 'good_reference',
+    'club_wall_post', 'club_post_reply', 'club_mention', 'neighborhood_mention',
+    'new_hangout', 'hangout_starting', 'hangout_recap', 'hangout_join',
+    'hangout_cancelled', 'availability_pulse',
+  ],
+  Admin:  [
+    'club_approved', 'club_rejected', 'host_assigned', 'announcement',
+    'warning', 'system_alert', 'alert', 'system', 'application',
+    'report', 'report_alert', 'report_reviewed', 'membership_upgraded',
+    'nps_survey', 'listing_expiry',
+  ],
 }
 
 const TYPE_ICON: Record<string, string> = {
