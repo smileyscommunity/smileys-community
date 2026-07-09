@@ -41,7 +41,7 @@ function EventItem({ item }: { item: FeedItem }) {
           </div>
           <p className="text-sm font-bold text-gray-900 truncate">{item.title}</p>
           <p className="text-xs text-gray-600 mt-0.5">
-            {item.date ? formatDate(item.date) : ''}{item.time ? ` · ${item.time}` : ''}{item.neighborhood ? ` · ${item.neighborhood}` : ''}
+            {item.date ? formatShortDate(item.date) : ''}{item.time ? ` · ${item.time}` : ''}{item.neighborhood ? ` · ${item.neighborhood}` : ''}
           </p>
           {item.price !== undefined && (
             <p className="text-xs text-gray-600 mt-1">{item.price === 0 ? 'Free' : `₺${item.price}`}</p>

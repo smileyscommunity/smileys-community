@@ -275,9 +275,9 @@ export default function CommandPalette() {
           </Command.List>
 
           <div className="px-4 py-2.5 border-t border-gray-100 flex items-center gap-4 text-xs text-gray-400">
-            <span><kbd className="font-semibold">↑↓</kbd> navigate</span>
-            <span><kbd className="font-semibold">↵</kbd> open</span>
-            <span><kbd className="font-semibold">⌘K</kbd> toggle</span>
+            <span className="hidden md:inline"><kbd className="font-semibold">↑↓</kbd> navigate</span>
+            <span className="hidden md:inline"><kbd className="font-semibold">↵</kbd> open</span>
+            <span className="hidden md:inline"><kbd className="font-semibold">⌘K</kbd> toggle</span>
             <span className="ml-auto">{user?.name ?? 'Smileys'}</span>
           </div>
         </Command>

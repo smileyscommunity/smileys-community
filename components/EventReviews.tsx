@@ -19,6 +19,7 @@ function Stars({ value, onClick }: { value: number; onClick?: (n: number) => voi
         <button
           key={n}
           type="button"
+          aria-label={`Rate ${n} star${n > 1 ? 's' : ''}`}
           onClick={() => onClick?.(n)}
           className={`text-xl leading-none transition-colors ${onClick ? 'cursor-pointer hover:scale-110' : 'cursor-default'} ${n <= value ? 'text-amber-400' : 'text-gray-200'}`}
         >

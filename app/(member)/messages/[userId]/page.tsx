@@ -50,7 +50,9 @@ function formatLastSeen(lastActive: string | null): string {
 
 function Avatar({ user, size = 8 }: { user: { name: string; color: string; profilePhoto: string | null }; size?: number }) {
   const photo = resolveImageUrl(user.profilePhoto)
-  const s = `w-${size} h-${size}`
+  // Static class map — Tailwind can't see interpolated names like w-${size};
+  // these only rendered because the literals happened to exist elsewhere.
+  const s = ({ 7: 'w-7 h-7', 8: 'w-8 h-8', 9: 'w-9 h-9' } as Record<number, string>)[size] ?? 'w-8 h-8'
   return (
     <div className={`${s} rounded-full shrink-0 overflow-hidden flex items-center justify-center text-white text-xs font-bold`}
       style={{ backgroundColor: user.color }}>
@@ -238,7 +240,7 @@ export default function ThreadPage({ params }: { params: Promise<{ userId: strin
       <div className="flex flex-col bg-white w-full max-w-3xl shadow-sm">
       {/* Header */}
       <div className="bg-white border-b border-gray-100 px-4 py-3 flex items-center gap-3 shrink-0">
-        <Link href="/messages" className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-600">
+        <Link href="/messages" aria-label="Back to messages" className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-600">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
@@ -485,6 +487,7 @@ export default function ThreadPage({ params }: { params: Promise<{ userId: strin
               />
               <button
                 type="submit"
+                aria-label="Send message"
                 disabled={(!text.trim() && !pendingImage) || sending}
                 className="p-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white rounded-xl transition-colors shrink-0"
               >

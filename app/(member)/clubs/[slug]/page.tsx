@@ -7,7 +7,7 @@ import RichText from '@/components/RichText'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import { SITE_URL, APP_URL } from '@/lib/env'
-import { resolveImageUrl, avatarUrl } from '@/lib/data'
+import { resolveImageUrl, avatarUrl, formatShortDate } from '@/lib/data'
 import { loadCommunitySettings, communityInstagramUrl, communityWhatsappUrl, sameSocialUrl } from '@/lib/communitySettings'
 import ClubJoinWidget from './ClubJoinWidget'
 import ClubTabs from './ClubTabs'
@@ -512,7 +512,7 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
                   <div className="flex justify-between">
                     <dt className="text-gray-600">Last event</dt>
                     <dd className="font-medium text-gray-900">
-                      {new Date(lastEvent.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      {formatShortDate(lastEvent.date)}
                     </dd>
                   </div>
                 )}

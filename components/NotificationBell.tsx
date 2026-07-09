@@ -133,6 +133,7 @@ export default function NotificationBell() {
         {unread > 0 && (
           <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
             {unread > 9 ? '9+' : unread}
+            <span className="sr-only">unread notifications</span>
           </span>
         )}
       </button>

@@ -461,7 +461,7 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
-              <h1 className="text-2xl font-extrabold tracking-tight text-gray-900">{member.name}</h1>
+              <h1 className="text-2xl font-extrabold tracking-tight text-gray-900 min-w-0 break-words">{member.name}</h1>
               {flag && <span className="text-lg">{flag}</span>}
               {member.role === 'admin' && (
                 <span className="text-xs font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Admin</span>
@@ -486,7 +486,7 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
             {member.activeHangout && <HostingNowBadge hangout={member.activeHangout} />}
             <div className="flex flex-wrap gap-3 text-sm text-gray-600">
               {member.neighborhood && <span>📍 {member.neighborhood}</span>}
-              {member.joinedAt && <span>Joined {new Date(member.joinedAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</span>}
+              {member.joinedAt && <span>Joined {new Date(member.joinedAt).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}</span>}
             </div>
 
             {/* Professional context */}

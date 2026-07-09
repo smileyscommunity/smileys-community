@@ -105,7 +105,7 @@ export default function MessagesPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2 mb-0.5">
-                    <span className={`text-sm font-semibold text-gray-900 ${c.unread > 0 ? 'font-bold' : ''}`}>{c.partner.name}</span>
+                    <span className={`text-sm font-semibold text-gray-900 truncate min-w-0 ${c.unread > 0 ? 'font-bold' : ''}`}>{c.partner.name}</span>
                     <span className="text-xs text-gray-400 shrink-0">{timeAgo(c.lastMessage.createdAt)}</span>
                   </div>
                   <p className={`text-sm truncate ${c.unread > 0 ? 'text-gray-900 font-medium' : 'text-gray-600'}`}>

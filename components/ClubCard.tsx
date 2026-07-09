@@ -3,14 +3,13 @@ import { Club, formatShortDate } from '@/lib/data'
 
 interface ClubCardProps {
   club: Club
-  showJoin?: boolean
   // Marketing surfaces (homepage) pass true so a backfilled club without
   // a scheduled event just omits the line instead of advertising a
   // "No upcoming events" dead-end to prospects.
   hideEmptyNextEvent?: boolean
 }
 
-export default function ClubCard({ club, showJoin = false, hideEmptyNextEvent = false }: ClubCardProps) {
+export default function ClubCard({ club, hideEmptyNextEvent = false }: ClubCardProps) {
   return (
     <Link href={`/clubs/${club.slug}`} className="group block">
       <div className="card group-hover:-translate-y-1 transition-transform duration-300 h-full">
@@ -55,18 +54,9 @@ export default function ClubCard({ club, showJoin = false, hideEmptyNextEvent = 
               <span>{club.memberCount} {club.memberCount === 1 ? 'member' : 'members'}</span>
             </div>
 
-            {showJoin ? (
-              <button
-                onClick={(e) => e.preventDefault()}
-                className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors"
-              >
-                Join
-              </button>
-            ) : (
-              <span className="text-xs text-amber-600 font-semibold group-hover:underline">
-                View club →
-              </span>
-            )}
+            <span className="text-xs text-amber-600 font-semibold group-hover:underline">
+              View club →
+            </span>
           </div>
         </div>
       </div>

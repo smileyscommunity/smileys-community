@@ -154,6 +154,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                 title={event.title}
                 date={event.date}
                 time={event.time}
+                endTime={event.endTime}
                 location={event.location ?? event.neighborhood ?? ''}
                 description={event.description ? event.description.replace(/<[^>]+>/g, '') : ''}
                 url={eventUrl}
@@ -448,6 +449,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
               title={event.title}
               date={event.date}
               time={event.time}
+                endTime={event.endTime}
               location={event.location ?? event.neighborhood ?? ''}
               description={event.description ? event.description.replace(/<[^>]+>/g, '') : ''}
               url={`${APP_URL}/events/${event.id}`}
@@ -988,6 +990,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                     title={event.title}
                     date={event.date}
                     time={event.time}
+                endTime={event.endTime}
                     location={event.location ?? event.neighborhood ?? ''}
                     description={event.description ? event.description.replace(/<[^>]+>/g, '') : ''}
                     url={`${APP_URL}/events/${event.id}`}

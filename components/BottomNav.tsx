@@ -181,6 +181,7 @@ export default function BottomNav() {
                   {tab.badge > 0 && (
                     <span className="absolute -top-1 -right-0.5 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
                       {tab.badge > 9 ? '9+' : tab.badge}
+                      <span className="sr-only">pending</span>
                     </span>
                   )}
                 </div>
@@ -212,6 +213,7 @@ export default function BottomNav() {
               {(unreadMessages + unreadNotifications) > 0 && (
                 <span className="absolute -top-1 -right-0.5 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
                   {(unreadMessages + unreadNotifications) > 9 ? '9+' : (unreadMessages + unreadNotifications)}
+                  <span className="sr-only">unread</span>
                 </span>
               )}
             </div>

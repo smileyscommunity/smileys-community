@@ -115,12 +115,14 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
 
           <EventBadges event={event} urgency={urgency} className="absolute top-3 left-3" />
 
-          <span
+          <button
+            type="button"
             onClick={goToNeighborhood}
+            aria-label={`See events in ${event.neighborhood}`}
             className="absolute top-3 right-3 badge bg-white/90 text-gray-700 shadow-sm cursor-pointer hover:bg-amber-50 hover:text-amber-600 transition-colors"
           >
             {event.neighborhood}
-          </span>
+          </button>
 
           {/* Date + Featured overlay at bottom of image */}
           <div className="absolute bottom-0 left-0 right-0 px-3 pb-2.5 flex items-end justify-between">
@@ -152,8 +154,10 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
           </div>
 
           <div className="flex items-center gap-3 mb-3 text-xs text-gray-600">
-            <span
+            <button
+              type="button"
               onClick={goToNeighborhood}
+              aria-label={`See events in ${event.neighborhood}`}
               className="flex items-center gap-1 cursor-pointer hover:text-amber-600 transition-colors truncate"
             >
               <svg className="w-3 h-3 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -161,7 +165,7 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
               <span className="truncate">{event.neighborhood}</span>
-            </span>
+            </button>
             {event.hostName && (
               <span className="flex items-center gap-1 shrink-0">
                 <div

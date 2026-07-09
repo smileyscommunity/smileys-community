@@ -46,8 +46,8 @@ export default function AnnouncementBanner({ text, link, updatedAt }: Props) {
       ) : (
         <div className="flex-1 min-w-0">{content}</div>
       )}
-      <button onClick={dismiss}
-        className="shrink-0 text-amber-400 hover:text-amber-600 transition-colors text-base leading-none mt-0.5">
+      <button onClick={dismiss} aria-label="Dismiss announcement"
+        className="shrink-0 text-amber-400 hover:text-amber-600 transition-colors text-base leading-none p-2 -m-1.5">
         ×
       </button>
     </div>
