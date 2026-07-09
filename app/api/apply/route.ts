@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { Role } from '@/lib/constants'
-import { sendApplicationReceivedEmail, sendAdminNewApplicationEmail } from '@/lib/email'
+import { sendApplicationReceivedEmail, sendAdminNewApplicationEmail, sendAlreadyRegisteredEmail } from '@/lib/email'
 import { rateLimit, getIp } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
 import { verifyTurnstile } from '@/lib/turnstile'
@@ -166,6 +166,22 @@ export async function POST(req: NextRequest) {
       a.status !== 'rejected' || (a.reviewedAt ?? a.createdAt) >= cooldownDate
     )
     if (emailBlocked) {
+      // When the block is because this email already belongs to an APPROVED
+      // member, the on-screen message stays generic (no enumeration for
+      // whoever typed the email), but the inbox owner gets told the truth:
+      // you have an account — sign in / reset your password. Fixes the
+      // "approved months ago, forgot, re-applies, hits a dead end" loop
+      // that otherwise lands in the WhatsApp groups as a support question.
+      // Rate-limited per email so the apply form can't be used to bomb a
+      // member's inbox.
+      const existingUser = await prisma.user.findUnique({
+        where:  { email: cleanEmail },
+        select: { name: true, status: true },
+      })
+      if (existingUser?.status === 'approved'
+          && await rateLimit(`apply-already-member:${cleanEmail}`, 1, 24 * 60 * 60_000)) {
+        sendAlreadyRegisteredEmail(cleanEmail, existingUser.name).catch(() => {})
+      }
       return NextResponse.json({ error: 'This application cannot be accepted.' }, { status: 409 })
     }
 
