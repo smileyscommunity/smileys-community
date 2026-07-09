@@ -255,8 +255,11 @@ function ApplyForm() {
       setFieldErrors({})
     }
     if (step === STEPS.length - 1) {
-      if (!form.profilePhoto) { setSubmitError('Please upload a real photo of yourself — it\'s required for review'); return false }
-      if (!agreements.a1 || !agreements.a2 || !agreements.a3) { setSubmitError('Please agree to all terms'); return false }
+      // showError (not setSubmitError) so the banner scrolls into view —
+      // on the long final step it otherwise renders off-screen and the
+      // submit tap looks dead.
+      if (!form.profilePhoto) { showError('Please upload a real photo of yourself — it\'s required for review'); return false }
+      if (!agreements.a1 || !agreements.a2 || !agreements.a3) { showError('Please agree to all terms'); return false }
     }
     return true
   }
@@ -773,10 +776,11 @@ function ApplyForm() {
                 { key: 'a2' as const, text: 'I agree to respectful behavior and active participation in the community.' },
                 { key: 'a3' as const, text: 'I understand that inactive or negative members may be removed.' },
               ].map(({ key, text }) => (
-                <label key={key} className="flex items-start gap-3 cursor-pointer group">
+                <label key={key} className="flex items-start gap-3 cursor-pointer group"
+                  onClick={() => setAgreements(a => ({ ...a, [key]: !a[key] }))}>
                   <div className={`mt-0.5 w-5 h-5 rounded-md border-2 shrink-0 flex items-center justify-center transition-colors ${
                     agreements[key] ? 'bg-amber-500 border-amber-500' : 'border-gray-300 group-hover:border-amber-400'
-                  }`} onClick={() => setAgreements(a => ({ ...a, [key]: !a[key] }))}>
+                  }`}>
                     {agreements[key] && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                     </svg>}
