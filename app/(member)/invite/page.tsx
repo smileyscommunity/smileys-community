@@ -1,9 +1,6 @@
 'use client'
 
 import { toast } from 'sonner'
-
-'use client'
-
 import { useState, useEffect, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
