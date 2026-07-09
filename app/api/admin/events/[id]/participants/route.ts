@@ -113,7 +113,7 @@ export async function GET(_: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const [attendeesRaw, waitlistRaw, cohosts, eventRow, paymentsRaw] = await Promise.all([
+    const [attendeesRaw, waitlistRaw, cohosts, eventRow] = await Promise.all([
       prisma.eventAttendee.findMany({
         where: { eventId },
         include: { user: { select: userSelect } },
@@ -124,11 +124,7 @@ export async function GET(_: NextRequest, { params }: Params) {
         orderBy: { createdAt: 'asc' },
       }),
       prisma.eventCoHost.findMany({ where: { eventId }, select: { userId: true } }),
-      prisma.event.findUnique({ where: { id: eventId }, select: { hostId: true, price: true } }),
-      // Payment status per attendee for THIS event — surfaced next to check-in
-      // on the participants screen so the host has one "who's paid + who's here"
-      // view. Reuses the existing Payment model (no per-attendee flag).
-      prisma.payment.findMany({ where: { eventId }, select: { userId: true, status: true } }),
+      prisma.event.findUnique({ where: { id: eventId }, select: { hostId: true } }),
     ])
 
     const excludeIds = new Set([
@@ -136,19 +132,10 @@ export async function GET(_: NextRequest, { params }: Params) {
       ...cohosts.map(c => c.userId),
     ].filter(Boolean) as string[])
 
-    // Collapse each member's payments for this event to a single status:
-    // paid wins over pending wins over none.
-    const payMap = new Map<string, 'paid' | 'pending'>()
-    for (const p of paymentsRaw) {
-      if (p.status === 'paid') payMap.set(p.userId, 'paid')
-      else if (p.status === 'pending' && payMap.get(p.userId) !== 'paid') payMap.set(p.userId, 'pending')
-    }
-
     // Keep all in the list for display, but tag host/cohost so client can distinguish
     const attendees = attendeesRaw.map(a => ({
       ...a,
       isStaff: excludeIds.has(a.userId),
-      paymentStatus: payMap.get(a.userId) ?? 'none',
     }))
 
     const waitlistUserIds = waitlistRaw.map(w => w.userId)
@@ -158,7 +145,7 @@ export async function GET(_: NextRequest, { params }: Params) {
     const userMap = Object.fromEntries(waitlistUsers.map(u => [u.id, u]))
     const waitlist = waitlistRaw.map(w => ({ ...w, user: userMap[w.userId] }))
 
-    return NextResponse.json({ attendees, waitlist, eventPrice: eventRow?.price ?? 0 })
+    return NextResponse.json({ attendees, waitlist })
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

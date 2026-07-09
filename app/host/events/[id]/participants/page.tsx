@@ -12,7 +12,6 @@ interface AttendeeUser {
 }
 interface Attendee {
   userId: string; status: string; checkedIn: boolean; joinedAt: string; user: AttendeeUser
-  paymentStatus?: 'paid' | 'pending' | 'none'
 }
 interface WaitlistEntry {
   id: string; userId: string; createdAt: string; user: AttendeeUser
@@ -37,7 +36,6 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
   const [eventDate,  setEventDate]  = useState('')
   const [attendees,  setAttendees]  = useState<Attendee[]>([])
   const [waitlist,   setWaitlist]   = useState<WaitlistEntry[]>([])
-  const [eventPrice, setEventPrice] = useState(0)
   const [loading,    setLoading]    = useState(true)
   const [tab,        setTab]        = useState<'pending' | 'approved' | 'waitlist' | 'reviews'>('pending')
   const [addSearch,    setAddSearch]    = useState('')
@@ -56,7 +54,6 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
       if (ev?.date)  setEventDate(ev.date)
       setAttendees(Array.isArray(data.attendees) ? data.attendees : [])
       setWaitlist(Array.isArray(data.waitlist) ? data.waitlist : [])
-      setEventPrice(data.eventPrice ?? 0)
     }).finally(() => setLoading(false))
   }, [id])
 
@@ -147,10 +144,9 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
 
   function exportCsv() {
     const rows = [
-      ['Name', 'Paid', 'Checked In', 'Joined At'],
+      ['Name', 'Checked In', 'Joined At'],
       ...approved.map(a => [
         a.user.name,
-        eventPrice > 0 ? (a.paymentStatus === 'paid' ? 'Yes' : 'No') : '—',
         a.checkedIn ? 'Yes' : 'No',
         new Date(a.joinedAt).toLocaleDateString('en-GB'),
       ]),
@@ -347,16 +343,7 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
                     <p className="text-sm font-semibold text-white truncate">{a.user.name}</p>
                     {a.user.email && <p className="text-xs text-zinc-500 truncate">{a.user.email}</p>}
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {/* Payment status — paid events only. Operational view for the
-                        host: who's settled up vs still owes, alongside check-in. */}
-                    {eventPrice > 0 && (
-                      a.paymentStatus === 'paid'
-                        ? <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400">💳 Paid</span>
-                        : <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400">Unpaid</span>
-                    )}
-                    {a.checkedIn && <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-green-500/10 text-green-400">Checked in</span>}
-                  </div>
+                  {a.checkedIn && <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-green-500/10 text-green-400 shrink-0">Checked in</span>}
                 </div>
               ))}
             </div>
