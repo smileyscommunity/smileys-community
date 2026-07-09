@@ -36,7 +36,9 @@ function ResetPasswordForm() {
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Something went wrong'); return }
       setDone(true)
-      setTimeout(() => router.push(isActivate ? '/login' : '/login'), 2000)
+      // Both flows land on /login: setting a password never creates a
+      // session, so there is nowhere else to go yet.
+      setTimeout(() => router.push('/login'), 2000)
     } catch {
       setError('Something went wrong. Try again.')
     } finally {
@@ -70,12 +72,14 @@ function ResetPasswordForm() {
             <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl">{error}</div>
           )}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">{isActivate ? 'Choose a password' : 'New password'}</label>
+            <label htmlFor="rp-password" className="block text-sm font-semibold text-gray-700 mb-1.5">{isActivate ? 'Choose a password' : 'New password'}</label>
             <div className="relative">
               <input
+                id="rp-password"
                 type={showPw ? 'text' : 'password'}
                 value={password}
                 onChange={e => setPassword(e.target.value)}
+                autoComplete="new-password"
                 placeholder="At least 8 characters"
                 required
                 minLength={8}
@@ -85,12 +89,14 @@ function ResetPasswordForm() {
             </div>
           </div>
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Confirm new password</label>
+            <label htmlFor="rp-confirm" className="block text-sm font-semibold text-gray-700 mb-1.5">Confirm new password</label>
             <div className="relative">
               <input
+                id="rp-confirm"
                 type={showPw ? 'text' : 'password'}
                 value={confirm}
                 onChange={e => setConfirm(e.target.value)}
+                autoComplete="new-password"
                 placeholder="Repeat your password"
                 required
                 className="input pr-12"

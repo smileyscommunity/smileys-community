@@ -282,7 +282,7 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
       </div>
 
       {/* Stats */}
-      <div className={`grid gap-2 ${['grid-cols-4', 'grid-cols-5', 'grid-cols-6'][(turkishMaleQuota ? 1 : 0) + (trackPayments ? 1 : 0)]}`}>
+      <div className={`grid gap-2 grid-cols-2 sm:grid-cols-4 ${['lg:grid-cols-4', 'lg:grid-cols-5', 'lg:grid-cols-6'][(turkishMaleQuota ? 1 : 0) + (trackPayments ? 1 : 0)]}`}>
         {[
           { label: 'Going',      value: goingCount,         color: 'text-white',        sub: `/ ${event.totalSpots}` },
           { label: 'Checked in', value: checkedInCount,     color: 'text-green-400',    sub: `${Math.round((checkedInCount / Math.max(goingCount,1))*100)}%` },

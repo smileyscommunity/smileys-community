@@ -154,12 +154,14 @@ function ActivateForm() {
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-1.5">Choose a password</label>
+          <label htmlFor="act-password" className="block text-sm font-semibold text-gray-700 mb-1.5">Choose a password</label>
           <div className="relative">
             <input
+              id="act-password"
               type={showPw ? 'text' : 'password'}
               value={password}
               onChange={e => setPassword(e.target.value)}
+              autoComplete="new-password"
               placeholder="At least 8 characters"
               required
               minLength={8}
@@ -170,12 +172,14 @@ function ActivateForm() {
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-1.5">Confirm password</label>
+          <label htmlFor="act-confirm" className="block text-sm font-semibold text-gray-700 mb-1.5">Confirm password</label>
           <div className="relative">
             <input
+              id="act-confirm"
               type={showPw ? 'text' : 'password'}
               value={confirm}
               onChange={e => setConfirm(e.target.value)}
+              autoComplete="new-password"
               placeholder="Repeat your password"
               required
               className="w-full px-4 py-3 pr-12 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"

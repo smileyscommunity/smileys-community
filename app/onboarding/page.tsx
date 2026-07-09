@@ -770,7 +770,7 @@ function OnboardingInner() {
 
                     <div>
                       <label htmlFor="ob-email" className="block text-xs font-semibold text-gray-600 mb-1.5">Email address</label>
-                      <input id="ob-email" type="email" placeholder="you@example.com" readOnly={emailLocked}
+                      <input id="ob-email" type="email" autoComplete="email" placeholder="you@example.com" readOnly={emailLocked}
                         {...register('email')}
                         className={`${cls('email')} ${emailLocked ? 'bg-gray-50 text-gray-600' : ''}`} />
                       {emailLocked && <p className="text-xs text-gray-400 mt-1">✓ Confirmed from your application</p>}
@@ -780,7 +780,7 @@ function OnboardingInner() {
                     <div>
                       <label htmlFor="ob-password" className="block text-xs font-semibold text-gray-600 mb-1.5">Password</label>
                       <div className="relative">
-                        <input id="ob-password" type={showPassword ? 'text' : 'password'} placeholder="Min. 8 characters"
+                        <input id="ob-password" type={showPassword ? 'text' : 'password'} autoComplete="new-password" placeholder="Min. 8 characters"
                           {...register('password')} className={`${cls('password')} pr-12`} />
                         <PasswordToggle visible={showPassword} onToggle={() => setShowPassword(p => !p)} />
                       </div>

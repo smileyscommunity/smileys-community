@@ -259,7 +259,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
         </div>
 
         {/* Sticky CTA */}
-        <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t border-gray-100 p-4 z-20">
+        <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t border-gray-100 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] z-20">
           <div className="max-w-2xl mx-auto flex items-center gap-3">
             <div className="flex-1 hidden sm:block">
               <p className="text-sm font-semibold text-gray-800">Want to join?</p>

@@ -200,8 +200,9 @@ export default function LoginPage() {
               )}
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Email</label>
+                <label htmlFor="login-email" className="block text-sm font-semibold text-gray-700 mb-1.5">Email</label>
                 <input
+                  id="login-email"
                   type="email"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
@@ -215,11 +216,12 @@ export default function LoginPage() {
 
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-sm font-semibold text-gray-700">Password</label>
+                  <label htmlFor="login-password" className="block text-sm font-semibold text-gray-700">Password</label>
                   <Link href="/forgot-password" className="text-xs text-amber-600 hover:underline font-medium">Forgot password?</Link>
                 </div>
                 <div className="relative">
                   <input
+                    id="login-password"
                     type={show ? 'text' : 'password'}
                     value={password}
                     onChange={e => setPassword(e.target.value)}

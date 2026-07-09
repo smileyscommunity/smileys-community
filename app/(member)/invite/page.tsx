@@ -1,5 +1,7 @@
 'use client'
 
+import { toast } from 'sonner'
+
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
@@ -36,10 +38,16 @@ export default function InvitePage() {
 
   const inviteUrl = stats ? `${typeof window !== 'undefined' ? window.location.origin : SITE_URL}/app/apply?ref=${stats.code}` : ''
 
-  function copyLink() {
-    navigator.clipboard.writeText(inviteUrl)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+  async function copyLink() {
+    // Clipboard writes reject in some in-app browsers / non-secure
+    // contexts — don't flash "Copied!" over a failed write.
+    try {
+      await navigator.clipboard.writeText(inviteUrl)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      toast.error('Could not copy — long-press the link to copy it manually')
+    }
   }
 
   function shareWhatsApp() {

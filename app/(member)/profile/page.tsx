@@ -458,6 +458,7 @@ export default function ProfilePage() {
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">@</span>
                     <input type="text" value={form.instagram.replace('@', '')} onChange={e => set('instagram', e.target.value)}
+                      autoCapitalize="none" autoCorrect="off" spellCheck={false}
                       placeholder="username" className={`${inputCls} pl-7`} />
                   </div>
                 </div>
@@ -466,6 +467,7 @@ export default function ProfilePage() {
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-medium">in/</span>
                     <input type="text" value={form.linkedin.replace(/.*linkedin\.com\/in\//i, '')} onChange={e => set('linkedin', e.target.value)}
+                      autoCapitalize="none" autoCorrect="off" spellCheck={false}
                       placeholder="your-name" className={`${inputCls} pl-8`} />
                   </div>
                 </div>
