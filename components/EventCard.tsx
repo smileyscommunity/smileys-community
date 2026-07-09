@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import type { Event } from '@/lib/data'
-import { formatShortDate, formatTime, vibeConfig, resolveImageUrl, BLUR_PLACEHOLDER } from '@/lib/data'
+import { formatShortDate, formatTime, formatPrice, vibeConfig, resolveImageUrl, BLUR_PLACEHOLDER } from '@/lib/data'
 import { getUrgency, getBarColor, buildSocialLabel } from '@/lib/utils/event'
 import { neighborhoodToSlug } from '@/lib/neighborhoods'
 import AvatarStack from '@/components/AvatarStack'
@@ -146,7 +146,7 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
             </h3>
             {event.intent === 'professional' && (
               <span className="shrink-0 text-[9px] font-black uppercase tracking-widest bg-zinc-900 text-white px-1.5 py-0.5 rounded shadow-sm border border-zinc-800">
-                Net
+                Networking
               </span>
             )}
           </div>
@@ -232,14 +232,14 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
               <div>
                 <div className="flex items-baseline gap-1.5">
                   <span className="text-xs text-violet-600 font-semibold">Members</span>
-                  <span className="text-sm font-bold text-violet-700">₺{event.memberPrice}</span>
+                  <span className="text-sm font-bold text-violet-700">{formatPrice(event.memberPrice!, event.currency)}</span>
                 </div>
                 {!event.membersOnly && (
-                  <div className="text-xs text-gray-400">Guests ₺{event.price}</div>
+                  <div className="text-xs text-gray-400">Guests {formatPrice(event.price, event.currency)}</div>
                 )}
               </div>
             ) : (
-              <span className="text-sm font-bold text-gray-900">₺{event.price}</span>
+              <span className="text-sm font-bold text-gray-900">{formatPrice(event.price, event.currency)}</span>
             )}
 
             <motion.button

@@ -214,6 +214,16 @@ export function todayIstanbul(offsetDays = 0): string {
   return d.toLocaleDateString('en-CA', { timeZone: 'Europe/Istanbul' })
 }
 
+// One rendering for money everywhere: symbol-prefixed for known currencies
+// ("\u20ba100", "$100"), code-suffixed otherwise ("100 CHF"). Cards used to
+// hardcode \u20ba while the detail page wrote "100 TRY" for the same event.
+const CURRENCY_SYMBOLS: Record<string, string> = { TRY: '\u20ba', USD: '$', EUR: '\u20ac', GBP: '\u00a3' }
+export function formatPrice(price: number, currency?: string | null): string {
+  const cur = currency || 'TRY'
+  const sym = CURRENCY_SYMBOLS[cur]
+  return sym ? `${sym}${price}` : `${price} ${cur}`
+}
+
 export function formatDate(dateStr: string): string {
   const date = new Date(dateStr + 'T00:00:00')
   return date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })

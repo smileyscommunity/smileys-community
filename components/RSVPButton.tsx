@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRSVP } from '@/hooks/useRSVP'
+import { formatPrice } from '@/lib/data'
 
 interface Props {
   eventId:      string
@@ -19,12 +20,9 @@ interface Props {
   payTo?:       'venue' | 'smileys'
 }
 
-const SYMBOLS: Record<string, string> = { TRY: '₺', USD: '$', EUR: '€', GBP: '£' }
-
 export default function RSVPButton({ eventId, hostId, spotsLeft, price, memberPrice, membersOnly, currency = 'TRY', payTo = 'venue' }: Props) {
   const { isLoggedIn, user } = useAuth()
   const { status, position, loading, checked, join, leave } = useRSVP(eventId)
-  const sym = SYMBOLS[currency] ?? currency
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [stealth,       setStealth]       = useState(false)
   const [showStealth,   setShowStealth]   = useState(false)
@@ -141,10 +139,10 @@ export default function RSVPButton({ eventId, hostId, spotsLeft, price, memberPr
                   {loading ? 'Joining…' :
                    isFull ? 'Join waitlist' :
                    membersOnly ? 'Attend' :
-                   memberPrice !== undefined ? `Join — ${sym}${memberPrice} (member)` :
+                   memberPrice !== undefined ? `Join — ${formatPrice(memberPrice, currency)} (member)` :
                    price === 0 ? 'Join free' :
-                   payTo === 'smileys' ? `Buy ticket — ${sym}${price}` :
-                   `Join — ${sym}${price} at the event`}
+                   payTo === 'smileys' ? `Buy ticket — ${formatPrice(price, currency)}` :
+                   `Join — ${formatPrice(price, currency)} at the event`}
                 </motion.span>
               </AnimatePresence>
             </motion.button>
@@ -190,14 +188,14 @@ export default function RSVPButton({ eventId, hostId, spotsLeft, price, memberPr
             {payTo === 'smileys' ? (
               <>
                 <p className="text-sm text-gray-600 mb-1">
-                  This event costs <strong>{sym}{price}</strong>. Cancelling now may forfeit your payment depending on the refund policy.
+                  This event costs <strong>{formatPrice(price, currency)}</strong>. Cancelling now may forfeit your payment depending on the refund policy.
                 </p>
                 <p className="text-xs text-gray-400 mb-5">If you paid, contact the organiser to arrange a refund.</p>
               </>
             ) : (
               <>
                 <p className="text-sm text-gray-600 mb-1">
-                  This is a paid event (<strong>{sym}{price}</strong> at the event) with limited spots.
+                  This is a paid event (<strong>{formatPrice(price, currency)}</strong> at the event) with limited spots.
                 </p>
                 <p className="text-xs text-gray-400 mb-5">If your plans changed, cancelling frees the spot for someone on the waitlist.</p>
               </>

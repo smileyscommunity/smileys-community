@@ -86,7 +86,7 @@ function FreeNowBadge({ pulse }: { pulse: { neighborhood: string | null; note: s
   const minsLeft = Math.max(0, Math.round((until.getTime() - Date.now()) / 60_000))
   if (minsLeft === 0) return null
   const window = minsLeft >= 60
-    ? `until ${until.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
+    ? `until ${until.toLocaleTimeString('en-GB', { hourCycle: 'h23', hour: '2-digit', minute: '2-digit' })}`
     : `${minsLeft}m left`
   return (
     <div className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-green-700 bg-green-50 border border-green-200 px-2.5 py-1 rounded-full w-fit">

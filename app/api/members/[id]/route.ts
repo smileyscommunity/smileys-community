@@ -24,7 +24,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         id: true, name: true, color: true, bio: true,
         neighborhood: true, nationality: true, interests: true,
         languages: true, profilePhoto: true, joinedAt: true, role: true,
-        instagram: true, socialStyles: true, lastActive: true, profileVisibility: true, membershipType: true,
+        instagram: true, linkedin: true, socialStyles: true, lastActive: true, profileVisibility: true, membershipType: true,
         referralCode: true,
         goodHangouts: true,
         industry: true, professionalRole: true, professionalStatus: true,
@@ -161,6 +161,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     role:         user.role,
     membershipType: user.membershipType,
     instagram:    fullAccess ? user.instagram : null,
+    linkedin:     fullAccess ? user.linkedin : null,
     // Professional fields surfaced only when the member opted in to a
     // non-social_only status. Treating null/social_only the same way
     // — neither leaks the industry/role to viewers — keeps the social

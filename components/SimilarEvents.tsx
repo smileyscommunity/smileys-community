@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
-import { formatDate, resolveImageUrl } from '@/lib/data'
+import { formatDate, formatPrice, resolveImageUrl } from '@/lib/data'
 
 interface Props {
   eventId: string
@@ -24,7 +24,7 @@ export default async function SimilarEvents({ eventId, vibes, neighborhood, date
     take: 3,
     select: {
       id: true, title: true, date: true, time: true,
-      emoji: true, neighborhood: true, coverImage: true, price: true,
+      emoji: true, neighborhood: true, coverImage: true, price: true, currency: true,
     },
   })
 
@@ -46,7 +46,7 @@ export default async function SimilarEvents({ eventId, vibes, neighborhood, date
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-gray-900 group-hover:text-amber-600 transition-colors truncate">{e.title}</p>
               <p className="text-xs text-gray-400 mt-0.5">{formatDate(e.date)} · {e.neighborhood}</p>
-              <p className="text-xs font-semibold text-amber-600 mt-0.5">{e.price === 0 ? 'Free' : `₺${e.price}`}</p>
+              <p className="text-xs font-semibold text-amber-600 mt-0.5">{e.price === 0 ? 'Free' : formatPrice(e.price, e.currency)}</p>
             </div>
             <svg className="w-4 h-4 text-gray-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />

@@ -4,7 +4,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import type { Metadata } from 'next'
 import { getEventById } from '@/lib/db'
-import { formatDate, formatTime, vibeConfig, resolveImageUrl, avatarUrl, getInitials } from '@/lib/data'
+import { formatDate, formatTime, formatPrice, vibeConfig, resolveImageUrl, avatarUrl, getInitials } from '@/lib/data'
 import { countryFlag } from '@/lib/countries'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
@@ -21,6 +21,7 @@ import SocialShare from '@/components/SocialShare'
 import EventInviteButton from '@/components/EventInviteButton'
 import AddToCalendar from '@/components/AddToCalendar'
 import EventLocationMap from '@/components/EventLocationMap'
+import EventBadges from '@/components/EventBadges'
 import { sanitize } from '@/lib/sanitize'
 
 export const dynamic = 'force-dynamic'
@@ -199,7 +200,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                   <div className="flex items-center gap-2.5">
                     <span className="text-base">💰</span>
                     <span>
-                      {event.price} {event.currency ?? 'TRY'}
+                      {formatPrice(event.price, event.currency)}
                       <span className="text-gray-400"> · {event.payTo === 'smileys' ? 'pay in advance' : 'pay at the event'}</span>
                     </span>
                   </div>
@@ -479,52 +480,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
         <div className="lg:col-span-2 space-y-6">
           {/* Title + Meta */}
           <div>
-            <div className="flex flex-wrap gap-2 mb-3">
-              {event.membersOnly && (
-                <span className="group/tip relative inline-flex">
-                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-violet-700 bg-violet-50 border border-violet-200 px-2 py-0.5 rounded-full cursor-default">
-                    🔒 Members only
-                  </span>
-                  <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 invisible opacity-0 group-hover/tip:visible group-hover/tip:opacity-100 transition-opacity duration-150">
-                    <span className="block bg-gray-900 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg whitespace-nowrap shadow-lg">Exclusive to approved Smileys members</span>
-                    <span className="block w-2 h-2 bg-gray-900 rotate-45 mx-auto -mt-1" />
-                  </span>
-                </span>
-              )}
-              {event.isPremium && !event.membersOnly && (
-                <span className="group/tip relative inline-flex">
-                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full cursor-default">
-                    ♛ Premium
-                  </span>
-                  <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 invisible opacity-0 group-hover/tip:visible group-hover/tip:opacity-100 transition-opacity duration-150">
-                    <span className="block bg-gray-900 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg whitespace-nowrap shadow-lg">Curated premium experience for vetted members</span>
-                    <span className="block w-2 h-2 bg-gray-900 rotate-45 mx-auto -mt-1" />
-                  </span>
-                </span>
-              )}
-              {event.genderBalance && (
-                <span className="group/tip relative inline-flex">
-                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-pink-700 bg-pink-50 border border-pink-200 px-2 py-0.5 rounded-full cursor-default">
-                    ⚖️ Gender balanced
-                  </span>
-                  <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 invisible opacity-0 group-hover/tip:visible group-hover/tip:opacity-100 transition-opacity duration-150">
-                    <span className="block bg-gray-900 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg whitespace-nowrap shadow-lg">Spots split equally between men & women for a balanced mix</span>
-                    <span className="block w-2 h-2 bg-gray-900 rotate-45 mx-auto -mt-1" />
-                  </span>
-                </span>
-              )}
-              {event.isFirstTimerFriendly && (
-                <span className="group/tip relative inline-flex">
-                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full cursor-default">
-                    👋 First-timer friendly
-                  </span>
-                  <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 invisible opacity-0 group-hover/tip:visible group-hover/tip:opacity-100 transition-opacity duration-150">
-                    <span className="block bg-gray-900 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg whitespace-nowrap shadow-lg">A welcoming, low-commitment event — perfect if it&apos;s your first time</span>
-                    <span className="block w-2 h-2 bg-gray-900 rotate-45 mx-auto -mt-1" />
-                  </span>
-                </span>
-              )}
-            </div>
+            <EventBadges event={event} variant="outline" layout="row" className="mb-3" />
             <div className="flex items-center gap-3 flex-wrap mb-4">
               <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">
                 {event.title}
@@ -549,7 +505,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                   <span className="text-base">💰</span>
                   <span className="flex items-center gap-2 flex-wrap">
                     <span>
-                      <span className="font-medium">{event.price} {event.currency ?? 'TRY'}</span>
+                      <span className="font-medium">{formatPrice(event.price, event.currency)}</span>
                       <span className="text-gray-400"> · {event.payTo === 'smileys' ? 'pay in advance' : 'pay at the event'}</span>
                     </span>
                     {/* Advance payment is arranged over WhatsApp — a direct
@@ -788,12 +744,12 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
               <div className="mt-4 flex items-center justify-between p-4 rounded-xl bg-violet-50 border border-violet-200">
                 <div>
                   <p className="text-xs font-semibold text-violet-600">Member price</p>
-                  <p className="text-xl font-extrabold text-violet-700">{event.memberPrice === 0 ? 'Free' : `₺${event.memberPrice}`}</p>
+                  <p className="text-xl font-extrabold text-violet-700">{event.memberPrice === 0 ? 'Free' : formatPrice(event.memberPrice, event.currency)}</p>
                 </div>
                 {!event.membersOnly && (
                   <div className="text-right">
                     <p className="text-xs text-gray-400">Guest price</p>
-                    <p className="text-sm text-gray-400 line-through">₺{event.price}</p>
+                    <p className="text-sm text-gray-400 line-through">{formatPrice(event.price, event.currency)}</p>
                   </div>
                 )}
               </div>

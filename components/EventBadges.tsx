@@ -6,6 +6,12 @@ interface Props {
   event: Pick<Event, 'membersOnly' | 'isPremium' | 'genderBalance' | 'isFirstTimerFriendly'>
   urgency?: { label: string; bg: string; text: string; pulse: boolean } | null
   className?: string
+  // 'solid' — filled pills for cards / over cover photos (default).
+  // 'outline' — light tinted pills for the detail-page header. One source
+  // of truth for badge copy + tooltips; the detail page used to duplicate
+  // all four badges inline with a diverging style.
+  variant?: 'solid' | 'outline'
+  layout?: 'col' | 'row'
 }
 
 function Tip({ text, children }: { text: string; children: React.ReactNode }) {
@@ -23,27 +29,31 @@ function Tip({ text, children }: { text: string; children: React.ReactNode }) {
   )
 }
 
-export default function EventBadges({ event, urgency, className = '' }: Props) {
+export default function EventBadges({ event, urgency, className = '', variant = 'solid', layout = 'col' }: Props) {
+  const pill = (solid: string, outline: string) =>
+    variant === 'outline'
+      ? `inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full cursor-default ${outline}`
+      : `badge gap-1 shadow-sm ${solid}`
   return (
-    <div className={`flex flex-col gap-1.5 ${className}`}>
+    <div className={`flex ${layout === 'row' ? 'flex-row flex-wrap items-center gap-2' : 'flex-col gap-1.5'} ${className}`}>
       {event.membersOnly && (
         <Tip text="Exclusive to approved Smileys members">
-          <span className="badge bg-violet-600 text-white gap-1 shadow-sm">🔒 Members only</span>
+          <span className={pill('bg-violet-600 text-white', 'text-violet-700 bg-violet-50 border border-violet-200')}>🔒 Members only</span>
         </Tip>
       )}
       {event.isPremium && !event.membersOnly && (
         <Tip text="Curated premium experience for vetted members">
-          <span className="badge bg-gray-900 text-amber-400 gap-1 shadow-sm">♛ Premium</span>
+          <span className={pill('bg-gray-900 text-amber-400', 'text-amber-700 bg-amber-50 border border-amber-200')}>♛ Premium</span>
         </Tip>
       )}
       {event.genderBalance && (
         <Tip text="Spots split equally between men & women for a balanced mix">
-          <span className="badge bg-pink-500 text-white gap-1 shadow-sm">⚖️ Gender balanced</span>
+          <span className={pill('bg-pink-500 text-white', 'text-pink-700 bg-pink-50 border border-pink-200')}>⚖️ Gender balanced</span>
         </Tip>
       )}
       {event.isFirstTimerFriendly && (
         <Tip text="A welcoming, low-commitment event — perfect if it's your first time">
-          <span className="badge bg-emerald-500 text-white gap-1 shadow-sm">👋 First-timer friendly</span>
+          <span className={pill('bg-emerald-500 text-white', 'text-emerald-700 bg-emerald-50 border border-emerald-200')}>👋 First-timer friendly</span>
         </Tip>
       )}
       {urgency && (

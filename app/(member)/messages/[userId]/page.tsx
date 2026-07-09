@@ -63,9 +63,9 @@ function formatTime(dateStr: string): string {
   const d = new Date(dateStr)
   const now = new Date()
   const diffDays = Math.floor((now.getTime() - d.getTime()) / 86400000)
-  if (diffDays === 0) return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
-  if (diffDays === 1) return `Yesterday ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
-  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+  if (diffDays === 0) return d.toLocaleTimeString('en-GB', { hourCycle: 'h23', hour: '2-digit', minute: '2-digit' })
+  if (diffDays === 1) return `Yesterday ${d.toLocaleTimeString('en-GB', { hourCycle: 'h23', hour: '2-digit', minute: '2-digit' })}`
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' ' + d.toLocaleTimeString('en-GB', { hourCycle: 'h23', hour: '2-digit', minute: '2-digit' })
 }
 
 export default function ThreadPage({ params }: { params: Promise<{ userId: string }> }) {

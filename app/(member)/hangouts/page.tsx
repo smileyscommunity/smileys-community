@@ -88,7 +88,7 @@ function formatWindow(startsAt: string, endsAt: string) {
   const now = new Date()
   const minsToStart = Math.round((s.getTime() - now.getTime()) / 60_000)
 
-  const fmtTime = (d: Date) => d.toLocaleTimeString('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit' })
+  const fmtTime = (d: Date) => d.toLocaleTimeString('en-GB', { timeZone: TZ, hourCycle: 'h23', hour: '2-digit', minute: '2-digit' })
   // Day comparisons in Istanbul, not the device tz.
   const istDay = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: TZ })
 
@@ -970,7 +970,7 @@ function HangoutCard({ h, currentUser, onCancel, onMutated }: {
                   : <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0"
                       style={{ backgroundColor: m.user.color }}>{m.user.name[0]}</div>}
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs"><span className="font-semibold text-gray-900">{m.user.name}</span> <span className="text-gray-400">· {new Date(m.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span></p>
+                  <p className="text-xs"><span className="font-semibold text-gray-900">{m.user.name}</span> <span className="text-gray-400">· {new Date(m.createdAt).toLocaleTimeString('en-GB', { timeZone: TZ, hourCycle: 'h23', hour: '2-digit', minute: '2-digit' })}</span></p>
                   <p className="text-sm text-gray-700 whitespace-pre-wrap">{m.body}</p>
                 </div>
               </div>
