@@ -1838,7 +1838,7 @@ function RulesCard({ defaultOpen }: { defaultOpen: boolean }) {
           <div>
             <p className="text-xs font-bold text-amber-600 uppercase tracking-wider mb-1.5">3 · Climb the leaderboard</p>
             <p className="text-sm text-gray-700 leading-relaxed">
-              Max possible: ~480 pts. Top of the board at the Final takes the headline prize from the Prizes section above; spot prizes go to other top finishers.
+              Max possible: ~480 pts. Top of the board at the Final earns the ultimate bragging rights — the leaderboard is the entire reward. No prizes, gifts, or payouts of any kind.
             </p>
           </div>
           <div className="text-[11px] text-gray-600 bg-gray-50 rounded-lg p-3 leading-relaxed">
