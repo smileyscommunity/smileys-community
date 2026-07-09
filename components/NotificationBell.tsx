@@ -188,7 +188,8 @@ export default function NotificationBell() {
                     {!n.isRead && <span className="w-2 h-2 bg-amber-500 rounded-full" />}
                     <button
                       onClick={e => dismiss(e, n.id)}
-                      className="opacity-0 group-hover:opacity-100 p-0.5 text-gray-300 hover:text-gray-600 transition-all"
+                      aria-label="Dismiss notification"
+                      className="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-0.5 text-gray-300 hover:text-gray-600 transition-all"
                       title="Dismiss"
                     >
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">

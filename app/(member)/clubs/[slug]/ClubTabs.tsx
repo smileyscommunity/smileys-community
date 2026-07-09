@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import EventCard from '@/components/EventCard'
 import ClubWall from '@/components/ClubWall'
 import ClubAnnouncements from '@/components/ClubAnnouncements'
@@ -60,13 +60,25 @@ function AttendeeStack({ attendees }: { attendees: MemberAttendee[] }) {
 }
 
 type Tab = 'events' | 'wall' | 'photos' | 'past' | 'reviews' | 'members'
+const TAB_KEYS: readonly Tab[] = ['events', 'wall', 'photos', 'past', 'reviews', 'members']
 
 export default function ClubTabs({
   slug, clubEvents, canPost, currentUserId, isAdmin, canPin,
   canAnnounce, canUpload, isMember, memberAttendeesByEvent,
   memberCount, reviewCount, reviewAvg,
 }: Props) {
-  const [tab, setTab] = useState<Tab>('events')
+  // Tab state lives in ?tab= rather than useState: the phone's Back
+  // gesture then returns to the previous tab instead of leaving the club
+  // entirely, and tabs become deep-linkable (e.g. /clubs/x?tab=wall from
+  // a notification).
+  const router       = useRouter()
+  const pathname     = usePathname()
+  const searchParams = useSearchParams()
+  const param = searchParams.get('tab')
+  const tab: Tab = TAB_KEYS.includes(param as Tab) ? (param as Tab) : 'events'
+  const setTab = (next: Tab) => {
+    router.push(next === 'events' ? pathname : `${pathname}?tab=${next}`, { scroll: false })
+  }
 
   // Compose the Reviews label with both the count and the average:
   // "Reviews (12) · ★ 4.7". Falls back to a plain "Reviews" label

@@ -67,7 +67,7 @@ function AppEventsPageInner() {
   // the effect below.
   const [events,       setEvents]       = useState<Event[]>([])
   const [groups,       setGroups]       = useState<TagGroup[]>([])
-  const [attendance,   setAttendance]   = useState<Record<string, 'joined' | 'pending'>>({})
+  const [attendance,   setAttendance]   = useState<Record<string, 'joined' | 'pending' | 'waitlisted'>>({})
   const [loading,      setLoading]      = useState(true)
   const [loadingMore,  setLoadingMore]  = useState(false)
   const [hasMore,      setHasMore]      = useState(false)
@@ -153,9 +153,13 @@ function AppEventsPageInner() {
     ]).then(([, grps, att]) => {
       setGroups(Array.isArray(grps) ? grps : [])
       if (Array.isArray(att)) {
-        const map: Record<string, 'joined' | 'pending'> = {}
+        const map: Record<string, 'joined' | 'pending' | 'waitlisted'> = {}
         att.forEach((a: { eventId: string; status: string }) => {
-          map[a.eventId] = a.status === 'approved' ? 'joined' : 'pending'
+          // /events/attending returns approved | pending | waitlisted —
+          // the old two-way mapping mislabeled waitlisted as pending.
+          map[a.eventId] = a.status === 'approved' ? 'joined'
+                         : a.status === 'waitlisted' ? 'waitlisted'
+                         : 'pending'
         })
         setAttendance(map)
       }

@@ -9,15 +9,21 @@ import posthog from 'posthog-js'
 
 export type RSVPStatus = 'idle' | 'joined' | 'pending' | 'waitlisted' | 'loading' | 'error'
 
-export function useRSVP(eventId: string) {
+export function useRSVP(eventId: string, initialStatus?: 'joined' | 'pending' | 'waitlisted' | null) {
   const { isLoggedIn } = useAuth()
   const router = useRouter()
-  const [status,   setStatus]   = useState<RSVPStatus>('loading')
+  // Callers that already know the member's status (the events grid fetches
+  // /events/attending ONCE for the whole page) seed it here — otherwise
+  // every card independently hits /rsvp and flashes 'loading', which on a
+  // 24-card grid meant 24 requests and 24 gray "…" buttons per visit.
+  const seeded = initialStatus !== undefined
+  const [status,   setStatus]   = useState<RSVPStatus>(seeded ? initialStatus ?? 'idle' : 'loading')
   const [position, setPosition] = useState<number | null>(null)
   const [loading,  setLoading]  = useState(false)
-  const [checked,  setChecked]  = useState(false)
+  const [checked,  setChecked]  = useState(seeded)
 
   useEffect(() => {
+    if (seeded) return
     if (!isLoggedIn) { setStatus('idle'); setChecked(true); return }
     apiFetch(`/app/api/events/${eventId}/rsvp`)
       .then(r => r.json())
@@ -30,7 +36,7 @@ export function useRSVP(eventId: string) {
         setChecked(true)
       })
       .catch(() => { setStatus('idle'); setChecked(true) })
-  }, [eventId, isLoggedIn])
+  }, [eventId, isLoggedIn, seeded])
 
   async function join(stealth = false) {
     if (!isLoggedIn) { router.push('/login'); return }

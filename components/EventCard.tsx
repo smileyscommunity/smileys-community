@@ -33,7 +33,7 @@ function Tip({ text, children }: { text: string; children: React.ReactNode }) {
 interface EventCardProps {
   event:        Event
   linkPrefix?:  string
-  initialStatus?: 'joined' | 'pending' | null
+  initialStatus?: 'joined' | 'pending' | 'waitlisted' | null
 }
 
 export default function EventCard({ event, linkPrefix = '/events', initialStatus }: EventCardProps) {
@@ -50,7 +50,7 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
   const urgency     = getUrgency(event.spotsLeft, event.totalSpots, event.limitedSpots, fillPercent)
   const barColor    = getBarColor(fillPercent)
 
-  const { status, loading, join } = useRSVP(event.id)
+  const { status, loading, join } = useRSVP(event.id, initialStatus)
   const isCancelled = event.status === 'cancelled'
 
   async function handleJoin(e: React.MouseEvent) {

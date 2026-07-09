@@ -156,8 +156,10 @@ export default function EventMessages({ eventId, eventDate }: { eventId: string;
                   <p className="text-sm text-gray-700 mt-0.5 leading-relaxed whitespace-pre-wrap break-words"><RichText text={msg.message} /></p>
                 )}
               </div>
+              {/* Touch screens have no hover — controls must be visible on
+                  mobile, hover-revealed only on md+ pointers. */}
               {(isOwn || isAdmin) && editingId !== msg.id && (
-                <div className="flex items-center gap-1.5 shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex items-center gap-1.5 shrink-0 mt-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                   {isOwn && !isLocked && (
                     <button
                       onClick={() => startEdit(msg)}

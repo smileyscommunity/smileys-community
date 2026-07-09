@@ -11,7 +11,7 @@ interface Props {
   events: Event[]
   selectedId: string | null
   onSelect: (id: string) => void
-  attendance: Record<string, 'joined' | 'pending'>
+  attendance: Record<string, 'joined' | 'pending' | 'waitlisted'>
 }
 
 interface HoveredPin {
@@ -169,7 +169,7 @@ export default function EventMap({ events, selectedId, onSelect, attendance }: P
   )
 }
 
-function MiniCard({ event, x, y, status }: { event: Event; x: number; y: number; status: 'joined' | 'pending' | null }) {
+function MiniCard({ event, x, y, status }: { event: Event; x: number; y: number; status: 'joined' | 'pending' | 'waitlisted' | null }) {
   const fmt = (d: string) => {
     const dt = new Date(d + 'T00:00:00')
     return dt.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })

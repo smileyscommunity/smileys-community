@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
+import RichTextEditor from '@/components/RichTextEditor'
 
 type Segment = 'all' | 'new' | 'active' | 'inactive'
 
@@ -300,14 +301,12 @@ export default function NewsletterPage() {
         {/* Body */}
         <div>
           <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-2">
-            Body <span className="text-zinc-600 normal-case font-normal">(HTML or plain text)</span>
+            Body <span className="text-zinc-600 normal-case font-normal">(format with the toolbar — bold, headings, lists, links)</span>
           </label>
-          <textarea
+          <RichTextEditor
             value={bodyHtml}
-            onChange={e => setBodyHtml(e.target.value)}
-            rows={12}
-            placeholder={"<p>Hi everyone,</p>\n<p>Here's what's coming up this week…</p>"}
-            className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono resize-y"
+            onChange={setBodyHtml}
+            placeholder="Hi everyone, here's what's coming up this week…"
           />
           <p className={`text-right text-xs mt-1 ${bodyHtml.length > 90_000 ? 'text-red-400' : 'text-zinc-600'}`}>
             {(bodyHtml.length / 1000).toFixed(1)} KB / 100 KB

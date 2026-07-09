@@ -131,7 +131,8 @@ export default function EventPhotos({ eventId, photos: initial, canUpload, curre
               {(currentUserId === p.user.id) && (
                 <button
                   onClick={e => { e.stopPropagation(); handleDelete(p.id) }}
-                  className="absolute top-1 right-1 w-9 h-9 bg-black/70 rounded-full hidden group-hover:flex items-center justify-center text-white text-sm"
+                  aria-label="Delete photo"
+                  className="absolute top-1 right-1 w-9 h-9 bg-black/70 rounded-full flex md:hidden md:group-hover:flex items-center justify-center text-white text-sm"
                 >✕</button>
               )}
             </div>
@@ -144,7 +145,7 @@ export default function EventPhotos({ eventId, photos: initial, canUpload, curre
         <div className="fixed inset-0 bg-black/90 flex flex-col items-center justify-center p-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
           style={{ zIndex: 9999 }}
           onClick={() => setLightbox(null)}>
-          <button className="absolute top-4 right-4 w-10 h-10 bg-black/50 hover:bg-black/80 rounded-full flex items-center justify-center text-white text-lg transition-colors">✕</button>
+          <button aria-label="Close" className="absolute top-4 right-4 w-10 h-10 bg-black/50 hover:bg-black/80 rounded-full flex items-center justify-center text-white text-lg transition-colors">✕</button>
           <img
             src={resolveImageUrl(lightbox.url)}
             alt={lightbox.caption ?? ''}
