@@ -48,7 +48,7 @@ export default function Footer({ stats }: FooterProps) {
                 </Link>
               </div>
               <p className="text-xs text-amber-950/60">
-                Free to join · Reviewed by hand in 2–3 days · Pay only for events you attend
+                Free to join · Reviewed by hand within 24 hours · Pay only for events you attend
               </p>
             </div>
           </div>
