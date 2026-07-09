@@ -14,6 +14,7 @@ import ClubTabs from './ClubTabs'
 import SocialShare from '@/components/SocialShare'
 import ClubSpotlight from '@/components/ClubSpotlight'
 import ClubRulesEditor from '@/components/ClubRulesEditor'
+import ClubAboutEditor from '@/components/ClubAboutEditor'
 import ClubResources from '@/components/ClubResources'
 
 export const dynamic = 'force-dynamic'
@@ -329,12 +330,11 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
               )
             })()}
 
-            {club.description && (
-              <div className="bg-white rounded-2xl shadow-card p-8 mb-8">
-                <h2 className="text-xl font-bold text-gray-900 mb-4">About this club</h2>
-                <p className="text-gray-600 leading-relaxed text-base">{club.description}</p>
-              </div>
-            )}
+            <ClubAboutEditor
+              slug={club.slug}
+              initialDescription={club.description ?? null}
+              canEdit={isPrivileged}
+            />
 
             {/* House rules — community-wide first, then club-specific.
                 Native <details> disclosure so members see the summary
