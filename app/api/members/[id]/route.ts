@@ -87,15 +87,23 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   // (moderation / event management). 404 rather than 403 so the viewer
   // can't tell whether the profile exists. Reuses the connection row
   // already fetched above — no extra query.
+  const privileged = isAdminOrModerator(session) || await isClubHost(session.id)
   if (
     session.id !== id &&
     user.profileVisibility === 'connections' &&
     connection?.status !== 'accepted' &&
-    !isAdminOrModerator(session) &&
-    !(await isClubHost(session.id))
+    !privileged
   ) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
+
+  // Connection gating for everyone else. The UI promise (modal lock copy)
+  // is "bio, interests, clubs, and social links are only visible to
+  // connected members" — enforce it HERE rather than trusting each client
+  // surface: the standalone profile page was rendering all of it to any
+  // logged-in member. Non-connected viewers get identity + public activity
+  // (first name, flag, photo, join date, hosted events, trust badges) only.
+  const fullAccess = session.id === id || connection?.status === 'accepted' || privileged
 
   // Count of approved members this user brought in — drives the
   // "🤝 Brought in N members" trust badge on the profile. Derived
@@ -140,28 +148,31 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   return NextResponse.json({
     id:           user.id,
-    name:         user.name,
+    name:         fullAccess ? user.name : user.name.split(' ')[0],
     color:        user.color,
-    bio:          user.bio,
-    neighborhood: user.neighborhood,
+    bio:          fullAccess ? user.bio : null,
+    neighborhood: fullAccess ? user.neighborhood : null,
     nationality:  user.nationality,
-    interests:    user.interests,
-    languages:    user.languages,
+    interests:    fullAccess ? user.interests : [],
+    languages:    fullAccess ? user.languages : [],
     socialStyles: user.socialStyles,
     profilePhoto: user.profilePhoto,
     joinedAt:     user.joinedAt,
     role:         user.role,
     membershipType: user.membershipType,
-    instagram:    user.instagram,
+    instagram:    fullAccess ? user.instagram : null,
     // Professional fields surfaced only when the member opted in to a
     // non-social_only status. Treating null/social_only the same way
     // — neither leaks the industry/role to viewers — keeps the social
     // surface clean by default.
-    industry:           user.professionalStatus && user.professionalStatus !== 'social_only' ? user.industry           : null,
-    professionalRole:   user.professionalStatus && user.professionalStatus !== 'social_only' ? user.professionalRole   : null,
-    professionalStatus: user.professionalStatus && user.professionalStatus !== 'social_only' ? user.professionalStatus : null,
-    clubs:        user.clubMemberships.map(cm => cm.club),
+    industry:           fullAccess && user.professionalStatus && user.professionalStatus !== 'social_only' ? user.industry           : null,
+    professionalRole:   fullAccess && user.professionalStatus && user.professionalStatus !== 'social_only' ? user.professionalRole   : null,
+    professionalStatus: fullAccess && user.professionalStatus && user.professionalStatus !== 'social_only' ? user.professionalStatus : null,
+    clubs:        fullAccess ? user.clubMemberships.map(cm => cm.club) : [],
     upcomingEvents,
+    // True when the viewer sees the ungated profile (self / connected /
+    // admin / moderator / club host) — drives the lock notice client-side.
+    viewerHasFullProfile: fullAccess,
     isConnected:     connection?.status === 'accepted',
     connectionId:    connection?.id ?? null,
     connectionStatus: connection?.status ?? null,

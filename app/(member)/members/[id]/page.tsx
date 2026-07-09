@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { prisma } from '@/lib/prisma'
 import { APP_URL, SITE_URL } from '@/lib/env'
 import { resolveImageUrl } from '@/lib/data'
+import { getSession } from '@/lib/session'
 import MemberProfileClient from './MemberProfileClient'
 
 function absolutePhoto(photo: string | null | undefined): string | undefined {
@@ -16,6 +17,19 @@ function absolutePhoto(photo: string | null | undefined): string | undefined {
 export async function generateMetadata(
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Metadata> {
+  // Member profiles are members-only, but the page HTML (including these
+  // OG tags) is served to unauthenticated requests — the auth gate lives in
+  // the client's API fetch. Without this check, any crawler could read every
+  // member's name, neighborhood, and bio straight from the <head>. Guests
+  // get a generic title; profiles are never search-indexed either way.
+  const session = await getSession()
+  if (!session) {
+    return {
+      title: 'Member profile — Smileys Community',
+      robots: { index: false, follow: false },
+    }
+  }
+
   const { id } = await params
   const member = await prisma.user.findUnique({
     where:  { id, status: 'approved' },
@@ -35,6 +49,7 @@ export async function generateMetadata(
   return {
     title,
     description,
+    robots: { index: false, follow: false },
     openGraph: {
       title,
       description,

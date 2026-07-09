@@ -56,6 +56,10 @@ interface MemberProfile {
   clubs: HostClub[]
   upcomingEvents: UpcomingEvent[]
   isConnected: boolean
+  // False when the API redacted the connection-gated fields (bio,
+  // neighborhood, interests, languages, socials, clubs) because the viewer
+  // isn't self/connected/privileged — drives the lock notice.
+  viewerHasFullProfile?: boolean
   connectionId: string | null
   connectionStatus: string | null
   connectionIsRequester: boolean | null
@@ -661,6 +665,18 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Locked state — the API redacts bio/interests/socials/clubs for
+            non-connected viewers, so those sections simply don't render;
+            this notice explains the gap instead of showing a bare profile.
+            Same promise as the members-page modal. */}
+        {member.viewerHasFullProfile === false && (
+          <div className="bg-white rounded-2xl shadow-card p-5 text-center space-y-1.5">
+            <div className="text-3xl">🔒</div>
+            <p className="text-sm font-semibold text-gray-700">Connect to see more</p>
+            <p className="text-xs text-gray-400">Bio, interests, clubs, and social links are only visible to connected members.</p>
           </div>
         )}
 
