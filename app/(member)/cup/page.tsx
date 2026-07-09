@@ -427,7 +427,7 @@ export default function CupPredictionsPage() {
                 <span className="w-7 h-7 rounded-full bg-amber-100 text-amber-700 font-bold text-sm flex items-center justify-center shrink-0">2</span>
                 <div className="flex-1 min-w-0 pt-0.5">
                   <p className="text-sm font-bold text-gray-900 leading-tight">Get accepted</p>
-                  <p className="text-xs text-gray-600 mt-0.5">Usually 1–3 days. Watch your inbox.</p>
+                  <p className="text-xs text-gray-600 mt-0.5">Usually within 24 hours. Watch your inbox.</p>
                 </div>
               </li>
               <li className="flex items-start gap-3">
@@ -456,7 +456,7 @@ export default function CupPredictionsPage() {
             <p className="text-base font-extrabold text-amber-900 leading-snug">You&apos;re in the queue 🙌</p>
           </div>
           <div className="p-5">
-            <p className="text-sm text-gray-700 leading-relaxed">Your application is being reviewed. Most decisions land within 1–3 days. As soon as you&apos;re in, this page unlocks and you can pick your bracket and matches.</p>
+            <p className="text-sm text-gray-700 leading-relaxed">Your application is being reviewed. Most decisions land within 24 hours. As soon as you&apos;re in, this page unlocks and you can pick your bracket and matches.</p>
             <p className="text-xs text-gray-400 mt-3">Want to nudge it? Check your email — we may have written.</p>
           </div>
         </div>

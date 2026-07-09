@@ -169,7 +169,7 @@ export async function sendApplicationReceivedEmail(email: string, name: string) 
         <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:20px 24px;margin-bottom:24px">
           <p style="color:#92400e;font-size:14px;margin:0;line-height:1.6">
             Our team personally reviews every application to keep Smileys a high-quality community.
-            We'll get back to you within <strong>2–3 days</strong>.
+            We'll get back to you within <strong>24 hours</strong>.
           </p>
         </div>
         <p style="color:#9ca3af;font-size:12px;text-align:center">

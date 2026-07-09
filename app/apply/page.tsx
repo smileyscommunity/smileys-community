@@ -341,7 +341,7 @@ function ApplyForm() {
             Thanks for applying to Smileys Community. We personally review every application.
           </p>
           <p className="text-gray-600 text-sm mb-6">
-            We'll get back to you at <strong>{form.email}</strong> within 2–3 days.
+            We'll get back to you at <strong>{form.email}</strong> within 24 hours.
           </p>
           <Link href="/" className="text-amber-600 font-semibold text-sm hover:underline">← Back to home</Link>
         </div>

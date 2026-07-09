@@ -193,7 +193,7 @@ export default async function HomePage() {
               {/* Commitment info at the moment of decision — cost, wait time,
                   and what approval means, so "Apply" isn't a leap of faith. */}
               <p className="text-xs text-gray-500 mb-16">
-                Free to join · Applications reviewed by hand in 2–3 days · Pay only for events you attend
+                Free to join · Applications reviewed by hand within 24 hours · Pay only for events you attend
               </p>
 
               {/* One row of 4 from sm up; 2×2 only on narrow phones where
