@@ -134,6 +134,13 @@ ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-login-nudge.sh && (crontab -l 2>/d
 echo "→ Registering name-hygiene sweeper crontab..."
 ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-name-hygiene.sh && (crontab -l 2>/dev/null | grep -v 'sweep-name-hygiene' ; echo '20 3 * * * $REMOTE/scripts/sweep-name-hygiene.sh >> /var/log/sweep-name-hygiene.log 2>&1') | crontab -"
 
+# Hourly payment-reminder sweep — one nudge to unpaid attendees of
+# Smileys-collected events starting within 48h (reminderSentAt stamp
+# guarantees one-and-only-one). Runs at :40 so it never overlaps the
+# 5-min cup sweepers' load spikes.
+echo "→ Registering payment-reminders sweeper crontab..."
+ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-payment-reminders.sh && (crontab -l 2>/dev/null | grep -v 'sweep-payment-reminders' ; echo '40 * * * * $REMOTE/scripts/sweep-payment-reminders.sh >> /var/log/sweep-payment-reminders.log 2>&1') | crontab -"
+
 # Daily DB backup — 02:00 UTC (05:00 Istanbul), low-traffic window. Dumps to
 # /root/db-backups (outside the repo so rsync --delete can't wipe it), keeps 14.
 echo "→ Registering daily DB backup crontab..."

@@ -765,6 +765,9 @@ model Payment {
   notes          String?
   provider       String?
   transactionRef String?
+  // Stamped by sweep-payment-reminders when the one-and-only "your spot
+  // needs payment" nudge goes out — the stamp is what makes it one-and-only.
+  reminderSentAt DateTime?
   event          Event    @relation(fields: [eventId], references: [id])
   user           User     @relation(fields: [userId], references: [id])
 
