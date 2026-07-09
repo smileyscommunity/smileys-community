@@ -229,7 +229,7 @@ export default function AdminParticipantsPage() {
   ) {
     const targets = pending.filter(a => selected.has(rowKey(a)))
     if (targets.length === 0) return
-    if (!window.confirm(`${confirmMsg} ${targets.length} request${targets.length > 1 ? 's' : ''}?`)) return
+    if (!(await confirmToast(`${confirmMsg} ${targets.length} request${targets.length > 1 ? 's' : ''}?`))) return
     setBulkSaving(true)
     const results = await Promise.all(targets.map(async a => ({
       key: rowKey(a),

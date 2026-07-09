@@ -18,6 +18,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import { confirmToast } from '@/lib/confirmToast'
 
 import {
   type AdminSponsor, type AdminPrize,
@@ -107,7 +108,7 @@ function SponsorRow({ s, onChanged }: { s: AdminSponsor; onChanged: () => void }
   const [busy,    setBusy]    = useState(false)
 
   async function destroy() {
-    if (!confirm(`Delete sponsor "${s.name}"? Prizes tied to this sponsor lose their attribution.`)) return
+    if (!(await confirmToast(`Delete sponsor "${s.name}"? Prizes tied to this sponsor lose their attribution.`))) return
     setBusy(true)
     const res = await fetch('/app/api/admin/cup/sponsors', {
       method: 'DELETE', credentials: 'include',
@@ -295,7 +296,7 @@ function PrizeRow({ p, sponsors, onChanged }: {
   const [busy,     setBusy]     = useState(false)
 
   async function destroy() {
-    if (!confirm(`Delete prize "${p.title}"?`)) return
+    if (!(await confirmToast(`Delete prize "${p.title}"?`))) return
     setBusy(true)
     const res = await fetch('/app/api/admin/cup/prizes', {
       method: 'DELETE', credentials: 'include',
@@ -309,7 +310,7 @@ function PrizeRow({ p, sponsors, onChanged }: {
   }
 
   async function unaward() {
-    if (!confirm(`Remove the award from "${p.title}"? The prize will go back to active.`)) return
+    if (!(await confirmToast(`Remove the award from "${p.title}"? The prize will go back to active.`))) return
     setBusy(true)
     const res = await fetch('/app/api/admin/cup/prizes', {
       method: 'PATCH', credentials: 'include',
@@ -488,7 +489,7 @@ function AwardForm({ prize, onSaved, onCancel }: {
   }, [query])
 
   async function award(userId: string, userName: string) {
-    if (!confirm(`Award "${prize.title}" to ${userName}?`)) return
+    if (!(await confirmToast(`Award "${prize.title}" to ${userName}?`))) return
     setBusy(true)
     const res = await fetch('/app/api/admin/cup/prizes', {
       method: 'PATCH', credentials: 'include',

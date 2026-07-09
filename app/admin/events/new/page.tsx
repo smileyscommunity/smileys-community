@@ -1,5 +1,6 @@
 'use client'
 
+import { toast } from 'sonner'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -122,9 +123,9 @@ export default function NewEventPage() {
       if (data[0]) {
         setForm(f => ({ ...f, lat: parseFloat(data[0].lat).toFixed(6), lng: parseFloat(data[0].lon).toFixed(6) }))
       } else {
-        alert('No location found — try a more specific address')
+        toast.error('No location found — try a more specific address')
       }
-    } catch { alert('Geocoding failed') }
+    } catch { toast.error('Geocoding failed') }
     finally { setGeocoding(false) }
   }
 
@@ -153,7 +154,7 @@ export default function NewEventPage() {
         return
       }
     } finally { setGeocoding(false) }
-    alert('Could not extract coordinates — try pasting a Google Maps link with a visible location pin')
+    toast.error('Could not extract coordinates — try pasting a Google Maps link with a visible location pin')
   }
 
   function buildDates(): string[] {

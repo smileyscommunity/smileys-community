@@ -1,6 +1,7 @@
 'use client'
 
 import { toast } from 'sonner'
+import { confirmToast } from '@/lib/confirmToast'
 import Link from 'next/link'
 import { useState, useEffect, useMemo, useCallback, Suspense } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
@@ -275,7 +276,7 @@ function AdminEventsPageInner() {
   }
 
   async function handleDelete(event: AdminEvent) {
-    if (!window.confirm(`Delete "${event.title}"?`)) return
+    if (!(await confirmToast(`Delete "${event.title}"?`))) return
     const res = await fetch(`/app/api/admin/events/${event.id}`, { method: 'DELETE', credentials: 'include' })
     if (!res.ok) {
       const d = await res.json().catch(() => ({}))
@@ -295,7 +296,7 @@ function AdminEventsPageInner() {
   const PATCH_STATUSES = new Set(['published', 'flagged', 'unpublished', 'pending'])
 
   async function handleStatusChange(id: string, newStatus: string) {
-    if (newStatus === 'cancelled' && !window.confirm('Cancel event? You can notify attendees in the next step.')) return
+    if (newStatus === 'cancelled' && !(await confirmToast('Cancel event? You can notify attendees in the next step.'))) return
     const method = PATCH_STATUSES.has(newStatus) ? 'PATCH' : 'PUT'
     const res = await fetch(`/app/api/admin/events/${id}`, {
       method, credentials: 'include',
@@ -367,7 +368,7 @@ function AdminEventsPageInner() {
     // the toast count would lie about how many were promoted.
     const pendingIds = [...selected].filter(id => events.find(e => e.id === id)?.status === 'pending')
     if (pendingIds.length === 0) { toast('No pending events selected'); return }
-    if (!window.confirm(`Approve ${pendingIds.length} event${pendingIds.length === 1 ? '' : 's'}?`)) return
+    if (!(await confirmToast(`Approve ${pendingIds.length} event${pendingIds.length === 1 ? '' : 's'}?`))) return
     setBulkBusy(true)
     const results = await Promise.all(pendingIds.map(async id => ({
       id,
@@ -386,7 +387,7 @@ function AdminEventsPageInner() {
   }
 
   async function bulkCancel() {
-    if (!window.confirm(`Cancel ${selected.size} events? Attendees will be notified.`)) return
+    if (!(await confirmToast(`Cancel ${selected.size} events? Attendees will be notified.`))) return
     await bulkRun('Cancel', async (id) => {
       const res = await fetch(`/app/api/admin/events/${id}`, {
         method: 'PUT', credentials: 'include',
@@ -400,7 +401,7 @@ function AdminEventsPageInner() {
   }
 
   async function bulkDelete() {
-    if (!window.confirm(`Delete ${selected.size} events?`)) return
+    if (!(await confirmToast(`Delete ${selected.size} events?`))) return
     await bulkRun('Delete', async (id) => {
       const res = await fetch(`/app/api/admin/events/${id}`, { method: 'DELETE', credentials: 'include' })
       return res.ok

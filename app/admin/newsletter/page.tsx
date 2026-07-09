@@ -167,6 +167,7 @@ export default function NewsletterPage() {
   const [history,          setHistory]          = useState<SentNewsletter[]>([])
   const [loading,          setLoading]          = useState(true)
   const [confirm,          setConfirm]          = useState(false)
+  const [insertingEvents,  setInsertingEvents]  = useState(false)
   const composerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -190,6 +191,41 @@ export default function NewsletterPage() {
     setConfirm(false)
     composerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     toast.success('Template loaded — edit and send when ready')
+  }
+
+  // One-click weekly digest: pull the next 7 days of published events and drop
+  // a formatted, linked list into the body. Admin still reviews + sends.
+  async function insertUpcomingEvents() {
+    setInsertingEvents(true)
+    try {
+      const res  = await fetch('/app/api/events?upcoming=1&limit=50', { credentials: 'include' })
+      const data = await res.json()
+      const all: Array<{ id: string; title: string; date: string; neighborhood?: string | null; emoji?: string; status?: string }> =
+        Array.isArray(data.events) ? data.events : []
+      // Dates are 'YYYY-MM-DD' strings → lexical compare works. Window = today
+      // through today+7, Istanbul.
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Istanbul' })
+      const end   = new Date(Date.now() + 7 * 86_400_000).toLocaleDateString('en-CA', { timeZone: 'Europe/Istanbul' })
+      const week  = all.filter(e => e.status !== 'cancelled' && e.date >= today && e.date <= end)
+      if (week.length === 0) { toast('No events in the next 7 days'); return }
+
+      const origin = window.location.origin
+      const items = week.map(e => {
+        const d   = new Date(e.date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+        const loc = e.neighborhood ? ` · ${e.neighborhood}` : ''
+        const em  = e.emoji ? `${e.emoji} ` : ''
+        return `<li><a href="${origin}/app/events/${e.id}">${em}${e.title}</a> — ${d}${loc}</li>`
+      }).join('')
+      const digest = `<h3>📅 This week's events</h3><ul>${items}</ul>`
+
+      setBodyHtml(prev => (prev.trim() ? `${prev}${digest}` : digest))
+      if (!subject.trim()) setSubject('This week at Smileys 📅')
+      toast.success(`Inserted ${week.length} event${week.length !== 1 ? 's' : ''}`)
+    } catch {
+      toast.error('Could not load upcoming events')
+    } finally {
+      setInsertingEvents(false)
+    }
   }
 
   async function send() {
@@ -300,9 +336,20 @@ export default function NewsletterPage() {
 
         {/* Body */}
         <div>
-          <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-2">
-            Body <span className="text-zinc-600 normal-case font-normal">(format with the toolbar — bold, headings, lists, links)</span>
-          </label>
+          <div className="flex items-center justify-between mb-2 gap-2">
+            <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-widest">
+              Body <span className="text-zinc-600 normal-case font-normal">(format with the toolbar — bold, headings, lists, links)</span>
+            </label>
+            <button
+              type="button"
+              onClick={insertUpcomingEvents}
+              disabled={insertingEvents}
+              title="Add a formatted list of the next 7 days of events"
+              className="shrink-0 text-xs font-semibold text-amber-400 hover:text-amber-300 border border-zinc-700 hover:border-amber-500/50 rounded-lg px-2.5 py-1 transition-colors disabled:opacity-50"
+            >
+              {insertingEvents ? 'Loading…' : "📅 Insert this week's events"}
+            </button>
+          </div>
           <RichTextEditor
             value={bodyHtml}
             onChange={setBodyHtml}

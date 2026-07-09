@@ -1,5 +1,6 @@
 'use client'
 
+import { toast } from 'sonner'
 import { useState, useEffect, use } from 'react'
 import { confirmToast } from '@/lib/confirmToast'
 import Link from 'next/link'
@@ -98,7 +99,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
     } finally {
       setGeocoding(false)
     }
-    alert('Could not extract coordinates — try pasting a Google Maps link with a visible location pin')
+    toast.error('Could not extract coordinates — try pasting a Google Maps link with a visible location pin')
   }
 
   useEffect(() => {
@@ -190,9 +191,9 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
       if (data[0]) {
         setForm(f => ({ ...f, lat: parseFloat(data[0].lat).toFixed(6), lng: parseFloat(data[0].lon).toFixed(6) }))
       } else {
-        alert('No location found — try a more specific address')
+        toast.error('No location found — try a more specific address')
       }
-    } catch { alert('Geocoding failed') }
+    } catch { toast.error('Geocoding failed') }
     finally { setGeocoding(false) }
   }
 

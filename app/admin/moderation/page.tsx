@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
+import { confirmToast } from '@/lib/confirmToast'
 import { useAuth } from '@/contexts/AuthContext'
 import Avatar from '@/components/admin/Avatar'
 
@@ -299,7 +300,7 @@ function ModerationPageInner() {
   }
 
   async function handleUnban(userId: string) {
-    if (!window.confirm('Unban this user?')) return
+    if (!(await confirmToast('Unban this user?'))) return
     if (await patchUser(userId, UNBAN_PAYLOAD)) {
       setBanned(prev => prev.filter(u => u.id !== userId))
     }
@@ -335,19 +336,22 @@ function ModerationPageInner() {
   }
 
   async function handleRemoveBlacklist(id: string) {
-    await fetch(`/app/api/admin/blacklist/${id}`, { method: 'DELETE', credentials: 'include' })
+    const res = await fetch(`/app/api/admin/blacklist/${id}`, { method: 'DELETE', credentials: 'include' })
+    if (!res.ok) { toast.error('Could not remove from blacklist'); return }
     setBlacklist(prev => prev.filter(b => b.id !== id))
+    toast.success('Removed from blacklist')
   }
 
   async function handleDeleteMessage(id: string) {
-    if (!window.confirm('Delete this message?')) return
+    if (!(await confirmToast('Delete this message?'))) return
     const res = await fetch(`/app/api/admin/messages/${id}`, { method: 'DELETE', credentials: 'include' })
-    if (res.ok) setMessages(prev => prev.filter(m => m.id !== id))
+    if (!res.ok) { toast.error('Could not delete message'); return }
+    setMessages(prev => prev.filter(m => m.id !== id))
   }
 
   async function handleBulkDeleteMessages() {
     if (selectedMsgs.size === 0) return
-    if (!window.confirm(`Delete ${selectedMsgs.size} message${selectedMsgs.size > 1 ? 's' : ''}?`)) return
+    if (!(await confirmToast(`Delete ${selectedMsgs.size} message${selectedMsgs.size > 1 ? 's' : ''}?`))) return
     setBulkDeleting(true)
     // Track which ids actually deleted so a partial failure (e.g. one
     // 500) only removes the rows that really went away. Running in

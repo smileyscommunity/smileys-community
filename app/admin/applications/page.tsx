@@ -436,7 +436,7 @@ function AdminApplicationsPageInner() {
   async function bulkAction(status: 'approved' | 'rejected') {
     if (!selected2.size) return
     const verb = status === 'approved' ? 'Approve' : 'Reject'
-    if (!window.confirm(`${verb} ${selected2.size} application${selected2.size > 1 ? 's' : ''}?`)) return
+    if (!(await confirmToast(`${verb} ${selected2.size} application${selected2.size > 1 ? 's' : ''}?`))) return
     setBulkSaving(true)
     const ids = [...selected2]
     // Track per-id success so a partial failure only flips the rows

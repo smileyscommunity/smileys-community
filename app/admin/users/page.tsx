@@ -1,6 +1,8 @@
 'use client'
 
 import { toast } from 'sonner'
+import { confirmToast } from '@/lib/confirmToast'
+import { promptToast } from '@/lib/promptToast'
 
 import { useState, useEffect, useMemo, useCallback, Suspense } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
@@ -215,7 +217,7 @@ function AdminUsersPageInner() {
     // away on a select; require explicit confirm. Demotions don't need
     // the same gate (worst case: a re-promote click).
     if (role === 'admin' && u.role !== 'admin') {
-      if (!window.confirm(`Promote ${u.name} to admin? They will gain full moderation and user-management powers.`)) return
+      if (!(await confirmToast(`Promote ${u.name} to admin? They will gain full moderation and user-management powers.`))) return
     }
     const res = await fetch(`/app/api/admin/users/${u.id}`, {
       method: 'PATCH', credentials: 'include',
@@ -232,7 +234,7 @@ function AdminUsersPageInner() {
   }
 
   async function banUser(u: DBUser) {
-    if (!window.confirm(`Ban ${u.name}? They will be signed out and blocked.`)) return
+    if (!(await confirmToast(`Ban ${u.name}? They will be signed out and blocked.`))) return
     const res = await fetch(`/app/api/admin/users/${u.id}`, {
       method: 'PATCH', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -264,7 +266,7 @@ function AdminUsersPageInner() {
   }
 
   async function unsuspendUser(u: DBUser) {
-    if (!window.confirm(`Lift suspension on ${u.name}?`)) return
+    if (!(await confirmToast(`Lift suspension on ${u.name}?`))) return
     const res = await fetch(`/app/api/admin/users/${u.id}`, {
       method: 'PATCH', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -280,7 +282,7 @@ function AdminUsersPageInner() {
   }
 
   async function unbanUser(u: DBUser) {
-    if (!window.confirm(`Unban ${u.name}? They will regain access.`)) return
+    if (!(await confirmToast(`Unban ${u.name}? They will regain access.`))) return
     const res = await fetch(`/app/api/admin/users/${u.id}`, {
       method: 'PATCH', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -297,7 +299,7 @@ function AdminUsersPageInner() {
 
   async function toggleHidden(u: DBUser) {
     const hiding = !u.hiddenFromMembers
-    if (hiding && !window.confirm(`Hide ${u.name} from the members list? They keep full access and won't be told — they just stop appearing in the directory.`)) return
+    if (hiding && !(await confirmToast(`Hide ${u.name} from the members list? They keep full access and won't be told — they just stop appearing in the directory.`))) return
     const res = await fetch(`/app/api/admin/users/${u.id}`, {
       method: 'PATCH', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -326,7 +328,7 @@ function AdminUsersPageInner() {
   }
 
   async function removeUser(u: DBUser) {
-    if (!window.confirm(`Remove ${u.name}? This cannot be undone.`)) return
+    if (!(await confirmToast(`Remove ${u.name}? This cannot be undone.`))) return
     const res = await fetch(`/app/api/admin/users/${u.id}`, {
       method: 'DELETE',
       credentials: 'include',
@@ -338,8 +340,8 @@ function AdminUsersPageInner() {
   }
 
   async function warnUser(u: DBUser) {
-    const reason = window.prompt(`Warn ${u.name}? Reason will be sent to them and logged.`)
-    if (!reason || !reason.trim()) return
+    const reason = await promptToast(`Warn ${u.name}? The reason is sent to them and logged.`, { placeholder: 'Warning reason', confirmLabel: 'Warn' })
+    if (!reason) return
     const res = await fetch(`/app/api/admin/users/${u.id}/warn`, {
       method: 'POST', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -365,7 +367,7 @@ function AdminUsersPageInner() {
     // and the resulting "1 failed" toast wouldn't explain why.
     const targets = users.filter(u => selected.has(u.id) && u.role !== 'admin')
     if (targets.length === 0) { toast.error('Selection contains only admins — nothing to do'); return }
-    if (!window.confirm(`${label} ${targets.length} user${targets.length > 1 ? 's' : ''}?`)) return
+    if (!(await confirmToast(`${label} ${targets.length} user${targets.length > 1 ? 's' : ''}?`))) return
     setBulkSaving(true)
     let ok = 0, fail = 0
     for (const u of targets) {
@@ -685,18 +687,18 @@ function AdminUsersPageInner() {
         <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-3 flex flex-wrap items-center gap-2 sticky top-0 z-30">
           <span className="text-sm font-bold text-amber-300">{selected.size} selected</span>
           <span className="flex-1" />
-          <button onClick={() => {
-            const reason = window.prompt('Warning reason (sent to user, logged):')
-            if (reason && reason.trim()) bulkWarn(reason.trim())
+          <button onClick={async () => {
+            const reason = await promptToast('Warning reason (sent to user, logged):', { placeholder: 'Warning reason', confirmLabel: 'Warn' })
+            if (reason) bulkWarn(reason)
           }} disabled={bulkSaving} className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 border border-orange-500/30 disabled:opacity-50 transition-colors">
             ⚠ Warn
           </button>
           {isAdmin && <button onClick={() => bulkSuspend(7)} disabled={bulkSaving} className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 border border-orange-500/30 disabled:opacity-50 transition-colors">
             Suspend 7d
           </button>}
-          <button onClick={() => {
-            const reason = window.prompt('Ban reason:') ?? 'Banned by admin'
-            bulkBan(reason)
+          <button onClick={async () => {
+            const reason = await promptToast('Ban reason:', { placeholder: 'Ban reason', confirmLabel: 'Ban' })
+            bulkBan(reason ?? 'Banned by admin')
           }} disabled={bulkSaving} className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/30 disabled:opacity-50 transition-colors">
             Ban
           </button>
