@@ -2,14 +2,11 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin } from '@/lib/access'
-import { sendNewsletterEmail, recordEmailFailure } from '@/lib/email'
+import { sendNewsletterEmail, sendNewsletterBatch, recordEmailFailure } from '@/lib/email'
 import { writeAudit } from '@/lib/audit'
 import { sanitizeNewsletter } from '@/lib/sanitize'
 
 export const dynamic = 'force-dynamic'
-
-const BATCH_SIZE    = 50
-const BATCH_DELAY_MS = 1000
 
 type Segment = 'all' | 'new' | 'active' | 'inactive'
 
@@ -94,6 +91,20 @@ export async function POST(req: NextRequest) {
 
   const safeBodyHtml = sanitizeNewsletter(bodyHtml)
 
+  // Test send — deliver a single copy to the current admin so they can preview
+  // the real email (with the greeting + unsubscribe wrapper) before blasting a
+  // segment. No Newsletter row, no audit, no fan-out.
+  if (body?.test === true) {
+    const me = await prisma.user.findUnique({ where: { id: session.id }, select: { email: true, name: true } })
+    if (!me?.email) return NextResponse.json({ error: 'No email on your account to send a test to' }, { status: 400 })
+    try {
+      await sendNewsletterEmail(session.id, me.email, me.name, `[TEST] ${subject}`, safeBodyHtml, 'test')
+      return NextResponse.json({ ok: true, test: true, email: me.email })
+    } catch {
+      return NextResponse.json({ error: 'Test send failed' }, { status: 500 })
+    }
+  }
+
   // For scheduled sends, persist and return early — the sweeper will fire it
   if (scheduledFor && scheduledFor > new Date()) {
     const newsletter = await prisma.newsletter.create({
@@ -117,34 +128,48 @@ export async function POST(req: NextRequest) {
     `Sent newsletter "${subject}" to ${recipients.length} members (segment: ${segment})`,
   )
 
-  let sent = 0
-  const resendLogs: { newsletterId: string; resendId: string }[] = []
+  // Batch API send (≤100 per request) — stays under Resend's rate limit,
+  // unlike the old 50-concurrent-per-second loop that 429'd ~80% of a 1k blast.
+  const { sent, resendLogs, failed } = await sendNewsletterBatch(recipients, subject, safeBodyHtml, newsletter.id)
 
-  for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
-    const batch   = recipients.slice(i, i + BATCH_SIZE)
-    const results = await Promise.allSettled(
-      batch.map(u => sendNewsletterEmail(u.id, u.email, u.name, subject, safeBodyHtml, newsletter.id))
-    )
-    for (let j = 0; j < results.length; j++) {
-      if (results[j].status === 'fulfilled') {
-        sent++
-        resendLogs.push({ newsletterId: newsletter.id, resendId: (results[j] as PromiseFulfilledResult<string>).value })
-      } else {
-        recordEmailFailure({
-          helper: 'sendNewsletterEmail',
-          recipient: batch[j].email,
-          error: (results[j] as PromiseRejectedResult).reason,
-        }).catch(() => {})
-      }
-    }
-    if (i + BATCH_SIZE < recipients.length) {
-      await new Promise(r => setTimeout(r, BATCH_DELAY_MS))
-    }
+  for (const f of failed) {
+    recordEmailFailure({ helper: 'sendNewsletterEmail', recipient: f.email, error: f.error }).catch(() => {})
   }
-
   if (resendLogs.length > 0) {
     await prisma.newsletterEmailLog.createMany({ data: resendLogs, skipDuplicates: true })
   }
 
-  return NextResponse.json({ ok: true, sent, failed: recipients.length - sent, newsletterId: newsletter.id })
+  // Correct recipientCount to what actually sent (it was created optimistically
+  // as recipients.length). With the batch sender failures are ~0, but if some
+  // do fail the stored stat stays truthful instead of over-reporting.
+  if (sent !== recipients.length) {
+    await prisma.newsletter.update({ where: { id: newsletter.id }, data: { recipientCount: sent } })
+  }
+
+  return NextResponse.json({ ok: true, sent, failed: failed.length, newsletterId: newsletter.id })
+}
+
+// DELETE /api/admin/newsletter — cancel a still-scheduled newsletter before
+// the sweeper fires it. Only 'scheduled' rows can be cancelled (a sent one is
+// already out the door). Deletes the row so it disappears from the list.
+export async function DELETE(req: NextRequest) {
+  const session = await getSession()
+  if (!session || !isAdmin(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const { id } = await req.json().catch(() => ({}))
+  if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+
+  const nl = await prisma.newsletter.findUnique({ where: { id }, select: { status: true, subject: true } })
+  if (!nl) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (nl.status !== 'scheduled') {
+    return NextResponse.json({ error: 'Only scheduled newsletters can be cancelled' }, { status: 400 })
+  }
+
+  await prisma.newsletter.delete({ where: { id } })
+  await writeAudit(
+    session.id, session.name, 'newsletter.cancel', id, 'newsletter',
+    { subject: nl.subject },
+    `Cancelled scheduled newsletter "${nl.subject}"`,
+  )
+  return NextResponse.json({ ok: true })
 }

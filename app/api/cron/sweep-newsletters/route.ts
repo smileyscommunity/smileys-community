@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { sendNewsletterEmail, recordEmailFailure } from '@/lib/email'
+import { sendNewsletterBatch, recordEmailFailure } from '@/lib/email'
 import { checkCronAuth } from '@/lib/cronAuth'
-
-const BATCH_SIZE     = 50
-const BATCH_DELAY_MS = 1000
 
 type Segment = 'all' | 'new' | 'active' | 'inactive'
 
@@ -44,29 +41,10 @@ export async function POST(req: NextRequest) {
       select: { id: true, email: true, name: true },
     })
 
-    let sent = 0
-    const resendLogs: { newsletterId: string; resendId: string }[] = []
+    const { sent, resendLogs, failed } = await sendNewsletterBatch(recipients, nl.subject, nl.bodyHtml, nl.id)
 
-    for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
-      const batch   = recipients.slice(i, i + BATCH_SIZE)
-      const results = await Promise.allSettled(
-        batch.map(u => sendNewsletterEmail(u.id, u.email, u.name, nl.subject, nl.bodyHtml, nl.id))
-      )
-      for (let j = 0; j < results.length; j++) {
-        if (results[j].status === 'fulfilled') {
-          sent++
-          resendLogs.push({ newsletterId: nl.id, resendId: (results[j] as PromiseFulfilledResult<string>).value })
-        } else {
-          recordEmailFailure({
-            helper: 'sendNewsletterEmail (scheduled)',
-            recipient: batch[j].email,
-            error: (results[j] as PromiseRejectedResult).reason,
-          }).catch(() => {})
-        }
-      }
-      if (i + BATCH_SIZE < recipients.length) {
-        await new Promise(r => setTimeout(r, BATCH_DELAY_MS))
-      }
+    for (const f of failed) {
+      recordEmailFailure({ helper: 'sendNewsletterEmail (scheduled)', recipient: f.email, error: f.error }).catch(() => {})
     }
 
     await prisma.newsletter.update({

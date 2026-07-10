@@ -3,6 +3,14 @@
 import { useState, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import RichTextEditor from '@/components/RichTextEditor'
+import { confirmToast } from '@/lib/confirmToast'
+
+// ISO timestamp → the 'YYYY-MM-DDTHH:MM' local format a datetime-local input
+// expects, so editing a scheduled newsletter prefills its send time correctly.
+function toLocalInput(iso: string): string {
+  const d = new Date(iso)
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16)
+}
 
 type Segment = 'all' | 'new' | 'active' | 'inactive'
 
@@ -47,9 +55,11 @@ function formatScheduled(iso: string): string {
   })
 }
 
-function NewsletterRow({ n, onDuplicate }: {
+function NewsletterRow({ n, onDuplicate, onCancel, onEdit }: {
   n: SentNewsletter
   onDuplicate: (subject: string, body: string, segment: string) => void
+  onCancel: (id: string) => void
+  onEdit: (n: SentNewsletter) => void
 }) {
   const [open, setOpen] = useState(false)
   const openRate  = n.recipientCount > 0 ? Math.round((n.openCount  / n.recipientCount) * 100) : 0
@@ -133,15 +143,21 @@ function NewsletterRow({ n, onDuplicate }: {
             </div>
           )}
           {isScheduled && (
-            <div className="flex items-center gap-3 px-4 py-3 bg-zinc-800/40">
-              <p className="text-xs text-zinc-400 flex-1">
+            <div className="flex items-center gap-2 flex-wrap px-4 py-3 bg-zinc-800/40">
+              <p className="text-xs text-zinc-400 flex-1 min-w-full sm:min-w-0">
                 Will send to all <strong>{segLabel}</strong> members at {n.scheduledFor ? formatScheduled(n.scheduledFor) : '—'}
               </p>
               <button
-                onClick={() => onDuplicate(n.subject, n.bodyHtml, n.segment)}
+                onClick={() => onEdit(n)}
                 className="text-xs text-amber-400 hover:text-amber-300 font-semibold transition-colors px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20"
               >
-                Use as template ↑
+                Edit ✎
+              </button>
+              <button
+                onClick={() => onCancel(n.id)}
+                className="text-xs text-red-400 hover:text-red-300 font-semibold transition-colors px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20"
+              >
+                Cancel
               </button>
             </div>
           )}
@@ -168,6 +184,10 @@ export default function NewsletterPage() {
   const [loading,          setLoading]          = useState(true)
   const [confirm,          setConfirm]          = useState(false)
   const [insertingEvents,  setInsertingEvents]  = useState(false)
+  const [insertingClubs,   setInsertingClubs]   = useState(false)
+  const [insertingCup,     setInsertingCup]     = useState(false)
+  const [insertingMembers, setInsertingMembers] = useState(false)
+  const [testing,          setTesting]          = useState(false)
   const composerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -193,6 +213,42 @@ export default function NewsletterPage() {
     toast.success('Template loaded — edit and send when ready')
   }
 
+  async function cancelScheduled(id: string) {
+    if (!(await confirmToast('Cancel this scheduled newsletter? It won\'t be sent.'))) return
+    const res = await fetch('/app/api/admin/newsletter', {
+      method: 'DELETE', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    })
+    if (res.ok) {
+      setHistory(prev => prev.filter(n => n.id !== id))
+      toast.success('Scheduled newsletter cancelled')
+    } else {
+      const d = await res.json().catch(() => ({}))
+      toast.error(d.error ?? 'Could not cancel')
+    }
+  }
+
+  // Edit = load the scheduled newsletter back into the composer AND remove the
+  // original scheduled row. The admin edits and re-schedules (or sends now),
+  // which creates a fresh send — no partial in-place mutation to reason about.
+  async function editScheduled(n: SentNewsletter) {
+    setSubject(n.subject)
+    setBodyHtml(n.bodyHtml)
+    setSegment((n.segment as Segment) in SEGMENT_LABELS ? n.segment as Segment : 'all')
+    setScheduleMode(true)
+    setScheduledFor(n.scheduledFor ? toLocalInput(n.scheduledFor) : '')
+    setConfirm(false)
+    composerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    const res = await fetch('/app/api/admin/newsletter', {
+      method: 'DELETE', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: n.id }),
+    })
+    if (res.ok) setHistory(prev => prev.filter(x => x.id !== n.id))
+    toast('Editing scheduled newsletter — update it, then re-schedule or send')
+  }
+
   // One-click weekly digest: pull the next 7 days of published events and drop
   // a formatted, linked list into the body. Admin still reviews + sends.
   async function insertUpcomingEvents() {
@@ -210,13 +266,28 @@ export default function NewsletterPage() {
       if (week.length === 0) { toast('No events in the next 7 days'); return }
 
       const origin = window.location.origin
-      const items = week.map(e => {
-        const d   = new Date(e.date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
-        const loc = e.neighborhood ? ` · ${e.neighborhood}` : ''
-        const em  = e.emoji ? `${e.emoji} ` : ''
-        return `<li><a href="${origin}/app/events/${e.id}">${em}${e.title}</a> — ${d}${loc}</li>`
+      // Event cards grouped by day — replaces the old dense <ul> of long
+      // underlined links, which read as a wall of blue on phones. Inline
+      // styles only (email clients strip stylesheets).
+      const escapeHtml = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      const byDay = new Map<string, typeof week>()
+      for (const e of week) {
+        const list = byDay.get(e.date) ?? []
+        list.push(e)
+        byDay.set(e.date, list)
+      }
+      const sections = [...byDay.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, evs]) => {
+        const dayLabel = new Date(date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })
+        const cards = evs.map(e => {
+          const em = e.emoji ? `${e.emoji} ` : ''
+          return `<div style="border:1px solid #f3f4f6;border-radius:12px;padding:12px 16px;margin:0 0 8px;background:#fafafa">` +
+            `<a href="${origin}/app/events/${e.id}?utm_source=newsletter&utm_medium=email" style="color:#111827;font-weight:700;font-size:15px;text-decoration:none">${em}${escapeHtml(e.title)}</a>` +
+            (e.neighborhood ? `<div style="color:#6b7280;font-size:13px;margin-top:3px">📍 ${escapeHtml(e.neighborhood)}</div>` : '') +
+            `</div>`
+        }).join('')
+        return `<p style="color:#b45309;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin:20px 0 8px">${dayLabel}</p>${cards}`
       }).join('')
-      const digest = `<h3>📅 This week's events</h3><ul>${items}</ul>`
+      const digest = `<h3 style="font-size:17px;margin:0 0 4px">📅 This week's events</h3>${sections}`
 
       setBodyHtml(prev => (prev.trim() ? `${prev}${digest}` : digest))
       if (!subject.trim()) setSubject('This week at Smileys 📅')
@@ -225,6 +296,124 @@ export default function NewsletterPage() {
       toast.error('Could not load upcoming events')
     } finally {
       setInsertingEvents(false)
+    }
+  }
+
+  // Feature 3 random clubs — same card style as the events digest, so a
+  // weekly issue can nudge members toward a club they haven't discovered.
+  // Random per click; hit the button again for a different trio.
+  async function insertClubSuggestions() {
+    setInsertingClubs(true)
+    try {
+      const res  = await fetch('/app/api/clubs', { credentials: 'include' })
+      const data = await res.json()
+      const all: Array<{ slug: string; name: string; emoji?: string; category?: string; memberCount?: number; isPrivate?: boolean; isActive?: boolean }> =
+        Array.isArray(data) ? data : []
+      const pool = all.filter(c => c.isActive !== false && !c.isPrivate)
+      if (pool.length === 0) { toast('No clubs to feature'); return }
+      const picks = [...pool].sort(() => Math.random() - 0.5).slice(0, 3)
+
+      const origin = window.location.origin
+      const escapeHtml = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      const cards = picks.map(c => {
+        const em   = c.emoji ? `${c.emoji} ` : ''
+        const meta = [c.category, c.memberCount ? `${c.memberCount} members` : null].filter(Boolean).join(' · ')
+        return `<div style="border:1px solid #f3f4f6;border-radius:12px;padding:12px 16px;margin:0 0 8px;background:#fafafa">` +
+          `<a href="${origin}/app/clubs/${c.slug}?utm_source=newsletter&utm_medium=email" style="color:#111827;font-weight:700;font-size:15px;text-decoration:none">${em}${escapeHtml(c.name)}</a>` +
+          (meta ? `<div style="color:#6b7280;font-size:13px;margin-top:3px">${escapeHtml(meta)}</div>` : '') +
+          `</div>`
+      }).join('')
+      const digest = `<h3 style="font-size:17px;margin:20px 0 8px">✨ Clubs to check out</h3>${cards}`
+
+      setBodyHtml(prev => (prev.trim() ? `${prev}${digest}` : digest))
+      toast.success(`Featured ${picks.length} club${picks.length !== 1 ? 's' : ''} — click again to reshuffle`)
+    } catch {
+      toast.error('Could not load clubs')
+    } finally {
+      setInsertingClubs(false)
+    }
+  }
+
+  // Cup top-3 teaser — seasonal (World Cup), one compact card with the
+  // podium + a link to the full table. Nothing drives a re-open like a
+  // rival's name in third place.
+  async function insertCupTop3() {
+    setInsertingCup(true)
+    try {
+      const res  = await fetch('/app/api/cup/leaderboard?take=3', { credentials: 'include' })
+      const data = await res.json()
+      const rows: Array<{ rank: number; name: string; score: number }> = Array.isArray(data.rows) ? data.rows : []
+      if (rows.length === 0) { toast('Leaderboard is empty'); return }
+      const origin = window.location.origin
+      const escapeHtml = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      const medals = ['🥇', '🥈', '🥉']
+      const lines = rows.slice(0, 3).map((r, i) =>
+        `<div style="color:#374151;font-size:14px;padding:4px 0">${medals[i] ?? r.rank + '.'} <strong>${escapeHtml(r.name)}</strong> — ${r.score} pts</div>`
+      ).join('')
+      const digest = `<h3 style="font-size:17px;margin:20px 0 8px">🏆 Smileys Cup — top of the table</h3>` +
+        `<div style="border:1px solid #f3f4f6;border-radius:12px;padding:12px 16px;margin:0 0 8px;background:#fafafa">${lines}` +
+        `<a href="${origin}/app/cup?utm_source=newsletter&utm_medium=email" style="display:inline-block;margin-top:6px;color:#b45309;font-weight:600;font-size:13px;text-decoration:none">See the full leaderboard →</a></div>`
+      setBodyHtml(prev => (prev.trim() ? `${prev}${digest}` : digest))
+      toast.success('Cup podium inserted')
+    } catch {
+      toast.error('Could not load the leaderboard')
+    } finally {
+      setInsertingCup(false)
+    }
+  }
+
+  // Welcome-the-new-members blurb — first names only (visible in-app to all
+  // members anyway), linking to the directory.
+  async function insertNewMembers() {
+    setInsertingMembers(true)
+    try {
+      const res  = await fetch('/app/api/members', { credentials: 'include' })
+      const data = await res.json()
+      const all: Array<{ name: string; joinedAt: string }> = Array.isArray(data.members) ? data.members : []
+      const weekAgo = Date.now() - 7 * 86_400_000
+      const fresh = all.filter(m => new Date(m.joinedAt).getTime() >= weekAgo)
+      if (fresh.length === 0) { toast('No new members in the last 7 days'); return }
+      const escapeHtml = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      const firstNames = fresh.map(m => escapeHtml(m.name.split(' ')[0]))
+      const shown = firstNames.slice(0, 3)
+      const rest  = fresh.length - shown.length
+      const who = rest > 0
+        ? `${shown.join(', ')} and ${rest} other${rest !== 1 ? 's' : ''}`
+        : shown.length > 1
+          ? `${shown.slice(0, -1).join(', ')} and ${shown[shown.length - 1]}`
+          : shown[0]
+      const origin = window.location.origin
+      const digest = `<h3 style="font-size:17px;margin:20px 0 8px">👋 New faces this week</h3>` +
+        `<div style="border:1px solid #f3f4f6;border-radius:12px;padding:12px 16px;margin:0 0 8px;background:#fafafa">` +
+        `<div style="color:#374151;font-size:14px">${who} joined Smileys this week — say hi when you see them at an event!</div>` +
+        `<a href="${origin}/app/members?utm_source=newsletter&utm_medium=email" style="display:inline-block;margin-top:6px;color:#b45309;font-weight:600;font-size:13px;text-decoration:none">Meet the members →</a></div>`
+      setBodyHtml(prev => (prev.trim() ? `${prev}${digest}` : digest))
+      toast.success(`Welcomed ${fresh.length} new member${fresh.length !== 1 ? 's' : ''}`)
+    } catch {
+      toast.error('Could not load members')
+    } finally {
+      setInsertingMembers(false)
+    }
+  }
+
+  // Send a single test copy to the current admin — preview the real email
+  // (greeting + unsubscribe wrapper + links) before sending to a segment.
+  async function sendTest() {
+    if (!subject.trim() || !bodyHtml.trim()) return
+    setTesting(true)
+    try {
+      const res = await fetch('/app/api/admin/newsletter', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subject: subject.trim(), bodyHtml: bodyHtml.trim(), test: true }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (res.ok) toast.success(`Test sent to ${d.email ?? 'your inbox'} — check your email`)
+      else toast.error(d.error ?? 'Test send failed')
+    } catch {
+      toast.error('Test send failed')
+    } finally {
+      setTesting(false)
     }
   }
 
@@ -336,19 +525,30 @@ export default function NewsletterPage() {
 
         {/* Body */}
         <div>
-          <div className="flex items-center justify-between mb-2 gap-2">
-            <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-widest">
-              Body <span className="text-zinc-600 normal-case font-normal">(format with the toolbar — bold, headings, lists, links)</span>
-            </label>
-            <button
-              type="button"
-              onClick={insertUpcomingEvents}
-              disabled={insertingEvents}
-              title="Add a formatted list of the next 7 days of events"
-              className="shrink-0 text-xs font-semibold text-amber-400 hover:text-amber-300 border border-zinc-700 hover:border-amber-500/50 rounded-lg px-2.5 py-1 transition-colors disabled:opacity-50"
-            >
-              {insertingEvents ? 'Loading…' : "📅 Insert this week's events"}
-            </button>
+          <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-2">
+            Body <span className="text-zinc-600 normal-case font-normal">(format with the toolbar — bold, headings, lists, links)</span>
+          </label>
+          {/* Content blocks — each inserts a pre-formatted section at the end
+              of the body. All generated links carry utm_source=newsletter so
+              PostHog can attribute the traffic. */}
+          <div className="flex flex-wrap gap-2 mb-2">
+            {([
+              { onClick: insertUpcomingEvents, busy: insertingEvents, label: "📅 This week's events", title: 'Add a formatted list of the next 7 days of events' },
+              { onClick: insertClubSuggestions, busy: insertingClubs, label: '✨ Feature 3 clubs', title: 'Feature 3 random clubs — click again to reshuffle' },
+              { onClick: insertCupTop3, busy: insertingCup, label: '🏆 Cup top 3', title: 'Insert the current Cup podium' },
+              { onClick: insertNewMembers, busy: insertingMembers, label: '👋 New members', title: "Welcome this week's new members by first name" },
+            ] as const).map(b => (
+              <button
+                key={b.label}
+                type="button"
+                onClick={b.onClick}
+                disabled={b.busy}
+                title={b.title}
+                className="shrink-0 text-xs font-semibold text-amber-400 hover:text-amber-300 border border-zinc-700 hover:border-amber-500/50 rounded-lg px-2.5 py-1 transition-colors disabled:opacity-50"
+              >
+                {b.busy ? 'Loading…' : b.label}
+              </button>
+            ))}
           </div>
           <RichTextEditor
             value={bodyHtml}
@@ -417,15 +617,26 @@ export default function NewsletterPage() {
             </div>
           </div>
         ) : (
-          <button
-            onClick={() => setConfirm(true)}
-            disabled={!canSend}
-            className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-colors"
-          >
-            {currentCount > 0
-              ? scheduleMode ? 'Schedule newsletter' : `Send to ${currentCount.toLocaleString()} members`
-              : 'No recipients in this segment'}
-          </button>
+          <div className="flex items-center gap-3 flex-wrap">
+            <button
+              onClick={() => setConfirm(true)}
+              disabled={!canSend}
+              className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-colors"
+            >
+              {currentCount > 0
+                ? scheduleMode ? 'Schedule newsletter' : `Send to ${currentCount.toLocaleString()} members`
+                : 'No recipients in this segment'}
+            </button>
+            <button
+              type="button"
+              onClick={sendTest}
+              disabled={testing || !subject.trim() || !bodyHtml.trim()}
+              title="Send a single test copy to your own email — no one else receives it"
+              className="px-4 py-2.5 border border-zinc-700 hover:border-amber-500/50 text-zinc-300 hover:text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {testing ? 'Sending test…' : '✉️ Send test to me'}
+            </button>
+          </div>
         )}
       </div>
 
@@ -440,7 +651,7 @@ export default function NewsletterPage() {
           <p className="text-sm text-zinc-600">No newsletters sent yet.</p>
         ) : (
           <div className="space-y-2">
-            {history.map(n => <NewsletterRow key={n.id} n={n} onDuplicate={handleDuplicate} />)}
+            {history.map(n => <NewsletterRow key={n.id} n={n} onDuplicate={handleDuplicate} onCancel={cancelScheduled} onEdit={editScheduled} />)}
           </div>
         )}
       </div>
