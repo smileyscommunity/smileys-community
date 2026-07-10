@@ -3,6 +3,14 @@
 import { useState, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import RichTextEditor from '@/components/RichTextEditor'
+import { confirmToast } from '@/lib/confirmToast'
+
+// ISO timestamp → the 'YYYY-MM-DDTHH:MM' local format a datetime-local input
+// expects, so editing a scheduled newsletter prefills its send time correctly.
+function toLocalInput(iso: string): string {
+  const d = new Date(iso)
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16)
+}
 
 type Segment = 'all' | 'new' | 'active' | 'inactive'
 
@@ -47,9 +55,11 @@ function formatScheduled(iso: string): string {
   })
 }
 
-function NewsletterRow({ n, onDuplicate }: {
+function NewsletterRow({ n, onDuplicate, onCancel, onEdit }: {
   n: SentNewsletter
   onDuplicate: (subject: string, body: string, segment: string) => void
+  onCancel: (id: string) => void
+  onEdit: (n: SentNewsletter) => void
 }) {
   const [open, setOpen] = useState(false)
   const openRate  = n.recipientCount > 0 ? Math.round((n.openCount  / n.recipientCount) * 100) : 0
@@ -133,15 +143,21 @@ function NewsletterRow({ n, onDuplicate }: {
             </div>
           )}
           {isScheduled && (
-            <div className="flex items-center gap-3 px-4 py-3 bg-zinc-800/40">
-              <p className="text-xs text-zinc-400 flex-1">
+            <div className="flex items-center gap-2 flex-wrap px-4 py-3 bg-zinc-800/40">
+              <p className="text-xs text-zinc-400 flex-1 min-w-full sm:min-w-0">
                 Will send to all <strong>{segLabel}</strong> members at {n.scheduledFor ? formatScheduled(n.scheduledFor) : '—'}
               </p>
               <button
-                onClick={() => onDuplicate(n.subject, n.bodyHtml, n.segment)}
+                onClick={() => onEdit(n)}
                 className="text-xs text-amber-400 hover:text-amber-300 font-semibold transition-colors px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20"
               >
-                Use as template ↑
+                Edit ✎
+              </button>
+              <button
+                onClick={() => onCancel(n.id)}
+                className="text-xs text-red-400 hover:text-red-300 font-semibold transition-colors px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20"
+              >
+                Cancel
               </button>
             </div>
           )}
@@ -192,6 +208,42 @@ export default function NewsletterPage() {
     setConfirm(false)
     composerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     toast.success('Template loaded — edit and send when ready')
+  }
+
+  async function cancelScheduled(id: string) {
+    if (!(await confirmToast('Cancel this scheduled newsletter? It won\'t be sent.'))) return
+    const res = await fetch('/app/api/admin/newsletter', {
+      method: 'DELETE', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    })
+    if (res.ok) {
+      setHistory(prev => prev.filter(n => n.id !== id))
+      toast.success('Scheduled newsletter cancelled')
+    } else {
+      const d = await res.json().catch(() => ({}))
+      toast.error(d.error ?? 'Could not cancel')
+    }
+  }
+
+  // Edit = load the scheduled newsletter back into the composer AND remove the
+  // original scheduled row. The admin edits and re-schedules (or sends now),
+  // which creates a fresh send — no partial in-place mutation to reason about.
+  async function editScheduled(n: SentNewsletter) {
+    setSubject(n.subject)
+    setBodyHtml(n.bodyHtml)
+    setSegment((n.segment as Segment) in SEGMENT_LABELS ? n.segment as Segment : 'all')
+    setScheduleMode(true)
+    setScheduledFor(n.scheduledFor ? toLocalInput(n.scheduledFor) : '')
+    setConfirm(false)
+    composerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    const res = await fetch('/app/api/admin/newsletter', {
+      method: 'DELETE', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: n.id }),
+    })
+    if (res.ok) setHistory(prev => prev.filter(x => x.id !== n.id))
+    toast('Editing scheduled newsletter — update it, then re-schedule or send')
   }
 
   // One-click weekly digest: pull the next 7 days of published events and drop
@@ -473,7 +525,7 @@ export default function NewsletterPage() {
           <p className="text-sm text-zinc-600">No newsletters sent yet.</p>
         ) : (
           <div className="space-y-2">
-            {history.map(n => <NewsletterRow key={n.id} n={n} onDuplicate={handleDuplicate} />)}
+            {history.map(n => <NewsletterRow key={n.id} n={n} onDuplicate={handleDuplicate} onCancel={cancelScheduled} onEdit={editScheduled} />)}
           </div>
         )}
       </div>

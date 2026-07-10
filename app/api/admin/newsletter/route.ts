@@ -162,3 +162,28 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ ok: true, sent, failed: recipients.length - sent, newsletterId: newsletter.id })
 }
+
+// DELETE /api/admin/newsletter — cancel a still-scheduled newsletter before
+// the sweeper fires it. Only 'scheduled' rows can be cancelled (a sent one is
+// already out the door). Deletes the row so it disappears from the list.
+export async function DELETE(req: NextRequest) {
+  const session = await getSession()
+  if (!session || !isAdmin(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const { id } = await req.json().catch(() => ({}))
+  if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+
+  const nl = await prisma.newsletter.findUnique({ where: { id }, select: { status: true, subject: true } })
+  if (!nl) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (nl.status !== 'scheduled') {
+    return NextResponse.json({ error: 'Only scheduled newsletters can be cancelled' }, { status: 400 })
+  }
+
+  await prisma.newsletter.delete({ where: { id } })
+  await writeAudit(
+    session.id, session.name, 'newsletter.cancel', id, 'newsletter',
+    { subject: nl.subject },
+    `Cancelled scheduled newsletter "${nl.subject}"`,
+  )
+  return NextResponse.json({ ok: true })
+}
