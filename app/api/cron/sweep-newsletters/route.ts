@@ -76,11 +76,21 @@ async function runAutoDigest(): Promise<string> {
   const nowIst = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Istanbul' }))
   if (nowIst.getDay() !== 5 || nowIst.getHours() < 10) return 'outside-window'
 
-  const recent = await prisma.newsletter.findFirst({
+  const recentAuto = await prisma.newsletter.findFirst({
     where: { segment: 'auto-weekly', sentAt: { gte: new Date(Date.now() - 6 * 86_400_000) } },
     select: { id: true },
   })
-  if (recent) return 'already-sent-this-week'
+  if (recentAuto) return 'already-sent-this-week'
+
+  // Don't stack onto a manual blast: if ANY issue went out in the last
+  // 3 days (e.g. the admin sent one Thursday, or flips the toggle on a
+  // Friday afternoon right after a manual send), skip this week's auto
+  // issue rather than emailing everyone twice.
+  const recentManual = await prisma.newsletter.findFirst({
+    where: { status: 'sent', sentAt: { gte: new Date(Date.now() - 3 * 86_400_000) } },
+    select: { id: true },
+  })
+  if (recentManual) return 'skipped-recent-manual-issue'
 
   const digest = await buildWeeklyDigest()
   if (!digest) return 'skipped-no-events'
