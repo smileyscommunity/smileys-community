@@ -168,6 +168,7 @@ export default function NewsletterPage() {
   const [loading,          setLoading]          = useState(true)
   const [confirm,          setConfirm]          = useState(false)
   const [insertingEvents,  setInsertingEvents]  = useState(false)
+  const [testing,          setTesting]          = useState(false)
   const composerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -225,6 +226,27 @@ export default function NewsletterPage() {
       toast.error('Could not load upcoming events')
     } finally {
       setInsertingEvents(false)
+    }
+  }
+
+  // Send a single test copy to the current admin — preview the real email
+  // (greeting + unsubscribe wrapper + links) before sending to a segment.
+  async function sendTest() {
+    if (!subject.trim() || !bodyHtml.trim()) return
+    setTesting(true)
+    try {
+      const res = await fetch('/app/api/admin/newsletter', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subject: subject.trim(), bodyHtml: bodyHtml.trim(), test: true }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (res.ok) toast.success(`Test sent to ${d.email ?? 'your inbox'} — check your email`)
+      else toast.error(d.error ?? 'Test send failed')
+    } catch {
+      toast.error('Test send failed')
+    } finally {
+      setTesting(false)
     }
   }
 
@@ -417,15 +439,26 @@ export default function NewsletterPage() {
             </div>
           </div>
         ) : (
-          <button
-            onClick={() => setConfirm(true)}
-            disabled={!canSend}
-            className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-colors"
-          >
-            {currentCount > 0
-              ? scheduleMode ? 'Schedule newsletter' : `Send to ${currentCount.toLocaleString()} members`
-              : 'No recipients in this segment'}
-          </button>
+          <div className="flex items-center gap-3 flex-wrap">
+            <button
+              onClick={() => setConfirm(true)}
+              disabled={!canSend}
+              className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-colors"
+            >
+              {currentCount > 0
+                ? scheduleMode ? 'Schedule newsletter' : `Send to ${currentCount.toLocaleString()} members`
+                : 'No recipients in this segment'}
+            </button>
+            <button
+              type="button"
+              onClick={sendTest}
+              disabled={testing || !subject.trim() || !bodyHtml.trim()}
+              title="Send a single test copy to your own email — no one else receives it"
+              className="px-4 py-2.5 border border-zinc-700 hover:border-amber-500/50 text-zinc-300 hover:text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {testing ? 'Sending test…' : '✉️ Send test to me'}
+            </button>
+          </div>
         )}
       </div>
 

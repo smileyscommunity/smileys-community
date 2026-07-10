@@ -94,6 +94,20 @@ export async function POST(req: NextRequest) {
 
   const safeBodyHtml = sanitizeNewsletter(bodyHtml)
 
+  // Test send — deliver a single copy to the current admin so they can preview
+  // the real email (with the greeting + unsubscribe wrapper) before blasting a
+  // segment. No Newsletter row, no audit, no fan-out.
+  if (body?.test === true) {
+    const me = await prisma.user.findUnique({ where: { id: session.id }, select: { email: true, name: true } })
+    if (!me?.email) return NextResponse.json({ error: 'No email on your account to send a test to' }, { status: 400 })
+    try {
+      await sendNewsletterEmail(session.id, me.email, me.name, `[TEST] ${subject}`, safeBodyHtml, 'test')
+      return NextResponse.json({ ok: true, test: true, email: me.email })
+    } catch {
+      return NextResponse.json({ error: 'Test send failed' }, { status: 500 })
+    }
+  }
+
   // For scheduled sends, persist and return early — the sweeper will fire it
   if (scheduledFor && scheduledFor > new Date()) {
     const newsletter = await prisma.newsletter.create({
