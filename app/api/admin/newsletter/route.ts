@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin } from '@/lib/access'
 import { sendNewsletterEmail, sendNewsletterBatch, recordEmailFailure } from '@/lib/email'
+import { buildWeeklyDigest } from '@/lib/newsletterDigest'
 import { writeAudit } from '@/lib/audit'
 import { sanitizeNewsletter } from '@/lib/sanitize'
 
@@ -93,6 +94,22 @@ export async function POST(req: NextRequest) {
   if (bodyHtml.length > 100_000) return NextResponse.json({ error: 'Body too long (max 100 KB)' }, { status: 400 })
 
   const safeBodyHtml = sanitizeNewsletter(bodyHtml)
+
+  // Auto-digest preview — compose exactly what Monday's automated issue
+  // would contain right now and deliver it to the requesting admin only.
+  // Closes the "flip the toggle and hope" blindspot.
+  if (body?.autoPreview === true) {
+    const me = await prisma.user.findUnique({ where: { id: session.id }, select: { email: true, name: true } })
+    if (!me?.email) return NextResponse.json({ error: 'No email on your account to send a preview to' }, { status: 400 })
+    const digest = await buildWeeklyDigest()
+    if (!digest) return NextResponse.json({ error: 'No events in the next 7 days — the auto-issue would be skipped' }, { status: 404 })
+    try {
+      await sendNewsletterEmail(session.id, me.email, me.name, `[PREVIEW] ${digest.subject}`, digest.bodyHtml, 'test')
+      return NextResponse.json({ ok: true, preview: true, email: me.email })
+    } catch {
+      return NextResponse.json({ error: 'Preview send failed' }, { status: 500 })
+    }
+  }
 
   // Test send — deliver a single copy to the current admin so they can preview
   // the real email (with the greeting + unsubscribe wrapper) before blasting a

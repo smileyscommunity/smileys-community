@@ -192,6 +192,25 @@ export default function NewsletterPage() {
 
   const [autoWeekly,     setAutoWeekly]     = useState(false)
   const [autoSaving,     setAutoSaving]     = useState(false)
+  const [previewSending, setPreviewSending] = useState(false)
+
+  async function sendAutoPreview() {
+    setPreviewSending(true)
+    try {
+      const res  = await fetch('/app/api/admin/newsletter', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ autoPreview: true }),
+      })
+      const data = await res.json()
+      if (!res.ok) { toast.error(data.error ?? 'Preview failed'); return }
+      toast.success(`Preview sent to ${data.email} — that's exactly what Monday's issue will contain`)
+    } catch {
+      toast.error('Network error — check your connection')
+    } finally {
+      setPreviewSending(false)
+    }
+  }
 
   async function toggleAutoWeekly() {
     const next = !autoWeekly
@@ -690,6 +709,13 @@ export default function NewsletterPage() {
               ✓ Active — the next issue goes out automatically. Manual sends and scheduling keep working as usual.
             </p>
           )}
+          <button
+            onClick={sendAutoPreview}
+            disabled={previewSending}
+            className="mt-3 text-xs font-semibold text-amber-400 hover:text-amber-300 border border-zinc-700 hover:border-amber-500/50 rounded-lg px-2.5 py-1 transition-colors disabled:opacity-50"
+          >
+            {previewSending ? 'Composing…' : "📬 Send me Monday's issue as a preview"}
+          </button>
         </div>
 
         <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-widest mb-3">Sent history</h2>
