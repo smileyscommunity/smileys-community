@@ -204,7 +204,7 @@ export default function NewsletterPage() {
       })
       if (!res.ok) { toast.error('Could not update automation'); return }
       setAutoWeekly(next)
-      toast.success(next ? 'Weekly auto-newsletter ON — sends Fridays 10:00' : 'Weekly auto-newsletter off')
+      toast.success(next ? 'Weekly auto-newsletter ON — sends Mondays 12:00' : 'Weekly auto-newsletter off')
     } catch {
       toast.error('Network error — check your connection')
     } finally {
@@ -671,7 +671,7 @@ export default function NewsletterPage() {
             <div>
               <p className="text-sm font-bold text-white">Weekly auto-newsletter</p>
               <p className="text-xs text-zinc-500 mt-1">
-                Every Friday at 10:00 (Istanbul) the digest composes and sends itself to all opted-in members —
+                Every Monday at 12:00 (Istanbul) the digest composes and sends itself to all opted-in members —
                 this week&apos;s events, 3 featured clubs, and new-member welcomes. Skips weeks with no events.
               </p>
             </div>

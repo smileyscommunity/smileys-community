@@ -65,7 +65,9 @@ export async function POST(req: NextRequest) {
 
 // Weekly auto-newsletter: when the admin toggle (app_settings key
 // 'autoWeeklyNewsletter') is on, compose the digest server-side and send it
-// every Friday from 10:00 Istanbul. One issue per week — the segment marker
+// every Monday from 12:00 Istanbul — RSVP data shows members plan their
+// week Mon-Wed around midday, so the digest leads that surge instead of
+// trailing it (the original Friday slot arrived after most decisions). One issue per week — the segment marker
 // 'auto-weekly' on the Newsletter row doubles as the already-sent lock, and
 // the row is created (status 'sending') BEFORE the blast so a concurrent
 // sweeper tick can't double-send.
@@ -74,7 +76,7 @@ async function runAutoDigest(): Promise<string> {
   if (setting?.value !== 'on') return 'off'
 
   const nowIst = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Istanbul' }))
-  if (nowIst.getDay() !== 5 || nowIst.getHours() < 10) return 'outside-window'
+  if (nowIst.getDay() !== 1 || nowIst.getHours() < 12) return 'outside-window'
 
   const recentAuto = await prisma.newsletter.findFirst({
     where: { segment: 'auto-weekly', sentAt: { gte: new Date(Date.now() - 6 * 86_400_000) } },
