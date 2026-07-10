@@ -2,14 +2,11 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin } from '@/lib/access'
-import { sendNewsletterEmail, recordEmailFailure } from '@/lib/email'
+import { sendNewsletterEmail, sendNewsletterBatch, recordEmailFailure } from '@/lib/email'
 import { writeAudit } from '@/lib/audit'
 import { sanitizeNewsletter } from '@/lib/sanitize'
 
 export const dynamic = 'force-dynamic'
-
-const BATCH_SIZE    = 50
-const BATCH_DELAY_MS = 1000
 
 type Segment = 'all' | 'new' | 'active' | 'inactive'
 
@@ -131,36 +128,18 @@ export async function POST(req: NextRequest) {
     `Sent newsletter "${subject}" to ${recipients.length} members (segment: ${segment})`,
   )
 
-  let sent = 0
-  const resendLogs: { newsletterId: string; resendId: string }[] = []
+  // Batch API send (≤100 per request) — stays under Resend's rate limit,
+  // unlike the old 50-concurrent-per-second loop that 429'd ~80% of a 1k blast.
+  const { sent, resendLogs, failed } = await sendNewsletterBatch(recipients, subject, safeBodyHtml, newsletter.id)
 
-  for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
-    const batch   = recipients.slice(i, i + BATCH_SIZE)
-    const results = await Promise.allSettled(
-      batch.map(u => sendNewsletterEmail(u.id, u.email, u.name, subject, safeBodyHtml, newsletter.id))
-    )
-    for (let j = 0; j < results.length; j++) {
-      if (results[j].status === 'fulfilled') {
-        sent++
-        resendLogs.push({ newsletterId: newsletter.id, resendId: (results[j] as PromiseFulfilledResult<string>).value })
-      } else {
-        recordEmailFailure({
-          helper: 'sendNewsletterEmail',
-          recipient: batch[j].email,
-          error: (results[j] as PromiseRejectedResult).reason,
-        }).catch(() => {})
-      }
-    }
-    if (i + BATCH_SIZE < recipients.length) {
-      await new Promise(r => setTimeout(r, BATCH_DELAY_MS))
-    }
+  for (const f of failed) {
+    recordEmailFailure({ helper: 'sendNewsletterEmail', recipient: f.email, error: f.error }).catch(() => {})
   }
-
   if (resendLogs.length > 0) {
     await prisma.newsletterEmailLog.createMany({ data: resendLogs, skipDuplicates: true })
   }
 
-  return NextResponse.json({ ok: true, sent, failed: recipients.length - sent, newsletterId: newsletter.id })
+  return NextResponse.json({ ok: true, sent, failed: failed.length, newsletterId: newsletter.id })
 }
 
 // DELETE /api/admin/newsletter — cancel a still-scheduled newsletter before

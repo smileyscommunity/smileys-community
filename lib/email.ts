@@ -54,6 +54,16 @@ function getResend() {
 // Wrapped in its own try/catch — if the failure-recording itself
 // fails (DB down, schema migration in progress), don't bubble it
 // up into the email-sending caller's flow.
+// Turn any thrown value into a readable string. Resend errors are plain
+// objects ({ name, message, statusCode }), which String() renders as the
+// useless "[object Object]" — the reason the newsletter failures couldn't be
+// diagnosed. Fall back to JSON so the real message is captured.
+export function serializeError(err: unknown): string {
+  if (err instanceof Error) return err.message
+  if (typeof err === 'string') return err
+  try { return JSON.stringify(err) } catch { return String(err) }
+}
+
 export async function recordEmailFailure(opts: {
   helper:    string
   recipient: string
@@ -61,7 +71,7 @@ export async function recordEmailFailure(opts: {
   context?:  Record<string, unknown>
 }): Promise<void> {
   try {
-    const errMsg = opts.error instanceof Error ? opts.error.message : String(opts.error)
+    const errMsg = serializeError(opts.error)
     await prisma.emailFailure.create({
       data: {
         helper:    opts.helper,
@@ -761,20 +771,15 @@ function stripHtml(html: string): string {
     .trim()
 }
 
-// Newsletter blast — bodyHtml is admin-authored and intentionally not escaped.
-// subject is sanitised with safeSubject to block header injection.
-// Returns the Resend email ID so the caller can log it for webhook attribution.
-export async function sendNewsletterEmail(
-  userId: string,
-  email: string,
-  name: string,
-  subject: string,
-  bodyHtml: string,
-  newsletterId?: string,
-): Promise<string> {
+// Build one recipient's newsletter email payload (no send). Shared by the
+// single send (test) and the batch send. bodyHtml is admin-authored and
+// intentionally not escaped; subject is sanitised to block header injection.
+// NB: no `tags` — Resend's Batch API rejects per-email tags, and this must be
+// identical between single + batch so both render the same email.
+function buildNewsletterPayload(userId: string, email: string, name: string, subject: string, bodyHtml: string, newsletterId?: string) {
   const unsub     = unsubscribeUrl(userId, newsletterId)
   const firstName = esc(name.split(' ')[0])
-  const { data, error } = await getResend().emails.send({
+  return {
     from:    FROM,
     to:      email,
     subject: safeSubject(subject),
@@ -800,10 +805,59 @@ export async function sendNewsletterEmail(
     `,
     text:    `Hi ${firstName},\n\n${stripHtml(bodyHtml)}\n\nBrowse upcoming events: ${APP_URL}/events\n\nUnsubscribe: ${unsub}`,
     headers: { 'List-Unsubscribe': unsub },
-    tags: [{ name: 'type', value: 'newsletter' }],
-  })
+  }
+}
+
+// Single newsletter send (used by the "send test to me" path). Returns the
+// Resend email ID for webhook attribution.
+export async function sendNewsletterEmail(
+  userId: string, email: string, name: string, subject: string, bodyHtml: string, newsletterId?: string,
+): Promise<string> {
+  const { data, error } = await getResend().emails.send(buildNewsletterPayload(userId, email, name, subject, bodyHtml, newsletterId))
   if (error || !data?.id) throw error ?? new Error('Resend returned no email ID')
   return data.id
+}
+
+// Bulk newsletter send via Resend's Batch API — up to 100 emails per request.
+// This is the fix for the rate-limit failures: the old path fired ~50
+// concurrent single sends per second against Resend's ~2 req/s limit, so most
+// got 429'd with no retry. 1,058 emails now go out in ~11 batch requests.
+// Returns per-recipient outcomes so the caller can log failures + Resend IDs.
+export async function sendNewsletterBatch(
+  recipients: { id: string; email: string; name: string }[],
+  subject: string,
+  bodyHtml: string,
+  newsletterId: string,
+): Promise<{ sent: number; resendLogs: { newsletterId: string; resendId: string }[]; failed: { email: string; error: string }[] }> {
+  const CHUNK = 100
+  const resendLogs: { newsletterId: string; resendId: string }[] = []
+  const failed: { email: string; error: string }[] = []
+  let sent = 0
+
+  for (let i = 0; i < recipients.length; i += CHUNK) {
+    const chunk    = recipients.slice(i, i + CHUNK)
+    const payloads = chunk.map(r => buildNewsletterPayload(r.id, r.email, r.name, subject, bodyHtml, newsletterId))
+    try {
+      const { data, error } = await getResend().batch.send(payloads)
+      if (error) throw error
+      // Resend returns { data: [{ id }, …] } aligned with the payload order.
+      const ids = ((data as { data?: { id: string }[] } | undefined)?.data ?? []) as { id: string }[]
+      chunk.forEach((r, j) => {
+        const id = ids[j]?.id
+        if (id) { sent++; resendLogs.push({ newsletterId, resendId: id }) }
+        else    { failed.push({ email: r.email, error: 'Resend returned no id for this recipient' }) }
+      })
+    } catch (e) {
+      // Whole-batch error (auth / rate / validation) — record every recipient
+      // in the chunk. serializeError keeps the real message (not [object Object]).
+      const msg = serializeError(e)
+      chunk.forEach(r => failed.push({ email: r.email, error: msg }))
+    }
+    // Small gap between batch requests — 11 requests for ~1k emails is already
+    // far under the rate limit, but stay polite.
+    if (i + CHUNK < recipients.length) await new Promise(res => setTimeout(res, 400))
+  }
+  return { sent, resendLogs, failed }
 }
 
 export async function sendEventReminderEmail(
