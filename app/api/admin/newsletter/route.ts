@@ -139,6 +139,13 @@ export async function POST(req: NextRequest) {
     await prisma.newsletterEmailLog.createMany({ data: resendLogs, skipDuplicates: true })
   }
 
+  // Correct recipientCount to what actually sent (it was created optimistically
+  // as recipients.length). With the batch sender failures are ~0, but if some
+  // do fail the stored stat stays truthful instead of over-reporting.
+  if (sent !== recipients.length) {
+    await prisma.newsletter.update({ where: { id: newsletter.id }, data: { recipientCount: sent } })
+  }
+
   return NextResponse.json({ ok: true, sent, failed: failed.length, newsletterId: newsletter.id })
 }
 
