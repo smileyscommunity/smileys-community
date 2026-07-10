@@ -182,6 +182,29 @@ function ApplyForm() {
         if (typeof d.step === 'number') setStep(d.step)
       }
     } catch {}
+    // One-shot handoff from /onboarding: a visitor who did the preference
+    // steps there arrives with vibes + neighborhoods we can prefill, so
+    // those five steps aren't wasted. Draft (above) wins where both exist.
+    try {
+      const rawHandoff = sessionStorage.getItem('smileys_apply_handoff')
+      if (rawHandoff) {
+        sessionStorage.removeItem('smileys_apply_handoff')
+        const h = JSON.parse(rawHandoff)
+        const VIBE_TO_INTEREST: Record<string, string> = {
+          Social: 'social', Party: 'social', Networking: 'networking',
+          Food: 'dining', Wellness: 'wellness', Outdoor: 'outdoor',
+          Active: 'outdoor', Adventure: 'outdoor',
+        }
+        if (Array.isArray(h.vibes)) {
+          const mapped = h.vibes.map((v: string) => VIBE_TO_INTEREST[v]).filter(Boolean)
+          if (mapped.length) setInterests(prev => [...new Set([...prev, ...mapped])])
+        }
+        if (Array.isArray(h.neighborhoods) && h.neighborhoods[0]) {
+          const hood = h.neighborhoods[0]
+          setForm(f => f.neighborhood ? f : { ...f, neighborhood: hood })
+        }
+      }
+    } catch {}
     setDraftHydrated(true)
   }, [])
 

@@ -154,6 +154,14 @@ export default function SettingsPage() {
   const [prefsSaving, setPrefsSaving] = useState(false)
   const [prefsOk,     setPrefsOk]     = useState(false)
 
+  // Email address change (moved here from /profile so account security
+  // lives in one place)
+  const [newEmail,       setNewEmail]       = useState('')
+  const [emailPassword,  setEmailPassword]  = useState('')
+  const [showEmailPw,    setShowEmailPw]    = useState(false)
+  const [emailChangeErr, setEmailChangeErr] = useState('')
+  const [emailChanging,  setEmailChanging]  = useState(false)
+
   // Email marketing
   const [emailMarketing,    setEmailMarketing]    = useState(true)
   const [emailSaving,       setEmailSaving]       = useState(false)
@@ -211,6 +219,25 @@ export default function SettingsPage() {
     } finally {
       setOpenSaving(false)
     }
+  }
+
+  async function handleEmailChange() {
+    setEmailChangeErr('')
+    if (!newEmail.trim()) { setEmailChangeErr('Email is required'); return }
+    if (!emailPassword)   { setEmailChangeErr('Password is required'); return }
+    setEmailChanging(true)
+    try {
+      const res = await fetch('/app/api/auth/update-email', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: newEmail, password: emailPassword }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setEmailChangeErr(data.error ?? 'Failed'); return }
+      setNewEmail(''); setEmailPassword('')
+      toast.success('Email updated — check your inbox to verify')
+    } catch { setEmailChangeErr('Something went wrong') }
+    finally { setEmailChanging(false) }
   }
 
   async function handleChangePassword(e: React.FormEvent) {
@@ -418,11 +445,38 @@ export default function SettingsPage() {
           <div className="space-y-3">
             <div className="flex justify-between items-center text-sm">
               <span className="text-gray-600">Email</span>
-              <span className="text-gray-700 font-medium">{user.email}</span>
+              <span className="text-gray-700 font-medium">{user.email}
+                {user.emailVerified
+                  ? <span className="ml-2 text-xs text-green-600 font-medium bg-green-50 px-2 py-0.5 rounded-full">Verified</span>
+                  : <span className="ml-2 text-xs text-amber-600 font-medium bg-amber-50 px-2 py-0.5 rounded-full">Unverified</span>}
+              </span>
             </div>
             <div className="flex justify-between items-center text-sm">
               <span className="text-gray-600">Role</span>
               <span className="capitalize text-gray-700 font-medium">{user.role}</span>
+            </div>
+          </div>
+        </Section>
+
+        {/* Change email — ported from /profile so password, email, and
+            delete-account all live on this page. */}
+        <Section title="Change email address" description="Requires your password; the new address gets a verification email">
+          <div className="space-y-2">
+            {emailChangeErr && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-xl">{emailChangeErr}</p>}
+            <input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)}
+              autoComplete="email" placeholder="New email address"
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="relative flex-1">
+                <input type={showEmailPw ? 'text' : 'password'} value={emailPassword} onChange={e => setEmailPassword(e.target.value)}
+                  autoComplete="current-password" placeholder="Confirm with password"
+                  className="w-full px-4 py-2.5 pr-12 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
+                <PasswordToggle visible={showEmailPw} onToggle={() => setShowEmailPw(p => !p)} />
+              </div>
+              <button onClick={handleEmailChange} disabled={emailChanging || !newEmail.trim() || !emailPassword}
+                className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-colors">
+                {emailChanging ? 'Saving…' : 'Update email'}
+              </button>
             </div>
           </div>
         </Section>

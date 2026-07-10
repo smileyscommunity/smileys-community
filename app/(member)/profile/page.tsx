@@ -2,14 +2,12 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from 'sonner'
 import { resolveImageUrl, ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
 import { COUNTRIES } from '@/lib/countries'
 import { SkeletonList } from '@/components/Skeleton'
 import { downscaleImage } from '@/lib/image-resize'
-import PasswordToggle from '@/components/PasswordToggle'
 import MembershipBadge from '@/components/MembershipBadge'
 
 const AVATAR_COLORS = [
@@ -131,7 +129,6 @@ function TagPicker({ options, selected, onChange, max }: {
 
 export default function ProfilePage() {
   const { user, setUser, logout } = useAuth()
-  const router = useRouter()
 
   const [loading,  setLoading]  = useState(true)
   const [saving,   setSaving]   = useState(false)
@@ -162,20 +159,6 @@ export default function ProfilePage() {
   const [photoUploading, setPhotoUploading] = useState(false)
   const photoInputRef = useRef<HTMLInputElement>(null)
 
-  const [pwForm,    setPwForm]    = useState({ current: '', next: '', confirm: '' })
-  const [showPw,    setShowPw]    = useState(false)
-  const [pwError,   setPwError]   = useState('')
-  const [pwLoading, setPwLoading] = useState(false)
-  const [newEmail,      setNewEmail]      = useState('')
-  const [emailPassword, setEmailPassword] = useState('')
-  const [showEmailPw,   setShowEmailPw]   = useState(false)
-  const [emailError,    setEmailError]    = useState('')
-  const [emailLoading,  setEmailLoading]  = useState(false)
-  const [deletePassword, setDeletePassword] = useState('')
-  const [showDeletePw,   setShowDeletePw]   = useState(false)
-  const [deleteError,    setDeleteError]    = useState('')
-  const [deleteLoading,  setDeleteLoading]  = useState(false)
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -273,60 +256,8 @@ export default function ProfilePage() {
     finally { setSaving(false) }
   }
 
-  async function handleChangePassword() {
-    setPwError('')
-    if (!pwForm.current || !pwForm.next || !pwForm.confirm) { setPwError('All fields are required'); return }
-    if (pwForm.next !== pwForm.confirm) { setPwError('New passwords do not match'); return }
-    if (pwForm.next.length < 8) { setPwError('Password must be at least 8 characters'); return }
-    setPwLoading(true)
-    try {
-      const res = await fetch('/app/api/auth/change-password', {
-        method: 'POST', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ currentPassword: pwForm.current, newPassword: pwForm.next }),
-      })
-      const data = await res.json()
-      if (!res.ok) { setPwError(data.error ?? 'Failed'); return }
-      setPwForm({ current: '', next: '', confirm: '' })
-      toast.success('Password changed')
-    } catch { setPwError('Something went wrong') }
-    finally { setPwLoading(false) }
-  }
 
-  async function handleDeleteAccount() {
-    setDeleteError('')
-    if (!deletePassword) { setDeleteError('Password is required'); return }
-    setDeleteLoading(true)
-    try {
-      const res = await fetch('/app/api/auth/delete-account', {
-        method: 'POST', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: deletePassword }),
-      })
-      const data = await res.json()
-      if (!res.ok) { setDeleteError(data.error ?? 'Failed'); setDeleteLoading(false); return }
-      router.push('/login')
-    } catch { setDeleteError('Something went wrong'); setDeleteLoading(false) }
-  }
 
-  async function handleEmailChange() {
-    setEmailError('')
-    if (!newEmail.trim()) { setEmailError('Email is required'); return }
-    if (!emailPassword) { setEmailError('Password is required'); return }
-    setEmailLoading(true)
-    try {
-      const res = await fetch('/app/api/auth/update-email', {
-        method: 'POST', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: newEmail, password: emailPassword }),
-      })
-      const data = await res.json()
-      if (!res.ok) { setEmailError(data.error ?? 'Failed'); return }
-      setNewEmail(''); setEmailPassword('')
-      toast.success('Email updated — check your inbox to verify')
-    } catch { setEmailError('Something went wrong') }
-    finally { setEmailLoading(false) }
-  }
 
   const fullName = `${form.firstName} ${form.lastName}`.trim()
   const initials = fullName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || user.initials
@@ -641,73 +572,14 @@ export default function ProfilePage() {
                   </svg>
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-gray-900">Notification preferences</p>
-                  <p className="text-xs text-gray-400 mt-0.5">Events, reminders, wall posts, quiet hours</p>
+                  <p className="text-sm font-semibold text-gray-900">Settings &amp; account</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Notifications, password, email, devices, delete account</p>
                 </div>
               </div>
               <svg className="w-4 h-4 text-gray-300 group-hover:text-amber-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
             </Link>
-
-            {/* ── Email ── */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
-              <h2 className="font-bold text-gray-900">Email address</h2>
-              <p className="text-sm text-gray-600">Current: <span className="font-medium text-gray-800">{user.email}</span>
-                {user.emailVerified
-                  ? <span className="ml-2 text-xs text-green-600 font-medium bg-green-50 px-2 py-0.5 rounded-full">Verified</span>
-                  : <span className="ml-2 text-xs text-amber-600 font-medium bg-amber-50 px-2 py-0.5 rounded-full">Unverified</span>}
-              </p>
-              {emailError && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-xl">{emailError}</p>}
-              <div className="space-y-2">
-                <input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="New email address" className={inputCls} />
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <div className="relative flex-1">
-                    <input type={showEmailPw ? 'text' : 'password'} value={emailPassword} onChange={e => setEmailPassword(e.target.value)} placeholder="Confirm with password" className={`${inputCls} w-full pr-12`} />
-                    <PasswordToggle visible={showEmailPw} onToggle={() => setShowEmailPw(p => !p)} />
-                  </div>
-                  <button onClick={handleEmailChange} disabled={emailLoading || !newEmail.trim() || !emailPassword}
-                    className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-colors">
-                    {emailLoading ? 'Saving…' : 'Update email'}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* ── Password ── */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
-              <h2 className="font-bold text-gray-900">Change password</h2>
-              {pwError && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-xl">{pwError}</p>}
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Current password</label>
-                  <div className="relative">
-                    <input type={showPw ? 'text' : 'password'} value={pwForm.current} onChange={e => setPwForm(f => ({ ...f, current: e.target.value }))} className={`${inputCls} pr-12`} />
-                    <PasswordToggle visible={showPw} onToggle={() => setShowPw(p => !p)} />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">New password</label>
-                    <div className="relative">
-                      <input type={showPw ? 'text' : 'password'} value={pwForm.next} onChange={e => setPwForm(f => ({ ...f, next: e.target.value }))} className={`${inputCls} pr-12`} />
-                      <PasswordToggle visible={showPw} onToggle={() => setShowPw(p => !p)} />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Confirm</label>
-                    <div className="relative">
-                      <input type={showPw ? 'text' : 'password'} value={pwForm.confirm} onChange={e => setPwForm(f => ({ ...f, confirm: e.target.value }))} className={`${inputCls} pr-12`} />
-                      <PasswordToggle visible={showPw} onToggle={() => setShowPw(p => !p)} />
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <button onClick={handleChangePassword} disabled={pwLoading}
-                className="btn-primary w-full">
-                {pwLoading ? 'Saving…' : 'Update password'}
-              </button>
-            </div>
 
             {/* ── Privacy ── */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
@@ -754,38 +626,6 @@ export default function ProfilePage() {
                 className="w-full py-3 border border-red-200 text-red-600 hover:bg-red-50 text-sm font-semibold rounded-xl transition-colors">
                 Sign out
               </button>
-
-              {/* Delete account */}
-              {!showDeleteConfirm ? (
-                <button onClick={() => setShowDeleteConfirm(true)}
-                  className="w-full py-3 text-gray-400 hover:text-red-500 text-xs font-medium transition-colors">
-                  Delete my account
-                </button>
-              ) : (
-                <div className="border border-red-200 rounded-2xl p-5 space-y-3 bg-red-50">
-                  <div>
-                    <p className="text-sm font-bold text-red-700">Delete account permanently</p>
-                    <p className="text-xs text-red-500 mt-1">Your profile and personal data will be erased. This cannot be undone.</p>
-                  </div>
-                  {deleteError && <p className="text-xs text-red-600 bg-white px-3 py-2 rounded-xl">{deleteError}</p>}
-                  <div className="relative">
-                    <input type={showDeletePw ? 'text' : 'password'} value={deletePassword} onChange={e => setDeletePassword(e.target.value)}
-                      placeholder="Enter your password to confirm"
-                      className="input input-error pr-12" />
-                    <PasswordToggle visible={showDeletePw} onToggle={() => setShowDeletePw(p => !p)} />
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => { setShowDeleteConfirm(false); setDeletePassword(''); setDeleteError('') }}
-                      className="flex-1 py-2.5 border border-gray-200 text-gray-600 hover:bg-white text-sm font-semibold rounded-xl transition-colors">
-                      Cancel
-                    </button>
-                    <button onClick={handleDeleteAccount} disabled={deleteLoading || !deletePassword}
-                      className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white text-sm font-bold rounded-xl transition-colors">
-                      {deleteLoading ? 'Deleting…' : 'Delete account'}
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
           </>
         )}

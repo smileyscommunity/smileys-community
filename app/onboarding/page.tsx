@@ -720,9 +720,20 @@ function OnboardingInner() {
             <p className="text-gray-600 mb-2 text-lg">We review every application personally.</p>
             <p className="text-sm text-gray-400 mb-10 max-w-xs mx-auto">
               Fill out a short application and we&apos;ll get back to you within 24 hours.
+              Your picks from these steps come along automatically.
             </p>
             <Link
               href="/apply"
+              onClick={() => {
+                // Hand the 5 steps of picks to the apply form so they
+                // aren't thrown away — /apply reads + clears this key.
+                try {
+                  sessionStorage.setItem('smileys_apply_handoff', JSON.stringify({
+                    vibes: selectedVibes,
+                    neighborhoods: selectedNeighborhoods,
+                  }))
+                } catch {}
+              }}
               className="btn-primary--lg w-full mb-4"
             >
               Submit an application
