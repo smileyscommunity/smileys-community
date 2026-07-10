@@ -1602,6 +1602,17 @@ model BusinessSave {
   @@map("business_saves")
 }
 
+// Tiny key-value store for runtime-editable flags (first user: the weekly
+// auto-newsletter toggle). JSON files under data/ get clobbered by rsync
+// deploys; DB rows don't.
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("app_settings")
+}
+
 model Newsletter {
   id               String               @id @default(cuid())
   subject          String

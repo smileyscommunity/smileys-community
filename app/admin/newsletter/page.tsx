@@ -190,6 +190,28 @@ export default function NewsletterPage() {
   const [testing,          setTesting]          = useState(false)
   const composerRef = useRef<HTMLDivElement>(null)
 
+  const [autoWeekly,     setAutoWeekly]     = useState(false)
+  const [autoSaving,     setAutoSaving]     = useState(false)
+
+  async function toggleAutoWeekly() {
+    const next = !autoWeekly
+    setAutoSaving(true)
+    try {
+      const res = await fetch('/app/api/admin/newsletter', {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ autoWeekly: next }),
+      })
+      if (!res.ok) { toast.error('Could not update automation'); return }
+      setAutoWeekly(next)
+      toast.success(next ? 'Weekly auto-newsletter ON — sends Fridays 10:00' : 'Weekly auto-newsletter off')
+    } catch {
+      toast.error('Network error — check your connection')
+    } finally {
+      setAutoSaving(false)
+    }
+  }
+
   useEffect(() => {
     fetch('/app/api/admin/newsletter', { credentials: 'include' })
       .then(r => r.json())
@@ -197,6 +219,7 @@ export default function NewsletterPage() {
         setSegmentCounts(d.segmentCounts ?? { all: 0, new: 0, active: 0, inactive: 0 })
         setHistory(d.newsletters ?? [])
         setSampleRecipients(d.sampleRecipients ?? [])
+        setAutoWeekly(d.autoWeekly === true)
       })
       .catch(() => toast.error('Failed to load newsletter data'))
       .finally(() => setLoading(false))
@@ -642,6 +665,33 @@ export default function NewsletterPage() {
 
       {/* History */}
       <div>
+        {/* Weekly automation */}
+        <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5 mb-8">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-bold text-white">Weekly auto-newsletter</p>
+              <p className="text-xs text-zinc-500 mt-1">
+                Every Friday at 10:00 (Istanbul) the digest composes and sends itself to all opted-in members —
+                this week&apos;s events, 3 featured clubs, and new-member welcomes. Skips weeks with no events.
+              </p>
+            </div>
+            <button
+              onClick={toggleAutoWeekly}
+              disabled={autoSaving}
+              aria-pressed={autoWeekly}
+              aria-label="Toggle weekly auto-newsletter"
+              className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${autoWeekly ? 'bg-amber-500' : 'bg-zinc-700'}`}
+            >
+              <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${autoWeekly ? 'translate-x-4.5' : 'translate-x-1'}`} />
+            </button>
+          </div>
+          {autoWeekly && (
+            <p className="text-xs text-amber-400/80 mt-3">
+              ✓ Active — the next issue goes out automatically. Manual sends and scheduling keep working as usual.
+            </p>
+          )}
+        </div>
+
         <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-widest mb-3">Sent history</h2>
         {loading ? (
           <div className="space-y-2">

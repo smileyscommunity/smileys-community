@@ -32,6 +32,8 @@ export async function GET() {
   const session = await getSession()
   if (!session || !isAdmin(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
+  const autoSetting = await prisma.appSetting.findUnique({ where: { key: 'autoWeeklyNewsletter' } })
+
   const [newsletters, allCount, newCount, activeCount, inactiveCount, sampleRecipients] = await Promise.all([
     prisma.newsletter.findMany({
       orderBy: { sentAt: 'desc' },
@@ -51,6 +53,7 @@ export async function GET() {
   ])
 
   return NextResponse.json({
+    autoWeekly: autoSetting?.value === 'on',
     newsletters: newsletters.map(n => ({
       id:               n.id,
       subject:          n.subject,
@@ -172,4 +175,29 @@ export async function DELETE(req: NextRequest) {
     `Cancelled scheduled newsletter "${nl.subject}"`,
   )
   return NextResponse.json({ ok: true })
+}
+
+// PATCH /api/admin/newsletter — flip the weekly auto-newsletter toggle.
+// Every Friday from 10:00 Istanbul the newsletter sweeper composes the
+// digest (events + clubs + new members) and sends it to all opted-in
+// members; see runAutoDigest in the sweep-newsletters cron.
+export async function PATCH(req: NextRequest) {
+  const session = await getSession()
+  if (!session || !isAdmin(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const { autoWeekly } = await req.json().catch(() => ({}))
+  if (typeof autoWeekly !== 'boolean') {
+    return NextResponse.json({ error: 'autoWeekly must be a boolean' }, { status: 400 })
+  }
+  await prisma.appSetting.upsert({
+    where:  { key: 'autoWeeklyNewsletter' },
+    create: { key: 'autoWeeklyNewsletter', value: autoWeekly ? 'on' : 'off' },
+    update: { value: autoWeekly ? 'on' : 'off' },
+  })
+  await writeAudit(
+    session.id, session.name, 'newsletter.automation', 'autoWeeklyNewsletter', 'setting',
+    { autoWeekly },
+    `Weekly auto-newsletter turned ${autoWeekly ? 'ON' : 'OFF'}`,
+  )
+  return NextResponse.json({ ok: true, autoWeekly })
 }
