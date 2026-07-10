@@ -1,6 +1,6 @@
 import { prisma } from './prisma'
-import { APP_URL } from './env'
-import { todayIstanbul } from './data'
+import { APP_URL, SITE_URL } from './env'
+import { todayIstanbul, resolveImageUrl } from './data'
 
 // Server-side builder for the weekly auto-newsletter. Produces the same
 // card markup as the composer's insert buttons (events digest + 3 random
@@ -18,7 +18,10 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
   const today = todayIstanbul()
   const end   = todayIstanbul(7)
 
-  const [events, clubs, newMembers] = await Promise.all([
+  const weekAgoStr = todayIstanbul(-7)
+  const weekAgoDate = new Date(Date.now() - 7 * 86_400_000)
+
+  const [events, clubs, newMembers, photos, eventsHeld, checkins, newConnections] = await Promise.all([
     prisma.event.findMany({
       where:   { status: 'published', date: { gte: today, lte: end } },
       orderBy: [{ date: 'asc' }, { time: 'asc' }],
@@ -33,6 +36,17 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
       orderBy: { joinedAt: 'desc' },
       select:  { name: true },
     }),
+    // Photo of the week candidates — last 7 days of uploads, event attached.
+    prisma.eventPhoto.findMany({
+      where:   { createdAt: { gte: weekAgoDate } },
+      orderBy: { createdAt: 'desc' },
+      take:    30,
+      select:  { url: true, event: { select: { id: true, title: true, emoji: true, _count: { select: { attendees: true } } } } },
+    }),
+    // Week-in-review counters.
+    prisma.event.count({ where: { status: 'published', date: { gte: weekAgoStr, lt: today } } }),
+    prisma.eventAttendee.count({ where: { checkedIn: true, event: { date: { gte: weekAgoStr, lt: today } } } }),
+    prisma.memberConnection.count({ where: { status: 'accepted', updatedAt: { gte: weekAgoDate } } }),
   ])
 
   // An auto-issue with no events would be an empty shell — skip the week
@@ -56,7 +70,35 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
     ).join('')
     return `<p style="color:#b45309;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin:20px 0 8px">${dayLabel}</p>${cards}`
   }).join('')
-  let body = `<h3 style="font-size:17px;margin:0 0 4px">📅 This week's events</h3>${eventSections}`
+  let body = ''
+
+  // Photo of the week — the most recent upload from the best-attended event
+  // of the past 7 days. One image turns the digest from a listing into a
+  // story; nothing sells "come to an event" like last week's faces.
+  const bestPhoto = [...photos].sort((a, b) => (b.event?._count.attendees ?? 0) - (a.event?._count.attendees ?? 0))[0]
+  if (bestPhoto?.event) {
+    const resolved = resolveImageUrl(bestPhoto.url)
+    const photoUrl = resolved.startsWith('http') ? resolved : `${SITE_URL}${resolved}?w=1200`
+    body += `<div style="margin:0 0 20px">` +
+      `<a href="${APP_URL}/events/${bestPhoto.event.id}?${UTM}">` +
+      `<img src="${photoUrl}" alt="Photo from ${esc(bestPhoto.event.title)}" style="width:100%;border-radius:12px;display:block"/></a>` +
+      `<p style="color:#6b7280;font-size:12px;margin:6px 0 0">📸 Last week at ${bestPhoto.event.emoji ? `${bestPhoto.event.emoji} ` : ''}${esc(bestPhoto.event.title)}</p>` +
+      `</div>`
+  }
+
+  // Week in review — one line of momentum. Zero-valued stats are dropped;
+  // if nothing happened at all, the line disappears entirely.
+  const statParts = [
+    eventsHeld     ? `<strong>${eventsHeld}</strong> event${eventsHeld !== 1 ? 's' : ''}` : null,
+    checkins       ? `<strong>${checkins}</strong> check-in${checkins !== 1 ? 's' : ''}` : null,
+    newConnections ? `<strong>${newConnections}</strong> new connection${newConnections !== 1 ? 's' : ''}` : null,
+    newMembers.length ? `<strong>${newMembers.length}</strong> new member${newMembers.length !== 1 ? 's' : ''}` : null,
+  ].filter(Boolean)
+  if (statParts.length) {
+    body += `<p style="color:#6b7280;font-size:13px;margin:0 0 20px">Last week at Smileys: ${statParts.join(' · ')}</p>`
+  }
+
+  body += `<h3 style="font-size:17px;margin:0 0 4px">📅 This week's events</h3>${eventSections}`
 
   // 3 random clubs.
   const picks = [...clubs].sort(() => Math.random() - 0.5).slice(0, 3)
