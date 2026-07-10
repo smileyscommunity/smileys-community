@@ -29,6 +29,10 @@ function checkOrigin(req: NextRequest): NextResponse | null {
   // some browsers omit the Origin header on report-uri requests, and there's
   // no session to forge across origins anyway. Skip the CSRF gate here.
   if (req.nextUrl.pathname === '/api/csp-report') return null
+  // Resend/svix deliver webhooks server-to-server with no Origin header, so the
+  // CSRF gate would 403 them. They carry no session cookie and are authenticated
+  // by svix HMAC signature in the handler instead — skip the Origin check here.
+  if (req.nextUrl.pathname === '/api/webhooks/resend') return null
 
   const host = req.headers.get('host')
   if (!host) {
