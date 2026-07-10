@@ -114,11 +114,16 @@ function AppEventsPageInner() {
     const currentOffset = reset ? 0 : offset
     const upcoming = tab === 'upcoming' ? '1' : '0'
     const url = `/app/api/events?upcoming=${upcoming}&limit=${PAGE_SIZE}&offset=${currentOffset}`
-    const data = await fetch(url, { credentials: 'include' }).then(r => r.json())
-    const evts: Event[] = Array.isArray(data.events) ? data.events : []
-    setEvents(prev => reset ? evts : [...prev, ...evts])
-    setHasMore(data.hasMore ?? false)
-    setOffset(currentOffset + evts.length)
+    // Fail soft: a dropped fetch on a flaky mobile connection would otherwise
+    // reject the caller's Promise.all with an uncaught "Load failed" (the #1
+    // iOS error) and leave the load-more spinner stuck. Keep the current list.
+    try {
+      const data = await fetch(url, { credentials: 'include' }).then(r => r.json())
+      const evts: Event[] = Array.isArray(data.events) ? data.events : []
+      setEvents(prev => reset ? evts : [...prev, ...evts])
+      setHasMore(data.hasMore ?? false)
+      setOffset(currentOffset + evts.length)
+    } catch { /* transient — user can pull-to-refresh or retry load-more */ }
   }
 
   // One-shot mount fetches that don't depend on tab: hero copy from the
@@ -146,9 +151,9 @@ function AppEventsPageInner() {
     // the joined/pending pill.
     Promise.all([
       loadEvents(tab, true),
-      fetch('/app/api/tags').then(r => r.json()),
+      fetch('/app/api/tags').then(r => r.json()).catch(() => []),
       isLoggedIn
-        ? fetch('/app/api/events/attending', { credentials: 'include' }).then(r => r.json())
+        ? fetch('/app/api/events/attending', { credentials: 'include' }).then(r => r.json()).catch(() => [])
         : Promise.resolve([]),
     ]).then(([, grps, att]) => {
       setGroups(Array.isArray(grps) ? grps : [])

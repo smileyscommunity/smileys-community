@@ -84,6 +84,14 @@ async function handle(req: NextRequest): Promise<NextResponse> {
       blocked === 'about'
     ) continue
 
+    // Drop content-free reports: an empty blockedURI with no directive and no
+    // source location carries zero actionable signal — it's overwhelmingly
+    // extension-injected inline content the browser redacts to "". These were
+    // flooding the logs (~1.9k). A genuine inline/nonce regression still logs,
+    // because it populates violatedDirective + documentURI/sourceFile.
+    const directive = v.violatedDirective ?? v.effectiveDirective ?? ''
+    if (!blocked && !directive && !v.sourceFile && !v.documentURI) continue
+
     // Structured single-line log so it's grep-able in PM2 logs:
     //   grep '\[csp-violation\]' /root/.pm2/logs/smileys-out.log
     console.warn('[csp-violation]', JSON.stringify({
