@@ -89,12 +89,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid scheduledFor date' }, { status: 400 })
   }
 
-  if (!subject)  return NextResponse.json({ error: 'Subject is required' }, { status: 400 })
-  if (!bodyHtml) return NextResponse.json({ error: 'Body is required' },    { status: 400 })
-  if (bodyHtml.length > 100_000) return NextResponse.json({ error: 'Body too long (max 100 KB)' }, { status: 400 })
-
-  const safeBodyHtml = sanitizeNewsletter(bodyHtml)
-
   // Auto-digest preview — compose exactly what Monday's automated issue
   // would contain right now and deliver it to the requesting admin only.
   // Closes the "flip the toggle and hope" blindspot.
@@ -110,6 +104,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Preview send failed' }, { status: 500 })
     }
   }
+
+  if (!subject)  return NextResponse.json({ error: 'Subject is required' }, { status: 400 })
+  if (!bodyHtml) return NextResponse.json({ error: 'Body is required' },    { status: 400 })
+  if (bodyHtml.length > 100_000) return NextResponse.json({ error: 'Body too long (max 100 KB)' }, { status: 400 })
+
+  const safeBodyHtml = sanitizeNewsletter(bodyHtml)
 
   // Test send — deliver a single copy to the current admin so they can preview
   // the real email (with the greeting + unsubscribe wrapper) before blasting a
