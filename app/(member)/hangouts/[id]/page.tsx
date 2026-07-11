@@ -7,6 +7,8 @@ import { getSession } from '@/lib/session'
 import { resolveImageUrl } from '@/lib/data'
 import { APP_URL, SITE_URL } from '@/lib/env'
 import SocialShare from '@/components/SocialShare'
+import HangoutJoinButton from '@/components/HangoutJoinButton'
+import HangoutDiscussion from '@/components/HangoutDiscussion'
 
 // Read-only permalink for a single hangout. Designed so stale push
 // notifications (cancellation, recap from days ago, third-party links)
@@ -116,6 +118,13 @@ export default async function HangoutPermalinkPage({ params }: PageProps) {
   const hostAvatar = hangout.user.profilePhoto ? resolveImageUrl(hangout.user.profilePhoto) : null
   const photoUrl   = hangout.photo ? resolveImageUrl(hangout.photo) : null
 
+  // Join affordance: only for non-hosts, and only while the hangout is still
+  // live (active + not past). Host is implicitly in; ended/cancelled show the
+  // status banner instead.
+  const isOwner    = hangout.user.id === session.id
+  const joinedByMe = hangout.joins.some((j: any) => j.user.id === session.id)
+  const isJoinable = hangout.status === 'active' && hangout.endsAt >= new Date()
+
   return (
     <div className="min-h-screen bg-warm pb-16">
       <div className="max-w-2xl mx-auto px-4 sm:px-6 pt-6 pb-6 space-y-4">
@@ -182,6 +191,14 @@ export default async function HangoutPermalinkPage({ params }: PageProps) {
           </div>
         </div>
 
+        {/* Primary action — mirrors the feed's "I'm in", so a shared link is
+            actionable right here instead of a dead end. */}
+        {isOwner ? (
+          <p className="text-center text-xs font-semibold text-gray-500">You're hosting this hangout</p>
+        ) : isJoinable ? (
+          <HangoutJoinButton hangoutId={hangout.id} initialJoined={joinedByMe} />
+        ) : null}
+
         {/* Joiners */}
         {hangout.joins.length > 0 && (
           <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
@@ -205,34 +222,14 @@ export default async function HangoutPermalinkPage({ params }: PageProps) {
           </div>
         )}
 
-        {/* Messages — read-only thread, replicates the in-feed chat. Only
-            renders if there were any so empty hangouts don't show a blank
-            section. */}
-        {hangout.messages.length > 0 && (
-          <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
-            <p className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-3">Chat</p>
-            <div className="space-y-3">
-              {hangout.messages.map((m: any) => {
-                const av = m.user.profilePhoto ? resolveImageUrl(m.user.profilePhoto) : null
-                return (
-                  <div key={m.id} className="flex items-start gap-2.5">
-                    {av
-                      ? <img src={av} alt={m.user.name} className="w-7 h-7 rounded-full object-cover shrink-0" />
-                      : <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0"
-                          style={{ backgroundColor: m.user.color }}>{m.user.name[0]}</div>}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs">
-                        <span className="font-semibold text-gray-900">{m.user.name}</span>
-                        <span className="text-gray-400"> · {m.createdAt.toLocaleTimeString('en-GB', { timeZone: 'Europe/Istanbul', hour: '2-digit', minute: '2-digit' })}</span>
-                      </p>
-                      <p className="text-sm text-gray-800 whitespace-pre-wrap">{m.body}</p>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
+        {/* Discussion — interactive thread. Host + joiners can post (the API
+            gates it); non-members see it read-only with a nudge to join. */}
+        <HangoutDiscussion
+          hangoutId={hangout.id}
+          initialMessages={hangout.messages}
+          canPost={isOwner || joinedByMe}
+          isJoinable={isJoinable}
+        />
 
         {/* Share this hangout — the permalink is member-gated, so a non-member
             who opens it is nudged to sign in and can then join. */}
