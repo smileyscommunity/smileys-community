@@ -781,6 +781,22 @@ function HangoutCard({ h, currentUser, onCancel, onMutated }: {
       .finally(() => setLoadingMsg(false))
   }, [threadOpen, h.id, messages.length])
 
+  async function shareHangout() {
+    // Full permalink including the /app basePath. Native share sheet on mobile
+    // (WhatsApp, Messages, …); clipboard fallback on desktop.
+    const url = `${window.location.origin}/app/hangouts/${h.id}`
+    try {
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        await navigator.share({ title: h.title, text: `Join this hangout on Smileys: ${h.title}`, url })
+      } else {
+        await navigator.clipboard.writeText(url)
+        toast.success('Link copied!')
+      }
+    } catch {
+      // Share sheet dismissed or clipboard blocked — no-op.
+    }
+  }
+
   async function toggleJoin() {
     if (isOwner) return
     setJoining(true)
@@ -952,6 +968,12 @@ function HangoutCard({ h, currentUser, onCancel, onMutated }: {
           aria-label="Toggle comments" aria-expanded={threadOpen}
           className="text-xs font-semibold text-gray-600 hover:text-gray-900 shrink-0 flex items-center gap-1">
           💬 {h.messageCount > 0 && <span>{h.messageCount}</span>}
+        </button>
+
+        <button onClick={shareHangout}
+          aria-label="Share hangout" title="Share"
+          className="text-xs font-semibold text-gray-600 hover:text-gray-900 shrink-0">
+          🔗
         </button>
       </div>
 

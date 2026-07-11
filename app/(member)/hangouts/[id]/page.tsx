@@ -1,9 +1,12 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import Image from 'next/image'
 import { notFound, redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { resolveImageUrl } from '@/lib/data'
+import { APP_URL } from '@/lib/env'
+import SocialShare from '@/components/SocialShare'
 
 // Read-only permalink for a single hangout. Designed so stale push
 // notifications (cancellation, recap from days ago, third-party links)
@@ -51,11 +54,36 @@ function StatusBanner({ status, endsAt }: { status: string; endsAt: Date }) {
   )
 }
 
-export default async function HangoutPermalinkPage({ params }: PageProps) {
-  const session = await getSession()
-  if (!session) redirect('/login?next=/hangouts')
-
+// Public-safe link preview (WhatsApp/social) — runs for logged-out crawlers
+// too, so it deliberately exposes only what/where/when, never member names.
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params
+  const hangout = await prisma.hangout.findUnique({
+    where:  { id },
+    select: { title: true, location: true, neighborhood: true, startsAt: true, status: true },
+  })
+  if (!hangout) return { title: 'Hangout · Smileys' }
+
+  const when  = hangout.startsAt.toLocaleString('en-GB', { timeZone: 'Europe/Istanbul', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+  const where = [hangout.location, hangout.neighborhood].filter(Boolean).join(' · ')
+  const title = `${hangout.title} · Smileys hangout`
+  const desc  = hangout.status === 'cancelled'
+    ? 'This hangout was cancelled.'
+    : `📍 ${where} · 🕒 ${when} — join on Smileys.`
+
+  return {
+    title,
+    description: desc,
+    openGraph: { title, description: desc, type: 'website' },
+    twitter:   { card: 'summary', title, description: desc },
+  }
+}
+
+export default async function HangoutPermalinkPage({ params }: PageProps) {
+  const { id } = await params
+  const session = await getSession()
+  // Land a shared link back on this exact hangout after sign-in, not the feed.
+  if (!session) redirect(`/login?next=/hangouts/${id}`)
 
   const hangout = await prisma.hangout.findUnique({
     where: { id },
@@ -195,6 +223,10 @@ export default async function HangoutPermalinkPage({ params }: PageProps) {
             </div>
           </div>
         )}
+
+        {/* Share this hangout — the permalink is member-gated, so a non-member
+            who opens it is nudged to sign in and can then join. */}
+        <SocialShare title={`${hangout.title} — a Smileys hangout`} url={`${APP_URL}/hangouts/${id}`} />
       </div>
     </div>
   )
