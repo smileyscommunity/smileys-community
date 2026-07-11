@@ -178,6 +178,13 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
       )
   }
 
+  // Closing invite nudge — growth happens friend by friend; every issue
+  // ends with the referral door open.
+  body += `<div style="margin-top:20px;padding:14px 16px;background:#fffbeb;border:1px solid #fde68a;border-radius:12px">` +
+    `<div style="color:#374151;font-size:14px">Know someone who'd love Smileys? Great communities grow friend by friend.</div>` +
+    `<a href="${APP_URL}/invite?${UTM}" style="display:inline-block;margin-top:6px;color:#b45309;font-weight:700;font-size:13px;text-decoration:none">💛 Invite a friend →</a>` +
+    `</div>`
+
   const preheaderParts = [
     `${events.length} event${events.length !== 1 ? 's' : ''} this week`,
     newMembers.length ? `${newMembers.length} new member${newMembers.length !== 1 ? 's' : ''}` : null,
