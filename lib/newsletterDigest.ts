@@ -84,7 +84,8 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
     ).join('')
     return `<p style="color:#b45309;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin:20px 0 8px">${dayLabel}</p>${cards}`
   }).join('')
-  let body = ''
+  // Warm opener — the wrapper contributes "Hi <FirstName>,», this follows it.
+  let body = `<p style="color:#374151;font-size:14px;line-height:1.6;margin:0 0 16px">Happy Monday! Here are the latest activities we think you'll enjoy — our amazing hosts are ready to welcome you. Have a wonderful week 💛</p>`
 
   // Photo of the week — the most recent upload from the best-attended event
   // of the past 7 days. One image turns the digest from a listing into a
@@ -194,7 +195,7 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
   // issues together and readers tune them out. Lead with the soonest event.
   const lead = events[0].title.length > 40 ? `${events[0].title.slice(0, 39)}…` : events[0].title
   const subject = events.length > 1
-    ? `This week: ${lead} + ${events.length - 1} more 📅`
-    : `This week: ${lead} 📅`
+    ? `This week in Istanbul: ${lead} + ${events.length - 1} more 📅`
+    : `This week in Istanbul: ${lead} 📅`
   return { subject, bodyHtml: body, preheader: preheaderParts.join(' · ') }
 }
