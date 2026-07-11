@@ -5,7 +5,7 @@ import { notFound, redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { resolveImageUrl } from '@/lib/data'
-import { APP_URL } from '@/lib/env'
+import { APP_URL, SITE_URL } from '@/lib/env'
 import SocialShare from '@/components/SocialShare'
 
 // Read-only permalink for a single hangout. Designed so stale push
@@ -60,7 +60,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { id } = await params
   const hangout = await prisma.hangout.findUnique({
     where:  { id },
-    select: { title: true, location: true, neighborhood: true, startsAt: true, status: true },
+    select: { title: true, location: true, neighborhood: true, startsAt: true, status: true, photo: true },
   })
   if (!hangout) return { title: 'Hangout · Smileys' }
 
@@ -71,11 +71,27 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     ? 'This hangout was cancelled.'
     : `📍 ${where} · 🕒 ${when} — join on Smileys.`
 
+  // Preview image = the hangout's own photo. Crawlers require an ABSOLUTE URL:
+  // uploads resolve to /app/... (prefix SITE_URL); external URLs (e.g. Unsplash)
+  // are already absolute. If the hangout has no photo, omit it so the site's
+  // default OG image is used instead.
+  const resolved = hangout.photo ? resolveImageUrl(hangout.photo) : ''
+  const image = resolved
+    ? (/^https?:\/\//i.test(resolved) ? resolved : `${SITE_URL}${resolved}`)
+    : undefined
+
   return {
     title,
     description: desc,
-    openGraph: { title, description: desc, type: 'website' },
-    twitter:   { card: 'summary', title, description: desc },
+    openGraph: {
+      title, description: desc, type: 'website',
+      ...(image ? { images: [{ url: image }] } : {}),
+    },
+    twitter: {
+      card: image ? 'summary_large_image' : 'summary',
+      title, description: desc,
+      ...(image ? { images: [image] } : {}),
+    },
   }
 }
 
