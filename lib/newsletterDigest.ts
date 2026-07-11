@@ -10,8 +10,10 @@ import { todayIstanbul, resolveImageUrl, formatTime } from './data'
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 const UTM = 'utm_source=newsletter&utm_medium=email'
 
-function card(inner: string): string {
-  return `<div style="border:1px solid #f3f4f6;border-radius:12px;padding:12px 16px;margin:0 0 8px;background:#fafafa">${inner}</div>`
+// Per-section tints so the digest reads as distinct blocks at a glance:
+// amber = events, violet = clubs, teal = board, green = new faces.
+function card(inner: string, bg = '#fafafa', border = '#f3f4f6'): string {
+  return `<div style="border:1px solid ${border};border-radius:12px;padding:12px 16px;margin:0 0 8px;background:${bg}">${inner}</div>`
 }
 
 export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: string; preheader: string } | null> {
@@ -72,7 +74,8 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
     const cards = evs.map(e =>
       card(
         `<a href="${APP_URL}/events/${e.id}?${UTM}" style="color:#111827;font-weight:700;font-size:15px;text-decoration:none">${e.emoji ? `${e.emoji} ` : ''}${esc(e.title)}</a>` +
-        `<div style="color:#6b7280;font-size:13px;margin-top:3px">🕖 ${formatTime(e.time)}${e.neighborhood ? ` · 📍 ${esc(e.neighborhood)}` : ''}</div>`,
+        `<div style="color:#92400e;font-size:13px;margin-top:3px">🕖 ${formatTime(e.time)}${e.neighborhood ? ` · 📍 ${esc(e.neighborhood)}` : ''}</div>`,
+        '#fffbeb', '#fde68a',
       ),
     ).join('')
     return `<p style="color:#b45309;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin:20px 0 8px">${dayLabel}</p>${cards}`
@@ -121,7 +124,8 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
       const meta = [c.category, c.memberCount ? `${c.memberCount} members` : null].filter(Boolean).join(' · ')
       return card(
         `<a href="${APP_URL}/clubs/${c.slug}?${UTM}" style="color:#111827;font-weight:700;font-size:15px;text-decoration:none">${c.emoji ? `${c.emoji} ` : ''}${esc(c.name)}</a>` +
-        (meta ? `<div style="color:#6b7280;font-size:13px;margin-top:3px">${esc(meta)}</div>` : ''),
+        (meta ? `<div style="color:#6d28d9;font-size:13px;margin-top:3px">${esc(meta)}</div>` : ''),
+        '#f5f3ff', '#ddd6fe',
       )
     }).join('')
     body += `<h3 style="font-size:17px;margin:20px 0 8px">✨ Clubs to check out</h3>${clubCards}`
@@ -143,11 +147,12 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
       const meta = [CAT_LABEL[l.category] ?? l.category, l.neighborhood, l.price].filter(Boolean).map(x => esc(String(x))).join(' · ')
       return card(
         `<a href="${APP_URL}/listings/${l.id}?${UTM}" style="color:#111827;font-weight:700;font-size:15px;text-decoration:none">${CAT_EMOJI[l.category] ?? '📌'} ${esc(l.title)}</a>` +
-        (meta ? `<div style="color:#6b7280;font-size:13px;margin-top:3px">${meta}</div>` : ''),
+        (meta ? `<div style="color:#0f766e;font-size:13px;margin-top:3px">${meta}</div>` : ''),
+        '#f0fdfa', '#99f6e4',
       )
     }).join('')
     body += `<h3 style="font-size:17px;margin:20px 0 8px">🛍️ Fresh on the community board</h3>${listingCards}` +
-      `<a href="${APP_URL}/listings?${UTM}" style="display:inline-block;margin:2px 0 0;color:#b45309;font-weight:600;font-size:13px;text-decoration:none">Browse all listings →</a>`
+      `<a href="${APP_URL}/listings?${UTM}" style="display:inline-block;margin:2px 0 0;color:#0f766e;font-weight:600;font-size:13px;text-decoration:none">Browse all listings →</a>`
   }
 
   // New-member welcome.
@@ -163,7 +168,8 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
     body += `<h3 style="font-size:17px;margin:20px 0 8px">👋 New faces this week</h3>` +
       card(
         `<div style="color:#374151;font-size:14px">${who} joined Smileys this week — say hi when you see them at an event!</div>` +
-        `<a href="${APP_URL}/members?${UTM}" style="display:inline-block;margin-top:6px;color:#b45309;font-weight:600;font-size:13px;text-decoration:none">Meet the members →</a>`,
+        `<a href="${APP_URL}/members?${UTM}" style="display:inline-block;margin-top:6px;color:#15803d;font-weight:600;font-size:13px;text-decoration:none">Meet the members →</a>`,
+        '#f0fdf4', '#bbf7d0',
       )
   }
 
