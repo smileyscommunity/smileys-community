@@ -21,7 +21,7 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
   const weekAgoStr = todayIstanbul(-7)
   const weekAgoDate = new Date(Date.now() - 7 * 86_400_000)
 
-  const [events, clubs, newMembers, photos, eventsHeld, checkins, newConnections] = await Promise.all([
+  const [events, clubs, newMembers, photos, eventsHeld, checkins, newConnections, listings] = await Promise.all([
     prisma.event.findMany({
       where:   { status: 'published', date: { gte: today, lte: end } },
       orderBy: [{ date: 'asc' }, { time: 'asc' }],
@@ -47,6 +47,13 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
     prisma.event.count({ where: { status: 'published', date: { gte: weekAgoStr, lt: today } } }),
     prisma.eventAttendee.count({ where: { checkedIn: true, event: { date: { gte: weekAgoStr, lt: today } } } }),
     prisma.memberConnection.count({ where: { status: 'accepted', updatedAt: { gte: weekAgoDate } } }),
+    // Fresh community-board listings — newest 3 that are still live.
+    prisma.listing.findMany({
+      where:   { status: 'active', expiresAt: { gt: new Date() } },
+      orderBy: { createdAt: 'desc' },
+      take:    3,
+      select:  { id: true, title: true, category: true, price: true, neighborhood: true },
+    }),
   ])
 
   // An auto-issue with no events would be an empty shell — skip the week
@@ -111,6 +118,29 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
       )
     }).join('')
     body += `<h3 style="font-size:17px;margin:20px 0 8px">✨ Clubs to check out</h3>${clubCards}`
+  }
+
+  // Community board — pull-based discovery otherwise; this gives the
+  // board a weekly heartbeat in every inbox.
+  if (listings.length > 0) {
+    const CAT_EMOJI: Record<string, string> = {
+      ROOMS: '🏠', JOBS: '💼', SERVICES: '🛠️', BUY_SELL: '🛍️', FREE: '🎁',
+      LOST_FOUND: '🔍', RECO: '⭐', EXPERIENCES: '🎟️', PETS: '🐾',
+    }
+    const CAT_LABEL: Record<string, string> = {
+      ROOMS: 'Rooms', JOBS: 'Jobs', SERVICES: 'Services', BUY_SELL: 'Buy & Sell',
+      FREE: 'Free stuff', LOST_FOUND: 'Lost & Found', RECO: 'Recommendation',
+      EXPERIENCES: 'Experiences', PETS: 'Adopt a Pet',
+    }
+    const listingCards = listings.map(l => {
+      const meta = [CAT_LABEL[l.category] ?? l.category, l.neighborhood, l.price].filter(Boolean).map(x => esc(String(x))).join(' · ')
+      return card(
+        `<a href="${APP_URL}/listings/${l.id}?${UTM}" style="color:#111827;font-weight:700;font-size:15px;text-decoration:none">${CAT_EMOJI[l.category] ?? '📌'} ${esc(l.title)}</a>` +
+        (meta ? `<div style="color:#6b7280;font-size:13px;margin-top:3px">${meta}</div>` : ''),
+      )
+    }).join('')
+    body += `<h3 style="font-size:17px;margin:20px 0 8px">🛍️ Fresh on the community board</h3>${listingCards}` +
+      `<a href="${APP_URL}/listings?${UTM}" style="display:inline-block;margin:2px 0 0;color:#b45309;font-weight:600;font-size:13px;text-decoration:none">Browse all listings →</a>`
   }
 
   // New-member welcome.
