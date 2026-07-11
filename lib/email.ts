@@ -698,8 +698,7 @@ export async function sendBroadcastEmail(
     html: `
       <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto;background:#fff;border-radius:16px;padding:40px 32px;border:1px solid #e5e7eb">
         <div style="margin-bottom:28px">
-          <span style="font-size:32px">😊</span>
-          <p style="color:#6b7280;font-size:13px;margin:4px 0 0">Smileys Community · Istanbul</p>
+          <p style="margin:0;font-size:14px;color:#6b7280"><span style="font-size:26px;vertical-align:-5px">😊</span> <strong style="color:#374151">Smileys Community</strong> · Istanbul</p>
         </div>
         <h2 style="font-size:20px;font-weight:800;color:#111827;margin:0 0 20px">${esc(title)}</h2>
         <p style="margin:0 0 16px;color:#374151;font-size:14px">Hi ${esc(firstName)},</p>
@@ -801,8 +800,7 @@ function buildNewsletterPayload(userId: string, email: string, name: string, sub
       ${preheaderHtml}
       <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto;background:#fff;border-radius:16px;padding:40px 32px;border:1px solid #e5e7eb">
         <div style="margin-bottom:28px">
-          <span style="font-size:32px">😊</span>
-          <p style="color:#6b7280;font-size:13px;margin:4px 0 0">Smileys Community · Istanbul</p>
+          <p style="margin:0;font-size:14px;color:#6b7280"><span style="font-size:26px;vertical-align:-5px">😊</span> <strong style="color:#374151">Smileys Community</strong> · Istanbul</p>
         </div>
         <p style="margin:0 0 16px;color:#374151;font-size:14px">Hi ${firstName},</p>
         <div style="color:#374151;font-size:14px;line-height:1.6">${bodyHtml}</div>

@@ -99,8 +99,8 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
     const photoUrl = resolved.startsWith('http') ? resolved : `${SITE_URL}${resolved}?w=1200`
     body += `<div style="margin:0 0 20px">` +
       `<a href="${APP_URL}/events/${bestPhoto.event.id}?${UTM}">` +
-      `<img src="${photoUrl}" alt="Photo from ${esc(bestPhoto.event.title)}" style="width:100%;border-radius:12px;display:block"/></a>` +
-      `<p style="color:#6b7280;font-size:12px;margin:6px 0 0">📸 Last week at ${bestPhoto.event.emoji ? `${bestPhoto.event.emoji} ` : ''}${esc(bestPhoto.event.title)}</p>` +
+      `<img src="${photoUrl}" alt="Photo from ${esc(bestPhoto.event.title)}" style="width:100%;max-width:100%;border-radius:12px;display:block;margin:0 auto"/></a>` +
+      `<p style="color:#6b7280;font-size:12px;margin:6px 0 0;text-align:center">📸 Last week at ${bestPhoto.event.emoji ? `${bestPhoto.event.emoji} ` : ''}${esc(bestPhoto.event.title)}</p>` +
       `</div>`
   }
 
