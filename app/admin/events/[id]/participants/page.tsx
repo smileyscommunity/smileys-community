@@ -51,6 +51,10 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
   const [addSearch, setAddSearch] = useState('')
   const [allUsers,  setAllUsers]  = useState<AttendeeUser[]>([])
   const [attendeeView,   setAttendeeView]   = useState<'all' | 'checkedin' | 'noshows'>('all')
+  // Payment filter — set by tapping the ₺ Paid stat tile or the segmented
+  // control on the Approved section (only rendered for Smileys-collected
+  // priced events).
+  const [payView,        setPayView]        = useState<'all' | 'paid' | 'unpaid'>('all')
   const [notifying,      setNotifying]      = useState(false)
   const [reminding,      setReminding]      = useState(false)
 
@@ -292,7 +296,8 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
             label: '₺ Paid',
             value: paidCount,
             color: paidCount >= goingCount && goingCount > 0 ? 'text-green-400' : 'text-amber-400',
-            sub: `/ ${goingCount} · ₺${outstanding} due`,
+            sub: payView === 'all' ? `/ ${goingCount} · ₺${outstanding} due` : `showing ${payView} ↓`,
+            onClick: () => setPayView(v => v === 'all' ? 'unpaid' : v === 'unpaid' ? 'paid' : 'all'),
           }] : []),
           ...(turkishMaleQuota ? [{
             label: '🇹🇷 TR male',
@@ -300,13 +305,20 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
             color: turkishMaleCount >= turkishMaleQuota ? 'text-red-400' : 'text-blue-400',
             sub: `/ ${turkishMaleQuota} max`,
           }] : []),
-        ].map(s => (
-          <div key={s.label} className="bg-zinc-900 rounded-xl border border-zinc-800 p-3 text-center">
-            <div className={`text-2xl font-extrabold ${s.color}`}>{s.value}</div>
-            <div className="text-xs font-semibold text-zinc-400 mt-0.5">{s.label}</div>
-            <div className="text-xs text-zinc-600">{s.sub}</div>
-          </div>
-        ))}
+        ].map(s => {
+          const clickable = 'onClick' in s && typeof (s as { onClick?: () => void }).onClick === 'function'
+          return (
+            <div key={s.label}
+              onClick={clickable ? (s as { onClick: () => void }).onClick : undefined}
+              role={clickable ? 'button' : undefined}
+              title={clickable ? 'Tap to filter the list: all → unpaid → paid' : undefined}
+              className={`bg-zinc-900 rounded-xl border p-3 text-center ${clickable ? 'cursor-pointer border-amber-500/40 hover:border-amber-500 active:scale-[0.98] transition-all' : 'border-zinc-800'}`}>
+              <div className={`text-2xl font-extrabold ${s.color}`}>{s.value}</div>
+              <div className="text-xs font-semibold text-zinc-400 mt-0.5">{s.label}</div>
+              <div className="text-xs text-zinc-600">{s.sub}</div>
+            </div>
+          )
+        })}
       </div>
 
       {/* Capacity bar */}
@@ -464,9 +476,16 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
       {/* ── APPROVED ── */}
       {(() => {
         const noShows = approved.filter(a => !a.checkedIn)
-        const visibleApproved = attendeeView === 'checkedin' ? approved.filter(a => a.checkedIn)
+        const byCheckin = attendeeView === 'checkedin' ? approved.filter(a => a.checkedIn)
           : attendeeView === 'noshows' ? noShows
           : approved
+        // Payment filter stacks on top. Staff never owe, so they only show
+        // under 'all'.
+        const visibleApproved = payView === 'paid'
+          ? byCheckin.filter(a => !a.isStaff && payments[a.userId]?.status === 'paid')
+          : payView === 'unpaid'
+          ? byCheckin.filter(a => !a.isStaff && payments[a.userId]?.status !== 'paid')
+          : byCheckin
         return (
       <div className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
         <SectionHeader
@@ -475,6 +494,16 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
           color="bg-green-500/20 text-green-400"
         >
           <div className="flex items-center gap-2">
+            {trackPayments && approved.length > 0 && (
+              <div className="flex rounded-lg overflow-hidden border border-zinc-700 text-xs font-semibold">
+                {(['all', 'paid', 'unpaid'] as const).map(v => (
+                  <button key={v} onClick={() => setPayView(v)}
+                    className={`px-2.5 py-1.5 transition-colors ${payView === v ? 'bg-zinc-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}>
+                    {v === 'all' ? 'All' : v === 'paid' ? `₺ ${paidCount}` : `Unpaid ${goingCount - paidCount}`}
+                  </button>
+                ))}
+              </div>
+            )}
             {!isPastEvent && approved.length > 0 && (
               <button
                 onClick={() => remindAttendees(approved.length)}
@@ -529,7 +558,9 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
           ? <div className="px-4 py-6 text-center text-zinc-600 text-xs">'No approved attendees yet'</div>
           : visibleApproved.length === 0
           ? <div className="px-4 py-6 text-center text-zinc-600 text-xs">
-              {attendeeView === 'checkedin' ? 'Nobody checked in yet' : 'Everyone showed up!'}
+              {payView === 'paid' ? 'Nobody marked paid yet'
+                : payView === 'unpaid' ? 'Everyone has paid 🎉'
+                : attendeeView === 'checkedin' ? 'Nobody checked in yet' : 'Everyone showed up!'}
             </div>
           : <div className="divide-y divide-zinc-800">
               {visibleApproved.map(a => (
