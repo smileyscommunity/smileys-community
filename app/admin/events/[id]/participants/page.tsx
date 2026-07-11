@@ -257,9 +257,11 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
   const maleCount    = nonStaff.filter(a => a.user.gender === 'male').length
   const maleQuota    = (event as any).maleQuota   as number | null
   const femaleQuota  = (event as any).femaleQuota as number | null
-  // Payment checklist — only when Smileys collects the money for a priced
-  // event. Staff (host/cohosts) don't pay.
-  const trackPayments = event.payTo === 'smileys' && event.price > 0
+  // Payment checklist — any priced event. Smileys-collected events arrive
+  // with pending rows from RSVP; venue-paid events start empty and only get
+  // rows when the admin marks someone paid (markPaid creates on demand), so
+  // the phantom-pending problem can't return. Staff (host/cohosts) don't pay.
+  const trackPayments = event.price > 0
   const paidCount     = trackPayments ? nonStaff.filter(a => payments[a.userId]?.status === 'paid').length : 0
   const outstanding   = trackPayments
     ? nonStaff.reduce((s, a) => payments[a.userId]?.status === 'paid' ? s : s + (payments[a.userId]?.amount ?? event.price), 0)
@@ -529,7 +531,7 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
                 {reminding ? 'Sending…' : `Remind all (${approved.length})`}
               </button>
             )}
-            {(isPastEvent || checkedInCount > 0 || attendeeView !== 'all') && approved.length > 0 && (
+            {approved.length > 0 && (
               <div className="flex rounded-lg overflow-hidden border border-zinc-700 text-xs font-semibold">
                 {(['all', 'checkedin', 'noshows'] as const).map(v => (
                   <button key={v} onClick={() => setAttendeeView(v)}
