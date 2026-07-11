@@ -27,7 +27,7 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
     prisma.event.findMany({
       where:   { status: 'published', date: { gte: today, lte: end } },
       orderBy: [{ date: 'asc' }, { time: 'asc' }],
-      select:  { id: true, title: true, date: true, time: true, neighborhood: true, emoji: true },
+      select:  { id: true, title: true, date: true, time: true, neighborhood: true, emoji: true, spotsLeft: true, totalSpots: true },
     }),
     prisma.club.findMany({
       where:  { isPrivate: false, isActive: true },
@@ -74,7 +74,11 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
     const cards = evs.map(e =>
       card(
         `<a href="${APP_URL}/events/${e.id}?${UTM}" style="color:#111827;font-weight:700;font-size:15px;text-decoration:none">${e.emoji ? `${e.emoji} ` : ''}${esc(e.title)}</a>` +
-        `<div style="color:#92400e;font-size:13px;margin-top:3px">🕖 ${formatTime(e.time)}${e.neighborhood ? ` · 📍 ${esc(e.neighborhood)}` : ''}</div>`,
+        `<div style="color:#92400e;font-size:13px;margin-top:3px">🕖 ${formatTime(e.time)}${e.neighborhood ? ` · 📍 ${esc(e.neighborhood)}` : ''}</div>` +
+        // Urgency nudge — only when scarcity is real (≤3 seats, or ≥80% full).
+        (e.spotsLeft > 0 && (e.spotsLeft <= 3 || (e.totalSpots > 0 && e.spotsLeft / e.totalSpots <= 0.2))
+          ? `<div style="color:#dc2626;font-size:12px;font-weight:700;margin-top:3px">🔥 Only ${e.spotsLeft} spot${e.spotsLeft !== 1 ? 's' : ''} left</div>`
+          : ''),
         '#fffbeb', '#fde68a',
       ),
     ).join('')
@@ -152,7 +156,8 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
       )
     }).join('')
     body += `<h3 style="font-size:17px;margin:20px 0 8px">🛍️ Fresh on the community board</h3>${listingCards}` +
-      `<a href="${APP_URL}/listings?${UTM}" style="display:inline-block;margin:2px 0 0;color:#1d4ed8;font-weight:600;font-size:13px;text-decoration:none">Browse all listings →</a>`
+      `<a href="${APP_URL}/listings?${UTM}" style="display:inline-block;margin:2px 0 0;color:#1d4ed8;font-weight:600;font-size:13px;text-decoration:none">Browse all listings →</a>` +
+      `<div style="color:#6b7280;font-size:12px;margin-top:6px">Hunting for a room or a job? <a href="${APP_URL}/listings?${UTM}" style="color:#1d4ed8;font-weight:600;text-decoration:none">Set an instant alert</a> and get an email the moment one is posted.</div>`
   }
 
   // New-member welcome.
@@ -178,5 +183,11 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
     newMembers.length ? `${newMembers.length} new member${newMembers.length !== 1 ? 's' : ''}` : null,
     listings.length ? 'fresh board listings' : null,
   ].filter(Boolean)
-  return { subject: 'This week at Smileys 📅', bodyHtml: body, preheader: preheaderParts.join(' · ') }
+  // Content-derived subject — identical subjects make Gmail thread the
+  // issues together and readers tune them out. Lead with the soonest event.
+  const lead = events[0].title.length > 40 ? `${events[0].title.slice(0, 39)}…` : events[0].title
+  const subject = events.length > 1
+    ? `This week: ${lead} + ${events.length - 1} more 📅`
+    : `This week: ${lead} 📅`
+  return { subject, bodyHtml: body, preheader: preheaderParts.join(' · ') }
 }
