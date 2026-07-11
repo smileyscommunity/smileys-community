@@ -4,13 +4,14 @@ import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { downscaleImage } from '@/lib/image-resize'
 
+// Values MUST match VALID_REASONS in app/api/reports/route.ts.
 const REASONS = [
-  { value: 'inappropriate_behavior', label: 'Inappropriate behavior',            desc: 'Made others uncomfortable at an event or online' },
-  { value: 'harassment',             label: 'Harassment / uncomfortable interaction', desc: 'Persistent unwanted contact or pressure' },
-  { value: 'fake_profile',           label: 'Fake profile',                      desc: 'Identity appears to be false or misleading' },
-  { value: 'spam',                   label: 'Spam / promotion',                  desc: 'Using Smileys to sell or self-promote' },
-  { value: 'offensive_content',      label: 'Offensive content',                 desc: 'Shared something harmful or disrespectful' },
-  { value: 'other',                  label: 'Other',                             desc: 'Something else not listed here' },
+  { value: 'inappropriate', label: 'Inappropriate behavior',                 desc: 'Made others uncomfortable at an event or online' },
+  { value: 'harassment',    label: 'Harassment / uncomfortable interaction', desc: 'Persistent unwanted contact or pressure' },
+  { value: 'fake',          label: 'Fake profile',                           desc: 'Identity appears to be false or misleading' },
+  { value: 'spam',          label: 'Spam / promotion',                       desc: 'Using Smileys to sell or self-promote' },
+  { value: 'offensive',     label: 'Offensive content',                      desc: 'Shared something harmful or disrespectful' },
+  { value: 'other',         label: 'Other',                                  desc: 'Something else not listed here' },
 ]
 
 const TOTAL_STEPS = 4

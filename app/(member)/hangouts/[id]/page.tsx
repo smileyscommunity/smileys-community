@@ -10,6 +10,7 @@ import SocialShare from '@/components/SocialShare'
 import HangoutJoinButton from '@/components/HangoutJoinButton'
 import HangoutDiscussion from '@/components/HangoutDiscussion'
 import AddToCalendar from '@/components/AddToCalendar'
+import ReportButton from '@/components/ReportButton'
 
 // Read-only permalink for a single hangout. Designed so stale push
 // notifications (cancellation, recap from days ago, third-party links)
@@ -267,6 +268,13 @@ export default async function HangoutPermalinkPage({ params }: PageProps) {
         {/* Share this hangout — the permalink is member-gated, so a non-member
             who opens it is nudged to sign in and can then join. */}
         <SocialShare title={`${hangout.title} — a Smileys hangout`} url={`${APP_URL}/hangouts/${id}`} />
+
+        {/* Report the host — not shown on your own hangout. */}
+        {!isOwner && (
+          <div className="flex justify-center pt-1">
+            <ReportButton reportedId={hangout.user.id} reportedName={hangout.user.name} />
+          </div>
+        )}
       </div>
     </div>
   )

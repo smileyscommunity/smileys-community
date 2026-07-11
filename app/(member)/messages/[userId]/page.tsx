@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { resolveImageUrl, getInitials } from '@/lib/data'
 import { downscaleImage } from '@/lib/image-resize'
+import ReportButton from '@/components/ReportButton'
 
 interface Reaction { userId: string; emoji: string }
 
@@ -278,6 +279,8 @@ export default function ThreadPage({ params }: { params: Promise<{ userId: strin
                 )
               })()}
             </div>
+            {/* Report this conversation partner */}
+            <ReportButton reportedId={otherId} reportedName={partnerName} />
           </>
         )}
       </div>

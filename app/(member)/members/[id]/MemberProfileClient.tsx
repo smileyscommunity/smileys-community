@@ -417,11 +417,14 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
                 <div className="space-y-3">
                   <select required value={reportReason} onChange={e => setReportReason(e.target.value)}
                     className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+                    {/* Canonical reasons — match components/ReportButton +
+                        VALID_REASONS in app/api/reports/route.ts. */}
                     <option value="">Select a reason…</option>
-                    <option value="harassment">Harassment or bullying</option>
-                    <option value="spam">Spam or fake profile</option>
-                    <option value="inappropriate">Inappropriate content</option>
-                    <option value="scam">Scam or fraud</option>
+                    <option value="harassment">Harassment / uncomfortable interaction</option>
+                    <option value="inappropriate">Inappropriate behavior</option>
+                    <option value="fake">Fake profile</option>
+                    <option value="spam">Spam / promotion</option>
+                    <option value="offensive">Offensive content</option>
                     <option value="other">Other</option>
                   </select>
                   <textarea value={reportNote} onChange={e => setReportNote(e.target.value)}
