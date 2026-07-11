@@ -9,6 +9,7 @@ import { APP_URL, SITE_URL } from '@/lib/env'
 import SocialShare from '@/components/SocialShare'
 import HangoutJoinButton from '@/components/HangoutJoinButton'
 import HangoutDiscussion from '@/components/HangoutDiscussion'
+import AddToCalendar from '@/components/AddToCalendar'
 
 // Read-only permalink for a single hangout. Designed so stale push
 // notifications (cancellation, recap from days ago, third-party links)
@@ -125,6 +126,18 @@ export default async function HangoutPermalinkPage({ params }: PageProps) {
   const joinedByMe = hangout.joins.some((j: any) => j.user.id === session.id)
   const isJoinable = hangout.status === 'active' && hangout.endsAt >= new Date()
 
+  // Directions — hangouts store only a text location, so open Maps with a
+  // place search (opens the native maps app on mobile).
+  const mapsQuery = [hangout.location, hangout.neighborhood, 'Istanbul'].filter(Boolean).join(', ')
+  const mapsUrl   = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapsQuery)}`
+
+  // Istanbul wall-clock start/end for Add-to-Calendar (h23 per the ICU gotcha).
+  const tz = 'Europe/Istanbul'
+  const startDate = hangout.startsAt.toLocaleDateString('en-CA', { timeZone: tz })
+  const startTime = hangout.startsAt.toLocaleTimeString('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+  const endDate   = hangout.endsAt.toLocaleDateString('en-CA', { timeZone: tz })
+  const endTime   = hangout.endsAt.toLocaleTimeString('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+
   return (
     <div className="min-h-screen bg-warm pb-16">
       <div className="max-w-2xl mx-auto px-4 sm:px-6 pt-6 pb-6 space-y-4">
@@ -198,6 +211,27 @@ export default async function HangoutPermalinkPage({ params }: PageProps) {
         ) : isJoinable ? (
           <HangoutJoinButton hangoutId={hangout.id} initialJoined={joinedByMe} />
         ) : null}
+
+        {/* Directions (always, so people can find the spot) + Add to Calendar
+            (upcoming only). Hidden for cancelled hangouts. */}
+        {hangout.status !== 'cancelled' && (
+          <div className="flex items-center justify-center gap-3 flex-wrap">
+            <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 text-sm font-semibold transition-colors">
+              🗺️ Get directions
+            </a>
+            {isJoinable && (
+              <AddToCalendar
+                title={hangout.title}
+                date={startDate} time={startTime}
+                endDate={endDate} endTime={endTime}
+                location={hangout.location}
+                description={hangout.description ?? undefined}
+                url={`${APP_URL}/hangouts/${id}`}
+              />
+            )}
+          </div>
+        )}
 
         {/* Joiners */}
         {hangout.joins.length > 0 && (

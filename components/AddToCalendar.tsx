@@ -6,6 +6,9 @@ interface Props {
   title: string
   date: string
   time: string
+  /** Explicit end (YYYY-MM-DD + HH:MM). If omitted, defaults to start + 2h. */
+  endDate?: string
+  endTime?: string
   location?: string
   description?: string
   url: string
@@ -27,7 +30,7 @@ function toICSDateEnd(date: string, time: string) {
   return `${end.getFullYear()}${pad(end.getMonth()+1)}${pad(end.getDate())}T${pad(end.getHours())}${pad(end.getMinutes())}00`
 }
 
-export default function AddToCalendar({ title, date, time, location, description, url, compact }: Props) {
+export default function AddToCalendar({ title, date, time, endDate, endTime, location, description, url, compact }: Props) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -40,7 +43,8 @@ export default function AddToCalendar({ title, date, time, location, description
   }, [])
 
   const start   = toICSDate(date, time)
-  const end     = toICSDateEnd(date, time)
+  // Use the real end when given (hangouts); otherwise default to +2h (events).
+  const end     = endDate && endTime ? toICSDate(endDate, endTime) : toICSDateEnd(date, time)
   const encoded = encodeURIComponent
 
   const googleUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE` +
