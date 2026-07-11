@@ -8,7 +8,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { toast } from 'sonner'
 import { SkeletonCard, SkeletonCircle, SkeletonLine } from '@/components/Skeleton'
 import MembershipBadge from '@/components/MembershipBadge'
-import posthog from 'posthog-js'
+import ReportButton from '@/components/ReportButton'
 
 interface ReceivedReference {
   id:        string
@@ -126,10 +126,6 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
   const [connId,       setConnId]       = useState<string | null>(null)
   const [connIsReq,    setConnIsReq]    = useState<boolean | null>(null)
   const [menuOpen,     setMenuOpen]     = useState(false)
-  const [reporting,    setReporting]    = useState(false)
-  const [reportSent,   setReportSent]   = useState(false)
-  const [reportReason, setReportReason] = useState('')
-  const [reportNote,   setReportNote]   = useState('')
   const [isSaved,      setIsSaved]      = useState(false)
   const [saving,       setSaving]       = useState(false)
   const [references,   setReferences]   = useState<ReceivedReference[]>([])
@@ -318,17 +314,6 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
     }
   }
 
-  async function handleReport(e: React.FormEvent) {
-    e.preventDefault()
-    if (!reportReason) return
-    await fetch('/app/api/reports', {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reportedId: member!.id, reason: reportReason, details: reportNote }),
-    })
-    posthog.capture('member_reported', { reported_member_id: member!.id, reason: reportReason })
-    setReportSent(true)
-  }
 
   return (
     <div className="min-h-screen bg-warm pb-20">
@@ -371,15 +356,6 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
                 {menuOpen && (
                   <div className="absolute right-0 top-full mt-1.5 w-44 bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden z-50">
                     <button
-                      onClick={() => { setMenuOpen(false); setReporting(true) }}
-                      className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors text-left">
-                      <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9" />
-                      </svg>
-                      Report
-                    </button>
-                    <div className="h-px bg-gray-100" />
-                    <button
                       onClick={() => { setMenuOpen(false); if (!blocking) { blocked ? handleUnblock() : setConfirmingBlock(true) } }}
                       disabled={blocking}
                       className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-red-500 hover:bg-red-50 transition-colors text-left disabled:opacity-50">
@@ -396,56 +372,6 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
         </div>
       </div>
 
-      {/* Report sheet */}
-      {reporting && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-4 pb-4 sm:pb-0">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6">
-            {reportSent ? (
-              <div className="text-center py-4">
-                <p className="text-2xl mb-3">✅</p>
-                <p className="font-bold text-gray-900">Report submitted</p>
-                <p className="text-sm text-gray-600 mt-1">Our team will review it shortly.</p>
-                <button onClick={() => { setReporting(false); setReportSent(false) }}
-                  className="mt-5 w-full py-2.5 rounded-xl bg-gray-100 text-sm font-semibold text-gray-700 hover:bg-gray-200 transition-colors">
-                  Done
-                </button>
-              </div>
-            ) : (
-              <form onSubmit={handleReport}>
-                <h2 className="font-bold text-gray-900 mb-1">Report {member.name.split(' ')[0]}</h2>
-                <p className="text-xs text-gray-400 mb-4">Reports are anonymous and reviewed by our team.</p>
-                <div className="space-y-3">
-                  <select required value={reportReason} onChange={e => setReportReason(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
-                    {/* Canonical reasons — match components/ReportButton +
-                        VALID_REASONS in app/api/reports/route.ts. */}
-                    <option value="">Select a reason…</option>
-                    <option value="harassment">Harassment / uncomfortable interaction</option>
-                    <option value="inappropriate">Inappropriate behavior</option>
-                    <option value="fake">Fake profile</option>
-                    <option value="spam">Spam / promotion</option>
-                    <option value="offensive">Offensive content</option>
-                    <option value="other">Other</option>
-                  </select>
-                  <textarea value={reportNote} onChange={e => setReportNote(e.target.value)}
-                    placeholder="Optional details…" rows={3}
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400" />
-                </div>
-                <div className="flex gap-2 mt-4">
-                  <button type="button" onClick={() => setReporting(false)}
-                    className="flex-1 py-2.5 rounded-xl bg-gray-100 text-sm font-semibold text-gray-700 hover:bg-gray-200 transition-colors">
-                    Cancel
-                  </button>
-                  <button type="submit" disabled={!reportReason}
-                    className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-semibold transition-colors disabled:opacity-40">
-                    Submit report
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
 
       <div className="max-w-2xl mx-auto px-4 pt-6 space-y-5">
         {/* Avatar + name */}
@@ -767,14 +693,7 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
         {/* Block / Report — always visible at the bottom for other members */}
         {!isOwnProfile && (
           <div className="flex items-center justify-center gap-6 py-2 pb-4">
-            <button
-              onClick={() => setReporting(true)}
-              className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors">
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9" />
-              </svg>
-              Report
-            </button>
+            <ReportButton reportedId={member.id} reportedName={member.name} />
             <span className="w-px h-3 bg-gray-200" />
             {confirmingBlock && !blocked ? (
               <div className="flex items-center gap-2">
