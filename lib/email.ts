@@ -785,14 +785,20 @@ function stripHtml(html: string): string {
 // intentionally not escaped; subject is sanitised to block header injection.
 // NB: no `tags` — Resend's Batch API rejects per-email tags, and this must be
 // identical between single + batch so both render the same email.
-function buildNewsletterPayload(userId: string, email: string, name: string, subject: string, bodyHtml: string, newsletterId?: string) {
+function buildNewsletterPayload(userId: string, email: string, name: string, subject: string, bodyHtml: string, newsletterId?: string, preheader?: string) {
   const unsub     = unsubscribeUrl(userId, newsletterId)
   const firstName = esc(name.split(' ')[0])
+  // Hidden preview line inboxes show after the subject; zero-width padding
+  // stops clients from pulling visible body text in after it.
+  const preheaderHtml = preheader
+    ? `<div style="display:none;max-height:0;overflow:hidden">${esc(preheader)}${'&nbsp;&zwnj;'.repeat(40)}</div>`
+    : ''
   return {
     from:    FROM,
     to:      email,
     subject: safeSubject(subject),
     html: `
+      ${preheaderHtml}
       <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto;background:#fff;border-radius:16px;padding:40px 32px;border:1px solid #e5e7eb">
         <div style="margin-bottom:28px">
           <span style="font-size:32px">😊</span>
@@ -830,8 +836,9 @@ function buildNewsletterPayload(userId: string, email: string, name: string, sub
 // Resend email ID for webhook attribution.
 export async function sendNewsletterEmail(
   userId: string, email: string, name: string, subject: string, bodyHtml: string, newsletterId?: string,
+  preheader?: string,
 ): Promise<string> {
-  const { data, error } = await getResend().emails.send(buildNewsletterPayload(userId, email, name, subject, bodyHtml, newsletterId))
+  const { data, error } = await getResend().emails.send(buildNewsletterPayload(userId, email, name, subject, bodyHtml, newsletterId, preheader))
   if (error || !data?.id) throw error ?? new Error('Resend returned no email ID')
   return data.id
 }
@@ -846,6 +853,7 @@ export async function sendNewsletterBatch(
   subject: string,
   bodyHtml: string,
   newsletterId: string,
+  preheader?: string,
 ): Promise<{ sent: number; resendLogs: { newsletterId: string; resendId: string }[]; failed: { email: string; error: string }[] }> {
   const CHUNK = 100
   const resendLogs: { newsletterId: string; resendId: string }[] = []
@@ -854,7 +862,7 @@ export async function sendNewsletterBatch(
 
   for (let i = 0; i < recipients.length; i += CHUNK) {
     const chunk    = recipients.slice(i, i + CHUNK)
-    const payloads = chunk.map(r => buildNewsletterPayload(r.id, r.email, r.name, subject, bodyHtml, newsletterId))
+    const payloads = chunk.map(r => buildNewsletterPayload(r.id, r.email, r.name, subject, bodyHtml, newsletterId, preheader))
     try {
       const { data, error } = await getResend().batch.send(payloads)
       if (error) throw error

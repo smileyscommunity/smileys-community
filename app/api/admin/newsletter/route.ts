@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
     const digest = await buildWeeklyDigest()
     if (!digest) return NextResponse.json({ error: 'No events in the next 7 days — the auto-issue would be skipped' }, { status: 404 })
     try {
-      await sendNewsletterEmail(session.id, me.email, me.name, `[PREVIEW] ${digest.subject}`, digest.bodyHtml, 'test')
+      await sendNewsletterEmail(session.id, me.email, me.name, `[PREVIEW] ${digest.subject}`, digest.bodyHtml, 'test', digest.preheader)
       return NextResponse.json({ ok: true, preview: true, email: me.email })
     } catch {
       return NextResponse.json({ error: 'Preview send failed' }, { status: 500 })

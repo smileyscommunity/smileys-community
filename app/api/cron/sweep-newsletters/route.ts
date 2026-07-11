@@ -115,7 +115,7 @@ async function runAutoDigest(): Promise<string> {
     },
   })
 
-  const { sent, resendLogs, failed } = await sendNewsletterBatch(recipients, digest.subject, digest.bodyHtml, nl.id)
+  const { sent, resendLogs, failed } = await sendNewsletterBatch(recipients, digest.subject, digest.bodyHtml, nl.id, digest.preheader)
   for (const f of failed) {
     recordEmailFailure({ helper: 'sendNewsletterEmail (auto-weekly)', recipient: f.email, error: f.error }).catch(() => {})
   }

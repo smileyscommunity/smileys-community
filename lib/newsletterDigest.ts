@@ -1,6 +1,6 @@
 import { prisma } from './prisma'
 import { APP_URL, SITE_URL } from './env'
-import { todayIstanbul, resolveImageUrl } from './data'
+import { todayIstanbul, resolveImageUrl, formatTime } from './data'
 
 // Server-side builder for the weekly auto-newsletter. Produces the same
 // card markup as the composer's insert buttons (events digest + 3 random
@@ -14,7 +14,7 @@ function card(inner: string): string {
   return `<div style="border:1px solid #f3f4f6;border-radius:12px;padding:12px 16px;margin:0 0 8px;background:#fafafa">${inner}</div>`
 }
 
-export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: string } | null> {
+export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: string; preheader: string } | null> {
   const today = todayIstanbul()
   const end   = todayIstanbul(7)
 
@@ -25,7 +25,7 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
     prisma.event.findMany({
       where:   { status: 'published', date: { gte: today, lte: end } },
       orderBy: [{ date: 'asc' }, { time: 'asc' }],
-      select:  { id: true, title: true, date: true, neighborhood: true, emoji: true },
+      select:  { id: true, title: true, date: true, time: true, neighborhood: true, emoji: true },
     }),
     prisma.club.findMany({
       where:  { isPrivate: false, isActive: true },
@@ -72,7 +72,7 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
     const cards = evs.map(e =>
       card(
         `<a href="${APP_URL}/events/${e.id}?${UTM}" style="color:#111827;font-weight:700;font-size:15px;text-decoration:none">${e.emoji ? `${e.emoji} ` : ''}${esc(e.title)}</a>` +
-        (e.neighborhood ? `<div style="color:#6b7280;font-size:13px;margin-top:3px">📍 ${esc(e.neighborhood)}</div>` : ''),
+        `<div style="color:#6b7280;font-size:13px;margin-top:3px">🕖 ${formatTime(e.time)}${e.neighborhood ? ` · 📍 ${esc(e.neighborhood)}` : ''}</div>`,
       ),
     ).join('')
     return `<p style="color:#b45309;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin:20px 0 8px">${dayLabel}</p>${cards}`
@@ -95,14 +95,21 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
 
   // Week in review — one line of momentum. Zero-valued stats are dropped;
   // if nothing happened at all, the line disappears entirely.
-  const statParts = [
-    eventsHeld     ? `<strong>${eventsHeld}</strong> event${eventsHeld !== 1 ? 's' : ''}` : null,
-    checkins       ? `<strong>${checkins}</strong> check-in${checkins !== 1 ? 's' : ''}` : null,
-    newConnections ? `<strong>${newConnections}</strong> new connection${newConnections !== 1 ? 's' : ''}` : null,
-    newMembers.length ? `<strong>${newMembers.length}</strong> new member${newMembers.length !== 1 ? 's' : ''}` : null,
-  ].filter(Boolean)
-  if (statParts.length) {
-    body += `<p style="color:#6b7280;font-size:13px;margin:0 0 20px">Last week at Smileys: ${statParts.join(' · ')}</p>`
+  const stats = [
+    { n: eventsHeld,        label: eventsHeld === 1 ? 'event' : 'events' },
+    { n: checkins,          label: 'check-ins' },
+    { n: newConnections,    label: 'connections' },
+    { n: newMembers.length, label: newMembers.length === 1 ? 'new member' : 'new members' },
+  ].filter(x => x.n > 0)
+  if (stats.length) {
+    // Table layout — the one structure every mail client renders reliably.
+    const cells = stats.map(x =>
+      `<td style="text-align:center;padding:10px 4px;background:#fffbeb;border-radius:10px">` +
+      `<div style="color:#b45309;font-size:20px;font-weight:800;line-height:1">${x.n}</div>` +
+      `<div style="color:#92400e;font-size:11px;margin-top:3px">${x.label}</div></td>`,
+    ).join('<td style="width:6px"></td>')
+    body += `<p style="color:#9ca3af;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin:0 0 6px">Last week at Smileys</p>` +
+      `<table role="presentation" style="width:100%;border-collapse:separate;margin:0 0 20px"><tr>${cells}</tr></table>`
   }
 
   body += `<h3 style="font-size:17px;margin:0 0 4px">📅 This week's events</h3>${eventSections}`
@@ -160,5 +167,10 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
       )
   }
 
-  return { subject: 'This week at Smileys 📅', bodyHtml: body }
+  const preheaderParts = [
+    `${events.length} event${events.length !== 1 ? 's' : ''} this week`,
+    newMembers.length ? `${newMembers.length} new member${newMembers.length !== 1 ? 's' : ''}` : null,
+    listings.length ? 'fresh board listings' : null,
+  ].filter(Boolean)
+  return { subject: 'This week at Smileys 📅', bodyHtml: body, preheader: preheaderParts.join(' · ') }
 }
