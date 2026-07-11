@@ -11,7 +11,7 @@ const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 const UTM = 'utm_source=newsletter&utm_medium=email'
 
 // Per-section tints so the digest reads as distinct blocks at a glance:
-// amber = events, violet = clubs, teal = board, green = new faces.
+// amber = events, violet = clubs, blue = board, green = new faces.
 function card(inner: string, bg = '#fafafa', border = '#f3f4f6'): string {
   return `<div style="border:1px solid ${border};border-radius:12px;padding:12px 16px;margin:0 0 8px;background:${bg}">${inner}</div>`
 }
@@ -147,12 +147,12 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
       const meta = [CAT_LABEL[l.category] ?? l.category, l.neighborhood, l.price].filter(Boolean).map(x => esc(String(x))).join(' · ')
       return card(
         `<a href="${APP_URL}/listings/${l.id}?${UTM}" style="color:#111827;font-weight:700;font-size:15px;text-decoration:none">${CAT_EMOJI[l.category] ?? '📌'} ${esc(l.title)}</a>` +
-        (meta ? `<div style="color:#0f766e;font-size:13px;margin-top:3px">${meta}</div>` : ''),
-        '#f0fdfa', '#99f6e4',
+        (meta ? `<div style="color:#1d4ed8;font-size:13px;margin-top:3px">${meta}</div>` : ''),
+        '#eff6ff', '#bfdbfe',
       )
     }).join('')
     body += `<h3 style="font-size:17px;margin:20px 0 8px">🛍️ Fresh on the community board</h3>${listingCards}` +
-      `<a href="${APP_URL}/listings?${UTM}" style="display:inline-block;margin:2px 0 0;color:#0f766e;font-weight:600;font-size:13px;text-decoration:none">Browse all listings →</a>`
+      `<a href="${APP_URL}/listings?${UTM}" style="display:inline-block;margin:2px 0 0;color:#1d4ed8;font-weight:600;font-size:13px;text-decoration:none">Browse all listings →</a>`
   }
 
   // New-member welcome.
