@@ -12,6 +12,9 @@ const UTM = 'utm_source=newsletter&utm_medium=email'
 
 // Per-section tints so the digest reads as distinct blocks at a glance:
 // amber = events, violet = clubs, blue = board, green = new faces.
+// Thin section divider — email-safe hr.
+const DIVIDER = `<hr style="border:none;border-top:1px solid #e5e7eb;margin:22px 0 18px">`
+
 function card(inner: string, bg = '#fafafa', border = '#f3f4f6'): string {
   return `<div style="border:1px solid ${border};border-radius:12px;padding:12px 16px;margin:0 0 8px;background:${bg}">${inner}</div>`
 }
@@ -120,7 +123,7 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
       `<table role="presentation" style="width:100%;border-collapse:separate;margin:0 0 20px"><tr>${cells}</tr></table>`
   }
 
-  body += `<h3 style="font-size:17px;margin:0 0 4px">📅 This week's events</h3>${eventSections}`
+  body += `${DIVIDER}<h3 style="font-size:17px;margin:0 0 4px">📅 This week's events</h3>${eventSections}`
 
   // 3 random clubs.
   const picks = [...clubs].sort(() => Math.random() - 0.5).slice(0, 3)
@@ -133,7 +136,7 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
         '#f5f3ff', '#ddd6fe',
       )
     }).join('')
-    body += `<h3 style="font-size:17px;margin:20px 0 8px">✨ Clubs to check out</h3>${clubCards}`
+    body += `${DIVIDER}<h3 style="font-size:17px;margin:0 0 8px">✨ Clubs to check out</h3>${clubCards}`
   }
 
   // Community board — pull-based discovery otherwise; this gives the
@@ -156,7 +159,7 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
         '#eff6ff', '#bfdbfe',
       )
     }).join('')
-    body += `<h3 style="font-size:17px;margin:20px 0 8px">🛍️ Fresh on the community board</h3>${listingCards}` +
+    body += `${DIVIDER}<h3 style="font-size:17px;margin:0 0 8px">🛍️ Fresh on the community board</h3>${listingCards}` +
       `<a href="${APP_URL}/listings?${UTM}" style="display:inline-block;margin:2px 0 0;color:#1d4ed8;font-weight:600;font-size:13px;text-decoration:none">Browse all listings →</a>` +
       `<div style="color:#6b7280;font-size:12px;margin-top:6px">Hunting for a room or a job? <a href="${APP_URL}/listings?${UTM}" style="color:#1d4ed8;font-weight:600;text-decoration:none">Set an instant alert</a> and get an email the moment one is posted.</div>`
   }
@@ -171,7 +174,7 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
       : shown.length > 1
         ? `${shown.slice(0, -1).join(', ')} and ${shown[shown.length - 1]}`
         : shown[0]
-    body += `<h3 style="font-size:17px;margin:20px 0 8px">👋 New faces this week</h3>` +
+    body += `${DIVIDER}<h3 style="font-size:17px;margin:0 0 8px">👋 New faces this week</h3>` +
       card(
         `<div style="color:#374151;font-size:14px">${who} joined Smileys this week — say hi when you see them at an event!</div>` +
         `<a href="${APP_URL}/members?${UTM}" style="display:inline-block;margin-top:6px;color:#15803d;font-weight:600;font-size:13px;text-decoration:none">Meet the members →</a>`,
@@ -181,7 +184,7 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
 
   // Closing invite nudge — growth happens friend by friend; every issue
   // ends with the referral door open.
-  body += `<div style="margin-top:20px;padding:14px 16px;background:#fffbeb;border:1px solid #fde68a;border-radius:12px">` +
+  body += DIVIDER + `<div style="margin-top:0;padding:14px 16px;background:#fffbeb;border:1px solid #fde68a;border-radius:12px">` +
     `<div style="color:#374151;font-size:14px">Know someone who'd love Smileys? Great communities grow friend by friend.</div>` +
     `<a href="${APP_URL}/invite?${UTM}" style="display:inline-block;margin-top:6px;color:#b45309;font-weight:700;font-size:13px;text-decoration:none">💛 Invite a friend →</a>` +
     `</div>`
