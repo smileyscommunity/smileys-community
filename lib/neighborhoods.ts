@@ -1,5 +1,3 @@
-import { ISTANBUL_NEIGHBORHOODS } from './data'
-
 export function neighborhoodToSlug(name: string): string {
   return name
     .toLowerCase()
@@ -147,6 +145,12 @@ export const NEIGHBORHOOD_META: Record<string, NeighborhoodMeta> = {
   'Maçka':          { emoji: '🌳', vibe: 'Park & upscale calm',              side: 'Central',  cost: 3, lat: 41.0455, lon: 28.9938 },
   'Kurtuluş':       { emoji: '🌈', vibe: 'Historic & multicultural',         side: 'Central',  cost: 2, lat: 41.0553, lon: 28.9787 },
 }
+
+// The one and only neighborhood name list, derived from the META keys (author
+// order) so it can never fall out of sync with the directory/search. Adding a
+// neighborhood = adding a single NEIGHBORHOOD_META entry above. Re-exported by
+// lib/data.ts as ISTANBUL_NEIGHBORHOODS for existing importers.
+export const ISTANBUL_NEIGHBORHOODS: string[] = Object.keys(NEIGHBORHOOD_META)
 
 export function getNeighborhoodMeta(name: string): NeighborhoodMeta {
   return NEIGHBORHOOD_META[name] ?? { emoji: '📍', vibe: 'Explore Istanbul', side: 'European', cost: 2, lat: 41.0082, lon: 28.9784 }

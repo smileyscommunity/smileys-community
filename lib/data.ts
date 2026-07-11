@@ -1,34 +1,9 @@
-export const ISTANBUL_NEIGHBORHOODS = [
-  // Central social hubs
-  'Kadıköy', 'Moda', 'Beşiktaş', 'Beyoğlu',
-  'Karaköy', 'Galata', 'Cihangir', 'Nişantaşı', 'Teşvikiye', 'Taksim', 'Ortaköy', 'Balat',
-  // European side
-  'Şişli', 'Levent', 'Maslak', 'Etiler', 'Bomonti', 'Bebek',
-  'Arnavutköy', 'Fener', 'Eminönü', 'Sultanahmet', 'Fındıklı',
-  'Kabataş', 'Fulya', 'Gayrettepe', 'Mecidiyeköy', 'Ulus',
-  'Pierre Loti', 'Fatih', 'Aksaray', 'Eyüpsultan', 'Bakırköy', 'Zeytinburnu',
-  // Asian side
-  'Üsküdar', 'Kuzguncuk', 'Beylerbeyi', 'Çengelköy', 'Acıbadem',
-  'Altunizade', 'Fenerbahçe', 'Feneryolu', 'Caddebostan',
-  'Suadiye', 'Erenköy', 'Kozyatağı', 'Göztepe', 'Bostancı',
-  // Coastal
-  'Sarıyer', 'Tarabya', 'Yeniköy', 'Zekeriyaköy', 'Emirgan',
-  'Rumeli Hisarı', 'İstinye', 'Ataköy', 'Yeşilköy', 'Florya',
-  // Islands
-  'Büyükada', 'Heybeliada', 'Burgazada', 'Kınalıada',
-  // Emerging / residential — European
-  'Kağıthane', 'Alibeyköy', 'Kemerburgaz', 'Göktürk', 'Bahçeşehir',
-  'Güngören', 'Gaziosmanpaşa', 'Başakşehir', 'Beylikdüzü',
-  'Büyükçekmece', 'Küçükçekmece', 'Esenyurt', 'Bağcılar', 'Bahçelievler',
-  // Emerging / residential — Asian
-  'Ümraniye', 'Maltepe', 'Kartal', 'Pendik', 'Tuzla', 'Dragos',
-  'Çekmeköy', 'Sancaktepe', 'Yakacık', 'Ataşehir',
-  'İçerenköy', 'Kayışdağı', 'Cevizli', 'İdealtepe', 'Aydos',
-  // Legacy / less common (kept for backward-compat)
-  'Avcılar', 'Beykoz', 'Bayrampaşa', 'Çatalca', 'Esenler', 'Galataport',
-  'Kurtuluş', 'Maçka', 'Silivri', 'Sultanbeyli',
-  'Sultangazi', 'Şile',
-] as const
+// Istanbul neighborhoods have a SINGLE source of truth: NEIGHBORHOOD_META in
+// lib/neighborhoods.ts. The name list is derived from its keys (see there), so
+// the picker list and the directory/search can never drift — a neighborhood
+// exists iff it has a META entry. Re-exported here for the many callers that
+// import ISTANBUL_NEIGHBORHOODS from '@/lib/data'.
+export { ISTANBUL_NEIGHBORHOODS } from './neighborhoods'
 
 export const CLUB_CATEGORIES = [
   'Outdoor', 'Social', 'Food & Drinks', 'Nightlife', 'Networking', 'Business',
