@@ -84,7 +84,7 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
     ).join('')
     return `<p style="color:#b45309;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin:20px 0 8px">${dayLabel}</p>${cards}`
   }).join('')
-  // Warm opener — the wrapper contributes "Hi <FirstName>,», this follows it.
+  // Warm opener — the wrapper contributes "Hi <FirstName>," — this follows it.
   let body = `<p style="color:#374151;font-size:14px;line-height:1.6;margin:0 0 16px">Happy Monday! Here are the latest activities we think you'll enjoy — our amazing hosts are ready to welcome you. Have a wonderful week 💛</p>`
 
   // Photo of the week — the most recent upload from the best-attended event
