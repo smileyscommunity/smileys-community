@@ -333,12 +333,16 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
   )
 
   const hasCoords    = event.lat != null && event.lng != null
+  // Directions link — always resolvable so every event gets one (the map still
+  // needs coords, but a Maps search only needs text). Priority: online meeting
+  // URL → street address → exact coords → a place search on location +
+  // neighborhood (same fallback hangouts use).
   const mapsHref      = event.meetingUrl
     ?? (event.address
       ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.address + ', Istanbul')}`
       : hasCoords
       ? `https://www.google.com/maps/search/?api=1&query=${event.lat},${event.lng}`
-      : undefined)
+      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([event.location, event.neighborhood, 'Istanbul'].filter(Boolean).join(', '))}`)
 
   const fillPercent = event.totalSpots > 0 ? (totalAttendeeCount / event.totalSpots) * 100 : 0
   const canSeeLocation = true
@@ -719,17 +723,17 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
             <h2 className="text-base font-bold text-gray-900 mb-3">About this event</h2>
             <div className="rich-content text-sm text-gray-600 leading-relaxed" dangerouslySetInnerHTML={{ __html: sanitize(event.description ?? '') }} />
 
-            {hasCoords && canSeeLocation && (
+            {canSeeLocation && mapsHref && (
               <div className="mt-6 space-y-3">
                 <div className="flex items-center justify-between">
                   <h2 className="text-base font-bold text-gray-900">Location</h2>
-                  {mapsHref && (
-                    <a href={mapsHref} target="_blank" rel="noopener noreferrer" className="text-xs text-amber-600 font-bold underline underline-offset-2">
-                      View on Google Maps →
-                    </a>
-                  )}
+                  <a href={mapsHref} target="_blank" rel="noopener noreferrer" className="text-xs text-amber-600 font-bold underline underline-offset-2">
+                    {event.meetingUrl ? 'Join online →' : 'Get directions →'}
+                  </a>
                 </div>
-                <EventLocationMap lat={event.lat!} lng={event.lng!} href={mapsHref} />
+                {/* Map only when we have coordinates; the directions link above
+                    works for address/location-only events too. */}
+                {hasCoords && <EventLocationMap lat={event.lat!} lng={event.lng!} href={mapsHref} />}
               </div>
             )}
 
