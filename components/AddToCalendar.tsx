@@ -6,12 +6,12 @@ interface Props {
   title: string
   date: string
   time: string
-  /** Explicit end (YYYY-MM-DD + HH:MM). If omitted, defaults to start + 2h. */
-  endDate?: string
-  endTime?: string
   location?: string
   description?: string
   url: string
+  // Real end time (HH:MM) when the event has one; exports fall back to a
+  // 2-hour duration otherwise.
+  endTime?: string | null
   compact?: boolean
 }
 
@@ -23,14 +23,17 @@ function toICSDate(date: string, time: string) {
   return `${y}${pad(m)}${pad(d)}T${pad(h)}${pad(min)}00`
 }
 
-function toICSDateEnd(date: string, time: string) {
+function toICSDateEnd(date: string, time: string, endTime?: string | null) {
   const [y, m, d] = date.split('-').map(Number)
   const [h, min]  = time.split(':').map(Number)
-  const end = new Date(y, m - 1, d, h + 2, min)
+  const [eh, emin] = endTime?.match(/^\d{1,2}:\d{2}$/) ? endTime.split(':').map(Number) : [h + 2, min]
+  // endTime before start = past midnight; roll to the next day.
+  const dayShift = endTime && (eh < h || (eh === h && emin <= min)) ? 1 : 0
+  const end = new Date(y, m - 1, d + dayShift, eh, emin)
   return `${end.getFullYear()}${pad(end.getMonth()+1)}${pad(end.getDate())}T${pad(end.getHours())}${pad(end.getMinutes())}00`
 }
 
-export default function AddToCalendar({ title, date, time, endDate, endTime, location, description, url, compact }: Props) {
+export default function AddToCalendar({ title, date, time, location, description, url, endTime, compact }: Props) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -43,8 +46,7 @@ export default function AddToCalendar({ title, date, time, endDate, endTime, loc
   }, [])
 
   const start   = toICSDate(date, time)
-  // Use the real end when given (hangouts); otherwise default to +2h (events).
-  const end     = endDate && endTime ? toICSDate(endDate, endTime) : toICSDateEnd(date, time)
+  const end     = toICSDateEnd(date, time, endTime)
   const encoded = encodeURIComponent
 
   const googleUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE` +

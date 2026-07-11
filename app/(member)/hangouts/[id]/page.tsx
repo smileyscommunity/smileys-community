@@ -131,11 +131,11 @@ export default async function HangoutPermalinkPage({ params }: PageProps) {
   const mapsQuery = [hangout.location, hangout.neighborhood, 'Istanbul'].filter(Boolean).join(', ')
   const mapsUrl   = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapsQuery)}`
 
-  // Istanbul wall-clock start/end for Add-to-Calendar (h23 per the ICU gotcha).
+  // Istanbul wall-clock start + end time for Add-to-Calendar (h23 per the ICU
+  // gotcha). AddToCalendar rolls the end to the next day if it's before start.
   const tz = 'Europe/Istanbul'
   const startDate = hangout.startsAt.toLocaleDateString('en-CA', { timeZone: tz })
   const startTime = hangout.startsAt.toLocaleTimeString('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
-  const endDate   = hangout.endsAt.toLocaleDateString('en-CA', { timeZone: tz })
   const endTime   = hangout.endsAt.toLocaleTimeString('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
 
   return (
@@ -223,8 +223,7 @@ export default async function HangoutPermalinkPage({ params }: PageProps) {
             {isJoinable && (
               <AddToCalendar
                 title={hangout.title}
-                date={startDate} time={startTime}
-                endDate={endDate} endTime={endTime}
+                date={startDate} time={startTime} endTime={endTime}
                 location={hangout.location}
                 description={hangout.description ?? undefined}
                 url={`${APP_URL}/hangouts/${id}`}
