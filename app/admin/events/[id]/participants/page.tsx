@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, use } from 'react'
+import { useState, useEffect, useRef, use } from 'react'
 import { confirmToast } from '@/lib/confirmToast'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -55,6 +55,10 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
   // control on the Approved section (only rendered for Smileys-collected
   // priced events).
   const [payView,        setPayView]        = useState<'all' | 'paid' | 'unpaid'>('all')
+  // Turkish-male quota filter — toggled by tapping the 🇹🇷 tile.
+  const [trOnly,         setTrOnly]         = useState(false)
+  const pendingRef  = useRef<HTMLDivElement>(null)
+  const waitlistRef = useRef<HTMLDivElement>(null)
   const [notifying,      setNotifying]      = useState(false)
   const [reminding,      setReminding]      = useState(false)
 
@@ -288,10 +292,16 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
       {/* Stats */}
       <div className={`grid gap-2 grid-cols-2 sm:grid-cols-4 ${['lg:grid-cols-4', 'lg:grid-cols-5', 'lg:grid-cols-6'][(turkishMaleQuota ? 1 : 0) + (trackPayments ? 1 : 0)]}`}>
         {[
-          { label: 'Going',      value: goingCount,         color: 'text-white',        sub: `/ ${event.totalSpots}` },
-          { label: 'Checked in', value: checkedInCount,     color: 'text-green-400',    sub: `${Math.round((checkedInCount / Math.max(goingCount,1))*100)}%` },
-          { label: 'Pending',    value: pending.length,     color: pending.length  > 0 ? 'text-amber-400'  : 'text-zinc-600', sub: 'needs action' },
-          { label: 'Waitlist',   value: waitlist.length,    color: waitlist.length > 0 ? 'text-violet-400' : 'text-zinc-600', sub: 'in queue' },
+          { label: 'Going',      value: goingCount,         color: 'text-white',
+            sub: (payView !== 'all' || attendeeView !== 'all' || trOnly) ? 'tap to clear filters' : `/ ${event.totalSpots}`,
+            onClick: () => { setPayView('all'); setAttendeeView('all'); setTrOnly(false) } },
+          { label: 'Checked in', value: checkedInCount,     color: 'text-green-400',
+            sub: attendeeView === 'all' ? `${Math.round((checkedInCount / Math.max(goingCount,1))*100)}%` : `showing ${attendeeView === 'checkedin' ? 'checked-in' : 'no-shows'} ↓`,
+            onClick: () => setAttendeeView(v => v === 'all' ? 'checkedin' : v === 'checkedin' ? 'noshows' : 'all') },
+          { label: 'Pending',    value: pending.length,     color: pending.length  > 0 ? 'text-amber-400'  : 'text-zinc-600', sub: 'needs action',
+            onClick: () => pendingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) },
+          { label: 'Waitlist',   value: waitlist.length,    color: waitlist.length > 0 ? 'text-violet-400' : 'text-zinc-600', sub: 'in queue',
+            onClick: () => waitlistRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) },
           ...(trackPayments ? [{
             label: '₺ Paid',
             value: paidCount,
@@ -303,7 +313,8 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
             label: '🇹🇷 TR male',
             value: turkishMaleCount,
             color: turkishMaleCount >= turkishMaleQuota ? 'text-red-400' : 'text-blue-400',
-            sub: `/ ${turkishMaleQuota} max`,
+            sub: trOnly ? 'showing TR ♂ ↓' : `/ ${turkishMaleQuota} max`,
+            onClick: () => setTrOnly(v => !v),
           }] : []),
         ].map(s => {
           const clickable = 'onClick' in s && typeof (s as { onClick?: () => void }).onClick === 'function'
@@ -311,7 +322,7 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
             <div key={s.label}
               onClick={clickable ? (s as { onClick: () => void }).onClick : undefined}
               role={clickable ? 'button' : undefined}
-              title={clickable ? 'Tap to filter the list: all → unpaid → paid' : undefined}
+              title={clickable ? 'Tap to filter or jump to the list' : undefined}
               className={`bg-zinc-900 rounded-xl border p-3 text-center ${clickable ? 'cursor-pointer border-amber-500/40 hover:border-amber-500 active:scale-[0.98] transition-all' : 'border-zinc-800'}`}>
               <div className={`text-2xl font-extrabold ${s.color}`}>{s.value}</div>
               <div className="text-xs font-semibold text-zinc-400 mt-0.5">{s.label}</div>
@@ -437,7 +448,7 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
 
       {/* ── PENDING ── */}
       {(pending.length > 0 || pending.length > 0) && (
-        <div className="bg-zinc-900 rounded-2xl border border-amber-500/30 overflow-hidden">
+        <div ref={pendingRef} className="bg-zinc-900 rounded-2xl border border-amber-500/30 overflow-hidden">
           <SectionHeader title="Pending approval" count={pending.length} color="bg-amber-500/20 text-amber-400">
             {pending.length > 0 && (
               <button onClick={() => pending.forEach(a => approveAttendee(a.userId))}
@@ -481,11 +492,14 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
           : approved
         // Payment filter stacks on top. Staff never owe, so they only show
         // under 'all'.
-        const visibleApproved = payView === 'paid'
+        const byPay = payView === 'paid'
           ? byCheckin.filter(a => !a.isStaff && payments[a.userId]?.status === 'paid')
           : payView === 'unpaid'
           ? byCheckin.filter(a => !a.isStaff && payments[a.userId]?.status !== 'paid')
           : byCheckin
+        const visibleApproved = trOnly
+          ? byPay.filter(a => a.user.gender === 'male' && a.user.nationality === 'Turkey')
+          : byPay
         return (
       <div className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
         <SectionHeader
@@ -515,7 +529,7 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
                 {reminding ? 'Sending…' : `Remind all (${approved.length})`}
               </button>
             )}
-            {isPastEvent && checkedInCount > 0 && (
+            {(isPastEvent || checkedInCount > 0 || attendeeView !== 'all') && approved.length > 0 && (
               <div className="flex rounded-lg overflow-hidden border border-zinc-700 text-xs font-semibold">
                 {(['all', 'checkedin', 'noshows'] as const).map(v => (
                   <button key={v} onClick={() => setAttendeeView(v)}
@@ -618,7 +632,7 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
       })()}
 
       {/* ── WAITLIST ── */}
-      <div className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
+      <div ref={waitlistRef} className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
         <SectionHeader title="Waitlist" count={waitlist.length} color="bg-violet-500/20 text-violet-400">
           {waitlist.length > 0 && event.spotsLeft > 0 && (
             <button onClick={() => waitlist.slice(0, event.spotsLeft).forEach(promote)}
