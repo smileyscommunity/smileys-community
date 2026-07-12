@@ -668,41 +668,9 @@ export default function HangoutsPage() {
           )
         })()}
 
-        {/* Regulars — top hosts this month. Social reward + newcomer signal. */}
-        {!loading && regulars.length > 0 && (
-          <div className="pt-2">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 px-1">Most active hosts this month</p>
-            <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1">
-              {regulars.map((r, i) => {
-                const photo = r.profilePhoto ? avatarUrl(r.profilePhoto, 128) : null
-                return (
-                  <Link key={r.id} href={`/members/${r.id}`}
-                        className="flex flex-col items-center gap-1.5 min-w-[64px] group">
-                    <div className="relative">
-                      {photo
-                        ? <img src={photo} alt={r.name} className="w-14 h-14 rounded-full object-cover border-2 border-white shadow-sm group-hover:ring-2 group-hover:ring-amber-400 transition-all" />
-                        : <div className="w-14 h-14 rounded-full flex items-center justify-center text-white text-sm font-bold border-2 border-white shadow-sm group-hover:ring-2 group-hover:ring-amber-400 transition-all"
-                               style={{ backgroundColor: r.color }}>
-                            {getInitials(r.name)}
-                          </div>
-                      }
-                      <span className="absolute -bottom-0.5 -right-0.5 bg-amber-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-sm">
-                        {i + 1}
-                      </span>
-                    </div>
-                    <p className="text-xs font-medium text-gray-700 text-center leading-tight max-w-[64px] truncate group-hover:text-amber-600 transition-colors">
-                      {r.name.split(' ')[0]}
-                    </p>
-                    <p className="text-[10px] text-gray-400">{r.count} hosted</p>
-                  </Link>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
         {/* Just happened — expired hangouts from the last 48h. Social proof
-            that the feature is alive; also creates FOMO for newcomers. */}
+            that the feature is alive; also creates FOMO for newcomers.
+            Sits above "most active hosts" so the freshest activity leads. */}
         {!loading && recentHangouts.length > 0 && (
           <div className="pt-2">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 px-1">Just happened</p>
@@ -734,6 +702,39 @@ export default function HangoutsPage() {
                       </p>
                     </div>
                   </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Regulars — top hosts this month. Social reward + newcomer signal. */}
+        {!loading && regulars.length > 0 && (
+          <div className="pt-2">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 px-1">Most active hosts this month</p>
+            <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1">
+              {regulars.map((r, i) => {
+                const photo = r.profilePhoto ? avatarUrl(r.profilePhoto, 128) : null
+                return (
+                  <Link key={r.id} href={`/members/${r.id}`}
+                        className="flex flex-col items-center gap-1.5 min-w-[64px] group">
+                    <div className="relative">
+                      {photo
+                        ? <img src={photo} alt={r.name} className="w-14 h-14 rounded-full object-cover border-2 border-white shadow-sm group-hover:ring-2 group-hover:ring-amber-400 transition-all" />
+                        : <div className="w-14 h-14 rounded-full flex items-center justify-center text-white text-sm font-bold border-2 border-white shadow-sm group-hover:ring-2 group-hover:ring-amber-400 transition-all"
+                               style={{ backgroundColor: r.color }}>
+                            {getInitials(r.name)}
+                          </div>
+                      }
+                      <span className="absolute -bottom-0.5 -right-0.5 bg-amber-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-sm">
+                        {i + 1}
+                      </span>
+                    </div>
+                    <p className="text-xs font-medium text-gray-700 text-center leading-tight max-w-[64px] truncate group-hover:text-amber-600 transition-colors">
+                      {r.name.split(' ')[0]}
+                    </p>
+                    <p className="text-[10px] text-gray-400">{r.count} hosted</p>
+                  </Link>
                 )
               })}
             </div>
