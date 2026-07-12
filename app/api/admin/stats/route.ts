@@ -211,9 +211,9 @@ export async function GET() {
     // Oldest → newest, 7 days. Drives the dashboard RSVP sparkline.
     rsvpsByDay: rsvpsByDayCounts as number[],
     // Deploy metadata — release is baked at build time (deploy.sh sets
-    // SENTRY_RELEASE=$(git rev-parse --short HEAD)); uptimeSeconds gives
+    // APP_RELEASE=$(git rev-parse --short HEAD)); uptimeSeconds gives
     // time since pm2 restart ≈ time since deploy.
-    release:        process.env.SENTRY_RELEASE ?? null,
+    release:        process.env.APP_RELEASE ?? null,
     uptimeSeconds:  Math.round(process.uptime()),
   })
 }

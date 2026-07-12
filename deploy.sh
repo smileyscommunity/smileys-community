@@ -4,7 +4,7 @@ set -e
 SERVER="${SMILEYS_DEPLOY_SERVER:-root@178.105.37.133}"
 REMOTE="/root/smileys-community"
 LOCAL="/Users/nate/smileys-community"
-SENTRY_RELEASE=$(git rev-parse --short HEAD)
+APP_RELEASE=$(git rev-parse --short HEAD)
 
 # Safety check: rsync --delete will wipe the remote if LOCAL is empty/missing.
 # Verify the working copy has the expected anchor files before we trust it.
@@ -26,11 +26,11 @@ echo "→ Checking for vulnerabilities..."
 npm audit --audit-level=high --legacy-peer-deps || { echo "✗ npm audit found high/critical vulnerabilities — fix before deploying"; exit 1; }
 
 if [ -z "$SKIP_BUILD" ]; then
-  echo "→ Building locally (release: $SENTRY_RELEASE)..."
+  echo "→ Building locally (release: $APP_RELEASE)..."
   # Preserve .next/cache (webpack incremental cache) — nuking it forces a full
   # cold build every deploy and causes OOM kills on low-memory machines.
   find "$LOCAL/.next" -mindepth 1 -maxdepth 1 ! -name 'cache' -exec rm -rf {} + 2>/dev/null || true
-  SENTRY_RELEASE="$SENTRY_RELEASE" npm run build
+  APP_RELEASE="$APP_RELEASE" npm run build
 else
   echo "→ Skipping build (SKIP_BUILD set, using existing .next)..."
 fi
@@ -145,4 +145,4 @@ ssh "$SERVER" "cd $REMOTE && npx tsx --env-file=.env scripts/seed-cup.ts"
 echo "→ Overlaying real FIFA schedule on group fixtures..."
 ssh "$SERVER" "cd $REMOTE && npx tsx --env-file=.env scripts/fix-group-fixtures.ts"
 
-echo "✓ Done (release: $SENTRY_RELEASE)"
+echo "✓ Done (release: $APP_RELEASE)"
