@@ -29,6 +29,9 @@ export interface CommunitySettings {
   // so the renderer can do something better than a wall of text.
   // Capped at 12 rules — past that, nobody reads.
   communityRules?: CommunityRule[]
+  // Membership intake switch. false = applications paused (apply page shows a
+  // closed notice, the submit API rejects). Undefined/true = open (default).
+  applicationsOpen?: boolean
 }
 
 const SETTINGS_PATH = join(process.cwd(), 'data', 'settings.json')
@@ -48,6 +51,11 @@ export function loadCommunitySettings(): CommunitySettings {
   } catch {
     return {}
   }
+}
+
+/** True unless applications have been explicitly paused in /admin/settings. */
+export function areApplicationsOpen(): boolean {
+  return loadCommunitySettings().applicationsOpen !== false
 }
 
 /**

@@ -247,6 +247,10 @@ export async function POST(req: NextRequest) {
       const v = (body as Record<string, unknown>).defaultClubId
       patch.defaultClubId = (typeof v === 'string' && v) ? v.slice(0, 100) : null
     }
+    // Membership intake switch — apply page + submit API read this.
+    if ('applicationsOpen' in body) {
+      patch.applicationsOpen = (body as Record<string, unknown>).applicationsOpen === true
+    }
 
     if (Object.keys(patch).length === 0) {
       return NextResponse.json({ error: 'No valid settings fields' }, { status: 400 })

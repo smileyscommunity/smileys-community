@@ -11,6 +11,7 @@ const REASON_LABELS: Record<string, string> = {
   spam:          'Spam or self-promotion',
   inappropriate: 'Inappropriate content',
   fake:          'Fake profile or impersonation',
+  offensive:     'Offensive content',
   other:         'Other',
 }
 
