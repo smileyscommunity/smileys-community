@@ -808,6 +808,29 @@ export default function HangoutsPage() {
   )
 }
 
+// Shared, once-fetched Istanbul weather for outdoor hangout cards. Cached at
+// module scope so many cards trigger a single open-meteo call (the CSP already
+// allows api.open-meteo.com). Current conditions — only surfaced on today's
+// hangouts, where "now" weather is actually representative.
+const WCODE: Record<number, string> = {
+  0: '☀️', 1: '🌤️', 2: '⛅', 3: '☁️', 45: '🌫️', 48: '🌫️',
+  51: '🌦️', 53: '🌦️', 55: '🌧️', 61: '🌦️', 63: '🌧️', 65: '🌧️',
+  71: '🌨️', 73: '🌨️', 75: '❄️', 80: '🌦️', 81: '🌧️', 82: '⛈️',
+  95: '⛈️', 96: '⛈️', 99: '⛈️',
+}
+let _wxCache: { temp: number; icon: string } | null = null
+let _wxPromise: Promise<void> | null = null
+function fetchWeatherOnce(): Promise<void> {
+  if (!_wxPromise) {
+    _wxPromise = fetch('https://api.open-meteo.com/v1/forecast?latitude=41.0082&longitude=28.9784&current_weather=true&timezone=Europe%2FIstanbul')
+      .then(r => r.json())
+      .then(d => { const c = d?.current_weather; if (c) _wxCache = { temp: Math.round(c.temperature), icon: WCODE[c.weathercode] ?? '🌤️' } })
+      .catch(() => {})
+  }
+  return _wxPromise
+}
+const OUTDOOR_RE = /\b(picnic|walk|stroll|park|hike|hiking|beach|run|running|jog|cycl|bike|rooftop|garden|bosphorus|outdoor|swim|sail|kayak|frisbee|football|basketball|tennis|padel|climb|ferry|sunset)\b/i
+
 function HangoutCard({ h, currentUser, onCancel, onMutated }: {
   h: Hangout
   // Real user from useAuth — used for ownership check + optimistic
@@ -821,6 +844,14 @@ function HangoutCard({ h, currentUser, onCancel, onMutated }: {
   onMutated: (h: Hangout) => void
 }) {
   const isOwner = h.user.id === currentUser.id
+  // Weather chip: outdoor-keyword hangouts happening today get a live temp.
+  const isOutdoor = OUTDOOR_RE.test(`${h.title} ${h.description ?? ''}`)
+  const isToday   = new Date(h.startsAt).toLocaleDateString('en-CA', { timeZone: 'Europe/Istanbul' })
+                    === new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Istanbul' })
+  const [wx, setWx] = useState<{ temp: number; icon: string } | null>(null)
+  useEffect(() => {
+    if (isOutdoor && isToday) fetchWeatherOnce().then(() => setWx(_wxCache))
+  }, [isOutdoor, isToday])
   // #7 perf: 128-wide avatar thumb on hangouts feed (rendered at
   // w-12 = 48px CSS = retina 96px).
   const avatar  = avatarUrl(h.user.profilePhoto, 128)
@@ -937,7 +968,7 @@ function HangoutCard({ h, currentUser, onCancel, onMutated }: {
             )}
           </div>
           <p className="text-xs text-amber-700 font-semibold mt-0.5">{formatWindow(h.startsAt, h.endsAt)}</p>
-          <p className="text-xs text-gray-600 mt-1.5">📍 {h.location}{h.neighborhood && <span className="text-gray-400"> · {h.neighborhood}</span>}</p>
+          <p className="text-xs text-gray-600 mt-1.5">📍 {h.location}{h.neighborhood && <span className="text-gray-400"> · {h.neighborhood}</span>}{wx && <span className="text-gray-400"> · {wx.icon} {wx.temp}°</span>}</p>
           {h.description && (
             <p className="text-xs text-gray-600 mt-2 whitespace-pre-wrap">{h.description}</p>
           )}
