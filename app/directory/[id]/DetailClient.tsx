@@ -13,6 +13,8 @@ import DirectorySaveButton from '@/components/DirectorySaveButton'
 import DirectoryReportButton from '@/components/DirectoryReportButton'
 import DirectoryOwnerEdit from '@/components/DirectoryOwnerEdit'
 import DirectoryReviews from '@/components/DirectoryReviews'
+import SocialShare from '@/components/SocialShare'
+import { APP_URL } from '@/lib/env'
 
 interface BusinessSummary {
   id: string
@@ -123,6 +125,12 @@ export default function DetailClient({
             <DirectoryReportButton businessId={business.id} businessName={business.name} />
           </div>
         )}
+      </div>
+
+      {/* Share — public (guests included) so members and visitors can spread
+          the word about a business on WhatsApp / social. */}
+      <div className="mt-4">
+        <SocialShare title={business.name} url={`${APP_URL}/directory/${business.id}`} />
       </div>
 
       {/* Reviews drawer — full read/write surface. We open it from
