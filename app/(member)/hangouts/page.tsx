@@ -64,6 +64,7 @@ interface RecentHangout {
   title:        string
   neighborhood: string | null
   endsAt:       string
+  photo:        string | null
   user:         { id: string; name: string; color: string; profilePhoto: string | null }
   joinerCount:  number
   goodRefCount: number
@@ -660,6 +661,14 @@ export default function HangoutsPage() {
             return true
           })
 
+          // "Near you" — float the viewer's own-neighbourhood hangouts to the
+          // top of whatever grouping renders below (stable sort keeps the
+          // existing soonest-first order for everything else).
+          if (user.neighborhood) {
+            filtered.sort((a, b) =>
+              (b.neighborhood === user.neighborhood ? 1 : 0) - (a.neighborhood === user.neighborhood ? 1 : 0))
+          }
+
           // Group by urgency so imminent hangouts lead. Istanbul wall-clock day
           // for the "later today" boundary; each bucket sorted soonest-first.
           const nowMs  = Date.now()
@@ -740,6 +749,7 @@ export default function HangoutsPage() {
                 const hostAvatar = h.user.profilePhoto
                   ? avatarUrl(h.user.profilePhoto, 64)
                   : null
+                const recapPhoto = h.photo ? resolveImageUrl(h.photo) : null
                 const hoursAgo = Math.round((Date.now() - new Date(h.endsAt).getTime()) / 3_600_000)
                 return (
                   <div key={h.id} className="bg-white rounded-2xl shadow-card px-4 py-3 flex items-center gap-3 opacity-80">
@@ -762,6 +772,10 @@ export default function HangoutsPage() {
                         {' · '}{hoursAgo < 1 ? 'just now' : `${hoursAgo}h ago`}
                       </p>
                     </div>
+                    {recapPhoto && (
+                      <img src={recapPhoto} alt="" loading="lazy" decoding="async"
+                        className="w-12 h-12 rounded-lg object-cover shrink-0" />
+                    )}
                   </div>
                 )
               })}
