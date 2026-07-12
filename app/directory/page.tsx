@@ -192,12 +192,17 @@ function BusinessCard({
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col hover:-translate-y-0.5 hover:shadow-md hover:border-gray-200 transition-all duration-200 relative">
       {/* Cover */}
       <div className="relative w-full aspect-[4/3] bg-gray-100">
-        {cover ? (
-          <Image src={cover} alt={b.name} fill sizes="(min-width: 1280px) 240px, (min-width: 1024px) 280px, (min-width: 640px) 320px, 50vw"
-            className="object-cover" />
-        ) : (
-          <div aria-hidden="true" className="w-full h-full flex items-center justify-center text-4xl text-gray-300">🏢</div>
-        )}
+        {/* Cover links to the business. Overlays below (save / badges / logo)
+            come later in the DOM so they render above this link and stay
+            independently clickable. */}
+        <Link href={`/directory/${b.id}`} aria-label={b.name} className="block absolute inset-0">
+          {cover ? (
+            <Image src={cover} alt={b.name} fill sizes="(min-width: 1280px) 240px, (min-width: 1024px) 280px, (min-width: 640px) 320px, 50vw"
+              className="object-cover" />
+          ) : (
+            <div aria-hidden="true" className="w-full h-full flex items-center justify-center text-4xl text-gray-300">🏢</div>
+          )}
+        </Link>
 
         {/* Expat badges */}
         <div className="absolute top-2 left-2 flex flex-col gap-1">
