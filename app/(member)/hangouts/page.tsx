@@ -660,6 +660,29 @@ export default function HangoutsPage() {
             return true
           })
 
+          // Group by urgency so imminent hangouts lead. Istanbul wall-clock day
+          // for the "later today" boundary; each bucket sorted soonest-first.
+          const nowMs  = Date.now()
+          const today  = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Istanbul' })
+          const istDay = (iso: string) => new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Europe/Istanbul' })
+          const weekMs = 7 * 86_400_000
+          const buckets: { key: string; label: string; items: Hangout[] }[] = [
+            { key: 'now',   label: '⚡ Happening now', items: [] },
+            { key: 'today', label: 'Later today',      items: [] },
+            { key: 'week',  label: 'This week',        items: [] },
+            { key: 'later', label: 'Upcoming',         items: [] },
+          ]
+          for (const h of filtered) {
+            const start = new Date(h.startsAt).getTime()
+            const end   = new Date(h.endsAt).getTime()
+            if (start <= nowMs && end > nowMs)     buckets[0].items.push(h)
+            else if (istDay(h.startsAt) === today) buckets[1].items.push(h)
+            else if (start <= nowMs + weekMs)      buckets[2].items.push(h)
+            else                                   buckets[3].items.push(h)
+          }
+          buckets.forEach(b => b.items.sort((a, z) => new Date(a.startsAt).getTime() - new Date(z.startsAt).getTime()))
+          const activeBuckets = buckets.filter(b => b.items.length > 0)
+
           if (filtered.length === 0 && pulses.length === 0) {
             const anyFilterOn = modeFilter !== 'all' || neighborhoodFilter !== null || languageOnly
             return (
@@ -686,9 +709,10 @@ export default function HangoutsPage() {
                   ))}
                 </div>
               )}
-              {filtered.length > 0 && (
-                <div className="space-y-3">
-                  {filtered.map(h => (
+              {activeBuckets.map(b => (
+                <div key={b.key} className="space-y-3">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1">{b.label}</p>
+                  {b.items.map(h => (
                     <HangoutCard
                       key={h.id}
                       h={h}
@@ -700,7 +724,7 @@ export default function HangoutsPage() {
                     />
                   ))}
                 </div>
-              )}
+              ))}
             </>
           )
         })()}
