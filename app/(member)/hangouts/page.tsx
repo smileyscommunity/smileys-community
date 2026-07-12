@@ -160,6 +160,27 @@ export default function HangoutsPage() {
   const [uploading,    setUploading]    = useState(false)
   const [submitting,   setSubmitting]   = useState(false)
 
+  // Quick-start presets — one tap prefills the post form so hosting from an
+  // empty feed feels effortless. Time defaults to the usual near-now window;
+  // the host still picks the spot + neighborhood.
+  const QUICK_STARTS = [
+    { emoji: '☕', label: 'Coffee',  title: 'Coffee ☕',            description: 'Grabbing a coffee — come hang.' },
+    { emoji: '🍺', label: 'Drinks',  title: 'After-work drinks 🍺', description: 'Unwinding with a drink — join in.' },
+    { emoji: '🚶', label: 'Walk',    title: 'Evening walk 🚶',      description: 'Going for a walk — come along.' },
+    { emoji: '🍽️', label: 'Food',    title: 'Grabbing food 🍽️',    description: 'Getting a bite — pull up a chair.' },
+    { emoji: '🎲', label: 'Games',   title: 'Board games 🎲',       description: 'Playing some games — bring your competitive side.' },
+    { emoji: '💻', label: 'Cowork',  title: 'Coworking 💻',         description: 'Working from a café — join for focused company.' },
+  ]
+  function quickStart(p: { title: string; description: string }) {
+    setTitle(p.title)
+    setDescription(p.description)
+    setMeetMode('group')
+    setStartsAt(defaultStartsAt())
+    setEndsAt(defaultEndsAt())
+    setShowPulseForm(false)
+    setShowForm(true)
+  }
+
   // Pulse form
   const [pulseNote,         setPulseNote]         = useState('')
   const [pulseNeighborhood, setPulseNeighborhood] = useState('')
@@ -389,6 +410,22 @@ export default function HangoutsPage() {
             <li className="flex items-start gap-2 text-xs text-amber-900"><span>⭐</span><span>After it ends, leave a recap so hosts build trust over time.</span></li>
           </ul>
         </div>
+
+        {/* Quick-start prompts — one tap prefills + opens the post form so
+            hosting from an empty feed feels effortless. */}
+        {!showForm && !showPulseForm && (
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2 px-1">Start something quick</p>
+            <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+              {QUICK_STARTS.map(p => (
+                <button key={p.label} onClick={() => quickStart(p)}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white border border-gray-200 hover:border-amber-400 hover:bg-amber-50 text-sm font-semibold text-gray-700 whitespace-nowrap shrink-0 transition-colors">
+                  <span>{p.emoji}</span> {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {showForm && (
           <form onSubmit={handleSubmit} className="bg-white border border-gray-100 rounded-2xl p-5 space-y-4 shadow-sm">
