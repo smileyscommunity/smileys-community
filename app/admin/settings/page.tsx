@@ -47,37 +47,51 @@ export default function AdminSettingsPage() {
         // Coerce: array → use as-is, anything else (legacy string /
         // undefined / null) → empty.
         setRules(Array.isArray(communityRules) ? communityRules : [])
-        if (typeof data.applicationsOpen === 'boolean') setApplicationsOpen(data.applicationsOpen)
+        if (typeof data.applicationsOpen === 'boolean')     setApplicationsOpen(data.applicationsOpen)
+        if (typeof data.newApplicationEmails === 'boolean') setNewApplicationEmails(data.newApplicationEmails)
       })
       .catch(() => toast.error('Network error — could not load settings'))
   }, [])
 
-  // Membership intake switch — the one real toggle. When off, the apply page
-  // shows a closed notice and the submit API rejects. Default: open.
-  const [applicationsOpen, setApplicationsOpen] = useState(true)
+  // The two real toggles. applicationsOpen: when off, the apply page shows a
+  // closed notice and the submit API rejects. newApplicationEmails: when off,
+  // admins stop getting an email per new application (in-app ping still fires;
+  // suspicious ones always email). Both default on.
+  const [applicationsOpen,     setApplicationsOpen]     = useState(true)
+  const [newApplicationEmails, setNewApplicationEmails] = useState(true)
 
-  async function flipApplications() {
-    // Optimistic flip with rollback so a failed save doesn't leave the UI
-    // lying about whether intake is open.
-    const next = !applicationsOpen
-    setApplicationsOpen(next)
+  // Optimistic boolean save with rollback so a failed save never leaves the UI
+  // lying about the stored value.
+  async function saveBool(key: string, next: boolean, rollback: () => void, okMsg: string) {
     try {
       const res = await fetch('/app/api/admin/settings', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ applicationsOpen: next }),
+        body: JSON.stringify({ [key]: next }),
       })
       if (!res.ok) {
         const d = await res.json().catch(() => ({}))
-        setApplicationsOpen(!next)
+        rollback()
         toast.error(d?.error ?? 'Failed to save')
       } else {
-        toast.success(next ? 'Applications opened ✓' : 'Applications paused')
+        toast.success(okMsg)
       }
     } catch {
-      setApplicationsOpen(!next)
+      rollback()
       toast.error('Network error — not saved')
     }
+  }
+
+  function flipApplications() {
+    const next = !applicationsOpen
+    setApplicationsOpen(next)
+    saveBool('applicationsOpen', next, () => setApplicationsOpen(!next), next ? 'Applications opened ✓' : 'Applications paused')
+  }
+
+  function flipNewApplicationEmails() {
+    const next = !newApplicationEmails
+    setNewApplicationEmails(next)
+    saveBool('newApplicationEmails', next, () => setNewApplicationEmails(!next), next ? 'Email alerts on ✓' : 'Email alerts muted')
   }
 
   return (
@@ -310,6 +324,36 @@ export default function AdminSettingsPage() {
               <span
                 className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${
                   applicationsOpen ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+        </section>
+
+        {/* Admin email alerts — one real toggle. */}
+        <section className="bg-zinc-900 rounded-2xl border border-zinc-800 p-6">
+          <h2 className="text-white font-bold mb-1">Notifications</h2>
+          <p className="text-xs text-zinc-500 mb-5">
+            New applications always appear in the admin inbox — this only controls the email copy.
+          </p>
+          <div className="flex items-center justify-between py-2">
+            <div>
+              <div className="text-sm font-semibold text-zinc-200">Email me on new applications</div>
+              <div className="text-xs text-zinc-500 mt-0.5">
+                {newApplicationEmails ? 'You get an email for each new application.' : 'Muted — flagged/suspicious ones still email.'}
+              </div>
+            </div>
+            <button
+              onClick={flipNewApplicationEmails}
+              role="switch"
+              aria-checked={newApplicationEmails}
+              className={`relative w-11 h-6 rounded-full transition-colors duration-200 shrink-0 ml-4 ${
+                newApplicationEmails ? 'bg-amber-500' : 'bg-zinc-700'
+              }`}
+            >
+              <span
+                className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${
+                  newApplicationEmails ? 'translate-x-6' : 'translate-x-1'
                 }`}
               />
             </button>

@@ -6,7 +6,7 @@ import { sendApplicationReceivedEmail, sendAdminNewApplicationEmail } from '@/li
 import { rateLimit, getIp } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
 import { verifyTurnstile } from '@/lib/turnstile'
-import { areApplicationsOpen } from '@/lib/communitySettings'
+import { areApplicationsOpen, newApplicationEmailsEnabled } from '@/lib/communitySettings'
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const disposableDomains: string[] = require('disposable-email-domains')
@@ -326,7 +326,9 @@ export async function POST(req: NextRequest) {
 
     Promise.all([
       sendApplicationReceivedEmail(cleanEmail, fullName.trim()),
-      sendAdminNewApplicationEmail(fullName.trim(), cleanEmail),
+      // Admin new-application email respects the mute toggle — but suspicious
+      // applications always email (a security signal you can't silence).
+      ...(newApplicationEmailsEnabled() || isSuspicious ? [sendAdminNewApplicationEmail(fullName.trim(), cleanEmail)] : []),
     ]).catch(e => console.error('Apply email error:', e))
 
     return NextResponse.json({ ok: true })

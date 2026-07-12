@@ -251,6 +251,10 @@ export async function POST(req: NextRequest) {
     if ('applicationsOpen' in body) {
       patch.applicationsOpen = (body as Record<string, unknown>).applicationsOpen === true
     }
+    // Mute admin emails on new applications (in-app notification still fires).
+    if ('newApplicationEmails' in body) {
+      patch.newApplicationEmails = (body as Record<string, unknown>).newApplicationEmails === true
+    }
 
     if (Object.keys(patch).length === 0) {
       return NextResponse.json({ error: 'No valid settings fields' }, { status: 400 })
