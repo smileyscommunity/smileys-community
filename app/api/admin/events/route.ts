@@ -6,6 +6,7 @@ import { isAdmin, isModerator, isClubHost, isClubHostFor } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
 import { todayIstanbul } from '@/lib/data'
 import { computeEventSurveyRollup } from '@/lib/survey'
+import { ensurePendingVenueBusiness } from '@/lib/venueDirectory'
 
 export async function GET(req: NextRequest) {
   try {
@@ -272,6 +273,18 @@ export async function POST(req: NextRequest) {
       },
       include: { tags: { include: { tag: { include: { group: true } } } } },
     })
+
+    // Mirror the venue into the directory as a PENDING listing for admin
+    // review. Once approved, the event page's "View in directory" link matches.
+    // Fire-and-forget — never blocks event creation.
+    ensurePendingVenueBusiness({
+      location:      event.location,
+      neighborhood:  event.neighborhood,
+      address:       event.address,
+      latitude:      event.lat,
+      longitude:     event.lng,
+      submittedById: hostId,
+    }).catch(() => {})
 
     // Notify the assigned host if an admin created the event on their behalf
     if (admin && hostId !== session.id) {
