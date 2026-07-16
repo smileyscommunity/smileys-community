@@ -149,6 +149,13 @@ ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-waitlists.sh && (crontab -l 2>/dev
 echo "→ Registering event-spots sweeper crontab..."
 ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-event-spots.sh && (crontab -l 2>/dev/null | grep -v 'sweep-event-spots' ; echo '35 3 * * * $REMOTE/scripts/sweep-event-spots.sh >> /var/log/sweep-event-spots.log 2>&1') | crontab -"
 
+# Weekly directory-review nudge — one in-app notification to members who
+# checked in at a directory venue but never reviewed it (most-visited
+# venue only, idempotent per member). Wed 09:40 UTC (12:40 Istanbul) —
+# off the Monday digest, midday so a web-push lands at a friendly hour.
+echo "→ Registering review-nudges sweeper crontab..."
+ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-review-nudges.sh && (crontab -l 2>/dev/null | grep -v 'sweep-review-nudges' ; echo '40 9 * * 3 $REMOTE/scripts/sweep-review-nudges.sh >> /var/log/sweep-review-nudges.log 2>&1') | crontab -"
+
 # Hourly payment-reminder sweep — one nudge to unpaid attendees of
 # Smileys-collected events starting within 48h (reminderSentAt stamp
 # guarantees one-and-only-one). Runs at :40 so it never overlaps the
