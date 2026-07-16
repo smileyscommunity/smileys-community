@@ -127,6 +127,12 @@ export async function PUT(req: NextRequest, { params }: Params) {
       rest.paymentContact = contact
     }
 
+    // hostId is required (NOT NULL). A cleared host-search box submits
+    // `hostId: null`, which would blow up prisma.event.update with a
+    // validation error and lose the whole save. Blank means "leave the
+    // host as-is", never "unset it" — so drop it from the update.
+    if ('hostId' in rest && !rest.hostId) delete rest.hostId
+
     // Hosts cannot reassign event ownership or move to an unmanaged club
     if (clubHost) {
       delete rest.hostId

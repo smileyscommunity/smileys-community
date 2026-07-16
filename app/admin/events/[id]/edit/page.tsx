@@ -251,7 +251,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
       refundPolicy: form.refundPolicy || null,
       registrationDeadline: form.registrationDeadline || null,
       clubId:       form.clubId       || null,
-      hostId:       form.hostId       || null,
+      hostId:       form.hostId       || undefined, // required field — omit when blank, never null it out
       lat:  form.lat  ? parseFloat(form.lat)  : null,
       lng:  form.lng  ? parseFloat(form.lng)  : null,
     }
