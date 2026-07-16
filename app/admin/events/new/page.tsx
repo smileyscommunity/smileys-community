@@ -8,26 +8,7 @@ import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
 import ImageUpload from '@/components/ImageUpload'
 import VibePicker from '@/components/VibePicker'
 import { useAdminMemberSearch } from '@/hooks/useAdminMemberSearch'
-
-const EMOJIS = [
-  '⛵', '🍽️', '💬', '🎵', '🌿', '🎭', '🏃', '🎨', '🍷', '🧘', '🥾', '🎤',
-  '☕', '🍺', '🍸', '💃', '🎬', '📸', '🚴', '🏊', '🏋️', '📚', '🎲', '🌅',
-  '🏖️', '👨‍🍳', '🤝', '🎸', '🚢', '🌮', '🧗', '🌙', '🧁', '🥂', '🎓', '🛶',
-  '🗺️', '🏛️', '🕌', '🌍', '🗼', '🌊', '🏙️', '🌺', '🕍', '⛪',
-  '🎯', '🃏', '♟️', '🎳', '🪄', '🧩', '🎪', '🪂',
-  '🧖', '🌸', '🫶', '🧠', '🫁',
-  '🛍️', '🪸', '🌴', '🦋', '🐚', '🌻', '🍃', '🎋', '🌄', '🏕️',
-  '🍣', '🥘', '🧆', '🥗', '🍜', '🧋', '🍹', '🫖',
-  '🏇', '🤿', '🧜', '🪁', '🏄', '🎠', '🎡',
-  '⚽', '🏀', '🎾', '🏐', '🥊', '🏆', '⛷️',
-  '🪩', '🕺', '🎊', '🌃', '🎆',
-  '🧿', '🏺',
-  '🎹', '🎷', '🎺', '🥁', '🎻',
-  '🏔️', '🌈', '🌠',
-  '🐱', '🐾', '🐟',
-  '🍕', '🍰', '🥐', '🍫',
-  '🎞️', '🎥', '📽️', '🍿', '🧺', '🌳', '💻', '🖥️',
-]
+import { EVENT_EMOJIS as EMOJIS } from '@/lib/eventEmojis'
 const inputCls = 'bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none px-3 py-2.5 w-full text-sm'
 
 

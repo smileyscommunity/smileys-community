@@ -6,14 +6,9 @@ import ImageUpload from '@/components/ImageUpload'
 import RichTextEditor from '@/components/RichTextEditor'
 import { ISTANBUL_NEIGHBORHOODS, todayIstanbul } from '@/lib/data'
 import { useAuth } from '@/contexts/AuthContext'
+import { EVENT_EMOJIS as EMOJIS } from '@/lib/eventEmojis'
 
 const VIBES = ['Social', 'Chill', 'Active', 'Party', 'Networking', 'Learning', 'Food', 'Outdoor', 'Cultural']
-
-const EMOJIS = [
-  '⛵', '🍽️', '💬', '🎵', '🌿', '🎭', '🏃', '🎨', '🍷', '🧘', '🥾', '🎤',
-  '☕', '🍺', '🍸', '💃', '🎬', '📸', '🚴', '🏊', '🏋️', '📚', '🎲', '🌅',
-  '🏖️', '👨‍🍳', '🤝', '🎸', '🚢', '🌮', '🧗', '🌙', '🧁', '🥂', '🎓', '🛶',
-]
 
 const inputCls = 'w-full px-4 py-3 rounded-xl border border-zinc-700 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500 bg-zinc-800 placeholder-zinc-500'
 

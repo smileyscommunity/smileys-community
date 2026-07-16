@@ -9,11 +9,7 @@ import { ISTANBUL_NEIGHBORHOODS, todayIstanbul } from '@/lib/data'
 import ImageUpload from '@/components/ImageUpload'
 import VibePicker from '@/components/VibePicker'
 import RichTextEditor from '@/components/RichTextEditor'
-const EMOJIS = [
-  '⛵', '🍽️', '💬', '🎵', '🌿', '🎭', '🏃', '🎨', '🍷', '🧘', '🥾', '🎤',
-  '☕', '🍺', '🍸', '💃', '🎬', '📸', '🚴', '🏊', '🏋️', '📚', '🎲', '🌅',
-  '🏖️', '👨‍🍳', '🤝', '🎸', '🚢', '🌮', '🧗', '🌙', '🧁', '🥂', '🎓', '🛶',
-]
+import { EVENT_EMOJIS as EMOJIS } from '@/lib/eventEmojis'
 const inputCls = 'w-full px-4 py-2.5 rounded-xl border border-zinc-700 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500 bg-zinc-800 placeholder-zinc-500'
 
 const emptyForm = {
