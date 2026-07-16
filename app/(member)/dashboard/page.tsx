@@ -11,6 +11,7 @@ import PullToRefreshTrigger from '@/components/PullToRefreshTrigger'
 import QuickLinks from '@/components/QuickLinks'
 import IstanbulWeather from '@/components/IstanbulWeather'
 import ReviewReminder from '@/components/ReviewReminder'
+import VenueReviewPrompt from '@/components/VenueReviewPrompt'
 import ReferralImpact from '@/components/ReferralImpact'
 import InviteBanner from '@/components/InviteBanner'
 import AnnouncementBanner from '@/components/AnnouncementBanner'
@@ -123,6 +124,45 @@ export default async function DashboardPage() {
   const unreviewed = unreviewedRaw
     .filter((a) => a.event.reviews.length === 0)
     .map((a) => ({ id: a.event.id, title: a.event.title, emoji: a.event.emoji }))
+
+  // Post-visit venue review prompt: the member's most-recent checked-in
+  // past event whose venue is a live directory listing they haven't
+  // reviewed. Matches the event page's case-insensitive location↔business
+  // rule. Cheap — the directory is a small curated set and the visit scan
+  // is capped. Null when there's nothing to prompt (component self-hides).
+  let venueToReview: { businessId: string; businessName: string; eventTitle: string } | null = null
+  {
+    const checkedInVisits = await prisma.eventAttendee.findMany({
+      where: {
+        userId: session.id, status: 'approved', checkedIn: true,
+        event: { date: { lt: today }, cancelledAt: null },
+      },
+      orderBy: { event: { date: 'desc' } },
+      take: 20,
+      select: { event: { select: { title: true, location: true } } },
+    })
+    if (checkedInVisits.length) {
+      const liveBusinesses = await prisma.business.findMany({
+        where:  { isApproved: true, isActive: true },
+        select: { id: true, name: true },
+      })
+      const norm = (s: string) => s.replace(/\s+/g, ' ').trim().toLowerCase()
+      const bizByName = new Map(liveBusinesses.map((b) => [norm(b.name), b]))
+      const reviewedIds = new Set(
+        (await prisma.businessReview.findMany({
+          where:  { authorId: session.id, businessId: { in: liveBusinesses.map((b) => b.id) } },
+          select: { businessId: true },
+        })).map((r) => r.businessId),
+      )
+      for (const v of checkedInVisits) {
+        const biz = bizByName.get(norm(v.event.location ?? ''))
+        if (biz && !reviewedIds.has(biz.id)) {
+          venueToReview = { businessId: biz.id, businessName: biz.name, eventTitle: v.event.title }
+          break
+        }
+      }
+    }
+  }
 
   const clubIds        = myMemberships.map((m) => m.clubId)
   const joinedEventIds = myAttendances.map((a) => a.eventId)
@@ -1064,6 +1104,10 @@ export default async function DashboardPage() {
 
             {/* ── ACTIONS ── */}
             <ReviewReminder events={unreviewed} />
+
+            {/* Post-visit venue review — inline one-tap rating for the most
+                recent checked-in venue the member hasn't reviewed. */}
+            {venueToReview && <VenueReviewPrompt {...venueToReview} />}
 
             {/* Live hangouts strip */}
             {activeHangouts.length > 0 && (
