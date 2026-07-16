@@ -16,6 +16,9 @@ interface Eligibility {
   event: { id: string; title: string; emoji: string; date: string }
   eligible: boolean
   reason?: Reason
+  // Directory listing for this event's venue, when one exists and the
+  // viewer hasn't reviewed it yet — unlocks the optional Q3.
+  venue?: { id: string; name: string } | null
 }
 
 export default function FeedbackPage({ params }: { params: Promise<{ id: string }> }) {
@@ -27,6 +30,10 @@ export default function FeedbackPage({ params }: { params: Promise<{ id: string 
   const [anomaly,     setAnomaly]     = useState<boolean | null>(null)
   const [anomalyNote, setAnomalyNote] = useState('')
   const [wouldReturn, setWouldReturn] = useState<boolean | null>(null)
+  // Optional venue review — 0 means "skipped". Tapping the selected
+  // star again clears it.
+  const [venueRating,  setVenueRating]  = useState(0)
+  const [venueComment, setVenueComment] = useState('')
   const [submitting,  setSubmitting]  = useState(false)
   const [done,        setDone]        = useState(false)
 
@@ -44,7 +51,12 @@ export default function FeedbackPage({ params }: { params: Promise<{ id: string 
       const res = await fetch(`/app/api/events/${id}/feedback`, {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ anomaly, anomalyNote: anomaly ? anomalyNote.trim() : undefined, wouldReturn }),
+        body: JSON.stringify({
+          anomaly,
+          anomalyNote: anomaly ? anomalyNote.trim() : undefined,
+          wouldReturn,
+          ...(venueRating > 0 ? { venueRating, venueComment: venueComment.trim() || undefined } : {}),
+        }),
       })
       if (res.ok) {
         setDone(true)
@@ -150,6 +162,46 @@ export default function FeedbackPage({ params }: { params: Promise<{ id: string 
           <Choice label="No"  active={wouldReturn === false} onClick={() => setWouldReturn(false)} variant="warn" />
         </div>
       </div>
+
+      {/* Q3 — optional venue review. Only offered when the venue has a
+          directory listing the member hasn't reviewed. Unlike Q1/Q2
+          this is PUBLIC — the copy says so explicitly before they tap. */}
+      {ctx.venue && (
+        <div className="mt-6 space-y-2">
+          <p className="text-sm font-semibold text-white">How was {ctx.venue.name}? <span className="text-zinc-500 font-normal">(optional)</span></p>
+          <div className="flex gap-1.5">
+            {[1, 2, 3, 4, 5].map(n => (
+              <button
+                key={n}
+                onClick={() => setVenueRating(r => r === n ? 0 : n)}
+                aria-label={`${n} star${n === 1 ? '' : 's'}`}
+                className={`flex-1 py-2.5 rounded-xl text-xl border transition-colors ${
+                  venueRating >= n
+                    ? 'bg-amber-500/20 border-amber-500/40 text-amber-400'
+                    : 'bg-zinc-900 border-zinc-700 text-zinc-600 hover:bg-zinc-800'
+                }`}
+              >
+                ★
+              </button>
+            ))}
+          </div>
+          {venueRating > 0 && (
+            <>
+              <textarea
+                value={venueComment}
+                onChange={e => setVenueComment(e.target.value)}
+                placeholder={`What makes ${ctx.venue.name} good (or not)? Optional.`}
+                rows={3}
+                maxLength={1000}
+                className="w-full px-3 py-2 text-sm bg-zinc-900 border border-zinc-700 rounded-xl text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-amber-500 resize-none"
+              />
+              <p className="text-xs text-zinc-500">
+                Posted publicly on the directory as your review, with your name. Tap the star again to skip.
+              </p>
+            </>
+          )}
+        </div>
+      )}
 
       <button
         onClick={submit}

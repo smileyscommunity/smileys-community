@@ -4,13 +4,10 @@ import { Suspense, useState, useEffect, useCallback } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
-import { toast } from 'sonner'
 import { useAuth } from '@/contexts/AuthContext'
 import { resolveImageUrl } from '@/lib/data'
 import { BUSINESS_CATEGORIES } from '@/lib/directory-constants'
 import DirectoryReviews from '@/components/DirectoryReviews'
-import DirectoryReportButton from '@/components/DirectoryReportButton'
-import DirectoryOwnerEdit from '@/components/DirectoryOwnerEdit'
 import DirectorySaveButton from '@/components/DirectorySaveButton'
 import { getOpenStatus } from '@/lib/businessHours'
 import dynamic from 'next/dynamic'
@@ -70,134 +67,34 @@ interface Business {
   myClaimStatus: 'none' | 'pending' | 'approved' | 'rejected'
 }
 
-// Inline claim trigger — lives inside the info block, styled as a small
-// text link rather than a full-width button. Lighter visual footprint
-// so it doesn't fight with the Website/Instagram/Call action row above.
-// The popover form (when open) overlays the card.
-//
-// Claim state arrives as a prop (server-batched at the directory query
-// level) so we don't need a per-card /api/.../claim fetch on mount.
-function ClaimWidget({ b }: { b: Business }) {
-  const { isLoggedIn } = useAuth()
-  const [state,   setState]   = useState(b.myClaimStatus)
-  const [open,    setOpen]    = useState(false)
-  const [message, setMessage] = useState('')
-  const [busy,    setBusy]    = useState(false)
-
-  // Verified owner state renders nothing here — the badge lives next to
-  // the business name (see BusinessCard) so it sits with the title
-  // rather than as a CTA-shaped block at the bottom.
-  if (b.hasClaimedOwner) return null
-  // Guests can browse the directory but claiming requires a signed-in
-  // account (the POST endpoint is gated). Hide the chip rather than
-  // tease then 401.
-  if (!isLoggedIn) return null
-
-  if (state === 'pending') {
-    return <p className="text-xs text-amber-600 italic">Claim pending review</p>
-  }
-
-  async function submit() {
-    if (!message.trim()) {
-      toast.error('Tell us why you own this business')
-      return
-    }
-    setBusy(true)
-    try {
-      const r = await fetch(`/app/api/directory/${b.id}/claim`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message }),
-      })
-      const d = await r.json().catch(() => ({}))
-      if (!r.ok) { toast.error(d?.error || 'Failed to submit claim'); return }
-      toast.success('Claim submitted — an admin will review it')
-      setOpen(false)
-      setMessage('')
-      setState('pending')
-    } catch {
-      toast.error('Network error — not submitted')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  if (open) {
-    const closeAndReset = () => { setOpen(false); setMessage('') }
-    return (
-      <div
-        className="absolute inset-x-2 bottom-2 bg-white border border-gray-200 rounded-xl shadow-lg p-3 z-10"
-        onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); closeAndReset() } }}
-      >
-        <p className="text-xs font-bold text-gray-900 mb-1.5">Verify you own "{b.name}"</p>
-        <p className="text-[11px] text-gray-600 mb-2 leading-tight">
-          How are you the owner? An email at the business domain, your name on the lease, or anything verifiable.
-        </p>
-        <textarea
-          value={message}
-          onChange={e => setMessage(e.target.value)}
-          rows={3}
-          maxLength={1000}
-          autoFocus
-          placeholder="e.g. I'm the founder; my email is owner@example.com"
-          className="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
-        />
-        <div className="flex gap-1.5 mt-2">
-          <button
-            onClick={submit}
-            disabled={busy}
-            className="flex-1 text-[11px] font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-lg py-1.5 transition-colors disabled:opacity-50"
-          >
-            {busy ? 'Submitting…' : 'Submit claim'}
-          </button>
-          <button
-            onClick={closeAndReset}
-            className="text-[11px] font-semibold text-gray-600 hover:text-gray-700 rounded-lg py-1.5 px-2 transition-colors"
-          >
-            Cancel
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  const label = state === 'rejected' ? 'Claim rejected — try again' : 'Is this your business?'
-  return (
-    <button
-      onClick={() => setOpen(true)}
-      className="text-xs text-gray-400 hover:text-amber-600 hover:underline transition-colors self-start"
-    >
-      {label}
-    </button>
-  )
-}
-
+// Claiming and reporting moved to the detail page (/directory/[id]) —
+// the grid card stays focused on the business itself.
 function BusinessCard({
-  b, onOpenReviews, onEdited, onTagClick,
+  b, onOpenReviews, onTagClick,
 }: {
   b: Business
   onOpenReviews: () => void
-  onEdited: () => void
   onTagClick: (tag: string) => void
 }) {
   const logo  = resolveImageUrl(b.logo)
   const cover = resolveImageUrl(b.coverImage)
-  // isOwner is now a server-set flag — the client no longer compares
-  // CUIDs (we never receive the raw owner id).
-  const isOwner = b.isMine
   const openStatus = getOpenStatus(b.hours)
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col hover:-translate-y-0.5 hover:shadow-md hover:border-gray-200 transition-all duration-200 relative">
       {/* Cover */}
       <div className="relative w-full aspect-[4/3] bg-gray-100">
-        {cover ? (
-          <Image src={cover} alt={b.name} fill sizes="(min-width: 1280px) 240px, (min-width: 1024px) 280px, (min-width: 640px) 320px, 50vw"
-            className="object-cover" />
-        ) : (
-          <div aria-hidden="true" className="w-full h-full flex items-center justify-center text-4xl text-gray-300">🏢</div>
-        )}
+        {/* Cover links to the business. Overlays below (save / badges / logo)
+            come later in the DOM so they render above this link and stay
+            independently clickable. */}
+        <Link href={`/directory/${b.id}`} aria-label={b.name} className="block absolute inset-0">
+          {cover ? (
+            <Image src={cover} alt={b.name} fill sizes="(min-width: 1280px) 240px, (min-width: 1024px) 280px, (min-width: 640px) 320px, 50vw"
+              className="object-cover" />
+          ) : (
+            <div aria-hidden="true" className="w-full h-full flex items-center justify-center text-4xl text-gray-300">🏢</div>
+          )}
+        </Link>
 
         {/* Expat badges */}
         <div className="absolute top-2 left-2 flex flex-col gap-1">
@@ -273,10 +170,8 @@ function BusinessCard({
           <p className="text-[11px] text-gray-400 truncate mt-0.5">
             {b.category}{b.neighborhood ? ` · ${b.neighborhood}` : ''}
           </p>
-          {/* Rating badge — clickable; opens the reviews drawer. Even
-              when there are no reviews we surface "No reviews yet" as
-              a CTA so members can be the first. Small footprint, big
-              affordance for the new feature. */}
+          {/* Rating — one compact line; tapping opens the reviews
+              drawer. The write-review CTA lives on the detail page. */}
           <button
             onClick={onOpenReviews}
             className="flex items-center gap-1 text-[11px] mt-1 group/r hover:underline"
@@ -286,20 +181,12 @@ function BusinessCard({
               <>
                 <span aria-hidden="true" className="text-amber-500">★</span>
                 <span className="font-bold text-gray-900">{b.avgRating.toFixed(1)}</span>
-                <span className="text-gray-400">·</span>
-                <span className="text-gray-600 group-hover/r:text-amber-700">{b.reviewCount} review{b.reviewCount === 1 ? '' : 's'}</span>
+                <span className="text-gray-400">· {b.reviewCount}</span>
               </>
             ) : (
-              <span className="text-gray-600 group-hover/r:text-amber-700">No reviews yet — be the first</span>
+              <span className="text-gray-400 group-hover/r:text-amber-700">No reviews yet</span>
             )}
           </button>
-          {/* Claim trigger sits inside the info block as a small link
-              right under the meta line — discoverable but visually
-              quiet. Renders nothing when the business is already
-              claimed (badge above replaces it). */}
-          <div className="mt-1">
-            <ClaimWidget b={b} />
-          </div>
         </div>
 
         <p className="text-xs text-gray-600 line-clamp-2 flex-1">{b.description}</p>
@@ -308,37 +195,34 @@ function BusinessCard({
             the card height stays predictable. Clicking a chip writes
             the tag into the parent search box — the in-memory filter
             already matches against tags, so the grid narrows to other
-            entries carrying the same tag. */}
-        {b.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {b.tags.slice(0, 4).map(t => (
-              <button
-                key={t}
-                onClick={(e) => { e.stopPropagation(); onTagClick(t) }}
-                className="text-[11px] font-semibold bg-gray-100 text-gray-600 hover:bg-amber-100 hover:text-amber-700 px-2 py-0.5 rounded-full transition-colors"
-              >
-                {t}
-              </button>
-            ))}
-            {b.tags.length > 4 && (
-              <span className="text-[11px] text-gray-400">+{b.tags.length - 4}</span>
-            )}
-          </div>
-        )}
+            entries carrying the same tag. 'We meet here' is hidden on
+            cards — nearly every listing carries it, so on the grid it
+            was pure repetition; it still shows on the detail page and
+            still matches in search. */}
+        {(() => {
+          const cardTags = b.tags.filter(t => t !== 'We meet here')
+          if (!cardTags.length) return null
+          return (
+            <div className="flex flex-wrap gap-1">
+              {cardTags.slice(0, 4).map(t => (
+                <button
+                  key={t}
+                  onClick={(e) => { e.stopPropagation(); onTagClick(t) }}
+                  className="text-[11px] font-semibold bg-gray-100 text-gray-600 hover:bg-amber-100 hover:text-amber-700 px-2 py-0.5 rounded-full transition-colors"
+                >
+                  {t}
+                </button>
+              ))}
+              {cardTags.length > 4 && (
+                <span className="text-[11px] text-gray-400">+{cardTags.length - 4}</span>
+              )}
+            </div>
+          )
+        })()}
 
         {b.languages && (
           <p className="text-[11px] text-gray-400"><span aria-hidden="true">🗣 </span>{b.languages}</p>
         )}
-
-        {/* Attribution line — "Added by Sarah K." plus optional save
-            count for social proof. addedBy is already server-truncated
-            so no surname leaks here. */}
-        <p className="text-[11px] text-gray-400">
-          Added by <span className="text-gray-600">{b.addedBy}</span>
-          {b.saveCount > 0 && (
-            <span> · ★ saved by {b.saveCount} {b.saveCount === 1 ? 'member' : 'members'}</span>
-          )}
-        </p>
 
         {/* Single "View details" CTA replacing the previous three-link
             row (Website / Instagram / Call). Those contact actions now
@@ -353,18 +237,6 @@ function BusinessCard({
         >
           View details →
         </Link>
-
-        {/* Bottom row: owner-edit (verified owners only) + report.
-            Both render as tiny inline text links so they don't fight
-            with the link buttons above. */}
-        <div className="flex items-center justify-between gap-2 -mt-1">
-          {isOwner ? (
-            <DirectoryOwnerEdit b={b} onSaved={onEdited} />
-          ) : (
-            <span />
-          )}
-          <DirectoryReportButton businessId={b.id} businessName={b.name} />
-        </div>
       </div>
     </div>
   )
@@ -404,6 +276,10 @@ function DirectoryPageInner() {
   const [type,         setType]         = useState<TypeFilter>((searchParams.get('type') as TypeFilter) ?? 'all')
   const [search,       setSearch]       = useState(searchParams.get('q') ?? '')
   const [neighborhood, setNeighborhood] = useState(searchParams.get('neighborhood') ?? '')
+  // "We meet here" toggle — browse only the venues that host Smileys
+  // events. Client-side filter on the tag (nearly all-or-nothing today,
+  // so a server param isn't worth it).
+  const [meetOnly,     setMeetOnly]     = useState(searchParams.get('meet') === '1')
   // List vs map. Default to list because it works for everyone on
   // every device; map is a one-tap toggle away.
   const [viewMode,     setViewMode]     = useState<'list' | 'map'>('list')
@@ -423,9 +299,10 @@ function DirectoryPageInner() {
     if (sort        !== 'recent') params.set('sort',        sort)
     if (search)                   params.set('q',           search)
     if (neighborhood)             params.set('neighborhood', neighborhood)
+    if (meetOnly)                 params.set('meet',        '1')
     const qs = params.toString()
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
-  }, [category, type, sort, search, neighborhood, pathname, router])
+  }, [category, type, sort, search, neighborhood, meetOnly, pathname, router])
 
   // total is the unpaginated server count from X-Total-Count — used to
   // surface "showing first 200 of N" when the server-side cap kicks in.
@@ -464,6 +341,7 @@ function DirectoryPageInner() {
   }, [businesses])
 
   const visible = businesses.filter(b => {
+    if (meetOnly && !b.tags.includes('We meet here')) return false
     if (!search.trim()) return true
     const q = search.toLowerCase()
     return (
@@ -595,6 +473,16 @@ function DirectoryPageInner() {
               </button>
             ))}
 
+            {/* "We meet here" — venues that host Smileys events. */}
+            <button onClick={() => setMeetOnly(v => !v)}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold border whitespace-nowrap transition-all ${
+                meetOnly
+                  ? 'bg-amber-500 text-white border-amber-500'
+                  : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+              }`}>
+              <span aria-hidden="true">🤝</span> We meet here
+            </button>
+
             <div className="w-px bg-gray-200 my-1.5 shrink-0" />
 
             {/* Category filters */}
@@ -632,8 +520,8 @@ function DirectoryPageInner() {
               {search ? 'Try a different search term or clear your filters.' : 'Be the first to add one!'}
             </p>
             <div className="flex flex-col gap-2 items-center">
-              {(search || category !== 'all' || type !== 'all') && (
-                <button onClick={() => { setSearch(''); setCategory('all'); setType('all') }}
+              {(search || category !== 'all' || type !== 'all' || meetOnly) && (
+                <button onClick={() => { setSearch(''); setCategory('all'); setType('all'); setMeetOnly(false) }}
                   className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-xl transition-colors">
                   Clear filters
                 </button>
@@ -662,7 +550,6 @@ function DirectoryPageInner() {
                   key={b.id}
                   b={b}
                   onOpenReviews={() => setOpenReviewsFor(b)}
-                  onEdited={load}
                   onTagClick={setSearch}
                 />
               ))}

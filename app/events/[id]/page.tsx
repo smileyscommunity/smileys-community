@@ -346,12 +346,16 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
   )
 
   const hasCoords    = event.lat != null && event.lng != null
+  // Directions link — always resolvable so every event gets one (the map still
+  // needs coords, but a Maps search only needs text). Priority: online meeting
+  // URL → street address → exact coords → a place search on location +
+  // neighborhood (same fallback hangouts use).
   const mapsHref      = event.meetingUrl
     ?? (event.address
       ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.address + ', Istanbul')}`
       : hasCoords
       ? `https://www.google.com/maps/search/?api=1&query=${event.lat},${event.lng}`
-      : undefined)
+      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([event.location, event.neighborhood, 'Istanbul'].filter(Boolean).join(', '))}`)
 
   const fillPercent = event.totalSpots > 0 ? (totalAttendeeCount / event.totalSpots) * 100 : 0
   const canSeeLocation = true
@@ -370,6 +374,19 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
   const turkishMaleCount = event.turkishMaleQuota
     ? allApprovedGenders.filter(a => (a.user as any).nationality === 'Turkey' && a.user.gender === 'male').length
     : 0
+
+  // Cross-link to the business directory when this venue has a listing
+  // (matched by name — the venue-import script keeps directory names in
+  // sync with event.location).
+  const directoryBusiness = event.location
+    ? await prisma.business.findFirst({
+        where: {
+          name: { equals: event.location.replace(/\s+/g, ' ').trim(), mode: 'insensitive' },
+          isApproved: true, isActive: true,
+        },
+        select: { id: true },
+      })
+    : null
 
   // Build JSON-LD Event schema
   const eventUrl   = `${APP_URL}/events/${id}`
@@ -528,6 +545,18 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                         Arrange payment
                       </a>
                     )}
+                    {/* External ticketing — venue-paid events only, so it
+                        never competes with the in-app payment ledger. */}
+                    {event.payTo !== 'smileys' && event.ticketUrl && (
+                      <a
+                        href={event.ticketUrl}
+                        target="_blank"
+                        rel="noopener noreferrer nofollow"
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-100 px-2 py-0.5 rounded-full transition-colors"
+                      >
+                        <span aria-hidden="true">🎟</span> Buy tickets ↗
+                      </a>
+                    )}
                   </span>
                 </div>
               )}
@@ -549,6 +578,14 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                         </svg>
                         View on map
                       </a>
+                    )}
+                    {directoryBusiness && (
+                      <Link
+                        href={`/directory/${directoryBusiness.id}`}
+                        className="inline-flex items-center gap-1 text-xs text-amber-600 hover:text-amber-700 font-semibold bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-full transition-colors"
+                      >
+                        <span aria-hidden="true">🏪</span> View in directory
+                      </Link>
                     )}
                   </span>
                 ) : (
@@ -728,17 +765,17 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
             <h2 className="text-base font-bold text-gray-900 mb-3">About this event</h2>
             <div className="rich-content text-sm text-gray-600 leading-relaxed" dangerouslySetInnerHTML={{ __html: sanitize(event.description ?? '') }} />
 
-            {hasCoords && canSeeLocation && (
+            {canSeeLocation && mapsHref && (
               <div className="mt-6 space-y-3">
                 <div className="flex items-center justify-between">
                   <h2 className="text-base font-bold text-gray-900">Location</h2>
-                  {mapsHref && (
-                    <a href={mapsHref} target="_blank" rel="noopener noreferrer" className="text-xs text-amber-600 font-bold underline underline-offset-2">
-                      View on Google Maps →
-                    </a>
-                  )}
+                  <a href={mapsHref} target="_blank" rel="noopener noreferrer" className="text-xs text-amber-600 font-bold underline underline-offset-2">
+                    {event.meetingUrl ? 'Join online →' : 'Get directions →'}
+                  </a>
                 </div>
-                <EventLocationMap lat={event.lat!} lng={event.lng!} href={mapsHref} />
+                {/* Map only when we have coordinates; the directions link above
+                    works for address/location-only events too. */}
+                {hasCoords && <EventLocationMap lat={event.lat!} lng={event.lng!} href={mapsHref} />}
               </div>
             )}
 

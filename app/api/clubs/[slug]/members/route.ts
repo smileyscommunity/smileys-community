@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
+import { restrictedSetFor } from '@/lib/memberPrivacy'
 import { createNotification } from '@/lib/notify'
 import { rateLimit } from '@/lib/rateLimit'
 
@@ -61,6 +62,7 @@ export async function GET(req: NextRequest, { params }: Params) {
           select: {
             id: true, name: true, color: true,
             profilePhoto: true, neighborhood: true,
+            profileVisibility: true,
           },
         },
       },
@@ -79,6 +81,10 @@ export async function GET(req: NextRequest, { params }: Params) {
   )
   connectedIds.add(session.id)
 
+  // 'Connections only' members 404 on /members/[id] for non-connected
+  // viewers — flag them so the client doesn't render a dead profile link.
+  const restricted = await restrictedSetFor(session, memberships.map(m => m.user))
+
   return NextResponse.json(memberships.map(m => {
     const connected = connectedIds.has(m.user.id)
     return {
@@ -90,6 +96,7 @@ export async function GET(req: NextRequest, { params }: Params) {
       photo:        m.user.profilePhoto,
       neighborhood: connected ? m.user.neighborhood : null,
       connected,
+      viewable:     !restricted.has(m.user.id),
     }
   }))
 }

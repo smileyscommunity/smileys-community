@@ -54,6 +54,9 @@ const PREF_KEY: Record<string, 'newEvents' | 'reminders' | 'eventUpdates' | 'joi
   // new_hangout, so the newEvents preference + quiet hours gate it too —
   // members who muted broadcasts don't get pinged.
   availability_pulse: 'newEvents',
+  // "✋ X is free too" — direct response to the recipient's own pulse.
+  // Transactional: you asked who's around; someone answered.
+  pulse_wave:         null,
   visitor_announced:  null,
   listing_new:        null,
   // Admin-only: fired on every non-admin directory submission so the

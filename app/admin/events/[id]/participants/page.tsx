@@ -7,6 +7,8 @@ import { toast } from 'sonner'
 import { formatDate } from '@/lib/data'
 import type { Event } from '@/lib/data'
 import UserAvatar from '@/components/UserAvatar'
+import WhatsAppButton from '@/components/WhatsAppButton'
+import { useAdminMemberSearch } from '@/hooks/useAdminMemberSearch'
 
 interface AttendeeUser { id: string; name: string; color: string; email: string; profilePhoto?: string | null; gender?: string | null; nationality?: string | null; phone?: string | null; noShowCount?: number }
 interface Attendee    { userId: string; status: string; checkedIn: boolean; joinedAt: string; isStaff?: boolean; user: AttendeeUser }
@@ -49,7 +51,10 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
   const [toggling,  setToggling]  = useState<string | null>(null)
   const [busy,      setBusy]      = useState<string | null>(null)
   const [addSearch, setAddSearch] = useState('')
-  const [allUsers,  setAllUsers]  = useState<AttendeeUser[]>([])
+  // Server-side search — the users endpoint returns at most 1000 rows
+  // without a ?search= param, so filtering a one-shot fetch client-side
+  // made the oldest members unfindable in this picker.
+  const { results: memberHits, searching } = useAdminMemberSearch(addSearch)
   const [attendeeView,   setAttendeeView]   = useState<'all' | 'checkedin' | 'noshows'>('all')
   // Payment filter — set by tapping the ₺ Paid stat tile or the segmented
   // control on the Approved section (only rendered for Smileys-collected
@@ -69,6 +74,8 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
       fetch('/app/api/admin/users', { credentials: 'include' }).then(r => r.json()),
     ]).then(([ev, data, users]) => {
       setEvent(ev)
+      // The users list here only feeds the no-show badge on existing
+      // attendees — the add-participant picker searches the server.
       const userList: AttendeeUser[] = Array.isArray(users) ? users : []
       const noShowMap = new Map(userList.map((u: AttendeeUser) => [u.id, u.noShowCount ?? 0]))
       const mergeNoShow = (a: Attendee): Attendee => ({ ...a, user: { ...a.user, noShowCount: noShowMap.get(a.userId) ?? 0 } })
@@ -82,7 +89,6 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
         }
         setPayments(map)
       }
-      setAllUsers(userList)
     }).finally(() => setLoading(false))
   }, [id])
 
@@ -421,12 +427,10 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
             />
             {addSearch.trim().length > 1 && (() => {
               const alreadyIn = new Set(attendees.map(a => a.userId))
-              const results = allUsers
-                .filter(u => u.name.toLowerCase().includes(addSearch.toLowerCase()) && !alreadyIn.has(u.id))
-                .slice(0, 6)
+              const results = memberHits.filter(u => !alreadyIn.has(u.id)).slice(0, 6)
               if (!results.length) return (
                 <div className="absolute top-full left-0 right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded-xl p-3 text-xs text-zinc-500 z-10">
-                  No members found
+                  {searching ? 'Searching…' : 'No members found'}
                 </div>
               )
               return (
@@ -469,6 +473,7 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
                       <p className="text-sm font-semibold text-white truncate">{a.user.name}</p>
                       </div>
                     <div className="flex items-center gap-2 shrink-0">
+                      <WhatsAppButton user={a.user} />
                       <button onClick={() => approveAttendee(a.userId)} disabled={busy === a.userId}
                         className="text-xs px-3 py-2 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 font-semibold transition-colors disabled:opacity-40">
                         ✓ Approve
@@ -593,6 +598,7 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
+                    <WhatsAppButton user={a.user} />
                     {trackPayments && !a.isStaff && (
                       <button
                         onClick={() => togglePaid(a.userId, payments[a.userId]?.status === 'paid')}
@@ -657,6 +663,7 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
                     {new Date(w.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
                   </p>
                   <div className="flex items-center gap-2 shrink-0">
+                    <WhatsAppButton user={w.user} />
                     <button onClick={() => promote(w)} disabled={busy === w.userId}
                       className="text-xs px-3 py-2 rounded-lg bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 font-semibold transition-colors disabled:opacity-40">
                       ↑ Promote

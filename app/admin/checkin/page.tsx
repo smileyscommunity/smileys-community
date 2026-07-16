@@ -38,6 +38,9 @@ function CheckInPageInner() {
   const [loadingAtts,   setLoadingAtts]   = useState(false)
   const [search,        setSearch]        = useState('')
   const [lastChecked,   setLastChecked]   = useState<string | null>(null)
+  // Stat-tile filter — tap Checked in / Remaining to narrow the list,
+  // tap again (or Total) to clear. Mirrors the participants page tiles.
+  const [view,          setView]          = useState<'all' | 'in' | 'remaining'>('all')
   // Per-row saving state — keyed by attendee.id so multiple taps queue
   // gracefully and the row spinner only shows on the row that's busy.
   // Set-shape mirrors how the bulk pages track inflight work.
@@ -116,6 +119,7 @@ function CheckInPageInner() {
     if (!selectedId) return
     setLoadingAtts(true)
     setAttendees([])
+    setView('all')
     fetch(`/app/api/events/${selectedId}/checkin`, { credentials: 'include' })
       .then(r => r.json())
       .then(data => setAttendees(Array.isArray(data) ? data : []))
@@ -137,10 +141,13 @@ function CheckInPageInner() {
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
-    return q
-      ? attendees.filter(a => a.user.name.toLowerCase().includes(q) || a.user.email.toLowerCase().includes(q))
+    const byView = view === 'in' ? attendees.filter(a => a.checkedIn)
+      : view === 'remaining' ? attendees.filter(a => !a.checkedIn)
       : attendees
-  }, [attendees, search])
+    return q
+      ? byView.filter(a => a.user.name.toLowerCase().includes(q) || a.user.email.toLowerCase().includes(q))
+      : byView
+  }, [attendees, search, view])
 
   const checkedInCount = attendees.filter(a => a.checkedIn).length
   const event = events.find(e => e.id === selectedId)
@@ -277,23 +284,28 @@ function CheckInPageInner() {
 
         {event && attendees.length > 0 && (
           <>
+            {/* Tiles double as filters — tap Checked in / Remaining to
+                narrow the list, tap again (or Total) to show everyone. */}
             <div className="flex items-center gap-4 mt-3">
-              <div className="flex-1 bg-zinc-900 rounded-xl p-3 text-center">
+              <button onClick={() => setView(v => v === 'in' ? 'all' : 'in')}
+                className={`flex-1 bg-zinc-900 rounded-xl p-3 text-center border active:scale-[0.98] transition-all ${view === 'in' ? 'border-green-500' : 'border-transparent'}`}>
                 <div className="text-2xl font-bold text-green-400">{checkedInCount}</div>
-                <div className="text-xs text-zinc-500 mt-0.5">Checked in</div>
-              </div>
-              <div className="flex-1 bg-zinc-900 rounded-xl p-3 text-center">
+                <div className="text-xs text-zinc-500 mt-0.5">{view === 'in' ? 'Showing checked-in ↓' : 'Checked in'}</div>
+              </button>
+              <button onClick={() => setView(v => v === 'remaining' ? 'all' : 'remaining')}
+                className={`flex-1 bg-zinc-900 rounded-xl p-3 text-center border active:scale-[0.98] transition-all ${view === 'remaining' ? 'border-amber-500' : 'border-transparent'}`}>
                 <div className="text-2xl font-bold">{attendees.length - checkedInCount}</div>
                 {/* "Expected" used to live here, which read like "the
                     planned count" — actually this is the still-to-arrive
                     delta. "Remaining" is what an operator at the door
                     reads correctly under pressure. */}
-                <div className="text-xs text-zinc-500 mt-0.5">Remaining</div>
-              </div>
-              <div className="flex-1 bg-zinc-900 rounded-xl p-3 text-center">
+                <div className="text-xs text-zinc-500 mt-0.5">{view === 'remaining' ? 'Showing remaining ↓' : 'Remaining'}</div>
+              </button>
+              <button onClick={() => setView('all')}
+                className="flex-1 bg-zinc-900 rounded-xl p-3 text-center border border-transparent active:scale-[0.98] transition-all">
                 <div className="text-2xl font-bold text-zinc-400">{attendees.length}</div>
                 <div className="text-xs text-zinc-500 mt-0.5">Total</div>
-              </div>
+              </button>
             </div>
             <div className="mt-3 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
               <div
@@ -336,7 +348,11 @@ function CheckInPageInner() {
               ? 'Pick an event to start checking in.'
               : search
                 ? 'No match found.'
-                : 'No attendees registered for this event yet.'}
+                : view === 'in'
+                  ? 'Nobody checked in yet.'
+                  : view === 'remaining'
+                    ? 'Everyone is checked in 🎉'
+                    : 'No attendees registered for this event yet.'}
           </div>
         )}
         {filtered.map(a => {

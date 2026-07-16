@@ -9,6 +9,7 @@ import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
 import ImageUpload from '@/components/ImageUpload'
 import VibePicker from '@/components/VibePicker'
 import RichTextEditor from '@/components/RichTextEditor'
+import { useAdminMemberSearch } from '@/hooks/useAdminMemberSearch'
 const EMOJIS = [
   '⛵', '🍽️', '💬', '🎵', '🌿', '🎭', '🏃', '🎨', '🍷', '🧘', '🥾', '🎤',
   '☕', '🍺', '🍸', '💃', '🎬', '📸', '🚴', '🏊', '🏋️', '📚', '🎲', '🌅',
@@ -33,10 +34,11 @@ const inputCls = 'bg-zinc-800 border border-zinc-700 text-white placeholder-zinc
 const emptyForm = {
   title: '', date: '', time: '', location: '', neighborhood: '',
   address: '', clubId: '', hostId: '', description: '',
-  totalSpots: '20', price: '0', memberPrice: '', payTo: 'venue', paymentContact: '',
+  totalSpots: '20', price: '0', memberPrice: '', payTo: 'venue', paymentContact: '', ticketUrl: '',
   emoji: '🎉', status: 'published',
   isPremium: false, membersOnly: false, limitedSpots: true, isFirstTimerFriendly: false, isRecurring: false,
   approvalRequired: false,
+  genderBalance: false, maleQuota: '', femaleQuota: '', turkishMaleQuota: '',
   coverImage: '', coverImagePosition: 50, meetingUrl: '', whatsappUrl: '',
   minAge: '', maxAge: '',
   language: '', refundPolicy: '', registrationDeadline: '',
@@ -50,7 +52,6 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
   const [form,          setForm]          = useState(emptyForm)
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
   const [clubs,         setClubs]         = useState<{ id: string; name: string; emoji: string }[]>([])
-  const [allMembers,    setAllMembers]    = useState<{ id: string; name: string }[]>([])
   const [hostSearch,    setHostSearch]    = useState('')
   const [loading,       setLoading]       = useState(true)
   const [saving,        setSaving]        = useState(false)
@@ -70,6 +71,12 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
   const [seriesId,      setSeriesId]      = useState<string | null>(null)
   const [seriesModal,   setSeriesModal]   = useState(false)
   const [pendingSavePayload, setPendingSavePayload] = useState<object | null>(null)
+
+  // Server-side search — the /api/admin/users list caps at the newest
+  // 1000 users, so filtering a one-shot fetch client-side made early
+  // members unfindable as host/co-host once the community grew past that.
+  const { results: hostMatches }   = useAdminMemberSearch(form.hostId ? '' : hostSearch, 1)
+  const { results: cohostMatches } = useAdminMemberSearch(cohostSearch, 1)
 
   async function parseMapsUrl(url: string) {
     const patterns = [
@@ -106,10 +113,8 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
     Promise.all([
       fetch(`/app/api/events/${id}`, { credentials: 'include' }).then(r => r.json()),
       fetch('/app/api/clubs', { credentials: 'include' }).then(r => r.json()),
-      fetch('/app/api/admin/users', { credentials: 'include' }).then(r => r.json()),
       fetch(`/app/api/admin/events/${id}/cohosts`, { credentials: 'include' }).then(r => r.json()),
-    ]).then(([event, clubData, users, cohostData]) => {
-      if (Array.isArray(users)) setAllMembers(users.map((u: any) => ({ id: u.id, name: u.name })))
+    ]).then(([event, clubData, cohostData]) => {
       if (Array.isArray(cohostData)) setCohosts(cohostData)
       if (event?.id) {
         setHostSearch(event.hostName ?? '')
@@ -128,6 +133,11 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
           memberPrice:  String(event.memberPrice  ?? ''),
           payTo:        event.payTo ?? 'venue',
           paymentContact: event.paymentContact ?? '',
+          ticketUrl:    event.ticketUrl ?? '',
+          genderBalance:    event.genderBalance ?? false,
+          maleQuota:        event.maleQuota        != null ? String(event.maleQuota)        : '',
+          femaleQuota:      event.femaleQuota      != null ? String(event.femaleQuota)      : '',
+          turkishMaleQuota: event.turkishMaleQuota != null ? String(event.turkishMaleQuota) : '',
           emoji:        event.emoji        ?? '🎉',
           status:       event.status       ?? 'published',
           isPremium:    event.isPremium    ?? false,
@@ -227,6 +237,11 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
       ...form, tagIds: selectedTagIds, vibes: [], applyToSeries,
       minAge:    form.minAge    ? parseInt(form.minAge)   : null,
       maxAge:    form.maxAge    ? parseInt(form.maxAge)   : null,
+      // Gender balance — turning the toggle off clears the quotas so a
+      // stale cap can't silently keep gating RSVPs.
+      maleQuota:        form.genderBalance && form.maleQuota        ? parseInt(form.maleQuota)        : null,
+      femaleQuota:      form.genderBalance && form.femaleQuota      ? parseInt(form.femaleQuota)      : null,
+      turkishMaleQuota: form.genderBalance && form.turkishMaleQuota ? parseInt(form.turkishMaleQuota) : null,
       coverImage:         form.coverImage   || null,
       coverImagePosition: form.coverImagePosition,
       meetingUrl:         form.meetingUrl   || null,
@@ -442,7 +457,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
               onChange={e => { setHostSearch(e.target.value); set('hostId', '') }} className={inputCls} />
             {hostSearch && !form.hostId && (
               <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
-                {allMembers.filter(m => m.name.toLowerCase().includes(hostSearch.toLowerCase())).slice(0, 6).map(m => (
+                {hostMatches.slice(0, 6).map(m => (
                   <button key={m.id} type="button"
                     onClick={() => { set('hostId', m.id); setHostSearch(m.name) }}
                     className="w-full text-left px-4 py-2.5 text-sm text-zinc-300 hover:bg-amber-500/10 hover:text-amber-400 transition-colors">
@@ -475,9 +490,8 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
                 className={inputCls} />
               {cohostSearch && (
                 <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded-xl overflow-hidden shadow-lg">
-                  {allMembers
+                  {cohostMatches
                     .filter(m =>
-                      m.name.toLowerCase().includes(cohostSearch.toLowerCase()) &&
                       !cohosts.some(c => c.userId === m.id) &&
                       m.id !== form.hostId
                     )
@@ -639,6 +653,14 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
               <option value="smileys">Smileys — we collect and reconcile</option>
             </select>
           </div>
+          {form.payTo === 'venue' && (
+            <div>
+              <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Ticket link (external)</label>
+              <input type="text" value={form.ticketUrl} onChange={e => set('ticketUrl', e.target.value)}
+                placeholder="https://… (optional)" className={inputCls} />
+              <p className="text-xs text-zinc-600 mt-1">Shown as a “Buy tickets” button on the event page.</p>
+            </div>
+          )}
           {form.payTo === 'smileys' && (
             <div>
               <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Payment contact (WhatsApp)</label>
@@ -671,6 +693,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
             { key: 'isFirstTimerFriendly', label: '👋 First-timer friendly' },
             { key: 'isRecurring',      label: '🔁 Recurring'         },
             { key: 'approvalRequired', label: '✋ Approval required' },
+            { key: 'genderBalance',    label: '⚖️ Gender balance'    },
           ].map(({ key, label }) => (
             <label key={key} className="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" checked={form[key as keyof typeof form] as boolean}
@@ -679,6 +702,50 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
             </label>
           ))}
         </div>
+        {/* Quotas — same block as the create form; previously quotas
+            could only be set at creation and were invisible here. */}
+        {form.genderBalance && (
+          <div className="mt-4 space-y-3">
+            <div className="flex items-center gap-3">
+              <label className="text-sm font-medium text-zinc-300 shrink-0 w-32">♂ Male quota</label>
+              <input
+                type="number"
+                min={1}
+                max={form.totalSpots ? parseInt(form.totalSpots) - 1 : undefined}
+                value={form.maleQuota}
+                onChange={e => set('maleQuota', e.target.value)}
+                placeholder={`Default: ${form.totalSpots ? Math.floor(parseInt(form.totalSpots) / 2) : '½ of spots'}`}
+                className="w-32 bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 px-3 py-2 text-sm"
+              />
+              <span className="text-xs text-zinc-500">max males allowed</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <label className="text-sm font-medium text-zinc-300 shrink-0 w-32">♀ Female quota</label>
+              <input
+                type="number"
+                min={1}
+                max={form.totalSpots ? parseInt(form.totalSpots) - 1 : undefined}
+                value={form.femaleQuota}
+                onChange={e => set('femaleQuota', e.target.value)}
+                placeholder="Leave blank for uncapped"
+                className="w-32 bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 px-3 py-2 text-sm"
+              />
+              <span className="text-xs text-zinc-500">max females allowed (blank = no cap)</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <label className="text-sm font-medium text-zinc-300 shrink-0 w-32">🇹🇷 Turkish male</label>
+              <input
+                type="number"
+                min={1}
+                value={form.turkishMaleQuota}
+                onChange={e => set('turkishMaleQuota', e.target.value)}
+                placeholder="Leave blank for no sub-cap"
+                className="w-32 bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 px-3 py-2 text-sm"
+              />
+              <span className="text-xs text-zinc-500">sub-cap on Turkish males specifically</span>
+            </div>
+          </div>
+        )}
       </section>
 
       <section className="bg-zinc-900 rounded-2xl border border-zinc-800 p-4 sm:p-5">

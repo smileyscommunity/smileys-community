@@ -116,7 +116,11 @@ export default function NotificationBell() {
       setNotifs(prev => prev.map(x => x.id === n.id ? { ...x, isRead: true } : x))
     }
     setOpen(false)
-    if (n.link) router.push(n.link)
+    // Linkless notifications (e.g. all-member announcements) go to the
+    // notifications page, where the full body renders — the dropdown
+    // clamps it to two lines, so a dead-end click left long
+    // announcements unreadable.
+    router.push(n.link ?? '/notifications')
   }
 
   return (

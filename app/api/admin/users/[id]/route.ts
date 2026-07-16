@@ -7,7 +7,8 @@ import { sendPremiumUpgradeEmail } from '@/lib/email'
 import { isPremium } from '@/lib/membership'
 import { writeAudit } from '@/lib/audit'
 import { computeEventSurveyRollup, aggregateRollup } from '@/lib/survey'
-import { formatName } from '@/lib/data'
+import { formatName, todayIstanbul } from '@/lib/data'
+import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -417,6 +418,22 @@ export async function DELETE(_: NextRequest, { params }: Params) {
       select: { clubId: true },
     })
 
+    // Same drift problem for events: the eventAttendee.deleteMany below
+    // removes rows that back the cached Event.spotsLeft counter (it was
+    // decremented when the user joined), so upcoming events would keep
+    // phantom "going" counts forever (seen in prod: spotsLeft 6/8 with
+    // zero attendee rows). Snapshot the affected upcoming events now and
+    // recompute after the delete. Past events stay untouched — their
+    // spotsLeft is the historical attendance record.
+    const upcomingAttending = await prisma.eventAttendee.findMany({
+      where: {
+        userId: id,
+        status: 'approved',
+        event:  { status: 'published', date: { gte: todayIstanbul() } },
+      },
+      select: { eventId: true, event: { select: { totalSpots: true } } },
+    })
+
     // PaymentLog inserts live inside the $transaction so they roll
     // back together with the cascade if any step fails — admin
     // retrying after a partial failure won't see ghost "deleted"
@@ -452,6 +469,18 @@ export async function DELETE(_: NextRequest, { params }: Params) {
       prisma.passwordResetToken.deleteMany({ where: { userId: id } }),
       prisma.user.delete({ where: { id } }),
     ])
+
+    // Re-derive spotsLeft for each upcoming event the user was approved
+    // on, now that their attendee rows are gone. recomputeSpotsLeft counts
+    // the remaining approved rows (host/co-hosts excluded), so this also
+    // clamps any pre-existing drift instead of blindly incrementing.
+    // Fail-soft: the user is already deleted, and the nightly
+    // sweep-event-spots reconciliation covers any recompute that dies here.
+    for (const a of upcomingAttending) {
+      await recomputeSpotsLeft(a.eventId, a.event.totalSpots).catch(e =>
+        console.error('[user.remove] spotsLeft recompute failed', { eventId: a.eventId, error: String(e) })
+      )
+    }
 
     // Roll the payment impact into the user.remove audit entry so the
     // audit log row is self-documenting (no need to cross-reference

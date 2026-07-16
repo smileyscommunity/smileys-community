@@ -370,6 +370,10 @@ model Event {
   // a phone number in the admin form). Shown to members next to the
   // pay-in-advance note; redacted for guests like whatsappUrl.
   paymentContact       String?
+  // External ticket-purchase URL (venue's ticketing page, Eventbrite, …).
+  // Only rendered for venue-paid events — Smileys-collected events use
+  // the in-app payment ledger and must not point members elsewhere.
+  ticketUrl            String?
   totalSpots           Int
   spotsLeft            Int
   limitedSpots         Boolean         @default(false)
@@ -1450,18 +1454,34 @@ model HangoutReference {
 }
 
 model AvailabilityPulse {
-  id           String   @id @default(cuid())
+  id           String      @id @default(cuid())
   userId       String
   neighborhood String?
   note         String?
   until        DateTime
-  createdAt    DateTime @default(now())
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime    @default(now())
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  waves        PulseWave[]
 
   @@index([until])
   @@index([neighborhood, until])
   @@index([userId])
   @@map("availability_pulses")
+}
+
+// "✋ I'm free too" response to a pulse — one tap of mutual signal before
+// anyone has to compose a DM to a stranger. userId is a bare column (no
+// User relation), same pattern as WaitlistEntry; rows die with their
+// pulse via the cascade, so orphans are bounded by pulse lifetime.
+model PulseWave {
+  id        String            @id @default(cuid())
+  pulseId   String
+  userId    String
+  createdAt DateTime          @default(now())
+  pulse     AvailabilityPulse @relation(fields: [pulseId], references: [id], onDelete: Cascade)
+
+  @@unique([pulseId, userId])
+  @@map("pulse_waves")
 }
 
 model VisitorAnnouncement {

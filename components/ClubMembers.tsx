@@ -13,6 +13,9 @@ interface ClubMember {
   neighborhood: string | null
   role: string
   connected: boolean
+  // False for 'connections only' members the viewer can't open — their
+  // profile page would 404, so the card renders unlinked.
+  viewable?: boolean
 }
 
 function MemberCard({ m }: { m: ClubMember }) {
@@ -29,32 +32,27 @@ function MemberCard({ m }: { m: ClubMember }) {
     </div>
   )
 
-  if (m.connected) {
-    return (
-      <Link href={`/members/${m.id}`}
-        className="flex flex-col items-center gap-2 p-3 rounded-2xl hover:bg-gray-50 transition-colors text-center group">
-        <div className="relative">
-          {avatar}
-          {m.role === 'host' && (
-            <span className="absolute -top-1 -right-1 text-[9px] font-bold px-1 py-0.5 rounded-full bg-blue-500 text-white leading-none">
-              Host
-            </span>
-          )}
-        </div>
-        <div>
-          <p className="text-xs font-semibold text-gray-900 truncate max-w-[72px] group-hover:text-amber-600 transition-colors">
-            {m.fullName ?? m.firstName}
-          </p>
-          {m.neighborhood && (
-            <p className="text-xs text-gray-400 truncate max-w-[72px]">{m.neighborhood}</p>
-          )}
-        </div>
-      </Link>
-    )
-  }
-
-  return (
-    <div className="flex flex-col items-center gap-2 p-3 rounded-2xl text-center">
+  const body = m.connected ? (
+    <>
+      <div className="relative">
+        {avatar}
+        {m.role === 'host' && (
+          <span className="absolute -top-1 -right-1 text-[9px] font-bold px-1 py-0.5 rounded-full bg-blue-500 text-white leading-none">
+            Host
+          </span>
+        )}
+      </div>
+      <div>
+        <p className="text-xs font-semibold text-gray-900 truncate max-w-[72px] group-hover:text-amber-600 transition-colors">
+          {m.fullName ?? m.firstName}
+        </p>
+        {m.neighborhood && (
+          <p className="text-xs text-gray-400 truncate max-w-[72px]">{m.neighborhood}</p>
+        )}
+      </div>
+    </>
+  ) : (
+    <>
       <div className="relative">
         <div className="relative">
           {avatar}
@@ -66,8 +64,25 @@ function MemberCard({ m }: { m: ClubMember }) {
           </span>
         )}
       </div>
-      <p className="text-xs font-semibold text-gray-900 truncate max-w-[72px]">{m.firstName}</p>
-    </div>
+      <p className="text-xs font-semibold text-gray-900 truncate max-w-[72px] group-hover:text-amber-600 transition-colors">{m.firstName}</p>
+    </>
+  )
+
+  // Everyone with a reachable profile is clickable — non-connected viewers
+  // land on the limited profile, which is where the "connect" CTA lives.
+  if (m.viewable === false) {
+    return (
+      <div className="flex flex-col items-center gap-2 p-3 rounded-2xl text-center">
+        {body}
+      </div>
+    )
+  }
+
+  return (
+    <Link href={`/members/${m.id}`}
+      className="flex flex-col items-center gap-2 p-3 rounded-2xl hover:bg-gray-50 transition-colors text-center group">
+      {body}
+    </Link>
   )
 }
 

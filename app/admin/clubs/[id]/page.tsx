@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { resolveImageUrl } from '@/lib/data'
+import { useAdminMemberSearch } from '@/hooks/useAdminMemberSearch'
 
 interface Member {
   id: string
@@ -76,7 +77,10 @@ export default function AdminClubDetailPage() {
   const [showArchiveDialog, setShowArchiveDialog] = useState(false)
   const [loading,     setLoading]     = useState(true)
   const [search,      setSearch]      = useState('')
-  const [allUsers,    setAllUsers]    = useState<Member[]>([])
+  // Server-side search — /api/admin/users without ?search= caps at the
+  // newest 1000 rows, so filtering a one-shot fetch client-side made the
+  // oldest members unfindable here.
+  const { results: memberHits } = useAdminMemberSearch(search, 1)
 
   useEffect(() => {
     // The new /api/admin/clubs/[id] GET returns club + quality in
@@ -85,8 +89,7 @@ export default function AdminClubDetailPage() {
     Promise.all([
       fetch(`/app/api/admin/clubs/${id}/memberships`, { credentials: 'include' }).then(r => r.json()),
       fetch(`/app/api/admin/clubs/${id}`,             { credentials: 'include' }).then(r => r.json()),
-      fetch('/app/api/admin/users',                   { credentials: 'include' }).then(r => r.json()),
-    ]).then(([mems, club, users]) => {
+    ]).then(([mems, club]) => {
       setMemberships(Array.isArray(mems) ? mems : [])
       if (club && !club.error) {
         setClubName(club.name)
@@ -95,7 +98,6 @@ export default function AdminClubDetailPage() {
         setEvents(Array.isArray(club.events)   ? club.events   : [])
         setAuditLog(Array.isArray(club.auditLog) ? club.auditLog : [])
       }
-      setAllUsers(Array.isArray(users) ? users : [])
     }).finally(() => setLoading(false))
   }, [id])
 
@@ -185,9 +187,12 @@ export default function AdminClubDetailPage() {
   const memberIds = new Set(memberships.map(m => m.user.id))
 
   const searchResults = search.trim()
-    ? allUsers.filter(u =>
-        u.name.toLowerCase().includes(search.toLowerCase()) && !memberIds.has(u.id)
-      ).slice(0, 6)
+    ? memberHits
+        .filter(u => !memberIds.has(u.id))
+        .slice(0, 6)
+        // Endpoint doesn't return profilePhoto — Avatar falls back to
+        // color initials, same as before.
+        .map(u => ({ ...u, profilePhoto: u.profilePhoto ?? null }))
     : []
 
   return (

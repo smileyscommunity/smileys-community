@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { todayIstanbul } from '@/lib/data'
 import HostImpactStats from '@/components/HostImpactStats'
+import HostProfileCard from '@/components/HostProfileCard'
 
 interface Event {
   id: string
@@ -71,6 +72,8 @@ export default function HostDashboard() {
             : "Here's an overview of your events."}
         </p>
       </div>
+
+      <HostProfileCard />
 
       <HostImpactStats />
 

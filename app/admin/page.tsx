@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
-import { resolveImageUrl, todayIstanbul } from '@/lib/data'
+import { resolveImageUrl, todayIstanbul, formatTime } from '@/lib/data'
 import AlertsRow, { type Alert } from '@/components/admin/AlertsRow'
 
 interface TopHost {
@@ -16,6 +16,11 @@ interface Stats {
   newMembersThisMonth: number
   revenueCollected: number; revenuePending: number; pendingPayments: number
   pendingApplications: number; pendingReports: number
+  // Event join requests awaiting a decision (upcoming events only) —
+  // the /admin/participants Pending inbox count.
+  pendingJoinRequests: number
+  // Events running today with live door-ops counts (sorted by time).
+  todayEvents: { id: string; title: string; emoji: string; time: string; totalSpots: number; going: number; checkedIn: number }[]
   // #4 monitoring — count of email_failures rows in the last 24h.
   // Anything > 0 means SMTP/Resend is probably broken and members
   // are missing transactional emails. Surfaced as a red alert pill
@@ -177,7 +182,9 @@ export default function AdminPage() {
     return () => clearInterval(t)
   }, [])
 
-  const hour = new Date().getHours()
+  // Istanbul wall-clock, not the device's — same rationale (and hourCycle
+  // gotcha) as the member dashboard's getGreeting().
+  const hour = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Istanbul', hour: 'numeric', hourCycle: 'h23' }).format(new Date()))
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
   const firstName = user?.name?.split(' ')[0] ?? 'Admin'
 
@@ -185,6 +192,10 @@ export default function AdminPage() {
     stats.pendingApplications > 0 && {
       icon: '👤', label: `${stats.pendingApplications} application${stats.pendingApplications !== 1 ? 's' : ''} pending`,
       href: '/admin/applications', color: 'border-amber-500/30 bg-amber-500/5 text-amber-400',
+    },
+    stats.pendingJoinRequests > 0 && {
+      icon: '🎟️', label: `${stats.pendingJoinRequests} join request${stats.pendingJoinRequests !== 1 ? 's' : ''} pending`,
+      href: '/admin/participants', color: 'border-amber-500/30 bg-amber-500/5 text-amber-400',
     },
     stats.pendingPayments > 0 && {
       icon: '💳', label: `${stats.pendingPayments} payment${stats.pendingPayments !== 1 ? 's' : ''} · ₺${stats.revenuePending.toLocaleString()}`,
@@ -281,6 +292,47 @@ export default function AdminPage() {
             className="text-xs font-bold bg-red-500 hover:bg-red-400 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg">
             {loading ? 'Retrying…' : 'Retry'}
           </button>
+        </div>
+      )}
+
+      {/* ── Happening today ── door-ops hero. On event days the admin's
+          top job is the door — who's arrived, who's missing — so today's
+          events get top billing with live counts and one-tap routes into
+          Check-in and the participants page. Self-hides on quiet days;
+          counts refresh with the 60s background poll. */}
+      {stats && stats.todayEvents.length > 0 && (
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 overflow-hidden">
+          <div className="flex items-center gap-2 px-4 pt-3 pb-1.5">
+            <span className="relative flex h-2 w-2" aria-hidden="true">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+            </span>
+            <span className="text-xs font-bold text-amber-400 uppercase tracking-widest">Happening today</span>
+          </div>
+          <div className="divide-y divide-zinc-800/60">
+            {stats.todayEvents.map(e => (
+              <div key={e.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
+                <span className="text-xl shrink-0">{e.emoji}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-white truncate">{e.title}</p>
+                  <p className="text-xs text-zinc-400 mt-0.5">
+                    🕖 {formatTime(e.time)} · {e.going} going ·{' '}
+                    <span className={e.checkedIn > 0 ? 'text-green-400 font-semibold' : ''}>{e.checkedIn} checked in</span>
+                  </p>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <Link href={`/admin/checkin?event=${e.id}`}
+                    className="text-xs font-bold px-3 py-2 rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors">
+                    ✓ Check-in
+                  </Link>
+                  <Link href={`/admin/events/${e.id}/participants`}
+                    className="text-xs font-semibold px-3 py-2 rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-colors">
+                    People
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

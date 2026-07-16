@@ -7,6 +7,7 @@ import { createNotification } from '@/lib/notify'
 import { todayIstanbul } from '@/lib/data'
 import { normalizePaymentContact } from '@/lib/safeUrl'
 import { computeEventSurveyRollup } from '@/lib/survey'
+import { ensurePendingVenueBusiness } from '@/lib/venueDirectory'
 
 export async function GET(req: NextRequest) {
   try {
@@ -87,7 +88,7 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json()
     const { title, date, time, location, neighborhood, clubId, hostId, description,
-            totalSpots, price, memberPrice, payTo, paymentContact, emoji, isPremium, membersOnly, limitedSpots, isFirstTimerFriendly,
+            totalSpots, price, memberPrice, payTo, paymentContact, ticketUrl, intent, emoji, isPremium, membersOnly, limitedSpots, isFirstTimerFriendly,
             vibes, tagIds, tags, status, coverImage, coverImagePosition, meetingUrl, whatsappUrl, address,
             minAge, maxAge, language, difficulty,
             refundPolicy, registrationDeadline, endTime, currency, approvalRequired,
@@ -111,6 +112,7 @@ export async function POST(req: NextRequest) {
     if (!safeLocalFile(coverImage))  return NextResponse.json({ error: 'Invalid cover image URL' }, { status: 400 })
     if (!safeHttps(meetingUrl))      return NextResponse.json({ error: 'Meeting URL must start with https://' }, { status: 400 })
     if (!safeHttps(whatsappUrl))     return NextResponse.json({ error: 'WhatsApp URL must start with https://' }, { status: 400 })
+    if (!safeHttps(ticketUrl))       return NextResponse.json({ error: 'Ticket URL must start with https://' }, { status: 400 })
 
     if (clubHost) {
       // Club hosts can only create events for themselves
@@ -148,6 +150,11 @@ export async function POST(req: NextRequest) {
     // Closed set — payTo drives whether RSVP creates payment ledger rows.
     if (payTo != null && payTo !== '' && payTo !== 'venue' && payTo !== 'smileys') {
       return NextResponse.json({ error: 'payTo must be venue or smileys' }, { status: 400 })
+    }
+    // Closed set — the host form's Event Goal selector was previously
+    // dropped here (never destructured), silently defaulting to social.
+    if (intent != null && intent !== '' && intent !== 'social' && intent !== 'professional') {
+      return NextResponse.json({ error: 'intent must be social or professional' }, { status: 400 })
     }
     const contact = normalizePaymentContact(paymentContact)
     if (contact instanceof Error) {
@@ -247,12 +254,14 @@ export async function POST(req: NextRequest) {
         memberPrice:          parsedMemberPrice as number | null,
         payTo:                payTo || 'venue',
         paymentContact:       contact,
+        ticketUrl:            ticketUrl?.trim() || null,
         emoji:                emoji || '🎉',
         isPremium:            isPremium ?? false,
         membersOnly:          membersOnly ?? false,
         limitedSpots:         limitedSpots ?? true,
         isFirstTimerFriendly: isFirstTimerFriendly ?? false,
         vibes:                vibes ?? [],
+        intent:               intent === 'professional' ? 'professional' : 'social',
         status:               eventStatus,
         coverImage:           coverImage           ?? null,
         coverImagePosition:   coverImagePosition   ?? 50,
@@ -284,6 +293,18 @@ export async function POST(req: NextRequest) {
       },
       include: { tags: { include: { tag: { include: { group: true } } } } },
     })
+
+    // Mirror the venue into the directory as a PENDING listing for admin
+    // review. Once approved, the event page's "View in directory" link matches.
+    // Fire-and-forget — never blocks event creation.
+    ensurePendingVenueBusiness({
+      location:      event.location,
+      neighborhood:  event.neighborhood,
+      address:       event.address,
+      latitude:      event.lat,
+      longitude:     event.lng,
+      submittedById: hostId,
+    }).catch(() => {})
 
     // Notify the assigned host if an admin created the event on their behalf
     if (admin && hostId !== session.id) {

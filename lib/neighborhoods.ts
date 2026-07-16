@@ -1,5 +1,3 @@
-import { ISTANBUL_NEIGHBORHOODS } from './data'
-
 export function neighborhoodToSlug(name: string): string {
   return name
     .toLowerCase()
@@ -129,7 +127,30 @@ export const NEIGHBORHOOD_META: Record<string, NeighborhoodMeta> = {
   'Cevizli':        { emoji: '🌊', vibe: 'Marmara coast suburb',             side: 'Emerging', cost: 1, lat: 40.9180, lon: 29.1550 },
   'İdealtepe':      { emoji: '🌊', vibe: 'Seaside residential',              side: 'Emerging', cost: 1, lat: 40.9440, lon: 29.1080 },
   'Aydos':          { emoji: '🌲', vibe: 'Forest & nature escape',           side: 'Emerging', cost: 1, lat: 40.9200, lon: 29.1800 },
+
+  // ── Backfill: were in ISTANBUL_NEIGHBORHOODS (selectable as home) but had
+  //    no META, so they never showed up in the directory / search ───────────
+  'Avcılar':        { emoji: '🎓', vibe: 'Coastal west & campus life',       side: 'Emerging', cost: 1, lat: 40.9796, lon: 28.7214 },
+  'Bahçelievler':   { emoji: '🏘️', vibe: 'Dense & residential',              side: 'Emerging', cost: 1, lat: 41.0022, lon: 28.8590 },
+  'Bayrampaşa':     { emoji: '🏘️', vibe: 'Residential & local',             side: 'Emerging', cost: 1, lat: 41.0353, lon: 28.9127 },
+  'Esenler':        { emoji: '🚌', vibe: 'Transit hub & local',              side: 'Emerging', cost: 1, lat: 41.0433, lon: 28.8817 },
+  'Sultangazi':     { emoji: '🏗️', vibe: 'Fast-growing & residential',       side: 'Emerging', cost: 1, lat: 41.1058, lon: 28.8672 },
+  'Silivri':        { emoji: '🌅', vibe: 'Far-west coastal escape',          side: 'Emerging', cost: 1, lat: 41.0736, lon: 28.2464 },
+  'Çatalca':        { emoji: '🌾', vibe: 'Rural & green outskirts',          side: 'Emerging', cost: 1, lat: 41.1436, lon: 28.4614 },
+  'Tuzla':          { emoji: '⚓', vibe: 'Marina & seaside east',            side: 'Emerging', cost: 1, lat: 40.8156, lon: 29.2997 },
+  'Sancaktepe':     { emoji: '🏗️', vibe: 'Growing & residential',            side: 'Emerging', cost: 1, lat: 41.0006, lon: 29.2314 },
+  'Sultanbeyli':    { emoji: '🏘️', vibe: 'Residential & local',             side: 'Emerging', cost: 1, lat: 40.9686, lon: 29.2678 },
+  'Şile':           { emoji: '🏖️', vibe: 'Black Sea beaches & escape',        side: 'Coastal',  cost: 1, lat: 41.1758, lon: 29.6103 },
+  'Galataport':     { emoji: '🛳️', vibe: 'Waterfront & cruise port',         side: 'Central',  cost: 3, lat: 41.0234, lon: 28.9805 },
+  'Maçka':          { emoji: '🌳', vibe: 'Park & upscale calm',              side: 'Central',  cost: 3, lat: 41.0455, lon: 28.9938 },
+  'Kurtuluş':       { emoji: '🌈', vibe: 'Historic & multicultural',         side: 'Central',  cost: 2, lat: 41.0553, lon: 28.9787 },
 }
+
+// The one and only neighborhood name list, derived from the META keys (author
+// order) so it can never fall out of sync with the directory/search. Adding a
+// neighborhood = adding a single NEIGHBORHOOD_META entry above. Re-exported by
+// lib/data.ts as ISTANBUL_NEIGHBORHOODS for existing importers.
+export const ISTANBUL_NEIGHBORHOODS: string[] = Object.keys(NEIGHBORHOOD_META)
 
 export function getNeighborhoodMeta(name: string): NeighborhoodMeta {
   return NEIGHBORHOOD_META[name] ?? { emoji: '📍', vibe: 'Explore Istanbul', side: 'European', cost: 2, lat: 41.0082, lon: 28.9784 }

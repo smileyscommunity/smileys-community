@@ -62,6 +62,10 @@ export default function AdminNotificationsPage() {
   const [history,        setHistory]        = useState<BroadcastRecord[]>([])
   const [loadingHistory, setLoadingHistory] = useState(true)
   const [confirmSend,    setConfirmSend]    = useState(false)
+  // Post-send editing (admins only) — rewrites the in-app notification
+  // for every recipient. Keyed by broadcast id; null = nothing open.
+  const [editing,    setEditing]    = useState<{ id: string; title: string; message: string } | null>(null)
+  const [savingEdit, setSavingEdit] = useState(false)
 
   // Sync audience when isModerator flips from false to true. The useState
   // initializer runs once at mount; AuthContext starts as GUEST so
@@ -95,6 +99,28 @@ export default function AdminNotificationsPage() {
       .then(d => setEvents(Array.isArray(d) ? d : []))
     loadHistory()
   }, [loadHistory])
+
+  async function saveEdit() {
+    if (!editing || !editing.title.trim() || !editing.message.trim()) return
+    setSavingEdit(true)
+    try {
+      const res = await fetch('/app/api/admin/notifications/broadcast', {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editing),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        toast.success(`Updated ✓ — rewrote ${data.notificationsUpdated} member notification${data.notificationsUpdated === 1 ? '' : 's'}`)
+        setEditing(null)
+        await loadHistory()
+      } else {
+        toast.error(data.error ?? 'Failed to update broadcast')
+      }
+    } catch {
+      toast.error('Network error — please try again')
+    } finally { setSavingEdit(false) }
+  }
 
   const canSend = !!(
     title.trim() && message.trim() &&
@@ -306,31 +332,73 @@ export default function AdminNotificationsPage() {
         ) : (
           <div className="space-y-2">
             {history.map(b => (
-              <div key={b.id} className="flex items-start gap-3 py-3 border-t border-zinc-800 first:border-t-0">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-semibold text-white">{b.title}</span>
-                    <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full capitalize ${typeConfig[b.type as MsgType]?.color ?? 'bg-zinc-700 text-zinc-400'}`}>
-                      {b.type}
-                    </span>
-                    <span className="text-xs text-zinc-500 bg-zinc-800 px-1.5 py-0.5 rounded-full">
-                      {audienceLabel[b.audience] ?? b.audience}
-                    </span>
-                    {b.channel && (
-                      <span className="text-xs text-zinc-500 bg-zinc-800 px-1.5 py-0.5 rounded-full">
-                        {b.channel === 'email' ? '📧 Email + in-app' : '🔔 In-app'}
-                      </span>
+              <div key={b.id} className="py-3 border-t border-zinc-800 first:border-t-0">
+                {editing?.id === b.id ? (
+                  <div className="space-y-2">
+                    <input
+                      value={editing.title}
+                      onChange={e => setEditing(prev => prev && { ...prev, title: e.target.value })}
+                      className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2 text-white text-sm focus:outline-none focus:border-amber-500"
+                    />
+                    <textarea
+                      value={editing.message}
+                      onChange={e => setEditing(prev => prev && { ...prev, message: e.target.value })}
+                      rows={8}
+                      className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2 text-white text-sm focus:outline-none focus:border-amber-500 resize-y"
+                    />
+                    <p className="text-xs text-zinc-500">
+                      Saving rewrites this broadcast&apos;s in-app notification for every recipient, read or unread.
+                      {b.channel === 'email' && ' Emails already delivered can’t be changed.'}
+                    </p>
+                    <div className="flex gap-2">
+                      <button onClick={saveEdit} disabled={savingEdit || !editing.title.trim() || !editing.message.trim()}
+                        className="text-xs px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold transition-colors disabled:opacity-40">
+                        {savingEdit ? 'Saving…' : 'Save changes'}
+                      </button>
+                      <button onClick={() => setEditing(null)}
+                        className="text-xs px-3 py-2 rounded-lg text-zinc-400 hover:text-white transition-colors">
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-start gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-semibold text-white">{b.title}</span>
+                        <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full capitalize ${typeConfig[b.type as MsgType]?.color ?? 'bg-zinc-700 text-zinc-400'}`}>
+                          {b.type}
+                        </span>
+                        <span className="text-xs text-zinc-500 bg-zinc-800 px-1.5 py-0.5 rounded-full">
+                          {audienceLabel[b.audience] ?? b.audience}
+                        </span>
+                        {b.channel && (
+                          <span className="text-xs text-zinc-500 bg-zinc-800 px-1.5 py-0.5 rounded-full">
+                            {b.channel === 'email' ? '📧 Email + in-app' : '🔔 In-app'}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-zinc-400 mt-0.5 line-clamp-1">{b.message}</p>
+                      <div className="flex items-center gap-2 mt-1 text-xs text-zinc-600">
+                        <span>{new Date(b.createdAt).toLocaleString()}</span>
+                        <span>·</span>
+                        <span>by {b.sentBy}</span>
+                        <span>·</span>
+                        <span className="text-zinc-500">{b.sentCount} sent</span>
+                      </div>
+                    </div>
+                    {/* Edit — admin-only (the PATCH endpoint rejects
+                        moderators; hide the affordance to match). */}
+                    {!isModerator && (
+                      <button
+                        onClick={() => setEditing({ id: b.id, title: b.title, message: b.message })}
+                        className="shrink-0 text-xs px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors"
+                      >
+                        ✏️ Edit
+                      </button>
                     )}
                   </div>
-                  <p className="text-xs text-zinc-400 mt-0.5 line-clamp-1">{b.message}</p>
-                  <div className="flex items-center gap-2 mt-1 text-xs text-zinc-600">
-                    <span>{new Date(b.createdAt).toLocaleString()}</span>
-                    <span>·</span>
-                    <span>by {b.sentBy}</span>
-                    <span>·</span>
-                    <span className="text-zinc-500">{b.sentCount} sent</span>
-                  </div>
-                </div>
+                )}
               </div>
             ))}
           </div>

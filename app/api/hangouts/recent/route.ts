@@ -44,6 +44,7 @@ export async function GET() {
       title:        h.title,
       neighborhood: h.neighborhood,
       endsAt:       h.endsAt,
+      photo:        h.photo,
       user:         h.user,
       joinerCount:  h.joins.length,
       goodRefCount: goodRefsByHangout[h.id] ?? 0,

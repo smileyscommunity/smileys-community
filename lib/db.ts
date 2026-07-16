@@ -82,6 +82,7 @@ function mapEvent(e: any, spotsLeft?: number): Event {
     memberPrice:  e.memberPrice ?? undefined,
     payTo:        e.payTo ?? 'venue',
     paymentContact: e.paymentContact ?? undefined,
+    ticketUrl:    e.ticketUrl ?? undefined,
     totalSpots:   e.totalSpots,
     spotsLeft:    spotsLeft ?? Math.max(0, e.spotsLeft ?? 0),
     limitedSpots: e.limitedSpots,

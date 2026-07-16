@@ -2,13 +2,17 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin, isClubHost } from '@/lib/access'
+import { todayIstanbul } from '@/lib/data'
 
-const userSelect  = { id: true, name: true, color: true, email: true, profilePhoto: true }
+// phone + nationality power the per-row WhatsApp deep link (admin-only
+// endpoint, same fields the per-event participants API exposes).
+const userSelect  = { id: true, name: true, color: true, email: true, profilePhoto: true, phone: true, nationality: true }
 // status is needed by /admin/participants so each event's section
 // header can show a status pill (live / draft / cancelled / etc.) —
 // without it, the admin moderating bulk requests can't tell that
-// they're approving people into a cancelled event.
-const eventSelect = { id: true, title: true, date: true, emoji: true, status: true }
+// they're approving people into a cancelled event. spotsLeft/totalSpots
+// drive the capacity badge + full-event promote guard.
+const eventSelect = { id: true, title: true, date: true, emoji: true, status: true, spotsLeft: true, totalSpots: true }
 
 export async function GET() {
   try {
@@ -33,7 +37,9 @@ export async function GET() {
       eventIdFilter = { in: hostEvents.map(e => e.id) }
     }
 
-    const today = new Date().toISOString().slice(0, 10)
+    // Istanbul "today", not UTC — with UTC the 00:00–03:00 local window
+    // still included yesterday's events in the future-events filter.
+    const today = todayIstanbul()
 
     const [attendees, waitlistRaw] = await Promise.all([
       prisma.eventAttendee.findMany({

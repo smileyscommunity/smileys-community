@@ -28,9 +28,18 @@ export async function GET(req: NextRequest) {
     orderBy: { createdAt: 'desc' },
     take: 50,
     include: {
-      user: { select: { id: true, name: true, color: true, profilePhoto: true, goodHangouts: true, nationality: true } },
+      user:  { select: { id: true, name: true, color: true, profilePhoto: true, goodHangouts: true, nationality: true } },
+      waves: { select: { userId: true }, orderBy: { createdAt: 'asc' } },
     },
   })
+
+  // Waver names for the poster's "X is free too" line — one batched
+  // lookup (PulseWave has no User relation, same pattern as waitlist).
+  const waverIds = [...new Set(pulses.flatMap(p => p.waves.map(w => w.userId)))]
+  const wavers = waverIds.length
+    ? await prisma.user.findMany({ where: { id: { in: waverIds } }, select: { id: true, name: true } })
+    : []
+  const waverName = new Map(wavers.map(u => [u.id, u.name]))
 
   return NextResponse.json({
     pulses: pulses.map(p => ({
@@ -41,6 +50,11 @@ export async function GET(req: NextRequest) {
       createdAt:    p.createdAt,
       user:         p.user,
       isMine:       p.userId === session.id,
+      waves: {
+        count: p.waves.length,
+        mine:  p.waves.some(w => w.userId === session.id),
+        users: p.waves.slice(0, 5).map(w => ({ id: w.userId, name: waverName.get(w.userId) ?? 'A member' })),
+      },
     })),
   })
 }
@@ -90,33 +104,40 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    // Fire-and-forget: let the poster's accepted connections know they're
-    // around. When the pulse names a neighborhood, only ping connections who
-    // live there ("nearby"); otherwise ping all accepted connections. Each
+    // Fire-and-forget fan-out. A neighborhood pulse pings every approved
+    // member LIVING there — not just connections. The connections-only
+    // fan-out reached nobody in practice (sparse connection graph → zero
+    // notifications ever sent), which killed the feature's loop. A pulse
+    // with no neighborhood still goes to accepted connections only. Each
     // send is gated by the newEvents pref + quiet hours inside
     // createNotification, so muted members don't get pulse pings. Doesn't
     // block the 201.
-    ;(async () => {
+    //
+    // Anti-spam: the neighborhood audience can be hundreds of members, and
+    // re-posting a pulse replaces the old one — without a guard, 10
+    // pulses/hour × a big neighborhood = a notification cannon. One
+    // fan-out per poster per 3h; extra pulses still post, just silently.
+    const canFanOut = await rateLimit(`pulse-fanout:${session.id}`, 1, 3 * 60 * 60_000)
+    if (canFanOut) (async () => {
       try {
-        const conns = await prisma.memberConnection.findMany({
-          where:  { status: 'accepted', OR: [{ requesterId: session.id }, { receiverId: session.id }] },
-          select: { requesterId: true, receiverId: true },
-        })
-        const connIds = [...new Set(conns.map(c => c.requesterId === session.id ? c.receiverId : c.requesterId))]
-          .filter(uid => uid !== session.id)
-        if (connIds.length === 0) return
-
-        let audience = connIds
+        let audience: string[]
         if (safeNeighborhood) {
           const locals = await prisma.user.findMany({
-            where:  { id: { in: connIds }, neighborhood: safeNeighborhood },
+            where:  { status: 'approved', neighborhood: safeNeighborhood, id: { not: session.id } },
             select: { id: true },
           })
           audience = locals.map(u => u.id)
+        } else {
+          const conns = await prisma.memberConnection.findMany({
+            where:  { status: 'accepted', OR: [{ requesterId: session.id }, { receiverId: session.id }] },
+            select: { requesterId: true, receiverId: true },
+          })
+          audience = [...new Set(conns.map(c => c.requesterId === session.id ? c.receiverId : c.requesterId))]
+            .filter(uid => uid !== session.id)
         }
         if (audience.length === 0) return
 
-        const title = '🟢 A connection is free to meet'
+        const title = safeNeighborhood ? '🟢 A neighbor is free to meet' : '🟢 A connection is free to meet'
         const body  = `${session.name} is around${safeNeighborhood ? ` in ${safeNeighborhood}` : ''}${created.note ? ` — ${created.note}` : ''}`
         for (const uid of audience) {
           createNotification(uid, 'availability_pulse', title, body, '/hangouts').catch(() => {})

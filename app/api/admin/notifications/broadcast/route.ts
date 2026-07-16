@@ -15,6 +15,38 @@ export async function GET() {
   return NextResponse.json(history)
 }
 
+// PATCH /api/admin/notifications/broadcast — edit a sent broadcast.
+// Admin-only. Updates the Broadcast record AND every matching in-app
+// notification row: fan-out rows don't carry a broadcast FK, so the
+// linkage is the broadcast's exact type+title+body (identical for all
+// rows created by one send). Read state is preserved. Already-delivered
+// emails can't be recalled — the response reports how many in-app rows
+// were rewritten.
+export async function PATCH(req: NextRequest) {
+  const session = await getSession()
+  if (!session || !isAdmin(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const { id, title, message } = await req.json()
+  if (!id || !title?.trim() || !message?.trim()) {
+    return NextResponse.json({ error: 'id, title and message required' }, { status: 400 })
+  }
+
+  const b = await prisma.broadcast.findUnique({ where: { id } })
+  if (!b) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  const notifType = b.type === 'alert' ? 'system_alert' : 'announcement'
+  const rewritten = await prisma.notification.updateMany({
+    where: { type: notifType, title: b.title, body: b.message },
+    data:  { title: title.trim(), body: message.trim() },
+  })
+  await prisma.broadcast.update({
+    where: { id },
+    data:  { title: title.trim(), message: message.trim() },
+  })
+
+  return NextResponse.json({ ok: true, notificationsUpdated: rewritten.count })
+}
+
 export async function POST(req: NextRequest) {
   const session = await getSession()
   if (!session || !canSendBroadcasts(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })

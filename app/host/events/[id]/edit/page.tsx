@@ -23,7 +23,7 @@ const emptyForm = {
   emoji: '🎉', status: 'published',
   isPremium: false, membersOnly: false, limitedSpots: true, isRecurring: false,
   approvalRequired: false,
-  coverImage: '', coverImagePosition: 50, meetingUrl: '', whatsappUrl: '',
+  coverImage: '', coverImagePosition: 50, meetingUrl: '', whatsappUrl: '', ticketUrl: '',
   minAge: '', maxAge: '',
   language: '', refundPolicy: '', registrationDeadline: '',
   endTime: '',
@@ -141,6 +141,7 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
           coverImagePosition: event.coverImagePosition ?? 50,
           meetingUrl:         event.meetingUrl         ?? '',
           whatsappUrl:        event.whatsappUrl        ?? '',
+          ticketUrl:          event.ticketUrl          ?? '',
           minAge:       event.minAge != null   ? String(event.minAge)   : '',
           maxAge:       event.maxAge != null   ? String(event.maxAge)   : '',
           language:     event.language     ?? '',
@@ -523,6 +524,12 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
             <label className="block text-xs font-semibold text-zinc-400 mb-1.5">WhatsApp group URL</label>
             <input type="text" value={form.whatsappUrl} onChange={e => set('whatsappUrl', e.target.value)} className={inputCls} />
           </div>
+          <div className="mb-4">
+            <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Ticket link (external)</label>
+            <input type="text" value={form.ticketUrl} onChange={e => set('ticketUrl', e.target.value)}
+              placeholder="https://… (optional)" className={inputCls} />
+            <p className="text-xs text-zinc-600 mt-1">Shown as a “Buy tickets” button on the event page.</p>
+          </div>
           <div className="flex flex-wrap gap-4">
             {[
               { key: 'limitedSpots',     label: 'Limited spots'        },
@@ -530,7 +537,9 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
               { key: 'membersOnly',      label: '🔒 Members only'      },
               { key: 'isRecurring',      label: '🔁 Recurring'         },
               { key: 'approvalRequired', label: '✋ Approval required' },
-              { key: 'genderBalance',    label: '⚖️ Gender balance'    },
+              // Gender balance is an admin curation lever — the toggle
+              // used to render here without its quota inputs, letting a
+              // host flip the flag with no way to set the numbers.
             ].map(({ key, label }) => (
               <label key={key} className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" checked={form[key as keyof typeof form] as boolean}

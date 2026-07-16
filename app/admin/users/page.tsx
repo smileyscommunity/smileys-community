@@ -4,10 +4,10 @@ import { toast } from 'sonner'
 import { confirmToast } from '@/lib/confirmToast'
 import { promptToast } from '@/lib/promptToast'
 
-import { useState, useEffect, useMemo, useCallback, Suspense } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { getInitials } from '@/lib/data'
+import { getInitials, whatsappUrl } from '@/lib/data'
 import { useAuth } from '@/contexts/AuthContext'
 
 type TabKey = 'all' | 'member' | 'moderator' | 'admin' | 'unverified' | 'banned' | 'suspended' | 'inactive' | 'warned' | 'noshows'
@@ -47,23 +47,6 @@ function isSuspended(u: { suspendedUntil: string | null }): boolean {
 }
 
 type SortKey = 'recent' | 'active' | 'warnings' | 'noshows'
-
-const TURKISH_NATIONALITIES = new Set(['turkey', 'türkiye', 'turkiye', 'tr', 'turkish'])
-
-// WhatsApp URL with smarter country-code handling than the old
-// `.replace(/^0/, '90')` shortcut, which mangled local-format phones from
-// non-Turkish users (e.g. a French `0123456789` became `90123456789`).
-function whatsappUrl(phone: string, nationality: string | null): string | null {
-  const digits = phone.replace(/\D/g, '')
-  if (!digits) return null
-  const isTurkish = nationality
-    ? TURKISH_NATIONALITIES.has(nationality.trim().toLowerCase())
-    : false
-  const normalized = (digits.startsWith('0') && isTurkish)
-    ? '90' + digits.slice(1)
-    : digits
-  return `https://wa.me/${normalized}`
-}
 
 const ROLE_BADGE_FALLBACK = 'bg-zinc-700 text-zinc-400'
 const roleBadge: Record<string, string> = {
@@ -143,9 +126,17 @@ function AdminUsersPageInner() {
 
   // load() runs the initial fetch and the auto-refresh poll. background=true
   // skips the skeleton flicker so the 30s refresh doesn't blank the page.
+  // Search is sent to the server so it queries the whole roster, not just the
+  // fetched page — otherwise members past the take:1000 cap (the oldest) were
+  // unfindable. Kept in a ref so `load` stays stable (deps []); the debounced
+  // search effect below re-invokes it.
+  const searchRef = useRef(search)
+  searchRef.current = search
+
   const load = useCallback((background = false) => {
     if (!background) setLoading(true)
-    fetch('/app/api/admin/users', { credentials: 'include' })
+    const q = searchRef.current.trim() ? `?search=${encodeURIComponent(searchRef.current.trim())}` : ''
+    fetch(`/app/api/admin/users${q}`, { credentials: 'include' })
       .then(r => r.json())
       .then(data => {
         if (Array.isArray(data)) {
@@ -194,13 +185,16 @@ function AdminUsersPageInner() {
       else        params.delete('search')
       const q = params.toString()
       router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false })
-    }, 250)
+      // Re-query the server with the new term so matches beyond the fetched
+      // page (the oldest members) are found. Background = no skeleton flicker.
+      load(true)
+    }, 300)
     return () => clearTimeout(t)
   // searchParams is intentionally excluded — including it would re-fire the
   // effect on every URL change (including the ones we just made), creating
   // an infinite loop.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, pathname, router])
+  }, [search, pathname, router, load])
 
   const refreshLabel = (() => {
     if (!lastRefresh) return ''
@@ -463,12 +457,15 @@ function AdminUsersPageInner() {
   // misleading totals like "423 members" while only "1" was visible).
   const searchFiltered = useMemo(() => {
     const s = search.toLowerCase()
+    // A 16+ char hex string is a device-fingerprint lookup handled server-side;
+    // don't re-filter by name/email here or those matches would be hidden.
+    const isFp = /^[a-f0-9]{16,}$/i.test(search.trim())
     // Date inputs are yyyy-mm-dd local; treat "from" as start-of-day and
     // "to" as end-of-day in the user's tz by appending T00 / T23:59:59.999.
     const fromTs = joinedFrom ? new Date(joinedFrom + 'T00:00:00').getTime() : null
     const toTs   = joinedTo   ? new Date(joinedTo   + 'T23:59:59.999').getTime() : null
     return users.filter(u => {
-      if (s && !u.name.toLowerCase().includes(s) && !u.email.toLowerCase().includes(s)) return false
+      if (s && !isFp && !u.name.toLowerCase().includes(s) && !u.email.toLowerCase().includes(s)) return false
       if (fromTs !== null || toTs !== null) {
         const t = new Date(u.joinedAt).getTime()
         if (fromTs !== null && t < fromTs) return false

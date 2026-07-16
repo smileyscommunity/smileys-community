@@ -17,17 +17,16 @@ export async function GET() {
 
     const hostId = session.id
 
-    // Same event scope as /api/host/events: own events + co-hosted + club events
-    const hostClubs = await prisma.clubMembership.findMany({
-      where: { userId: hostId, role: 'host', status: 'approved' },
-      select: { clubId: true },
-    })
-    const clubIds = hostClubs.map(m => m.clubId)
-
+    // The host's OWN events: primary host or co-host. This used to OR
+    // in every event of every club the caller hosts, so on multi-host
+    // clubs each host's impact card silently counted the other hosts'
+    // events, attendees, and reviews. /api/host/events already scopes
+    // to hostId; this now matches (plus co-hosted, which reviews and
+    // attendance legitimately credit to the co-host too).
     const eventWhere = {
       OR: [
         { hostId },
-        ...(clubIds.length > 0 ? [{ clubId: { in: clubIds } }] : []),
+        { cohosts: { some: { userId: hostId } } },
       ],
     }
 

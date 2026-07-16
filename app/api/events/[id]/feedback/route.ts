@@ -25,7 +25,7 @@ export async function GET(_: NextRequest, { params }: Params) {
   const { id } = await params
   const event = await prisma.event.findUnique({
     where:  { id },
-    select: { id: true, title: true, emoji: true, date: true, endTime: true },
+    select: { id: true, title: true, emoji: true, date: true, endTime: true, location: true },
   })
   if (!event) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
@@ -61,7 +61,17 @@ export async function GET(_: NextRequest, { params }: Params) {
     return NextResponse.json({ event, eligible: false, reason: 'submitted' })
   }
 
-  return NextResponse.json({ event, eligible: true })
+  // Optional third question: when the event's venue has a directory
+  // listing the responder hasn't reviewed yet, offer a star rating that
+  // becomes their public review. Null when there's no match or they
+  // already reviewed it — the form simply skips the question.
+  const venue = await matchDirectoryVenue(event.location)
+  const venueForForm = venue && !(await prisma.businessReview.findUnique({
+    where:  { businessId_authorId: { businessId: venue.id, authorId: session.id } },
+    select: { id: true },
+  })) ? venue : null
+
+  return NextResponse.json({ event, eligible: true, venue: venueForForm })
 }
 
 // POST /api/events/[id]/feedback
@@ -96,9 +106,18 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const event = await prisma.event.findUnique({
     where:  { id },
-    select: { id: true, title: true, date: true, endTime: true, hostId: true },
+    select: { id: true, title: true, date: true, endTime: true, hostId: true, location: true },
   })
   if (!event) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // Optional venue rating → public directory review. Validated here,
+  // written after the survey row lands (below) so a bad rating payload
+  // rejects the whole submit rather than half-applying.
+  const venueRating = body.venueRating === undefined ? null : Number(body.venueRating)
+  if (venueRating !== null && (!Number.isInteger(venueRating) || venueRating < 1 || venueRating > 5)) {
+    return NextResponse.json({ error: 'venueRating must be an integer 1–5' }, { status: 400 })
+  }
+  const venueComment = typeof body.venueComment === 'string' ? body.venueComment.trim().slice(0, 1000) : null
 
   // Re-run the eligibility checks server-side — clients can't be
   // trusted to honour the GET response.
@@ -140,6 +159,35 @@ export async function POST(req: NextRequest, { params }: Params) {
     },
   })
 
+  // Venue review — matched server-side from the event's location (the
+  // client never picks the business). Create-only: if the member
+  // already has a review for this business (including from a survey
+  // retry in the same window), leave it untouched. Best-effort — a
+  // failure here must not lose the survey response.
+  if (venueRating !== null) {
+    try {
+      const venue = await matchDirectoryVenue(event.location)
+      if (venue) {
+        const already = await prisma.businessReview.findUnique({
+          where:  { businessId_authorId: { businessId: venue.id, authorId: session.id } },
+          select: { id: true },
+        })
+        if (!already) {
+          await prisma.businessReview.create({
+            data: {
+              businessId: venue.id,
+              authorId:   session.id,
+              rating:     venueRating,
+              comment:    venueComment || null,
+            },
+          })
+        }
+      }
+    } catch (e) {
+      console.error('Survey venue review create failed:', e)
+    }
+  }
+
   // Auto-file a Report when the responder flagged something off. The
   // Report points at the host as the responsible party — admins read
   // the anomalyNote and route the action (warn host, follow up with
@@ -174,6 +222,18 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   return NextResponse.json({ ok: true })
+}
+
+// Match the event's venue to an approved directory listing by name —
+// the same convention the event page's "View in directory" chip uses,
+// kept in sync by scripts/import-event-venues.ts.
+async function matchDirectoryVenue(location: string | null) {
+  const name = (location ?? '').replace(/\s+/g, ' ').trim()
+  if (!name) return null
+  return prisma.business.findFirst({
+    where:  { name: { equals: name, mode: 'insensitive' }, isApproved: true, isActive: true },
+    select: { id: true, name: true },
+  })
 }
 
 // Best-guess "when did this event end" timestamp. Event.endTime is

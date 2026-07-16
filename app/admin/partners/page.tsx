@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { toast } from 'sonner'
 import { resolveImageUrl } from '@/lib/data'
 import { useAdminLoad } from '@/lib/admin/useAdminLoad'
+import { useAdminMemberSearch } from '@/hooks/useAdminMemberSearch'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 
 interface PartnerUser { id: string; name: string; email: string }
@@ -42,36 +43,32 @@ const FIELDS = [
 const inputCls = 'w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2 text-white text-sm focus:outline-none focus:border-amber-500'
 
 export default function AdminPartnersPage() {
-  // Two parallel useAdminLoad calls in place of a hand-rolled
-  // Promise.all + setState dance. Each one r.ok-gates + shape-
-  // validates its response, and a combined load() retries both.
+  // useAdminLoad in place of a hand-rolled fetch + setState dance:
+  // it r.ok-gates + shape-validates the response and exposes retry.
   // Was previously using .then(r => r.json()) with no r.ok check —
   // a 401/500 fell through unchecked, Array.isArray filtered the
   // error JSON into [], and the page rendered "No partners yet"
   // indistinct from a real empty result.
   const {
-    data: partnersData, loading: partnersLoading, error: partnersError, retry: retryPartners, setData: setPartnersData,
+    data: partnersData, loading, error: loadError, retry: load, setData: setPartnersData,
   } = useAdminLoad<Partner[]>(
     '/app/api/admin/partners',
     (v): v is Partner[] => Array.isArray(v),
   )
-  const {
-    data: membersData, loading: membersLoading, error: membersError, retry: retryMembers,
-  } = useAdminLoad<Member[]>(
-    '/app/api/admin/users',
-    (v): v is Member[] => Array.isArray(v),
-  )
-  const partners   = partnersData ?? []
-  const allMembers = membersData  ?? []
-  const loading    = partnersLoading || membersLoading
-  const loadError  = partnersError || membersError
-  const load = () => { retryPartners(); retryMembers() }
+  const partners = partnersData ?? []
   const setPartners = (next: Partner[] | ((prev: Partner[]) => Partner[])) => {
     setPartnersData(typeof next === 'function' ? next(partnersData ?? []) : next)
   }
 
   const [panel,      setPanel]      = useState<{ id: string; mode: PanelMode }>({ id: '', mode: null })
   const [searches,   setSearches]   = useState<Record<string, string>>({})
+  // Server-side member search for the assign picker — /api/admin/users
+  // without ?search= caps at the newest 1000 rows, so filtering a
+  // one-shot fetch client-side made the oldest members unfindable.
+  // Only one panel is open at a time, so a single hook keyed to the
+  // open panel's search box covers every partner row.
+  const activeSearch = panel.mode === 'users' ? (searches[panel.id] ?? '') : ''
+  const { results: memberHits } = useAdminMemberSearch(activeSearch)
   const [editForms,  setEditForms]  = useState<Record<string, Partial<Partner>>>({})
   const [saving,     setSaving]     = useState<string | null>(null)
 
@@ -214,8 +211,8 @@ export default function AdminPartnersPage() {
             const editData  = editForms[p.id] ?? p
             const search    = searches[p.id] ?? ''
             const assignedIds = new Set(p.users.map(u => u.id))
-            const searchResults = search.trim().length > 1
-              ? allMembers.filter(m => !assignedIds.has(m.id) && m.name.toLowerCase().includes(search.toLowerCase())).slice(0, 5)
+            const searchResults = mode === 'users' && search.trim().length > 1
+              ? memberHits.filter(m => !assignedIds.has(m.id)).slice(0, 5)
               : []
             const logo = resolveImageUrl(p.logo)
 

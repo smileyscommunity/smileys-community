@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { resolveImageUrl, getInitials } from '@/lib/data'
 import { downscaleImage } from '@/lib/image-resize'
+import ReportButton from '@/components/ReportButton'
 
 interface Reaction { userId: string; emoji: string }
 
@@ -150,26 +151,31 @@ export default function ThreadPage({ params }: { params: Promise<{ userId: strin
     e.preventDefault()
     if ((!text.trim() && !pendingImage) || sending) return
     setSending(true)
-    const res = await fetch(`/app/api/messages/${otherId}`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        text,
-        imageUrl:  pendingImage ?? undefined,
-        replyToId: replyingTo?.id ?? undefined,
-      }),
-    })
-    setSending(false)
-    if (res.status === 403) { setNotConnected(true); return }
-    if (!res.ok) return
-    const msg = await res.json()
-    setMessages(prev => [...prev, msg])
-    lastMsgRef.current = msg.createdAt
-    setText('')
-    setPendingImage(null)
-    setReplyingTo(null)
-    textareaRef.current?.focus()
+    try {
+      const res = await fetch(`/app/api/messages/${otherId}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text,
+          imageUrl:  pendingImage ?? undefined,
+          replyToId: replyingTo?.id ?? undefined,
+        }),
+      })
+      if (res.status === 403) { setNotConnected(true); return }
+      if (!res.ok) return
+      const msg = await res.json()
+      setMessages(prev => [...prev, msg])
+      lastMsgRef.current = msg.createdAt
+      setText('')
+      setPendingImage(null)
+      setReplyingTo(null)
+      textareaRef.current?.focus()
+    } catch {
+      // Network blip — keep the composed text/image so the user can retry.
+    } finally {
+      setSending(false)
+    }
   }
 
   async function handleImageChoose(e: React.ChangeEvent<HTMLInputElement>) {
@@ -185,6 +191,8 @@ export default function ThreadPage({ params }: { params: Promise<{ userId: strin
       // Upload route returns { url } shaped /app/api/files/<sub>/<file>.ext —
       // server validates with the same regex on send.
       if (r?.url) setPendingImage(r.url)
+    } catch {
+      // Upload failed (network blip) — user can retry the attachment.
     } finally {
       setUploading(false)
       e.target.value = ''
@@ -193,14 +201,16 @@ export default function ThreadPage({ params }: { params: Promise<{ userId: strin
 
   async function toggleReaction(messageId: string, emoji: string) {
     setReactingId(null)
-    const r = await fetch(`/app/api/messages/${otherId}/react`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messageId, emoji }),
-    }).then(res => res.ok ? res.json() : null)
-    if (!r?.reactions) return
-    setMessages(prev => prev.map(m => m.id === messageId ? { ...m, reactions: r.reactions } : m))
+    try {
+      const r = await fetch(`/app/api/messages/${otherId}/react`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messageId, emoji }),
+      }).then(res => res.ok ? res.json() : null)
+      if (!r?.reactions) return
+      setMessages(prev => prev.map(m => m.id === messageId ? { ...m, reactions: r.reactions } : m))
+    } catch { /* network blip — reaction not applied, safe to retry */ }
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -212,14 +222,21 @@ export default function ThreadPage({ params }: { params: Promise<{ userId: strin
 
   async function deleteMessage(id: string) {
     setDeleting(id)
-    await fetch(`/app/api/messages/${otherId}`, {
-      method: 'DELETE',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messageId: id }),
-    })
-    setMessages(prev => prev.filter(m => m.id !== id))
-    setDeleting(null)
+    try {
+      const res = await fetch(`/app/api/messages/${otherId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messageId: id }),
+      })
+      // Only drop it locally if the server actually deleted it, so a failed
+      // request doesn't hide a message that's still there on reload.
+      if (res.ok) setMessages(prev => prev.filter(m => m.id !== id))
+    } catch {
+      // Network blip — leave the message in place; user can retry.
+    } finally {
+      setDeleting(null)
+    }
   }
 
   const partnerName = partner?.name ?? 'Member'
@@ -264,6 +281,8 @@ export default function ThreadPage({ params }: { params: Promise<{ userId: strin
                 )
               })()}
             </div>
+            {/* Report this conversation partner */}
+            <ReportButton reportedId={otherId} reportedName={partnerName} />
           </>
         )}
       </div>

@@ -16,7 +16,7 @@ import {
   type BusinessHours,
 } from '@/lib/businessHours'
 import { neighborhoodToSlug, getNeighborhoodMeta } from '@/lib/neighborhoods'
-import DetailClient from './DetailClient'
+import { HeaderActions, ReviewCta, FooterActions } from './DetailClient'
 
 // Per-business detail page — the dedicated route that unlocks SEO,
 // JSON-LD LocalBusiness markup, shareable URLs, and per-listing OG
@@ -77,7 +77,7 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
   if (!business) notFound()
 
   // Aggregates + per-caller state, all in parallel.
-  const [reviewsRaw, saveCount, mySave, myReview] = await Promise.all([
+  const [reviewsRaw, saveCount, mySave, myReview, myClaim] = await Promise.all([
     prisma.businessReview.findMany({
       where: {
         businessId: business.id,
@@ -105,6 +105,10 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
     session ? prisma.businessReview.findFirst({
       where:  { businessId: business.id, authorId: session.id },
       select: { id: true },
+    }) : Promise.resolve(null),
+    session ? prisma.businessClaim.findUnique({
+      where:  { businessId_claimantId: { businessId: business.id, claimantId: session.id } },
+      select: { status: true },
     }) : Promise.resolve(null),
   ])
 
@@ -189,6 +193,16 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
   const cover      = resolveImageUrl(business.coverImage)
   const logo       = resolveImageUrl(business.logo)
   const addedBy    = attributionDisplay(business.submittedBy?.name)
+
+  // Shared summary for the client action components (header / reviews
+  // header / footer — see DetailClient.tsx for the split rationale).
+  const businessSummary = {
+    id:              business.id,
+    name:            business.name,
+    hasClaimedOwner: business.claimedById != null,
+    isMine,
+    isStaff,
+  }
 
   return (
     <div className="min-h-screen bg-warm pb-20 md:pb-0">
@@ -280,17 +294,32 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
           {/* Description */}
           <p className="text-sm text-gray-700 mt-5 leading-relaxed whitespace-pre-wrap">{business.description}</p>
 
-          {/* Action row */}
-          <DetailClient
-            business={{
-              id:              business.id,
-              name:            business.name,
-              hasClaimedOwner: business.claimedById != null,
-              isMine,
-              isStaff,
-            }}
+          {/* Tags — chips right under the description so the community
+              signal ("We meet here") reads as part of the identity block,
+              not buried in the info grid. "We meet here" opens the grid's
+              dedicated filter pill view; other tags become a search. */}
+          {business.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-4">
+              {business.tags.map(t => (
+                <Link
+                  key={t}
+                  href={t === 'We meet here' ? '/directory?meet=1' : `/directory?q=${encodeURIComponent(t)}`}
+                  className={t === 'We meet here'
+                    ? 'text-xs font-bold bg-amber-500 text-white px-3 py-1 rounded-full hover:bg-amber-600 transition-colors'
+                    : 'text-xs font-semibold bg-gray-100 text-gray-600 px-3 py-1 rounded-full hover:bg-amber-100 hover:text-amber-700 transition-colors'}
+                >
+                  {t === 'We meet here' ? '🤝 We meet here' : t}
+                </Link>
+              ))}
+            </div>
+          )}
+
+          {/* Header actions — save / share / owner-edit. Review CTA
+              lives with the Reviews section; claim + report live in
+              the page footer. */}
+          <HeaderActions
+            business={businessSummary}
             initialIsSaved={mySave != null}
-            initialMyReviewId={myReview?.id ?? null}
             currentUserId={session?.id ?? null}
             ownerEditPayload={{
               id:              business.id,
@@ -310,75 +339,100 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
           />
         </div>
 
-        {/* Quick-info grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
-          {business.address && (
-            <div className="bg-white rounded-2xl border border-gray-100 p-4">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-1">Address</p>
-              <p className="text-sm text-gray-800">📍 {business.address}</p>
-              {lat != null && lon != null && (
+        {/* Visit card — practical info as one contact-sheet card of
+            tappable rows instead of a patchwork of mini-cards. Rows
+            with a destination are fully tappable; the trailing hint
+            says where the tap goes. */}
+        {(business.address || business.phone || business.website || business.instagram || business.languages) && (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm mt-4 overflow-hidden divide-y divide-gray-50">
+            {business.address && (() => {
+              const inner = (
+                <>
+                  <span className="w-9 h-9 rounded-full bg-amber-50 flex items-center justify-center text-base shrink-0" aria-hidden="true">📍</span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-[11px] font-bold uppercase tracking-wide text-gray-400">Address</span>
+                    <span className="block text-sm text-gray-800">{business.address}</span>
+                  </span>
+                </>
+              )
+              return lat != null && lon != null ? (
                 <a
                   href={`https://www.google.com/maps/search/?api=1&query=${lat},${lon}`}
                   target="_blank" rel="noopener noreferrer nofollow"
-                  className="text-xs text-amber-700 hover:underline mt-1.5 inline-block"
+                  className="flex items-center gap-3 px-4 sm:px-5 py-3.5 hover:bg-amber-50/60 transition-colors"
                 >
-                  Open in Maps ↗
+                  {inner}
+                  <span className="text-xs font-semibold text-amber-700 shrink-0">Maps ↗</span>
                 </a>
-              )}
-            </div>
-          )}
-          {business.phone && /^[+\d\s\-()]{4,40}$/.test(business.phone) && (
-            <div className="bg-white rounded-2xl border border-gray-100 p-4">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-1">Phone</p>
-              <a href={`tel:${business.phone.replace(/[^\d+]/g, '')}`} className="text-sm text-gray-800 hover:text-amber-700">
-                📞 {business.phone}
+              ) : (
+                <div className="flex items-center gap-3 px-4 sm:px-5 py-3.5">{inner}</div>
+              )
+            })()}
+            {business.phone && /^[+\d\s\-()]{4,40}$/.test(business.phone) && (
+              <a
+                href={`tel:${business.phone.replace(/[^\d+]/g, '')}`}
+                className="flex items-center gap-3 px-4 sm:px-5 py-3.5 hover:bg-amber-50/60 transition-colors"
+              >
+                <span className="w-9 h-9 rounded-full bg-amber-50 flex items-center justify-center text-base shrink-0" aria-hidden="true">📞</span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-[11px] font-bold uppercase tracking-wide text-gray-400">Phone</span>
+                  <span className="block text-sm text-gray-800">{business.phone}</span>
+                </span>
+                <span className="text-xs font-semibold text-amber-700 shrink-0">Call</span>
               </a>
-            </div>
-          )}
-          {business.website && isSafeHref(business.website) && (
-            <div className="bg-white rounded-2xl border border-gray-100 p-4">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-1">Website</p>
-              <a href={business.website} target="_blank" rel="noopener noreferrer nofollow" className="text-sm text-amber-700 hover:underline break-all">
-                🌐 {business.website.replace(/^https?:\/\//, '')}
+            )}
+            {business.website && isSafeHref(business.website) && (
+              <a
+                href={business.website}
+                target="_blank" rel="noopener noreferrer nofollow"
+                className="flex items-center gap-3 px-4 sm:px-5 py-3.5 hover:bg-amber-50/60 transition-colors"
+              >
+                <span className="w-9 h-9 rounded-full bg-amber-50 flex items-center justify-center text-base shrink-0" aria-hidden="true">🌐</span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-[11px] font-bold uppercase tracking-wide text-gray-400">Website</span>
+                  <span className="block text-sm text-gray-800 truncate">{business.website.replace(/^https?:\/\//, '')}</span>
+                </span>
+                <span className="text-xs font-semibold text-amber-700 shrink-0">Visit ↗</span>
               </a>
-            </div>
-          )}
-          {business.instagram && /^[A-Za-z0-9._]{1,30}$/.test(business.instagram.replace(/^@/, '')) && (
-            <div className="bg-white rounded-2xl border border-gray-100 p-4">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-1">Instagram</p>
-              <a href={`https://instagram.com/${business.instagram.replace(/^@/, '')}`} target="_blank" rel="noopener noreferrer nofollow" className="text-sm text-pink-600 hover:underline">
-                📸 @{business.instagram.replace(/^@/, '')}
+            )}
+            {business.instagram && /^[A-Za-z0-9._]{1,30}$/.test(business.instagram.replace(/^@/, '')) && (
+              <a
+                href={`https://instagram.com/${business.instagram.replace(/^@/, '')}`}
+                target="_blank" rel="noopener noreferrer nofollow"
+                className="flex items-center gap-3 px-4 sm:px-5 py-3.5 hover:bg-amber-50/60 transition-colors"
+              >
+                <span className="w-9 h-9 rounded-full bg-amber-50 flex items-center justify-center text-base shrink-0" aria-hidden="true">📸</span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-[11px] font-bold uppercase tracking-wide text-gray-400">Instagram</span>
+                  <span className="block text-sm text-gray-800 truncate">@{business.instagram.replace(/^@/, '')}</span>
+                </span>
+                <span className="text-xs font-semibold text-amber-700 shrink-0">Open ↗</span>
               </a>
-            </div>
-          )}
-          {business.languages && (
-            <div className="bg-white rounded-2xl border border-gray-100 p-4">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-1">Languages</p>
-              <p className="text-sm text-gray-800">🗣 {business.languages}</p>
-            </div>
-          )}
-          {business.tags.length > 0 && (
-            <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:col-span-2">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-2">Tags</p>
-              <div className="flex flex-wrap gap-1.5">
-                {business.tags.map(t => (
-                  <Link
-                    key={t}
-                    href={`/directory?search=${encodeURIComponent(t)}`}
-                    className="text-xs font-semibold bg-gray-100 hover:bg-amber-100 hover:text-amber-700 text-gray-600 px-2.5 py-1 rounded-full transition-colors"
-                  >
-                    {t}
-                  </Link>
-                ))}
+            )}
+            {business.languages && (
+              <div className="flex items-center gap-3 px-4 sm:px-5 py-3.5">
+                <span className="w-9 h-9 rounded-full bg-amber-50 flex items-center justify-center text-base shrink-0" aria-hidden="true">🗣</span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-[11px] font-bold uppercase tracking-wide text-gray-400">Languages</span>
+                  <span className="block text-sm text-gray-800">{business.languages}</span>
+                </span>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
         {/* Hours card */}
         {hours && DAY_KEYS.some(d => hours[d] && isValidRange(hours[d] ?? '')) && (
-          <div className="bg-white rounded-2xl border border-gray-100 p-4 mt-4">
-            <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-2">Hours</p>
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-5 mt-4">
+            <div className="flex items-center gap-3 mb-3">
+              <span className="w-9 h-9 rounded-full bg-amber-50 flex items-center justify-center text-base shrink-0" aria-hidden="true">🕐</span>
+              <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400">Hours</p>
+              {openStatus && (
+                openStatus.open
+                  ? <span className="ml-auto bg-emerald-100 text-emerald-700 text-[11px] font-bold px-2 py-0.5 rounded-full">Open · until {openStatus.closesAt}</span>
+                  : <span className="ml-auto bg-gray-100 text-gray-600 text-[11px] font-bold px-2 py-0.5 rounded-full">Closed{openStatus.opensAt ? ` · opens ${openStatus.opensAt}` : ''}</span>
+              )}
+            </div>
             <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-sm">
               {DAY_KEYS.map(d => {
                 const v = hours[d]
@@ -395,24 +449,35 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
           </div>
         )}
 
-        {/* Reviews — server-rendered list for SEO. The "Write a review"
-            CTA inside DetailClient opens the existing inline form for
-            interactive writing/editing. */}
+        {/* Reviews — server-rendered list for SEO. The ReviewCta in the
+            section header opens the interactive drawer for writing and
+            editing. */}
         <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 sm:p-6 mt-6" id="reviews">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between gap-3 mb-4">
             <h2 className="text-lg font-bold text-gray-900">
               Reviews{visibleReviews.length > 0 ? ` · ${visibleReviews.length}` : ''}
             </h2>
-            {avgRating != null && (
-              <p className="text-sm">
-                <span className="text-amber-500">★</span>{' '}
-                <span className="font-bold">{avgRating.toFixed(1)}</span>
-              </p>
-            )}
+            <div className="flex items-center gap-3">
+              {avgRating != null && (
+                <p className="text-sm">
+                  <span className="text-amber-500">★</span>{' '}
+                  <span className="font-bold">{avgRating.toFixed(1)}</span>
+                </p>
+              )}
+              <ReviewCta
+                business={businessSummary}
+                initialMyReviewId={myReview?.id ?? null}
+                currentUserId={session?.id ?? null}
+              />
+            </div>
           </div>
 
           {reviewsRaw.length === 0 ? (
-            <p className="text-sm text-gray-400">No reviews yet. Be the first below.</p>
+            <div className="text-center py-6">
+              <p className="text-2xl tracking-[0.3em] text-gray-200" aria-hidden="true">★★★★★</p>
+              <p className="text-sm font-semibold text-gray-900 mt-2">No reviews yet</p>
+              <p className="text-xs text-gray-500 mt-1">Been here with Smileys? Be the first to review.</p>
+            </div>
           ) : (
             <div className="space-y-4">
               {reviewsRaw.map(r => {
@@ -460,8 +525,13 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
           )}
         </section>
 
-        {/* Footer — attribution */}
-        <p className="text-xs text-gray-400 text-center mt-8 mb-2">
+        {/* Footer — housekeeping actions + attribution */}
+        <FooterActions
+          business={businessSummary}
+          currentUserId={session?.id ?? null}
+          initialMyClaimStatus={myClaim?.status ?? null}
+        />
+        <p className="text-xs text-gray-400 text-center mt-4 mb-2">
           Added by <span className="text-gray-600">{addedBy}</span>
         </p>
       </div>

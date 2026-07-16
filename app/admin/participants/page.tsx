@@ -5,28 +5,23 @@ import { confirmToast } from '@/lib/confirmToast'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import Link from 'next/link'
-import { formatShortDate } from '@/lib/data'
+import { formatShortDate, todayIstanbul } from '@/lib/data'
 import UserAvatar from '@/components/UserAvatar'
+import WhatsAppButton from '@/components/WhatsAppButton'
+
+// ─── Page contract ──────────────────────────────────────────────────
+// This page is an INBOX: everything on it either needs a decision
+// (Pending), fills a seat (Waitlist), or shows momentum (Recent RSVPs).
+// Deep management — check-in, payments, quotas — lives on each event's
+// own participants page, one tap away via every event link here.
 
 interface User {
-  id: string; name: string; color: string; email: string; profilePhoto?: string | null
+  id: string; name: string; color: string; email: string
+  profilePhoto?: string | null; phone?: string | null; nationality?: string | null
 }
 interface EventRef {
   id: string; title: string; date: string; emoji: string; status: string
-}
-
-// Pill colors mirror /admin/events so the moderator sees the same
-// vocabulary in both places. Past/draft/archived collapse to zinc
-// because nothing needs urgent action on a closed event.
-function eventStatusPill(status: string, dateStr: string): { label: string; cls: string } {
-  const isPast = dateStr < new Date().toISOString().slice(0, 10)
-  if (status === 'cancelled') return { label: 'Cancelled', cls: 'bg-red-500/10 text-red-400' }
-  if (status === 'postponed') return { label: 'Postponed', cls: 'bg-amber-500/10 text-amber-400' }
-  if (status === 'archived')  return { label: 'Archived',  cls: 'bg-zinc-700 text-zinc-400' }
-  if (status === 'draft')     return { label: 'Draft',     cls: 'bg-zinc-700 text-zinc-400' }
-  if (status === 'pending')   return { label: 'Pending',   cls: 'bg-amber-500/10 text-amber-400' }
-  if (isPast)                 return { label: 'Past',      cls: 'bg-zinc-700 text-zinc-400' }
-  return { label: 'Live', cls: 'bg-green-500/10 text-green-400' }
+  spotsLeft: number; totalSpots: number
 }
 interface Attendee {
   userId: string; eventId: string; status: string; checkedIn: boolean; joinedAt: string
@@ -37,36 +32,118 @@ interface WaitlistEntry {
   user: User; event: EventRef
 }
 
-// Shared row layout for the three tabs (pending / approved / waitlist).
-// All three render the same avatar + name/email + event-link structure;
-// only the leading slot (checkbox vs rank vs nothing), the row's
-// selection-highlight state, and the trailing actions differ. Pulled out
-// so a layout tweak (e.g. mobile breakpoint) hits one place.
+type View = 'pending' | 'waitlist' | 'recent'
+
+// Pill colors mirror /admin/events so the moderator sees the same
+// vocabulary in both places. Past/draft/archived collapse to zinc
+// because nothing needs urgent action on a closed event.
+function eventStatusPill(status: string, dateStr: string): { label: string; cls: string } {
+  // Istanbul "today", not UTC — between midnight and 3am local the UTC
+  // date is still yesterday, which mislabelled tonight's events.
+  const isPast = dateStr < todayIstanbul()
+  if (status === 'cancelled') return { label: 'Cancelled', cls: 'bg-red-500/10 text-red-400' }
+  if (status === 'postponed') return { label: 'Postponed', cls: 'bg-amber-500/10 text-amber-400' }
+  if (status === 'archived')  return { label: 'Archived',  cls: 'bg-zinc-700 text-zinc-400' }
+  if (status === 'draft')     return { label: 'Draft',     cls: 'bg-zinc-700 text-zinc-400' }
+  if (status === 'pending')   return { label: 'Pending',   cls: 'bg-amber-500/10 text-amber-400' }
+  if (isPast)                 return { label: 'Past',      cls: 'bg-zinc-700 text-zinc-400' }
+  return { label: 'Live', cls: 'bg-green-500/10 text-green-400' }
+}
+
+// Compact relative timestamp for the RSVP feed — the recency IS the
+// information on that tab, so it must be visible per row.
+function timeAgo(iso: string): string {
+  const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000)
+  if (m < 1)  return 'just now'
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  return `${Math.floor(h / 24)}d ago`
+}
+
+// Istanbul calendar day of a timestamp — feed rows group by the day the
+// member RSVPed, in the community's timezone (not the admin's, not UTC).
+function istanbulDay(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Europe/Istanbul' })
+}
+
+// Capacity badge for event group headers. `demand` is how many people
+// are asking for seats in this group (pending requests / queue length) —
+// when demand exceeds supply the badge goes red so the admin sees the
+// oversubscription before approving into it.
+function SeatsBadge({ event, demand }: { event: EventRef; demand: number }) {
+  if (event.totalSpots <= 0) return null
+  const full = event.spotsLeft <= 0
+  const tight = !full && demand > event.spotsLeft
+  return (
+    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${
+      full ? 'bg-red-500/10 text-red-400' : tight ? 'bg-amber-500/10 text-amber-400' : 'bg-zinc-800 text-zinc-400'
+    }`}>
+      {full ? 'Full' : `${event.spotsLeft} spot${event.spotsLeft !== 1 ? 's' : ''} left`}
+    </span>
+  )
+}
+
+// Section header shared by the grouped views — event identity, status
+// pill, capacity, and a right-aligned meta line.
+function EventGroupHeader({ event, demand, meta }: { event: EventRef; demand: number; meta: string }) {
+  const pill = eventStatusPill(event.status, event.date)
+  return (
+    <div className="flex items-center gap-2 px-5 py-3 border-b border-zinc-800 bg-zinc-800/40">
+      <span>{event.emoji}</span>
+      <Link href={`/admin/events/${event.id}/participants`}
+        className="text-sm font-bold text-white hover:text-amber-400 transition-colors truncate">
+        {event.title}
+      </Link>
+      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${pill.cls}`}>{pill.label}</span>
+      <SeatsBadge event={event} demand={demand} />
+      <span className="text-xs text-zinc-500 ml-auto shrink-0">{meta}</span>
+    </div>
+  )
+}
+
+// Shared row layout. All three views render the same avatar + name/email
+// structure; only the leading slot (checkbox vs queue rank vs nothing),
+// selection highlight, and trailing actions differ.
 function ParticipantRow({
-  user, event, leading, selected, children,
+  user, event, leading, selected, mobileEvent, children,
 }: {
   user:      User
   event:     EventRef
   leading?:  React.ReactNode
   selected?: boolean
+  // Show the event under the email on phones — for views whose rows sit
+  // under an event group header this is redundant; the Recent feed needs
+  // it or mobile rows are just names with no context.
+  mobileEvent?: boolean
   children:  React.ReactNode
 }) {
   return (
-    <div className={`flex items-center gap-4 px-5 py-4 transition-colors ${selected ? 'bg-amber-500/5' : 'hover:bg-zinc-800/40'}`}>
+    <div className={`flex items-center gap-3 px-4 sm:px-5 py-4 transition-colors ${selected ? 'bg-amber-500/5' : 'hover:bg-zinc-800/40'}`}>
       {leading}
       <UserAvatar user={user} />
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-white truncate">{user.name}</p>
         <p className="text-xs text-zinc-500 truncate">{user.email}</p>
+        {mobileEvent && (
+          <Link href={`/admin/events/${event.id}/participants`}
+            className="sm:hidden flex items-center gap-1 text-xs text-zinc-400 hover:text-amber-400 transition-colors mt-0.5 min-w-0">
+            <span>{event.emoji}</span>
+            <span className="truncate">{event.title}</span>
+            <span className="text-zinc-600 shrink-0">· {formatShortDate(event.date)}</span>
+          </Link>
+        )}
       </div>
-      <div className="hidden sm:block min-w-0 flex-1">
-        <Link href={`/admin/events/${event.id}/participants`}
-          className="text-sm text-zinc-300 hover:text-amber-400 transition-colors truncate flex items-center gap-1.5">
-          <span>{event.emoji}</span>
-          <span className="truncate">{event.title}</span>
-        </Link>
-        <p className="text-xs text-zinc-600 mt-0.5">{formatShortDate(event.date)}</p>
-      </div>
+      {mobileEvent && (
+        <div className="hidden sm:block min-w-0 flex-1">
+          <Link href={`/admin/events/${event.id}/participants`}
+            className="text-sm text-zinc-300 hover:text-amber-400 transition-colors truncate flex items-center gap-1.5">
+            <span>{event.emoji}</span>
+            <span className="truncate">{event.title}</span>
+          </Link>
+          <p className="text-xs text-zinc-600 mt-0.5">{formatShortDate(event.date)}</p>
+        </div>
+      )}
       {children}
     </div>
   )
@@ -76,32 +153,38 @@ export default function AdminParticipantsPage() {
   const [attendees,   setAttendees]   = useState<Attendee[]>([])
   const [waitlist,    setWaitlist]    = useState<WaitlistEntry[]>([])
   const [loading,     setLoading]     = useState(true)
-  const [tab,         setTab]         = useState<'pending' | 'approved' | 'waitlist'>('pending')
+  const [view,        setView]        = useState<View>('pending')
+  const [q,           setQ]           = useState('')
   const [selected,    setSelected]    = useState<Set<string>>(new Set())
   const [bulkSaving,  setBulkSaving]  = useState(false)
 
-  // Single source of truth — both the initial mount effect and any
-  // future refresh callers can reuse it. useCallback keeps it stable so
-  // the effect's dep array is honest (the old `useEffect(() => { load()
-  // }, [])` had a missing dep that react-hooks/exhaustive-deps would
-  // normally flag).
-  const load = useCallback(async () => {
-    setLoading(true)
+  // silent=true refreshes data without the loading flash — used after
+  // mutations (so spotsLeft and counts resync with the server) and when
+  // the app regains focus (door-duty admins act on live numbers).
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true)
     const res = await fetch('/app/api/admin/participants', { credentials: 'include' })
     if (res.ok) {
       const data = await res.json()
       setAttendees(Array.isArray(data.attendees) ? data.attendees : [])
       setWaitlist(Array.isArray(data.waitlist) ? data.waitlist : [])
     }
-    setLoading(false)
+    if (!silent) setLoading(false)
   }, [])
 
   useEffect(() => { load() }, [load])
 
-  // Drop a row's key out of the selection set — used when a single-row
-  // action (approve / reject / remove) leaves the bucket. Without this,
-  // `selected` accumulated stale keys forever; the "X selected" count
-  // would drift from what was actually selectable.
+  useEffect(() => {
+    const onFocus = () => load(true)
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [load])
+
+  function rowKey(a: { userId: string; eventId: string }) { return `${a.userId}-${a.eventId}` }
+
+  // Drop a row's key out of the selection set when a single-row action
+  // removes it from the pending bucket — otherwise `selected` accumulates
+  // stale keys and the "X selected" count drifts.
   const dropSelection = useCallback((userId: string, eventId: string) => {
     const key = `${userId}-${eventId}`
     setSelected(prev => {
@@ -109,6 +192,10 @@ export default function AdminParticipantsPage() {
       const s = new Set(prev); s.delete(key); return s
     })
   }, [])
+
+  function toggleSelect(key: string) {
+    setSelected(prev => { const s = new Set(prev); s.has(key) ? s.delete(key) : s.add(key); return s })
+  }
 
   async function approve(userId: string, eventId: string) {
     const res = await fetch(`/app/api/admin/events/${eventId}/participants`, {
@@ -122,6 +209,7 @@ export default function AdminParticipantsPage() {
       ))
       dropSelection(userId, eventId)
       toast.success('Approved ✓')
+      load(true)
     } else {
       const d = await res.json().catch(() => ({}))
       toast.error(d.error ?? 'Failed to approve')
@@ -139,6 +227,7 @@ export default function AdminParticipantsPage() {
       setAttendees(prev => prev.filter(a => !(a.userId === userId && a.eventId === eventId)))
       dropSelection(userId, eventId)
       toast('Rejected')
+      load(true)
     } else {
       const d = await res.json().catch(() => ({}))
       toast.error(d.error ?? 'Failed to reject')
@@ -154,8 +243,8 @@ export default function AdminParticipantsPage() {
     })
     if (res.ok) {
       setAttendees(prev => prev.filter(a => !(a.userId === userId && a.eventId === eventId)))
-      dropSelection(userId, eventId)
       toast('Removed')
+      load(true)
     } else {
       const d = await res.json().catch(() => ({}))
       toast.error(d.error ?? 'Failed to remove')
@@ -170,57 +259,77 @@ export default function AdminParticipantsPage() {
     })
     if (res.ok) {
       setWaitlist(prev => prev.filter(w => !(w.userId === entry.userId && w.eventId === entry.eventId)))
-      const newAttendee: Attendee = {
+      setAttendees(prev => [...prev, {
         userId: entry.userId, eventId: entry.eventId, status: 'approved',
         checkedIn: false, joinedAt: new Date().toISOString(),
         user: entry.user, event: entry.event,
-      }
-      setAttendees(prev => [...prev, newAttendee])
+      }])
       toast.success(`${entry.user.name} approved ✓`)
+      load(true)
+    } else {
+      const d = await res.json().catch(() => ({}))
+      toast.error(d.error ?? 'Failed to promote')
     }
   }
 
-  function rowKey(a: { userId: string; eventId: string }) { return `${a.userId}-${a.eventId}` }
+  // ── Derived views ──────────────────────────────────────────────────
+  // One search box narrows whichever view is open; groups with no
+  // matches disappear entirely.
+  const matches = useCallback((u: User) => {
+    const needle = q.trim().toLowerCase()
+    if (!needle) return true
+    return u.name.toLowerCase().includes(needle) || u.email.toLowerCase().includes(needle)
+  }, [q])
 
-  function toggleSelect(key: string) {
-    setSelected(prev => { const s = new Set(prev); s.has(key) ? s.delete(key) : s.add(key); return s })
-  }
-
-  // Memoize pending / approved so unrelated state changes (selection,
-  // bulkSaving toggle, tab switch, focus) don't re-filter the whole
-  // attendees list every render. Same pattern as /admin/events and the
-  // search-aware tabs on /admin/users.
-  //
   // pending stays in the server's joinedAt-asc order — longest-waiting
-  // request surfaces first so a moderator clearing a backlog hits the
-  // most overdue cases up top. approved flips to joinedAt-desc because
-  // "what changed recently?" is the natural question on that tab.
-  const pending  = useMemo(() => attendees.filter(a => a.status === 'pending'),  [attendees])
-  const approved = useMemo(
-    () => attendees.filter(a => a.status === 'approved')
-      .slice().sort((x, y) => y.joinedAt.localeCompare(x.joinedAt)),
-    [attendees],
+  // request first within each event. approved flips to joinedAt-desc
+  // because the Recent feed reads newest-first.
+  const pending  = useMemo(
+    () => attendees.filter(a => a.status === 'pending' && matches(a.user)),
+    [attendees, matches],
   )
+  // The RSVP feed is a PULSE, not an archive — only the last 7 days.
+  // Without the cap it was every approved attendee of every upcoming
+  // event (150+ rows), and the stale tail buried the signal. The tile
+  // count therefore means "sign-ups this week".
+  const approved = useMemo(() => {
+    const cutoff = Date.now() - 7 * 86_400_000
+    return attendees.filter(a =>
+      a.status === 'approved' && new Date(a.joinedAt).getTime() >= cutoff && matches(a.user)
+    ).slice().sort((x, y) => y.joinedAt.localeCompare(x.joinedAt))
+  }, [attendees, matches])
+  const queue = useMemo(() => waitlist.filter(w => matches(w.user)), [waitlist, matches])
 
-  // Group pending requests by event so the Pending tab gets section
-  // headers showing event title + status pill + count. Before this,
-  // moderators staring at a flat list couldn't tell that 8 of the 12
-  // pending requests belonged to a cancelled event. Order matches the
-  // event's date (soonest first) so urgent events bubble up.
-  const pendingByEvent = useMemo(() => {
-    const groups = new Map<string, { event: EventRef; rows: Attendee[] }>()
-    for (const a of pending) {
-      const g = groups.get(a.eventId)
-      if (g) g.rows.push(a)
-      else groups.set(a.eventId, { event: a.event, rows: [a] })
+  // Pending + Waitlist group by event (soonest first) so every request is
+  // decided in its event's context — status, capacity, who else is asking.
+  function groupByEvent<T extends { eventId: string; event: EventRef }>(rows: T[]) {
+    const groups = new Map<string, { event: EventRef; rows: T[] }>()
+    for (const r of rows) {
+      const g = groups.get(r.eventId)
+      if (g) g.rows.push(r)
+      else groups.set(r.eventId, { event: r.event, rows: [r] })
     }
     return [...groups.values()].sort((a, b) => a.event.date.localeCompare(b.event.date))
-  }, [pending])
+  }
+  const pendingByEvent  = useMemo(() => groupByEvent(pending), [pending])
+  const waitlistByEvent = useMemo(() => groupByEvent(queue),   [queue])
 
-  // Bulk runner — tracks per-id success in a Set so a partial 500
-  // only flips the rows that actually changed. Previously Promise.all
-  // dropped per-request status entirely; the toast claimed "X approved"
-  // even on full failure and rows were marked approved regardless.
+  // Recent RSVPs group by Istanbul join-day, newest day first (approved
+  // is already sorted desc, so insertion order is the display order).
+  const approvedByDay = useMemo(() => {
+    const groups = new Map<string, Attendee[]>()
+    for (const a of approved) {
+      const day = istanbulDay(a.joinedAt)
+      const g = groups.get(day)
+      if (g) g.push(a)
+      else groups.set(day, [a])
+    }
+    return [...groups.entries()]
+  }, [approved])
+
+  // ── Bulk actions (Pending view) ────────────────────────────────────
+  // Tracks per-id success so a partial failure only flips the rows that
+  // actually changed, and failed rows KEEP their selection for retry.
   async function bulkRun(
     label: string,
     confirmMsg: string,
@@ -238,42 +347,40 @@ export default function AdminParticipantsPage() {
     const ok = new Set(results.filter(r => r.ok).map(r => r.key))
     const fail = results.length - ok.size
     if (ok.size) onSuccess(ok)
-    setSelected(new Set())
+    setSelected(prev => new Set([...prev].filter(k => !ok.has(k))))
     setBulkSaving(false)
     if (ok.size) toast.success(`${label}: ${ok.size} done`)
-    if (fail)    toast.error(`${label}: ${fail} failed`)
+    if (fail)    toast.error(`${label}: ${fail} failed — still selected, tap to retry`)
+    load(true)
   }
 
-  async function bulkApprove() {
-    await bulkRun('Approve', 'Approve', async (a) => {
-      const res = await fetch(`/app/api/admin/events/${a.eventId}/participants`, {
-        method: 'PATCH', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: a.userId, action: 'approve' }),
-      })
-      return res.ok
-    }, (ok) => {
-      setAttendees(prev => prev.map(a => ok.has(rowKey(a)) ? { ...a, status: 'approved' } : a))
+  const patchAction = (action: 'approve' | 'reject') => async (a: Attendee) => {
+    const res = await fetch(`/app/api/admin/events/${a.eventId}/participants`, {
+      method: 'PATCH', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: a.userId, action }),
     })
+    return res.ok
   }
 
-  async function bulkReject() {
-    // Bulk reject now confirms — the single-row reject already did but
-    // bulk fired instantly on click, making a misclick irreversible.
-    await bulkRun('Reject', 'Reject', async (a) => {
-      const res = await fetch(`/app/api/admin/events/${a.eventId}/participants`, {
-        method: 'PATCH', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: a.userId, action: 'reject' }),
-      })
-      return res.ok
-    }, (ok) => {
-      setAttendees(prev => prev.filter(a => !ok.has(rowKey(a))))
-    })
-  }
+  const bulkApprove = () => bulkRun('Approve', 'Approve', patchAction('approve'), ok => {
+    setAttendees(prev => prev.map(a => ok.has(rowKey(a)) ? { ...a, status: 'approved' } : a))
+  })
+  const bulkReject = () => bulkRun('Reject', 'Reject', patchAction('reject'), ok => {
+    setAttendees(prev => prev.filter(a => !ok.has(rowKey(a))))
+  })
+
+  // ── Render ─────────────────────────────────────────────────────────
+  const tiles: { key: View; label: string; value: number; color: string; span?: boolean }[] = [
+    { key: 'pending',  label: 'Pending',  value: pending.length,  color: pending.length > 0 ? 'text-amber-400' : 'text-white' },
+    { key: 'waitlist', label: 'Waitlist', value: queue.length,    color: queue.length > 0 ? 'text-violet-400' : 'text-white' },
+    { key: 'recent',   label: 'RSVPs this week', value: approved.length, color: 'text-green-400', span: true },
+  ]
+
+  const searchMiss = q.trim().length > 0
 
   return (
-    <div className="p-4 sm:p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-5">
 
       <div>
         <h1 className="text-2xl font-extrabold text-white tracking-tight">Participants</h1>
@@ -284,42 +391,34 @@ export default function AdminParticipantsPage() {
         <div className="text-zinc-500 text-sm text-center py-16">Loading…</div>
       ) : (
         <>
-          {/* Stats — 2-up on phones so each tile breathes, 3-up from
-              sm+. Pending + Approved sit side-by-side on the first
-              mobile row (the two most-acted-on); Waitlist takes the
-              orphan slot full-width on row 2 rather than getting
-              half-row-stranded. */}
+          {/* Tiles ARE the navigation — no separate segmented control.
+              2-up on phones (Pending + Waitlist side by side, the two
+              queues), RSVPs full-width on row 2; 3-up from sm. */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {[
-              { label: 'Pending',  value: pending.length,  color: pending.length > 0 ? 'text-amber-400' : 'text-white' },
-              { label: 'Approved', value: approved.length, color: 'text-green-400' },
-              { label: 'Waitlist', value: waitlist.length, color: waitlist.length > 0 ? 'text-violet-400' : 'text-white', span: true as const },
-            ].map(s => (
-              <div key={s.label} className={`bg-zinc-900 rounded-xl border border-zinc-800 p-4 text-center ${s.span ? 'col-span-2 sm:col-span-1' : ''}`}>
-                <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
-                <div className="text-xs text-zinc-500 mt-0.5">{s.label}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* Tabs */}
-          <div className="flex gap-1 bg-zinc-800 rounded-xl p-1 w-fit">
-            {([
-              { key: 'pending',  label: `Pending (${pending.length})` },
-              { key: 'approved', label: `Approved (${approved.length})` },
-              { key: 'waitlist', label: `Waitlist (${waitlist.length})` },
-            ] as const).map(t => (
-              <button key={t.key} onClick={() => setTab(t.key)}
-                className={`px-4 py-2 rounded-lg text-xs font-semibold transition-colors ${tab === t.key ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-white'}`}>
-                {t.label}
+            {tiles.map(t => (
+              <button key={t.key} onClick={() => setView(t.key)}
+                className={`bg-zinc-900 rounded-xl border p-4 text-center active:scale-[0.98] transition-all ${
+                  view === t.key ? 'border-amber-500/60' : 'border-zinc-800 hover:border-zinc-600'
+                } ${t.span ? 'col-span-2 sm:col-span-1' : ''}`}>
+                <div className={`text-2xl font-bold ${t.color}`}>{t.value}</div>
+                <div className="text-xs text-zinc-500 mt-0.5">{t.label}{view === t.key ? ' ↓' : ''}</div>
               </button>
             ))}
           </div>
 
-          {/* Pending */}
-          {tab === 'pending' && (
+          {/* Search — filters whichever view is open */}
+          <input
+            type="search"
+            value={q}
+            onChange={e => setQ(e.target.value)}
+            placeholder="Search by name or email…"
+            autoComplete="off"
+            className="w-full bg-zinc-900 border border-zinc-800 text-white text-sm rounded-xl px-4 py-3 placeholder-zinc-600 focus:outline-none focus:border-zinc-600"
+          />
+
+          {/* ── Pending — decide now ── */}
+          {view === 'pending' && (
             <>
-              {/* Bulk bar */}
               {pending.length > 0 && (
                 <div className="flex items-center gap-3 px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-xl">
                   <input
@@ -350,107 +449,125 @@ export default function AdminParticipantsPage() {
               {pending.length === 0 ? (
                 <div className="bg-zinc-900 rounded-2xl border border-zinc-800 py-16 text-center">
                   <div className="text-4xl mb-3">✅</div>
-                  <p className="text-zinc-400 font-medium">No pending requests</p>
-                  <p className="text-zinc-600 text-sm mt-1">All caught up!</p>
+                  <p className="text-zinc-400 font-medium">{searchMiss ? 'No pending requests match' : 'No pending requests'}</p>
+                  {!searchMiss && <p className="text-zinc-600 text-sm mt-1">All caught up!</p>}
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {pendingByEvent.map(group => {
-                    const pill = eventStatusPill(group.event.status, group.event.date)
-                    return (
-                      <div key={group.event.id} className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
-                        {/* Section header — event identity + status pill +
-                            count. The status pill is the load-bearing part:
-                            it stops moderators silently approving people
-                            into a cancelled / postponed event. */}
-                        <div className="flex items-center gap-2 px-5 py-3 border-b border-zinc-800 bg-zinc-800/40">
-                          <span>{group.event.emoji}</span>
-                          <Link href={`/admin/events/${group.event.id}/participants`}
-                            className="text-sm font-bold text-white hover:text-amber-400 transition-colors truncate">
-                            {group.event.title}
-                          </Link>
-                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${pill.cls}`}>{pill.label}</span>
-                          <span className="text-xs text-zinc-500 ml-auto shrink-0">
-                            {formatShortDate(group.event.date)} · {group.rows.length} pending
-                          </span>
-                        </div>
-                        <div className="divide-y divide-zinc-800">
-                          {group.rows.map(a => {
-                            const key = rowKey(a)
-                            return (
-                              <ParticipantRow key={key} user={a.user} event={a.event} selected={selected.has(key)}
-                                leading={
-                                  <input type="checkbox" checked={selected.has(key)} onChange={() => toggleSelect(key)}
-                                    className="w-4 h-4 rounded accent-amber-500 shrink-0" />
-                                }>
-                                <div className="flex gap-2 shrink-0">
-                                  <button onClick={() => approve(a.userId, a.eventId)}
-                                    className="px-3 py-2 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 text-xs font-semibold transition-colors">
-                                    Approve
-                                  </button>
-                                  <button onClick={() => reject(a.userId, a.eventId)}
-                                    className="px-3 py-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 text-xs font-semibold transition-colors">
-                                    Reject
-                                  </button>
-                                </div>
-                              </ParticipantRow>
-                            )
-                          })}
-                        </div>
+                  {pendingByEvent.map(group => (
+                    <div key={group.event.id} className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
+                      <EventGroupHeader event={group.event} demand={group.rows.length}
+                        meta={`${formatShortDate(group.event.date)} · ${group.rows.length} pending`} />
+                      <div className="divide-y divide-zinc-800">
+                        {group.rows.map(a => {
+                          const key = rowKey(a)
+                          return (
+                            <ParticipantRow key={key} user={a.user} event={a.event} selected={selected.has(key)}
+                              leading={
+                                <input type="checkbox" checked={selected.has(key)} onChange={() => toggleSelect(key)}
+                                  className="w-4 h-4 rounded accent-amber-500 shrink-0" />
+                              }>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <WhatsAppButton user={a.user} />
+                                <button onClick={() => approve(a.userId, a.eventId)}
+                                  className="px-3 py-2 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 text-xs font-semibold transition-colors">
+                                  Approve
+                                </button>
+                                <button onClick={() => reject(a.userId, a.eventId)}
+                                  className="px-3 py-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 text-xs font-semibold transition-colors">
+                                  Reject
+                                </button>
+                              </div>
+                            </ParticipantRow>
+                          )
+                        })}
                       </div>
-                    )
-                  })}
+                    </div>
+                  ))}
                 </div>
               )}
             </>
           )}
 
-          {/* Approved */}
-          {tab === 'approved' && (
-            <div className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
-              {approved.length === 0 ? (
-                <div className="py-14 text-center text-zinc-500 text-sm">No approved attendees yet.</div>
-              ) : (
-                <div className="divide-y divide-zinc-800">
-                  {approved.map(a => (
-                    <ParticipantRow key={`${a.userId}-${a.eventId}`} user={a.user} event={a.event}>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {a.checkedIn && (
-                          <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-green-500/10 text-green-400">Checked in</span>
-                        )}
-                        <button onClick={() => remove(a.userId, a.eventId)}
-                          className="px-3 py-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 text-xs font-semibold transition-colors">
-                          Remove
-                        </button>
+          {/* ── Waitlist — fill seats ── */}
+          {view === 'waitlist' && (
+            queue.length === 0 ? (
+              <div className="bg-zinc-900 rounded-2xl border border-zinc-800 py-14 text-center text-zinc-500 text-sm">
+                {searchMiss ? 'No waitlist entries match.' : 'No one on the waitlist.'}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {waitlistByEvent.map(group => {
+                  const full = group.event.totalSpots > 0 && group.event.spotsLeft <= 0
+                  return (
+                    <div key={group.event.id} className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
+                      <EventGroupHeader event={group.event} demand={group.rows.length}
+                        meta={`${formatShortDate(group.event.date)} · ${group.rows.length} in queue`} />
+                      <div className="divide-y divide-zinc-800">
+                        {group.rows.map((w, i) => (
+                          <ParticipantRow key={`${w.userId}-${w.eventId}`} user={w.user} event={w.event}
+                            leading={
+                              <span className="text-xs font-bold text-zinc-600 w-5 text-center shrink-0">{i + 1}</span>
+                            }>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <WhatsAppButton user={w.user} />
+                              <button onClick={() => promoteWaitlist(w)} disabled={full}
+                                title={full ? 'Event is full — free a spot first' : undefined}
+                                className="px-3 py-2 rounded-lg bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 text-xs font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                                {full ? 'Full' : 'Approve'}
+                              </button>
+                            </div>
+                          </ParticipantRow>
+                        ))}
                       </div>
-                    </ParticipantRow>
-                  ))}
-                </div>
-              )}
-            </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )
           )}
 
-          {/* Waitlist */}
-          {tab === 'waitlist' && (
-            <div className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
-              {waitlist.length === 0 ? (
-                <div className="py-14 text-center text-zinc-500 text-sm">No one on the waitlist.</div>
-              ) : (
-                <div className="divide-y divide-zinc-800">
-                  {waitlist.map((w, i) => (
-                    <ParticipantRow key={`${w.userId}-${w.eventId}`} user={w.user} event={w.event}
-                      leading={
-                        <span className="text-xs font-bold text-zinc-600 w-5 text-center shrink-0">{i + 1}</span>
-                      }>
-                      <button onClick={() => promoteWaitlist(w)}
-                        className="px-3 py-2 rounded-lg bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 text-xs font-semibold transition-colors shrink-0">
-                        Approve
-                      </button>
-                    </ParticipantRow>
-                  ))}
-                </div>
-              )}
-            </div>
+          {/* ── Recent RSVPs — the pulse ── */}
+          {view === 'recent' && (
+            approved.length === 0 ? (
+              <div className="bg-zinc-900 rounded-2xl border border-zinc-800 py-14 text-center text-zinc-500 text-sm">
+                {searchMiss ? 'No RSVPs match.' : 'No sign-ups in the last 7 days.'}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {approvedByDay.map(([day, rows]) => {
+                  const label = day === todayIstanbul() ? 'Today'
+                    : day === todayIstanbul(-1) ? 'Yesterday'
+                    : formatShortDate(day)
+                  return (
+                    <div key={day} className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
+                      <div className="flex items-center gap-2 px-5 py-3 border-b border-zinc-800 bg-zinc-800/40">
+                        <span className="text-sm font-bold text-white">{label}</span>
+                        <span className="text-xs text-zinc-500 ml-auto shrink-0">
+                          {rows.length} RSVP{rows.length !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      <div className="divide-y divide-zinc-800">
+                        {rows.map(a => (
+                          <ParticipantRow key={rowKey(a)} user={a.user} event={a.event} mobileEvent>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="text-xs text-zinc-500">{timeAgo(a.joinedAt)}</span>
+                              {a.checkedIn && (
+                                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-green-500/10 text-green-400">Checked in</span>
+                              )}
+                              <button onClick={() => remove(a.userId, a.eventId)}
+                                className="px-3 py-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 text-xs font-semibold transition-colors">
+                                Remove
+                              </button>
+                            </div>
+                          </ParticipantRow>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )
           )}
         </>
       )}

@@ -56,6 +56,10 @@ export default function Turnstile({ onVerify, onExpire, resetSignal }: Props) {
         script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoad&render=explicit'
         script.async = true
         script.defer = true
+        // Cloudflare serves this with CORS headers, so anonymous crossorigin is
+        // safe and lets uncaught errors from it surface with a real stack in
+        // error tracking instead of an opaque cross-origin "Script error.".
+        script.crossOrigin = 'anonymous'
         document.head.appendChild(script)
       }
     }

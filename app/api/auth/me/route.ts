@@ -118,6 +118,16 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
+    // Phone is mandatory (hosts chase no-shows on WhatsApp) — members can
+    // change it but never clear it. Same length cap as the apply form.
+    if ('phone' in data) {
+      const v = data.phone
+      if (typeof v !== 'string' || !v.trim() || v.length > 30) {
+        return NextResponse.json({ error: 'Phone number is required' }, { status: 400 })
+      }
+      data.phone = v.trim()
+    }
+
     // Nationality is mandatory (it drives the profile flag) — members can
     // change it but never clear it.
     if ('nationality' in data) {

@@ -53,6 +53,9 @@ function HostNewEventForm() {
     totalSpots:  '20',
     price:       '0',
     memberPrice: '',
+    endTime:     '',
+    whatsappUrl: '',
+    ticketUrl:   '',
     description: '',
     coverImage:          '',
     coverImagePosition:  50,
@@ -208,7 +211,13 @@ function HostNewEventForm() {
         title:        form.title.trim(),
         clubId:       form.clubId || undefined,
         vibes:        form.vibes,
+        // Event Goal — was collected by the form but never sent, so
+        // every host event silently defaulted to 'social'.
+        intent:       form.intent,
         time:         form.time,
+        endTime:      form.endTime || undefined,
+        whatsappUrl:  form.whatsappUrl.trim() || undefined,
+        ticketUrl:    form.ticketUrl.trim() || undefined,
         location:     form.location.trim(),
         neighborhood: form.neighborhood,
         address:      form.address.trim(),
@@ -373,6 +382,12 @@ function HostNewEventForm() {
               </select>
             </div>
           </div>
+          <div>
+            <label className="block text-xs font-semibold text-zinc-400 mb-1.5">End time</label>
+            <input type="text" value={form.endTime}
+              onChange={e => setForm(f => ({ ...f, endTime: e.target.value }))}
+              placeholder="e.g. 22:00 (optional)" className={inputCls} />
+          </div>
         </div>
 
         {/* Recurring */}
@@ -493,6 +508,24 @@ function HostNewEventForm() {
             <input type="number" min="0" value={form.memberPrice}
               onChange={e => setForm(f => ({ ...f, memberPrice: e.target.value }))}
               placeholder="Optional" className={inputCls} />
+          </div>
+        </div>
+
+        {/* Links — both optional. Ticket link renders as a 🎟 Buy
+            tickets button on the event page; the WhatsApp group is
+            shown to registered members. */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Ticket link (external)</label>
+            <input type="text" value={form.ticketUrl}
+              onChange={e => setForm(f => ({ ...f, ticketUrl: e.target.value }))}
+              placeholder="https://… (optional)" className={inputCls} />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-zinc-400 mb-1.5">WhatsApp group URL</label>
+            <input type="text" value={form.whatsappUrl}
+              onChange={e => setForm(f => ({ ...f, whatsappUrl: e.target.value }))}
+              placeholder="https://chat.whatsapp.com/… (optional)" className={inputCls} />
           </div>
         </div>
 

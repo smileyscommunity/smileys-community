@@ -4,7 +4,7 @@ set -e
 SERVER="${SMILEYS_DEPLOY_SERVER:-root@178.105.37.133}"
 REMOTE="/root/smileys-community"
 LOCAL="/Users/nate/smileys-community"
-SENTRY_RELEASE=$(git rev-parse --short HEAD)
+APP_RELEASE=$(git rev-parse --short HEAD)
 
 # Safety check: rsync --delete will wipe the remote if LOCAL is empty/missing.
 # Verify the working copy has the expected anchor files before we trust it.
@@ -26,11 +26,11 @@ echo "→ Checking for vulnerabilities..."
 npm audit --audit-level=high --legacy-peer-deps || { echo "✗ npm audit found high/critical vulnerabilities — fix before deploying"; exit 1; }
 
 if [ -z "$SKIP_BUILD" ]; then
-  echo "→ Building locally (release: $SENTRY_RELEASE)..."
+  echo "→ Building locally (release: $APP_RELEASE)..."
   # Preserve .next/cache (webpack incremental cache) — nuking it forces a full
   # cold build every deploy and causes OOM kills on low-memory machines.
   find "$LOCAL/.next" -mindepth 1 -maxdepth 1 ! -name 'cache' -exec rm -rf {} + 2>/dev/null || true
-  SENTRY_RELEASE="$SENTRY_RELEASE" npm run build
+  APP_RELEASE="$APP_RELEASE" npm run build
 else
   echo "→ Skipping build (SKIP_BUILD set, using existing .next)..."
 fi
@@ -53,6 +53,7 @@ rsync -av --delete \
   --exclude='.env.production' \
   --exclude='node_modules' \
   --exclude='.git' \
+  --exclude='.claude/' \
   --exclude='public/uploads' \
   --exclude='data/announcement.json' \
   --exclude='data/member-spotlight.json' \
@@ -134,6 +135,20 @@ ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-login-nudge.sh && (crontab -l 2>/d
 echo "→ Registering name-hygiene sweeper crontab..."
 ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-name-hygiene.sh && (crontab -l 2>/dev/null | grep -v 'sweep-name-hygiene' ; echo '20 3 * * * $REMOTE/scripts/sweep-name-hygiene.sh >> /var/log/sweep-name-hygiene.log 2>&1') | crontab -"
 
+# Daily expired-waitlist sweep — warm "that one filled up" close-out to
+# members whose queued event passed without a spot opening, then purges
+# the stale entries. 20 6 UTC (09:20 Istanbul) so the note lands at a
+# friendly morning hour, not overnight.
+echo "→ Registering waitlists sweeper crontab..."
+ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-waitlists.sh && (crontab -l 2>/dev/null | grep -v 'sweep-waitlists' ; echo '20 6 * * * $REMOTE/scripts/sweep-waitlists.sh >> /var/log/sweep-waitlists.log 2>&1') | crontab -"
+
+# Nightly spotsLeft reconciliation for upcoming events — re-derives the
+# cached counter from approved attendee rows so drift from bulk
+# attendee-row deletion (account deletion, admin user removal) can't
+# leave phantom "going" counts. 03:35 UTC, after name-hygiene.
+echo "→ Registering event-spots sweeper crontab..."
+ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-event-spots.sh && (crontab -l 2>/dev/null | grep -v 'sweep-event-spots' ; echo '35 3 * * * $REMOTE/scripts/sweep-event-spots.sh >> /var/log/sweep-event-spots.log 2>&1') | crontab -"
+
 # Hourly payment-reminder sweep — one nudge to unpaid attendees of
 # Smileys-collected events starting within 48h (reminderSentAt stamp
 # guarantees one-and-only-one). Runs at :40 so it never overlaps the
@@ -158,4 +173,4 @@ ssh "$SERVER" "cd $REMOTE && npx tsx --env-file=.env scripts/seed-cup.ts"
 echo "→ Overlaying real FIFA schedule on group fixtures..."
 ssh "$SERVER" "cd $REMOTE && npx tsx --env-file=.env scripts/fix-group-fixtures.ts"
 
-echo "✓ Done (release: $SENTRY_RELEASE)"
+echo "✓ Done (release: $APP_RELEASE)"

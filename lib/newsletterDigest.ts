@@ -97,9 +97,10 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
   if (bestPhoto?.event) {
     const resolved = resolveImageUrl(bestPhoto.url)
     const photoUrl = resolved.startsWith('http') ? resolved : `${SITE_URL}${resolved}?w=1200`
-    body += `<div style="margin:0 0 20px">` +
+    // align+text-align center — Outlook ignores margin:0 auto on images.
+    body += `<div align="center" style="margin:0 0 20px;text-align:center">` +
       `<a href="${APP_URL}/events/${bestPhoto.event.id}?${UTM}">` +
-      `<img src="${photoUrl}" alt="Photo from ${esc(bestPhoto.event.title)}" style="width:100%;max-width:100%;border-radius:12px;display:block;margin:0 auto"/></a>` +
+      `<img src="${photoUrl}" alt="Photo from ${esc(bestPhoto.event.title)}" width="100%" style="width:100%;max-width:100%;border-radius:12px;display:inline-block;margin:0 auto"/></a>` +
       `<p style="color:#6b7280;font-size:12px;margin:6px 0 0;text-align:center">📸 Last week at ${bestPhoto.event.emoji ? `${bestPhoto.event.emoji} ` : ''}${esc(bestPhoto.event.title)}</p>` +
       `</div>`
   }
@@ -119,7 +120,7 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
       `<div style="color:#b45309;font-size:20px;font-weight:800;line-height:1">${x.n}</div>` +
       `<div style="color:#92400e;font-size:11px;margin-top:3px">${x.label}</div></td>`,
     ).join('<td style="width:6px"></td>')
-    body += `<p style="color:#9ca3af;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin:0 0 6px">Last week at Smileys</p>` +
+    body += `${DIVIDER}<p style="color:#9ca3af;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin:0 0 6px">Last week at Smileys</p>` +
       `<table role="presentation" style="width:100%;border-collapse:separate;margin:0 0 20px"><tr>${cells}</tr></table>`
   }
 

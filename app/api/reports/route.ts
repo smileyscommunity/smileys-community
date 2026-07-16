@@ -26,7 +26,8 @@ export async function POST(req: NextRequest) {
     const safeScreenshot = (typeof screenshot === 'string' &&
       /^\/app\/api\/files\/[a-zA-Z0-9\-]+\/[a-zA-Z0-9\-]+\.(jpg|jpeg|png|webp|gif)$/.test(screenshot))
       ? screenshot : null
-    const VALID_REASONS = ['harassment', 'spam', 'inappropriate', 'fake', 'other']
+    // Canonical reason set — must match components/ReportButton REASONS.
+    const VALID_REASONS = ['harassment', 'inappropriate', 'fake', 'spam', 'offensive', 'other']
     if (!VALID_REASONS.includes(reason)) {
       return NextResponse.json({ error: 'Invalid report reason' }, { status: 400 })
     }

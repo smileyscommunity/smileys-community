@@ -48,6 +48,9 @@ interface Pulse {
   createdAt:    string
   user:         JoinerSummary
   isMine:       boolean
+  // "✋ I'm free too" responses — count + whether the viewer waved + the
+  // first few wavers (posters see names, linked to DMs).
+  waves:        { count: number; mine: boolean; users: { id: string; name: string }[] }
 }
 
 interface Regular {
@@ -64,6 +67,7 @@ interface RecentHangout {
   title:        string
   neighborhood: string | null
   endsAt:       string
+  photo:        string | null
   user:         { id: string; name: string; color: string; profilePhoto: string | null }
   joinerCount:  number
   goodRefCount: number
@@ -99,6 +103,22 @@ function formatWindow(startsAt: string, endsAt: string) {
   else                        prefix = s.toLocaleDateString('en-GB', { timeZone: TZ, weekday: 'short', day: 'numeric', month: 'short' }) + ' · '
 
   return `${prefix}${fmtTime(s)}–${fmtTime(e)}`
+}
+
+// Live/upcoming split + human label. Once a hangout is running, the raw
+// window stops answering the reader's actual question — "can I still make
+// it?" — so live cards say how long it's been going and when it ends.
+function timeStatus(startsAt: string, endsAt: string): { live: boolean; label: string } {
+  const s = new Date(startsAt)
+  const e = new Date(endsAt)
+  const now = new Date()
+  if (s <= now && e > now) {
+    const fmtTime = (d: Date) => d.toLocaleTimeString('en-GB', { timeZone: TZ, hourCycle: 'h23', hour: '2-digit', minute: '2-digit' })
+    const m = Math.round((now.getTime() - s.getTime()) / 60_000)
+    const ago = m < 1 ? 'Just started' : m < 60 ? `Started ${m}m ago` : `Started ${Math.floor(m / 60)}h${m % 60 ? ` ${m % 60}m` : ''} ago`
+    return { live: true, label: `${ago} · until ${fmtTime(e)}` }
+  }
+  return { live: false, label: formatWindow(startsAt, endsAt) }
 }
 
 // The datetime-local input represents ISTANBUL wall-clock time (the
@@ -141,6 +161,19 @@ export default function HangoutsPage() {
   const [loading,        setLoading]        = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [showPulseForm, setShowPulseForm] = useState(false)
+  // Ground rules: full box on the very first visit (norms matter in a
+  // strangers-meet-strangers feature), a one-line collapsed bar after —
+  // the permanent 4-bullet box was pushing the actual feed below the
+  // fold on phones.
+  const [rulesOpen, setRulesOpen] = useState(false)
+  useEffect(() => {
+    try {
+      if (!localStorage.getItem('hangoutRulesSeen')) {
+        setRulesOpen(true)
+        localStorage.setItem('hangoutRulesSeen', '1')
+      }
+    } catch { /* private mode — stay collapsed */ }
+  }, [])
   // Filter chips — exclusive: meet-mode + neighborhood. Toggleable: language.
   // All default to "off" / "all" so newcomers see the full feed by default;
   // filters are an explicit narrowing action.
@@ -159,6 +192,27 @@ export default function HangoutsPage() {
   const [photo,        setPhoto]        = useState<string | null>(null)
   const [uploading,    setUploading]    = useState(false)
   const [submitting,   setSubmitting]   = useState(false)
+
+  // Quick-start presets — one tap prefills the post form so hosting from an
+  // empty feed feels effortless. Time defaults to the usual near-now window;
+  // the host still picks the spot + neighborhood.
+  const QUICK_STARTS = [
+    { emoji: '☕', label: 'Coffee',  title: 'Coffee ☕',            description: 'Grabbing a coffee — come hang.' },
+    { emoji: '🍺', label: 'Drinks',  title: 'After-work drinks 🍺', description: 'Unwinding with a drink — join in.' },
+    { emoji: '🚶', label: 'Walk',    title: 'Evening walk 🚶',      description: 'Going for a walk — come along.' },
+    { emoji: '🍽️', label: 'Food',    title: 'Grabbing food 🍽️',    description: 'Getting a bite — pull up a chair.' },
+    { emoji: '🎲', label: 'Games',   title: 'Board games 🎲',       description: 'Playing some games — bring your competitive side.' },
+    { emoji: '💻', label: 'Cowork',  title: 'Coworking 💻',         description: 'Working from a café — join for focused company.' },
+  ]
+  function quickStart(p: { title: string; description: string }) {
+    setTitle(p.title)
+    setDescription(p.description)
+    setMeetMode('group')
+    setStartsAt(defaultStartsAt())
+    setEndsAt(defaultEndsAt())
+    setShowPulseForm(false)
+    setShowForm(true)
+  }
 
   // Pulse form
   const [pulseNote,         setPulseNote]         = useState('')
@@ -297,6 +351,22 @@ export default function HangoutsPage() {
     }
   }
 
+  // "✋ I'm free too" — optimistic flip; the poster gets a notification
+  // deep-linking into a DM with the waver.
+  async function handleWave(pulse: Pulse) {
+    try {
+      const res = await fetch(`/app/api/availability/${pulse.id}/wave`, { method: 'POST', credentials: 'include' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { toast.error(data.error ?? 'Could not wave'); return }
+      setPulses(prev => prev.map(p => p.id === pulse.id
+        ? { ...p, waves: { ...p.waves, mine: true, count: p.waves.mine ? p.waves.count : p.waves.count + 1 } }
+        : p))
+      toast.success(`${pulse.user.name.split(' ')[0]} will get a ping ✋`)
+    } catch {
+      toast.error('Network error — check your connection')
+    }
+  }
+
   // Confirmation is handled inline by HangoutCard's two-state UI.
   async function handleCancel(id: string) {
     try {
@@ -317,16 +387,18 @@ export default function HangoutsPage() {
   return (
     <div className="min-h-screen bg-warm pb-16">
       <div className="bg-white border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-5 sm:pt-8 pb-5 sm:pb-6">
           <div className="max-w-3xl">
           {/* Header — stacks vertically on mobile so the two action buttons
               get a full row of their own (side by side, equal width).
-              Desktop keeps the original side-by-side title/actions layout. */}
+              Desktop keeps the original side-by-side title/actions layout.
+              Mobile trims the chip + title size — chip + 5xl title + tagline
+              + buttons was nearly a full phone screen before any content. */}
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-3 mb-1">
             <div>
-              <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">☕ Spontaneous</span>
-              <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">Hangouts</h1>
-              <p className="text-base text-gray-600 mt-1">&quot;I&apos;m at X right now — join me?&quot;</p>
+              <span className="hidden sm:inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">☕ Spontaneous</span>
+              <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-gray-900">Hangouts</h1>
+              <p className="text-sm sm:text-base text-gray-600 mt-1">&quot;I&apos;m at X right now — join me?&quot;</p>
             </div>
             <div className="flex items-center gap-2 w-full sm:w-auto sm:shrink-0">
               {/* Recap entry point — anyone who's had a recent hangout can
@@ -378,17 +450,43 @@ export default function HangoutsPage() {
           </Link>
         )}
 
-        {/* Ground rules — always visible so everyone knows the norms, not
-            just people who happen to open the post form. */}
-        <div className="rounded-2xl border border-amber-100 bg-amber-50 px-5 py-4">
-          <p className="text-xs font-bold text-amber-800 uppercase tracking-widest mb-3">Ground rules</p>
-          <ul className="space-y-2">
-            <li className="flex items-start gap-2 text-xs text-amber-900"><span>📍</span><span>Meet in public places only — no private addresses.</span></li>
-            <li className="flex items-start gap-2 text-xs text-amber-900"><span>🚫</span><span>Cancel if plans change — don't leave joiners hanging.</span></li>
-            <li className="flex items-start gap-2 text-xs text-amber-900"><span>🔁</span><span>No recurring events or commercial meetups — those go on the Events page.</span></li>
-            <li className="flex items-start gap-2 text-xs text-amber-900"><span>⭐</span><span>After it ends, leave a recap so hosts build trust over time.</span></li>
-          </ul>
+        {/* Ground rules — full box on first visit, one-line bar after
+            (see rulesOpen). Norms stay one tap away without costing the
+            feed half a phone screen on every visit. */}
+        <div className="rounded-2xl border border-amber-100 bg-amber-50 overflow-hidden">
+          <button onClick={() => setRulesOpen(o => !o)} aria-expanded={rulesOpen}
+            className="w-full flex items-center justify-between gap-3 px-5 py-3 text-left">
+            <p className="text-xs text-amber-900 truncate">
+              <span className="font-bold uppercase tracking-widest text-amber-800">Ground rules</span>
+              {!rulesOpen && <span className="text-amber-700"> · 📍 public places · don't leave joiners hanging</span>}
+            </p>
+            <span className={`text-amber-600 text-xs shrink-0 transition-transform ${rulesOpen ? 'rotate-180' : ''}`}>⌄</span>
+          </button>
+          {rulesOpen && (
+            <ul className="space-y-2 px-5 pb-4">
+              <li className="flex items-start gap-2 text-xs text-amber-900"><span>📍</span><span>Meet in public places only — no private addresses.</span></li>
+              <li className="flex items-start gap-2 text-xs text-amber-900"><span>🚫</span><span>Cancel if plans change — don't leave joiners hanging.</span></li>
+              <li className="flex items-start gap-2 text-xs text-amber-900"><span>🔁</span><span>No recurring events or commercial meetups — those go on the Events page.</span></li>
+              <li className="flex items-start gap-2 text-xs text-amber-900"><span>⭐</span><span>After it ends, leave a recap so hosts build trust over time.</span></li>
+            </ul>
+          )}
         </div>
+
+        {/* Quick-start prompts — one tap prefills + opens the post form so
+            hosting from an empty feed feels effortless. */}
+        {!showForm && !showPulseForm && (
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2 px-1">Start something quick</p>
+            <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+              {QUICK_STARTS.map(p => (
+                <button key={p.label} onClick={() => quickStart(p)}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white border border-gray-200 hover:border-amber-400 hover:bg-amber-50 text-sm font-semibold text-gray-700 whitespace-nowrap shrink-0 transition-colors">
+                  <span>{p.emoji}</span> {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {showForm && (
           <form onSubmit={handleSubmit} className="bg-white border border-gray-100 rounded-2xl p-5 space-y-4 shadow-sm">
@@ -503,7 +601,9 @@ export default function HangoutsPage() {
             </label>
             <div className="grid grid-cols-2 gap-3">
               <label className="block">
-                <span className="block text-sm font-semibold text-gray-700 mb-1.5">Where</span>
+                <span className="block text-sm font-semibold text-gray-700 mb-1.5">
+                  Where <span className="text-gray-400 font-normal">(pings members living there)</span>
+                </span>
                 <select value={pulseNeighborhood} onChange={e => setPulseNeighborhood(e.target.value)} className="input bg-white">
                   <option value="">— Anywhere —</option>
                   {ISTANBUL_NEIGHBORHOODS.map(n => <option key={n} value={n}>{n}</option>)}
@@ -623,17 +723,67 @@ export default function HangoutsPage() {
             return true
           })
 
+          // "Near you" — float the viewer's own-neighbourhood hangouts to the
+          // top of whatever grouping renders below (stable sort keeps the
+          // existing soonest-first order for everything else).
+          if (user.neighborhood) {
+            filtered.sort((a, b) =>
+              (b.neighborhood === user.neighborhood ? 1 : 0) - (a.neighborhood === user.neighborhood ? 1 : 0))
+          }
+
           if (filtered.length === 0 && pulses.length === 0) {
             const anyFilterOn = modeFilter !== 'all' || neighborhoodFilter !== null || languageOnly
+            if (anyFilterOn) {
+              return (
+                <div className="text-center py-16">
+                  <div aria-hidden="true" className="text-5xl mb-3">☕</div>
+                  <p className="text-base font-bold text-gray-900 mb-1">Nothing matches your filters</p>
+                  <p className="text-sm text-gray-600 max-w-md mx-auto">Clear a filter or two — or start something yourself.</p>
+                </div>
+              )
+            }
+            // True-empty state — for a spontaneity feature this is the
+            // most-seen screen, so it has to invite rather than shrug.
+            // One-tap route into the cheapest action (pulse) + the
+            // regulars strip as social proof that the feature is alive.
             return (
-              <div className="text-center py-16">
+              <div className="bg-white border border-gray-100 rounded-2xl shadow-sm px-6 py-10 text-center">
                 <div aria-hidden="true" className="text-5xl mb-3">☕</div>
-                <p className="text-base font-bold text-gray-900 mb-1">
-                  {anyFilterOn ? 'Nothing matches your filters' : 'Nothing right now'}
-                </p>
+                <p className="text-base font-bold text-gray-900 mb-1">Quiet right now — be the spark</p>
                 <p className="text-sm text-gray-600 max-w-md mx-auto">
-                  Use the buttons above to drop a quick pulse or post a hangout with a specific spot and time.
+                  Free this afternoon? Drop a pulse — it takes five seconds, and nearby members get a ping.
                 </p>
+                <button
+                  onClick={() => { setShowPulseForm(true); setShowForm(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+                  className="mt-4 inline-flex items-center gap-1.5 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
+                  ✦ I&apos;m around
+                </button>
+                {regulars.length > 0 && (
+                  <div className="mt-8 pt-6 border-t border-gray-100">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+                      These members host often — a pulse might wake them up
+                    </p>
+                    <div className="flex gap-3 overflow-x-auto pb-1 justify-center">
+                      {regulars.map(r => {
+                        const photo = r.profilePhoto ? avatarUrl(r.profilePhoto, 128) : null
+                        return (
+                          <Link key={r.id} href={`/members/${r.id}`} className="flex flex-col items-center gap-1.5 min-w-[56px] group">
+                            {photo
+                              ? <img src={photo} alt={r.name} className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm group-hover:ring-2 group-hover:ring-amber-400 transition-all" />
+                              : <div className="w-12 h-12 rounded-full flex items-center justify-center text-white text-sm font-bold border-2 border-white shadow-sm group-hover:ring-2 group-hover:ring-amber-400 transition-all"
+                                  style={{ backgroundColor: r.color }}>
+                                  {getInitials(r.name)}
+                                </div>
+                            }
+                            <p className="text-xs font-medium text-gray-700 max-w-[56px] truncate group-hover:text-amber-600 transition-colors">
+                              {r.name.split(' ')[0]}
+                            </p>
+                          </Link>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             )
           }
@@ -645,31 +795,107 @@ export default function HangoutsPage() {
               {pulses.length > 0 && (
                 <div className="space-y-2">
                   {pulses.map(p => (
-                    <PulseCard key={p.id} pulse={p} onClear={p.isMine ? handleClearPulse : undefined} />
+                    <PulseCard key={p.id} pulse={p} onClear={p.isMine ? handleClearPulse : undefined} onWave={handleWave} />
                   ))}
                 </div>
               )}
-              {filtered.length > 0 && (
-                <div className="space-y-3">
-                  {filtered.map(h => (
-                    <HangoutCard
-                      key={h.id}
-                      h={h}
-                      currentUser={user}
-                      onCancel={handleCancel}
-                      onMutated={updated => {
-                        setHangouts(prev => prev.map(pp => pp.id === updated.id ? updated : pp))
-                      }}
-                    />
-                  ))}
-                </div>
-              )}
+              {/* Live/upcoming split — a hangout running RIGHT NOW is the
+                  page's marquee moment and gets its own section with a
+                  pulsing dot. Section headers only render when both exist;
+                  a feed that's all-upcoming doesn't need a label. */}
+              {(() => {
+                const now      = Date.now()
+                const isLive   = (h: Hangout) => new Date(h.startsAt).getTime() <= now && new Date(h.endsAt).getTime() > now
+                const live     = filtered.filter(isLive)
+                const upcoming = filtered.filter(h => !isLive(h))
+                const renderCard = (h: Hangout) => (
+                  <HangoutCard
+                    key={h.id}
+                    h={h}
+                    currentUser={user}
+                    onCancel={handleCancel}
+                    onMutated={updated => {
+                      setHangouts(prev => prev.map(pp => pp.id === updated.id ? updated : pp))
+                    }}
+                  />
+                )
+                return (
+                  <>
+                    {live.length > 0 && (
+                      <div>
+                        <p className="flex items-center gap-2 text-xs font-bold text-green-700 uppercase tracking-widest mb-3 px-1">
+                          <span className="relative flex h-2 w-2" aria-hidden="true">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+                          </span>
+                          Happening now
+                        </p>
+                        <div className="space-y-3">{live.map(renderCard)}</div>
+                      </div>
+                    )}
+                    {upcoming.length > 0 && (
+                      <div>
+                        {live.length > 0 && (
+                          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 px-1 pt-3">Coming up</p>
+                        )}
+                        <div className="space-y-3">{upcoming.map(renderCard)}</div>
+                      </div>
+                    )}
+                  </>
+                )
+              })()}
             </>
           )
         })()}
 
-        {/* Regulars — top hosts this month. Social reward + newcomer signal. */}
-        {!loading && regulars.length > 0 && (
+        {/* Just happened — expired hangouts from the last 48h. Social proof
+            that the feature is alive; also creates FOMO for newcomers. */}
+        {!loading && recentHangouts.length > 0 && (
+          <div className="pt-2">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 px-1">Just happened</p>
+            <div className="space-y-2">
+              {recentHangouts.map(h => {
+                const hostAvatar = h.user.profilePhoto
+                  ? avatarUrl(h.user.profilePhoto, 64)
+                  : null
+                const recapPhoto = h.photo ? resolveImageUrl(h.photo) : null
+                const hoursAgo = Math.round((Date.now() - new Date(h.endsAt).getTime()) / 3_600_000)
+                return (
+                  <div key={h.id} className="bg-white rounded-2xl shadow-card px-4 py-3 flex items-center gap-3 opacity-80">
+                    {hostAvatar
+                      ? <img src={hostAvatar} alt={h.user.name} className="w-8 h-8 rounded-full object-cover shrink-0" />
+                      : <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+                             style={{ backgroundColor: h.user.color }}>
+                          {getInitials(h.user.name)}
+                        </div>
+                    }
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-700 truncate">{h.title}</p>
+                      <p className="text-xs text-gray-400">
+                        {h.joinerCount > 0
+                          ? `${h.joinerCount + 1} went`
+                          : 'Host only'
+                        }
+                        {h.goodRefCount > 0 && <> · ✓ {h.goodRefCount} good</>}
+                        {h.neighborhood && <> · {h.neighborhood}</>}
+                        {' · '}{hoursAgo < 1 ? 'just now' : `${hoursAgo}h ago`}
+                      </p>
+                    </div>
+                    {recapPhoto && (
+                      <img src={recapPhoto} alt="" loading="lazy" decoding="async"
+                        className="w-12 h-12 rounded-lg object-cover shrink-0" />
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Regulars — top hosts this month. Social reward + newcomer
+            signal. Skipped when the feed is empty: the empty state above
+            already shows the same people with a stronger call-to-action. */}
+        {!loading && regulars.length > 0 && (hangouts.length > 0 || pulses.length > 0) && (
           <div className="pt-2">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 px-1">Most active hosts this month</p>
             <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1">
@@ -701,50 +927,34 @@ export default function HangoutsPage() {
           </div>
         )}
 
-        {/* Just happened — expired hangouts from the last 48h. Social proof
-            that the feature is alive; also creates FOMO for newcomers. */}
-        {!loading && recentHangouts.length > 0 && (
-          <div className="pt-2">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 px-1">Just happened</p>
-            <div className="space-y-2">
-              {recentHangouts.map(h => {
-                const hostAvatar = h.user.profilePhoto
-                  ? avatarUrl(h.user.profilePhoto, 64)
-                  : null
-                const hoursAgo = Math.round((Date.now() - new Date(h.endsAt).getTime()) / 3_600_000)
-                return (
-                  <div key={h.id} className="bg-white rounded-2xl shadow-card px-4 py-3 flex items-center gap-3 opacity-80">
-                    {hostAvatar
-                      ? <img src={hostAvatar} alt={h.user.name} className="w-8 h-8 rounded-full object-cover shrink-0" />
-                      : <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-                             style={{ backgroundColor: h.user.color }}>
-                          {getInitials(h.user.name)}
-                        </div>
-                    }
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-700 truncate">{h.title}</p>
-                      <p className="text-xs text-gray-400">
-                        {h.joinerCount > 0
-                          ? `${h.joinerCount + 1} went`
-                          : 'Host only'
-                        }
-                        {h.goodRefCount > 0 && <> · ✓ {h.goodRefCount} good</>}
-                        {h.neighborhood && <> · {h.neighborhood}</>}
-                        {' · '}{hoursAgo < 1 ? 'just now' : `${hoursAgo}h ago`}
-                      </p>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
         </div>
       </div>
     </div>
   )
 }
+
+// Shared, once-fetched Istanbul weather for outdoor hangout cards. Cached at
+// module scope so many cards trigger a single open-meteo call (the CSP already
+// allows api.open-meteo.com). Current conditions — only surfaced on today's
+// hangouts, where "now" weather is actually representative.
+const WCODE: Record<number, string> = {
+  0: '☀️', 1: '🌤️', 2: '⛅', 3: '☁️', 45: '🌫️', 48: '🌫️',
+  51: '🌦️', 53: '🌦️', 55: '🌧️', 61: '🌦️', 63: '🌧️', 65: '🌧️',
+  71: '🌨️', 73: '🌨️', 75: '❄️', 80: '🌦️', 81: '🌧️', 82: '⛈️',
+  95: '⛈️', 96: '⛈️', 99: '⛈️',
+}
+let _wxCache: { temp: number; icon: string } | null = null
+let _wxPromise: Promise<void> | null = null
+function fetchWeatherOnce(): Promise<void> {
+  if (!_wxPromise) {
+    _wxPromise = fetch('https://api.open-meteo.com/v1/forecast?latitude=41.0082&longitude=28.9784&current_weather=true&timezone=Europe%2FIstanbul')
+      .then(r => r.json())
+      .then(d => { const c = d?.current_weather; if (c) _wxCache = { temp: Math.round(c.temperature), icon: WCODE[c.weathercode] ?? '🌤️' } })
+      .catch(() => {})
+  }
+  return _wxPromise
+}
+const OUTDOOR_RE = /\b(picnic|walk|stroll|park|hike|hiking|beach|run|running|jog|cycl|bike|rooftop|garden|bosphorus|outdoor|swim|sail|kayak|frisbee|football|basketball|tennis|padel|climb|ferry|sunset)\b/i
 
 function HangoutCard({ h, currentUser, onCancel, onMutated }: {
   h: Hangout
@@ -759,6 +969,14 @@ function HangoutCard({ h, currentUser, onCancel, onMutated }: {
   onMutated: (h: Hangout) => void
 }) {
   const isOwner = h.user.id === currentUser.id
+  // Weather chip: outdoor-keyword hangouts happening today get a live temp.
+  const isOutdoor = OUTDOOR_RE.test(`${h.title} ${h.description ?? ''}`)
+  const isToday   = new Date(h.startsAt).toLocaleDateString('en-CA', { timeZone: 'Europe/Istanbul' })
+                    === new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Istanbul' })
+  const [wx, setWx] = useState<{ temp: number; icon: string } | null>(null)
+  useEffect(() => {
+    if (isOutdoor && isToday) fetchWeatherOnce().then(() => setWx(_wxCache))
+  }, [isOutdoor, isToday])
   // #7 perf: 128-wide avatar thumb on hangouts feed (rendered at
   // w-12 = 48px CSS = retina 96px).
   const avatar  = avatarUrl(h.user.profilePhoto, 128)
@@ -780,6 +998,22 @@ function HangoutCard({ h, currentUser, onCancel, onMutated }: {
       .catch(() => { toast.error('Could not load messages') })
       .finally(() => setLoadingMsg(false))
   }, [threadOpen, h.id, messages.length])
+
+  async function shareHangout() {
+    // Full permalink including the /app basePath. Native share sheet on mobile
+    // (WhatsApp, Messages, …); clipboard fallback on desktop.
+    const url = `${window.location.origin}/app/hangouts/${h.id}`
+    try {
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        await navigator.share({ title: h.title, text: `Join this hangout on Smileys: ${h.title}`, url })
+      } else {
+        await navigator.clipboard.writeText(url)
+        toast.success('Link copied!')
+      }
+    } catch {
+      // Share sheet dismissed or clipboard blocked — no-op.
+    }
+  }
 
   async function toggleJoin() {
     if (isOwner) return
@@ -832,13 +1066,20 @@ function HangoutCard({ h, currentUser, onCancel, onMutated }: {
   }
 
   const photoUrl = h.photo ? resolveImageUrl(h.photo) : null
+  const status   = timeStatus(h.startsAt, h.endsAt)
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-      {/* Location photo — full-bleed at top so it reads as "this is where
-          we're meeting" rather than a small decorative thumbnail. */}
+    <div className={`bg-white border rounded-2xl overflow-hidden ${status.live ? 'border-green-200 ring-1 ring-green-100 shadow-md' : 'border-gray-100 shadow-sm'}`}>
+      {/* Location photo — full-bleed at top with the title laid over a
+          gradient, poster-style. Without the overlay the photo and the
+          text block below competed for attention; now the photo IS the
+          title card, and the body below starts at the time line. */}
       {photoUrl && (
-        <Link href={`/hangouts/${h.id}`} className="block">
+        <Link href={`/hangouts/${h.id}`} className="block relative">
           <img src={photoUrl} alt={h.title} className="w-full h-40 object-cover" />
+          <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+          <p className="absolute bottom-3 left-4 right-4 text-white text-base font-bold leading-snug drop-shadow-sm">
+            {h.title}
+          </p>
         </Link>
       )}
       <div className="p-4">
@@ -849,7 +1090,12 @@ function HangoutCard({ h, currentUser, onCancel, onMutated }: {
               style={{ backgroundColor: h.user.color }}>{h.user.name[0]}</div>}
         <div className="flex-1 min-w-0">
           <div className="flex items-start gap-2 flex-wrap">
-            <Link href={`/hangouts/${h.id}`} className="text-sm font-bold text-gray-900 leading-snug hover:text-amber-700">{h.title}</Link>
+            {/* Title lives on the photo overlay when there is one — repeating
+                it here would double it up. Photo-less cards show it inline,
+                bumped to text-base so the card has a clear headline. */}
+            {!photoUrl && (
+              <Link href={`/hangouts/${h.id}`} className="text-base font-bold text-gray-900 leading-snug hover:text-amber-700">{h.title}</Link>
+            )}
             {/* Intent badge — only renders for 'solo' since 'group' is the
                 default and adding "open to all" everywhere is noise. */}
             {h.meetMode === 'solo' && (
@@ -858,8 +1104,16 @@ function HangoutCard({ h, currentUser, onCancel, onMutated }: {
               </span>
             )}
           </div>
-          <p className="text-xs text-amber-700 font-semibold mt-0.5">{formatWindow(h.startsAt, h.endsAt)}</p>
-          <p className="text-xs text-gray-600 mt-1.5">📍 {h.location}{h.neighborhood && <span className="text-gray-400"> · {h.neighborhood}</span>}</p>
+          <p className={`text-sm font-bold mt-0.5 flex items-center gap-1.5 ${status.live ? 'text-green-700' : 'text-amber-700'}`}>
+            {status.live && (
+              <span className="relative flex h-2 w-2 shrink-0" aria-hidden="true">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+              </span>
+            )}
+            {status.label}
+          </p>
+          <p className="text-xs text-gray-600 mt-1.5">📍 {h.location}{h.neighborhood && <span className="text-gray-400"> · {h.neighborhood}</span>}{wx && <span className="text-gray-400"> · {wx.icon} {wx.temp}°</span>}</p>
           {h.description && (
             <p className="text-xs text-gray-600 mt-2 whitespace-pre-wrap">{h.description}</p>
           )}
@@ -953,6 +1207,12 @@ function HangoutCard({ h, currentUser, onCancel, onMutated }: {
           className="text-xs font-semibold text-gray-600 hover:text-gray-900 shrink-0 flex items-center gap-1">
           💬 {h.messageCount > 0 && <span>{h.messageCount}</span>}
         </button>
+
+        <button onClick={shareHangout}
+          aria-label="Share hangout" title="Share"
+          className="text-xs font-semibold text-gray-600 hover:text-gray-900 shrink-0">
+          🔗
+        </button>
       </div>
 
       {/* Comment thread */}
@@ -993,7 +1253,7 @@ function HangoutCard({ h, currentUser, onCancel, onMutated }: {
 
 // PulseCard — compact card for an AvailabilityPulse. Visually lighter than a
 // hangout card so the two signal grades read differently at a glance.
-function PulseCard({ pulse, onClear }: { pulse: Pulse; onClear?: () => void }) {
+function PulseCard({ pulse, onClear, onWave }: { pulse: Pulse; onClear?: () => void; onWave?: (p: Pulse) => void }) {
   const avatar = pulse.user.profilePhoto ? avatarUrl(pulse.user.profilePhoto, 128) : null
   const minsLeft = Math.max(0, Math.round((new Date(pulse.until).getTime() - Date.now()) / 60_000))
   const ttlLabel = minsLeft < 60 ? `${minsLeft}m left` : `${Math.floor(minsLeft / 60)}h ${minsLeft % 60}m left`
@@ -1022,6 +1282,24 @@ function PulseCard({ pulse, onClear }: { pulse: Pulse; onClear?: () => void }) {
           )}
         </p>
         <p className="text-[11px] text-gray-400 mt-0.5">{ttlLabel}</p>
+        {/* Waves feedback — the poster sees WHO is free too (names deep-
+            link into DMs); everyone else just sees momentum ("2 waved"). */}
+        {pulse.waves.count > 0 && (
+          <p className="text-[11px] text-green-700 font-semibold mt-1">
+            ✋ {pulse.isMine
+              ? <>
+                  {pulse.waves.users.map((u, i) => (
+                    <span key={u.id}>
+                      {i > 0 && ', '}
+                      <Link href={`/messages/${u.id}`} className="underline decoration-green-300 hover:text-green-800">{u.name.split(' ')[0]}</Link>
+                    </span>
+                  ))}
+                  {pulse.waves.count > pulse.waves.users.length && ` +${pulse.waves.count - pulse.waves.users.length}`}
+                  {' '}{pulse.waves.count === 1 ? 'is' : 'are'} free too — say hi!
+                </>
+              : `${pulse.waves.count} waved`}
+          </p>
+        )}
       </div>
       {pulse.isMine ? (
         // Two-state inline clear — was a native confirm() in the parent.
@@ -1038,10 +1316,22 @@ function PulseCard({ pulse, onClear }: { pulse: Pulse; onClear?: () => void }) {
             className="text-xs text-gray-400 hover:text-gray-700 shrink-0">Clear</button>
         )
       ) : (
-        <Link href={`/messages/${pulse.user.id}`}
-          className="text-xs font-bold text-amber-700 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg shrink-0">
-          Message
-        </Link>
+        <div className="flex flex-col items-end gap-1.5 shrink-0">
+          {/* One-tap mutual signal first; the DM comes after someone waves
+              back. Waving is cheaper than opening a chat with a stranger. */}
+          {pulse.waves.mine ? (
+            <span className="text-xs font-bold text-green-700 bg-green-50 border border-green-200 px-3 py-1.5 rounded-lg">✋ Waved</span>
+          ) : (
+            <button onClick={() => onWave?.(pulse)}
+              className="text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 px-3 py-1.5 rounded-lg">
+              ✋ I&apos;m free too
+            </button>
+          )}
+          <Link href={`/messages/${pulse.user.id}`}
+            className="text-xs font-semibold text-amber-700 hover:text-amber-800 px-1">
+            Message
+          </Link>
+        </div>
       )}
     </div>
   )

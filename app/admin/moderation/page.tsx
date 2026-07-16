@@ -48,12 +48,16 @@ interface QueueEvent {
 }
 
 const REASON_LABELS: Record<string, string> = {
-  harassment:             'Harassment',
-  inappropriate_behavior: 'Inappropriate behavior',
-  fake_profile:           'Fake profile',
-  spam:                   'Spam',
-  no_show:                'Repeated no-shows',
-  other:                  'Other',
+  // Canonical reason set — matches VALID_REASONS in app/api/reports/route.ts
+  // and components/ReportButton. (Old keys inappropriate_behavior/fake_profile
+  // were never storable — the old API rejected them — so dropping them is safe.)
+  harassment:        'Harassment',
+  inappropriate:     'Inappropriate behavior',
+  fake:              'Fake profile',
+  spam:              'Spam',
+  offensive:         'Offensive content',
+  no_show:           'Repeated no-shows',
+  other:             'Other',
   // Reports auto-created by the post-event safety survey when a
   // respondent flagged "anything off?" — the details field carries
   // the verbatim free-text the respondent left.

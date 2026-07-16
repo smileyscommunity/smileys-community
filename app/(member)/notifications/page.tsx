@@ -136,6 +136,12 @@ export default function NotificationsPage() {
     return types.length ? notifications.filter(n => types.includes(n.type)) : notifications
   }, [notifications, filter])
 
+  // Team broadcasts read like letters, not list rows — pull them out of
+  // the stream and render them as full-body featured cards above it.
+  const isBroadcast = (t: string) => t === 'announcement' || t === 'system_alert'
+  const announcements = useMemo(() => filtered.filter(n => isBroadcast(n.type)), [filtered])
+  const regular       = useMemo(() => filtered.filter(n => !isBroadcast(n.type)), [filtered])
+
   const unread = notifications.filter(n => !n.isRead).length
 
   async function markAllRead() {
@@ -292,8 +298,53 @@ export default function NotificationsPage() {
             />
           )
         ) : (
+          <>
+          {/* Featured team broadcasts — full body, formatted for actual
+              reading. Clicking marks read (broadcasts rarely carry a
+              link); the regular stream renders below. */}
+          {announcements.length > 0 && (
+            <div className="space-y-4 mb-6">
+              {announcements.map(n => (
+                <article
+                  key={n.id}
+                  onClick={() => handleClick(n)}
+                  className={`rounded-2xl shadow-sm border p-5 sm:p-6 cursor-pointer transition-colors ${
+                    !n.isRead ? 'bg-amber-50/60 border-amber-200' : 'bg-white border-gray-100'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2 text-xs text-gray-500 flex-wrap">
+                      <span className="text-lg" aria-hidden="true">{TYPE_ICON[n.type] ?? '📢'}</span>
+                      <span className="font-semibold text-amber-700">From the Smileys Team</span>
+                      <span>·</span>
+                      <span>{timeAgo(n.createdAt)}</span>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {!n.isRead && <span className="w-2 h-2 bg-amber-500 rounded-full mt-1.5" />}
+                      <button
+                        onClick={e => dismiss(e, n.id)}
+                        className="flex items-center justify-center w-8 h-8 text-gray-300 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-all"
+                        title="Dismiss"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                  <h2 className="text-base font-bold text-gray-900 mt-2">{n.title}</h2>
+                  <p className="text-sm text-gray-700 mt-2 leading-relaxed whitespace-pre-wrap">{n.body}</p>
+                  {!n.isRead && (
+                    <p className="text-xs text-amber-600 font-medium mt-3">Tap to mark as read</p>
+                  )}
+                </article>
+              ))}
+            </div>
+          )}
+
+          {regular.length > 0 && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden divide-y divide-gray-50">
-            {filtered.map(n => (
+            {regular.map(n => (
               <SwipeRow key={n.id} onSwipeLeft={() => dismiss({ stopPropagation: () => {} } as React.MouseEvent, n.id)}>
                 <div
                   onClick={() => handleClick(n)}
@@ -334,6 +385,8 @@ export default function NotificationsPage() {
               </SwipeRow>
             ))}
           </div>
+          )}
+          </>
         )}
         </div>
       </div>

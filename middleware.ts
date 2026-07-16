@@ -16,7 +16,7 @@ import type { NextRequest } from 'next/server'
 //    layouts can read it via `headers()` and pass it to <Script> or
 //    <script> tags. `'unsafe-inline'` and `'unsafe-eval'` are kept for
 //    legacy-browser fallback and for libraries that still need eval
-//    (PostHog session replay, Sentry breadcrumbs); modern browsers see
+//    (PostHog session replay); modern browsers see
 //    `'strict-dynamic'` + the nonce and ignore the unsafe-inline fallback,
 //    so stored/reflected XSS without a valid nonce is blocked.
 
@@ -67,7 +67,7 @@ function buildCsp(nonce: string): string {
     // script-src and only run scripts with the matching nonce (or scripts
     // loaded by those). Legacy browsers fall back to `'unsafe-inline'` +
     // host allowlist. `'unsafe-eval'` kept because PostHog session replay
-    // and some Sentry breadcrumb code use Function()/eval at runtime.
+    // uses Function()/eval at runtime.
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com`,
     // Inline styles are pervasive in this app (Tailwind utilities + styled-jsx
     // + emotion). Nonce-based style enforcement is impractical without a
@@ -75,7 +75,7 @@ function buildCsp(nonce: string): string {
     // much lower than via JS.
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
-    "connect-src 'self' https://challenges.cloudflare.com https://*.tile.openstreetmap.org https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://api.open-meteo.com",
+    "connect-src 'self' https://challenges.cloudflare.com https://*.tile.openstreetmap.org https://api.open-meteo.com",
     "font-src 'self' data:",
     "frame-src https://challenges.cloudflare.com",
     "object-src 'none'",

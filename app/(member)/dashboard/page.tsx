@@ -441,15 +441,16 @@ export default async function DashboardPage() {
       },
     }),
     // Active availability pulses — members flagging they're free to meet up
-    // right now. Non-expired only (until >= now); feeds ClubActivityTimeline
-    // alongside hangouts. Excludes the viewer's own, last 7 days.
+    // right now. Non-expired only (until >= now); feeds the "free right
+    // now" strip (id/photo for avatars) + ClubActivityTimeline. Excludes
+    // the viewer's own, last 7 days.
     prisma.availabilityPulse.findMany({
       where: { until: { gte: new Date() }, createdAt: { gte: weekAgo }, userId: { not: session.id } },
       orderBy: { createdAt: 'desc' },
       take: 5,
       select: {
         id: true, neighborhood: true, note: true, until: true, createdAt: true,
-        user: { select: { name: true, color: true } },
+        user: { select: { id: true, name: true, color: true, profilePhoto: true } },
       },
     }),
     // Recent accepted connections — social proof that the network is active.
@@ -1125,6 +1126,37 @@ export default async function DashboardPage() {
                   ) : <div key={banner.id || i}>{inner}</div>
                 })}
               </div>
+            )}
+
+            {/* Free right now — live pulses get dashboard visibility so
+                they reach members who'd never think to open /hangouts.
+                Time-sensitive (pulses die within 4h), hence high placement;
+                self-hides when nobody's around. */}
+            {recentPulses.length > 0 && (
+              <Link href="/hangouts"
+                className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-2xl px-4 py-3 hover:border-green-400 transition-colors">
+                <span className="relative flex h-2.5 w-2.5 shrink-0" aria-hidden="true">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
+                </span>
+                <div className="flex -space-x-1.5 shrink-0">
+                  {recentPulses.slice(0, 4).map(p => (
+                    p.user.profilePhoto
+                      ? <Image key={p.id} src={avatarUrl(p.user.profilePhoto, 64)} alt={p.user.name} width={28} height={28}
+                          className="w-7 h-7 rounded-full border-2 border-white object-cover" />
+                      : <div key={p.id} className="w-7 h-7 rounded-full border-2 border-white flex items-center justify-center text-white text-[10px] font-bold"
+                          style={{ backgroundColor: p.user.color }}>{getInitials(p.user.name)}</div>
+                  ))}
+                </div>
+                <p className="text-sm text-green-900 min-w-0 flex-1 truncate">
+                  <span className="font-bold">
+                    {recentPulses.length === 1
+                      ? `${recentPulses[0].user.name.split(' ')[0]} is free to meet right now`
+                      : `${recentPulses.length} members are free to meet right now`}
+                  </span>
+                </p>
+                <span className="text-xs font-bold text-green-700 shrink-0">Say hi →</span>
+              </Link>
             )}
 
             {/* Recent activity — moved here from the right rail so it

@@ -227,6 +227,7 @@ export default function ProfilePage() {
     if (!form.firstName.trim()) { toast.error('First name is required'); return }
     if (!form.lastName.trim())  { toast.error('Last name is required'); return }
     if (!form.nationality)      { toast.error('Nationality is required'); return }
+    if (!form.phone.trim())     { toast.error('Phone number is required'); return }
     setSaving(true)
     try {
       const fullName = `${form.firstName.trim()} ${form.lastName.trim()}`.trim()
@@ -360,7 +361,7 @@ export default function ProfilePage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Phone</label>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Phone <span className="text-red-400">*</span></label>
                   <input type="tel" value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="+90 555 000 0000" className={inputCls} />
                 </div>
               </div>

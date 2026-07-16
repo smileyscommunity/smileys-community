@@ -55,7 +55,10 @@
 //                  offline /my-events benefit isn't worth the leak.
 //                  OFFLINE_APIS is now empty; the activate handler
 //                  below evicts every old cached entry on this bump.
-const CACHE = 'smileys-v13'
+// v14: 2026-07-11 — Force-evict stale cached chunks: a device kept
+//                  rendering the pre-feed /admin/participants page
+//                  through multiple deploys despite full reloads.
+const CACHE = 'smileys-v14'
 
 // API endpoints to cache for offline use. Empty by design — see v13 note.
 // Auth-bearing responses MUST NOT be cached in this shared CACHE because

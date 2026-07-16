@@ -36,6 +36,7 @@ export async function GET() {
     topHostGroup, visitorsThisWeek,
     appsTotal, appsApproved, rsvpUserGroups,
     survey30d, surveyPrev30d,
+    pendingJoinRequests, todayEventsRaw,
     ...rsvpsByDayCounts
   ] = await Promise.all<any>([
     prisma.user.count({ where: { role: { not: 'admin' } } }),
@@ -105,6 +106,23 @@ export async function GET() {
         ret:  await prisma.eventSurvey.count({ where: { createdAt: { gte: prevMonth, lt: monthAgo }, wouldReturn: true } }),
         anom: await prisma.eventSurvey.count({ where: { createdAt: { gte: prevMonth, lt: monthAgo }, anomaly: true } }),
       })),
+    // Join requests waiting for a decision on upcoming events — the
+    // /admin/participants inbox's Pending count, surfaced as an alert
+    // pill so requests don't sit unseen until someone opens that page.
+    prisma.eventAttendee.count({
+      where: { status: 'pending', event: { date: { gte: todayStr }, status: 'published' } },
+    }),
+    // Events running TODAY with going/checked-in counts — drives the
+    // "happening today" hero. On event days the dashboard's top job is
+    // door ops, not lifetime stats.
+    prisma.event.findMany({
+      where:   { date: todayStr, status: 'published' },
+      orderBy: { time: 'asc' },
+      select: {
+        id: true, title: true, emoji: true, time: true, totalSpots: true,
+        attendees: { where: { status: 'approved' }, select: { checkedIn: true } },
+      },
+    }),
     // RSVPs by day — 7 separate counts. Each runs against an indexed
     // (status, joinedAt) range so they're individually cheap; the
     // Promise.all parallelism keeps total wall-time low.
@@ -164,6 +182,14 @@ export async function GET() {
     totalAccounts, members, hosts, events, upcoming, rsvps,
     newMembersThisMonth, revenueCollected, revenuePending, pendingPayments,
     pendingApplications, pendingReports, emailFailures24h,
+    pendingJoinRequests: pendingJoinRequests as number,
+    // Today's events with live door-ops counts, sorted by start time.
+    todayEvents: (todayEventsRaw as { id: string; title: string; emoji: string; time: string; totalSpots: number; attendees: { checkedIn: boolean }[] }[])
+      .map(e => ({
+        id: e.id, title: e.title, emoji: e.emoji, time: e.time, totalSpots: e.totalSpots,
+        going:     e.attendees.length,
+        checkedIn: e.attendees.filter(a => a.checkedIn).length,
+      })),
     staleSweepers: staleSweepers.map(s => s.name),
     trends: {
       members: calcTrend(newMembersThisMonth, prevMembersMonth),
@@ -211,9 +237,9 @@ export async function GET() {
     // Oldest → newest, 7 days. Drives the dashboard RSVP sparkline.
     rsvpsByDay: rsvpsByDayCounts as number[],
     // Deploy metadata — release is baked at build time (deploy.sh sets
-    // SENTRY_RELEASE=$(git rev-parse --short HEAD)); uptimeSeconds gives
+    // APP_RELEASE=$(git rev-parse --short HEAD)); uptimeSeconds gives
     // time since pm2 restart ≈ time since deploy.
-    release:        process.env.SENTRY_RELEASE ?? null,
+    release:        process.env.APP_RELEASE ?? null,
     uptimeSeconds:  Math.round(process.uptime()),
   })
 }

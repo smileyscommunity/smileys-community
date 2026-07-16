@@ -85,7 +85,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
     const ALLOWED_FIELDS = [
       'title', 'date', 'time', 'location', 'neighborhood', 'address', 'description',
       ...(admin ? ['totalSpots', 'spotsLeft'] : []),
-      'price', 'memberPrice', 'payTo', 'paymentContact', 'emoji', 'isPremium',
+      'price', 'memberPrice', 'payTo', 'paymentContact', 'ticketUrl', 'intent', 'emoji', 'isPremium',
       'membersOnly', 'limitedSpots', 'isFirstTimerFriendly', 'vibes', 'status', 'coverImage', 'coverImagePosition', 'meetingUrl',
       'whatsappUrl', 'minAge', 'maxAge', 'language', 'difficulty', 'refundPolicy',
       'registrationDeadline', 'endTime', 'currency', 'approvalRequired', 'isRecurring',
@@ -106,10 +106,18 @@ export async function PUT(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Meeting URL must start with https://' }, { status: 400 })
     if ('whatsappUrl' in rest && !safeHttps(rest.whatsappUrl))
       return NextResponse.json({ error: 'WhatsApp URL must start with https://' }, { status: 400 })
+    if ('ticketUrl' in rest) {
+      if (!safeHttps(rest.ticketUrl))
+        return NextResponse.json({ error: 'Ticket URL must start with https://' }, { status: 400 })
+      rest.ticketUrl = typeof rest.ticketUrl === 'string' && rest.ticketUrl.trim() ? rest.ticketUrl.trim() : null
+    }
 
     // Closed set — payTo drives whether RSVP creates payment ledger rows.
     if ('payTo' in rest && rest.payTo !== 'venue' && rest.payTo !== 'smileys') {
       return NextResponse.json({ error: 'payTo must be venue or smileys' }, { status: 400 })
+    }
+    if ('intent' in rest && rest.intent !== 'social' && rest.intent !== 'professional') {
+      return NextResponse.json({ error: 'intent must be social or professional' }, { status: 400 })
     }
     if ('paymentContact' in rest) {
       const contact = normalizePaymentContact(rest.paymentContact)

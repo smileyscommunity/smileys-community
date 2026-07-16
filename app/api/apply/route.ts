@@ -6,6 +6,7 @@ import { sendApplicationReceivedEmail, sendAdminNewApplicationEmail, sendAlready
 import { rateLimit, getIp } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
 import { verifyTurnstile } from '@/lib/turnstile'
+import { areApplicationsOpen, newApplicationEmailsEnabled } from '@/lib/communitySettings'
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const disposableDomains: string[] = require('disposable-email-domains')
@@ -81,6 +82,10 @@ function nameDistance(a: string, b: string): number {
 
 export async function POST(req: NextRequest) {
   try {
+    // Membership intake can be paused from /admin/settings.
+    if (!areApplicationsOpen()) {
+      return NextResponse.json({ error: 'Applications are currently closed. Please check back soon.' }, { status: 403 })
+    }
     // 3 applications per hour per IP
     if (!await rateLimit(`apply:${getIp(req)}`, 3, 60 * 60_000)) {
       return NextResponse.json({ error: 'Too many applications from this IP. Try again later.' }, { status: 429 })
@@ -337,7 +342,9 @@ export async function POST(req: NextRequest) {
 
     Promise.all([
       sendApplicationReceivedEmail(cleanEmail, fullName.trim()),
-      sendAdminNewApplicationEmail(fullName.trim(), cleanEmail),
+      // Admin new-application email respects the mute toggle — but suspicious
+      // applications always email (a security signal you can't silence).
+      ...(newApplicationEmailsEnabled() || isSuspicious ? [sendAdminNewApplicationEmail(fullName.trim(), cleanEmail)] : []),
     ]).catch(e => console.error('Apply email error:', e))
 
     return NextResponse.json({ ok: true })

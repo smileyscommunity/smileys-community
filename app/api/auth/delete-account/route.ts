@@ -4,6 +4,8 @@ import { getSession, deleteSession } from '@/lib/session'
 import bcrypt from 'bcryptjs'
 import { randomBytes } from 'crypto'
 import { rateLimit } from '@/lib/rateLimit'
+import { todayIstanbul } from '@/lib/data'
+import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 
 // Account deletion follows an anonymize-and-clear strategy, not hard
 // delete. The User row is preserved (with all identifying fields
@@ -14,7 +16,8 @@ import { rateLimit } from '@/lib/rateLimit'
 //
 // What stays (deliberately):
 //   - Payment rows (financial records — legal retention)
-//   - EventAttendee rows (attendance history is event-level signal)
+//   - EventAttendee rows on PAST events (attendance history is
+//     event-level signal — upcoming rows are removed, see below)
 //   - Review rows (public content; visible as "Deleted Member")
 //   - Article authored rows (kept anonymously)
 //   - Audit log entries naming the user (compliance / forensics)
@@ -33,6 +36,8 @@ import { rateLimit } from '@/lib/rateLimit'
 //   - CupPrediction, CupBracketPick, MemberNPS
 //   - ClubPostLike, ClubPollVote, CommunityPollVote, NeighborhoodPostLike
 //   - WaitlistEntry, SavedListing, MemberConnection
+//   - EventAttendee rows on UPCOMING events (a deleted member won't
+//     attend; their spot is freed via a spotsLeft recompute)
 //   - HangoutReference where this user was the writer (fromUserId)
 //   - Fingerprint history + knownIps on the User row itself
 //
@@ -82,6 +87,26 @@ export async function POST(req: NextRequest) {
     })
     for (const m of approvedClubs) {
       await tx.club.update({ where: { id: m.clubId }, data: { memberCount: { decrement: 1 } } })
+    }
+
+    // ── 0b. Free the spots the user holds on upcoming events ──────────────
+    // Attendee rows on past events stay (attendance history), but a
+    // deleted member won't attend anything upcoming: remove those rows
+    // and re-derive each event's cached spotsLeft, or the events show
+    // phantom "going" counts forever. Rows of any status go (a pending
+    // request shouldn't linger for host approval), but only approved
+    // rows consumed a spot, so only those events need a recompute.
+    const upcomingAttending = await tx.eventAttendee.findMany({
+      where:  { userId: id, event: { status: 'published', date: { gte: todayIstanbul() } } },
+      select: { eventId: true, status: true, event: { select: { totalSpots: true } } },
+    })
+    if (upcomingAttending.length) {
+      await tx.eventAttendee.deleteMany({
+        where: { userId: id, eventId: { in: upcomingAttending.map(a => a.eventId) } },
+      })
+      for (const a of upcomingAttending.filter(a => a.status === 'approved')) {
+        await recomputeSpotsLeft(a.eventId, a.event.totalSpots, tx)
+      }
     }
 
     // ── 1. Hard delete: PII / inbox / tracking / transient state ──────────

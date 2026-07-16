@@ -8,6 +8,7 @@ import ImageUpload from '@/components/ImageUpload'
 import { resolveImageUrl, CLUB_CATEGORIES } from '@/lib/data'
 import { useAdminLoad } from '@/lib/admin/useAdminLoad'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
+import { confirmToast } from '@/lib/confirmToast'
 
 const EMOJI_GROUPS = [
   { label: 'Water & Sailing', emojis: ['⛵','🚢','🛥️','⚓','🏄','🤿','🎣','🌊','🐬','🐳','🚤','🛶','🐠','🐟','🦈','🐙','🪸','🏝️','🏖️','🐚','🦀','🦞','🦐','🌅'] },
@@ -192,6 +193,7 @@ export default function AdminClubsPage() {
   const [saving,     setSaving]     = useState(false)
 
   const [showCreate, setShowCreate] = useState(false)
+  const [seeding,    setSeeding]    = useState(false)
   const [newForm,    setNewForm]    = useState(emptyForm)
 
   const [editingId,  setEditingId]  = useState<string | null>(null)
@@ -314,6 +316,41 @@ export default function AdminClubsPage() {
     }
   }
 
+  // Auto-join members to the regional Culture clubs (Scandinavian, Balkan,
+  // Latin American, …) that match their nationality. Previews net-new count
+  // first, then writes on confirm. Idempotent — safe to re-run as members join.
+  async function handleSeedRegional() {
+    setSeeding(true)
+    try {
+      const preview = await fetch('/app/api/admin/clubs/seed-regional', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dryRun: true }),
+      })
+      if (!preview.ok) { toast.error('Preview failed'); return }
+      const { netNew } = await preview.json()
+      if (netNew === 0) { toast.success('All matching members are already in their regional clubs ✓'); return }
+
+      const ok = await confirmToast(
+        `Add ${netNew} membership${netNew === 1 ? '' : 's'} across the regional culture clubs, matched by nationality? (Turkey excluded; no notifications sent.)`,
+        { confirmLabel: 'Seed clubs' },
+      )
+      if (!ok) return
+
+      const res = await fetch('/app/api/admin/clubs/seed-regional', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dryRun: false }),
+      })
+      if (!res.ok) { toast.error('Seeding failed'); return }
+      const r = await res.json()
+      toast.success(`Seeded ${r.netNew} member${r.netNew === 1 ? '' : 's'} into regional clubs ✓`)
+      loadClubs()
+    } finally {
+      setSeeding(false)
+    }
+  }
+
   // Reactivation is one-click (the club's coming back online — no
   // friction needed). Deactivation routes through the inline
   // dialog so admin can leave a reason for members. The body is
@@ -414,9 +451,19 @@ export default function AdminClubsPage() {
             {totalClubs} clubs · {filtered.length === totalClubs ? 'all shown' : `${filtered.length} shown`}
           </p>
         </div>
-        <button onClick={() => { setShowCreate(!showCreate); setEditingId(null) }} className="bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl px-4 py-2 text-sm">
-          + Create club
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSeedRegional}
+            disabled={seeding}
+            title="Auto-join members to the regional Culture clubs (Scandinavian, Balkan, Latin American, …) matching their nationality. Previews first; idempotent."
+            className="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 font-semibold rounded-xl px-4 py-2 text-sm disabled:opacity-50"
+          >
+            {seeding ? 'Seeding…' : '🌍 Seed regional clubs'}
+          </button>
+          <button onClick={() => { setShowCreate(!showCreate); setEditingId(null) }} className="bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl px-4 py-2 text-sm">
+            + Create club
+          </button>
+        </div>
       </div>
 
       {/* Stats header — same shape as /admin/feedback, /admin/users

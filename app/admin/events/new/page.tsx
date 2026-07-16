@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
 import ImageUpload from '@/components/ImageUpload'
 import VibePicker from '@/components/VibePicker'
+import { useAdminMemberSearch } from '@/hooks/useAdminMemberSearch'
 
 const EMOJIS = [
   '⛵', '🍽️', '💬', '🎵', '🌿', '🎭', '🏃', '🎨', '🍷', '🧘', '🥾', '🎤',
@@ -34,13 +35,12 @@ export default function NewEventPage() {
   const router = useRouter()
   const [clubs, setClubs] = useState<{ id: string; name: string; emoji: string }[]>([])
   const [hosts,      setHosts]      = useState<{ id: string; name: string }[]>([])
-  const [allMembers, setAllMembers] = useState<{ id: string; name: string }[]>([])
   const [hostSearch, setHostSearch] = useState('')
 
   const [form, setForm] = useState({
     title: '', date: '', time: '', location: '', neighborhood: '',
     address: '', clubId: '', hostId: '', description: '',
-    totalSpots: '20', price: '', memberPrice: '', payTo: 'venue', paymentContact: '',
+    totalSpots: '20', price: '', memberPrice: '', payTo: 'venue', paymentContact: '', ticketUrl: '',
     emoji: '🎉', status: 'published',
     isPremium: false, membersOnly: false, limitedSpots: true, isFirstTimerFriendly: false, isRecurring: false,
     approvalRequired: false,
@@ -63,11 +63,13 @@ export default function NewEventPage() {
   const [repeat,      setRepeat]      = useState<'none' | 'weekly' | 'biweekly' | 'monthly'>('none')
   const [occurrences, setOccurrences] = useState(4)
 
+  // Server-side search — the /api/admin/users list caps at the newest
+  // 1000 users, so filtering a one-shot fetch client-side made early
+  // members unfindable as hosts once the community grew past that.
+  const { results: hostMatches } = useAdminMemberSearch(form.hostId ? '' : hostSearch, 1)
+
   useEffect(() => {
     fetch('/app/api/clubs', { credentials: 'include' }).then(r => r.json()).then(d => setClubs(Array.isArray(d) ? d : []))
-    fetch('/app/api/admin/users', { credentials: 'include' }).then(r => r.json()).then(d => {
-      if (Array.isArray(d)) setAllMembers(d.map((u: any) => ({ id: u.id, name: u.name })))
-    })
     fetch('/app/api/auth/me', { credentials: 'include' }).then(r => r.json()).then(me => {
       if (me?.id) { setForm(f => ({ ...f, hostId: me.id })); setHostSearch(me.name ?? '') }
     })
@@ -279,7 +281,7 @@ export default function NewEventPage() {
               />
               {hostSearch && !form.hostId && (
                 <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
-                  {allMembers.filter(m => m.name.toLowerCase().includes(hostSearch.toLowerCase())).slice(0, 6).map(m => (
+                  {hostMatches.slice(0, 6).map(m => (
                     <button key={m.id} type="button"
                       onClick={() => { set('hostId', m.id); setHostSearch(m.name) }}
                       className="w-full text-left px-4 py-2.5 text-sm text-zinc-300 hover:bg-amber-500/10 hover:text-amber-400 transition-colors">
@@ -503,6 +505,14 @@ export default function NewEventPage() {
               <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Payment contact (WhatsApp)</label>
               <input type="text" value={form.paymentContact} onChange={e => set('paymentContact', e.target.value)}
                 placeholder="+90 555 000 0000" className={inputCls} />
+            </div>
+          )}
+          {form.payTo === 'venue' && (
+            <div>
+              <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Ticket link (external)</label>
+              <input type="text" value={form.ticketUrl} onChange={e => set('ticketUrl', e.target.value)}
+                placeholder="https://… (optional)" className={inputCls} />
+              <p className="text-xs text-zinc-600 mt-1">Shown as a “Buy tickets” button on the event page.</p>
             </div>
           )}
           <div>
