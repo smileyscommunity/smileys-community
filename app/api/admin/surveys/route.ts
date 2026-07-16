@@ -107,7 +107,7 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: 'desc' },
       take:    take + 1,  // +1 to detect hasMore without a second count
       select: {
-        id: true, createdAt: true, anomaly: true, anomalyNote: true, wouldReturn: true,
+        id: true, createdAt: true, anomaly: true, anomalyNote: true, wouldReturn: true, returnDeclineReason: true,
         event: { select: { id: true, title: true, emoji: true, date: true, hostId: true } },
       },
     })
@@ -194,16 +194,17 @@ export async function GET(req: NextRequest) {
     orderBy: { createdAt: 'desc' },
     take:    CSV_CAP,
     select: {
-      id: true, createdAt: true, anomaly: true, anomalyNote: true, wouldReturn: true,
+      id: true, createdAt: true, anomaly: true, anomalyNote: true, wouldReturn: true, returnDeclineReason: true,
       event: { select: { id: true, title: true, date: true, hostId: true } },
     },
   })
   const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`
-  const header = ['response_id', 'created_at', 'event_id', 'event_title', 'event_date', 'event_host_id', 'would_return', 'anomaly', 'anomaly_note']
+  const header = ['response_id', 'created_at', 'event_id', 'event_title', 'event_date', 'event_host_id', 'would_return', 'decline_reason', 'anomaly', 'anomaly_note']
   const body   = rows.map(r => [
     r.id, r.createdAt.toISOString(),
     r.event.id, r.event.title, r.event.date, r.event.hostId ?? '',
     r.wouldReturn ? 'yes' : 'no',
+    r.returnDeclineReason ?? '',
     r.anomaly     ? 'yes' : 'no',
     r.anomalyNote ?? '',
   ].map(esc).join(','))

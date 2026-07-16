@@ -54,3 +54,31 @@ describe('events/[id]/feedback POST — anomaly note is mandatory', () => {
     expect(res.status).toBe(404)
   })
 })
+
+describe('events/[id]/feedback POST — "No" must be attributed', () => {
+  it('400 when wouldReturn is false with no returnDeclineReason', async () => {
+    const res = await POST(req({ anomaly: false, wouldReturn: false }), params)
+    expect(res.status).toBe(400)
+    expect(prisma.event.findUnique).not.toHaveBeenCalled()
+  })
+
+  it('400 when returnDeclineReason is not one of the allowed values', async () => {
+    const res = await POST(req({ anomaly: false, wouldReturn: false, returnDeclineReason: 'weather' }), params)
+    expect(res.status).toBe(400)
+    expect(prisma.event.findUnique).not.toHaveBeenCalled()
+  })
+
+  it('passes validation with a valid decline reason (then 404 on missing event)', async () => {
+    ;(prisma.event.findUnique as any).mockResolvedValue(null)
+    const res = await POST(req({ anomaly: false, wouldReturn: false, returnDeclineReason: 'venue' }), params)
+    expect(prisma.event.findUnique).toHaveBeenCalled()
+    expect(res.status).toBe(404)
+  })
+
+  it('does NOT require a reason on a "Yes"', async () => {
+    ;(prisma.event.findUnique as any).mockResolvedValue(null)
+    const res = await POST(req({ anomaly: false, wouldReturn: true }), params)
+    expect(prisma.event.findUnique).toHaveBeenCalled()
+    expect(res.status).toBe(404)
+  })
+})

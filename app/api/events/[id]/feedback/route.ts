@@ -5,6 +5,12 @@ import { createNotification } from '@/lib/notify'
 
 type Params = { params: Promise<{ id: string }> }
 
+// Attribution for a "would not return" answer — an anonymous diagnostic
+// surfaced to moderators (not fed into any host score). 'other' is the
+// required-field escape hatch so attributing a "No" is never a dead end.
+const DECLINE_REASONS = ['host', 'guest', 'venue', 'timing', 'other'] as const
+type DeclineReason = (typeof DECLINE_REASONS)[number]
+
 // GET /api/events/[id]/feedback
 //
 // Returns minimal event context (title, emoji, date) so the feedback
@@ -104,6 +110,19 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Please describe what felt off (at least 10 characters) so moderators can act on it.' }, { status: 400 })
   }
 
+  // Attribute the "No" — capture why they wouldn't return so moderators
+  // can tell a bad night apart from a bad venue or a difficult guest.
+  // Required on a "No" so every decline is attributable ('other' is the
+  // escape hatch); forced null on a "Yes" so a stale client value from a
+  // toggled answer can't stick to a would-return row.
+  let returnDeclineReason: string | null = null
+  if (body.wouldReturn === false) {
+    if (typeof body.returnDeclineReason !== 'string' || !DECLINE_REASONS.includes(body.returnDeclineReason as DeclineReason)) {
+      return NextResponse.json({ error: 'Please pick the main reason you would not return.' }, { status: 400 })
+    }
+    returnDeclineReason = body.returnDeclineReason
+  }
+
   const event = await prisma.event.findUnique({
     where:  { id },
     select: { id: true, title: true, date: true, endTime: true, hostId: true, location: true },
@@ -151,11 +170,13 @@ export async function POST(req: NextRequest, { params }: Params) {
       anomaly:     body.anomaly,
       anomalyNote,
       wouldReturn: body.wouldReturn,
+      returnDeclineReason,
     },
     update: {
       anomaly:     body.anomaly,
       anomalyNote,
       wouldReturn: body.wouldReturn,
+      returnDeclineReason,
     },
   })
 

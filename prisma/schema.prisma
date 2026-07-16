@@ -474,6 +474,14 @@ model EventSurvey {
   anomaly     Boolean
   anomalyNote String?
   wouldReturn Boolean
+  // When wouldReturn is false, the main reason: 'host' (how it was run),
+  // 'guest' (another attendee), 'venue', 'timing', 'other'. Null when they
+  // would return, or for legacy rows. An anonymous DIAGNOSTIC surfaced to
+  // moderators on /admin/feedback (and the CSV) — deliberately NOT fed into
+  // the host's wouldReturnRate, which stays a raw share of all responses so
+  // the metric can't be quietly inflated. 'guest' is the signal worth a
+  // closer look (an attendee problem, not the host).
+  returnDeclineReason String?
   createdAt   DateTime @default(now())
   event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)

@@ -12,6 +12,19 @@ import { toast } from 'sonner'
 
 type Reason = 'submitted' | 'not-attendee' | 'too-early' | 'window-closed'
 
+// Attribution options for a "would not return" answer. Collected as an
+// anonymous diagnostic (surfaced to moderators, not fed into any host
+// score) — the member just picks what was true. Order runs from most
+// host-actionable to least.
+type DeclineReason = 'host' | 'guest' | 'venue' | 'timing' | 'other'
+const DECLINE_OPTIONS: { value: DeclineReason; label: string }[] = [
+  { value: 'host',   label: 'How it was run' },
+  { value: 'guest',  label: 'Someone there' },
+  { value: 'venue',  label: 'The venue' },
+  { value: 'timing', label: 'Timing or length' },
+  { value: 'other',  label: 'Something else' },
+]
+
 interface Eligibility {
   event: { id: string; title: string; emoji: string; date: string }
   eligible: boolean
@@ -30,6 +43,8 @@ export default function FeedbackPage({ params }: { params: Promise<{ id: string 
   const [anomaly,     setAnomaly]     = useState<boolean | null>(null)
   const [anomalyNote, setAnomalyNote] = useState('')
   const [wouldReturn, setWouldReturn] = useState<boolean | null>(null)
+  // Only collected on a "No" — the main reason they wouldn't return.
+  const [declineReason, setDeclineReason] = useState<DeclineReason | null>(null)
   // Optional venue review — 0 means "skipped". Tapping the selected
   // star again clears it.
   const [venueRating,  setVenueRating]  = useState(0)
@@ -46,6 +61,7 @@ export default function FeedbackPage({ params }: { params: Promise<{ id: string 
 
   async function submit() {
     if (anomaly === null || wouldReturn === null) return
+    if (wouldReturn === false && declineReason === null) return
     setSubmitting(true)
     try {
       const res = await fetch(`/app/api/events/${id}/feedback`, {
@@ -55,6 +71,7 @@ export default function FeedbackPage({ params }: { params: Promise<{ id: string 
           anomaly,
           anomalyNote: anomaly ? anomalyNote.trim() : undefined,
           wouldReturn,
+          ...(wouldReturn === false ? { returnDeclineReason: declineReason } : {}),
           ...(venueRating > 0 ? { venueRating, venueComment: venueComment.trim() || undefined } : {}),
         }),
       })
@@ -120,7 +137,8 @@ export default function FeedbackPage({ params }: { params: Promise<{ id: string 
   // files a report moderators can't action. The common "nothing weird,
   // would go again" path stays a two-tap submit.
   const noteOk     = anomaly !== true || anomalyNote.trim().length >= 10
-  const canSubmit  = anomaly !== null && wouldReturn !== null && noteOk
+  const reasonOk   = wouldReturn !== false || declineReason !== null
+  const canSubmit  = anomaly !== null && wouldReturn !== null && noteOk && reasonOk
   return (
     <Shell>
       <div className="text-xs text-zinc-500 uppercase tracking-widest mb-2">Quick feedback</div>
@@ -154,13 +172,35 @@ export default function FeedbackPage({ params }: { params: Promise<{ id: string 
         )}
       </div>
 
-      {/* Q2 — wouldReturn */}
+      {/* Q2 — wouldReturn. A "No" reveals a required one-tap reason so
+          every decline is attributable; picking "Yes" clears any reason
+          from a toggled answer. */}
       <div className="mt-6 space-y-2">
         <p className="text-sm font-semibold text-white">Would you go to another event like this?</p>
         <div className="flex gap-2">
-          <Choice label="Yes" active={wouldReturn === true}  onClick={() => setWouldReturn(true)}  variant="ok" />
+          <Choice label="Yes" active={wouldReturn === true}  onClick={() => { setWouldReturn(true); setDeclineReason(null) }}  variant="ok" />
           <Choice label="No"  active={wouldReturn === false} onClick={() => setWouldReturn(false)} variant="warn" />
         </div>
+        {wouldReturn === false && (
+          <div className="mt-3 space-y-2">
+            <p className="text-xs text-zinc-400">What was the main reason? <span className="text-zinc-600">Anonymous.</span></p>
+            <div className="grid grid-cols-2 gap-2">
+              {DECLINE_OPTIONS.map(opt => (
+                <button
+                  key={opt.value}
+                  onClick={() => setDeclineReason(r => r === opt.value ? null : opt.value)}
+                  className={`py-2.5 px-3 rounded-xl text-sm font-semibold border text-left transition-colors ${
+                    declineReason === opt.value
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                      : 'bg-zinc-900 text-zinc-400 border-zinc-700 hover:bg-zinc-800'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Q3 — optional venue review. Only offered when the venue has a

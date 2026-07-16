@@ -27,6 +27,7 @@ interface HostOption  { id: string; name: string; color: string; profilePhoto: s
 
 interface SurveyResponse {
   id: string; createdAt: string; anomaly: boolean; anomalyNote: string | null; wouldReturn: boolean
+  returnDeclineReason: string | null
   event: { id: string; title: string; emoji: string; date: string; hostId: string | null }
 }
 
@@ -395,6 +396,15 @@ function InnerPage() {
 
 // ── Sub-components ───────────────────────────────────────────────────────
 
+// Short labels for the "would not return" attribution (returnDeclineReason).
+const DECLINE_LABELS: Record<string, string> = {
+  host:   'the host',
+  guest:  'a guest',
+  venue:  'the venue',
+  timing: 'timing',
+  other:  'other',
+}
+
 function ResponseRow({ r }: { r: SurveyResponse }) {
   return (
     <Link href={`/admin/events/${r.event.id}/edit`}
@@ -416,6 +426,19 @@ function ResponseRow({ r }: { r: SurveyResponse }) {
         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${r.wouldReturn ? 'bg-green-500/15 text-green-400' : 'bg-red-500/15 text-red-400'}`}>
           {r.wouldReturn ? '✓ would return' : '✕ would not'}
         </span>
+        {!r.wouldReturn && r.returnDeclineReason && (
+          // Why they wouldn't return — a diagnostic for moderators, not a
+          // score input (the host's wouldReturnRate stays raw). 'guest' is
+          // highlighted as an attendee-problem signal worth a closer look.
+          <span
+            className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+              r.returnDeclineReason === 'guest' ? 'bg-amber-500/20 text-amber-300' : 'bg-zinc-800 text-zinc-400'
+            }`}
+            title={r.returnDeclineReason === 'guest' ? 'Blamed on another attendee — worth a look' : `Reason: ${DECLINE_LABELS[r.returnDeclineReason] ?? r.returnDeclineReason}`}
+          >
+            {DECLINE_LABELS[r.returnDeclineReason] ?? r.returnDeclineReason}
+          </span>
+        )}
         {r.anomaly && (
           <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400">⚠ flagged</span>
         )}
