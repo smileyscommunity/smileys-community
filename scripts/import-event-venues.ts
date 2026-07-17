@@ -1,13 +1,16 @@
-// Import recurring event venues into the business directory.
+// Import event venues into the business directory.
 //
-// The directory's cold-start problem: 3 entries, while the events table
-// holds dozens of real businesses the community demonstrably uses. This
-// imports venues that hosted >= MIN_EVENTS non-cancelled events, carrying
-// over neighborhood, address, and coordinates from the event rows. Entries
-// are tagged 'Smileys venue' and get a purely factual description ("has
-// hosted N Smileys events since <month year>") — no invented copy, so
-// these rows don't repeat the seeded-placeholder problem that
-// cleanup-seed-directory.ts had to purge.
+// The directory's cold-start problem: a handful of entries, while the
+// events table holds dozens of real businesses the community demonstrably
+// uses. This imports every venue that hosted a non-cancelled event,
+// carrying over neighborhood, address, and coordinates from the event
+// rows. Venues with >= AUTO_APPROVE_MIN events are trusted and publish
+// directly; single-event venues are imported as PENDING (isApproved:false)
+// so an admin can vet them in the directory approval queue before they go
+// live. Entries are tagged 'We meet here' and get a purely factual
+// description ("has hosted N Smileys event(s) since <month year>") — no
+// invented copy, so these rows don't repeat the seeded-placeholder problem
+// that cleanup-seed-directory.ts had to purge.
 //
 // Idempotent on business name (case-insensitive) — existing rows are
 // skipped, never updated. Default mode is dry-run; re-run with --write
@@ -21,7 +24,11 @@
 
 import { prisma } from '@/lib/prisma'
 
-const MIN_EVENTS  = 2
+// Venues with >= this many non-cancelled events are trusted enough to
+// publish straight to the directory. Fewer (i.e. a single event so far)
+// still import, but land as PENDING for an admin to vet in the approval
+// queue before they go live.
+const AUTO_APPROVE_MIN = 2
 const ADMIN_EMAIL = 'info@smileyscommunity.com'
 
 // Meeting spots that aren't businesses — parks, waterfronts, campuses,
@@ -48,6 +55,11 @@ const ALIAS: Record<string, string> = {
   'Blak Coffee Yeldeğirmeni':  'BLAK Coffee Co. Yeldeğirmeni',
   'Blak Yeldeğirmeni':         'BLAK Coffee Co. Yeldeğirmeni',
   'Black Coffee Yeldeğirmeni': 'BLAK Coffee Co. Yeldeğirmeni',
+  // Event entries spell/abbreviate these differently than the existing
+  // directory listing — canonicalize so they're skipped as duplicates
+  // instead of creating a near-dupe of a venue already in the directory.
+  'Roastary Coffee': 'Roastory Coffee',
+  'Mikel':           'Mikel Coffee Company',
 }
 
 // Light keyword-based category guess. Anything unrecognized lands in
@@ -93,11 +105,14 @@ async function main() {
   const admin = await prisma.user.findUnique({ where: { email: ADMIN_EMAIL }, select: { id: true } })
   if (!admin) console.warn(`⚠ No user found for ${ADMIN_EMAIL} — submittedById will be null`)
 
-  let created = 0, skippedExisting = 0
+  let approved = 0, pending = 0, skippedExisting = 0
   const planned: string[] = []
 
   for (const [name, evs] of [...groups.entries()].sort((a, b) => b[1].length - a[1].length)) {
-    if (evs.length < MIN_EVENTS) continue
+    // Every venue with >= 1 event is a candidate now (single-event ones
+    // just land as pending below). Non-business meeting spots are filtered
+    // by the EXCLUDE lists; anything else that slips through gets caught in
+    // the approval queue.
     if (EXCLUDE.has(name) || EXCLUDE_PREFIXES.some(p => name.startsWith(p))) continue
 
     const existing = await prisma.business.findFirst({
@@ -118,8 +133,14 @@ async function main() {
       `A ${neighborhood ?? 'Istanbul'} regular for the Smileys community — has hosted ` +
       `${evs.length} Smileys event${evs.length === 1 ? '' : 's'} since ${monthYear(firstDate)}.`
 
+    // >= 2 events publishes directly; a lone event goes to the approval
+    // queue (isApproved:false, isActive:true = the directory's "pending"
+    // bucket) so an admin decides whether it's a real, listable venue.
+    const isApproved = evs.length >= AUTO_APPROVE_MIN
+
     planned.push(
-      `+ ${name}  [${category}] ${neighborhood ?? '—'} · ${evs.length} events` +
+      `+ ${name}  [${category}] ${neighborhood ?? '—'} · ${evs.length} event${evs.length === 1 ? '' : 's'}` +
+      ` · ${isApproved ? 'approved' : 'PENDING'}` +
       `${address ? ' · addr ✓' : ''}${lat != null ? ' · coords ✓' : ''}`
     )
 
@@ -130,20 +151,21 @@ async function main() {
           neighborhood, address,
           latitude: lat, longitude: lng,
           isExpatFriendly: true,
-          isApproved: true, isActive: true,
+          isApproved, isActive: true,
           submittedById: admin?.id ?? null,
           tags: ['We meet here'],
         },
       })
-      created++
+      isApproved ? approved++ : pending++
     }
   }
 
+  const pendingPlanned = planned.filter(p => p.includes(' · PENDING')).length
   console.log('\n' + planned.join('\n'))
   console.log(
     write
-      ? `\n✓ Created ${created} businesses (${skippedExisting} already existed)`
-      : `\nDRY RUN — would create ${planned.length} businesses (${skippedExisting} already exist). Re-run with --write to insert.`
+      ? `\n✓ Created ${approved + pending} businesses — ${approved} approved, ${pending} pending review (${skippedExisting} already existed)`
+      : `\nDRY RUN — would create ${planned.length} businesses (${planned.length - pendingPlanned} approved, ${pendingPlanned} pending review; ${skippedExisting} already exist). Re-run with --write to insert.`
   )
 }
 
