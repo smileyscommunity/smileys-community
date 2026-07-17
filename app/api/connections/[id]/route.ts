@@ -46,8 +46,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
   }
 
-  // decline — delete the record
-  await prisma.memberConnection.delete({ where: { id } })
+  // decline — keep the row as decline-memory. It disappears from both
+  // sides' lists (the API filters declined out), but its existence blocks
+  // the requester from ever re-notifying this person: POST's pairKey
+  // fast-path silently no-ops for them. Deleting it (the old behavior)
+  // let a declined requester immediately ask again.
+  await prisma.memberConnection.update({
+    where: { id },
+    data:  { status: 'declined' },
+  })
   trackServer(session, 'connection_declined', {
     requester_id: connection.requesterId,
     connection_id: id,
@@ -66,6 +73,12 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   if (!connection) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (connection.requesterId !== session.id && connection.receiverId !== session.id) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+  // Declined rows are decline-memory — deleting one would let the declined
+  // requester send (and notify) again. They're invisible to both parties,
+  // so a legitimate client never targets them; respond as if unknown.
+  if (connection.status === 'declined') {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
   await prisma.memberConnection.delete({ where: { id } })

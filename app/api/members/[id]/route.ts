@@ -42,6 +42,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     }),
     prisma.memberConnection.findFirst({
       where: {
+        // Declined rows are decline-memory (see /api/connections) — both
+        // sides see "no connection here", so neither learns a decline
+        // happened and the decliner keeps a working Connect button.
+        status: { not: 'declined' },
         OR: [
           { requesterId: session.id, receiverId: id },
           { requesterId: id, receiverId: session.id },

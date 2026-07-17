@@ -28,7 +28,9 @@ const ROUND_ID_PREFIX: Record<Exclude<CupRound, 'group'>, string> = {
   r16:   '2026-WC-R16-',
   qf:    '2026-WC-QF-',
   sf:    '2026-WC-SF-',
-  final: '2026-WC-FINAL-',
+  // The final is seeded as the singular id '2026-WC-FINAL' (no numeric
+  // suffix) — see seed-cup.ts. Every other round is '<prefix><n>'.
+  final: '2026-WC-FINAL',
 }
 
 async function main() {
@@ -56,7 +58,9 @@ async function main() {
     const prefix = ROUND_ID_PREFIX[round]
     for (let i = 0; i < list.length; i++) {
       const m  = list[i]
-      const id = `${prefix}${i + 1}`
+      // Final has a single match seeded under the un-suffixed id; numbered
+      // rounds append the 1-based match index.
+      const id = round === 'final' ? prefix : `${prefix}${i + 1}`
       const home = fdTlaToCupCode(m.homeTeam.tla)
       const away = fdTlaToCupCode(m.awayTeam.tla)
       if (!home || !away) {
