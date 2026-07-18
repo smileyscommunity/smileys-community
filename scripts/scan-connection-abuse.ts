@@ -12,9 +12,12 @@
 // Read-only. Interpreting the output:
 //   - acceptRate is the discriminator: predators fan out and get ignored
 //     (<30%); people connecting with friends they met at events get
-//     accepted. Same-gender skew (esp. women->women) is normal friend-
-//     seeking — the ⚠️ flag fires only on cross-gender skew >= 75% for
-//     male members with 15+ requests.
+//     accepted. ignoreRate (pending/sent) is the companion signal — when
+//     targets ignore rather than decline, requests pile up pending and
+//     inflate acceptRate, so a big backlog (>=50%) flags on its own.
+//     Same-gender skew (esp. women->women) is normal friend-seeking — the
+//     ⚠️ flag fires only on cross-gender skew >= 75% for male members with
+//     15+ requests, when acceptRate < 30% OR ignoreRate >= 50%.
 //   - Live rows understate history: declines older than 2026-07-17 were
 //     hard-deleted. cross-check notifications for full send counts.
 
@@ -50,9 +53,15 @@ async function main() {
   for (const x of requests) {
     const pctF   = Math.round(100 * x.to_f / x.sent)
     const accPct = Math.round(100 * x.acc / x.sent)
+    // ignoreRate catches the fan-out-and-get-ignored variant: targets who
+    // neither accept nor decline just leave the request pending, which
+    // *inflates* the denominator of accPct and hides the sender under the
+    // <30% accept threshold (e.g. Zabdawi/Ntamen/Khristy, 2026-07-18).
+    // Treat a heavy backlog of unanswered requests as its own red flag.
+    const ignorePct = Math.round(100 * x.pend / x.sent)
     const flag = x.gender === 'male' && x.role === 'member' && !x.suspended
-      && pctF >= 75 && accPct < 30 ? '  ⚠️ REVIEW' : ''
-    log(`${x.name}${x.suspended ? ' [suspended]' : ''}: sent=${x.sent} toWomen=${pctF}% pending=${x.pend} acceptRate=${accPct}%${flag}`)
+      && pctF >= 75 && (accPct < 30 || ignorePct >= 50) ? '  ⚠️ REVIEW' : ''
+    log(`${x.name}${x.suspended ? ' [suspended]' : ''}: sent=${x.sent} toWomen=${pctF}% pending=${x.pend} (${ignorePct}% ignored) acceptRate=${accPct}%${flag}`)
   }
 
   // DM fan-out: many one-way threads to women. Requires an accepted
