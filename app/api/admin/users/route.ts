@@ -52,7 +52,12 @@ export async function GET(req: NextRequest) {
         ...cityFilter,
       },
       orderBy: { joinedAt: 'desc' },
-      take: 1000,
+      // Cap is a payload guard, not pagination — it must stay comfortably
+      // above the real member count or the OLDEST members silently vanish
+      // from every admin tab (at 1000 with 1179 users, the first ~180
+      // joiners — including 3 of the 13 suspended in the 2026-07 abuse
+      // wave — were invisible unless searched for by name).
+      take: 5000,
       select: {
         id: true, name: true, email: true, role: true,
         color: true, emailVerified: true, joinedAt: true,
