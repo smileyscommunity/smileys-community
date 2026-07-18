@@ -5,6 +5,10 @@
 //
 //   npx tsx --env-file=.env scripts/scan-connection-abuse.ts
 //
+// With EMAIL_REPORT=1 (and .env.local for RESEND_API_KEY), the report is
+// also emailed to ADMIN_EMAIL — this is how the weekly cron delivers it:
+//   EMAIL_REPORT=1 npx tsx --env-file=.env --env-file=.env.local scripts/scan-connection-abuse.ts
+//
 // Read-only. Interpreting the output:
 //   - acceptRate is the discriminator: predators fan out and get ignored
 //     (<30%); people connecting with friends they met at events get
@@ -15,6 +19,14 @@
 //     hard-deleted. cross-check notifications for full send counts.
 
 import { prisma } from '@/lib/prisma'
+import { Resend } from 'resend'
+
+// Collected so EMAIL_REPORT can ship the same text it printed.
+const report: string[] = []
+function log(line: string) {
+  report.push(line)
+  console.log(line)
+}
 
 async function main() {
   const requests: {
@@ -34,13 +46,13 @@ async function main() {
     HAVING COUNT(*) >= 15
     ORDER BY COUNT(*) DESC`
 
-  console.log('--- Connection requests (15+ live rows as requester) ---')
+  log('--- Connection requests (15+ live rows as requester) ---')
   for (const x of requests) {
     const pctF   = Math.round(100 * x.to_f / x.sent)
     const accPct = Math.round(100 * x.acc / x.sent)
     const flag = x.gender === 'male' && x.role === 'member' && !x.suspended
       && pctF >= 75 && accPct < 30 ? '  ⚠️ REVIEW' : ''
-    console.log(`${x.name}${x.suspended ? ' [suspended]' : ''}: sent=${x.sent} toWomen=${pctF}% pending=${x.pend} acceptRate=${accPct}%${flag}`)
+    log(`${x.name}${x.suspended ? ' [suspended]' : ''}: sent=${x.sent} toWomen=${pctF}% pending=${x.pend} acceptRate=${accPct}%${flag}`)
   }
 
   // DM fan-out: many one-way threads to women. Requires an accepted
@@ -63,14 +75,30 @@ async function main() {
     HAVING COUNT(*) >= 8
     ORDER BY COUNT(*) DESC`
 
-  console.log('--- DMs (8+ distinct partners, members only) ---')
+  log('--- DMs (8+ distinct partners, members only) ---')
   for (const x of dms) {
     const pctF = Math.round(100 * x.f / x.partners)
     const flag = x.gender === 'male' && !x.suspended && pctF >= 80 ? '  ⚠️ REVIEW' : ''
-    console.log(`${x.name}${x.suspended ? ' [suspended]' : ''}: partners=${x.partners} women=${pctF}% neverReplied=${x.noreply}${flag}`)
+    log(`${x.name}${x.suspended ? ' [suspended]' : ''}: partners=${x.partners} women=${pctF}% neverReplied=${x.noreply}${flag}`)
   }
 }
 
+async function emailReport() {
+  if (process.env.EMAIL_REPORT !== '1') return
+  const to = process.env.ADMIN_EMAIL
+  if (!to || !process.env.RESEND_API_KEY) { console.error('EMAIL_REPORT=1 but ADMIN_EMAIL/RESEND_API_KEY missing'); return }
+  const flagged = report.filter(l => l.includes('REVIEW')).length
+  const resend = new Resend(process.env.RESEND_API_KEY)
+  await resend.emails.send({
+    from: process.env.EMAIL_FROM ?? 'Smileys Community <info@smileyscommunity.com>',
+    to,
+    subject: `Weekly connection-abuse scan: ${flagged ? flagged + ' member(s) flagged ⚠️' : 'all clear ✅'}`,
+    text: report.join('\n'),
+  })
+  console.log(`report emailed to ADMIN_EMAIL (${flagged} flagged)`)
+}
+
 main()
+  .then(emailReport)
   .catch(e => { console.error(e); process.exit(1) })
   .finally(() => prisma.$disconnect())
