@@ -135,7 +135,16 @@ export async function POST(req: NextRequest, { params }: Params) {
           ],
         },
       })
-      if (!connection) return NextResponse.json({ error: 'You can only message connected members' }, { status: 403 })
+      // No connection: still allow REPLYING to a thread the other party
+      // started (admins/mods/club hosts can message anyone — without this,
+      // their recipients can't answer and the thread is a one-way megaphone).
+      // Replies only: an inbound message must already exist, so this never
+      // lets an unconnected member initiate.
+      const inboundThread = connection ? null : await prisma.directMessage.findFirst({
+        where:  { fromId: toId, toId: session.id },
+        select: { id: true },
+      })
+      if (!connection && !inboundThread) return NextResponse.json({ error: 'You can only message connected members' }, { status: 403 })
     }
 
     // Personal blocks override connection/club-host privileges. Only admins/moderators
