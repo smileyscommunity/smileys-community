@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { confirmToast } from '@/lib/confirmToast'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
+import { ISTANBUL_NEIGHBORHOODS, resolveImageUrl } from '@/lib/data'
+import { downscaleImage } from '@/lib/image-resize'
 
 const STATUS_OPTS = [
   { id: 'active',    label: 'Active'    },
@@ -28,6 +29,7 @@ interface Hangout {
   startsAt: string
   endsAt: string
   status: string
+  photo: string | null
   createdAt: string
   user: { id: string; name: string; email: string; color: string }
   _count: { joins: number; messages: number }
@@ -50,12 +52,15 @@ function whenLabel(startsAt: string, endsAt: string) {
   return `${day}, ${t(s)}–${t(e)}`
 }
 
-// ISO → the `YYYY-MM-DDTHH:mm` shape a datetime-local input expects, in
-// local time (matches how the member composer/edit form round-trips).
-function toLocalInput(iso: string) {
-  const d = new Date(iso)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+// The datetime-local input holds ISTANBUL wall-clock time (the hangout's
+// meet time), matching the member composer/edit form — not the admin's
+// device time. Turkey is UTC+3 year-round (no DST since 2016), so format
+// via the Istanbul zone and tag the inverse with +03:00.
+function toIstanbulInput(iso: string) {
+  return new Date(iso).toLocaleString('sv-SE', { timeZone: 'Europe/Istanbul' }).replace(' ', 'T').slice(0, 16)
+}
+function istanbulInputToISO(local: string) {
+  return new Date(`${local}:00+03:00`).toISOString()
 }
 
 export default function AdminHangoutsPage() {
@@ -69,6 +74,9 @@ export default function AdminHangoutsPage() {
   const [query, setQuery]       = useState('')
   const [editing, setEditing]   = useState<Hangout | null>(null)
   const [editForm, setEditForm] = useState({ title: '', location: '', neighborhood: '', description: '', startsAt: '', endsAt: '' })
+  // Photo is its own state: null = no photo / cleared, a URL = keep/add.
+  const [photo, setPhoto]       = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
   const [saving, setSaving]     = useState(false)
 
   const loadHangouts = useCallback(async (q: string, st: string, offset: number, append = false) => {
@@ -120,14 +128,38 @@ export default function AdminHangoutsPage() {
 
   function openEdit(h: Hangout) {
     setEditing(h)
+    setPhoto(h.photo)
     setEditForm({
       title:        h.title,
       location:     h.location,
       neighborhood: h.neighborhood ?? '',
       description:  h.description ?? '',
-      startsAt:     toLocalInput(h.startsAt),
-      endsAt:       toLocalInput(h.endsAt),
+      startsAt:     toIstanbulInput(h.startsAt),
+      endsAt:       toIstanbulInput(h.endsAt),
     })
+  }
+
+  async function handleEditPhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    try {
+      // Same pipeline as the member composer: downscale client-side, then
+      // POST to /api/upload with folder 'hangouts'. The PATCH route only
+      // accepts /api/files/... URLs, which is exactly what this returns.
+      const upload = await downscaleImage(file)
+      const fd = new FormData()
+      fd.append('file', upload)
+      fd.append('folder', 'hangouts')
+      const r = await fetch('/app/api/upload', { method: 'POST', credentials: 'include', body: fd }).then(res => res.json())
+      if (r?.url) setPhoto(r.url)
+      else toast.error(r?.error ?? 'Upload failed')
+    } catch {
+      toast.error('Upload failed')
+    } finally {
+      setUploading(false)
+      e.target.value = ''
+    }
   }
 
   async function handleSaveEdit() {
@@ -149,8 +181,10 @@ export default function AdminHangoutsPage() {
           location,
           neighborhood: editForm.neighborhood || null,
           description:  editForm.description.trim(),
-          startsAt:     new Date(editForm.startsAt).toISOString(),
-          endsAt:       new Date(editForm.endsAt).toISOString(),
+          startsAt:     istanbulInputToISO(editForm.startsAt),
+          endsAt:       istanbulInputToISO(editForm.endsAt),
+          // null clears the photo; a /api/files URL adds/replaces it.
+          photo,
         }),
       })
       if (!res.ok) {
@@ -209,10 +243,31 @@ export default function AdminHangoutsPage() {
                   className="w-full px-3 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
               </div>
             </div>
+            <div>
+              <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Photo</label>
+              {photo ? (
+                <div className="flex items-center gap-3">
+                  <img src={resolveImageUrl(photo)} alt="Hangout spot" className="w-20 h-20 object-cover rounded-xl border border-zinc-700" />
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-semibold text-amber-400 hover:text-amber-300 cursor-pointer">
+                      🔄 {uploading ? 'Uploading…' : 'Replace'}
+                      <input type="file" accept="image/*" className="hidden" onChange={handleEditPhoto} disabled={uploading} />
+                    </label>
+                    <button type="button" onClick={() => setPhoto(null)}
+                      className="text-xs font-semibold text-red-400 hover:text-red-300 text-left">🗑 Remove</button>
+                  </div>
+                </div>
+              ) : (
+                <label className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-dashed border-zinc-700 text-xs font-semibold text-zinc-400 cursor-pointer hover:border-amber-500/40 hover:text-amber-400">
+                  📷 {uploading ? 'Uploading…' : 'Add photo'}
+                  <input type="file" accept="image/*" className="hidden" onChange={handleEditPhoto} disabled={uploading} />
+                </label>
+              )}
+            </div>
             <p className="text-xs text-zinc-500">Changing the title, location or time notifies everyone who joined.</p>
             <div className="flex gap-3 justify-end pt-2">
               <button onClick={() => setEditing(null)} className="px-4 py-2 text-sm text-zinc-400 hover:text-white transition-colors">Close</button>
-              <button onClick={handleSaveEdit} disabled={saving} className="px-5 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-colors">
+              <button onClick={handleSaveEdit} disabled={saving || uploading} className="px-5 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-colors">
                 {saving ? 'Saving…' : 'Save changes'}
               </button>
             </div>
@@ -309,7 +364,7 @@ export default function AdminHangoutsPage() {
               {hangouts.map(h => (
                 <tr key={h.id} className="hover:bg-zinc-800/40 transition-colors group">
                   {/* Title + location */}
-                  <td className="px-5 py-4 max-w-xs">
+                  <td className="px-4 py-4 max-w-[45vw] sm:max-w-xs">
                     <Link href={`/hangouts/${h.id}`} className="block group/t">
                       <p className="font-semibold text-zinc-100 truncate group-hover/t:text-amber-400 transition-colors">{h.title}</p>
                       <p className="text-xs text-zinc-500 truncate mt-0.5">
@@ -351,20 +406,21 @@ export default function AdminHangoutsPage() {
                   </td>
 
                   {/* Actions — Edit/Cancel only for active hangouts (the
-                      member PATCH/DELETE reject the rest). */}
-                  <td className="px-4 py-4">
-                    <div className="flex items-center gap-2 justify-end">
+                      member PATCH/DELETE reject the rest). Always visible:
+                      a hover-reveal would hide them on touch devices. */}
+                  <td className="px-3 py-4">
+                    <div className="flex items-center gap-1 justify-end">
                       {h.status === 'active' && (
                         <>
                           <button
                             onClick={() => openEdit(h)}
-                            className="text-xs text-amber-400 hover:text-amber-300 font-semibold px-3 py-2 rounded-lg hover:bg-amber-500/10 transition-colors md:opacity-0 md:group-hover:opacity-100"
+                            className="text-xs text-amber-400 hover:text-amber-300 font-semibold px-2.5 py-2 rounded-lg hover:bg-amber-500/10 transition-colors"
                           >
                             Edit
                           </button>
                           <button
                             onClick={() => handleCancel(h.id)}
-                            className="text-xs text-red-400 hover:text-red-300 font-semibold px-3 py-2 rounded-lg hover:bg-red-500/10 transition-colors md:opacity-0 md:group-hover:opacity-100"
+                            className="text-xs text-red-400 hover:text-red-300 font-semibold px-2.5 py-2 rounded-lg hover:bg-red-500/10 transition-colors"
                           >
                             Cancel
                           </button>
