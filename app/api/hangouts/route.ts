@@ -131,8 +131,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'End must be after start' }, { status: 400 })
     }
     // Cap window so people don't post 24h hangouts that clutter the feed.
-    if (endDate.getTime() - startDate.getTime() > 12 * 60 * 60 * 1000) {
-      return NextResponse.json({ error: 'Max 12 hours per hangout' }, { status: 400 })
+    if (endDate.getTime() - startDate.getTime() > 24 * 60 * 60 * 1000) {
+      return NextResponse.json({ error: 'Max 24 hours per hangout' }, { status: 400 })
     }
     if (endDate < new Date()) {
       return NextResponse.json({ error: 'End is in the past' }, { status: 400 })

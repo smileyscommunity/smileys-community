@@ -964,11 +964,18 @@ function HangoutCard({ h, currentUser, onCancel, onMutated }: {
   // circle until the next reload). profilePhoto is `string | null |
   // undefined` because useAuth's AppUser shape uses undefined; we
   // coerce to JoinerSummary's `string | null` at the optimistic add.
-  currentUser: { id: string; name: string; color: string; profilePhoto?: string | null }
+  currentUser: { id: string; name: string; color: string; profilePhoto?: string | null; role?: string }
   onCancel: (id: string) => void
   onMutated: (h: Hangout) => void
 }) {
   const isOwner = h.user.id === currentUser.id
+  // Staff can moderate any hangout: the PATCH/DELETE endpoints already
+  // authorize admin/moderator (a staff cancel notifies joiners as "a
+  // moderator"). Surface the same Edit/Cancel controls to them here so
+  // they can act on a bad hangout straight from the feed. Joining stays
+  // owner-gated (isOwner) — staff still join others' hangouts normally.
+  const isStaff   = currentUser.role === 'admin' || currentUser.role === 'moderator'
+  const canManage = isOwner || isStaff
   // Weather chip: outdoor-keyword hangouts happening today get a live temp.
   const isOutdoor = OUTDOOR_RE.test(`${h.title} ${h.description ?? ''}`)
   const isToday   = new Date(h.startsAt).toLocaleDateString('en-CA', { timeZone: 'Europe/Istanbul' })
@@ -987,6 +994,82 @@ function HangoutCard({ h, currentUser, onCancel, onMutated }: {
   const [joining,    setJoining]        = useState(false)
   const [loadingMsg, setLoadingMsg]     = useState(false)
   const [confirmingCancel, setConfirmingCancel] = useState(false)
+
+  // Inline edit (owner only). Seeded from the current hangout each time the
+  // form is opened so re-opening after a cancel-edit doesn't keep stale text.
+  const [editing,       setEditing]       = useState(false)
+  const [saving,        setSaving]        = useState(false)
+  const [editUploading, setEditUploading] = useState(false)
+  const [eTitle,        setETitle]        = useState(h.title)
+  const [eLocation,     setELocation]     = useState(h.location)
+  const [eNeighborhood, setENeighborhood] = useState(h.neighborhood ?? '')
+  const [eDescription,  setEDescription]  = useState(h.description ?? '')
+  const [eStartsAt,     setEStartsAt]     = useState(toIstanbulInputValue(new Date(h.startsAt)))
+  const [eEndsAt,       setEEndsAt]       = useState(toIstanbulInputValue(new Date(h.endsAt)))
+  const [ePhoto,        setEPhoto]        = useState<string | null>(h.photo)
+
+  function openEdit() {
+    // Reseed from the live hangout so the form always reflects current data.
+    setETitle(h.title); setELocation(h.location); setENeighborhood(h.neighborhood ?? '')
+    setEDescription(h.description ?? '')
+    setEStartsAt(toIstanbulInputValue(new Date(h.startsAt)))
+    setEEndsAt(toIstanbulInputValue(new Date(h.endsAt)))
+    setEPhoto(h.photo)
+    setConfirmingCancel(false)
+    setEditing(true)
+  }
+
+  async function handleEditPhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setEditUploading(true)
+    try {
+      const upload = await downscaleImage(file)
+      const fd = new FormData()
+      fd.append('file', upload)
+      fd.append('folder', 'hangouts')
+      const r = await fetch('/app/api/upload', { method: 'POST', credentials: 'include', body: fd }).then(res => res.json())
+      if (r?.url) setEPhoto(r.url)
+      else toast.error(r?.error ?? 'Upload failed')
+    } catch {
+      toast.error('Upload failed')
+    } finally {
+      setEditUploading(false)
+      e.target.value = ''
+    }
+  }
+
+  async function saveEdit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!eTitle.trim() || !eLocation.trim()) { toast.error('Title and location are required'); return }
+    setSaving(true)
+    try {
+      const res = await fetch(`/app/api/hangouts/${h.id}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title:        eTitle,
+          location:     eLocation,
+          neighborhood: eNeighborhood || null,
+          description:  eDescription || null,
+          startsAt:     istanbulInputToISO(eStartsAt),
+          endsAt:       istanbulInputToISO(eEndsAt),
+          // null clears the photo; a URL adds/replaces it.
+          photo:        ePhoto,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) { toast.error(data.error ?? 'Could not save'); return }
+      toast.success('Hangout updated')
+      onMutated({ ...h, ...data.hangout })
+      setEditing(false)
+    } catch {
+      toast.error('Network error')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   // Lazy-load messages the first time the thread is opened.
   useEffect(() => {
@@ -1137,7 +1220,7 @@ function HangoutCard({ h, currentUser, onCancel, onMutated }: {
             )}
           </p>
         </div>
-        {isOwner && (
+        {canManage && (
           // Two-state inline cancel — was a native confirm() in the
           // parent. First tap flips confirmingCancel; second tap on
           // "Yes, cancel" fires the DELETE. "Keep it" cleanly aborts.
@@ -1150,11 +1233,89 @@ function HangoutCard({ h, currentUser, onCancel, onMutated }: {
                 className="text-xs font-semibold text-gray-500 hover:text-gray-700">Keep it</button>
             </div>
           ) : (
-            <button onClick={() => setConfirmingCancel(true)}
-              className="text-xs text-gray-400 hover:text-gray-700 shrink-0">Cancel</button>
+            <div className="flex items-center gap-2 shrink-0">
+              {!editing && !status.live && (
+                <button onClick={openEdit}
+                  className="text-xs text-gray-400 hover:text-gray-700">Edit</button>
+              )}
+              <button onClick={() => setConfirmingCancel(true)}
+                className="text-xs text-gray-400 hover:text-gray-700">Cancel</button>
+            </div>
           )
         )}
       </div>
+
+      {/* Inline edit form (owner or staff). Mirrors the composer's field set +
+          photo add/replace/remove. Material changes (title/location/times)
+          notify joiners server-side. */}
+      {canManage && editing && (
+        <form onSubmit={saveEdit} className="mt-4 pt-4 border-t border-gray-100 space-y-3">
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Title</label>
+            <input value={eTitle} onChange={e => setETitle(e.target.value)} maxLength={120}
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-amber-400 focus:border-amber-400" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Location</label>
+            <input value={eLocation} onChange={e => setELocation(e.target.value)} maxLength={200}
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-amber-400 focus:border-amber-400" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Neighborhood</label>
+            <select value={eNeighborhood} onChange={e => setENeighborhood(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:ring-2 focus:ring-amber-400 focus:border-amber-400">
+              <option value="">— none —</option>
+              {ISTANBUL_NEIGHBORHOODS.map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Description</label>
+            <textarea value={eDescription} onChange={e => setEDescription(e.target.value)} maxLength={500} rows={2}
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-amber-400 focus:border-amber-400" />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Starts</label>
+              <input type="datetime-local" value={eStartsAt} onChange={e => setEStartsAt(e.target.value)}
+                className="w-full px-2 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-amber-400 focus:border-amber-400" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Ends</label>
+              <input type="datetime-local" value={eEndsAt} onChange={e => setEEndsAt(e.target.value)}
+                className="w-full px-2 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-amber-400 focus:border-amber-400" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Photo</label>
+            {ePhoto ? (
+              <div className="flex items-center gap-3">
+                <img src={resolveImageUrl(ePhoto)} alt="Hangout spot" className="w-20 h-20 object-cover rounded-lg border border-gray-200" />
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold text-amber-700 cursor-pointer hover:text-amber-800">
+                    🔄 {editUploading ? 'Uploading…' : 'Replace'}
+                    <input type="file" accept="image/*" className="hidden" onChange={handleEditPhoto} disabled={editUploading} />
+                  </label>
+                  <button type="button" onClick={() => setEPhoto(null)}
+                    className="text-xs font-semibold text-red-500 hover:text-red-600 text-left">🗑 Remove</button>
+                </div>
+              </div>
+            ) : (
+              <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-dashed border-gray-300 text-xs font-semibold text-gray-600 cursor-pointer hover:border-amber-400 hover:text-amber-700">
+                📷 {editUploading ? 'Uploading…' : 'Add photo'}
+                <input type="file" accept="image/*" className="hidden" onChange={handleEditPhoto} disabled={editUploading} />
+              </label>
+            )}
+          </div>
+          <div className="flex items-center gap-2 pt-1">
+            <button type="submit" disabled={saving || editUploading}
+              className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-bold">
+              {saving ? 'Saving…' : 'Save changes'}
+            </button>
+            <button type="button" onClick={() => setEditing(false)}
+              className="px-3 py-2 text-sm font-semibold text-gray-500 hover:text-gray-700">Cancel</button>
+          </div>
+        </form>
+      )}
 
       {/* Going + chat actions row */}
       <div className="flex items-center gap-3 mt-4 pt-3 border-t border-gray-100">

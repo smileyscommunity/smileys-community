@@ -516,7 +516,7 @@ export default function AdminPage() {
           show. Side-by-side on desktop, stacked on mobile. */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         {/* Hangouts pulse */}
-        <Link href="/hangouts"
+        <Link href="/admin/hangouts"
           className="bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-2xl p-4 transition-colors group">
           <div className="flex items-start justify-between mb-3">
             <span className="w-9 h-9 rounded-xl flex items-center justify-center text-lg bg-amber-500/10 text-amber-400">

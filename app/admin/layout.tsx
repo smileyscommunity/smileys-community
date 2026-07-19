@@ -48,6 +48,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     '/admin/announcements',
     '/admin/engagement',
     '/admin/listings',
+    '/admin/hangouts',
     '/admin/retention',
     '/admin/banners',
     '/admin/stories',
