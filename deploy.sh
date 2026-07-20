@@ -25,6 +25,26 @@ fi
 echo "→ Checking for vulnerabilities..."
 npm audit --audit-level=high --legacy-peer-deps || { echo "✗ npm audit found high/critical vulnerabilities — fix before deploying"; exit 1; }
 
+# Preflight: kill any leftover `next dev` server (or whatever holds :3000).
+# On this low-memory box a running dev server starves the build's worker
+# processes — a worker gets OOM-killed mid "Collecting page data" and the
+# build dies with a *random* `PageNotFoundError: Cannot find module for page:
+# /<page>` (different page each run — that's the tell, not a code bug). It also
+# squats the port the smoke test needs. Clearing it here makes deploys
+# deterministic. Loud on purpose: if you were using that dev server, restart
+# it with `npm run dev` once the deploy finishes. The `| sort -u` keeps the
+# command-substitution exit status 0 so `set -e` doesn't trip when nothing's
+# found (pgrep/lsof exit 1 on no match).
+DEV_PIDS=$( { pgrep -f 'next dev' 2>/dev/null; lsof -ti tcp:3000 -sTCP:LISTEN 2>/dev/null; } | sort -u )
+if [ -n "$DEV_PIDS" ]; then
+  echo "⚠ Found a local dev server / :3000 listener (PIDs: $(echo $DEV_PIDS)) — killing it so the build can't OOM..."
+  kill $DEV_PIDS 2>/dev/null || true
+  sleep 2
+  STILL=$( { pgrep -f 'next dev' 2>/dev/null; lsof -ti tcp:3000 -sTCP:LISTEN 2>/dev/null; } | sort -u )
+  [ -n "$STILL" ] && { kill -9 $STILL 2>/dev/null || true; sleep 1; }
+  echo "  ✓ Cleared. Restart your dev server with 'npm run dev' after the deploy if you need it."
+fi
+
 if [ -z "$SKIP_BUILD" ]; then
   echo "→ Building locally (release: $APP_RELEASE)..."
   # Preserve .next/cache (webpack incremental cache) — nuking it forces a full
