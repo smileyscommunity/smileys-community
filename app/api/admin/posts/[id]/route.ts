@@ -80,7 +80,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   )
   // Bust the cached public article + listing pages (unstable_cache tag)
   // so inline/admin edits show immediately instead of after the 300s TTL.
+  // Handbook article/related/index caches are tagged 'handbook' separately,
+  // so bust that too — otherwise handbook edits lag by up to 300s.
   revalidateTag('posts')
+  revalidateTag('handbook')
   return NextResponse.json(post)
 }
 
@@ -99,5 +102,6 @@ export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id:
     `Deleted ${snapshot.status} post "${snapshot.title}" (${snapshot.category})`,
   )
   revalidateTag('posts')
+  revalidateTag('handbook')
   return NextResponse.json({ ok: true })
 }

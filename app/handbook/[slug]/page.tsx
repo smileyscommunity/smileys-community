@@ -5,6 +5,7 @@ import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { sanitize } from '@/lib/sanitize'
 import { HANDBOOK_TO_GUIDE } from '@/lib/handbook-links'
+import EditableArticle from './EditableArticle'
 
 const getHandbookArticle = unstable_cache(
   async (slug: string) => prisma.post.findUnique({
@@ -32,11 +33,6 @@ const CATEGORY_STYLES: Record<string, string> = {
   'Daily Life':     'bg-amber-100 text-amber-700',
   'Family':         'bg-rose-100 text-rose-700',
   'Getting Around': 'bg-violet-100 text-violet-700',
-}
-
-function formatDate(d: Date | string | null) {
-  if (!d) return ''
-  return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
 type Params = { params: Promise<{ slug: string }> }
@@ -70,61 +66,23 @@ export default async function HandbookArticlePage({ params }: Params) {
           <Link href={`/handbook/category/${encodeURIComponent(post.category)}`} className="hover:text-amber-600 font-semibold">{post.category}</Link>
         </nav>
 
-        {post.coverImage && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={post.coverImage}
-            alt={post.title}
-            className="w-full h-56 sm:h-72 object-cover rounded-2xl mb-8"
-          />
-        )}
-
-        {/* Header */}
-        <span className={`inline-block px-2 py-1 rounded-full text-[11px] font-bold ${catCls}`}>{post.category}</span>
-        <h1 className="text-3xl sm:text-5xl font-extrabold text-gray-900 mt-4 mb-5 leading-[1.1] tracking-tight">
-          {post.title}
-        </h1>
-
-        <div className="flex items-center gap-3 text-xs text-gray-600 mb-8 pb-8 border-b border-gray-100">
-          <div
-            className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0"
-            style={{ backgroundColor: post.author.color ?? '#f59e0b' }}>
-            {post.author.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-gray-700">by {post.author.name}</p>
-            <p className="text-xs text-gray-400">
-              {post.publishedAt && `Published ${formatDate(post.publishedAt)}`}
-              {post.updatedAt && post.publishedAt && new Date(post.updatedAt).getTime() !== new Date(post.publishedAt).getTime() &&
-                ` · Last reviewed ${formatDate(post.updatedAt)}`}
-            </p>
-          </div>
-        </div>
-
-        {/* TL;DR — uses the existing excerpt field so the admin form
-            doesn't need a new input. If excerpt is empty we just skip
-            the box rather than render an awkward placeholder. */}
-        {post.excerpt && (
-          <div className="bg-amber-50 border-l-4 border-amber-400 rounded-r-xl p-5 mb-10">
-            <p className="text-[10px] font-extrabold text-amber-700 uppercase tracking-widest mb-2">TL;DR</p>
-            <p className="text-sm sm:text-base text-amber-950 leading-relaxed">{post.excerpt}</p>
-          </div>
-        )}
-
-        {/* Body — sanitised admin-authored HTML. Prose styling kept
-            modest so it reads like a manual, not a magazine. */}
-        <div
-          className="prose prose-sm sm:prose-base max-w-none
-                     prose-headings:font-extrabold prose-headings:tracking-tight prose-headings:text-gray-900
-                     prose-h2:mt-10 prose-h2:mb-3 prose-h2:text-xl sm:prose-h2:text-2xl
-                     prose-h3:mt-6 prose-h3:mb-2 prose-h3:text-base sm:prose-h3:text-lg
-                     prose-p:text-gray-700 prose-p:leading-relaxed
-                     prose-a:text-amber-600 hover:prose-a:underline prose-a:no-underline
-                     prose-strong:text-gray-900
-                     prose-li:text-gray-700
-                     prose-ul:my-4 prose-ol:my-4
-                     prose-blockquote:border-l-amber-300 prose-blockquote:text-gray-600 prose-blockquote:not-italic"
-          dangerouslySetInnerHTML={{ __html: sanitize(post.body) }}
+        {/* Header + TL;DR + body live in a client component so staff can
+            edit them inline (see EditableArticle). Content is still
+            server-rendered for SEO; the body arrives pre-sanitised. */}
+        <EditableArticle
+          id={post.id}
+          title={post.title}
+          excerpt={post.excerpt}
+          sanitizedBody={sanitize(post.body)}
+          rawBody={post.body}
+          category={post.category}
+          catCls={catCls}
+          coverImage={post.coverImage}
+          status={post.status}
+          authorName={post.author.name}
+          authorColor={post.author.color}
+          publishedAt={post.publishedAt ? new Date(post.publishedAt).toISOString() : null}
+          updatedAt={post.updatedAt ? new Date(post.updatedAt).toISOString() : null}
         />
 
         {/* Cross-link to the matching City Guide section. The handbook
