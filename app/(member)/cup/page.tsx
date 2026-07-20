@@ -344,6 +344,11 @@ export default function CupPredictionsPage() {
   }
 
   const bracketLocked = bracket?.locked ?? false
+  // Tournament is over once the Final has a result. Drives the
+  // champion banner (Countdown's closing state) and the champion
+  // framing on the Leaderboard spotlight.
+  const finalFixture = fixtures?.find(f => f.round === 'final') ?? null
+  const tournamentOver = !!finalFixture?.winnerTeam
   // Score + pick-progress used to live in a standalone header
   // here; both are now carried by the Leaderboard's pinned "you"
   // row (see component below) so we don't duplicate the number.
@@ -394,8 +399,11 @@ export default function CupPredictionsPage() {
       {/* Countdown strip — drives urgency. Pre-kickoff shows the
           time until brackets lock. Post-kickoff shows time to the
           next upcoming match. Hidden when the tournament is over
-          or fixtures haven't loaded yet. */}
-      <Countdown fixtures={fixtures} />
+          (the ChampionBanner takes this slot) or fixtures haven't
+          loaded yet. */}
+      {tournamentOver
+        ? <ChampionBanner final={finalFixture!} />
+        : <Countdown fixtures={fixtures} />}
 
       {/* Visitor hero — 3-step path to play. Replaces the old
           two-line "Want to play?" tile because a visitor needs to
@@ -532,13 +540,13 @@ export default function CupPredictionsPage() {
               the order swaps. */}
           {bracketLocked ? (
             <>
-              <Leaderboard />
+              <Leaderboard tournamentOver={tournamentOver} />
               <TrendingPicks />
             </>
           ) : (
             <>
               <TrendingPicks />
-              <Leaderboard />
+              <Leaderboard tournamentOver={tournamentOver} />
             </>
           )}
 
@@ -1309,6 +1317,34 @@ function DisclaimerBanner() {
 // off. Source of truth is the fixtures payload (public), so the
 // countdown works for visitors too.
 // ─────────────────────────────────────────────────────────────────
+// Champion banner — takes over the Countdown slot once the Final
+// has a result. The page's closing state: the cup ran Jun 11 –
+// Jul 19; after that "when's the next match?" is dead and "who
+// won?" is the only question left. Winner-first score line reads
+// as a receipt ("Beat 🇦🇷 Argentina 1–0 in the Final") regardless
+// of which side of the fixture the champion was drawn on.
+function ChampionBanner({ final }: { final: Fixture }) {
+  const champion = final.winnerTeam ? TEAM_BY_CODE.get(final.winnerTeam) : null
+  const runnerUp = final.winnerTeam === final.homeTeam ? final.awayTeam : final.homeTeam
+  const score = final.homeScore !== null && final.awayScore !== null
+    ? final.winnerTeam === final.homeTeam
+      ? `${final.homeScore}–${final.awayScore}`
+      : `${final.awayScore}–${final.homeScore}`
+    : null
+  return (
+    <div className="bg-gradient-to-br from-amber-400 to-amber-600 rounded-2xl mb-4 px-5 py-5 text-center text-white shadow-card">
+      <p className="text-[10px] font-bold uppercase tracking-widest opacity-90">World Cup 2026 · Champions</p>
+      <p className="text-3xl mt-1" aria-hidden="true">🏆</p>
+      <p className="text-2xl font-extrabold leading-tight mt-1">
+        {champion ? `${champion.flag} ${champion.name}` : teamLabel(final.winnerTeam)}
+      </p>
+      {score && runnerUp && (
+        <p className="text-xs font-semibold opacity-90 mt-1.5">Beat {teamLabel(runnerUp)} {score} in the Final</p>
+      )}
+    </div>
+  )
+}
+
 function Countdown({ fixtures }: { fixtures: Fixture[] | null }) {
   // Self-rescheduling tick. Was setInterval(1000) — fine for the
   // final-minute "12m 34s → 34s" countdown but wasteful for the
@@ -2222,7 +2258,7 @@ function MiniRankRow({ row, isYou }: { row: LeaderRow; isYou: boolean }) {
   )
 }
 
-function Leaderboard() {
+function Leaderboard({ tournamentOver = false }: { tournamentOver?: boolean }) {
   // Data + polling lifecycle now live in LeaderboardProvider above
   // on CupPage; this component just renders. Same useLeaderboard()
   // hook backs the desktop sidebar MiniRankCard so the two views
@@ -2273,12 +2309,14 @@ function Leaderboard() {
       {/* Spotlight strip — featured top row pulled out above the
           list. Only renders once someone has accumulated points
           (pre-tournament the leaderboard is all zeros — no
-          spotlight worth giving). */}
+          spotlight worth giving). Once the Final is scored the
+          standings are permanent, so the framing flips from a live
+          "Top of the table" to crowning the game's champion. */}
       {hasScores && (
         <div className="px-5 py-3 bg-gradient-to-r from-amber-50 to-amber-100/60 border-b border-amber-100 flex items-center gap-3">
-          <span aria-hidden="true" className="text-xl shrink-0">🥇</span>
+          <span aria-hidden="true" className="text-xl shrink-0">{tournamentOver ? '🏆' : '🥇'}</span>
           <div className="flex-1 min-w-0">
-            <h3 className="text-[10px] font-bold text-amber-700 uppercase tracking-widest">Top of the table</h3>
+            <h3 className="text-[10px] font-bold text-amber-700 uppercase tracking-widest">{tournamentOver ? 'Smileys Cup champion' : 'Top of the table'}</h3>
             <p className="text-sm font-extrabold text-amber-900 truncate">{top.name}</p>
           </div>
           <div className="text-right shrink-0">
