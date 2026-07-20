@@ -87,16 +87,22 @@ const nextConfig = {
 // write" + "organization read") set in .env.local on the build machine. Until
 // that env var is present this is a complete no-op and the build is unchanged.
 //
-// Also guarded against `next dev`: deleteAfterUpload removes files from
-// .next after upload, which in dev races the incremental compiler and
-// corrupts the build dir (missing chunks / manifests → 500s on every
-// route until .next is wiped). Sourcemap upload only makes sense for the
-// production build anyway.
+// Also guarded against `next dev`: the sourcemap step races the incremental
+// compiler and corrupts the build dir. Sourcemap upload only makes sense for
+// the production build anyway.
+//
+// deleteAfterUpload is intentionally FALSE. When true, PostHog sweeps the
+// uploaded .map files out of .next at the end of the build — that deletion
+// runs concurrently with Next's own final file moves (export → server) and
+// intermittently kills the build with `ENOENT: rename .next/export/500.html`.
+// Leaving the maps in place removes the race entirely; the maps are already
+// uploaded to PostHog by then, and deploy.sh's rsync excludes `*.map` so the
+// retained (hidden, non-served) server maps never ship to prod.
 module.exports = process.env.POSTHOG_API_KEY && process.env.NODE_ENV !== 'development'
   ? withPostHogConfig(nextConfig, {
       personalApiKey: process.env.POSTHOG_API_KEY,
       projectId:      process.env.POSTHOG_PROJECT_ID || '185891',
       host:           'https://eu.posthog.com',
-      sourcemaps:     { enabled: true, deleteAfterUpload: true },
+      sourcemaps:     { enabled: true, deleteAfterUpload: false },
     })
   : nextConfig

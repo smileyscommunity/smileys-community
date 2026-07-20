@@ -71,6 +71,7 @@ rsync -av --delete \
   --exclude='.env.local' \
   --exclude='.next/cache/' \
   --exclude='.env.production' \
+  --exclude='*.map' \
   --exclude='node_modules' \
   --exclude='.git' \
   --exclude='.claude/' \
