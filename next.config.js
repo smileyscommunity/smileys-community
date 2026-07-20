@@ -86,7 +86,13 @@ const nextConfig = {
 // GUARDED on POSTHOG_API_KEY — a personal API key (scopes: "error tracking
 // write" + "organization read") set in .env.local on the build machine. Until
 // that env var is present this is a complete no-op and the build is unchanged.
-module.exports = process.env.POSTHOG_API_KEY
+//
+// Also guarded against `next dev`: deleteAfterUpload removes files from
+// .next after upload, which in dev races the incremental compiler and
+// corrupts the build dir (missing chunks / manifests → 500s on every
+// route until .next is wiped). Sourcemap upload only makes sense for the
+// production build anyway.
+module.exports = process.env.POSTHOG_API_KEY && process.env.NODE_ENV !== 'development'
   ? withPostHogConfig(nextConfig, {
       personalApiKey: process.env.POSTHOG_API_KEY,
       projectId:      process.env.POSTHOG_PROJECT_ID || '185891',
