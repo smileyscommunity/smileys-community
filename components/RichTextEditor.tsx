@@ -6,7 +6,10 @@ import Underline from '@tiptap/extension-underline'
 import { TextStyle } from '@tiptap/extension-text-style'
 import Color from '@tiptap/extension-color'
 import Link from '@tiptap/extension-link'
-import { useEffect, useState } from 'react'
+import Image from '@tiptap/extension-image'
+import { useEffect, useRef, useState } from 'react'
+import { toast } from 'sonner'
+import { downscaleImage } from '@/lib/image-resize'
 
 const COLORS = [
   { label: 'Default',  value: '' },
@@ -23,6 +26,10 @@ interface Props {
   onChange: (html: string) => void
   placeholder?: string
   className?: string
+  // Which /public/uploads subfolder inserted images land in. Any valid
+  // upload folder works (all serve via /api/files/<folder>/…); defaults
+  // to 'posts' since articles are the main image-in-body surface.
+  uploadFolder?: string
 }
 
 function ToolbarBtn({ active, onClick, title, children }: { active?: boolean; onClick: () => void; title: string; children: React.ReactNode }) {
@@ -40,9 +47,11 @@ function ToolbarBtn({ active, onClick, title, children }: { active?: boolean; on
   )
 }
 
-export default function RichTextEditor({ value, onChange, placeholder, className }: Props) {
+export default function RichTextEditor({ value, onChange, placeholder, className, uploadFolder = 'posts' }: Props) {
   const [linkOpen, setLinkOpen] = useState(false)
   const [linkUrl,  setLinkUrl]  = useState('')
+  const [imgUploading, setImgUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const editor = useEditor({
     extensions: [
@@ -57,11 +66,21 @@ export default function RichTextEditor({ value, onChange, placeholder, className
         autolink: true,
         HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' },
       }),
+      // Block images (not inline) uploaded via the toolbar 🖼 button. The
+      // src is always our own /api/files path, which survives sanitize().
+      Image.configure({
+        inline: false,
+        HTMLAttributes: { class: 'rounded-lg max-w-full h-auto' },
+      }),
     ],
     content: value || '',
     editorProps: {
       attributes: {
-        class: 'min-h-[120px] outline-none text-sm text-white leading-relaxed p-3',
+        // prose gives paragraphs/headings/lists real vertical spacing while
+        // editing (Tailwind preflight strips default margins, so without this
+        // everything looked glued together); prose-invert keeps text light on
+        // the dark editor surface.
+        class: 'prose prose-invert prose-sm max-w-none min-h-[120px] outline-none leading-relaxed p-3',
       },
     },
     onUpdate({ editor }) {
@@ -79,6 +98,28 @@ export default function RichTextEditor({ value, onChange, placeholder, className
       editor.commands.setContent(value || '')
     }
   }, [value, editor])
+
+  async function handleImagePick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file || !editor) return
+    setImgUploading(true)
+    try {
+      // Same pipeline as cover/photo uploads: downscale client-side, POST to
+      // /api/upload, insert the returned /api/files path at the cursor.
+      const upload = await downscaleImage(file)
+      const fd = new FormData()
+      fd.append('file', upload)
+      fd.append('folder', uploadFolder)
+      const r = await fetch('/app/api/upload', { method: 'POST', credentials: 'include', body: fd }).then(res => res.json())
+      if (r?.url) editor.chain().focus().setImage({ src: r.url }).run()
+      else toast.error(r?.error ?? 'Image upload failed')
+    } catch {
+      toast.error('Image upload failed')
+    } finally {
+      setImgUploading(false)
+      e.target.value = ''
+    }
+  }
 
   if (!editor) return null
 
@@ -106,6 +147,11 @@ export default function RichTextEditor({ value, onChange, placeholder, className
         </ToolbarBtn>
 
         <ToolbarBtn active={editor.isActive('link')} onClick={() => { setLinkUrl(editor.getAttributes('link').href ?? ''); setLinkOpen(o => !o) }} title="Add / edit link">🔗</ToolbarBtn>
+
+        <ToolbarBtn active={false} onClick={() => fileInputRef.current?.click()} title="Insert image">
+          {imgUploading ? '⏳' : '🖼'}
+        </ToolbarBtn>
+        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImagePick} />
 
         <div className="w-px h-4 bg-zinc-700 mx-1" />
 
