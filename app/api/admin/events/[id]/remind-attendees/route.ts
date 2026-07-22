@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin, canModerateReports } from '@/lib/access'
+import { rateLimit } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
 import { sendEventReminderEmail } from '@/lib/email'
 import { formatDate } from '@/lib/data'
@@ -17,13 +18,24 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
     const event = await prisma.event.findUnique({
       where: { id },
-      select: { id: true, title: true, emoji: true, date: true, location: true },
+      select: { id: true, title: true, emoji: true, date: true, location: true, cityId: true },
     })
     if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
+
+    // Moderators are city-scoped; only admins can blast attendees of another
+    // city's event. (canModerateReports above is the coarse role gate.)
+    if (!isAdmin(session) && session.cityId !== event.cityId) {
+      return NextResponse.json({ error: 'Cross-city moderation is admin-only' }, { status: 403 })
+    }
 
     const today = new Date().toISOString().slice(0, 10)
     if (event.date < today) {
       return NextResponse.json({ error: 'Event has already happened' }, { status: 400 })
+    }
+
+    // Cap reminder blasts per event so this can't be used to email-bomb attendees.
+    if (!await rateLimit(`remind-attendees:${id}`, 3, 60 * 60_000)) {
+      return NextResponse.json({ error: 'Reminders were sent for this event recently — try again later.' }, { status: 429 })
     }
 
     const attendees = await prisma.eventAttendee.findMany({

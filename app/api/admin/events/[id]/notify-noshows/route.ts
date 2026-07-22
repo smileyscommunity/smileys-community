@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin, canModerateReports } from '@/lib/access'
+import { rateLimit } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
 import { sendNoShowEmail } from '@/lib/email'
 
@@ -16,13 +17,23 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
     const event = await prisma.event.findUnique({
       where: { id },
-      select: { id: true, title: true, emoji: true, date: true },
+      select: { id: true, title: true, emoji: true, date: true, cityId: true },
     })
     if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
+
+    // Moderators are city-scoped; only admins can email another city's attendees.
+    if (!isAdmin(session) && session.cityId !== event.cityId) {
+      return NextResponse.json({ error: 'Cross-city moderation is admin-only' }, { status: 403 })
+    }
 
     const today = new Date().toISOString().slice(0, 10)
     if (event.date >= today) {
       return NextResponse.json({ error: 'Event has not happened yet' }, { status: 400 })
+    }
+
+    // Cap no-show blasts per event so this can't be used to email-bomb attendees.
+    if (!await rateLimit(`notify-noshows:${id}`, 3, 60 * 60_000)) {
+      return NextResponse.json({ error: 'No-show notices were sent for this event recently — try again later.' }, { status: 429 })
     }
 
     const noShows = await prisma.eventAttendee.findMany({

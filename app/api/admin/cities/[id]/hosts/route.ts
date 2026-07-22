@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator } from '@/lib/access'
+import { isAdmin, isAdminOrModerator } from '@/lib/access'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -15,6 +15,11 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   const { id: cityId } = await params
+  // Granting city-host status confers event-hosting authority in that city;
+  // a moderator may only do it for their own city, admins for any.
+  if (!isAdmin(session) && session.cityId !== cityId) {
+    return NextResponse.json({ error: 'Cross-city host management is admin-only' }, { status: 403 })
+  }
   const { email } = await req.json()
   if (typeof email !== 'string' || !email.trim()) {
     return NextResponse.json({ error: 'Email is required' }, { status: 400 })
@@ -47,6 +52,14 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   await params // params resolved for symmetry; revoke targets the host row directly.
   const cityHostId = req.nextUrl.searchParams.get('cityHostId')
   if (!cityHostId) return NextResponse.json({ error: 'cityHostId is required' }, { status: 400 })
+
+  // Load the grant's city first so a moderator can't revoke another city's host
+  // by guessing/enumerating cityHostIds.
+  const target = await prisma.cityHost.findUnique({ where: { id: cityHostId }, select: { cityId: true } })
+  if (!target) return NextResponse.json({ error: 'Host grant not found' }, { status: 404 })
+  if (!isAdmin(session) && session.cityId !== target.cityId) {
+    return NextResponse.json({ error: 'Cross-city host management is admin-only' }, { status: 403 })
+  }
 
   await prisma.cityHost.update({
     where: { id: cityHostId },

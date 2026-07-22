@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator } from '@/lib/access'
+import { isAdmin, isAdminOrModerator } from '@/lib/access'
 import { slugify } from '@/lib/slug'
 
 // GET /api/admin/cities — list every city with its club count + hosts, so the
@@ -33,10 +33,12 @@ export async function GET() {
 
 // POST /api/admin/cities — create a new city (in "launching" status). Clubs are
 // seeded separately via /[id]/launch-clubs once the city exists.
+// Admin-only: standing up a new city is a platform-level action (a moderator is
+// scoped to an existing city and has nothing to scope a brand-new one against).
 export async function POST(req: NextRequest) {
   const session = await getSession()
-  if (!session || !isAdminOrModerator(session)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!session || !isAdmin(session)) {
+    return NextResponse.json({ error: 'Creating a city is admin-only' }, { status: 403 })
   }
 
   const body = await req.json()

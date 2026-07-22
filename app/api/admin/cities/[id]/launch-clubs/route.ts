@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator } from '@/lib/access'
+import { isAdmin, isAdminOrModerator } from '@/lib/access'
 import { seedCityClubs } from '@/lib/seedCityClubs'
 
 type Params = { params: Promise<{ id: string }> }
@@ -16,6 +16,10 @@ export async function POST(_req: NextRequest, { params }: Params) {
   }
 
   const { id } = await params
+  // Moderators can only seed clubs for their own city.
+  if (!isAdmin(session) && session.cityId !== id) {
+    return NextResponse.json({ error: 'Cross-city club launch is admin-only' }, { status: 403 })
+  }
   const city = await prisma.city.findUnique({ where: { id }, select: { slug: true } })
   if (!city) return NextResponse.json({ error: 'City not found' }, { status: 404 })
 
