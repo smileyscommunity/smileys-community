@@ -66,7 +66,7 @@ export default async function HandbookArticlePage({ params }: Params) {
           <Link href={`/handbook/category/${encodeURIComponent(post.category)}`} className="hover:text-amber-600 font-semibold">{post.category}</Link>
         </nav>
 
-        {/* Header + TL;DR + body live in a client component so staff can
+        {/* Header + quick summary + body live in a client component so staff can
             edit them inline (see EditableArticle). Content is still
             server-rendered for SEO; the body arrives pre-sanitised. */}
         <EditableArticle
