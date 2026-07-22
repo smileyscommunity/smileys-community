@@ -11,14 +11,21 @@ import SocialShare from '@/components/SocialShare'
 import EditableArticle from './EditableArticle'
 
 // Cover image → absolute, WhatsApp/iMessage-safe OG image (same helper shape
-// as the events page). Falls back to the generic branded card when the
-// article has no cover. ?w=1200 hits the file route's preview resize so the
-// image stays under the ~600 KB OG cap.
-function ogImageUrl(coverImage: string | null | undefined): string {
-  if (!coverImage) return `${APP_URL}/api/og`
-  const resolved = resolveImageUrl(coverImage)
-  if (resolved.startsWith('http')) return resolved
-  return `${SITE_URL}${resolved}?w=1200`
+// as the events page). ?w=1200 hits the file route's preview resize so the
+// image stays under the ~600 KB OG cap. When the article has no cover, fall
+// back to the /api/og title card (article title + category as the eyebrow)
+// so a shared link still gets a tailored preview, not the generic brand card.
+function ogImageUrl(coverImage: string | null | undefined, title: string, category: string): string {
+  if (coverImage) {
+    const resolved = resolveImageUrl(coverImage)
+    if (resolved.startsWith('http')) return resolved
+    return `${SITE_URL}${resolved}?w=1200`
+  }
+  const params = new URLSearchParams({
+    title,
+    eyebrow: category ? `${category} · Istanbul Handbook` : 'Istanbul Handbook',
+  })
+  return `${APP_URL}/api/og?${params.toString()}`
 }
 
 const getHandbookArticle = unstable_cache(
@@ -58,7 +65,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const title       = `${post.title} — Istanbul Handbook | Smileys Community`
   const description = post.excerpt ?? `Smileys Community handbook: ${post.title}`
   const pageUrl     = `${APP_URL}/handbook/${slug}`
-  const imageUrl    = ogImageUrl(post.coverImage)
+  const imageUrl    = ogImageUrl(post.coverImage, post.title, post.category)
   return {
     title,
     description,
