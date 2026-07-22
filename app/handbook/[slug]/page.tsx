@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation'
+import { headers } from 'next/headers'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { unstable_cache } from 'next/cache'
@@ -8,6 +9,7 @@ import { resolveImageUrl } from '@/lib/data'
 import { SITE_URL, APP_URL } from '@/lib/env'
 import { HANDBOOK_TO_GUIDE } from '@/lib/handbook-links'
 import SocialShare from '@/components/SocialShare'
+import HandbookArticleTracker from '@/components/HandbookArticleTracker'
 import EditableArticle from './EditableArticle'
 
 // Cover image → absolute, WhatsApp/iMessage-safe OG image (same helper shape
@@ -92,17 +94,53 @@ export default async function HandbookArticlePage({ params }: Params) {
 
   const related = await getHandbookRelated(post.category, post.id)
 
-  const catCls = CATEGORY_STYLES[post.category] ?? 'bg-gray-100 text-gray-700'
+  const catCls  = CATEGORY_STYLES[post.category] ?? 'bg-gray-100 text-gray-700'
+  const pageUrl = `${APP_URL}/handbook/${post.slug}`
+  // cacheKey busts stale WhatsApp/Facebook link previews when the article is edited.
+  const shareCacheKey = new Date(post.updatedAt ?? post.publishedAt ?? 0).getTime().toString(36)
+
+  // Read the per-request CSP nonce set by middleware so the JSON-LD <script>
+  // isn't blocked. Article schema makes the public handbook eligible for
+  // Google rich results — a top-of-funnel win since handbook is unauthenticated.
+  const nonce = (await headers()).get('x-nonce') ?? undefined
+  const articleJsonLd = {
+    '@context':        'https://schema.org',
+    '@type':           'Article',
+    headline:          post.title,
+    description:       post.excerpt ?? undefined,
+    image:             ogImageUrl(post.coverImage, post.title, post.category),
+    datePublished:     post.publishedAt ? new Date(post.publishedAt).toISOString() : undefined,
+    dateModified:      post.updatedAt ? new Date(post.updatedAt).toISOString() : undefined,
+    author:            { '@type': 'Person', name: post.author.name },
+    publisher:         { '@type': 'Organization', name: 'Smileys Community', url: SITE_URL },
+    mainEntityOfPage:  pageUrl,
+    articleSection:    post.category,
+  }
 
   return (
     <main className="bg-white">
+      <script
+        type="application/ld+json"
+        nonce={nonce}
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(articleJsonLd)
+            .replace(/</g, '\\u003c')
+            .replace(/\u2028/g, '\\u2028')
+            .replace(/\u2029/g, '\\u2029'),
+        }}
+      />
+      <HandbookArticleTracker slug={post.slug} title={post.title} category={post.category} />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16"><article className="max-w-2xl">
-        {/* Breadcrumb */}
-        <nav className="flex items-center gap-2 text-xs text-gray-600 mb-6 flex-wrap">
-          <Link href="/handbook" className="hover:text-amber-600 font-semibold">📖 Handbook</Link>
-          <span>›</span>
-          <Link href={`/handbook/category/${encodeURIComponent(post.category)}`} className="hover:text-amber-600 font-semibold">{post.category}</Link>
-        </nav>
+        {/* Breadcrumb + a compact share affordance right at the top, so a
+            member can forward the article without scrolling to the end. */}
+        <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
+          <nav className="flex items-center gap-2 text-xs text-gray-600 flex-wrap">
+            <Link href="/handbook" className="hover:text-amber-600 font-semibold">📖 Handbook</Link>
+            <span>›</span>
+            <Link href={`/handbook/category/${encodeURIComponent(post.category)}`} className="hover:text-amber-600 font-semibold">{post.category}</Link>
+          </nav>
+          <SocialShare compact context="handbook" title={`${post.title} — Smileys Community Istanbul Handbook`} url={pageUrl} cacheKey={shareCacheKey} />
+        </div>
 
         {/* Header + quick summary + body live in a client component so staff can
             edit them inline (see EditableArticle). Content is still

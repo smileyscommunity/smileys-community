@@ -20,8 +20,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }),
     prisma.post.findMany({
       where: { status: 'published' },
-      select: { slug: true, publishedAt: true },
-      take: 100,
+      select: { slug: true, publishedAt: true, kind: true },
+      take: 200,
     }),
     // Marketplace listings are public — let Google crawl them so search hits
     // like "flats in Moda" can land on the listing.
@@ -76,12 +76,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     changeFrequency: 'weekly',
   }))
 
-  const postRoutes: MetadataRoute.Sitemap = posts.map(p => ({
-    url:          `${BASE}/posts/${p.slug}`,
-    lastModified: p.publishedAt ?? undefined,
-    priority:     0.6,
-    changeFrequency: 'monthly',
-  }))
+  // Handbook articles live at /handbook/[slug]; other posts at /posts/[slug].
+  // Mapping every post to /posts/... (the old behaviour) pointed the handbook
+  // URLs at a 404. Handbook is public, evergreen, and a top-of-funnel SEO
+  // asset, so it gets a higher priority and weekly recrawl.
+  const postRoutes: MetadataRoute.Sitemap = posts.map(p => {
+    const isHandbook = p.kind === 'handbook'
+    return {
+      url:          `${BASE}/${isHandbook ? 'handbook' : 'posts'}/${p.slug}`,
+      lastModified: p.publishedAt ?? undefined,
+      priority:     isHandbook ? 0.8 : 0.6,
+      changeFrequency: isHandbook ? 'weekly' as const : 'monthly' as const,
+    }
+  })
 
   const listingRoutes: MetadataRoute.Sitemap = listings.map(l => ({
     url:          `${BASE}/listings/${l.id}`,

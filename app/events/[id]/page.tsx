@@ -26,8 +26,13 @@ import { sanitize } from '@/lib/sanitize'
 
 export const dynamic = 'force-dynamic'
 
-function absoluteImageUrl(coverImage: string | null | undefined): string {
-  if (!coverImage) return `${APP_URL}/api/og`
+function absoluteImageUrl(coverImage: string | null | undefined, title?: string): string {
+  if (!coverImage) {
+    // No cover → the /api/og title card (event name) instead of the generic
+    // brand image, so a cover-less event still shares with a tailored preview.
+    if (title) return `${APP_URL}/api/og?${new URLSearchParams({ title, eyebrow: 'Smileys Community · Event' })}`
+    return `${APP_URL}/api/og`
+  }
   const resolved = resolveImageUrl(coverImage)
   if (resolved.startsWith('http')) return resolved
   // ?w=1200 hits the file route's PREVIEW resize: aspect-preserved
@@ -54,7 +59,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     ? event.description.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
     : `Join us at Smileys Community Istanbul`
   const description = `${when} — ${plainDesc}`.slice(0, 155)
-  const imageUrl    = absoluteImageUrl(event.coverImage)
+  const imageUrl    = absoluteImageUrl(event.coverImage, event.title)
   const pageUrl     = `${APP_URL}/events/${id}`
 
   return {
@@ -116,7 +121,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
           addressCountry:  'TR',
         },
       },
-      image: absoluteImageUrl(event.coverImage) || undefined,
+      image: absoluteImageUrl(event.coverImage, event.title) || undefined,
       url:   eventUrl,
       organizer: { '@type': 'Organization', name: 'Smileys Community', url: SITE_URL },
     }
@@ -433,7 +438,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
             addressCountry:    'TR',
           },
         },
-    image:     absoluteImageUrl(event.coverImage) || undefined,
+    image:     absoluteImageUrl(event.coverImage, event.title) || undefined,
     url:       eventUrl,
     offers: {
       '@type':       'Offer',

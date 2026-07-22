@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import { track } from '@/lib/analytics'
 
 interface Props {
   title: string
@@ -11,17 +12,41 @@ interface Props {
   /** Icon row only — no card chrome or label. For embedding inside an
       existing action row (e.g. the directory detail header). */
   compact?: boolean
+  /** Optional label sent with the share_click analytics event (e.g. 'handbook'). */
+  context?: string
 }
 
-export default function SocialShare({ title, url, cacheKey, compact }: Props) {
+export default function SocialShare({ title, url, cacheKey, compact, context }: Props) {
   const [copied, setCopied] = useState(false)
+  // navigator.share only exists in the browser (and mainly on mobile), so we
+  // detect after mount to avoid an SSR/hydration mismatch. When present we
+  // lead with one "Share" button that opens the OS share sheet — how people
+  // actually forward things (WhatsApp, iMessage, Instagram DM, AirDrop) — and
+  // keep the explicit network buttons as the desktop fallback.
+  const [canNativeShare, setCanNativeShare] = useState(false)
+  useEffect(() => {
+    setCanNativeShare(typeof navigator !== 'undefined' && typeof navigator.share === 'function')
+  }, [])
 
   // Append cacheKey so social crawlers that already cached an old preview are forced to re-scrape
   const shareUrl    = cacheKey ? `${url}?v=${cacheKey}` : url
   const encodedUrl  = encodeURIComponent(shareUrl)
   const encodedText = encodeURIComponent(`${title} — ${shareUrl}`)
 
+  const trackShare = (method: string) => track('share_click', { method, context: context ?? null, url })
+
+  async function nativeShare() {
+    trackShare('native')
+    try {
+      await navigator.share({ title, url })
+    } catch (e: any) {
+      // AbortError = user dismissed the sheet; only surface real failures.
+      if (e?.name && e.name !== 'AbortError') toast.error('Could not open share menu')
+    }
+  }
+
   async function copyLink() {
+    trackShare('copy')
     try {
       await navigator.clipboard.writeText(url)
       setCopied(true)
