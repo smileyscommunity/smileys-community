@@ -4,8 +4,22 @@ import type { Metadata } from 'next'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { sanitize } from '@/lib/sanitize'
+import { resolveImageUrl } from '@/lib/data'
+import { SITE_URL, APP_URL } from '@/lib/env'
 import { HANDBOOK_TO_GUIDE } from '@/lib/handbook-links'
+import SocialShare from '@/components/SocialShare'
 import EditableArticle from './EditableArticle'
+
+// Cover image → absolute, WhatsApp/iMessage-safe OG image (same helper shape
+// as the events page). Falls back to the generic branded card when the
+// article has no cover. ?w=1200 hits the file route's preview resize so the
+// image stays under the ~600 KB OG cap.
+function ogImageUrl(coverImage: string | null | undefined): string {
+  if (!coverImage) return `${APP_URL}/api/og`
+  const resolved = resolveImageUrl(coverImage)
+  if (resolved.startsWith('http')) return resolved
+  return `${SITE_URL}${resolved}?w=1200`
+}
 
 const getHandbookArticle = unstable_cache(
   async (slug: string) => prisma.post.findUnique({
@@ -41,9 +55,26 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { slug } = await params
   const post = await getHandbookArticle(slug)
   if (!post || post.kind !== 'handbook' || post.status !== 'published') return { title: 'Handbook — Smileys Community' }
+  const title       = `${post.title} — Istanbul Handbook | Smileys Community`
+  const description = post.excerpt ?? `Smileys Community handbook: ${post.title}`
+  const pageUrl     = `${APP_URL}/handbook/${slug}`
+  const imageUrl    = ogImageUrl(post.coverImage)
   return {
-    title:       `${post.title} — Istanbul Handbook | Smileys Community`,
-    description: post.excerpt ?? `Smileys Community handbook: ${post.title}`,
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      url:    pageUrl,
+      images: [{ url: imageUrl, secureUrl: imageUrl, width: 1200, height: 630, alt: post.title }],
+      type:   'article',
+    },
+    twitter: {
+      card:        'summary_large_image',
+      title,
+      description,
+      images:      [imageUrl],
+    },
   }
 }
 
@@ -84,6 +115,17 @@ export default async function HandbookArticlePage({ params }: Params) {
           publishedAt={post.publishedAt ? new Date(post.publishedAt).toISOString() : null}
           updatedAt={post.updatedAt ? new Date(post.updatedAt).toISOString() : null}
         />
+
+        {/* Share — the handbook is public, so members can send an article
+            to a friend who isn't in the community yet. cacheKey busts stale
+            WhatsApp/Facebook link previews when the article is edited. */}
+        <div className="mt-10 pt-8 border-t border-gray-100">
+          <SocialShare
+            title={`${post.title} — Smileys Community Istanbul Handbook`}
+            url={`${APP_URL}/handbook/${post.slug}`}
+            cacheKey={new Date(post.updatedAt ?? post.publishedAt ?? Date.now()).getTime().toString(36)}
+          />
+        </div>
 
         {/* Cross-link to the matching City Guide section. The handbook
             article gives the *how*; the guide gives the *what links
