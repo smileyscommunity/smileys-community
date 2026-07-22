@@ -313,9 +313,10 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
     }).then(async entries => {
       const total = entries.length
       if (!total) return { users: [] as { id: string; name: string; color: string; profilePhoto: string | null; nationality: string | null }[], total: 0 }
-      // Only render a preview — an uncapped grid balloons the DOM (and the
-      // user query) for events with a long waitlist.
-      const shownIds = entries.slice(0, 12).map(e => e.userId)
+      // Show the whole waitlist (members expect to see everyone queued), but
+      // keep a high safety cap so a pathological 500-person waitlist can't
+      // balloon the DOM / user query. Real event waitlists sit well under this.
+      const shownIds = entries.slice(0, 100).map(e => e.userId)
       const rows = await prisma.user.findMany({
         where: { id: { in: shownIds }, hiddenFromMembers: false },
         select: { id: true, name: true, color: true, profilePhoto: true, nationality: true },
