@@ -64,7 +64,10 @@ export default async function HandbookPage() {
     if (!byCategory[a.category]) byCategory[a.category] = []
     byCategory[a.category].push(a)
   }
-  const featured = articles[0] ?? null
+  // Show the newest article at full size, then up to 4 more as compact
+  // rows underneath so recent updates aren't buried in a category card.
+  const latest = articles.slice(0, 5)
+  const [featured, ...moreLatest] = latest
 
   return (
     <main>
@@ -115,12 +118,15 @@ export default async function HandbookPage() {
         </div>
       </section>
 
-      {/* Featured / latest — surfaced separately so a brand-new article
-          gets discovery love beyond just sitting in its category bucket. */}
+      {/* Latest — surfaced separately so brand-new articles get discovery
+          love beyond just sitting in a category bucket. Top slot renders
+          large; the next four stack below as tight rows. */}
       {featured && (
         <section className="bg-gray-50 border-b border-gray-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-            <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-6">Latest article</h2>
+            <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-6">
+              {latest.length > 1 ? 'Latest articles' : 'Latest article'}
+            </h2>
             <Link href={`/handbook/${featured.slug}`} className="block bg-white rounded-2xl border border-gray-200 p-7 hover:border-amber-300 hover:shadow-md transition-all group">
               <div className="flex items-center gap-2 mb-3 text-xs text-gray-600">
                 <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-bold">{featured.category}</span>
@@ -135,6 +141,30 @@ export default async function HandbookPage() {
               )}
               <p className="text-sm text-amber-600 font-bold mt-4 group-hover:translate-x-0.5 transition-transform">Read it →</p>
             </Link>
+            {moreLatest.length > 0 && (
+              <ul className="mt-4 divide-y divide-gray-200 bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                {moreLatest.map(a => (
+                  <li key={a.id}>
+                    <Link
+                      href={`/handbook/${a.slug}`}
+                      className="flex items-baseline gap-3 px-5 py-3.5 hover:bg-amber-50 transition-colors group"
+                    >
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-amber-700 bg-amber-100 rounded-full px-2 py-0.5 shrink-0">
+                        {a.category}
+                      </span>
+                      <span className="text-sm font-bold text-gray-900 group-hover:text-amber-600 transition-colors line-clamp-1 flex-1">
+                        {a.title}
+                      </span>
+                      {a.publishedAt && (
+                        <span className="text-xs text-gray-500 shrink-0 hidden sm:inline">
+                          {formatDate(a.publishedAt)}
+                        </span>
+                      )}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </section>
       )}
