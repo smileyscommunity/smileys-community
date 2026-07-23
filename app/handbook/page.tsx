@@ -2,6 +2,13 @@ import Link from 'next/link'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { resolveImageUrl } from '@/lib/data'
+import { categoryHero } from '@/lib/handbook-categories'
+
+// Prefer the article's own cover; fall back to the category banner so
+// listings always show a thumbnail without waiting for per-article uploads.
+function articleCover(a: { coverImage: string | null; category: string }): string | null {
+  return a.coverImage ? resolveImageUrl(a.coverImage) : (categoryHero(a.category)?.src ?? null)
+}
 
 const getHandbookArticles = unstable_cache(
   async () => prisma.post.findMany({
@@ -129,13 +136,16 @@ export default async function HandbookPage() {
               {latest.length > 1 ? 'Latest articles' : 'Latest article'}
             </h2>
             <Link href={`/handbook/${featured.slug}`} className="block bg-white rounded-2xl border border-gray-200 hover:border-amber-300 hover:shadow-md transition-all group overflow-hidden">
-              <div className={featured.coverImage ? 'sm:flex sm:items-stretch' : ''}>
-                {featured.coverImage && (
-                  <div className="w-full sm:w-64 shrink-0 bg-gray-100 overflow-hidden aspect-[3/2] sm:aspect-auto">
-                    <img src={resolveImageUrl(featured.coverImage)} alt=""
-                      className="w-full h-full object-cover" loading="lazy" decoding="async" />
-                  </div>
-                )}
+              {(() => {
+                const cover = articleCover(featured)
+                return (
+                  <div className={cover ? 'sm:flex sm:items-stretch' : ''}>
+                    {cover && (
+                      <div className="w-full sm:w-64 shrink-0 bg-gray-100 overflow-hidden aspect-[3/2] sm:aspect-auto">
+                        <img src={cover} alt=""
+                          className="w-full h-full object-cover" loading="lazy" decoding="async" />
+                      </div>
+                    )}
                 <div className="p-7 min-w-0">
                   <div className="flex items-center gap-2 mb-3 text-xs text-gray-600">
                     <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-bold">{featured.category}</span>
@@ -151,18 +161,22 @@ export default async function HandbookPage() {
                   <p className="text-sm text-amber-600 font-bold mt-4 group-hover:translate-x-0.5 transition-transform">Read it →</p>
                 </div>
               </div>
+                )
+              })()}
             </Link>
             {moreLatest.length > 0 && (
               <ul className="mt-4 divide-y divide-gray-200 bg-white rounded-2xl border border-gray-200 overflow-hidden">
-                {moreLatest.map(a => (
+                {moreLatest.map(a => {
+                  const cover = articleCover(a)
+                  return (
                   <li key={a.id}>
                     <Link
                       href={`/handbook/${a.slug}`}
                       className="flex items-center gap-3 px-4 sm:px-5 py-3 hover:bg-amber-50 transition-colors group"
                     >
-                      {a.coverImage ? (
+                      {cover ? (
                         <img
-                          src={resolveImageUrl(a.coverImage)} alt=""
+                          src={cover} alt=""
                           className="w-14 h-14 rounded-lg object-cover shrink-0 bg-gray-100"
                           loading="lazy" decoding="async"
                         />
@@ -184,7 +198,8 @@ export default async function HandbookPage() {
                       )}
                     </Link>
                   </li>
-                ))}
+                )
+                })}
               </ul>
             )}
           </div>

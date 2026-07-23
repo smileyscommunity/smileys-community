@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
-import { HANDBOOK_CATEGORIES as CATEGORIES } from '@/lib/handbook-categories'
+import { HANDBOOK_CATEGORIES as CATEGORIES, categoryHero } from '@/lib/handbook-categories'
 import { resolveImageUrl } from '@/lib/data'
 
 const getHandbookCategory = unstable_cache(
@@ -61,9 +61,9 @@ export default async function HandbookCategoryPage({ params }: Params) {
             </div>
           ) : articles.map(a => {
             // Article's own cover renders alongside title + excerpt when
-            // set (stacked on top on mobile). No cover → text-only row,
-            // same visual grammar as before.
-            const cover = a.coverImage ? resolveImageUrl(a.coverImage) : null
+            // set; otherwise fall back to the category banner so every
+            // row has a thumbnail without waiting for per-article uploads.
+            const cover = a.coverImage ? resolveImageUrl(a.coverImage) : (categoryHero(decoded)?.src ?? null)
             return (
               <Link key={a.id} href={`/handbook/${a.slug}`}
                 className="block bg-white rounded-2xl border border-gray-200 overflow-hidden hover:border-amber-300 hover:shadow-sm hover:-translate-y-0.5 transition-all group">
