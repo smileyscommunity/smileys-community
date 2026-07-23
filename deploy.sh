@@ -106,6 +106,7 @@ rsync -av --delete \
   --exclude='.next/cache/' \
   --exclude='.env.production' \
   --exclude='*.map' \
+  --exclude='backups/' \
   --exclude='node_modules' \
   --exclude='.git' \
   --exclude='.claude/' \
