@@ -13,13 +13,28 @@ const getHandbookCategory = unstable_cache(
   { revalidate: 300, tags: ['handbook'] },
 )
 
-const CATEGORIES = {
+// Category hero metadata. `image` is optional — when set, a banner
+// renders below the title in the hero. Static assets live in
+// public/images and are served under the /app basePath, so the src
+// is the full '/app/images/…' path (same convention as the cup
+// banner). alt is stored alongside so the banner stays accessible.
+type CategoryMeta = {
+  emoji:   string
+  label:   string
+  tagline: string
+  image?:  { src: string; alt: string }
+}
+
+const CATEGORIES: Record<string, CategoryMeta> = {
   'Bureaucracy':    { emoji: '📋', label: 'Bureaucracy & Legal', tagline: 'Permits, taxes, paperwork — the slow grind of being legal.' },
   'Money':          { emoji: '💳', label: 'Money',               tagline: 'Banking, FX, inflation, paying for the everyday.' },
   'Daily Life':     { emoji: '🏠', label: 'Daily Life',          tagline: 'Apartments, doctors, utilities, the small things that wear you down until they don\'t.' },
   'Family':         { emoji: '👨‍👩‍👧', label: 'Family',         tagline: 'Schools, kreş, kids\' healthcare — raising a family while you\'re still figuring it out yourself.' },
-  'Getting Around': { emoji: '🚇', label: 'Getting Around',      tagline: 'Transport, driving, flights — the city is big, the answers are simple.' },
-} as const
+  'Getting Around': {
+    emoji: '🚇', label: 'Getting Around', tagline: 'Transport, driving, flights — the city is big, the answers are simple.',
+    image: { src: '/app/images/images-5.jpeg', alt: 'Istanbulkart travel card held up over the Bosphorus' },
+  },
+}
 
 function formatDate(d: Date | string | null) {
   if (!d) return ''
@@ -65,21 +80,39 @@ export default async function HandbookCategoryPage({ params }: Params) {
             <div className="text-center py-16 text-sm text-gray-600 bg-white rounded-2xl border border-dashed border-gray-200">
               No articles in this category yet — first ones coming soon.
             </div>
-          ) : articles.map(a => (
-            <Link key={a.id} href={`/handbook/${a.slug}`}
-              className="block bg-white rounded-2xl border border-gray-200 p-6 hover:border-amber-300 hover:shadow-sm hover:-translate-y-0.5 transition-all group">
-              <div className="flex items-center gap-2 mb-2 text-xs text-gray-600">
-                {a.publishedAt && <span>{formatDate(a.publishedAt)}</span>}
-                {a.author?.name && <span>· by {a.author.name.split(' ')[0]}</span>}
-              </div>
-              <h3 className="text-lg sm:text-xl font-extrabold text-gray-900 group-hover:text-amber-600 transition-colors leading-tight">
-                {a.title}
-              </h3>
-              {a.excerpt && (
-                <p className="text-sm text-gray-600 mt-2 leading-relaxed line-clamp-2">{a.excerpt}</p>
-              )}
-            </Link>
-          ))}
+          ) : articles.map((a, i) => {
+            // The first article gets the category image alongside it:
+            // a thumbnail on the left (stacked on top on mobile). The
+            // rest render text-only. Padding moves to the inner column
+            // so the flanked and text-only cards look identical apart
+            // from the image.
+            const withImage = i === 0 && cat.image
+            return (
+              <Link key={a.id} href={`/handbook/${a.slug}`}
+                className="block bg-white rounded-2xl border border-gray-200 overflow-hidden hover:border-amber-300 hover:shadow-sm hover:-translate-y-0.5 transition-all group">
+                <div className={withImage ? 'flex items-stretch' : ''}>
+                  {withImage && (
+                    <div className="w-28 sm:w-56 shrink-0 bg-gray-100 overflow-hidden">
+                      <img src={cat.image!.src} alt={cat.image!.alt}
+                        className="w-full h-full object-cover" loading="eager" decoding="async" />
+                    </div>
+                  )}
+                  <div className="p-6 min-w-0">
+                    <div className="flex items-center gap-2 mb-2 text-xs text-gray-600">
+                      {a.publishedAt && <span>{formatDate(a.publishedAt)}</span>}
+                      {a.author?.name && <span>· by {a.author.name.split(' ')[0]}</span>}
+                    </div>
+                    <h3 className="text-lg sm:text-xl font-extrabold text-gray-900 group-hover:text-amber-600 transition-colors leading-tight">
+                      {a.title}
+                    </h3>
+                    {a.excerpt && (
+                      <p className="text-sm text-gray-600 mt-2 leading-relaxed line-clamp-2">{a.excerpt}</p>
+                    )}
+                  </div>
+                </div>
+              </Link>
+            )
+          })}
         </div></div>
       </section>
     </main>
