@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
+import { HANDBOOK_CATEGORIES as CATEGORIES } from '@/lib/handbook-categories'
 
 const getHandbookCategory = unstable_cache(
   async (category: string) => prisma.post.findMany({
@@ -12,29 +13,6 @@ const getHandbookCategory = unstable_cache(
   ['handbook-category'],
   { revalidate: 300, tags: ['handbook'] },
 )
-
-// Category hero metadata. `image` is optional — when set, a banner
-// renders below the title in the hero. Static assets live in
-// public/images and are served under the /app basePath, so the src
-// is the full '/app/images/…' path (same convention as the cup
-// banner). alt is stored alongside so the banner stays accessible.
-type CategoryMeta = {
-  emoji:   string
-  label:   string
-  tagline: string
-  image?:  { src: string; alt: string }
-}
-
-const CATEGORIES: Record<string, CategoryMeta> = {
-  'Bureaucracy':    { emoji: '📋', label: 'Bureaucracy & Legal', tagline: 'Permits, taxes, paperwork — the slow grind of being legal.' },
-  'Money':          { emoji: '💳', label: 'Money',               tagline: 'Banking, FX, inflation, paying for the everyday.' },
-  'Daily Life':     { emoji: '🏠', label: 'Daily Life',          tagline: 'Apartments, doctors, utilities, the small things that wear you down until they don\'t.' },
-  'Family':         { emoji: '👨‍👩‍👧', label: 'Family',         tagline: 'Schools, kreş, kids\' healthcare — raising a family while you\'re still figuring it out yourself.' },
-  'Getting Around': {
-    emoji: '🚇', label: 'Getting Around', tagline: 'Transport, driving, flights — the city is big, the answers are simple.',
-    image: { src: '/app/images/images-5.jpeg', alt: 'Istanbulkart travel card held up over the Bosphorus' },
-  },
-}
 
 function formatDate(d: Date | string | null) {
   if (!d) return ''
