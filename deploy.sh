@@ -120,6 +120,7 @@ rsync -av --delete \
   --exclude='data/why-content.json' \
   --exclude='data/content.json' \
   --exclude='data/city-guide.json' \
+  --exclude='data/handbook-heroes.json' \
   "$LOCAL/" "$SERVER:$REMOTE/" || { CODE=$?; [ "$CODE" = "23" ] || [ "$CODE" = "24" ] || exit $CODE; }
 
 echo "→ Restarting server (graceful)..."

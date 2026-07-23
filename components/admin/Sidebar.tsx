@@ -149,6 +149,7 @@ const NAV_GROUPS = [
       { label: 'Polls',         href: '/admin/polls',         exact: false, roles: ['admin', 'moderator'],  icon: 'engagement' },
       { label: 'Stories',       href: '/admin/stories',                     exact: false, roles: ['admin', 'moderator'],  icon: 'stories'       },
       { label: 'Articles',      href: '/admin/posts',         exact: false, roles: ['admin', 'moderator'],  icon: 'articles'      },
+      { label: 'Hero images',   href: '/admin/handbook-heroes', exact: false, roles: ['admin', 'moderator'], icon: 'articles'   },
       { label: 'Neighborhoods', href: '/admin/neighborhoods', exact: false, roles: ['admin', 'moderator'],  icon: 'tags'          },
       { label: 'City Guide',    href: '/admin/guide',         exact: false, roles: ['admin', 'moderator'],  icon: 'content'       },
       { label: 'Banners',       href: '/admin/banners',       exact: false, roles: ['admin', 'moderator'],  icon: 'banners'       },

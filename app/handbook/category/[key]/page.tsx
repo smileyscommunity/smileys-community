@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { HANDBOOK_CATEGORIES as CATEGORIES } from '@/lib/handbook-categories'
+import { resolveCategoryHero } from '@/lib/handbookHeroes'
 
 const getHandbookCategory = unstable_cache(
   async (category: string) => prisma.post.findMany({
@@ -38,6 +39,7 @@ export default async function HandbookCategoryPage({ params }: Params) {
   if (!cat) notFound()
 
   const articles = await getHandbookCategory(decoded)
+  const hero = resolveCategoryHero(decoded)  // admin override or default banner
 
   return (
     <main className="bg-gray-50 min-h-screen">
@@ -64,14 +66,14 @@ export default async function HandbookCategoryPage({ params }: Params) {
             // rest render text-only. Padding moves to the inner column
             // so the flanked and text-only cards look identical apart
             // from the image.
-            const withImage = i === 0 && cat.image
+            const withImage = i === 0 && hero
             return (
               <Link key={a.id} href={`/handbook/${a.slug}`}
                 className="block bg-white rounded-2xl border border-gray-200 overflow-hidden hover:border-amber-300 hover:shadow-sm hover:-translate-y-0.5 transition-all group">
                 <div className={withImage ? 'flex items-stretch' : ''}>
                   {withImage && (
                     <div className="w-28 sm:w-56 shrink-0 bg-gray-100 overflow-hidden">
-                      <img src={cat.image!.src} alt={cat.image!.alt}
+                      <img src={hero!.src} alt={hero!.alt}
                         className="w-full h-full object-cover" loading="eager" decoding="async" />
                     </div>
                   )}
