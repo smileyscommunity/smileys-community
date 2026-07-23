@@ -55,7 +55,6 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     '/admin/content',
     '/admin/neighborhoods',
     '/admin/posts',
-    '/admin/handbook-heroes',
     '/admin/audit',
     '/admin/partners',
   ]

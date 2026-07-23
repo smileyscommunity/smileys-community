@@ -1,12 +1,13 @@
 import Link from 'next/link'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
+import { resolveImageUrl } from '@/lib/data'
 
 const getHandbookArticles = unstable_cache(
   async () => prisma.post.findMany({
     where:   { kind: 'handbook', status: 'published' },
     orderBy: { publishedAt: 'desc' },
-    select:  { id: true, slug: true, title: true, excerpt: true, category: true, publishedAt: true, author: { select: { name: true } } },
+    select:  { id: true, slug: true, title: true, excerpt: true, coverImage: true, category: true, publishedAt: true, author: { select: { name: true } } },
   }),
   ['handbook-articles'],
   { revalidate: 300, tags: ['handbook'] },
@@ -127,19 +128,29 @@ export default async function HandbookPage() {
             <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-6">
               {latest.length > 1 ? 'Latest articles' : 'Latest article'}
             </h2>
-            <Link href={`/handbook/${featured.slug}`} className="block bg-white rounded-2xl border border-gray-200 p-7 hover:border-amber-300 hover:shadow-md transition-all group">
-              <div className="flex items-center gap-2 mb-3 text-xs text-gray-600">
-                <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-bold">{featured.category}</span>
-                {featured.publishedAt && <span>· {formatDate(featured.publishedAt)}</span>}
-                {featured.author?.name && <span>· by {featured.author.name.split(' ')[0]}</span>}
+            <Link href={`/handbook/${featured.slug}`} className="block bg-white rounded-2xl border border-gray-200 hover:border-amber-300 hover:shadow-md transition-all group overflow-hidden">
+              <div className={featured.coverImage ? 'sm:flex sm:items-stretch' : ''}>
+                {featured.coverImage && (
+                  <div className="w-full sm:w-64 shrink-0 bg-gray-100 overflow-hidden aspect-[3/2] sm:aspect-auto">
+                    <img src={resolveImageUrl(featured.coverImage)} alt=""
+                      className="w-full h-full object-cover" loading="lazy" decoding="async" />
+                  </div>
+                )}
+                <div className="p-7 min-w-0">
+                  <div className="flex items-center gap-2 mb-3 text-xs text-gray-600">
+                    <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-bold">{featured.category}</span>
+                    {featured.publishedAt && <span>· {formatDate(featured.publishedAt)}</span>}
+                    {featured.author?.name && <span>· by {featured.author.name.split(' ')[0]}</span>}
+                  </div>
+                  <h3 className="text-2xl font-extrabold text-gray-900 mb-2 group-hover:text-amber-600 transition-colors leading-tight">
+                    {featured.title}
+                  </h3>
+                  {featured.excerpt && (
+                    <p className="text-sm text-gray-600 leading-relaxed line-clamp-2">{featured.excerpt}</p>
+                  )}
+                  <p className="text-sm text-amber-600 font-bold mt-4 group-hover:translate-x-0.5 transition-transform">Read it →</p>
+                </div>
               </div>
-              <h3 className="text-2xl font-extrabold text-gray-900 mb-2 group-hover:text-amber-600 transition-colors leading-tight">
-                {featured.title}
-              </h3>
-              {featured.excerpt && (
-                <p className="text-sm text-gray-600 leading-relaxed line-clamp-2">{featured.excerpt}</p>
-              )}
-              <p className="text-sm text-amber-600 font-bold mt-4 group-hover:translate-x-0.5 transition-transform">Read it →</p>
             </Link>
             {moreLatest.length > 0 && (
               <ul className="mt-4 divide-y divide-gray-200 bg-white rounded-2xl border border-gray-200 overflow-hidden">
@@ -147,14 +158,25 @@ export default async function HandbookPage() {
                   <li key={a.id}>
                     <Link
                       href={`/handbook/${a.slug}`}
-                      className="flex items-baseline gap-3 px-5 py-3.5 hover:bg-amber-50 transition-colors group"
+                      className="flex items-center gap-3 px-4 sm:px-5 py-3 hover:bg-amber-50 transition-colors group"
                     >
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-amber-700 bg-amber-100 rounded-full px-2 py-0.5 shrink-0">
-                        {a.category}
-                      </span>
-                      <span className="text-sm font-bold text-gray-900 group-hover:text-amber-600 transition-colors line-clamp-1 flex-1">
-                        {a.title}
-                      </span>
+                      {a.coverImage ? (
+                        <img
+                          src={resolveImageUrl(a.coverImage)} alt=""
+                          className="w-14 h-14 rounded-lg object-cover shrink-0 bg-gray-100"
+                          loading="lazy" decoding="async"
+                        />
+                      ) : (
+                        <div className="w-14 h-14 rounded-lg bg-gray-100 shrink-0" aria-hidden="true" />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-amber-700 bg-amber-100 rounded-full px-2 py-0.5">
+                          {a.category}
+                        </span>
+                        <p className="text-sm font-bold text-gray-900 group-hover:text-amber-600 transition-colors line-clamp-1 mt-1">
+                          {a.title}
+                        </p>
+                      </div>
                       {a.publishedAt && (
                         <span className="text-xs text-gray-500 shrink-0 hidden sm:inline">
                           {formatDate(a.publishedAt)}

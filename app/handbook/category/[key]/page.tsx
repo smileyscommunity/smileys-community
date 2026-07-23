@@ -3,13 +3,13 @@ import { notFound } from 'next/navigation'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { HANDBOOK_CATEGORIES as CATEGORIES } from '@/lib/handbook-categories'
-import { resolveCategoryHero } from '@/lib/handbookHeroes'
+import { resolveImageUrl } from '@/lib/data'
 
 const getHandbookCategory = unstable_cache(
   async (category: string) => prisma.post.findMany({
     where:   { kind: 'handbook', status: 'published', category },
     orderBy: { publishedAt: 'desc' },
-    select:  { id: true, slug: true, title: true, excerpt: true, publishedAt: true, author: { select: { name: true } } },
+    select:  { id: true, slug: true, title: true, excerpt: true, coverImage: true, publishedAt: true, author: { select: { name: true } } },
   }),
   ['handbook-category'],
   { revalidate: 300, tags: ['handbook'] },
@@ -39,7 +39,6 @@ export default async function HandbookCategoryPage({ params }: Params) {
   if (!cat) notFound()
 
   const articles = await getHandbookCategory(decoded)
-  const hero = resolveCategoryHero(decoded)  // admin override or default banner
 
   return (
     <main className="bg-gray-50 min-h-screen">
@@ -60,21 +59,19 @@ export default async function HandbookCategoryPage({ params }: Params) {
             <div className="text-center py-16 text-sm text-gray-600 bg-white rounded-2xl border border-dashed border-gray-200">
               No articles in this category yet — first ones coming soon.
             </div>
-          ) : articles.map((a, i) => {
-            // The first article gets the category image alongside it:
-            // a thumbnail on the left (stacked on top on mobile). The
-            // rest render text-only. Padding moves to the inner column
-            // so the flanked and text-only cards look identical apart
-            // from the image.
-            const withImage = i === 0 && hero
+          ) : articles.map(a => {
+            // Article's own cover renders alongside title + excerpt when
+            // set (stacked on top on mobile). No cover → text-only row,
+            // same visual grammar as before.
+            const cover = a.coverImage ? resolveImageUrl(a.coverImage) : null
             return (
               <Link key={a.id} href={`/handbook/${a.slug}`}
                 className="block bg-white rounded-2xl border border-gray-200 overflow-hidden hover:border-amber-300 hover:shadow-sm hover:-translate-y-0.5 transition-all group">
-                <div className={withImage ? 'flex items-stretch' : ''}>
-                  {withImage && (
-                    <div className="w-28 sm:w-56 shrink-0 bg-gray-100 overflow-hidden">
-                      <img src={hero!.src} alt={hero!.alt}
-                        className="w-full h-full object-cover" loading="eager" decoding="async" />
+                <div className={cover ? 'sm:flex sm:items-stretch' : ''}>
+                  {cover && (
+                    <div className="w-full sm:w-56 shrink-0 bg-gray-100 overflow-hidden aspect-[3/2] sm:aspect-auto">
+                      <img src={cover} alt=""
+                        className="w-full h-full object-cover" loading="lazy" decoding="async" />
                     </div>
                   )}
                   <div className="p-6 min-w-0">
