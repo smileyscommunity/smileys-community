@@ -127,6 +127,7 @@ model User {
   neighborhoodPostLikes      NeighborhoodPostLike[]
   neighborhoodPostReplies    NeighborhoodPostReply[]
   neighborhoodPosts          NeighborhoodPost[]
+  postLikes                  PostLike[]
   newslettersSent            Newsletter[]            @relation("NewslettersSent")
   notifPrefs                 NotificationPreference?
   notifications              Notification[]
@@ -1236,10 +1237,29 @@ model Post {
   updatedAt   DateTime  @updatedAt
   kind        String    @default("community")
   author      User      @relation(fields: [authorId], references: [id])
+  likes       PostLike[]
 
   @@index([status, publishedAt])
   @@index([kind, status, publishedAt])
   @@map("posts")
+}
+
+// Article likes (handbook + community posts). Deliberately a plain
+// like rather than the 4-emoji reaction set the club/neighborhood
+// walls use — an article is read once, not chatted over, so a single
+// signal is enough and keeps the page from turning into a feed.
+// Composite PK enforces one like per user per post at the DB level,
+// so a double-tap or a duplicated request can't inflate the count.
+model PostLike {
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([postId, userId])
+  @@index([postId])
+  @@map("post_likes")
 }
 
 model MemberConnection {

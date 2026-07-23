@@ -4,11 +4,13 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
+import { getSession } from '@/lib/session'
 import { sanitize } from '@/lib/sanitize'
 import { resolveImageUrl } from '@/lib/data'
 import { SITE_URL, APP_URL } from '@/lib/env'
 import { HANDBOOK_TO_GUIDE } from '@/lib/handbook-links'
 import SocialShare from '@/components/SocialShare'
+import ArticleLike from '@/components/ArticleLike'
 import HandbookArticleTracker from '@/components/HandbookArticleTracker'
 import EditableArticle from './EditableArticle'
 
@@ -74,9 +76,14 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
     openGraph: {
       title,
       description,
-      url:    pageUrl,
-      images: [{ url: imageUrl, secureUrl: imageUrl, width: 1200, height: 630, alt: post.title }],
-      type:   'article',
+      url:      pageUrl,
+      // siteName gives Facebook/LinkedIn a proper attribution line under the
+      // headline instead of falling back to the bare domain. locale stops
+      // them guessing the language from the page text.
+      siteName: 'Smileys Community',
+      locale:   'en_US',
+      images:   [{ url: imageUrl, secureUrl: imageUrl, width: 1200, height: 630, alt: post.title }],
+      type:     'article',
     },
     twitter: {
       card:        'summary_large_image',
@@ -93,6 +100,18 @@ export default async function HandbookArticlePage({ params }: Params) {
   if (!post || post.kind !== 'handbook' || post.status !== 'published') notFound()
 
   const related = await getHandbookRelated(post.category, post.id)
+
+  // Likes are read OUTSIDE getHandbookArticle's unstable_cache: the count
+  // would go stale for 5 minutes, and "did you like this" is per-viewer so
+  // it must never be shared across users by a cache entry.
+  const session   = await getSession()
+  const likeCount = await prisma.postLike.count({ where: { postId: post.id } })
+  const likedByMe = session
+    ? (await prisma.postLike.findUnique({
+        where:  { postId_userId: { postId: post.id, userId: session.id } },
+        select: { postId: true },
+      })) !== null
+    : false
 
   const catCls  = CATEGORY_STYLES[post.category] ?? 'bg-gray-100 text-gray-700'
   const pageUrl = `${APP_URL}/handbook/${post.slug}`
@@ -165,6 +184,17 @@ export default async function HandbookArticlePage({ params }: Params) {
             to a friend who isn't in the community yet. cacheKey busts stale
             WhatsApp/Facebook link previews when the article is edited. */}
         <div className="mt-10 pt-8 border-t border-gray-100">
+          {/* Like sits just above share: both are "I got something out of
+              this" actions, and grouping them keeps one end-of-article
+              row rather than two competing ones. */}
+          <div className="mb-6">
+            <ArticleLike
+              slug={post.slug}
+              initialCount={likeCount}
+              initialLiked={likedByMe}
+              isLoggedIn={session !== null}
+            />
+          </div>
           <SocialShare
             title={`${post.title} — Smileys Community Istanbul Handbook`}
             url={`${APP_URL}/handbook/${post.slug}`}
