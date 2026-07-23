@@ -23,7 +23,41 @@ if [ "${FILE_COUNT:-0}" -lt 50 ]; then
 fi
 
 echo "→ Checking for vulnerabilities..."
-npm audit --audit-level=high --legacy-peer-deps || { echo "✗ npm audit found high/critical vulnerabilities — fix before deploying"; exit 1; }
+# Audit gate: block on any high/critical ADVISORY except documented, verified-
+# non-applicable exceptions listed in AUDIT_ALLOW (moderate/low never gate).
+#
+# 2026-07-23 — coordinated Next.js security release; all fixed in 15.5.21, but
+# 15.5.21 regresses CSP nonce injection (drops the nonce from <script> tags, so
+# our strict-dynamic CSP would block every script and take the site down —
+# caught by the smoke test). We stay on a pinned next@15.5.18 until a Next
+# release fixes the nonce, and accept these three HIGH advisories, each verified
+# NOT applicable to this app:
+#   GHSA-m99w-x7hq-7vfj  DoS via Server Actions   — app uses zero Server Actions
+#   GHSA-89xv-2m56-2m9x  SSRF via Server Actions  — app uses zero Server Actions
+#   GHSA-p9j2-gv94-2wf4  SSRF via rewrites         — rewrites use static hosts
+#                                                    (only :path* is templated)
+# Re-audit and drop these the moment we can move off 15.5.18.
+AUDIT_ALLOW="GHSA-m99w-x7hq-7vfj GHSA-89xv-2m56-2m9x GHSA-p9j2-gv94-2wf4"
+npm audit --json --legacy-peer-deps 2>/dev/null | AUDIT_ALLOW="$AUDIT_ALLOW" python3 -c '
+import json, os, sys
+allow = set(os.environ.get("AUDIT_ALLOW", "").split())
+data = json.load(sys.stdin)
+blocking = []
+for name, info in data.get("vulnerabilities", {}).items():
+    for v in info.get("via", []):
+        if not isinstance(v, dict) or v.get("severity") not in ("high", "critical"):
+            continue
+        gh = (v.get("url", "") or "").rstrip("/").split("/")[-1]
+        if gh not in allow:
+            sev = v.get("severity")
+            title = (v.get("title") or "")[:60]
+            blocking.append(f"{sev} {name} {gh} {title}")
+if blocking:
+    print("Blocking high/critical advisories (not allow-listed):")
+    for b in blocking: print("  " + b)
+    sys.exit(1)
+print("Audit OK — allow-listed non-applicable exceptions: " + ", ".join(sorted(allow)))
+' || { echo "✗ npm audit found blocking high/critical vulnerabilities — fix before deploying"; exit 1; }
 
 # Preflight: kill any leftover `next dev` server (or whatever holds :3000).
 # On this low-memory box a running dev server starves the build's worker
@@ -200,5 +234,14 @@ ssh "$SERVER" "cd $REMOTE && npx tsx --env-file=.env scripts/seed-cup.ts"
 # venue before writing).
 echo "→ Overlaying real FIFA schedule on group fixtures..."
 ssh "$SERVER" "cd $REMOTE && npx tsx --env-file=.env scripts/fix-group-fixtures.ts"
+
+# Warm the OG image route. /api/og pulls in the satori/resvg render stack
+# and its fonts on first invocation, which costs ~19s cold — long enough that
+# a Facebook/WhatsApp crawler scraping a shared link in the minutes right
+# after a restart times out and renders the preview with no image (and then
+# caches that miss). One throwaway request pays that cost for us instead.
+# Best-effort: never fail the deploy over a warmup.
+echo "→ Warming OG image route..."
+ssh "$SERVER" "curl -s -o /dev/null -m 60 -w '  og warm: HTTP %{http_code} in %{time_total}s\n' 'http://localhost:3000/app/api/og?title=warmup' || echo '  (og warmup skipped)'"
 
 echo "✓ Done (release: $APP_RELEASE)"
