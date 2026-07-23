@@ -30,7 +30,6 @@ interface Props {
   category:      string
   catCls:        string
   coverImage:    string | null
-  categoryHero:  { src: string; alt: string } | null  // per-category banner, used as the hero when there's no cover
   status:        string
   authorName:    string
   authorColor:   string | null
@@ -155,15 +154,12 @@ export default function EditableArticle(props: Props) {
         </div>
       )}
 
-      {/* Hero: the article's own cover if it has one, otherwise the category
-          banner so every article opens with an image. */}
-      {props.coverImage ? (
+      {/* Hero: article cover only. Category-level banner fallback was removed —
+          articles without a cover open text-first. */}
+      {props.coverImage && (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={props.coverImage} alt={props.title} className="w-full h-56 sm:h-72 object-cover rounded-2xl mb-8" />
-      ) : props.categoryHero ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={props.categoryHero.src} alt={props.categoryHero.alt} className="w-full h-56 sm:h-72 object-cover rounded-2xl mb-8" />
-      ) : null}
+      )}
 
       <span className={`inline-block px-2 py-1 rounded-full text-[11px] font-bold ${props.catCls}`}>{props.category}</span>
       <h1 className="text-3xl sm:text-5xl font-extrabold text-gray-900 mt-4 mb-5 leading-[1.1] tracking-tight">

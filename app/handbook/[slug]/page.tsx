@@ -9,7 +9,6 @@ import { sanitize } from '@/lib/sanitize'
 import { resolveImageUrl } from '@/lib/data'
 import { SITE_URL, APP_URL } from '@/lib/env'
 import { HANDBOOK_TO_GUIDE } from '@/lib/handbook-links'
-import { resolveCategoryHero } from '@/lib/handbookHeroes'
 import SocialShare from '@/components/SocialShare'
 import ArticleLike from '@/components/ArticleLike'
 import HandbookArticleTracker from '@/components/HandbookArticleTracker'
@@ -174,7 +173,6 @@ export default async function HandbookArticlePage({ params }: Params) {
           category={post.category}
           catCls={catCls}
           coverImage={post.coverImage}
-          categoryHero={resolveCategoryHero(post.category)}
           status={post.status}
           authorName={post.author.name}
           authorColor={post.author.color}
