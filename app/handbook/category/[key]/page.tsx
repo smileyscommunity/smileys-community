@@ -9,7 +9,7 @@ const getHandbookCategory = unstable_cache(
   async (category: string) => prisma.post.findMany({
     where:   { kind: 'handbook', status: 'published', category },
     orderBy: { publishedAt: 'desc' },
-    select:  { id: true, slug: true, title: true, excerpt: true, coverImage: true, publishedAt: true, author: { select: { name: true } } },
+    select:  { id: true, slug: true, title: true, excerpt: true, coverImage: true, body: true, publishedAt: true, author: { select: { name: true } } },
   }),
   ['handbook-category'],
   { revalidate: 300, tags: ['handbook'] },
@@ -60,10 +60,14 @@ export default async function HandbookCategoryPage({ params }: Params) {
               No articles in this category yet — first ones coming soon.
             </div>
           ) : articles.map(a => {
-            // Article's own cover renders alongside title + excerpt when
-            // set; otherwise fall back to the category banner so every
-            // row has a thumbnail without waiting for per-article uploads.
-            const cover = a.coverImage ? resolveImageUrl(a.coverImage) : (categoryHero(decoded)?.src ?? null)
+            // Prefer explicit coverImage, then the first inline <img> in the
+            // body (most authors paste a hero at the top of the editor rather
+            // than setting the separate cover field), then the category banner.
+            const inline = a.body.match(/<img\b[^>]*\bsrc=["']([^"']+)["']/i)?.[1]
+            const cover =
+              a.coverImage ? resolveImageUrl(a.coverImage)
+              : inline     ? resolveImageUrl(inline)
+              :              (categoryHero(decoded)?.src ?? null)
             return (
               <Link key={a.id} href={`/handbook/${a.slug}`}
                 className="block bg-white rounded-2xl border border-gray-200 overflow-hidden hover:border-amber-300 hover:shadow-sm hover:-translate-y-0.5 transition-all group">

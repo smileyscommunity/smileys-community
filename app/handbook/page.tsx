@@ -4,17 +4,22 @@ import { prisma } from '@/lib/prisma'
 import { resolveImageUrl } from '@/lib/data'
 import { categoryHero } from '@/lib/handbook-categories'
 
-// Prefer the article's own cover; fall back to the category banner so
-// listings always show a thumbnail without waiting for per-article uploads.
-function articleCover(a: { coverImage: string | null; category: string }): string | null {
-  return a.coverImage ? resolveImageUrl(a.coverImage) : (categoryHero(a.category)?.src ?? null)
+// Prefer explicit coverImage, then the first inline <img> in the body (most
+// articles paste a hero photo at the top via the rich-text editor rather than
+// setting the separate cover field), then the category banner as a last resort.
+const FIRST_BODY_IMG_RE = /<img\b[^>]*\bsrc=["']([^"']+)["']/i
+function articleCover(a: { coverImage: string | null; body: string; category: string }): string | null {
+  if (a.coverImage) return resolveImageUrl(a.coverImage)
+  const inline = a.body.match(FIRST_BODY_IMG_RE)?.[1]
+  if (inline) return resolveImageUrl(inline)
+  return categoryHero(a.category)?.src ?? null
 }
 
 const getHandbookArticles = unstable_cache(
   async () => prisma.post.findMany({
     where:   { kind: 'handbook', status: 'published' },
     orderBy: { publishedAt: 'desc' },
-    select:  { id: true, slug: true, title: true, excerpt: true, coverImage: true, category: true, publishedAt: true, author: { select: { name: true } } },
+    select:  { id: true, slug: true, title: true, excerpt: true, coverImage: true, body: true, category: true, publishedAt: true, author: { select: { name: true } } },
   }),
   ['handbook-articles'],
   { revalidate: 300, tags: ['handbook'] },
