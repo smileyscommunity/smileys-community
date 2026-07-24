@@ -77,10 +77,9 @@ export default async function HandbookPage() {
     if (!byCategory[a.category]) byCategory[a.category] = []
     byCategory[a.category].push(a)
   }
-  // Show the newest article at full size, then up to 4 more as compact
-  // rows underneath so recent updates aren't buried in a category card.
+  // Newest 5 articles, all rendered in a single uniform style so no piece
+  // gets more visual weight than the others.
   const latest = articles.slice(0, 5)
-  const [featured, ...moreLatest] = latest
 
   return (
     <main>
@@ -131,82 +130,45 @@ export default async function HandbookPage() {
         </div>
       </section>
 
-      {/* Latest — surfaced separately so brand-new articles get discovery
-          love beyond just sitting in a category bucket. Top slot renders
-          large; the next four stack below as tight rows. */}
-      {featured && (
+      {/* Latest — up to 5 newest articles, all rendered in the same
+          flanked-card style so none is visually privileged. */}
+      {latest.length > 0 && (
         <section className="bg-gray-50 border-b border-gray-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
             <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-6">
               {latest.length > 1 ? 'Latest articles' : 'Latest article'}
             </h2>
-            <Link href={`/handbook/${featured.slug}`} className="block bg-white rounded-2xl border border-gray-200 hover:border-amber-300 hover:shadow-md transition-all group overflow-hidden">
-              {(() => {
-                const cover = articleCover(featured)
+            <div className="space-y-4">
+              {latest.map(a => {
+                const cover = articleCover(a)
                 return (
-                  <div className={cover ? 'sm:flex sm:items-stretch' : ''}>
-                    {cover && (
-                      <div className="w-full sm:w-64 shrink-0 bg-gray-100 overflow-hidden aspect-[3/2] sm:aspect-auto">
-                        <img src={cover} alt=""
-                          className="w-full h-full object-cover" loading="lazy" decoding="async" />
-                      </div>
-                    )}
-                <div className="p-7 min-w-0">
-                  <div className="flex items-center gap-2 mb-3 text-xs text-gray-600">
-                    <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-bold">{featured.category}</span>
-                    {featured.publishedAt && <span>· {formatDate(featured.publishedAt)}</span>}
-                    {featured.author?.name && <span>· by {featured.author.name.split(' ')[0]}</span>}
-                  </div>
-                  <h3 className="text-2xl font-extrabold text-gray-900 mb-2 group-hover:text-amber-600 transition-colors leading-tight">
-                    {featured.title}
-                  </h3>
-                  {featured.excerpt && (
-                    <p className="text-sm text-gray-600 leading-relaxed line-clamp-2">{featured.excerpt}</p>
-                  )}
-                  <p className="text-sm text-amber-600 font-bold mt-4 group-hover:translate-x-0.5 transition-transform">Read it →</p>
-                </div>
-              </div>
-                )
-              })()}
-            </Link>
-            {moreLatest.length > 0 && (
-              <ul className="mt-4 divide-y divide-gray-200 bg-white rounded-2xl border border-gray-200 overflow-hidden">
-                {moreLatest.map(a => {
-                  const cover = articleCover(a)
-                  return (
-                  <li key={a.id}>
-                    <Link
-                      href={`/handbook/${a.slug}`}
-                      className="flex items-center gap-3 px-4 sm:px-5 py-3 hover:bg-amber-50 transition-colors group"
-                    >
-                      {cover ? (
-                        <img
-                          src={cover} alt=""
-                          className="w-14 h-14 rounded-lg object-cover shrink-0 bg-gray-100"
-                          loading="lazy" decoding="async"
-                        />
-                      ) : (
-                        <div className="w-14 h-14 rounded-lg bg-gray-100 shrink-0" aria-hidden="true" />
+                  <Link key={a.id} href={`/handbook/${a.slug}`}
+                    className="block bg-white rounded-2xl border border-gray-200 hover:border-amber-300 hover:shadow-md transition-all group overflow-hidden">
+                    <div className={cover ? 'sm:flex sm:items-stretch' : ''}>
+                      {cover && (
+                        <div className="w-full sm:w-56 shrink-0 bg-gray-100 overflow-hidden aspect-[3/2] sm:aspect-auto">
+                          <img src={cover} alt=""
+                            className="w-full h-full object-cover" loading="lazy" decoding="async" />
+                        </div>
                       )}
-                      <div className="min-w-0 flex-1">
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-amber-700 bg-amber-100 rounded-full px-2 py-0.5">
-                          {a.category}
-                        </span>
-                        <p className="text-sm font-bold text-gray-900 group-hover:text-amber-600 transition-colors line-clamp-1 mt-1">
+                      <div className="p-6 min-w-0">
+                        <div className="flex items-center gap-2 mb-2 text-xs text-gray-600">
+                          <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-bold">{a.category}</span>
+                          {a.publishedAt && <span>· {formatDate(a.publishedAt)}</span>}
+                          {a.author?.name && <span>· by {a.author.name.split(' ')[0]}</span>}
+                        </div>
+                        <h3 className="text-lg sm:text-xl font-extrabold text-gray-900 group-hover:text-amber-600 transition-colors leading-tight">
                           {a.title}
-                        </p>
+                        </h3>
+                        {a.excerpt && (
+                          <p className="text-sm text-gray-600 mt-2 leading-relaxed line-clamp-2">{a.excerpt}</p>
+                        )}
                       </div>
-                      {a.publishedAt && (
-                        <span className="text-xs text-gray-500 shrink-0 hidden sm:inline">
-                          {formatDate(a.publishedAt)}
-                        </span>
-                      )}
-                    </Link>
-                  </li>
+                    </div>
+                  </Link>
                 )
-                })}
-              </ul>
-            )}
+              })}
+            </div>
           </div>
         </section>
       )}
