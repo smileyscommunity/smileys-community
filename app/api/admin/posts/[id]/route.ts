@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { canManagePosts } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
-import { CATEGORIES, HANDBOOK_CATEGORIES, isValidCategory, TITLE_MAX, EXCERPT_MAX, BODY_MAX } from '@/app/admin/posts/constants'
+import { CATEGORIES, HANDBOOK_CATEGORIES, isKind, isValidCategory, TITLE_MAX, EXCERPT_MAX, BODY_MAX } from '@/app/admin/posts/constants'
 
 // Match POST. External cover URLs would leak visitor IPs on render.
 const COVER_PATH_RE = /^\/app\/api\/files\/[a-zA-Z0-9\-_/]+\.(jpg|jpeg|png|webp|gif)$/i
@@ -24,10 +24,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!session || !canManagePosts(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { id } = await params
-  const { title, excerpt, body, coverImage, status, category } = await req.json()
+  const { title, excerpt, body, coverImage, status, category, kind } = await req.json()
   const existing = await prisma.post.findUnique({ where: { id } })
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  const postKind = existing.kind ?? 'community'
+  // Kind can be edited (blog↔handbook). Fall back to existing when the body
+  // omits it or sends a value outside the whitelist. Category is validated
+  // against the *new* kind so a simultaneous kind+category change is coherent.
+  const postKind = isKind(kind) ? kind : (existing.kind ?? 'community')
   const cleanTitle   = String(title   ?? '').trim()
   const cleanExcerpt = excerpt ? String(excerpt).trim() : ''
   const cleanBody    = String(body    ?? '').trim()
@@ -60,6 +63,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       coverImage:  cleanCover || null,
       status:      nowPublished ? 'published' : 'draft',
       category:    cleanCategory,
+      kind:        postKind,
       publishedAt: nowPublished
         ? (wasPublished ? existing.publishedAt : new Date())
         : null,
