@@ -1,5 +1,7 @@
 import { prisma } from './prisma'
 import { sendPushToUser } from './push'
+import { APP_URL } from './env'
+import { refreshFacebookPreview } from './socialPreview'
 
 // Which preference field gates each type. null = always send (transactional).
 const PREF_KEY: Record<string, 'newEvents' | 'reminders' | 'eventUpdates' | 'joinedEvents' | 'wallPosts' | 'wallReplies' | null> = {
@@ -97,11 +99,16 @@ export async function createNotification(
   try {
     const prefKey = PREF_KEY[type]
 
+    // Quiet hours suppress only the push ping — the in-app bell entry is still
+    // recorded, so a notification sent during a member's quiet window is there
+    // waiting when they next open notifications rather than vanishing. Muting a
+    // type (pref = false) still skips it entirely.
+    let suppressPush = false
     if (prefKey !== undefined && prefKey !== null) {
       const prefs = await prisma.notificationPreference.findUnique({ where: { userId } })
       if (prefs) {
         if (!prefs[prefKey]) return
-        if (prefs.quietHours && inQuietWindow(prefs.quietFrom, prefs.quietTo)) return
+        if (prefs.quietHours && inQuietWindow(prefs.quietFrom, prefs.quietTo)) suppressPush = true
       }
     }
 
@@ -148,8 +155,9 @@ export async function createNotification(
 
     await prisma.notification.create({ data: { userId, type, title, body, link } })
 
-    // Fire push notification (non-blocking, best-effort)
-    sendPushToUser(userId, { title, body, link }).catch(() => {})
+    // Fire push notification (non-blocking, best-effort). Skipped during the
+    // member's quiet hours — the bell entry above was still recorded.
+    if (!suppressPush) sendPushToUser(userId, { title, body, link }).catch(() => {})
   } catch (e) {
     console.error('Failed to create notification:', e)
   }
@@ -184,6 +192,10 @@ export async function notifyNewArticle(post: {
   const isHandbook = post.kind === 'handbook'
   const link  = isHandbook ? `/handbook/${post.slug}` : `/posts/${post.slug}`
   const title = isHandbook ? '📖 New in the Handbook' : '📰 New from Smileys'
+
+  // Prime Facebook's share cache so the first share of this article shows the
+  // correct preview. No-op unless FACEBOOK_APP_TOKEN is configured.
+  refreshFacebookPreview(`${APP_URL}${link}`).catch(() => {})
 
   const members = await prisma.user.findMany({
     where: { status: 'approved', ...(post.authorId ? { id: { not: post.authorId } } : {}) },
