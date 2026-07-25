@@ -1,3 +1,9 @@
+// STATUS: already run on 2026-07-25 (announced the 5 pre-feature handbook
+// articles to the membership). Now idempotent — notifyNewArticle claims
+// Post.notifiedAt, which is set on every published article, so re-running this
+// is a no-op. To deliberately re-announce, clear notifiedAt on the target rows
+// first. Kept as provenance per the scripts/ one-off convention.
+//
 // One-off backfill: send the "new article" notification for every already-
 // published article that predates the notify-on-publish feature. Reuses
 // notifyNewArticle so per-member preference gating (newEvents) and quiet
