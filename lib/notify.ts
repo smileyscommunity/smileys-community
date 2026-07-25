@@ -170,6 +170,17 @@ export async function notifyNewArticle(post: {
   kind: string | null
   authorId: string | null
 }) {
+  // Atomically claim the broadcast: only the caller that flips notifiedAt from
+  // null proceeds. Closes the double-submit race (two concurrent publishes),
+  // the unpublish→republish re-notify, and a backfill re-run — all become
+  // no-ops once an article has been announced. To deliberately re-announce,
+  // clear notifiedAt first.
+  const claim = await prisma.post.updateMany({
+    where: { id: post.id, notifiedAt: null },
+    data:  { notifiedAt: new Date() },
+  })
+  if (claim.count === 0) return
+
   const isHandbook = post.kind === 'handbook'
   const link  = isHandbook ? `/handbook/${post.slug}` : `/posts/${post.slug}`
   const title = isHandbook ? '📖 New in the Handbook' : '📰 New from Smileys'

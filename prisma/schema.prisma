@@ -1233,6 +1233,10 @@ model Post {
   category    String    @default("Community")
   authorId    String
   publishedAt DateTime?
+  // Set atomically the first time the "new article" broadcast is claimed, so
+  // a double-submitted publish, an unpublish→republish, or a re-run of the
+  // backfill can't re-notify the whole membership. Null = never announced.
+  notifiedAt  DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   kind        String    @default("community")
