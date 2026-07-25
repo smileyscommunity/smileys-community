@@ -1,12 +1,17 @@
 User-agent: *
 Allow: /app/
 Disallow: /app/admin/
-Disallow: /app/api/
 # OG/social preview images live under /app/api — allow crawlers (Facebook,
-# Twitter/X, WhatsApp) to fetch them so link previews show the image.
-# Longest-match wins, so these override the broader /app/api/ block.
+# Twitter/X, WhatsApp) to fetch them so link previews show the image. Scoped
+# to the OG card route and the article-cover folders ONLY — NOT the whole
+# /app/api/files/ tree, which also serves member profile photos (users/) and
+# other member media we must keep out of search indexes. Placed before the
+# broad Disallow so first-match crawlers honor them too; Google/Bing use
+# longest-match and honor them regardless of order.
 Allow: /app/api/og
-Allow: /app/api/files/
+Allow: /app/api/files/posts/
+Allow: /app/api/files/general/
+Disallow: /app/api/
 Disallow: /app/host/
 Disallow: /app/login
 Disallow: /app/dashboard

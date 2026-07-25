@@ -178,7 +178,15 @@ export async function notifyNewArticle(post: {
     where: { status: 'approved', ...(post.authorId ? { id: { not: post.authorId } } : {}) },
     select: { id: true },
   })
-  await Promise.allSettled(
-    members.map(m => createNotification(m.id, 'new_article', title, post.title, link)),
-  )
+
+  // Fan out in bounded batches. A whole-membership `Promise.allSettled` would
+  // dispatch ~1k×(pref lookup + insert + push) concurrently against the pg
+  // pool (default max 10), starving other requests and spiking latency. 50 at
+  // a time keeps the pool healthy while still completing the broadcast quickly.
+  const BATCH = 50
+  for (let i = 0; i < members.length; i += BATCH) {
+    await Promise.allSettled(
+      members.slice(i, i + BATCH).map(m => createNotification(m.id, 'new_article', title, post.title, link)),
+    )
+  }
 }
