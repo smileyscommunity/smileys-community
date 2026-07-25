@@ -4,6 +4,7 @@ import { getSession } from '@/lib/session'
 import { canManagePosts } from '@/lib/access'
 import { slugify } from '@/lib/slug'
 import { writeAudit } from '@/lib/audit'
+import { notifyNewArticle } from '@/lib/notify'
 import { CATEGORIES, HANDBOOK_CATEGORIES, isKind, isValidCategory, TITLE_MAX, EXCERPT_MAX, BODY_MAX } from '@/app/admin/posts/constants'
 
 // Cover image must be a local upload path (the shape /api/upload
@@ -77,5 +78,10 @@ export async function POST(req: NextRequest) {
     { title: post.title, status: post.status, category: post.category, slug: post.slug },
     `${willPublish ? 'Published' : 'Drafted'} article "${post.title}" (${post.category})`,
   )
+  // Notify the membership when an article goes live at creation time.
+  // Fire-and-forget so the ~1k-member fan-out never blocks the save.
+  if (willPublish) {
+    notifyNewArticle(post).catch(err => console.error('notifyNewArticle failed:', err))
+  }
   return NextResponse.json(post)
 }

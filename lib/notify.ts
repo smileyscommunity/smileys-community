@@ -49,6 +49,11 @@ const PREF_KEY: Record<string, 'newEvents' | 'reminders' | 'eventUpdates' | 'joi
   // hangout broadcasts — it's the same "something is happening near you"
   // signal class.
   new_hangout:        'newEvents',
+  // New editorial article published (handbook or community). Same "something
+  // new worth checking" signal class as new_event / new_hangout, so the
+  // newEvents preference + quiet hours gate it too — members who muted event
+  // broadcasts also mute article pings.
+  new_article:        'newEvents',
   // Availability-pulse broadcast to the poster's accepted connections
   // ("X is free to meet now"). Same "something near you" signal class as
   // new_hangout, so the newEvents preference + quiet hours gate it too —
@@ -148,4 +153,32 @@ export async function createNotification(
   } catch (e) {
     console.error('Failed to create notification:', e)
   }
+}
+
+// Broadcast a freshly published article to the whole approved membership.
+// Gated per-user by the `newEvents` preference (via PREF_KEY['new_article'])
+// so muted members and quiet hours are respected inside createNotification.
+// The author is excluded — they just published it.
+//
+// Call this fire-and-forget from the publish route: the fan-out over the full
+// member list must not block the admin's save response. Best-effort, matching
+// the push side of createNotification above.
+export async function notifyNewArticle(post: {
+  id: string
+  title: string
+  slug: string
+  kind: string | null
+  authorId: string | null
+}) {
+  const isHandbook = post.kind === 'handbook'
+  const link  = isHandbook ? `/handbook/${post.slug}` : `/posts/${post.slug}`
+  const title = isHandbook ? '📖 New in the Handbook' : '📰 New from Smileys'
+
+  const members = await prisma.user.findMany({
+    where: { status: 'approved', ...(post.authorId ? { id: { not: post.authorId } } : {}) },
+    select: { id: true },
+  })
+  await Promise.allSettled(
+    members.map(m => createNotification(m.id, 'new_article', title, post.title, link)),
+  )
 }

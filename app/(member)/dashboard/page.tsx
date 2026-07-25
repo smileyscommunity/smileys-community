@@ -228,6 +228,7 @@ export default async function DashboardPage() {
     suggestedMembers, thisWeekEvents, totalMembers, eventsThisWeek, neighborhoodEventCount, newMembers, recentPhotos, trendingEventsRaw, nearbyMembers, newClubs, latestPosts, activeHangouts, recentHangouts, recentPulses, recentConnections, recentReferences, recentRsvps, recentlyCreatedClubs, recentBusinesses,
     // activity-wall extras
     recentEventReviews, recentPlaceReviews, recentHangoutJoins, recentHoodPosts, recentResources, recentTestimonials, recentCupPicks, recentCupDonations,
+    recentArticles,
   ] = await Promise.all([
     clubIds.length
       ? prisma.event.findMany({
@@ -638,6 +639,17 @@ export default async function DashboardPage() {
       orderBy: { createdAt: 'desc' },
       take: 2,
       select: { id: true, donorName: true, donorOrganization: true, prizeTitle: true, createdAt: true },
+    }),
+    // Freshly published articles (handbook + community) within the wall's
+    // 14-day window — surfaces new editorial content in "Recent activity",
+    // not just the dedicated "From Smileys" / "From the Handbook" strips.
+    // publishedAt (not createdAt) drives recency so a long-drafted piece
+    // dates from when it went live, matching when members could first read it.
+    prisma.post.findMany({
+      where:   { status: 'published', kind: { in: ['handbook', 'community'] }, publishedAt: { gte: twoWeeksAgo } },
+      orderBy: { publishedAt: 'desc' },
+      take: 6,
+      select: { id: true, title: true, slug: true, kind: true, publishedAt: true },
     }),
   ])
 
@@ -1208,7 +1220,7 @@ export default async function DashboardPage() {
                 mobile and desktop. Center column renders on every
                 viewport, so a single placement replaces the previous
                 two (mobile-only + right-rail) renders. */}
-            <ClubActivityTimeline members={recentActivity} posts={wallActivity} events={recentClubEvents} photos={recentPhotos} rsvps={recentRsvps} newMembers={newMembers} hangouts={recentHangouts} pulses={recentPulses} connections={recentConnections} references={recentReferences} newClubs={recentlyCreatedClubs} listings={wallListings} businesses={recentBusinesses} eventReviews={recentEventReviews} placeReviews={recentPlaceReviews} visitors={wallVisitors} hangoutJoins={recentHangoutJoins} hoodPosts={wallHoodPosts} resources={recentResources} testimonials={recentTestimonials} cupPicks={recentCupPicks} cupDonations={recentCupDonations} cap={12} />
+            <ClubActivityTimeline members={recentActivity} posts={wallActivity} events={recentClubEvents} photos={recentPhotos} rsvps={recentRsvps} newMembers={newMembers} hangouts={recentHangouts} pulses={recentPulses} connections={recentConnections} references={recentReferences} newClubs={recentlyCreatedClubs} listings={wallListings} businesses={recentBusinesses} eventReviews={recentEventReviews} placeReviews={recentPlaceReviews} visitors={wallVisitors} hangoutJoins={recentHangoutJoins} hoodPosts={wallHoodPosts} resources={recentResources} testimonials={recentTestimonials} cupPicks={recentCupPicks} cupDonations={recentCupDonations} articles={recentArticles} cap={12} />
 
             {/* Upcoming visitors — surfaces /visiting + the new wave
                 action on the dashboard. Component renders nothing when

@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { canManagePosts } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
+import { notifyNewArticle } from '@/lib/notify'
 import { CATEGORIES, HANDBOOK_CATEGORIES, isKind, isValidCategory, TITLE_MAX, EXCERPT_MAX, BODY_MAX } from '@/app/admin/posts/constants'
 
 // Match POST. External cover URLs would leak visitor IPs on render.
@@ -88,6 +89,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   // so bust that too — otherwise handbook edits lag by up to 300s.
   revalidateTag('posts')
   revalidateTag('handbook')
+  // Notify the membership only on the draft→published transition — never on
+  // edits of an already-live article (would re-ping on every typo fix).
+  // Fire-and-forget so the ~1k-member fan-out never blocks the save.
+  if (action === 'post.publish') {
+    notifyNewArticle(post).catch(err => console.error('notifyNewArticle failed:', err))
+  }
   return NextResponse.json(post)
 }
 

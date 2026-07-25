@@ -84,6 +84,14 @@ type NewClub = {
   createdAt: Date | string
 }
 
+type NewArticle = {
+  id: string
+  title: string
+  slug: string
+  kind: string | null              // 'handbook' | 'community'
+  publishedAt: Date | string | null // always set for published posts; typed nullable to match Prisma
+}
+
 type NewListing = {
   id: string
   title: string
@@ -198,6 +206,7 @@ interface Props {
   testimonials?: TestimonialItem[]
   cupPicks?:     CupPick[]
   cupDonations?: CupDonation[]
+  articles?:     NewArticle[]
   cap?:          number
 }
 
@@ -224,6 +233,7 @@ type TimelineItem =
   | { kind: 'testimonial';  ts: number; data: TestimonialItem  }
   | { kind: 'cuppick';      ts: number; data: CupPick          }
   | { kind: 'cupdonation';  ts: number; data: CupDonation      }
+  | { kind: 'article';      ts: number; data: NewArticle       }
 
 // "2h", "3d", "Just now". Tighter than a full sentence — the card is
 // narrow and the relative gap (recent vs. days old) is the only thing
@@ -250,7 +260,7 @@ function Avatar({ name, color }: { name: string; color: string }) {
   )
 }
 
-export default function ClubActivityTimeline({ members, posts, events, photos = [], rsvps = [], newMembers = [], hangouts = [], pulses = [], connections = [], references = [], newClubs = [], listings = [], businesses = [], eventReviews = [], placeReviews = [], visitors = [], hangoutJoins = [], hoodPosts = [], resources = [], testimonials = [], cupPicks = [], cupDonations = [], cap = 6 }: Props) {
+export default function ClubActivityTimeline({ members, posts, events, photos = [], rsvps = [], newMembers = [], hangouts = [], pulses = [], connections = [], references = [], newClubs = [], listings = [], businesses = [], eventReviews = [], placeReviews = [], visitors = [], hangoutJoins = [], hoodPosts = [], resources = [], testimonials = [], cupPicks = [], cupDonations = [], articles = [], cap = 6 }: Props) {
   const merged: TimelineItem[] = [
     ...members    .map(m => ({ kind: 'member'     as const, ts: new Date(m.joinedAt).getTime(),   data: m })),
     ...posts      .map(p => ({ kind: 'post'       as const, ts: new Date(p.createdAt).getTime(),  data: p })),
@@ -274,6 +284,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
     ...testimonials.map(t => ({ kind: 'testimonial' as const, ts: new Date(t.createdAt).getTime(),   data: t })),
     ...cupPicks    .map(p => ({ kind: 'cuppick'     as const, ts: new Date(p.submittedAt).getTime(), data: p })),
     ...cupDonations.map(d => ({ kind: 'cupdonation' as const, ts: new Date(d.createdAt).getTime(),   data: d })),
+    ...articles    .map(a => ({ kind: 'article'     as const, ts: new Date(a.publishedAt ?? 0).getTime(), data: a })),
   ].sort((a, b) => b.ts - a.ts)
 
   // Per-kind cap: high-frequency sources (RSVPs, joins, cup picks)
@@ -636,6 +647,24 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                   {'New in the directory — '}
                   <span className="font-semibold text-amber-600">{name}</span>
                   <span className="text-gray-500"> · {category}</span>
+                </p>
+                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
+              </Link>
+            )
+          }
+          if (it.kind === 'article') {
+            const { title, slug, kind: postKind } = it.data
+            const isHandbook = postKind === 'handbook'
+            const href = isHandbook ? `/handbook/${slug}` : `/posts/${slug}`
+            return (
+              <Link key={`ar-${i}`} href={href}
+                    className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
+                <div className="w-7 h-7 rounded-xl bg-amber-50 flex items-center justify-center text-base shrink-0">
+                  {isHandbook ? '📖' : '📰'}
+                </div>
+                <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
+                  {isHandbook ? 'New handbook article — ' : 'New from Smileys — '}
+                  <span className="font-semibold text-amber-600">{title}</span>
                 </p>
                 <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
               </Link>
