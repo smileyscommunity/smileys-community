@@ -63,6 +63,7 @@ export default async function DashboardPage() {
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
   const weekAgo    = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
   const twoWeeksAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000)
+  const monthAgo    = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
   const weekEnd    = new Date(); weekEnd.setDate(weekEnd.getDate() + 7)
   const weekEndStr = weekEnd.toISOString().split('T')[0]
 
@@ -640,13 +641,13 @@ export default async function DashboardPage() {
       take: 2,
       select: { id: true, donorName: true, donorOrganization: true, prizeTitle: true, createdAt: true },
     }),
-    // Published articles (handbook + community) for the activity wall. No date
-    // window — the 5 most recent always surface in "Recent activity" (they're
-    // pinned in ClubActivityTimeline so they don't get buried under higher-
-    // frequency social activity), in addition to the dedicated "From Smileys" /
-    // "From the Handbook" strips. publishedAt drives recency/ordering.
+    // Recently published articles (handbook + community) for the activity wall.
+    // Windowed to the last 30 days and ranked by recency like every other wall
+    // source (NOT pinned): a fresh article surfaces when posted, then naturally
+    // rolls off as newer activity — and newer articles — take its place. The
+    // dedicated "From Smileys" / "From the Handbook" strips carry the full list.
     prisma.post.findMany({
-      where:   { status: 'published', kind: { in: ['handbook', 'community'] } },
+      where:   { status: 'published', kind: { in: ['handbook', 'community'] }, publishedAt: { gte: monthAgo } },
       orderBy: { publishedAt: 'desc' },
       take: 5,
       select: { id: true, title: true, slug: true, kind: true, publishedAt: true },
