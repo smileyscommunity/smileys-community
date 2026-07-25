@@ -60,9 +60,7 @@
     "@hono/node-server": "1.19.14",
     "fast-uri": "3.1.4",
     "sharp": "$sharp",
-    "next": {
-      "postcss": "8.5.14"
-    }
+    "postcss": "$postcss"
   },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.20",
@@ -75,7 +73,7 @@
     "@types/web-push": "^3.6.4",
     "autoprefixer": "^10",
     "dotenv": "^17.4.2",
-    "postcss": "^8.5.15",
+    "postcss": "^8.5.23",
     "tailwindcss": "^3",
     "tsx": "^4.22.3",
     "typescript": "^5",
