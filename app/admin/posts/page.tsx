@@ -14,6 +14,7 @@ interface Post {
   publishedAt:  string | null
   createdAt:    string
   updatedAt:    string
+  views:        number
   // Author can be null if a future migration relaxes the FK to SetNull.
   // Defensive render path below.
   author:       { name: string } | null
@@ -163,6 +164,9 @@ export default function AdminPostsPage() {
                       after creation/publish — was previously hidden. */}
                   {post.updatedAt && post.updatedAt !== (post.publishedAt ?? post.createdAt) && (
                     <> · edited {timeAgo(post.updatedAt)}</>
+                  )}
+                  {post.status === 'published' && (
+                    <> · 👁 {post.views.toLocaleString()} view{post.views === 1 ? '' : 's'}</>
                   )}
                 </p>
               </div>

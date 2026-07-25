@@ -7,6 +7,7 @@ import { resolveImageUrl, avatarUrl } from '@/lib/data'
 import { APP_URL, SITE_URL } from '@/lib/env'
 import { sanitize } from '@/lib/sanitize'
 import ArticleInlineEditor from '@/components/ArticleInlineEditor'
+import ArticleViewBeacon from '@/components/ArticleViewBeacon'
 
 const getPost = unstable_cache(
   async (slug: string) => prisma.post.findUnique({
@@ -185,9 +186,13 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
           </div>
           <div>
             <p className="text-sm font-semibold text-gray-900">{post.author.name}</p>
-            <p className="text-xs text-gray-400">{formatDate(post.publishedAt)}</p>
+            <p className="text-xs text-gray-400">
+              {formatDate(post.publishedAt)}
+              {post.views > 0 && ` · 👁 ${post.views.toLocaleString()} view${post.views === 1 ? '' : 's'}`}
+            </p>
           </div>
         </div>
+        <ArticleViewBeacon slug={post.slug} />
 
         {/* Body */}
         <div className="prose-like">

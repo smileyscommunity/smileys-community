@@ -35,6 +35,7 @@ interface Props {
   authorColor:   string | null
   publishedAt:   string | null   // ISO
   updatedAt:     string | null   // ISO
+  views:         number
 }
 
 function formatDate(d: string | null) {
@@ -177,6 +178,7 @@ export default function EditableArticle(props: Props) {
             {props.publishedAt && `Published ${formatDate(props.publishedAt)}`}
             {props.updatedAt && props.publishedAt && new Date(props.updatedAt).getTime() !== new Date(props.publishedAt).getTime() &&
               ` · Last reviewed ${formatDate(props.updatedAt)}`}
+            {props.views > 0 && ` · 👁 ${props.views.toLocaleString()} view${props.views === 1 ? '' : 's'}`}
           </p>
         </div>
       </div>

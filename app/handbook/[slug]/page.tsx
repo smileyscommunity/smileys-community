@@ -12,6 +12,7 @@ import { HANDBOOK_TO_GUIDE } from '@/lib/handbook-links'
 import SocialShare from '@/components/SocialShare'
 import ArticleLike from '@/components/ArticleLike'
 import HandbookArticleTracker from '@/components/HandbookArticleTracker'
+import ArticleViewBeacon from '@/components/ArticleViewBeacon'
 import EditableArticle from './EditableArticle'
 
 // Cover image → absolute, WhatsApp/iMessage-safe OG image (same helper shape
@@ -178,7 +179,9 @@ export default async function HandbookArticlePage({ params }: Params) {
           authorColor={post.author.color}
           publishedAt={post.publishedAt ? new Date(post.publishedAt).toISOString() : null}
           updatedAt={post.updatedAt ? new Date(post.updatedAt).toISOString() : null}
+          views={post.views}
         />
+        <ArticleViewBeacon slug={post.slug} />
 
         {/* Share — the handbook is public, so members can send an article
             to a friend who isn't in the community yet. cacheKey busts stale
