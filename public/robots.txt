@@ -2,6 +2,11 @@ User-agent: *
 Allow: /app/
 Disallow: /app/admin/
 Disallow: /app/api/
+# OG/social preview images live under /app/api — allow crawlers (Facebook,
+# Twitter/X, WhatsApp) to fetch them so link previews show the image.
+# Longest-match wins, so these override the broader /app/api/ block.
+Allow: /app/api/og
+Allow: /app/api/files/
 Disallow: /app/host/
 Disallow: /app/login
 Disallow: /app/dashboard
