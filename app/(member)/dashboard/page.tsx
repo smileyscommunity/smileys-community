@@ -640,15 +640,15 @@ export default async function DashboardPage() {
       take: 2,
       select: { id: true, donorName: true, donorOrganization: true, prizeTitle: true, createdAt: true },
     }),
-    // Freshly published articles (handbook + community) within the wall's
-    // 14-day window — surfaces new editorial content in "Recent activity",
-    // not just the dedicated "From Smileys" / "From the Handbook" strips.
-    // publishedAt (not createdAt) drives recency so a long-drafted piece
-    // dates from when it went live, matching when members could first read it.
+    // Published articles (handbook + community) for the activity wall. No date
+    // window — the 5 most recent always surface in "Recent activity" (they're
+    // pinned in ClubActivityTimeline so they don't get buried under higher-
+    // frequency social activity), in addition to the dedicated "From Smileys" /
+    // "From the Handbook" strips. publishedAt drives recency/ordering.
     prisma.post.findMany({
-      where:   { status: 'published', kind: { in: ['handbook', 'community'] }, publishedAt: { gte: twoWeeksAgo } },
+      where:   { status: 'published', kind: { in: ['handbook', 'community'] } },
       orderBy: { publishedAt: 'desc' },
-      take: 6,
+      take: 5,
       select: { id: true, title: true, slug: true, kind: true, publishedAt: true },
     }),
   ])

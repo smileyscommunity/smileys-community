@@ -293,6 +293,11 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
   // a community rather than a counter. Greedy fill by recency, but
   // no kind gets more than 3 of the visible slots.
   const PER_KIND_CAP = 3
+  // Per-kind overrides: published articles are editorial, low-frequency, and
+  // the product owner wants them reliably visible — so they get more slots
+  // than the high-frequency social kinds capped at 3.
+  const KIND_CAP: Partial<Record<TimelineItem['kind'], number>> = { article: 5 }
+  const capFor = (k: TimelineItem['kind']) => KIND_CAP[k] ?? PER_KIND_CAP
   const kindCounts: Partial<Record<TimelineItem['kind'], number>> = {}
   const items: TimelineItem[] = []
   // Pin the "happening right now" signals to the front first — availability
@@ -300,11 +305,14 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
   // they must not lose a visible slot to a newer-but-less-urgent item (a
   // photo, an RSVP). Still bounded by the per-kind cap; `merged` is already
   // recency-sorted so we take the freshest of each.
-  const PINNED = new Set<TimelineItem['kind']>(['pulse', 'hangout'])
+  // Articles join pulses + hangouts as pinned so freshly published editorial
+  // content always claims a slot instead of being buried under higher-frequency
+  // social activity (RSVPs, joins) newer than the article's publish time.
+  const PINNED = new Set<TimelineItem['kind']>(['pulse', 'hangout', 'article'])
   for (const it of merged) {
     if (!PINNED.has(it.kind)) continue
     if (items.length >= cap) break
-    if ((kindCounts[it.kind] ?? 0) >= PER_KIND_CAP) continue
+    if ((kindCounts[it.kind] ?? 0) >= capFor(it.kind)) continue
     kindCounts[it.kind] = (kindCounts[it.kind] ?? 0) + 1
     items.push(it)
   }
@@ -312,7 +320,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
   for (const it of merged) {
     if (PINNED.has(it.kind)) continue
     if (items.length >= cap) break
-    if ((kindCounts[it.kind] ?? 0) >= PER_KIND_CAP) continue
+    if ((kindCounts[it.kind] ?? 0) >= capFor(it.kind)) continue
     kindCounts[it.kind] = (kindCounts[it.kind] ?? 0) + 1
     items.push(it)
   }
