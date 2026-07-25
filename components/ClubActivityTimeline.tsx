@@ -298,11 +298,19 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
   // Pin the "happening right now" signals to the front first — availability
   // pulses and active hangouts. Both are time-boxed (expire in hours), so
   // they must not lose a visible slot to a newer-but-less-urgent item (a
-  // photo, an RSVP). Still bounded by the per-kind cap; `merged` is already
-  // recency-sorted so we take the freshest of each.
-  const PINNED = new Set<TimelineItem['kind']>(['pulse', 'hangout'])
+  // photo, an RSVP). A freshly published article is pinned too, but ONLY for
+  // its first week: long enough that it's guaranteed visible when posted, after
+  // which it un-pins and ages out by recency (and drops entirely past the query
+  // window) — "show it when posted, then let newer content take its place"
+  // rather than pinning it forever. Still bounded by the per-kind cap; `merged`
+  // is already recency-sorted so we take the freshest of each.
+  const ARTICLE_PIN_MS = 7 * 24 * 60 * 60 * 1000
+  const now = Date.now()
+  const isPinned = (it: TimelineItem) =>
+    it.kind === 'pulse' || it.kind === 'hangout' ||
+    (it.kind === 'article' && now - it.ts < ARTICLE_PIN_MS)
   for (const it of merged) {
-    if (!PINNED.has(it.kind)) continue
+    if (!isPinned(it)) continue
     if (items.length >= cap) break
     if ((kindCounts[it.kind] ?? 0) >= PER_KIND_CAP) continue
     kindCounts[it.kind] = (kindCounts[it.kind] ?? 0) + 1
@@ -310,7 +318,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
   }
   // Then fill the remaining slots by recency, per-kind capped as before.
   for (const it of merged) {
-    if (PINNED.has(it.kind)) continue
+    if (isPinned(it)) continue
     if (items.length >= cap) break
     if ((kindCounts[it.kind] ?? 0) >= PER_KIND_CAP) continue
     kindCounts[it.kind] = (kindCounts[it.kind] ?? 0) + 1

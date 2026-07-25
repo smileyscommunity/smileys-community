@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin, isAdminOrModerator, isClubHost, isClubHostFor } from '@/lib/access'
-import { createNotification } from '@/lib/notify'
+import { createNotification, notifyNewEvent } from '@/lib/notify'
 import { writeAudit, getDiff } from '@/lib/audit'
 import { normalizePaymentContact } from '@/lib/safeUrl'
 import { sendEventCancelledEmail, recordEmailFailure } from '@/lib/email'
@@ -286,6 +286,15 @@ export async function PUT(req: NextRequest, { params }: Params) {
       )
     }
 
+    // If this edit published a previously-unpublished event (draft/pending →
+    // published), announce it to club members. This was the gap: publishing via
+    // the full edit form fired NO new_event notification, so the event went live
+    // silently. notifyNewEvent is idempotency-guarded, so if the create/approve
+    // path already announced, this is a no-op.
+    if (before.status !== 'published' && event.status === 'published') {
+      notifyNewEvent({ id, title: event.title, clubId: before.clubId, hostId: before.hostId }).catch(() => {})
+    }
+
     // Notify new host if host assignment changed
     if (rest.hostId && rest.hostId !== before.hostId) {
       createNotification(
@@ -391,11 +400,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       `Event status set to ${status}`,
     )
 
-    // When approving a pending event: notify host + club members
-    if (status === 'published' && before.status === 'pending') {
+    // On any transition into published (approve a pending event, or flip an
+    // unpublished one live): notify host if it was an approval, and announce to
+    // club members. Previously gated to pending→published only, so a
+    // draft/unpublished→published toggle went out silently.
+    if (status === 'published' && before.status !== 'published') {
       ;(async () => {
-        // Notify the host
-        if (before.hostId) {
+        // Host "approved" message only when it was actually pending.
+        if (before.status === 'pending' && before.hostId) {
           await createNotification(
             before.hostId, 'host_assigned',
             'Your event has been approved! 🎉',
@@ -403,23 +415,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
             `/host/events`,
           ).catch(() => {})
         }
-        // Notify club members
-        if (before.clubId) {
-          const [members, club] = await Promise.all([
-            prisma.clubMembership.findMany({
-              where: { clubId: before.clubId, status: 'approved', userId: { not: before.hostId ?? undefined } },
-              select: { userId: true },
-            }),
-            prisma.club.findUnique({ where: { id: before.clubId }, select: { name: true } }),
-          ])
-          await Promise.all(members.map(m =>
-            createNotification(m.userId, 'new_event',
-              `New event in ${club?.name ?? 'your club'} 🎉`,
-              `"${before.title}" has just been posted`,
-              `/events/${id}`,
-            )
-          ))
-        }
+        await notifyNewEvent({ id, title: before.title, clubId: before.clubId, hostId: before.hostId })
       })().catch(() => {})
     }
 

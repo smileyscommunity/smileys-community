@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin, isModerator, isClubHost, isClubHostFor } from '@/lib/access'
-import { createNotification } from '@/lib/notify'
+import { createNotification, notifyNewEvent } from '@/lib/notify'
 import { todayIstanbul } from '@/lib/data'
 import { normalizePaymentContact } from '@/lib/safeUrl'
 import { computeEventSurveyRollup } from '@/lib/survey'
@@ -331,17 +331,10 @@ export async function POST(req: NextRequest) {
       })().catch(() => {})
     }
 
-    // Notify all club members about the new event (fire-and-forget)
+    // Announce to club members when created directly as published
+    // (fire-and-forget; batched + idempotency-guarded inside notifyNewEvent).
     if (eventStatus === 'published') {
-      ;(async () => {
-        const [members, club] = await Promise.all([
-          prisma.clubMembership.findMany({ where: { clubId, status: 'approved', userId: { not: hostId } }, select: { userId: true } }),
-          prisma.club.findUnique({ where: { id: clubId }, select: { name: true } }),
-        ])
-        await Promise.all(members.map(m =>
-          createNotification(m.userId, 'new_event', `New event in ${club?.name ?? 'your club'} 🎉`, `"${title.trim()}" has just been posted`, `/events/${event.id}`)
-        ))
-      })().catch(() => {})
+      notifyNewEvent({ id: event.id, title: title.trim(), clubId, hostId }).catch(() => {})
     }
 
     return NextResponse.json(event)

@@ -207,3 +207,39 @@ export async function notifyNewArticle(post: {
     )
   }
 }
+
+// Announce a newly published CLUB event to that club's approved members
+// (excluding the host). Call from every publish path — create-as-published,
+// approve (pending→published), and edit-to-publish (draft→published) — so an
+// event can't go live silently regardless of how it was published. Idempotency-
+// guarded on the event link: publishing via multiple paths, a double-submit, or
+// a manual re-run announces only once. Batched like notifyNewArticle to spare
+// the pg pool. Non-club events have no member audience and are skipped.
+export async function notifyNewEvent(event: {
+  id: string
+  title: string
+  clubId: string | null
+  hostId: string | null
+}) {
+  if (!event.clubId) return
+  const link = `/events/${event.id}`
+  const already = await prisma.notification.count({ where: { type: 'new_event', link } })
+  if (already > 0) return
+
+  const [club, members] = await Promise.all([
+    prisma.club.findUnique({ where: { id: event.clubId }, select: { name: true } }),
+    prisma.clubMembership.findMany({
+      where: { clubId: event.clubId, status: 'approved', ...(event.hostId ? { userId: { not: event.hostId } } : {}) },
+      select: { userId: true },
+    }),
+  ])
+  const title = `New event in ${club?.name ?? 'your club'} 🎉`
+  const body  = `"${event.title}" has just been posted`
+
+  const BATCH = 50
+  for (let i = 0; i < members.length; i += BATCH) {
+    await Promise.allSettled(
+      members.slice(i, i + BATCH).map(m => createNotification(m.userId, 'new_event', title, body, link)),
+    )
+  }
+}
