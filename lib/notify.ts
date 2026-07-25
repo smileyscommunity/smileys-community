@@ -1,7 +1,5 @@
 import { prisma } from './prisma'
 import { sendPushToUser } from './push'
-import { APP_URL } from './env'
-import { refreshFacebookPreview } from './socialPreview'
 
 // Which preference field gates each type. null = always send (transactional).
 const PREF_KEY: Record<string, 'newEvents' | 'reminders' | 'eventUpdates' | 'joinedEvents' | 'wallPosts' | 'wallReplies' | null> = {
@@ -192,10 +190,6 @@ export async function notifyNewArticle(post: {
   const isHandbook = post.kind === 'handbook'
   const link  = isHandbook ? `/handbook/${post.slug}` : `/posts/${post.slug}`
   const title = isHandbook ? '📖 New in the Handbook' : '📰 New from Smileys'
-
-  // Prime Facebook's share cache so the first share of this article shows the
-  // correct preview. No-op unless FACEBOOK_APP_TOKEN is configured.
-  refreshFacebookPreview(`${APP_URL}${link}`).catch(() => {})
 
   const members = await prisma.user.findMany({
     where: { status: 'approved', ...(post.authorId ? { id: { not: post.authorId } } : {}) },
