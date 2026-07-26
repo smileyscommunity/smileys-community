@@ -764,6 +764,31 @@ export async function sendFirstEventNudgeEmail(
   })
 }
 
+// Internal weekly summary of the first-RSVP nudge cron, sent to admins so the
+// loop reports its own results (send volume + running RSVP conversion).
+export async function sendNudgeReportEmail(
+  to: string,
+  r: { emailed: number; matched: number; segment: number; interestMatched: number; sameHood: number; priorNudged: number; priorConverted: number },
+) {
+  const rate = r.priorNudged > 0 ? Math.round(100 * r.priorConverted / r.priorNudged) : 0
+  await getResend().emails.send({
+    from: FROM, to,
+    subject: `First-RSVP nudge: ${r.emailed} sent · ${rate}% converting`,
+    html: `
+      <div style="font-family:system-ui,sans-serif;max-width:520px;margin:0 auto;padding:24px">
+        <h2 style="font-size:18px;margin:0 0 12px;color:#111827">First-RSVP nudge — weekly run</h2>
+        <p style="color:#374151;font-size:14px;line-height:1.7;margin:0">
+          <strong>${r.emailed}</strong> members emailed this week (of ${r.matched} matched / ${r.segment} in segment).<br>
+          ${r.interestMatched} matched on a stated interest · ${r.sameHood} in their own neighbourhood.
+        </p>
+        <p style="color:#374151;font-size:14px;line-height:1.7;margin:14px 0 0">
+          <strong>Conversion so far:</strong> ${r.priorConverted} of ${r.priorNudged} members nudged 3+ days ago have since RSVP'd (<strong>${rate}%</strong>).
+        </p>
+        <p style="color:#9ca3af;font-size:12px;margin-top:16px">Automated — Smileys first-RSVP nudge cron.</p>
+      </div>`,
+  })
+}
+
 export async function sendListingAlertEmail(
   to: string,
   name: string,

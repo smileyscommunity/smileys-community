@@ -35,6 +35,42 @@ function score(ev: Candidate, hood: string | null, daysAway: number): number | n
   return s
 }
 
+// Member interests → keywords that show up in event titles. Events carry no
+// category/vibe data in practice (all `vibes` empty), so the title is the only
+// signal — but titles are descriptive ("Sunset Sailing Cruise", "Book Club",
+// "Blood on the Clocktower"). A title match on a stated interest is a strong
+// "this is for you" signal for a first event.
+const INTEREST_KEYWORDS: Record<string, string[]> = {
+  outdoor: ['picnic','hike','walk','park','beach','cruise','sail','outdoor','trek','trail'],
+  social: ['social','mixer','drinks','hangout','meetup','party','sip','pub','bar'],
+  games: ['game','clocktower','trivia','quiz','board','chess','poker','mafia','werewolf'],
+  sailing: ['sail','cruise','boat','yacht'],
+  wellness: ['meditation','yoga','wellness','mindful','breath','pilates','run','sound bath'],
+  dining: ['dinner','brunch','food','dining','tasting','supper','feast','lunch'],
+  networking: ['networking','coworking','business','startup','professional'],
+  languages: ['language','exchange','practice','español','français','deutsch','turkish'],
+  film: ['movie','film','cinema','screening'],
+  music: ['music','concert','jam','karaoke','gig','vinyl'],
+  reading: ['book','reading','literature','poetry'],
+  hiking: ['hike','trek','trail','walk','mountain'],
+  cooking: ['cook','baking','kitchen','recipe'],
+  art: ['art','gallery','paint','museum','craft','pottery','draw'],
+  photography: ['photo','photography'],
+  dancing: ['dance','salsa','tango','bachata'],
+  coffee: ['coffee','cafe','brunch'],
+  'food & drink': ['food','drink','dinner','brunch','tasting','wine','beer'],
+}
+function interestBoost(interests: string[], title: string): number {
+  const t = title.toLowerCase()
+  for (const raw of interests) {
+    const i = raw.toLowerCase()
+    if (i.length >= 4 && t.includes(i)) return 45                 // the interest word itself is in the title
+    const kws = INTEREST_KEYWORDS[i]
+    if (kws && kws.some(k => t.includes(k))) return 45            // a mapped keyword is in the title
+  }
+  return 0
+}
+
 const SOFT_CAP = 25
 function eventCap(ev: Candidate): number {
   return ev.limitedSpots ? Math.max(1, Math.min(ev.spotsLeft, SOFT_CAP)) : SOFT_CAP
@@ -48,7 +84,8 @@ function istanbulDateStr(offsetDays = 0): string {
 
 export interface NudgeResult {
   segment: number; candidates: number; matched: number; emailed: number; failed: number
-  sameHood: number; firstTimerFriendly: number
+  sameHood: number; firstTimerFriendly: number; interestMatched: number
+  priorNudged: number; priorConverted: number   // members nudged ≥3d ago, and how many have since RSVP'd
 }
 
 // Run the matcher and (unless dryRun) email each matched member once, stamping
@@ -71,7 +108,7 @@ export async function runFirstRsvpNudge(opts: { dryRun?: boolean; limit?: number
         joinedEvents: { none: {} },                                              // never RSVP'd
         OR: [{ firstRsvpNudgedAt: null }, { firstRsvpNudgedAt: { lt: thirtyDaysAgo } }], // not nudged in 30d
       },
-      select: { id: true, name: true, neighborhood: true, email: true },
+      select: { id: true, name: true, neighborhood: true, email: true, interests: true },
     }),
     prisma.event.findMany({
       where: { status: 'published', date: { gte: from, lte: to } },
@@ -98,7 +135,10 @@ export async function runFirstRsvpNudge(opts: { dryRun?: boolean; limit?: number
   const matches: { member: typeof members[number]; ev: Candidate; sameHood: boolean }[] = []
   for (const m of members) {
     const ranked = candidates
-      .map(ev => ({ ev, sc: score(ev, m.neighborhood, dayIndex(ev.date)) }))
+      .map(ev => {
+        const base = score(ev, m.neighborhood, dayIndex(ev.date))
+        return { ev, sc: base === null ? null : base + interestBoost(m.interests, ev.title) }
+      })
       .filter((x): x is { ev: Candidate; sc: number } => x.sc !== null)
       .sort((a, b) => b.sc - a.sc)
     for (const { ev } of ranked) {
@@ -107,11 +147,21 @@ export async function runFirstRsvpNudge(opts: { dryRun?: boolean; limit?: number
     }
   }
 
+  // Running attribution: members nudged ≥3 days ago (had a chance to act) who
+  // now have any RSVP. They had zero RSVPs when nudged, so this is clean.
+  const threeDaysAgo = new Date(Date.now() - 3 * 86_400_000)
+  const [priorNudged, priorConverted] = await Promise.all([
+    prisma.user.count({ where: { firstRsvpNudgedAt: { not: null, lt: threeDaysAgo } } }),
+    prisma.user.count({ where: { firstRsvpNudgedAt: { not: null, lt: threeDaysAgo }, joinedEvents: { some: {} } } }),
+  ])
+
   const result: NudgeResult = {
     segment: members.length, candidates: candidates.length, matched: matches.length,
     emailed: 0, failed: 0,
     sameHood: matches.filter(x => x.sameHood).length,
     firstTimerFriendly: matches.filter(x => x.ev.isFirstTimerFriendly).length,
+    interestMatched: matches.filter(x => interestBoost(x.member.interests, x.ev.title) > 0).length,
+    priorNudged, priorConverted,
   }
   if (dryRun) return result
 
