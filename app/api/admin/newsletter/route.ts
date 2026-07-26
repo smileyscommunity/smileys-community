@@ -195,9 +195,9 @@ export async function DELETE(req: NextRequest) {
 }
 
 // PATCH /api/admin/newsletter — flip the weekly auto-newsletter toggle.
-// Every Friday from 10:00 Istanbul the newsletter sweeper composes the
-// digest (events + clubs + new members) and sends it to all opted-in
-// members; see runAutoDigest in the sweep-newsletters cron.
+// Every Monday from 12:00 Istanbul the newsletter sweeper composes the
+// digest (events + clubs + new reads + new members) and sends it to all
+// opted-in members; see runAutoDigest in the sweep-newsletters cron.
 export async function PATCH(req: NextRequest) {
   const session = await getSession()
   if (!session || !isAdmin(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })

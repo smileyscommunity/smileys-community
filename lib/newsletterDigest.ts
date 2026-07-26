@@ -26,7 +26,7 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
   const weekAgoStr = todayIstanbul(-7)
   const weekAgoDate = new Date(Date.now() - 7 * 86_400_000)
 
-  const [events, clubs, newMembers, photos, eventsHeld, checkins, newConnections, listings] = await Promise.all([
+  const [events, clubs, newMembers, photos, eventsHeld, checkins, newConnections, listings, articles] = await Promise.all([
     prisma.event.findMany({
       where:   { status: 'published', date: { gte: today, lte: end } },
       orderBy: [{ date: 'asc' }, { time: 'asc' }],
@@ -58,6 +58,14 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
       orderBy: { createdAt: 'desc' },
       take:    3,
       select:  { id: true, title: true, category: true, price: true, neighborhood: true },
+    }),
+    // New reads — handbook + community articles published this week, so
+    // editorial content gets a weekly nudge (it's otherwise pull-only).
+    prisma.post.findMany({
+      where:   { status: 'published', kind: { in: ['handbook', 'community'] }, publishedAt: { gte: weekAgoDate } },
+      orderBy: { publishedAt: 'desc' },
+      take:    4,
+      select:  { slug: true, title: true, excerpt: true, kind: true },
     }),
   ])
 
@@ -163,6 +171,25 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
     body += `${DIVIDER}<h3 style="font-size:17px;margin:0 0 8px">🛍️ Fresh on the community board</h3>${listingCards}` +
       `<a href="${APP_URL}/listings?${UTM}" style="display:inline-block;margin:2px 0 0;color:#1d4ed8;font-weight:600;font-size:13px;text-decoration:none">Browse all listings →</a>` +
       `<div style="color:#6b7280;font-size:12px;margin-top:6px">Hunting for a room or a job? <a href="${APP_URL}/listings?${UTM}" style="color:#1d4ed8;font-weight:600;text-decoration:none">Set an instant alert</a> and get an email the moment one is posted.</div>`
+  }
+
+  // New reads — articles published in the last 7 days. Rose tint keeps the
+  // section visually distinct from events (amber) / clubs (violet) / board
+  // (blue) / new faces (green). Handbook and community posts link to their
+  // respective public pages.
+  if (articles.length > 0) {
+    const readCards = articles.map(a => {
+      const href = a.kind === 'handbook' ? `/handbook/${a.slug}` : `/posts/${a.slug}`
+      const icon = a.kind === 'handbook' ? '📖' : '📰'
+      const sub  = a.excerpt ? esc(a.excerpt.length > 90 ? `${a.excerpt.slice(0, 89)}…` : a.excerpt) : ''
+      return card(
+        `<a href="${APP_URL}${href}?${UTM}" style="color:#111827;font-weight:700;font-size:15px;text-decoration:none">${icon} ${esc(a.title)}</a>` +
+        (sub ? `<div style="color:#be185d;font-size:13px;margin-top:3px">${sub}</div>` : ''),
+        '#fff1f2', '#fecdd3',
+      )
+    }).join('')
+    body += `${DIVIDER}<h3 style="font-size:17px;margin:0 0 8px">📖 New reads this week</h3>${readCards}` +
+      `<a href="${APP_URL}/handbook?${UTM}" style="display:inline-block;margin:2px 0 0;color:#be185d;font-weight:600;font-size:13px;text-decoration:none">Explore the Handbook →</a>`
   }
 
   // New-member welcome.
