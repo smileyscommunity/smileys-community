@@ -71,7 +71,15 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const title       = `${post.title} — Istanbul Handbook | Smileys Community`
   const description = post.excerpt ?? `Smileys Community handbook: ${post.title}`
   const pageUrl     = `${APP_URL}/handbook/${slug}`
-  const imageUrl    = ogImageUrl(post.coverImage ?? firstBodyImage(post.body), post.title, post.category)
+  const cover       = post.coverImage ?? firstBodyImage(post.body)
+  const imageUrl    = ogImageUrl(cover, post.title, post.category)
+  // The /api/og card is exactly 1200×630, but a real cover/body photo has a
+  // variable aspect ratio — asserting 630 there gives FB/X a wrong hint that
+  // mis-crops the preview on the first scrape. So only declare dimensions for
+  // the card; for a photo, omit them and let the crawler read the true size.
+  const ogImage     = cover
+    ? { url: imageUrl, secureUrl: imageUrl, alt: post.title }
+    : { url: imageUrl, secureUrl: imageUrl, width: 1200, height: 630, alt: post.title }
   return {
     title,
     description,
@@ -84,7 +92,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
       // them guessing the language from the page text.
       siteName: 'Smileys Community',
       locale:   'en_US',
-      images:   [{ url: imageUrl, secureUrl: imageUrl, width: 1200, height: 630, alt: post.title }],
+      images:   [ogImage],
       type:     'article',
     },
     twitter: {

@@ -100,6 +100,12 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const imageUrl = resolved
     ? (resolved.startsWith('http') ? resolved : `${SITE_URL}${resolved}?w=1200`)
     : `${APP_URL}/api/og`
+  // The /api/og card is exactly 1200×630; a real photo has a variable aspect,
+  // so only assert dimensions for the card and let FB/X read a photo's true
+  // size (a wrong height hint mis-crops the first scrape).
+  const ogImage  = resolved
+    ? { url: imageUrl, secureUrl: imageUrl, alt: post.title }
+    : { url: imageUrl, secureUrl: imageUrl, width: 1200, height: 630, alt: post.title }
   return {
     title: `${post.title} — Smileys Community`,
     description: post.excerpt ?? post.body.slice(0, 155),
@@ -109,7 +115,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       url: `${APP_URL}/posts/${slug}`,
       siteName: 'Smileys Community',
       type: 'article',
-      images: [{ url: imageUrl, secureUrl: imageUrl, width: 1200, height: 630, alt: post.title }],
+      images: [ogImage],
     },
     twitter: {
       card: 'summary_large_image',
