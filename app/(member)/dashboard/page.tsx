@@ -66,6 +66,8 @@ export default async function DashboardPage() {
   const monthAgo    = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
   const weekEnd    = new Date(); weekEnd.setDate(weekEnd.getDate() + 7)
   const weekEndStr = weekEnd.toISOString().split('T')[0]
+  const monthEnd    = new Date(); monthEnd.setDate(monthEnd.getDate() + 30)
+  const monthEndStr = monthEnd.toISOString().split('T')[0]
 
   const [myAttendances, myMemberships, eventsThisMonth, userProfile, , unreviewedRaw, weeklyVisitors, recentListings] = await Promise.all([
     // Lightweight: only ids + dates are needed for the id lists, counts,
@@ -229,7 +231,7 @@ export default async function DashboardPage() {
     suggestedMembers, thisWeekEvents, totalMembers, eventsThisWeek, neighborhoodEventCount, newMembers, recentPhotos, trendingEventsRaw, nearbyMembers, newClubs, latestPosts, activeHangouts, recentHangouts, recentPulses, recentConnections, recentReferences, recentRsvps, recentlyCreatedClubs, recentBusinesses,
     // activity-wall extras
     recentEventReviews, recentPlaceReviews, recentHangoutJoins, recentHoodPosts, recentResources, recentTestimonials, recentCupPicks, recentCupDonations,
-    recentArticles,
+    recentArticles, communityEventsThisMonth,
   ] = await Promise.all([
     clubIds.length
       ? prisma.event.findMany({
@@ -654,6 +656,10 @@ export default async function DashboardPage() {
       take: 5,
       select: { id: true, title: true, slug: true, kind: true, publishedAt: true },
     }),
+    // Community-wide events in the next 30 days — the "Events this month" stat.
+    // (eventsThisMonth above is the viewer's OWN attendances; this is the whole
+    // community, parallel to eventsThisWeek's next-7-days count so month ≥ week.)
+    prisma.event.count({ where: { date: { gte: today, lte: monthEndStr }, status: 'published' } }),
   ])
 
   // Activity wall reuses the batch-1 recentListings (already active-only,
@@ -1925,7 +1931,7 @@ export default async function DashboardPage() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-gray-600">Events this month</span>
-                  <span className="text-sm font-extrabold text-gray-900">{eventsThisMonth}</span>
+                  <span className="text-sm font-extrabold text-gray-900">{communityEventsThisMonth}</span>
                 </div>
                 {userProfile?.neighborhood && neighborhoodEventCount > 0 && (
                   <div className="flex items-center justify-between pt-2 border-t border-gray-50">
