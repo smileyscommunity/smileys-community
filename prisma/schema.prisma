@@ -23,6 +23,10 @@ model User {
   lastActive                 DateTime?
   nudgesSent                 Int                     @default(0)
   lastNudgedAt               DateTime?
+  // Weekly first-RSVP nudge (separate from the login nudge above): when this
+  // member was last emailed a "your first event?" suggestion, so the cron never
+  // re-nudges someone within 30 days.
+  firstRsvpNudgedAt          DateTime?
   membershipType             String                  @default("free")
   nationality                String?
   phone                      String?

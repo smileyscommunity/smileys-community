@@ -727,6 +727,43 @@ export async function sendBroadcastEmail(
   })
 }
 
+// A single low-pressure "your first Smileys event?" invite, personalised to the
+// event the matcher picked. Sent by the weekly first-RSVP nudge cron to members
+// who've joined but never RSVP'd. Email (not push) so it reaches dormant members
+// without adding notification load; unsubscribe respects emailMarketing.
+export async function sendFirstEventNudgeEmail(
+  userId: string,
+  email: string,
+  name: string,
+  ev: { id: string; title: string; date: string; time: string | null; neighborhood: string | null; emoji: string | null; attendees: number; isFirstTimerFriendly: boolean },
+) {
+  const unsub     = unsubscribeUrl(userId)
+  const firstName = name.split(' ')[0]
+  const pretty    = new Date(ev.date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+  const meta      = [ev.neighborhood, `${pretty}${ev.time ? ` · ${ev.time}` : ''}`].filter(Boolean).map(x => esc(String(x))).join(' · ')
+  const going     = ev.attendees > 0 ? `${ev.attendees} ${ev.attendees === 1 ? 'person is' : 'people are'} going` : ''
+  await getResend().emails.send({
+    from: FROM, to: email,
+    subject: `${ev.emoji ? ev.emoji + ' ' : ''}${ev.title} — your first Smileys event?`,
+    html: `
+      <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto;background:#fff;border-radius:16px;padding:40px 32px;border:1px solid #e5e7eb">
+        <p style="margin:0 0 28px;font-size:14px;color:#6b7280"><span style="font-size:26px;vertical-align:-5px">😊</span>&nbsp;<strong style="color:#374151">Smileys&nbsp;Community</strong>&nbsp;·&nbsp;Istanbul</p>
+        <h2 style="font-size:20px;font-weight:800;color:#111827;margin:0 0 16px">Your first Smileys event? 👋</h2>
+        <p style="margin:0 0 8px;color:#374151;font-size:14px">Hi ${esc(firstName)},</p>
+        <p style="margin:0 0 20px;color:#374151;font-size:14px;line-height:1.6">You joined Smileys but haven't been to an event yet — no pressure at all. Here's one we think would make a lovely first, close to you:</p>
+        <div style="border:1px solid #fde68a;background:#fffbeb;border-radius:14px;padding:20px">
+          <p style="margin:0;font-size:17px;font-weight:800;color:#111827">${ev.emoji ? esc(ev.emoji) + ' ' : ''}${esc(ev.title)}</p>
+          <p style="margin:6px 0 0;color:#b45309;font-size:13px;font-weight:600">${meta}</p>
+          ${going ? `<p style="margin:8px 0 0;color:#6b7280;font-size:13px">👥 ${going}</p>` : ''}
+          ${ev.isFirstTimerFriendly ? `<p style="margin:8px 0 0;color:#15803d;font-size:12px;font-weight:700">✅ First-timers especially welcome</p>` : ''}
+          <a href="${APP_URL}/events/${ev.id}?utm_source=first_rsvp_nudge" style="display:inline-block;margin-top:16px;background:#f59e0b;color:#fff;font-weight:700;font-size:14px;padding:12px 24px;border-radius:10px;text-decoration:none">See the event →</a>
+        </div>
+        <p style="margin:20px 0 0;color:#6b7280;font-size:13px;line-height:1.6">Not your thing? <a href="${APP_URL}/events?utm_source=first_rsvp_nudge" style="color:#b45309;font-weight:600;text-decoration:none">Browse everything on this week →</a> Just come as you are and say hi — that's all it takes.</p>
+        <p style="color:#9ca3af;font-size:11px;margin-top:24px;line-height:1.5">You're receiving this because you're a member of Smileys Community.<br><a href="${unsub}" style="color:#9ca3af">Unsubscribe from these emails</a></p>
+      </div>`,
+  })
+}
+
 export async function sendListingAlertEmail(
   to: string,
   name: string,

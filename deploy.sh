@@ -177,6 +177,9 @@ ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-cup-results.sh && (crontab -l 2>/d
 echo "→ Registering newsletter sweeper crontab..."
 ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-newsletters.sh && (crontab -l 2>/dev/null | grep -v 'sweep-newsletters' ; echo '*/5 * * * * $REMOTE/scripts/sweep-newsletters.sh >> /var/log/sweep-newsletters.log 2>&1') | crontab -"
 
+echo "→ Registering first-RSVP nudge crontab (Wed 12:00 Istanbul = 09:00 UTC)..."
+ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-first-rsvp-nudge.sh && (crontab -l 2>/dev/null | grep -v 'sweep-first-rsvp-nudge' ; echo '0 9 * * 3 $REMOTE/scripts/sweep-first-rsvp-nudge.sh >> /var/log/sweep-first-rsvp-nudge.log 2>&1') | crontab -"
+
 # Nightly cleanup of expired AvailabilityPulse rows. Runs at 3 AM Istanbul
 # time (UTC+3 = 00:00 UTC). Without this stale pulses accumulate forever.
 echo "→ Registering availability-pulses sweeper crontab..."
