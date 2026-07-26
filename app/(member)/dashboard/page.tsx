@@ -322,10 +322,12 @@ export default async function DashboardPage() {
       orderBy: { date: 'asc' }, take: 3,
       select: { id: true, title: true, date: true, time: true, emoji: true, neighborhood: true, price: true, spotsLeft: true, limitedSpots: true, coverImage: true },
     }),
-    // Spots running low: upcoming events with ≤5 spots left that user hasn't joined
+    // Spots running low: upcoming events with ≤5 spots left that user hasn't
+    // joined. Ordered soonest-first (date is text 'YYYY-MM-DD', so asc = chrono)
+    // so the closest event sits on top — the one you need to grab a spot for now.
     prisma.event.findMany({
       where: { date: { gte: today }, status: 'published', limitedSpots: true, spotsLeft: { gt: 0, lte: 5 }, id: { notIn: joinedEventIds } },
-      orderBy: { spotsLeft: 'asc' },
+      orderBy: [{ date: 'asc' }, { time: 'asc' }],
       take: 4,
       select: { id: true, title: true, date: true, emoji: true, spotsLeft: true, neighborhood: true, price: true },
     }),
