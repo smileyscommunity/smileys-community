@@ -157,16 +157,17 @@ ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-nps-dispatch.sh && (crontab -l 2>/
 # 5-min cadence is the precision we need to land in the T-30 window
 # exactly once per fixture; tighter would burn idle CPU, looser would
 # miss fixtures.
-echo "→ Registering cup-reminders sweeper crontab..."
-ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-cup-reminders.sh && (crontab -l 2>/dev/null | grep -v 'sweep-cup-reminders' ; echo '*/5 * * * * $REMOTE/scripts/sweep-cup-reminders.sh >> /var/log/sweep-cup-reminders.log 2>&1') | crontab -"
-
-# Install the cup auto-score sweeper — pulls football-data.org and
-# writes per-fixture suggestions for admin to one-click apply.
-# 5-min cadence keeps the result lag in single-digit minutes during
-# match days; an off-day tick is one cheap API call with zero DB
-# writes. Idempotent (sweeper grep strips any prior line first).
-echo "→ Registering cup-results sweeper crontab..."
-ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-cup-results.sh && (crontab -l 2>/dev/null | grep -v 'sweep-cup-results' ; echo '*/5 * * * * $REMOTE/scripts/sweep-cup-results.sh >> /var/log/sweep-cup-results.log 2>&1') | crontab -"
+# DISABLED 2026-07-27 — Smileys Cup 2026 is over, so we no longer register the
+# two 5-min cup sweepers (they were dead work every 5 minutes). Instead each
+# deploy actively STRIPS them, so a stale crontab can't keep them alive. To run
+# the next tournament, restore the two register commands below and remove the
+# strip line.
+# echo "→ Registering cup-reminders sweeper crontab..."
+# ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-cup-reminders.sh && (crontab -l 2>/dev/null | grep -v 'sweep-cup-reminders' ; echo '*/5 * * * * $REMOTE/scripts/sweep-cup-reminders.sh >> /var/log/sweep-cup-reminders.log 2>&1') | crontab -"
+# echo "→ Registering cup-results sweeper crontab..."
+# ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-cup-results.sh && (crontab -l 2>/dev/null | grep -v 'sweep-cup-results' ; echo '*/5 * * * * $REMOTE/scripts/sweep-cup-results.sh >> /var/log/sweep-cup-results.log 2>&1') | crontab -"
+echo "→ Stripping cup sweeper crontabs (tournament over)..."
+ssh "$SERVER" "crontab -l 2>/dev/null | grep -v 'sweep-cup-reminders' | grep -v 'sweep-cup-results' | crontab -"
 
 # Seed the Smileys Cup 2026 fixtures (knockouts + group stage).
 # Idempotent — per-fixture findUnique guards mean re-runs are safe.
