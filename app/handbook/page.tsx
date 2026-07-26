@@ -3,6 +3,7 @@ import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { resolveImageUrl } from '@/lib/data'
 import { categoryHero } from '@/lib/handbook-categories'
+import { APP_URL } from '@/lib/env'
 
 // Prefer explicit coverImage, then the first inline <img> in the body (most
 // articles paste a hero photo at the top via the rich-text editor rather than
@@ -25,13 +26,29 @@ const getHandbookArticles = unstable_cache(
   { revalidate: 300, tags: ['handbook'] },
 )
 
+// Fixed-size cover (1200×800) so we can assert real dimensions, unlike the
+// variable-aspect article photos. Served from public/ under the /app basePath.
+const HANDBOOK_OG_IMAGE = `${APP_URL}/images/handbook-cover.jpg`
+const HANDBOOK_OG_DESC  = 'The expat survival KB written by members who actually lived it. Residence permits, banking, schools, doctors, transport.'
+
 export const metadata = {
   title: 'The Istanbul Handbook — Smileys Community',
   description: 'Survive and thrive in Istanbul. Residence permits, banking, schools, doctors, transport — the canonical answers, written by members who actually lived through them.',
   openGraph: {
     title: 'The Istanbul Handbook — Smileys Community',
-    description: 'The expat survival KB written by members who actually lived it. Residence permits, banking, schools, doctors, transport.',
-    url: 'https://smileyscommunity.com/handbook',
+    description: HANDBOOK_OG_DESC,
+    // Include the /app basePath — the bare /handbook path 301-redirects, which
+    // some crawlers won't follow for the canonical.
+    url: `${APP_URL}/handbook`,
+    siteName: 'Smileys Community',
+    type: 'website',
+    images: [{ url: HANDBOOK_OG_IMAGE, secureUrl: HANDBOOK_OG_IMAGE, width: 1200, height: 800, alt: 'The Istanbul Handbook — Smileys Community' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'The Istanbul Handbook — Smileys Community',
+    description: HANDBOOK_OG_DESC,
+    images: [HANDBOOK_OG_IMAGE],
   },
 }
 
