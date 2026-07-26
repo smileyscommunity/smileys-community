@@ -4,6 +4,7 @@ import type { Metadata } from 'next'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { resolveImageUrl, avatarUrl } from '@/lib/data'
+import { firstBodyImage } from '@/lib/articleCover'
 import { APP_URL, SITE_URL } from '@/lib/env'
 import { sanitize } from '@/lib/sanitize'
 import ArticleInlineEditor from '@/components/ArticleInlineEditor'
@@ -88,6 +89,17 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug } = await params
   const post = await getPost(slug)
   if (!post) return {}
+  // Prefer the article's own photo — explicit cover, else the first inline
+  // <img> most authors paste at the top of the body — so shared links show a
+  // real, article-specific image instead of the generic /api/og brand card.
+  // ?w=1200 hits the file route's PREVIEW resize (1200-wide JPEG q75, aspect
+  // preserved); WhatsApp / iMessage / X all drop OG images > ~600 KB, and the
+  // original PNGs run multi-MB.
+  const cover    = post.coverImage ?? firstBodyImage(post.body)
+  const resolved = cover ? resolveImageUrl(cover) : ''
+  const imageUrl = resolved
+    ? (resolved.startsWith('http') ? resolved : `${SITE_URL}${resolved}?w=1200`)
+    : `${APP_URL}/api/og`
   return {
     title: `${post.title} — Smileys Community`,
     description: post.excerpt ?? post.body.slice(0, 155),
@@ -97,17 +109,13 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       url: `${APP_URL}/posts/${slug}`,
       siteName: 'Smileys Community',
       type: 'article',
-      // ?w=1200 hits the file route's PREVIEW resize: 1200-wide JPEG
-      // q75, aspect preserved. WhatsApp / iMessage / X all drop OG
-      // images > ~600 KB; original PNGs from posts run multi-MB.
-      images: post.coverImage
-        ? [{ url: `${SITE_URL}${resolveImageUrl(post.coverImage)}?w=1200`, secureUrl: `${SITE_URL}${resolveImageUrl(post.coverImage)}?w=1200`, width: 1200, height: 630, alt: post.title }]
-        : [{ url: `${APP_URL}/api/og`, secureUrl: `${APP_URL}/api/og`, width: 1200, height: 630 }],
+      images: [{ url: imageUrl, secureUrl: imageUrl, width: 1200, height: 630, alt: post.title }],
     },
     twitter: {
       card: 'summary_large_image',
       title: post.title,
       description: post.excerpt ?? post.body.slice(0, 155),
+      images: [imageUrl],
     },
   }
 }

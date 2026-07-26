@@ -7,6 +7,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { sanitize } from '@/lib/sanitize'
 import { resolveImageUrl } from '@/lib/data'
+import { firstBodyImage } from '@/lib/articleCover'
 import { SITE_URL, APP_URL } from '@/lib/env'
 import { HANDBOOK_TO_GUIDE } from '@/lib/handbook-links'
 import SocialShare from '@/components/SocialShare'
@@ -70,7 +71,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const title       = `${post.title} — Istanbul Handbook | Smileys Community`
   const description = post.excerpt ?? `Smileys Community handbook: ${post.title}`
   const pageUrl     = `${APP_URL}/handbook/${slug}`
-  const imageUrl    = ogImageUrl(post.coverImage, post.title, post.category)
+  const imageUrl    = ogImageUrl(post.coverImage ?? firstBodyImage(post.body), post.title, post.category)
   return {
     title,
     description,
@@ -128,7 +129,7 @@ export default async function HandbookArticlePage({ params }: Params) {
     '@type':           'Article',
     headline:          post.title,
     description:       post.excerpt ?? undefined,
-    image:             ogImageUrl(post.coverImage, post.title, post.category),
+    image:             ogImageUrl(post.coverImage ?? firstBodyImage(post.body), post.title, post.category),
     datePublished:     post.publishedAt ? new Date(post.publishedAt).toISOString() : undefined,
     dateModified:      post.updatedAt ? new Date(post.updatedAt).toISOString() : undefined,
     author:            { '@type': 'Person', name: post.author.name },
