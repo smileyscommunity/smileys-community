@@ -229,17 +229,14 @@ ssh "$SERVER" "chmod +x $REMOTE/scripts/sweep-payment-reminders.sh && (crontab -
 echo "→ Registering daily DB backup crontab..."
 ssh "$SERVER" "chmod +x $REMOTE/scripts/db-backup.sh && (crontab -l 2>/dev/null | grep -v 'db-backup' ; echo '0 2 * * * $REMOTE/scripts/db-backup.sh >> /var/log/db-backup.log 2>&1') | crontab -"
 
-echo "→ Seeding Smileys Cup 2026 fixtures..."
-ssh "$SERVER" "cd $REMOTE && npx tsx --env-file=.env scripts/seed-cup.ts"
-
-# Overlay the real FIFA schedule onto the 72 group fixtures. The
-# seed creates placeholder pairings (uniform MD rotation) and
-# synthetic times; this script rewrites them with the verified
-# Dec 6 2025 schedule. Idempotent — runs against an already-
-# corrected DB produce no-op updates (compares teams + time +
-# venue before writing).
-echo "→ Overlaying real FIFA schedule on group fixtures..."
-ssh "$SERVER" "cd $REMOTE && npx tsx --env-file=.env scripts/fix-group-fixtures.ts"
+# DISABLED 2026-07-27 — Smileys Cup 2026 is over. The fixtures are already
+# seeded and correct in the DB (these steps were idempotent no-ops on every
+# deploy), so we stop re-running them. Re-enable for the next tournament by
+# uncommenting (and updating the season data in the scripts).
+# echo "→ Seeding Smileys Cup 2026 fixtures..."
+# ssh "$SERVER" "cd $REMOTE && npx tsx --env-file=.env scripts/seed-cup.ts"
+# echo "→ Overlaying real FIFA schedule on group fixtures..."
+# ssh "$SERVER" "cd $REMOTE && npx tsx --env-file=.env scripts/fix-group-fixtures.ts"
 
 # Warm the OG image route. /api/og pulls in the satori/resvg render stack
 # and its fonts on first invocation, which costs ~19s cold — long enough that
