@@ -83,6 +83,9 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   return {
     title,
     description,
+    // Self-referencing canonical → the clean URL, so the ?v=<cacheKey> share
+    // links and any other query variants don't get indexed as duplicate pages.
+    alternates: { canonical: pageUrl },
     openGraph: {
       title,
       description,

@@ -109,6 +109,9 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   return {
     title: `${post.title} — Smileys Community`,
     description: post.excerpt ?? post.body.slice(0, 155),
+    // Self-referencing canonical → the clean URL, so ?v=<cacheKey> share links
+    // and other query variants aren't indexed as duplicate pages.
+    alternates: { canonical: `${APP_URL}/posts/${slug}` },
     openGraph: {
       title: post.title,
       description: post.excerpt ?? post.body.slice(0, 155),
