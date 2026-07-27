@@ -125,8 +125,6 @@ export default async function HandbookArticlePage({ params }: Params) {
 
   const catCls  = CATEGORY_STYLES[post.category] ?? 'bg-gray-100 text-gray-700'
   const pageUrl = `${APP_URL}/handbook/${post.slug}`
-  // cacheKey busts stale WhatsApp/Facebook link previews when the article is edited.
-  const shareCacheKey = new Date(post.updatedAt ?? post.publishedAt ?? 0).getTime().toString(36)
 
   // Read the per-request CSP nonce set by middleware so the JSON-LD <script>
   // isn't blocked. Article schema makes the public handbook eligible for
@@ -160,16 +158,13 @@ export default async function HandbookArticlePage({ params }: Params) {
       />
       <HandbookArticleTracker slug={post.slug} title={post.title} category={post.category} />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16"><article className="max-w-2xl">
-        {/* Breadcrumb + a compact share affordance right at the top, so a
-            member can forward the article without scrolling to the end. */}
-        <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
-          <nav className="flex items-center gap-2 text-xs text-gray-600 flex-wrap">
-            <Link href="/handbook" className="hover:text-amber-600 font-semibold">📖 Handbook</Link>
-            <span>›</span>
-            <Link href={`/handbook/category/${encodeURIComponent(post.category)}`} className="hover:text-amber-600 font-semibold">{post.category}</Link>
-          </nav>
-          <SocialShare compact context="handbook" title={`${post.title} — Smileys Community Istanbul Handbook`} url={pageUrl} cacheKey={shareCacheKey} />
-        </div>
+        {/* Breadcrumb (the share affordance now lives only at the end of the
+            article — icons at the top were removed). */}
+        <nav className="flex items-center gap-2 text-xs text-gray-600 flex-wrap mb-6">
+          <Link href="/handbook" className="hover:text-amber-600 font-semibold">📖 Handbook</Link>
+          <span>›</span>
+          <Link href={`/handbook/category/${encodeURIComponent(post.category)}`} className="hover:text-amber-600 font-semibold">{post.category}</Link>
+        </nav>
 
         {/* Header + quick summary + body live in a client component so staff can
             edit them inline (see EditableArticle). Content is still
