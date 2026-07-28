@@ -47,7 +47,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: `${BASE}/`,              priority: 1.0, changeFrequency: 'daily'   },
     { url: `${BASE}/events`,        priority: 0.9, changeFrequency: 'daily'   },
-    { url: `${BASE}/listings`,      priority: 0.8, changeFrequency: 'daily'   },
+    { url: `${BASE}/board`,      priority: 0.8, changeFrequency: 'daily'   },
     { url: `${BASE}/visiting`,      priority: 0.8, changeFrequency: 'daily'   },
     { url: `${BASE}/guide`,         priority: 0.8, changeFrequency: 'weekly'  },
     { url: `${BASE}/clubs`,         priority: 0.8, changeFrequency: 'weekly'  },
@@ -91,7 +91,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   })
 
   const listingRoutes: MetadataRoute.Sitemap = listings.map(l => ({
-    url:          `${BASE}/listings/${l.id}`,
+    url:          `${BASE}/board/${l.id}`,
     lastModified: l.updatedAt,
     priority:     0.6,
     changeFrequency: 'weekly',

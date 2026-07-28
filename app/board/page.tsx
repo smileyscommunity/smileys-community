@@ -52,8 +52,8 @@ const CAT_EMOJI: Record<string, string> = {
   ROOMS: '🏠', JOBS: '💼', SERVICES: '🛠️', BUY_SELL: '🛍️', FREE: '🎁', LOST_FOUND: '🔍', RECO: '⭐', PETS: '🐾', EXPERIENCES: '🎟️',
 }
 
-// Heart icon + red on /listings is deliberate. /directory uses an
-// amber bookmark icon for "save for later"; /listings uses the
+// Heart icon + red on /board is deliberate. /directory uses an
+// amber bookmark icon for "save for later"; /board uses the
 // universal heart-for-favorite pattern (Instagram, Twitter et al)
 // because the listings flow leans more like a marketplace feed than
 // a curated bookmark. Don't unify the two — the icon family is the
@@ -85,7 +85,7 @@ function timeAgo(date: string) {
 }
 
 function shareUrl(id: string) {
-  return `${window.location.origin}/app/listings/${id}`
+  return `${window.location.origin}/app/board/${id}`
 }
 
 async function copyShare(id: string): Promise<boolean> {
@@ -257,7 +257,7 @@ function ListingModal({ listing, currentUserId, isLoggedIn, isSaved, onToggleSav
         {/* Actions */}
         <div className="p-4 border-t border-gray-100 space-y-2 shrink-0">
           {isGuest && (
-            <Link href={`/login?return=/listings/${listing.id}`}
+            <Link href={`/login?return=/board/${listing.id}`}
               className="block text-center w-full py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-2xl transition-colors">
               Sign in to see contact & full details →
             </Link>
@@ -682,7 +682,7 @@ function ListingsInner() {
               </p>
             </div>
             <Link
-              href={isLoggedIn ? '/listings/new' : '/login?return=/listings/new'}
+              href={isLoggedIn ? '/board/new' : '/login?return=/board/new'}
               className="hidden sm:flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors shrink-0 shadow-sm"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -824,7 +824,7 @@ function ListingsInner() {
         {/* Mobile post button */}
         <div className="sm:hidden mb-6">
           <Link
-            href={isLoggedIn ? '/listings/new' : '/login?return=/listings/new'}
+            href={isLoggedIn ? '/board/new' : '/login?return=/board/new'}
             className="flex items-center justify-center gap-2 w-full py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors shadow-sm"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -875,7 +875,7 @@ function ListingsInner() {
             {category !== 'SAVED' && !debouncedSearch && (
               <div className="flex items-center justify-center gap-3 flex-wrap">
                 <Link
-                  href={isLoggedIn ? '/listings/new' : '/login?return=/listings/new'}
+                  href={isLoggedIn ? '/board/new' : '/login?return=/board/new'}
                   className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold px-6 py-3 rounded-xl transition-colors shadow-sm"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

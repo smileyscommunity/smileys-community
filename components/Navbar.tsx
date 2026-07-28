@@ -80,7 +80,7 @@ const discoverLinks = [
   { label: 'Guide',         href: '/guide',         emoji: '🗺️', public: true  },
   { label: 'Handbook',      href: '/handbook',      emoji: '📖', public: true  },
   { label: 'Neighborhoods', href: '/neighborhoods', emoji: '🏘️', public: true  },
-  { label: 'Board',         href: '/listings',      emoji: '🛍️', public: true  },
+  { label: 'Board',         href: '/board',      emoji: '🛍️', public: true  },
   { label: 'Directory',     href: '/directory',     emoji: '🏢', public: true  },
   { label: 'Visiting?',     href: '/visiting',      emoji: '👋', public: true  },
 ]
@@ -91,7 +91,7 @@ const pageTitles: [string, string][] = [
   ['/events',        'Events'],
   ['/clubs',         'Clubs'],
   ['/members',       'Members'],
-  ['/listings',      'Board'],
+  ['/board',      'Board'],
   ['/messages',      'Messages'],
   ['/notifications', 'Notifications'],
   ['/profile',       'My Profile'],

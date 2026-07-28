@@ -78,7 +78,7 @@ export default function CommandPalette() {
     { id: 'clubs',         label: 'Clubs',          hint: 'Explore clubs',              icon: '🏛️', group: 'Navigate', action: () => go('/clubs')         },
     { id: 'members',       label: 'Members',        hint: 'Discover the community',     icon: '👥', group: 'Navigate', action: () => go('/members')       },
     { id: 'hangouts',      label: 'Hangouts',       hint: 'Live meetups happening now',  icon: '🤝', group: 'Navigate', action: () => go('/hangouts')      },
-    { id: 'board',         label: 'Board',          hint: 'Rooms, jobs & more',         icon: '📋', group: 'Navigate', action: () => go('/listings')      },
+    { id: 'board',         label: 'Board',          hint: 'Rooms, jobs & more',         icon: '📋', group: 'Navigate', action: () => go('/board')      },
     { id: 'directory',     label: 'Directory',      hint: 'Local businesses & services', icon: '🏢', group: 'Navigate', action: () => go('/directory')     },
     { id: 'dashboard',     label: 'Dashboard',      hint: 'Your personal dashboard',    icon: '⬛', group: 'You', action: () => go('/dashboard')     },
     { id: 'my-events',     label: 'My Events',      hint: 'Your events & QR codes',     icon: '🎟️', group: 'You', action: () => go('/my-events')     },

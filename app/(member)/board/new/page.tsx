@@ -21,12 +21,12 @@ const CATEGORIES = [
 export default function NewListingPage() {
   const router = useRouter()
   // Posting is members-only — anonymous visitors get bounced to login. The page
-  // itself lives outside the (member) route group so the rest of /listings/* can
+  // itself lives outside the (member) route group so the rest of /board/* can
   // be public; this manual gate replaces the group's auth-redirect for just this
   // page.
   const { isLoggedIn, isLoading } = useAuth()
   useEffect(() => {
-    if (!isLoading && !isLoggedIn) router.replace('/login?next=/listings/new')
+    if (!isLoading && !isLoggedIn) router.replace('/login?next=/board/new')
   }, [isLoading, isLoggedIn, router])
 
   const [category, setCategory]     = useState('')
@@ -70,7 +70,7 @@ export default function NewListingPage() {
       body: JSON.stringify({ category, title, description, price: price || null, contact: contact || null, photo: photo || null, photoPosition, neighborhood: neighborhood || null }),
     })
     if (res.ok) {
-      router.push('/listings')
+      router.push('/board')
     } else {
       const data = await res.json()
       setError(data.error || 'Something went wrong')

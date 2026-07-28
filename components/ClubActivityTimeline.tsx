@@ -631,7 +631,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
           if (it.kind === 'listing') {
             const { id, title, user } = it.data
             return (
-              <Link key={`l-${i}`} href={`/listings/${id}`}
+              <Link key={`l-${i}`} href={`/board/${id}`}
                     className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
                 <Avatar name={user.name} color={user.color} />
                 <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">

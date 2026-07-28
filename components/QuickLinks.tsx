@@ -20,7 +20,7 @@ const BASE_LINKS: LinkItem[] = [
   { label: 'Profile visitors',  href: '/profile-visitors', icon: '👀' },
   { label: 'Notifications',     href: '/notifications',    icon: '🔔' },
   { label: 'Member Card',       href: '/card',             icon: '🪪' },
-  { label: 'Community Board',   href: '/listings',         icon: '📋' },
+  { label: 'Community Board',   href: '/board',         icon: '📋' },
   { label: 'Istanbul Guide',    href: '/guide',            icon: '🗺️' },
   { label: 'The Handbook',      href: '/handbook',         icon: '📖' },
   { label: 'Community Rules',   href: '/guidelines',       icon: '📜' },

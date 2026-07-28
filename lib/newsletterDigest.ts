@@ -163,14 +163,14 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
     const listingCards = listings.map(l => {
       const meta = [CAT_LABEL[l.category] ?? l.category, l.neighborhood, l.price].filter(Boolean).map(x => esc(String(x))).join(' · ')
       return card(
-        `<a href="${APP_URL}/listings/${l.id}?${UTM}" style="color:#111827;font-weight:700;font-size:15px;text-decoration:none">${CAT_EMOJI[l.category] ?? '📌'} ${esc(l.title)}</a>` +
+        `<a href="${APP_URL}/board/${l.id}?${UTM}" style="color:#111827;font-weight:700;font-size:15px;text-decoration:none">${CAT_EMOJI[l.category] ?? '📌'} ${esc(l.title)}</a>` +
         (meta ? `<div style="color:#1d4ed8;font-size:13px;margin-top:3px">${meta}</div>` : ''),
         '#eff6ff', '#bfdbfe',
       )
     }).join('')
     body += `${DIVIDER}<h3 style="font-size:17px;margin:0 0 8px">🛍️ Fresh on the community board</h3>${listingCards}` +
-      `<a href="${APP_URL}/listings?${UTM}" style="display:inline-block;margin:2px 0 0;color:#1d4ed8;font-weight:600;font-size:13px;text-decoration:none">Browse all listings →</a>` +
-      `<div style="color:#6b7280;font-size:12px;margin-top:6px">Hunting for a room or a job? <a href="${APP_URL}/listings?${UTM}" style="color:#1d4ed8;font-weight:600;text-decoration:none">Set an instant alert</a> and get an email the moment one is posted.</div>`
+      `<a href="${APP_URL}/board?${UTM}" style="display:inline-block;margin:2px 0 0;color:#1d4ed8;font-weight:600;font-size:13px;text-decoration:none">Browse all listings →</a>` +
+      `<div style="color:#6b7280;font-size:12px;margin-top:6px">Hunting for a room or a job? <a href="${APP_URL}/board?${UTM}" style="color:#1d4ed8;font-weight:600;text-decoration:none">Set an instant alert</a> and get an email the moment one is posted.</div>`
   }
 
   // New reads — articles published in the last 7 days. Rose tint keeps the

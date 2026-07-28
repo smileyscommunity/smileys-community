@@ -648,7 +648,7 @@ export async function sendAccountLockedEmail(email: string, name: string) {
 }
 
 export async function sendListingExpiryEmail(email: string, name: string, listingTitle: string, daysLeft: number) {
-  const url       = `${APP_URL}/listings`
+  const url       = `${APP_URL}/board`
   const firstName = name.split(' ')[0]
   await getResend().emails.send({
     from: FROM, to: email,
@@ -795,7 +795,7 @@ export async function sendListingAlertEmail(
   categoryLabel: string,
   listing: { title: string; description: string },
 ) {
-  const url = `${APP_URL}/listings`
+  const url = `${APP_URL}/board`
   const unsub = `${APP_URL}/settings`
   const excerpt = listing.description.length > 120 ? listing.description.slice(0, 120) + '…' : listing.description
   await getResend().emails.send({

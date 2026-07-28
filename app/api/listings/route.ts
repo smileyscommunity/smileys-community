@@ -154,7 +154,7 @@ export async function POST(req: NextRequest) {
         'listing_new',
         `New ${categoryLabel.toLowerCase()} listing`,
         listing.title,
-        `/listings/${listing.id}`,
+        `/board/${listing.id}`,
       ).catch(err => console.error('[listings POST] createNotification failed', { listingId: listing.id, userId: u.id, err: String(err) }))
     }
   }).catch(err => console.error('[listings POST] alert fan-out failed', { listingId: listing.id, err: String(err) }))

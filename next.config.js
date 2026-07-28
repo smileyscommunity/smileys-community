@@ -53,6 +53,20 @@ const nextConfig = {
         destination: '/admin/campaigns',
         permanent:   true,
       },
+      // /listings → /board rename. Permanent 308 so bookmarks, Google's index,
+      // and old email/notification deep-links keep landing on the renamed
+      // section instead of 404'ing. Does not touch /api/listings (data API)
+      // or /admin/listings, which keep their internal names.
+      {
+        source:      '/listings',
+        destination: '/board',
+        permanent:   true,
+      },
+      {
+        source:      '/listings/:path*',
+        destination: '/board/:path*',
+        permanent:   true,
+      },
     ]
   },
   async headers() {

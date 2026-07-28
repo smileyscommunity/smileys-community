@@ -30,7 +30,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const title = `${listing.title} — Smileys Community`
   const pricePart = listing.price ? ` · ${listing.price}` : ''
   const description = `${catLabel}${pricePart} — ${listing.description.slice(0, 130)}`
-  const pageUrl = `${APP_URL}/listings/${id}`
+  const pageUrl = `${APP_URL}/board/${id}`
 
   const photo = listing.photo ? resolveImageUrl(listing.photo) : null
   // ?w=1200 hits the file route's PREVIEW resize so the OG image
@@ -114,14 +114,14 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
       {/* Back nav */}
       <div className="bg-white/90 backdrop-blur border-b border-gray-100 sticky top-0 z-10">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
-          <Link href="/listings" className="p-1.5 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors">
+          <Link href="/board" className="p-1.5 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </Link>
           <span className="font-semibold text-gray-900 text-sm truncate flex-1">Community Board</span>
           {isOwner && (
-            <Link href="/listings" className="text-xs text-amber-600 font-semibold hover:underline">
+            <Link href="/board" className="text-xs text-amber-600 font-semibold hover:underline">
               Manage
             </Link>
           )}

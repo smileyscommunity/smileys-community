@@ -431,7 +431,7 @@ export default async function NeighborhoodSections({
         <div>
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">Marketplace in {name}</h2>
-            <Link href={`/listings?neighborhood=${encodeURIComponent(name)}`}
+            <Link href={`/board?neighborhood=${encodeURIComponent(name)}`}
               className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
               See all →
             </Link>
@@ -445,7 +445,7 @@ export default async function NeighborhoodSections({
                 l.category === 'BUY_SELL' ? '🛍️' :
                 l.category === 'FREE'     ? '🎁' : '⭐'
               return (
-                <Link key={l.id} href={`/listings?l=${l.id}`} className="group block">
+                <Link key={l.id} href={`/board?l=${l.id}`} className="group block">
                   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all h-full">
                     {l.photo ? (
                       <div className="relative h-32 bg-gray-100">

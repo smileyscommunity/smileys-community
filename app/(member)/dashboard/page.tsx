@@ -1503,13 +1503,13 @@ export default async function DashboardPage() {
               <div className="bg-white rounded-2xl shadow-card p-5">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-sm font-bold text-gray-900">📋 Community Board</h2>
-                  <Link href="/listings" className="text-xs text-amber-600 font-semibold hover:underline">See all →</Link>
+                  <Link href="/board" className="text-xs text-amber-600 font-semibold hover:underline">See all →</Link>
                 </div>
                 <div className="space-y-3">
                   {recentListings.map((l) => {
                     const EMOJI: Record<string, string> = { ROOMS: '🏠', JOBS: '💼', SERVICES: '🛠️', BUY_SELL: '🛍️', FREE: '🎁', LOST_FOUND: '🔍', RECO: '⭐', EXPERIENCES: '🎟️', PETS: '🐾' }
                     return (
-                      <Link key={l.id} href={`/listings?id=${l.id}`}
+                      <Link key={l.id} href={`/board?id=${l.id}`}
                         className="flex items-center gap-3 group">
                         <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center text-lg shrink-0">
                           {EMOJI[l.category] ?? '📋'}
@@ -1524,7 +1524,7 @@ export default async function DashboardPage() {
                     )
                   })}
                 </div>
-                <Link href="/listings/new"
+                <Link href="/board/new"
                   className="mt-4 flex items-center justify-center gap-1.5 w-full py-2 text-xs font-semibold text-amber-600 border border-amber-200 rounded-xl hover:bg-amber-50 transition-colors">
                   + Post a listing
                 </Link>
@@ -1835,7 +1835,7 @@ export default async function DashboardPage() {
               const l = recentListings[0]
               const EMOJI: Record<string, string> = { ROOMS: '🏠', JOBS: '💼', SERVICES: '🛠️', BUY_SELL: '🛍️', FREE: '🎁', LOST_FOUND: '🔍', RECO: '⭐', EXPERIENCES: '🎟️', PETS: '🐾' }
               return (
-                <Link href={`/listings?id=${l.id}`} className="block bg-white rounded-2xl shadow-card p-4 hover:shadow-md transition-shadow group">
+                <Link href={`/board?id=${l.id}`} className="block bg-white rounded-2xl shadow-card p-4 hover:shadow-md transition-shadow group">
                   <div className="flex items-center justify-between mb-3">
                     <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">New on Board</h2>
                     <span className="text-lg">{EMOJI[l.category] ?? '📋'}</span>

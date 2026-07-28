@@ -69,7 +69,7 @@ export async function GET(req: NextRequest) {
     const isWarningDay = daysLeft === 7 || daysLeft === 3
     if (!isWarningDay) continue
     const alreadyNotified = await prisma.notification.findFirst({
-      where: { userId: listing.userId, type: 'listing_expiry', link: `/listings` },
+      where: { userId: listing.userId, type: 'listing_expiry', link: `/board` },
       orderBy: { createdAt: 'desc' },
     })
     const recentlyNotified = alreadyNotified && (Date.now() - new Date(alreadyNotified.createdAt).getTime()) < 2 * 24 * 60 * 60 * 1000
@@ -79,7 +79,7 @@ export async function GET(req: NextRequest) {
       'listing_expiry',
       `Listing expiring in ${daysLeft} days ⏳`,
       `"${listing.title}" will be removed from the Community Board soon — renew it to keep it visible.`,
-      `/listings`,
+      `/board`,
     )
     // EM3 fix: log SMTP failures so a silent outage doesn't make
     // every listing-expiry reminder vanish without trace. Cron
