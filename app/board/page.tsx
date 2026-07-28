@@ -8,6 +8,8 @@ import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { resolveImageUrl, avatarUrl, ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
 import { toast } from 'sonner'
 import { SkeletonCard } from '@/components/Skeleton'
+import SocialShare from '@/components/SocialShare'
+import { APP_URL } from '@/lib/env'
 
 const CATEGORIES: Array<{ id: string; label: string; emoji: string; activeCls: string; memberOnly?: boolean }> = [
   { id: 'ALL',      label: 'All',             emoji: '🗂️', activeCls: 'bg-amber-500 text-white border-amber-500'         },
@@ -680,6 +682,19 @@ function ListingsInner() {
               <p className="text-base text-gray-600 mt-1 max-w-xl">
                 Rooms, jobs, services & more — posted by Smileys members for Smileys members.
               </p>
+              {/* Share the whole board. cacheKey pins a ?v= suffix so X / Facebook
+                  cache a URL that already has the cover image — the bare /board URL
+                  can stay stuck on an old blank scrape (X has no re-scrape tool).
+                  Bump the key if the board cover image changes. */}
+              <div className="mt-4">
+                <SocialShare
+                  compact
+                  context="board"
+                  title="Smileys Community Board — rooms, jobs, services & more in Istanbul"
+                  url={`${APP_URL}/board`}
+                  cacheKey="1"
+                />
+              </div>
             </div>
             <Link
               href={isLoggedIn ? '/board/new' : '/login?return=/board/new'}
