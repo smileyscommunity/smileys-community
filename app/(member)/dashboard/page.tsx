@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { formatDate, formatTime, resolveImageUrl, avatarUrl, BLUR_PLACEHOLDER, todayIstanbul } from '@/lib/data'
+import { articleCover } from '@/lib/articleCover'
 import { neighborhoodToSlug } from '@/lib/neighborhoods'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
@@ -390,7 +391,7 @@ export default async function DashboardPage() {
       where:   { status: 'published', kind: 'handbook' },
       orderBy: { publishedAt: 'desc' },
       take: 2,
-      select: { id: true, title: true, slug: true, excerpt: true, coverImage: true, category: true, publishedAt: true },
+      select: { id: true, title: true, slug: true, excerpt: true, coverImage: true, body: true, category: true, publishedAt: true },
     }),
     prisma.user.findMany({
       where: suggestedMembersWhere,
@@ -466,7 +467,7 @@ export default async function DashboardPage() {
       where: { status: 'published', kind: 'community' },
       orderBy: { publishedAt: 'desc' },
       take: 3,
-      select: { id: true, title: true, slug: true, excerpt: true, coverImage: true, category: true, publishedAt: true },
+      select: { id: true, title: true, slug: true, excerpt: true, coverImage: true, body: true, category: true, publishedAt: true },
     }),
     // Active hangouts happening now
     prisma.hangout.findMany({
@@ -1305,11 +1306,13 @@ export default async function DashboardPage() {
                   <Link href="/posts" className="text-sm text-amber-600 font-semibold hover:underline">All →</Link>
                 </div>
                 <div className="space-y-3">
-                  {latestPosts.map((post) => (
+                  {latestPosts.map((post) => {
+                    const cover = articleCover({ coverImage: post.coverImage, body: post.body })
+                    return (
                     <Link key={post.id} href={`/posts/${post.slug}`}
                       className="group flex gap-3 bg-white rounded-2xl shadow-card p-4 hover:-translate-y-0.5 transition-transform duration-200">
-                      {post.coverImage ? (
-                        <img src={resolveImageUrl(post.coverImage)} alt={post.title} loading="lazy"
+                      {cover ? (
+                        <img src={cover} alt={post.title} loading="lazy"
                           className="w-16 h-16 rounded-xl object-cover shrink-0" />
                       ) : (
                         <div className="w-16 h-16 rounded-xl bg-amber-50 flex items-center justify-center text-2xl shrink-0">📰</div>
@@ -1322,7 +1325,8 @@ export default async function DashboardPage() {
                         )}
                       </div>
                     </Link>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             )}
@@ -1343,12 +1347,14 @@ export default async function DashboardPage() {
                   <Link href="/handbook" className="text-sm text-amber-600 font-semibold hover:underline">All →</Link>
                 </div>
                 <div className="space-y-3">
-                  {latestHandbook.map(post => (
+                  {latestHandbook.map(post => {
+                    const cover = articleCover({ coverImage: post.coverImage, body: post.body })
+                    return (
                     <Link key={post.id} href={`/handbook/${post.slug}`}
                       className="group flex gap-3 bg-white rounded-2xl shadow-card p-4 hover:-translate-y-0.5 transition-transform duration-200">
-                      {post.coverImage ? (
+                      {cover ? (
                         /* eslint-disable-next-line @next/next/no-img-element */
-                        <img src={resolveImageUrl(post.coverImage)} alt={post.title} loading="lazy"
+                        <img src={cover} alt={post.title} loading="lazy"
                           className="w-16 h-16 rounded-xl object-cover shrink-0" />
                       ) : (
                         <div className="w-16 h-16 rounded-xl bg-gray-50 flex items-center justify-center text-2xl shrink-0">📖</div>
@@ -1361,7 +1367,8 @@ export default async function DashboardPage() {
                         )}
                       </div>
                     </Link>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             )}
