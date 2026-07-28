@@ -7,14 +7,29 @@ import { neighborhoodToSlug, NEIGHBORHOOD_META } from '@/lib/neighborhoods'
 import { APP_URL } from '@/lib/env'
 import { getSession } from '@/lib/session'
 
+// Fixed-size cover (1200×800) served from public/ under the /app basePath.
+const NEIGHBORHOODS_OG_IMAGE = `${APP_URL}/images/neighborhoods-cover.jpg`
+const NEIGHBORHOODS_OG_DESC  = 'Discover curated social events happening across Istanbul, organised by neighborhood.'
+
 export const metadata = {
   alternates: { canonical: `${APP_URL}/neighborhoods` },
   title: 'Explore Istanbul Neighborhoods — Smileys Community',
   description: 'Find Smileys events happening near you. From Kadıköy to Beşiktaş, Cihangir to Ataşehir — discover social events across Istanbul by neighborhood.',
   openGraph: {
     title: 'Istanbul Neighborhoods — Smileys Community',
-    description: 'Discover curated social events happening across Istanbul, organised by neighborhood.',
-    url: 'https://smileyscommunity.com/neighborhoods',
+    description: NEIGHBORHOODS_OG_DESC,
+    // Include the /app basePath — the bare /neighborhoods path 301-redirects,
+    // which some crawlers won't follow for the canonical.
+    url: `${APP_URL}/neighborhoods`,
+    siteName: 'Smileys Community',
+    type: 'website',
+    images: [{ url: NEIGHBORHOODS_OG_IMAGE, secureUrl: NEIGHBORHOODS_OG_IMAGE, width: 1200, height: 800, alt: 'Istanbul Neighborhoods — Smileys Community' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Istanbul Neighborhoods — Smileys Community',
+    description: NEIGHBORHOODS_OG_DESC,
+    images: [NEIGHBORHOODS_OG_IMAGE],
   },
 }
 import { resolveImageUrl, avatarUrl } from '@/lib/data'
