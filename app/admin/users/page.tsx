@@ -10,7 +10,7 @@ import Link from 'next/link'
 import { getInitials, whatsappUrl } from '@/lib/data'
 import { useAuth } from '@/contexts/AuthContext'
 
-type TabKey = 'all' | 'member' | 'moderator' | 'admin' | 'unverified' | 'banned' | 'suspended' | 'inactive' | 'warned' | 'noshows'
+type TabKey = 'all' | 'member' | 'moderator' | 'admin' | 'unverified' | 'banned' | 'suspended' | 'inactive' | 'warned' | 'noshows' | 'deleted'
 
 interface DBUser {
   id: string
@@ -40,10 +40,22 @@ interface DBUser {
   noShowCount: number
   // Admin-set: excluded from the member directory while keeping account access.
   hiddenFromMembers: boolean
+  // Self-deleted accounts are anonymized to "Deleted Member" with a
+  // …@deleted.smileys email. deletedIdentity is the admin-only retained
+  // snapshot of who they were (from the account.self_delete audit entry) —
+  // surfaced for safety/abuse tracing, never member-facing.
+  deletedIdentity?: { name?: string; email?: string; phone?: string } | null
 }
 
 function isSuspended(u: { suspendedUntil: string | null }): boolean {
   return !!u.suspendedUntil && new Date(u.suspendedUntil).getTime() > Date.now()
+}
+
+// A member who deleted their own account: anonymized to a …@deleted.smileys
+// ghost email. These carry status='banned' as a session-eviction side effect,
+// so we split them out of the Banned tab into their own Deleted tab.
+function isDeletedAccount(u: { email: string }): boolean {
+  return u.email.endsWith('@deleted.smileys')
 }
 
 type SortKey = 'recent' | 'active' | 'warnings' | 'noshows'
@@ -482,7 +494,8 @@ function AdminUsersPageInner() {
     moderator:  searchFiltered.filter(u => u.role === 'moderator').length,
     admin:      searchFiltered.filter(u => u.role === 'admin').length,
     unverified: searchFiltered.filter(u => !u.emailVerified).length,
-    banned:     searchFiltered.filter(u => u.status === 'banned').length,
+    banned:     searchFiltered.filter(u => u.status === 'banned' && !isDeletedAccount(u)).length,
+    deleted:    searchFiltered.filter(isDeletedAccount).length,
     suspended:  searchFiltered.filter(isSuspended).length,
     inactive:   searchFiltered.filter(u =>
       !u.lastActive || new Date(u.lastActive).getTime() < ninetyDaysAgo
@@ -497,7 +510,8 @@ function AdminUsersPageInner() {
       if (tab === 'moderator') return u.role === 'moderator'
       if (tab === 'admin')     return u.role === 'admin'
       if (tab === 'unverified') return !u.emailVerified
-      if (tab === 'banned')     return u.status === 'banned'
+      if (tab === 'banned')     return u.status === 'banned' && !isDeletedAccount(u)
+      if (tab === 'deleted')    return isDeletedAccount(u)
       if (tab === 'suspended')  return isSuspended(u)
       if (tab === 'warned')     return u.warningCount > 0
       if (tab === 'noshows')    return u.noShowCount >= 3
@@ -537,6 +551,7 @@ function AdminUsersPageInner() {
     { key: 'noshows',   label: 'No-shows'   },
     { key: 'suspended', label: 'Suspended'  },
     { key: 'banned',    label: 'Banned'     },
+    { key: 'deleted',   label: 'Deleted'    },
     { key: 'inactive',  label: 'Inactive'   },
   ]
 
@@ -827,9 +842,14 @@ function AdminUsersPageInner() {
                         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full capitalize shrink-0 ${roleBadgeClass(u.role)}`}>{u.role}</span>
                       </div>
                       <div className="text-xs text-zinc-500">{new Date(u.joinedAt).toLocaleDateString('en-GB')}</div>
+                      {isDeletedAccount(u) && u.deletedIdentity?.name && (
+                        <div className="text-[11px] text-amber-400/80 truncate" title={`Admin-only safety record · ${u.deletedIdentity.email ?? ''}`}>was: {u.deletedIdentity.name}{u.deletedIdentity.email ? ` · ${u.deletedIdentity.email}` : ''}</div>
+                      )}
                       {(u.status === 'banned' || isSuspended(u) || u.warningCount > 0 || sharedFp || u.hiddenFromMembers) && (
                         <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                          {u.status === 'banned' && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">banned</span>}
+                          {u.status === 'banned' && (isDeletedAccount(u)
+                          ? <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-zinc-600/20 text-zinc-400 border border-zinc-600/30" title="Member deleted their own account">deleted</span>
+                          : <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">banned</span>)}
                           {u.hiddenFromMembers && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20" title="Not shown in the members list">hidden</span>}
                           {isSuspended(u) && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20" title={`Until ${new Date(u.suspendedUntil!).toLocaleDateString('en-GB')}`}>suspended</span>}
                           {u.warningCount > 0 && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20">⚠ {u.warningCount} warning{u.warningCount !== 1 ? 's' : ''}</span>}
@@ -859,7 +879,9 @@ function AdminUsersPageInner() {
                             an admin scanning a long list spots banned /
                             suspended rows without inferring it from the
                             absence of the suspend/ban action buttons. */}
-                        {u.status === 'banned' && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">banned</span>}
+                        {u.status === 'banned' && (isDeletedAccount(u)
+                          ? <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-zinc-600/20 text-zinc-400 border border-zinc-600/30" title="Member deleted their own account">deleted</span>
+                          : <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">banned</span>)}
                         {u.hiddenFromMembers && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20" title="Not shown in the members list">hidden</span>}
                         {isSuspended(u) && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20" title={`Until ${new Date(u.suspendedUntil!).toLocaleDateString('en-GB')}`}>suspended</span>}
                         {sharedFp && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20" title={`Shares device fingerprint with ${(fingerprintCounts.get(u.lastFingerprint!) ?? 1) - 1} other account(s)`}>⚠ Same device</span>}
@@ -869,6 +891,7 @@ function AdminUsersPageInner() {
                         {u.lastActive && <span className="text-zinc-600">· Active {new Date(u.lastActive).toLocaleDateString('en-GB')}</span>}
                         {u.warningCount > 0 && <span className="text-orange-400 font-semibold">⚠ {u.warningCount}</span>}
                         {u.noShowCount >= 3 && <span className="text-red-400 font-semibold" title="Registered but didn't show up 3+ times">✗ {u.noShowCount} no-shows</span>}
+                        {isDeletedAccount(u) && u.deletedIdentity?.name && <span className="text-amber-400/80 font-medium" title={`Admin-only safety record · ${u.deletedIdentity.email ?? ''}`}>· was {u.deletedIdentity.name}</span>}
                       </div>
                     </div>
                   </Link>

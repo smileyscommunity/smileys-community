@@ -6,6 +6,7 @@ import { randomBytes } from 'crypto'
 import { rateLimit } from '@/lib/rateLimit'
 import { todayIstanbul } from '@/lib/data'
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
+import { writeAudit } from '@/lib/audit'
 
 // Account deletion follows an anonymize-and-clear strategy, not hard
 // delete. The User row is preserved (with all identifying fields
@@ -62,7 +63,7 @@ export async function POST(req: NextRequest) {
 
   const user = await prisma.user.findUnique({
     where: { id: session.id },
-    select: { password: true, status: true },
+    select: { password: true, status: true, name: true, email: true, phone: true, lastFingerprint: true },
   })
   if (!user || !user.password) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 })
@@ -234,6 +235,16 @@ export async function POST(req: NextRequest) {
     maxWait: 5_000,
     timeout: 60_000,
   })
+
+  // Minimal, admin-only identity snapshot retained for safety / abuse
+  // prevention — written AFTER the scrub, keyed by the (preserved) user id, so
+  // an admin can still trace who a "Deleted Member" was if a safety question
+  // arises. This is the one deliberate exception to the erasure above; it lives
+  // only in the admin audit trail, never in a member-facing surface.
+  await writeAudit(id, user.name ?? 'Member', 'account.self_delete', id, 'user',
+    { name: user.name, email: user.email, phone: user.phone, fingerprint: user.lastFingerprint },
+    `${user.name ?? id} deleted their own account`,
+  )
 
   await deleteSession()
   return NextResponse.json({ ok: true })

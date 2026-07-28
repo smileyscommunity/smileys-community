@@ -95,10 +95,29 @@ export async function GET(req: NextRequest) {
     const noShowMap = new Map(noShowRows.map(r => [r.userId, Number(r.count)]))
 
     const isAdmin = canManageUsers(session)
+
+    // Self-deleted ("Deleted Member") accounts: attach the retained, admin-only
+    // identity snapshot from the account.self_delete audit entry, so an admin
+    // can trace who a deleted account was for safety. Full admins only; never
+    // exposed to non-admin staff or any member-facing surface.
+    const deletedIds = users.filter(u => u.email.endsWith('@deleted.smileys')).map(u => u.id)
+    const identityMap = new Map<string, { name?: string; email?: string; phone?: string }>()
+    if (isAdmin && deletedIds.length) {
+      const snaps = await prisma.auditLog.findMany({
+        where:  { action: 'account.self_delete', targetId: { in: deletedIds } },
+        select: { targetId: true, meta: true },
+      })
+      for (const s of snaps) {
+        if (s.targetId && s.meta && typeof s.meta === 'object') {
+          identityMap.set(s.targetId, s.meta as { name?: string; email?: string; phone?: string })
+        }
+      }
+    }
+
     const mapped = users.map(({ email, phone, password, ...u }) => {
       const displayEmail = isAdmin ? email : (email.split('@')[0].slice(0, 3) + '...@' + email.split('@')[1])
       const displayPhone = isAdmin ? phone : (phone ? phone.slice(0, 4) + '...' + phone.slice(-2) : null)
-      return { ...u, email: displayEmail, phone: displayPhone, hasPassword: !!password, noShowCount: noShowMap.get(u.id) ?? 0 }
+      return { ...u, email: displayEmail, phone: displayPhone, hasPassword: !!password, noShowCount: noShowMap.get(u.id) ?? 0, deletedIdentity: identityMap.get(u.id) ?? null }
     })
     return NextResponse.json(mapped)
   } catch (e) {
