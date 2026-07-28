@@ -29,9 +29,10 @@ const getHandbookArticles = unstable_cache(
 // Fixed-size cover (1200×800) so we can assert real dimensions, unlike the
 // variable-aspect article photos. Served from public/ under the /app basePath.
 const HANDBOOK_OG_IMAGE = `${APP_URL}/images/handbook-cover.jpg`
-const HANDBOOK_OG_DESC  = 'The expat survival KB written by members who actually lived it. Residence permits, banking, schools, doctors, transport.'
+const HANDBOOK_OG_DESC  = 'The practical guide to living in Istanbul, written by Smileys members who actually lived it — residence permits, banking, schools, doctors, transport.'
 
 export const metadata = {
+  alternates: { canonical: '/app/handbook' },
   title: 'The Istanbul Handbook — Smileys Community',
   description: 'Survive and thrive in Istanbul. Residence permits, banking, schools, doctors, transport — the canonical answers, written by members who actually lived through them.',
   openGraph: {
