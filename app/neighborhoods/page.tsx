@@ -4,9 +4,11 @@ import { join } from 'path'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { neighborhoodToSlug, NEIGHBORHOOD_META } from '@/lib/neighborhoods'
+import { APP_URL } from '@/lib/env'
 import { getSession } from '@/lib/session'
 
 export const metadata = {
+  alternates: { canonical: `${APP_URL}/neighborhoods` },
   title: 'Explore Istanbul Neighborhoods — Smileys Community',
   description: 'Find Smileys events happening near you. From Kadıköy to Beşiktaş, Cihangir to Ataşehir — discover social events across Istanbul by neighborhood.',
   openGraph: {

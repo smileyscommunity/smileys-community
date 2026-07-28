@@ -32,7 +32,7 @@ const HANDBOOK_OG_IMAGE = `${APP_URL}/images/handbook-cover.jpg`
 const HANDBOOK_OG_DESC  = 'The practical guide to living in Istanbul, written by Smileys members who actually lived it — residence permits, banking, schools, doctors, transport.'
 
 export const metadata = {
-  alternates: { canonical: '/app/handbook' },
+  alternates: { canonical: `${APP_URL}/handbook` },
   title: 'The Istanbul Handbook — Smileys Community',
   description: 'Survive and thrive in Istanbul. Residence permits, banking, schools, doctors, transport — the canonical answers, written by members who actually lived through them.',
   openGraph: {

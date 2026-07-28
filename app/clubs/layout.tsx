@@ -1,4 +1,7 @@
+import { APP_URL } from '@/lib/env'
+
 export const metadata = {
+  alternates: { canonical: `${APP_URL}/clubs` },
   title: 'Clubs in Istanbul — Smileys Community',
   description: 'Join interest-based clubs in Istanbul — hiking, photography, French conversation, sailing, book clubs and more. Find your people at Smileys.',
   openGraph: {
