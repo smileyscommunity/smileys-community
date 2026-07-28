@@ -673,9 +673,6 @@ function ListingsInner() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-5">
           <div className="flex items-start justify-between gap-4 mb-6">
             <div>
-              <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-3 py-1.5 mb-4">
-                📋 Classifieds
-              </span>
               <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">Community Board</h1>
               <p className="text-base text-gray-600 mt-1 max-w-xl">
                 Rooms, jobs, services & more — posted by Smileys members for Smileys members.
