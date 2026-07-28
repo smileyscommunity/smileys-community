@@ -22,11 +22,11 @@ import EditableArticle from './EditableArticle'
 // back to the /api/og title card (article title + category as the eyebrow)
 // so a shared link still gets a tailored preview, not the generic brand card.
 function ogImageUrl(coverImage: string | null | undefined, title: string, category: string): string {
-  if (coverImage) {
-    const resolved = resolveImageUrl(coverImage)
-    if (resolved.startsWith('http')) return resolved
-    return `${SITE_URL}${resolved}?w=1200`
-  }
+  const resolved = coverImage ? resolveImageUrl(coverImage) : ''
+  if (resolved.startsWith('http')) return resolved
+  // Only a rooted same-origin path is safe to prefix with the origin; a data:/
+  // relative src would build a malformed url, so fall through to the title card.
+  if (resolved.startsWith('/')) return `${SITE_URL}${resolved}?w=1200`
   const params = new URLSearchParams({
     title,
     eyebrow: category ? `${category} · Istanbul Handbook` : 'Istanbul Handbook',
@@ -75,11 +75,13 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const imageUrl    = ogImageUrl(cover, post.title, post.category)
   // The /api/og card is exactly 1200×630, but a real cover/body photo has a
   // variable aspect ratio — asserting 630 there gives FB/X a wrong hint that
-  // mis-crops the preview on the first scrape. So only declare dimensions for
-  // the card; for a photo, omit them and let the crawler read the true size.
-  const ogImage     = cover
-    ? { url: imageUrl, secureUrl: imageUrl, alt: post.title }
-    : { url: imageUrl, secureUrl: imageUrl, width: 1200, height: 630, alt: post.title }
+  // mis-crops the preview on the first scrape. Derive the choice from what
+  // ogImageUrl actually returned (a card when there's no usable image), so
+  // only the card declares dimensions and a photo omits them.
+  const isCard      = imageUrl.startsWith(`${APP_URL}/api/og`)
+  const ogImage     = isCard
+    ? { url: imageUrl, secureUrl: imageUrl, width: 1200, height: 630, alt: post.title }
+    : { url: imageUrl, secureUrl: imageUrl, alt: post.title }
   return {
     title,
     description,

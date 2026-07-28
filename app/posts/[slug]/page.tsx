@@ -97,13 +97,16 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   // original PNGs run multi-MB.
   const cover    = post.coverImage ?? firstBodyImage(post.body)
   const resolved = cover ? resolveImageUrl(cover) : ''
-  const imageUrl = resolved
+  // Only trust a rooted same-origin path or an absolute https URL; a data:/
+  // relative src would build a malformed OG url, so fall back to the card.
+  const usable   = resolved.startsWith('/') || resolved.startsWith('http')
+  const imageUrl = usable
     ? (resolved.startsWith('http') ? resolved : `${SITE_URL}${resolved}?w=1200`)
     : `${APP_URL}/api/og`
   // The /api/og card is exactly 1200×630; a real photo has a variable aspect,
   // so only assert dimensions for the card and let FB/X read a photo's true
   // size (a wrong height hint mis-crops the first scrape).
-  const ogImage  = resolved
+  const ogImage  = usable
     ? { url: imageUrl, secureUrl: imageUrl, alt: post.title }
     : { url: imageUrl, secureUrl: imageUrl, width: 1200, height: 630, alt: post.title }
   return {

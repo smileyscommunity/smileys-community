@@ -68,8 +68,16 @@ export async function GET(req: NextRequest) {
     const daysLeft = Math.ceil((listing.expiresAt.getTime() - Date.now()) / 86400000)
     const isWarningDay = daysLeft === 7 || daysLeft === 3
     if (!isWarningDay) continue
+    // Dedup PER LISTING (was per user, which silently suppressed the warning
+    // for a member's second expiring listing). Link points at the listing's
+    // own page so they can renew it directly; also match the pre-rename
+    // /listings/<id> form. NB: reminders from before the rename linked to the
+    // /listings index (no id), so during the ~2-day dedup window right after
+    // the rename a member could get one extra reminder — a duplicate is far
+    // safer here than missing an expiry warning and losing the listing.
+    const listingLink = `/board/${listing.id}`
     const alreadyNotified = await prisma.notification.findFirst({
-      where: { userId: listing.userId, type: 'listing_expiry', link: `/board` },
+      where: { userId: listing.userId, type: 'listing_expiry', link: { in: [listingLink, `/listings/${listing.id}`] } },
       orderBy: { createdAt: 'desc' },
     })
     const recentlyNotified = alreadyNotified && (Date.now() - new Date(alreadyNotified.createdAt).getTime()) < 2 * 24 * 60 * 60 * 1000
@@ -79,7 +87,7 @@ export async function GET(req: NextRequest) {
       'listing_expiry',
       `Listing expiring in ${daysLeft} days ⏳`,
       `"${listing.title}" will be removed from the Community Board soon — renew it to keep it visible.`,
-      `/board`,
+      listingLink,
     )
     // EM3 fix: log SMTP failures so a silent outage doesn't make
     // every listing-expiry reminder vanish without trace. Cron

@@ -26,7 +26,7 @@ Always `npx tsc --noEmit` (and `npm test` when logic changed) before considering
 - Backups: server-side daily cron dumps to `/root/db-backups` (kept 14) — outside the repo so `rsync --delete` can't wipe them.
 
 ## Layout
-- `app/` — routes + `app/api/**`. Public (unauthenticated) surfaces: `app/events`, `app/directory`, `app/listings` + their APIs — these MUST redact guest data.
+- `app/` — routes + `app/api/**`. Public (unauthenticated) surfaces: `app/events`, `app/directory`, `app/board` (community board; served by the kept `/api/listings` API) + their APIs — these MUST redact guest data.
 - `lib/` — `access.ts` (authz), `session.ts` (auth), `db.ts` (event/club queries), `sanitize.ts`, `safeUrl.ts`, `rateLimit.ts` (DB-backed), `email.ts`, `notify.ts`, `memberPrivacy.ts`, `cup.ts`, `data.ts` (`formatName`, `getInitials`).
 - `components/`, `contexts/`, `hooks/`, `prisma/schema.prisma`, `scripts/` (one-off tsx), `tests/`.
 
