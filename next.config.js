@@ -12,6 +12,13 @@ const nextConfig = {
     middlewareClientMaxBodySize: '20mb',
   },
   images: {
+    // Next's default is 60s, so every optimized image response re-validates
+    // almost immediately. These are static brand/content assets that rarely
+    // change in place — 30 days gives real caching wins for repeat visits.
+    // If a file IS swapped in place, bump its query string (?v=N, matching
+    // the OG-image cache-busting convention already used elsewhere) or
+    // rename it — don't rely on this expiring on its own.
+    minimumCacheTTL: 60 * 60 * 24 * 30,
     remotePatterns: [
       {
         protocol: 'https',

@@ -184,7 +184,6 @@ export default async function HomePage() {
                   src="/app/images/hero-istanbul.jpg"
                   alt="Friends gathered on an Istanbul rooftop at sunset"
                   fill
-                  unoptimized
                   sizes="100vw"
                   className="object-cover"
                 />
@@ -219,11 +218,6 @@ export default async function HomePage() {
               </div>
             </div>
 
-            {/* Hero image — `unoptimized` because Next's image optimizer
-                returns an empty response for public/ assets when basePath
-                is set (next.js#45888). The image only renders at lg+ via
-                hidden lg:block, so the unoptimized 533KB JPEG cost is
-                desktop-only. */}
             {/* -top-10 lifts the image ~40px above its centered position so
                 its top edge sits closer to the headline instead of hanging
                 low against the taller text column (stats push the center down). */}
@@ -233,7 +227,6 @@ export default async function HomePage() {
                 alt="Friends gathered on an Istanbul rooftop at sunset"
                 fill
                 priority
-                unoptimized
                 sizes="(max-width: 1024px) 0px, 50vw"
                 className="object-cover"
               />
