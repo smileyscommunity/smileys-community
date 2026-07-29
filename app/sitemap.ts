@@ -1,10 +1,24 @@
 import { MetadataRoute } from 'next'
+import { statSync } from 'fs'
+import { join } from 'path'
 import { prisma } from '@/lib/prisma'
 import { NEIGHBORHOOD_META, neighborhoodToSlug } from '@/lib/neighborhoods'
 
 export const dynamic = 'force-dynamic'
 
 const BASE = 'https://smileyscommunity.com/app'
+
+// Real mtime of a content file under data/ (these are admin-edited at runtime
+// via /admin/*, and rsync-excluded from deploys, so the mtime on the server is
+// a genuine last-edited date — not a build artifact).
+function fileMtime(...segments: string[]): Date | undefined {
+  try { return statSync(join(process.cwd(), 'data', ...segments)).mtime } catch { return undefined }
+}
+
+function newest(dates: Array<Date | null | undefined>): Date | undefined {
+  const valid = dates.filter((d): d is Date => d instanceof Date)
+  return valid.length ? new Date(Math.max(...valid.map(d => d.getTime()))) : undefined
+}
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const [events, clubs, posts, listings, businesses] = await Promise.all([
@@ -44,20 +58,40 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }),
   ])
 
+  // Per-neighborhood guides are admin-edited JSON files; their mtime is the
+  // real "this page changed" date for /neighborhoods/<slug>.
+  const neighborhoodMtimes = new Map(
+    Object.keys(NEIGHBORHOOD_META).map(name => {
+      const slug = neighborhoodToSlug(name)
+      return [slug, fileMtime('neighborhoods', `${slug}.json`)] as const
+    }),
+  )
+
+  // Index pages change when the content they list changes — derive from the
+  // rows already fetched above rather than stamping the response time (a
+  // generation-time lastmod is exactly what trains Google to ignore the field).
+  const newestEvent    = newest(events.map(e => e.updatedAt))
+  const newestClub     = newest(clubs.map(c => c.createdAt))
+  const newestPost     = newest(posts.map(p => p.publishedAt))
+  const newestListing  = newest(listings.map(l => l.updatedAt))
+  const newestBusiness = newest(businesses.map(b => b.updatedAt))
+
+  // Pages with no honest signal (pure code-driven marketing copy) deliberately
+  // omit lastModified — an invented date is worse than none.
   const staticRoutes: MetadataRoute.Sitemap = [
-    { url: `${BASE}/`,              priority: 1.0, changeFrequency: 'daily'   },
-    { url: `${BASE}/events`,        priority: 0.9, changeFrequency: 'daily'   },
-    { url: `${BASE}/board`,      priority: 0.8, changeFrequency: 'daily'   },
+    { url: `${BASE}/`,              priority: 1.0, changeFrequency: 'daily',   lastModified: newest([newestEvent, newestPost, newestClub]) },
+    { url: `${BASE}/events`,        priority: 0.9, changeFrequency: 'daily',   lastModified: newestEvent },
+    { url: `${BASE}/board`,         priority: 0.8, changeFrequency: 'daily',   lastModified: newestListing },
     { url: `${BASE}/visiting`,      priority: 0.8, changeFrequency: 'daily'   },
-    { url: `${BASE}/guide`,         priority: 0.8, changeFrequency: 'weekly'  },
-    { url: `${BASE}/clubs`,         priority: 0.8, changeFrequency: 'weekly'  },
+    { url: `${BASE}/guide`,         priority: 0.8, changeFrequency: 'weekly',  lastModified: fileMtime('city-guide.json') },
+    { url: `${BASE}/clubs`,         priority: 0.8, changeFrequency: 'weekly',  lastModified: newestClub },
     { url: `${BASE}/apply`,         priority: 0.8, changeFrequency: 'monthly' },
     { url: `${BASE}/about`,         priority: 0.7, changeFrequency: 'monthly' },
-    { url: `${BASE}/why`,           priority: 0.7, changeFrequency: 'monthly' },
-    { url: `${BASE}/faq`,           priority: 0.6, changeFrequency: 'monthly' },
+    { url: `${BASE}/why`,           priority: 0.7, changeFrequency: 'monthly', lastModified: fileMtime('why-content.json') },
+    { url: `${BASE}/faq`,           priority: 0.6, changeFrequency: 'monthly', lastModified: fileMtime('content.json') },
     { url: `${BASE}/contact`,       priority: 0.5, changeFrequency: 'monthly' },
-    { url: `${BASE}/neighborhoods`, priority: 0.6, changeFrequency: 'monthly' },
-    { url: `${BASE}/directory`,     priority: 0.8, changeFrequency: 'weekly'  },
+    { url: `${BASE}/neighborhoods`, priority: 0.6, changeFrequency: 'monthly', lastModified: newest([...neighborhoodMtimes.values()]) },
+    { url: `${BASE}/directory`,     priority: 0.8, changeFrequency: 'weekly',  lastModified: newestBusiness },
     { url: `${BASE}/cup`,           priority: 0.7, changeFrequency: 'daily'   },
     { url: `${BASE}/guidelines`,    priority: 0.4, changeFrequency: 'monthly' },
   ]
@@ -104,11 +138,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     changeFrequency: 'weekly',
   }))
 
-  const neighborhoodRoutes: MetadataRoute.Sitemap = Object.keys(NEIGHBORHOOD_META).map(name => ({
-    url:             `${BASE}/neighborhoods/${neighborhoodToSlug(name)}`,
-    priority:        0.7,
-    changeFrequency: 'weekly' as const,
-  }))
+  const neighborhoodRoutes: MetadataRoute.Sitemap = Object.keys(NEIGHBORHOOD_META).map(name => {
+    const slug = neighborhoodToSlug(name)
+    return {
+      url:             `${BASE}/neighborhoods/${slug}`,
+      lastModified:    neighborhoodMtimes.get(slug),
+      priority:        0.7,
+      changeFrequency: 'weekly' as const,
+    }
+  })
 
   return [
     ...staticRoutes,
