@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { resolveImageUrl } from '@/lib/data'
+import { isBottomNavRoute } from '@/lib/bottomNav'
 import { usePendingConnections } from '@/hooks/usePendingConnections'
 import { useState, useEffect, useCallback } from 'react'
 import AccountMenu from '@/components/AccountMenu'
@@ -54,9 +55,7 @@ export default function BottomNav() {
   const [sheetOpen, setSheetOpen] = useState(false)
   useEffect(() => { setSheetOpen(false) }, [pathname])  // close on nav
 
-  const isInApp = pathname.startsWith('/admin') || pathname.startsWith('/host') || pathname.startsWith('/partner') ||
-    ['/events', '/clubs', '/members', '/perks', '/dashboard', '/profile', '/my-events', '/notifications', '/pending', '/reviews', '/board', '/messages', '/neighborhoods', '/invite', '/guide', '/hangouts', '/visiting', '/directory'].some(r => pathname === r || pathname.startsWith(r + '/'))
-  if (!isLoggedIn || !isInApp) return null
+  if (!isLoggedIn || !isBottomNavRoute(pathname)) return null
 
   const photo = resolveImageUrl(user.profilePhoto)
 

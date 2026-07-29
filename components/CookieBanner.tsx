@@ -2,12 +2,22 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useAuth } from '@/contexts/AuthContext'
+import { isBottomNavRoute } from '@/lib/bottomNav'
 
 const STORAGE_KEY = 'smileys-cookie-consent'
 
 export default function CookieBanner() {
   const [visible, setVisible] = useState(false)
+  const { isLoggedIn } = useAuth()
+  const pathname = usePathname()
+  // BottomNav only renders for logged-in users on these routes — anywhere
+  // else (notably the anonymous marketing homepage, where this banner is
+  // most likely to be the first thing a new visitor sees) there's no bar to
+  // clear, so reserving 64px under the banner just buries more of the page.
+  const clearsBottomNav = isLoggedIn && isBottomNavRoute(pathname)
 
   useEffect(() => {
     try {
@@ -35,9 +45,13 @@ export default function CookieBanner() {
           transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
           className="fixed bottom-0 left-0 right-0 z-[60] pb-[env(safe-area-inset-bottom)]"
         >
-          {/* Offset above the mobile bottom nav (mb-16); flush on desktop. */}
-          <div className="mb-16 md:mb-0 mx-3 md:mx-0">
-            <div className="md:max-w-2xl md:mx-auto md:mb-6 bg-gray-900 text-white rounded-2xl shadow-2xl px-5 py-4 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          {/* Offset above the mobile bottom nav where it's actually showing
+              (logged-in + an in-app route); elsewhere — notably the
+              anonymous marketing homepage, the most likely first-visit
+              page — there's no bar to clear, so don't bury more of the
+              page under empty space. Flush (mb-0) on desktop either way. */}
+          <div className={`${clearsBottomNav ? 'mb-16' : 'mb-3'} md:mb-0 mx-3 md:mx-0`}>
+            <div className="md:max-w-2xl md:mx-auto md:mb-6 bg-gray-900 text-white rounded-2xl shadow-2xl px-4 py-3 sm:px-5 sm:py-4 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
               <div className="flex-1 min-w-0">
                 <p className="text-sm leading-relaxed text-gray-200">
                   We use essential cookies to keep you signed in, and optional analytics cookies to improve the experience.{' '}
