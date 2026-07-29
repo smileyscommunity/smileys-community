@@ -178,12 +178,19 @@ export default async function HomePage() {
 
               {/* Mobile/tablet hero image — sits between the pitch and the
                   ask, so the visual proof lands before the CTAs. Desktop
-                  sees the side image instead, so hide at lg+. */}
+                  sees the side image instead, so hide at lg+. This is the
+                  LCP element on mobile viewports — without `priority` it
+                  defaulted to loading="lazy", delaying the fetch of exactly
+                  the image LCP is measuring. fetchPriority is explicit on
+                  top of `priority` since the browser hint isn't otherwise
+                  guaranteed to land on the rendered <img>. */}
               <div className="lg:hidden relative aspect-[3/2] rounded-2xl overflow-hidden shadow-xl mb-10">
                 <Image
                   src="/app/images/hero-istanbul.jpg"
                   alt="Friends gathered on an Istanbul rooftop at sunset"
                   fill
+                  priority
+                  fetchPriority="high"
                   sizes="100vw"
                   className="object-cover"
                 />
@@ -227,6 +234,7 @@ export default async function HomePage() {
                 alt="Friends gathered on an Istanbul rooftop at sunset"
                 fill
                 priority
+                fetchPriority="high"
                 sizes="(max-width: 1024px) 0px, 50vw"
                 className="object-cover"
               />
