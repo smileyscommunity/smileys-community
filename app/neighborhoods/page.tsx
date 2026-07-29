@@ -33,6 +33,7 @@ export const metadata = {
   },
 }
 import { resolveImageUrl, avatarUrl } from '@/lib/data'
+import AvatarImg from '@/components/AvatarImg'
 import NeighborhoodGrid, { type Group } from '@/components/NeighborhoodGrid'
 import { loadContent } from '@/lib/content'
 
@@ -47,7 +48,7 @@ const getNeighborhoodStats = unstable_cache(
     }),
     prisma.user.groupBy({
       by: ['neighborhood'],
-      where: { neighborhood: { not: null }, status: { not: 'banned' } },
+      where: { neighborhood: { not: null }, status: 'approved' },
       _count: { _all: true },
     }),
     prisma.event.findMany({
@@ -134,7 +135,7 @@ export default async function NeighborhoodsPage() {
   let yourNeighborhoodMembers: { id: string; name: string; color: string; profilePhoto: string | null }[] = []
   if (userNeighborhood) {
     yourNeighborhoodMembers = await prisma.user.findMany({
-      where:   { neighborhood: userNeighborhood, status: { not: 'banned' } },
+      where:   { neighborhood: userNeighborhood, status: 'approved' },
       select:  { id: true, name: true, color: true, profilePhoto: true },
       take:    5,
       orderBy: { joinedAt: 'desc' },
@@ -172,16 +173,8 @@ export default async function NeighborhoodsPage() {
                 <div className="flex items-center gap-2 ml-2">
                   <div className="flex -space-x-1.5">
                     {yourNeighborhoodMembers.slice(0, 4).map(m => (
-                      m.profilePhoto ? (
-                        <img key={m.id} src={avatarUrl(m.profilePhoto, 64)} alt={m.name} loading="lazy" decoding="async"
-                          className="w-7 h-7 rounded-full border-2 border-white object-cover" />
-                      ) : (
-                        <div key={m.id}
-                          className="w-7 h-7 rounded-full border-2 border-white flex items-center justify-center text-white text-[9px] font-bold"
-                          style={{ backgroundColor: m.color }}>
-                          {m.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2)}
-                        </div>
-                      )
+                      <AvatarImg key={m.id} src={avatarUrl(m.profilePhoto, 64)} name={m.name} color={m.color}
+                        size="w-7 h-7" textSize="text-[9px]" className="border-2 border-white" />
                     ))}
                   </div>
                   <span className="text-xs text-gray-600">

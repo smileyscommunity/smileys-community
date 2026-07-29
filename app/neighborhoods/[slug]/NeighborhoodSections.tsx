@@ -56,7 +56,7 @@ export default async function NeighborhoodSections({
     }),
     prisma.event.count({ where: { neighborhood: name, date: { lt: today } } }),
     prisma.user.findMany({
-      where:   { neighborhood: name, status: { not: 'banned' } },
+      where:   { neighborhood: name, status: 'approved' },
       select:  { id: true, name: true, color: true, profilePhoto: true },
       take:    12,
       orderBy: { joinedAt: 'desc' },
@@ -68,7 +68,7 @@ export default async function NeighborhoodSections({
       orderBy: { _count: { hostId: 'desc' } },
       take:    4,
     }),
-    prisma.user.count({ where: { neighborhood: name, status: { not: 'banned' } } }),
+    prisma.user.count({ where: { neighborhood: name, status: 'approved' } }),
     prisma.event.groupBy({
       by:    ['neighborhood'],
       where: { date: { gte: today } },
@@ -201,17 +201,13 @@ export default async function NeighborhoodSections({
               const window   = minsLeft >= 60
                 ? `until ${until.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
                 : `${minsLeft}m left`
-              const avatar = p.user.profilePhoto ? avatarUrl(p.user.profilePhoto, 64) : null
               return (
                 <Link key={p.id} href={`/members/${p.user.id}`} className="group block">
                   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hover:shadow-md hover:-translate-y-0.5 transition-all h-full">
                     <p className="text-xs font-bold text-green-700 uppercase tracking-wide mb-2">Free to meet · {window}</p>
                     {p.note && <p className="text-sm text-gray-800 mb-3 line-clamp-2">{p.note}</p>}
                     <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
-                      {avatar
-                        ? <img src={avatar} alt={p.user.name} className="w-6 h-6 rounded-full object-cover shrink-0" />
-                        : <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0"
-                            style={{ backgroundColor: p.user.color }}>{p.user.name[0]}</div>}
+                      <AvatarImg src={avatarUrl(p.user.profilePhoto, 64)} name={p.user.name} color={p.user.color} size="w-6 h-6" textSize="text-[10px]" className="shrink-0" />
                       <span className="text-xs text-gray-600 truncate">{p.user.name}</span>
                     </div>
                   </div>
@@ -243,7 +239,6 @@ export default async function NeighborhoodSections({
                            : minsToStart < 60 * 12
                              ? `Starts ${s.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
                              : s.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
-              const avatar = h.user.profilePhoto ? avatarUrl(h.user.profilePhoto, 64) : null
               const going  = h._count.joins + 1  // +1 = host
               return (
                 <Link key={h.id} href="/hangouts" className="group block">
@@ -252,10 +247,7 @@ export default async function NeighborhoodSections({
                     <p className="text-sm font-bold text-gray-900 mb-1 line-clamp-2">{h.title}</p>
                     <p className="text-xs text-gray-600 mb-3 line-clamp-1">📍 {h.location}</p>
                     <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
-                      {avatar
-                        ? <img src={avatar} alt={h.user.name} className="w-6 h-6 rounded-full object-cover shrink-0" />
-                        : <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0"
-                            style={{ backgroundColor: h.user.color }}>{h.user.name[0]}</div>}
+                      <AvatarImg src={avatarUrl(h.user.profilePhoto, 64)} name={h.user.name} color={h.user.color} size="w-6 h-6" textSize="text-[10px]" className="shrink-0" />
                       <span className="text-xs text-gray-600 truncate">{h.user.name}</span>
                       {h.user.goodHangouts > 0 && (
                         <span className="text-[10px] font-semibold text-green-700 shrink-0">✓ {h.user.goodHangouts}</span>
@@ -322,16 +314,8 @@ export default async function NeighborhoodSections({
                         <div className="flex items-center gap-2 mb-3">
                           <div className="flex -space-x-1.5">
                             {event.attendees.slice(0, 3).map(a => (
-                              a.user.profilePhoto ? (
-                                <img key={a.user.id} src={avatarUrl(a.user.profilePhoto, 64)} alt={a.user.name} loading="lazy" decoding="async"
-                                  className="w-6 h-6 rounded-full border-2 border-white object-cover" />
-                              ) : (
-                                <div key={a.user.id}
-                                  className="w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-white text-[8px] font-bold"
-                                  style={{ backgroundColor: a.user.color }}>
-                                  {a.user.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2)}
-                                </div>
-                              )
+                              <AvatarImg key={a.user.id} src={avatarUrl(a.user.profilePhoto, 64)} name={a.user.name} color={a.user.color}
+                                size="w-6 h-6" textSize="text-[8px]" className="border-2 border-white" />
                             ))}
                           </div>
                           <span className="text-xs text-gray-400">{goingCount} going</span>

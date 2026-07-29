@@ -18,7 +18,7 @@ export default async function HeroStats({ name, groupLink, groupLabel, userId, i
   const [monthlyCount, pastCount, totalLocals, approvedHost] = await Promise.all([
     prisma.event.count({ where: { neighborhood: name, date: { gte: monthStr } } }),
     prisma.event.count({ where: { neighborhood: name, date: { lt: today } } }),
-    prisma.user.count({ where: { neighborhood: name, status: { not: 'banned' } } }),
+    prisma.user.count({ where: { neighborhood: name, status: 'approved' } }),
     userId
       ? prisma.clubMembership.findFirst({
           where: { userId, role: 'host', status: 'approved' },
