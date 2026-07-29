@@ -45,9 +45,9 @@ export default async function NeighborhoodSections({
       orderBy: [{ attendees: { _count: 'desc' } }, { date: 'asc' }],
       take: 3,
       include: {
-        _count:    { select: { attendees: { where: { status: 'approved' } } } },
+        _count:    { select: { attendees: { where: { status: 'approved', user: { status: 'approved' } } } } },
         attendees: {
-          where:   { status: 'approved' },
+          where:   { status: 'approved', user: { status: 'approved' } },
           take:    3,
           orderBy: { joinedAt: 'desc' },
           select:  { user: { select: { id: true, name: true, color: true, profilePhoto: true } } },
@@ -85,7 +85,7 @@ export default async function NeighborhoodSections({
     // posts surface where people look for them ("flats in Moda" arrives on the
     // Moda page and sees them, no extra step).
     prisma.listing.findMany({
-      where:   { neighborhood: name, status: 'active' },
+      where:   { neighborhood: name, status: 'active', user: { status: 'approved' } },
       orderBy: { createdAt: 'desc' },
       take:    6,
       select:  {
@@ -110,7 +110,7 @@ export default async function NeighborhoodSections({
     // sweeper run can't show stale ones. Same shape the /hangouts feed uses
     // so users can recognize the cards.
     prisma.hangout.findMany({
-      where:   { neighborhood: name, status: 'active', endsAt: { gte: now } },
+      where:   { neighborhood: name, status: 'active', endsAt: { gte: now }, user: { status: 'approved' } },
       orderBy: { startsAt: 'asc' },
       take:    3,
       select:  {
@@ -138,7 +138,7 @@ export default async function NeighborhoodSections({
     // feed gates on session), so only fetch when the viewer is logged in.
     myId
       ? prisma.availabilityPulse.findMany({
-          where:   { neighborhood: name, until: { gte: now } },
+          where:   { neighborhood: name, until: { gte: now }, user: { status: 'approved' } },
           orderBy: { createdAt: 'desc' },
           take:    6,
           select:  {
@@ -151,7 +151,7 @@ export default async function NeighborhoodSections({
 
   const hosts = hostCounts.length > 0
     ? await prisma.user.findMany({
-        where:  { id: { in: hostCounts.map(h => h.hostId) } },
+        where:  { id: { in: hostCounts.map(h => h.hostId) }, status: 'approved' },
         select: { id: true, name: true, color: true, profilePhoto: true },
       })
     : []
