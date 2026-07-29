@@ -9,6 +9,11 @@ export const metadata = {
     description: 'Reach out to the Smileys team — we\'re here to help.',
     url: `${APP_URL}/contact`,
   },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Contact Smileys Community',
+    description: 'Reach out to the Smileys team — we\'re here to help.',
+  },
 }
 
 export default function ContactLayout({ children }: { children: React.ReactNode }) {

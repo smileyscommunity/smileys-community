@@ -27,6 +27,11 @@ export const metadata = {
     description: 'Club spotlights, Istanbul guides, and stories from the Smileys community.',
     url: `${APP_URL}/posts`,
   },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Articles & Stories — Smileys Community',
+    description: 'Club spotlights, Istanbul guides, and stories from the Smileys community.',
+  },
 }
 
 const categoryColors: Record<string, string> = {

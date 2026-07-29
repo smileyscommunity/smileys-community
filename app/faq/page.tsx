@@ -15,6 +15,11 @@ export const metadata = {
     description: 'Everything you need to know about joining and using Smileys Community in Istanbul.',
     url: `${APP_URL}/faq`,
   },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Smileys Community FAQ',
+    description: 'Everything you need to know about joining and using Smileys Community in Istanbul.',
+  },
 }
 
 interface FAQ  { q: string; a: React.ReactNode }

@@ -25,6 +25,11 @@ export const metadata = {
     description: 'A curated real-life social ecosystem for globally minded people in Istanbul.',
     url: `${APP_URL}/why`,
   },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Why Smileys? — Find Your People in Istanbul',
+    description: 'A curated real-life social ecosystem for globally minded people in Istanbul.',
+  },
 }
 
 

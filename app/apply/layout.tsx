@@ -15,6 +15,11 @@ export const metadata = {
     description: 'Join Istanbul\'s most vibrant curated social community. Application takes 5 minutes.',
     url: `${APP_URL}/apply`,
   },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Apply to Join Smileys Community',
+    description: 'Join Istanbul\'s most vibrant curated social community. Application takes 5 minutes.',
+  },
 }
 
 export default function ApplyLayout({ children }: { children: React.ReactNode }) {

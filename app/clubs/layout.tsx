@@ -9,6 +9,11 @@ export const metadata = {
     description: 'Over 70 interest-based clubs in Istanbul. Find your community at Smileys.',
     url: `${APP_URL}/clubs`,
   },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Istanbul Social Clubs — Smileys Community',
+    description: 'Over 70 interest-based clubs in Istanbul. Find your community at Smileys.',
+  },
 }
 
 export default function ClubsLayout({ children }: { children: React.ReactNode }) {

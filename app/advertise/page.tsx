@@ -14,6 +14,11 @@ export const metadata = {
     description: 'Reach vetted, active English-speaking internationals living in Istanbul through Smileys events, newsletter, and clubs.',
     url: `${APP_URL}/advertise`,
   },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Advertise with Smileys Community',
+    description: 'Reach vetted, active English-speaking internationals living in Istanbul through Smileys events, newsletter, and clubs.',
+  },
 }
 
 const WHY = [

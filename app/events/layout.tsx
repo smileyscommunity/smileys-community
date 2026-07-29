@@ -10,6 +10,11 @@ export const metadata = {
     description: 'Curated social events across Istanbul every week. Find dinners, outdoor adventures, cultural meetups and more.',
     url: `${APP_URL}/events`,
   },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Istanbul Events — Smileys Community',
+    description: 'Curated social events across Istanbul every week. Find dinners, outdoor adventures, cultural meetups and more.',
+  },
 }
 
 export default function EventsLayout({ children }: { children: React.ReactNode }) {

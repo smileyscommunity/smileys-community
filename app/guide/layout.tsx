@@ -10,6 +10,11 @@ export const metadata: Metadata = {
     description: 'Ferries, metro lines, neighborhoods, apps and practical tips — everything you need to navigate Istanbul as an expat.',
     url: `${APP_URL}/guide`,
   },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Istanbul City Guide — Smileys Community',
+    description: 'Ferries, metro lines, neighborhoods, apps and practical tips — everything you need to navigate Istanbul as an expat.',
+  },
 }
 
 export default function GuideLayout({ children }: { children: React.ReactNode }) {

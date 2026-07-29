@@ -17,6 +17,11 @@ export const metadata = {
     description: 'A vetted professional network on top of the community you already trust. Founding membership: 50% off for life.',
     url: `${APP_URL}/pro`,
   },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Smileys Pro — Coming Soon',
+    description: 'A vetted professional network on top of the community you already trust. Founding membership: 50% off for life.',
+  },
 }
 
 const BENEFITS = [

@@ -13,6 +13,11 @@ export const metadata = {
     description: "Istanbul's curated social community for expats and globally minded people.",
     url: `${APP_URL}/about`,
   },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'About Smileys Community',
+    description: "Istanbul's curated social community for expats and globally minded people.",
+  },
 }
 
 const VALUES = [

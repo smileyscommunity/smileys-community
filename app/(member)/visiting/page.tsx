@@ -31,6 +31,11 @@ export const metadata: Metadata = {
     description: 'Post your trip dates, see who else is in town, and connect with locals before you arrive.',
     url: `${APP_URL}/visiting`,
   },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Visiting Istanbul? Meet locals — Smileys Community',
+    description: 'Post your trip dates, see who else is in town, and connect with locals before you arrive.',
+  },
 }
 
 export default async function VisitingPage() {
