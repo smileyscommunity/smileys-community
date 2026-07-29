@@ -94,7 +94,8 @@
       "id": "safety", "icon": "🛡️", "title": "Community & Safety",
       "items": [
         { "q": "What are the community guidelines?", "a": "Smileys is built on respect, inclusivity, and genuine connection. We do not tolerate harassment, discrimination, spamming, or any behaviour that makes others feel unsafe or unwelcome. Violation of these principles can result in removal from the community." },
-        { "q": "How do I report a member?", "a": "You can report a member from their profile page. Select the reason, add any relevant context, and our moderation team will review it promptly. All reports are confidential." }
+        { "q": "How do I report a member?", "a": "You can report a member from their profile page. Select the reason, add any relevant context, and our moderation team will review it promptly. All reports are confidential." },
+        { "q": "Is my personal information safe?", "a": "Yes. We never sell your data to third parties. Your profile is only visible to other verified Smileys members. Read our full Privacy Policy at smileyscommunity.com/privacy for details." }
       ]
     }
   ]
