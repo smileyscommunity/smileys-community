@@ -10,7 +10,7 @@ import Link from 'next/link'
 import { getInitials, whatsappUrl } from '@/lib/data'
 import { useAuth } from '@/contexts/AuthContext'
 
-type TabKey = 'all' | 'member' | 'moderator' | 'admin' | 'unverified' | 'banned' | 'suspended' | 'inactive' | 'warned' | 'noshows' | 'deleted'
+type TabKey = 'all' | 'member' | 'moderator' | 'admin' | 'banned' | 'suspended' | 'inactive' | 'warned' | 'noshows' | 'deleted'
 
 interface DBUser {
   id: string
@@ -493,7 +493,6 @@ function AdminUsersPageInner() {
     member:     searchFiltered.filter(u => u.role === 'member').length,
     moderator:  searchFiltered.filter(u => u.role === 'moderator').length,
     admin:      searchFiltered.filter(u => u.role === 'admin').length,
-    unverified: searchFiltered.filter(u => !u.emailVerified).length,
     banned:     searchFiltered.filter(u => u.status === 'banned' && !isDeletedAccount(u)).length,
     deleted:    searchFiltered.filter(isDeletedAccount).length,
     suspended:  searchFiltered.filter(isSuspended).length,
@@ -509,7 +508,6 @@ function AdminUsersPageInner() {
       if (tab === 'member')    return u.role === 'member'
       if (tab === 'moderator') return u.role === 'moderator'
       if (tab === 'admin')     return u.role === 'admin'
-      if (tab === 'unverified') return !u.emailVerified
       if (tab === 'banned')     return u.status === 'banned' && !isDeletedAccount(u)
       if (tab === 'deleted')    return isDeletedAccount(u)
       if (tab === 'suspended')  return isSuspended(u)
@@ -546,7 +544,6 @@ function AdminUsersPageInner() {
     { key: 'member',    label: 'Members'    },
     { key: 'moderator', label: 'Moderators' },
     { key: 'admin',     label: 'Admins'     },
-    { key: 'unverified',label: 'Unverified' },
     { key: 'warned',    label: 'Warned'     },
     { key: 'noshows',   label: 'No-shows'   },
     { key: 'suspended', label: 'Suspended'  },
