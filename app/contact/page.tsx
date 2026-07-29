@@ -196,7 +196,7 @@ export default function ContactPage() {
               <div className="bg-white rounded-2xl shadow-card p-6">
                 <h3 className="font-bold text-gray-900 mb-4">Other ways to reach us</h3>
                 <div className="space-y-4">
-                  <a href="https://instagram.com/smileys.community" target="_blank" rel="noopener noreferrer"
+                  <a href="https://www.instagram.com/smileys.community" target="_blank" rel="noopener noreferrer"
                     className="flex items-center gap-3 text-sm text-gray-600 hover:text-pink-600 transition-colors group">
                     <div className="w-9 h-9 rounded-xl bg-pink-50 flex items-center justify-center group-hover:bg-pink-100 transition-colors shrink-0">
                       <svg className="w-4 h-4 text-pink-500" viewBox="0 0 24 24" fill="currentColor">

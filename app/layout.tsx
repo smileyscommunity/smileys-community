@@ -76,10 +76,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     description:  "Istanbul's curated social community — events, clubs, and genuine connections for expats, nomads, travelers, and locals.",
     areaServed:   { '@type': 'City', name: 'Istanbul' },
     sameAs: [
-      'https://instagram.com/smileys.community',
+      'https://www.instagram.com/smileys.community',
       'https://linkedin.com/company/smileys-community',
       'https://www.facebook.com/aswistanbul/',
-      'https://whatsapp.com/channel/0029VaCKyc29hXF4fZuOod1K',
+      'https://www.whatsapp.com/channel/0029VaCKyc29hXF4fZuOod1K',
     ],
   }
   return (

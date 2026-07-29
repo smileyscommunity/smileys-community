@@ -79,7 +79,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Pages with no honest signal (pure code-driven marketing copy) deliberately
   // omit lastModified — an invented date is worse than none.
   const staticRoutes: MetadataRoute.Sitemap = [
-    { url: `${BASE}/`,              priority: 1.0, changeFrequency: 'daily',   lastModified: newest([newestEvent, newestPost, newestClub]) },
+    { url: BASE,                    priority: 1.0, changeFrequency: 'daily',   lastModified: newest([newestEvent, newestPost, newestClub]) },
     { url: `${BASE}/events`,        priority: 0.9, changeFrequency: 'daily',   lastModified: newestEvent },
     { url: `${BASE}/board`,         priority: 0.8, changeFrequency: 'daily',   lastModified: newestListing },
     { url: `${BASE}/visiting`,      priority: 0.8, changeFrequency: 'daily'   },

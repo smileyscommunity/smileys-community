@@ -710,9 +710,9 @@ export async function sendBroadcastEmail(
           </a>
         </div>
         <p style="margin-top:24px;font-size:13px">
-          <a href="https://instagram.com/smileys.community" style="color:#b45309;font-weight:600;text-decoration:none">Instagram</a>
+          <a href="https://www.instagram.com/smileys.community" style="color:#b45309;font-weight:600;text-decoration:none">Instagram</a>
           <span style="color:#d1d5db">·</span>
-          <a href="https://whatsapp.com/channel/0029VaCKyc29hXF4fZuOod1K" style="color:#b45309;font-weight:600;text-decoration:none">WhatsApp channel</a>
+          <a href="https://www.whatsapp.com/channel/0029VaCKyc29hXF4fZuOod1K" style="color:#b45309;font-weight:600;text-decoration:none">WhatsApp channel</a>
           <span style="color:#d1d5db">·</span>
           <a href="https://linkedin.com/company/smileys-community" style="color:#b45309;font-weight:600;text-decoration:none">LinkedIn</a>
           <span style="color:#d1d5db">·</span>
@@ -873,9 +873,9 @@ function buildNewsletterPayload(userId: string, email: string, name: string, sub
           </a>
         </div>
         <p style="margin-top:24px;font-size:13px">
-          <a href="https://instagram.com/smileys.community" style="color:#b45309;font-weight:600;text-decoration:none">Instagram</a>
+          <a href="https://www.instagram.com/smileys.community" style="color:#b45309;font-weight:600;text-decoration:none">Instagram</a>
           <span style="color:#d1d5db">·</span>
-          <a href="https://whatsapp.com/channel/0029VaCKyc29hXF4fZuOod1K" style="color:#b45309;font-weight:600;text-decoration:none">WhatsApp channel</a>
+          <a href="https://www.whatsapp.com/channel/0029VaCKyc29hXF4fZuOod1K" style="color:#b45309;font-weight:600;text-decoration:none">WhatsApp channel</a>
           <span style="color:#d1d5db">·</span>
           <a href="https://linkedin.com/company/smileys-community" style="color:#b45309;font-weight:600;text-decoration:none">LinkedIn</a>
           <span style="color:#d1d5db">·</span>
