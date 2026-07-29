@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import Image from 'next/image'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
@@ -11,6 +12,16 @@ import { neighborhoodToSlug, getNeighborhoodMeta } from '@/lib/neighborhoods'
 import { resolveImageUrl, todayIstanbul } from '@/lib/data'
 import { loadContent } from '@/lib/content'
 import ActivityTicker from '@/components/ActivityTicker'
+import { APP_URL } from '@/lib/env'
+
+// The homepage had no metadata export of its own, so it silently inherited
+// the root layout's — which has no canonical. / already 301s to /app (no
+// direct duplicate-content risk there), but /app itself served with no
+// <link rel="canonical"> at all. Root layout already sets openGraph.url
+// correctly (= APP_URL), so this only needs to add the canonical.
+export const metadata: Metadata = {
+  alternates: { canonical: APP_URL },
+}
 
 // The landing-page data is identical for every anonymous visitor (logged-in
 // users are redirected away before it's read), so cache it for 60s instead

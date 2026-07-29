@@ -9,6 +9,7 @@ export const dynamic = 'force-dynamic'
 const FOUNDER_CAP = 100
 
 export const metadata = {
+  alternates: { canonical: `${APP_URL}/pro` },
   title: 'Smileys Pro — The Professional Network for Istanbul\'s Internationals',
   description: 'A vetted professional network on top of the community you already trust. Founding membership opens at launch — reserve your spot.',
   openGraph: {

@@ -23,6 +23,7 @@ const getAnnouncements = unstable_cache(
 )
 
 export const metadata: Metadata = {
+  alternates: { canonical: `${APP_URL}/visiting` },
   title: 'Visiting Istanbul? Meet locals — Smileys Community',
   description: 'Tell Smileys members you\'re coming to Istanbul. Locals will reach out to grab coffee, share neighborhood tips, and welcome you in.',
   openGraph: {

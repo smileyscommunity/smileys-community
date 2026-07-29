@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { APP_URL } from '@/lib/env'
 
 export const metadata: Metadata = {
+  alternates: { canonical: `${APP_URL}/guide` },
   title: 'Istanbul City Guide — Smileys Community',
   description: 'Practical, admin-curated guide for expats in Istanbul. Transit tips, essential apps, neighborhood guides, and local know-how.',
   openGraph: {

@@ -19,6 +19,7 @@ const getPosts = unstable_cache(
 )
 
 export const metadata = {
+  alternates: { canonical: `${APP_URL}/posts` },
   title: 'Articles & Stories — Smileys Community',
   description: 'Club spotlights, event recaps, Istanbul guides, and tips for making the most of Smileys. Stories from Istanbul\'s most vibrant social community.',
   openGraph: {

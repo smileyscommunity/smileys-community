@@ -17,6 +17,7 @@ const getWhyPageData = unstable_cache(
 )
 
 export const metadata = {
+  alternates: { canonical: `${APP_URL}/why` },
   title: 'Why Smileys? — Find Your People in Istanbul',
   description: 'Istanbul can feel crowded and still lonely. Smileys is the curated social community for globally minded people building a real social life in the city.',
   openGraph: {

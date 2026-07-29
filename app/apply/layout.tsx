@@ -7,6 +7,7 @@ import { areApplicationsOpen } from '@/lib/communitySettings'
 export const dynamic = 'force-dynamic'
 
 export const metadata = {
+  alternates: { canonical: `${APP_URL}/apply` },
   title: 'Apply to Join Smileys — Istanbul\'s Curated Social Community',
   description: 'Apply to become a member of Smileys Community in Istanbul. Meet expats and locals through curated events, clubs, and genuine social experiences.',
   openGraph: {

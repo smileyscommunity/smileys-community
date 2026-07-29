@@ -5,6 +5,7 @@ import { loadContent } from '@/lib/content'
 export const revalidate = 3600
 
 export const metadata = {
+  alternates: { canonical: `${APP_URL}/about` },
   title: 'About Us — Smileys Community',
   description: "Learn about Smileys — Istanbul's curated social community bringing together expats and locals through events, clubs, and genuine connection.",
   openGraph: {
