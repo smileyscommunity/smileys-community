@@ -119,7 +119,7 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
             type="button"
             onClick={goToNeighborhood}
             aria-label={`See events in ${event.neighborhood}`}
-            className="absolute top-3 right-3 badge bg-white/90 text-gray-700 shadow-sm cursor-pointer hover:bg-amber-50 hover:text-amber-600 transition-colors"
+            className="absolute top-3 right-3 badge bg-white/90 text-gray-700 shadow-sm cursor-pointer hover:bg-amber-50 hover:text-amber-600 transition-colors before:absolute before:content-[''] before:-inset-x-2 before:-inset-y-3"
           >
             {event.neighborhood}
           </button>
@@ -158,7 +158,7 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
               type="button"
               onClick={goToNeighborhood}
               aria-label={`See events in ${event.neighborhood}`}
-              className="flex items-center gap-1 cursor-pointer hover:text-amber-600 transition-colors truncate"
+              className="relative flex items-center gap-1 cursor-pointer hover:text-amber-600 transition-colors truncate before:absolute before:content-[''] before:-inset-x-1 before:-inset-y-3.5"
             >
               <svg className="w-3 h-3 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
@@ -250,7 +250,7 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
               onClick={handleJoin}
               disabled={isCancelled || status !== 'idle'}
               whileTap={!isCancelled && status === 'idle' ? { scale: 0.93 } : {}}
-              className={`text-xs font-semibold py-1.5 rounded-lg transition-colors disabled:cursor-default overflow-hidden ${
+              className={`text-xs font-semibold py-1.5 min-h-[44px] rounded-lg transition-colors disabled:cursor-default overflow-hidden ${
                 event.spotsLeft === 0 && event.limitedSpots && status === 'idle' && !isCancelled ? 'px-2' : 'px-3'
               } ${
                 isCancelled         ? 'bg-red-100 text-red-700'      :

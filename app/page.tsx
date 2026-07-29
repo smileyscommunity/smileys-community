@@ -340,7 +340,7 @@ export default async function HomePage() {
               ))}
             </div>
             <div className="mt-6 text-center md:hidden">
-              <Link href="/neighborhoods" className="text-sm text-amber-600 font-semibold hover:underline">
+              <Link href="/neighborhoods" className="inline-flex items-center min-h-[44px] px-2 text-sm text-amber-600 font-semibold hover:underline">
                 View all neighborhoods →
               </Link>
             </div>
@@ -357,7 +357,7 @@ export default async function HomePage() {
                 <h2 className="text-2xl font-bold text-gray-900">What members say</h2>
                 <p className="text-sm text-gray-600 mt-1">Real stories from real people</p>
               </div>
-              <Link href="/why" className="text-sm font-semibold text-amber-600 hover:underline">
+              <Link href="/why" className="inline-flex items-center min-h-[44px] shrink-0 text-sm font-semibold text-amber-600 hover:underline">
                 Read all stories →
               </Link>
             </div>
