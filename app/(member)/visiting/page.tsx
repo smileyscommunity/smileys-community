@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { APP_URL } from '@/lib/env'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import type { Metadata } from 'next'
@@ -27,7 +28,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Visiting Istanbul? Meet locals — Smileys Community',
     description: 'Post your trip dates, see who else is in town, and connect with locals before you arrive.',
-    url: 'https://smileyscommunity.com/visiting',
+    url: `${APP_URL}/visiting`,
   },
 }
 

@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { APP_URL } from '@/lib/env'
 import { areApplicationsOpen } from '@/lib/communitySettings'
 
 // Reads the intake switch per request so pausing/reopening applications from
@@ -11,7 +12,7 @@ export const metadata = {
   openGraph: {
     title: 'Apply to Join Smileys Community',
     description: 'Join Istanbul\'s most vibrant curated social community. Application takes 5 minutes.',
-    url: 'https://smileyscommunity.com/apply',
+    url: `${APP_URL}/apply`,
   },
 }
 

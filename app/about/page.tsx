@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { APP_URL } from '@/lib/env'
 import { loadContent } from '@/lib/content'
 
 export const revalidate = 3600
@@ -9,7 +10,7 @@ export const metadata = {
   openGraph: {
     title: 'About Smileys Community',
     description: "Istanbul's curated social community for expats and globally minded people.",
-    url: 'https://smileyscommunity.com/about',
+    url: `${APP_URL}/about`,
   },
 }
 

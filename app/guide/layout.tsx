@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { APP_URL } from '@/lib/env'
 
 export const metadata: Metadata = {
   title: 'Istanbul City Guide — Smileys Community',
@@ -6,7 +7,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Istanbul City Guide — Smileys Community',
     description: 'Ferries, metro lines, neighborhoods, apps and practical tips — everything you need to navigate Istanbul as an expat.',
-    url: 'https://smileyscommunity.com/guide',
+    url: `${APP_URL}/guide`,
   },
 }
 

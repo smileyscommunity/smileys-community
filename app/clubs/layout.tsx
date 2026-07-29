@@ -7,7 +7,7 @@ export const metadata = {
   openGraph: {
     title: 'Istanbul Social Clubs — Smileys Community',
     description: 'Over 70 interest-based clubs in Istanbul. Find your community at Smileys.',
-    url: 'https://smileyscommunity.com/clubs',
+    url: `${APP_URL}/clubs`,
   },
 }
 

@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { APP_URL } from '@/lib/env'
 import AdvertiseFormClient from './AdvertiseFormClient'
 import { loadContent } from '@/lib/content'
 
@@ -10,7 +11,7 @@ export const metadata = {
   openGraph: {
     title: 'Advertise with Smileys Community',
     description: 'Reach vetted, active English-speaking internationals living in Istanbul through Smileys events, newsletter, and clubs.',
-    url: 'https://smileyscommunity.com/advertise',
+    url: `${APP_URL}/advertise`,
   },
 }
 

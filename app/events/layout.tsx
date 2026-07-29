@@ -8,7 +8,7 @@ export const metadata = {
   openGraph: {
     title: 'Istanbul Events — Smileys Community',
     description: 'Curated social events across Istanbul every week. Find dinners, outdoor adventures, cultural meetups and more.',
-    url: 'https://smileyscommunity.com/events',
+    url: `${APP_URL}/events`,
   },
 }
 

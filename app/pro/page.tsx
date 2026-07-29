@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { APP_URL } from '@/lib/env'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import ProWaitlistForm from './ProWaitlistForm'
@@ -13,7 +14,7 @@ export const metadata = {
   openGraph: {
     title: 'Smileys Pro — Coming Soon',
     description: 'A vetted professional network on top of the community you already trust. Founding membership: 50% off for life.',
-    url: 'https://smileyscommunity.com/pro',
+    url: `${APP_URL}/pro`,
   },
 }
 

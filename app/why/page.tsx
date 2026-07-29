@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { APP_URL } from '@/lib/env'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { resolveImageUrl } from '@/lib/data'
@@ -21,7 +22,7 @@ export const metadata = {
   openGraph: {
     title: 'Why Smileys? — Find Your People in Istanbul',
     description: 'A curated real-life social ecosystem for globally minded people in Istanbul.',
-    url: 'https://smileyscommunity.com/why',
+    url: `${APP_URL}/why`,
   },
 }
 
