@@ -1,4 +1,6 @@
 import Link from 'next/link'
+import { headers } from 'next/headers'
+import { isValidElement, type ReactNode } from 'react'
 import { APP_URL } from '@/lib/env'
 import { loadContent } from '@/lib/content'
 
@@ -17,6 +19,18 @@ export const metadata = {
 
 interface FAQ  { q: string; a: React.ReactNode }
 interface Section { id: string; icon: string; title: string; faqs: FAQ[] }
+
+// FAQPage schema needs a plain-text answer, but a few `a` values are JSX
+// (e.g. "<span>Fill in the form at <Link>...</Link>.</span>") for in-page
+// links. Walk the element tree and concatenate text without rendering
+// anything — safe for both a plain string and these simple span/Link shapes.
+function faqAnswerText(node: ReactNode): string {
+  if (node == null || typeof node === 'boolean') return ''
+  if (typeof node === 'string' || typeof node === 'number') return String(node)
+  if (Array.isArray(node)) return node.map(faqAnswerText).join('')
+  if (isValidElement(node)) return faqAnswerText((node.props as { children?: ReactNode }).children)
+  return ''
+}
 
 const SECTIONS: Section[] = [
   {
@@ -163,7 +177,7 @@ const SECTIONS: Section[] = [
   },
 ]
 
-export default function FAQPage() {
+export default async function FAQPage() {
   const c = loadContent()
   const sections: Section[] = c.faq?.length > 0
     ? c.faq.map((s: any) => ({
@@ -173,8 +187,37 @@ export default function FAQPage() {
         faqs:  s.items.map((item: any) => ({ q: item.q, a: item.a })),
       }))
     : SECTIONS
+
+  // FAQPage rich results — every Q&A on the page, flattened across sections.
+  // Read the per-request CSP nonce set by middleware so the <script> isn't
+  // blocked under 'strict-dynamic' (same pattern as the handbook article /
+  // event detail JSON-LD).
+  const nonce = (await headers()).get('x-nonce') ?? undefined
+  const faqJsonLd = {
+    '@context': 'https://schema.org',
+    '@type':    'FAQPage',
+    mainEntity: sections.flatMap(s => s.faqs.map(faq => ({
+      '@type': 'Question',
+      name: faq.q,
+      acceptedAnswer: { '@type': 'Answer', text: faqAnswerText(faq.a) },
+    }))),
+  }
+
   return (
     <main className="bg-gray-50 min-h-screen">
+      <script
+        type="application/ld+json"
+        nonce={nonce}
+        // JSON.stringify doesn't escape `<`, so a literal `</script>` in any
+        // interpolated value would break out of this tag — escape `<` plus
+        // the unicode line separators (same guard as the other JSON-LD blocks).
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(faqJsonLd)
+            .replace(/</g, '\\u003c')
+            .replace(/\u2028/g, '\\u2028')
+            .replace(/\u2029/g, '\\u2029'),
+        }}
+      />
 
       {/* Hero */}
       <div className="bg-white border-b border-gray-100">

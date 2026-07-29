@@ -61,8 +61,27 @@ export const viewport: Viewport = {
 // cost, but the app is mostly authenticated/data-driven so the static
 // rendering savings were already small.
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  await headers()
+  // Also captures the nonce for the sitewide Organization JSON-LD below.
+  const nonce = (await headers()).get('x-nonce') ?? undefined
   const footerStats = loadContent().stats
+  // Sitewide Organization schema — feeds Google's brand/knowledge-panel
+  // signals. Not LocalBusiness: Smileys has no single storefront, events run
+  // across venues city-wide. sameAs mirrors the social links in Footer.tsx.
+  const organizationJsonLd = {
+    '@context':   'https://schema.org',
+    '@type':      'Organization',
+    name:         'Smileys Community',
+    url:          siteUrl,
+    logo:         `${siteUrl}/icons/icon-512.png`,
+    description:  "Istanbul's curated social community — events, clubs, and genuine connections for expats, nomads, travelers, and locals.",
+    areaServed:   { '@type': 'City', name: 'Istanbul' },
+    sameAs: [
+      'https://instagram.com/smileys.community',
+      'https://linkedin.com/company/smileys-community',
+      'https://www.facebook.com/aswistanbul/',
+      'https://whatsapp.com/channel/0029VaCKyc29hXF4fZuOod1K',
+    ],
+  }
   return (
     <html lang="en">
       <head>
@@ -71,6 +90,20 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link rel="manifest" href="/manifest.json" />
+        <script
+          type="application/ld+json"
+          nonce={nonce}
+          // Same escaping guard as the per-page JSON-LD blocks (handbook
+          // article, event detail, FAQ): `<` must be escaped or a literal
+          // `</script><script>` in an interpolated value would break out of
+          // this tag. Nothing here is user-controlled, kept for consistency.
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(organizationJsonLd)
+              .replace(/</g, '\\u003c')
+              .replace(/\u2028/g, '\\u2028')
+              .replace(/\u2029/g, '\\u2029'),
+          }}
+        />
       </head>
       <body className="min-h-screen flex flex-col bg-white">
         <AuthProvider>
