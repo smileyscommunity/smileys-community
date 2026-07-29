@@ -134,7 +134,7 @@ export default function Footer({ stats }: FooterProps) {
 
           {/* Connect — action-y: events, people, real-time */}
           <div>
-            <h4 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-4">Connect</h4>
+            <h3 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-4">Connect</h3>
             <ul className="space-y-3">
               {[
                 { href: '/events',   label: 'Events 🎉'      },
@@ -155,7 +155,7 @@ export default function Footer({ stats }: FooterProps) {
 
           {/* Resources — content / browse */}
           <div>
-            <h4 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-4">Resources</h4>
+            <h3 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-4">Resources</h3>
             <ul className="space-y-3">
               {[
                 { href: '/guide',         label: 'Istanbul Guide 🗺️'     },
@@ -179,7 +179,7 @@ export default function Footer({ stats }: FooterProps) {
               to invite people to yet); members see dashboard → invite (post-
               join action) → get-involved → advertise. */}
           <div>
-            <h4 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-4">Membership</h4>
+            <h3 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-4">Membership</h3>
             <ul className="space-y-3">
               {[
                 ...(isLoggedIn
@@ -207,7 +207,7 @@ export default function Footer({ stats }: FooterProps) {
 
           {/* Company */}
           <div>
-            <h4 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-4">Company</h4>
+            <h3 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-4">Company</h3>
             <ul className="space-y-3">
               {[
                 { href: '/about',   label: 'About us 📖'    },
@@ -226,7 +226,7 @@ export default function Footer({ stats }: FooterProps) {
 
           {/* Legal */}
           <div>
-            <h4 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-4">Legal</h4>
+            <h3 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-4">Legal</h3>
             <ul className="space-y-3">
               {[
                 { href: '/terms',       label: 'Terms of use 📜'         },

@@ -19,7 +19,7 @@ export default function PendingApprovalBanner() {
   if (!isLoggedIn || status !== 'pending') return null
 
   return (
-    <div className="bg-amber-500 text-white text-sm font-medium px-4 py-2.5 text-center flex items-center justify-center gap-3 flex-wrap">
+    <div className="bg-amber-500 text-white text-sm font-medium px-4 py-2.5 text-center flex items-center justify-center gap-3 flex-wrap" role="region" aria-label="Application status">
       <span>⏳ Your membership application is under review.</span>
       <Link href="/pending" className="underline font-bold hover:text-amber-100 transition-colors whitespace-nowrap">
         Check status →

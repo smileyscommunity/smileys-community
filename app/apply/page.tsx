@@ -487,7 +487,8 @@ function ApplyForm() {
 
         <div className="bg-white rounded-2xl shadow-card p-6 space-y-4">
           <input type="text" name="website" value={honeypot} onChange={e => setHoneypot(e.target.value)}
-            tabIndex={-1} autoComplete="off" style={{ position: 'absolute', left: '-9999px', opacity: 0, height: 0 }} />
+            tabIndex={-1} autoComplete="off" aria-hidden="true" aria-label="Leave this field blank"
+            style={{ position: 'absolute', left: '-9999px', opacity: 0, height: 0 }} />
 
           {/* Step 1: Basic Info */}
           {step === 0 && <>

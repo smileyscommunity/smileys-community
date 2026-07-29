@@ -44,6 +44,8 @@ export default function CookieBanner() {
           exit={{    y: 100, opacity: 0 }}
           transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
           className="fixed bottom-0 left-0 right-0 z-[60] pb-[env(safe-area-inset-bottom)]"
+          role="region"
+          aria-label="Cookie consent"
         >
           {/* Offset above the mobile bottom nav where it's actually showing
               (logged-in + an in-app route); elsewhere — notably the
