@@ -1,10 +1,11 @@
 import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
+import { headers } from 'next/headers'
 import Link from 'next/link'
 import Image from 'next/image'
 import { readFileSync } from 'fs'
 import { join } from 'path'
-import { slugToNeighborhood, getNeighborhoodMeta } from '@/lib/neighborhoods'
+import { slugToNeighborhood, getNeighborhoodMeta, neighborhoodToSlug, NEIGHBORHOOD_META, type NeighborhoodMeta, type NeighborhoodSide } from '@/lib/neighborhoods'
 import { APP_URL } from '@/lib/env'
 import MapSection from '@/components/MapSection'
 import SocialShare from '@/components/SocialShare'
@@ -45,6 +46,43 @@ function loadNeighborhoodGuide(slug: string): any | null {
     const file = join(process.cwd(), 'data', 'neighborhoods', `${slug}.json`)
     return JSON.parse(readFileSync(file, 'utf8'))
   } catch { return null }
+}
+
+const COST_LABEL: Record<1 | 2 | 3, string> = { 1: 'budget-friendly', 2: 'mid-range', 3: 'upscale' }
+
+// Naturally-prepositioned phrase per side — sideLabel.toLowerCase() alone
+// produced grammatically odd sentences ("on the central istanbul", "on the
+// coastal istanbul") for some sides, since "on the X" only scans for a
+// handful of the six categories.
+const SIDE_PHRASE: Record<NeighborhoodSide, string> = {
+  Central:  "in central Istanbul",
+  European: 'on the European side',
+  Asian:    'on the Asian side',
+  Coastal:  "along Istanbul's coast",
+  Emerging: "in one of Istanbul's emerging districts",
+  Islands:  "on the Prince's Islands",
+}
+
+// The 14 (of 103) neighborhoods with no hand-authored guide.json had nothing
+// but dynamic member/event lists — often empty for smaller areas, i.e. thin
+// content. This gives every neighborhood a genuine, non-duplicate paragraph
+// built only from real structured data (side, cost tier, vibe, nearest
+// areas) — no invented specifics (restaurant names etc.) that would need an
+// actual local's input to be true.
+function buildAboutCopy(name: string, meta: NeighborhoodMeta, nearbyNames: string[]): string {
+  const near = nearbyNames.length > 0 ? ` It's close to ${nearbyNames.join(' and ')}.` : ''
+  return `${name} is one of Istanbul's ${meta.vibe.toLowerCase()} neighborhoods, ${SIDE_PHRASE[meta.side]}, generally ${COST_LABEL[meta.cost]} by local standards.${near} Smileys members based in ${name} connect through neighborhood events, meetups, and each other — this page tracks who's around, what's on, and what's nearby.`
+}
+
+// Small, cheap, no-DB nearest-neighbors lookup (mirrors the "Also on the
+// side" list computed later in NeighborhoodSections, but that's inside a
+// Suspense boundary — this runs synchronously so the About paragraph and its
+// internal links render in the initial HTML, not streamed in later).
+function nearestNeighborhoods(name: string, meta: NeighborhoodMeta, take: number): Array<{ name: string; slug: string }> {
+  return Object.entries(NEIGHBORHOOD_META)
+    .filter(([n, m]) => m.side === meta.side && n !== name)
+    .slice(0, take)
+    .map(([n]) => ({ name: n, slug: neighborhoodToSlug(n) }))
 }
 
 // Skeleton shown while NeighborhoodSections streams in
@@ -112,8 +150,63 @@ export default async function NeighborhoodPage({ params }: { params: Promise<{ s
     Islands:  "Prince's Islands",
   }
 
+  const nearestForAbout = nearestNeighborhoods(name, meta, 2)
+  const aboutCopy = buildAboutCopy(name, meta, nearestForAbout.map(n => n.name))
+  const pageUrl = `${APP_URL}/neighborhoods/${slug}`
+
+  // Read the per-request CSP nonce set by middleware so the JSON-LD <script>
+  // tags aren't blocked under 'strict-dynamic' (same pattern as the handbook
+  // article / event detail / FAQ JSON-LD).
+  const nonce = (await headers()).get('x-nonce') ?? undefined
+  const breadcrumbJsonLd = {
+    '@context': 'https://schema.org',
+    '@type':    'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home',          item: APP_URL },
+      { '@type': 'ListItem', position: 2, name: 'Neighborhoods', item: `${APP_URL}/neighborhoods` },
+      { '@type': 'ListItem', position: 3, name,                  item: pageUrl },
+    ],
+  }
+  const placeJsonLd = {
+    '@context':   'https://schema.org',
+    '@type':      'Place',
+    name:         `${name}, Istanbul`,
+    description:  aboutCopy,
+    url:          pageUrl,
+    geo:          { '@type': 'GeoCoordinates', latitude: meta.lat, longitude: meta.lon },
+    containedInPlace: {
+      '@type': 'City',
+      name:    'Istanbul',
+      containedInPlace: { '@type': 'Country', name: 'Turkey' },
+    },
+  }
+
   return (
     <main>
+      <script
+        type="application/ld+json"
+        nonce={nonce}
+        // JSON.stringify doesn't escape `<`, so a literal `</script>` in any
+        // interpolated value would break out of this tag — escape `<` plus
+        // the unicode line separators (same guard as the other JSON-LD
+        // blocks: handbook article, event detail, FAQ, Organization).
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(breadcrumbJsonLd)
+            .replace(/</g, '\\u003c')
+            .replace(/\u2028/g, '\\u2028')
+            .replace(/\u2029/g, '\\u2029'),
+        }}
+      />
+      <script
+        type="application/ld+json"
+        nonce={nonce}
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(placeJsonLd)
+            .replace(/</g, '\\u003c')
+            .replace(/\u2028/g, '\\u2028')
+            .replace(/\u2029/g, '\\u2029'),
+        }}
+      />
       {/* ── Hero — renders immediately, no DB ── */}
       <section className="relative overflow-hidden">
         {guide?.image ? (
@@ -139,11 +232,17 @@ export default async function NeighborhoodPage({ params }: { params: Promise<{ s
           </Link>
 
           <div className="flex items-center gap-3 mb-2">
+            {/* Keyword-descriptive H1 for "istanbul neighborhoods"-type search
+                intent — the name stays visually dominant (large, first), the
+                rest reads as a natural subtitle rather than SEO boilerplate. */}
             <h1 className="text-4xl sm:text-5xl font-extrabold text-white tracking-tight drop-shadow-sm">
-              {meta.emoji} {name}
+              {meta.emoji} {name}, Istanbul
+              <span className="block text-lg sm:text-xl font-semibold text-white/70 mt-1">
+                A neighborhood guide for the Smileys community
+              </span>
             </h1>
             {isYourNeighborhood && (
-              <span className="text-xs font-bold bg-white/20 text-white px-2.5 py-1 rounded-full backdrop-blur-sm shrink-0">Your area</span>
+              <span className="text-xs font-bold bg-white/20 text-white px-2.5 py-1 rounded-full backdrop-blur-sm shrink-0 self-start mt-1">Your area</span>
             )}
           </div>
 
@@ -187,6 +286,25 @@ export default async function NeighborhoodPage({ params }: { params: Promise<{ s
       </section>
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-14 space-y-14">
+
+        {/* About — unique, indexable text per neighborhood, renders
+            immediately (no DB). Real structured data only; see buildAboutCopy. */}
+        <div>
+          <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-3">About {name}</h2>
+          <p className="text-sm text-gray-700 leading-relaxed max-w-3xl">
+            {aboutCopy}
+          </p>
+          {nearestForAbout.length > 0 && (
+            <p className="text-sm text-gray-500 mt-2">
+              Nearby: {nearestForAbout.map((n, i) => (
+                <span key={n.slug}>
+                  <Link href={`/neighborhoods/${n.slug}`} className="text-amber-600 font-medium hover:underline">{n.name}</Link>
+                  {i < nearestForAbout.length - 1 ? ', ' : ''}
+                </span>
+              ))} · <Link href="/neighborhoods" className="text-amber-600 font-medium hover:underline">all neighborhoods</Link>
+            </p>
+          )}
+        </div>
 
         {/* "Live here?" nudge — immediate, session-only */}
         {hasNoNeighborhood && (
