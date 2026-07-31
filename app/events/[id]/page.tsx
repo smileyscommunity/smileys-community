@@ -197,7 +197,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
               <div className="space-y-2 text-sm text-gray-600">
                 <div className="flex items-center gap-2.5">
                   <span className="text-base">📅</span>
-                  <span className="font-medium">{formatDate(event.date)} · {formatTime(event.time)}</span>
+                  <span className="font-medium">{formatDate(event.date)} · {formatTime(event.time)} · Istanbul time</span>
                 </div>
                 <div className="flex items-center gap-2.5">
                   <span className="text-base">📍</span>
@@ -541,7 +541,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
             <div className="space-y-2.5">
               <div className="flex items-center gap-2.5 text-sm text-gray-600">
                 <span className="text-base">📅</span>
-                <span className="font-medium">{formatDate(event.date)} · {formatTime(event.time)}</span>
+                <span className="font-medium">{formatDate(event.date)} · {formatTime(event.time)} · Istanbul time</span>
               </div>
               {event.price > 0 && (
                 <div className="flex items-center gap-2.5 text-sm text-gray-600">
