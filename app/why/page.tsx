@@ -270,7 +270,7 @@ export default async function WhyPage() {
               ))}
             </div>
             <div className="text-center mt-8">
-              <Link href="/clubs" className="text-sm font-semibold text-amber-600 hover:underline">
+              <Link href="/clubs" className="inline-flex items-center min-h-[44px] px-2 text-sm font-semibold text-amber-600 hover:underline">
                 See all clubs →
               </Link>
             </div>
