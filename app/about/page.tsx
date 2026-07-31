@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Image from 'next/image'
 import { APP_URL } from '@/lib/env'
 import { loadContent } from '@/lib/content'
 
@@ -85,18 +86,34 @@ export default function AboutPage() {
       {/* ── Hero ── */}
       <section className="bg-white border-b border-gray-100">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase mb-6">
-            About us
-          </div>
-          <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 tracking-tight leading-tight mb-5">
-            {about.headline ?? "Istanbul's curated social community"}
-          </h1>
-          <p className="text-base text-gray-600 max-w-xl leading-relaxed">
-            {about.subtitle ?? 'We bring together curious, open-minded people through handpicked events, interest-based clubs, and a community that actually feels like one.'}
-          </p>
-          <div className="mt-8 flex items-center gap-4 flex-wrap">
-            <Link href="/apply" className="btn-primary--lg">Apply to join</Link>
-            <Link href="/events" className="btn-secondary">Browse events</Link>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-14 items-center">
+            <div>
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase mb-6">
+                About us
+              </div>
+              <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 tracking-tight leading-tight mb-5">
+                {about.headline ?? "Istanbul's curated social community"}
+              </h1>
+              <p className="text-base text-gray-600 max-w-xl leading-relaxed">
+                {about.subtitle ?? 'We bring together curious, open-minded people through handpicked events, interest-based clubs, and a community that actually feels like one.'}
+              </p>
+              <div className="mt-8 flex items-center gap-4 flex-wrap">
+                <Link href="/apply" className="btn-primary--lg">Apply to join</Link>
+                <Link href="/events" className="btn-secondary">Browse events</Link>
+              </div>
+            </div>
+            <div className="relative aspect-[4/3] rounded-2xl overflow-hidden shadow-xl">
+              <Image
+                src="/app/images/about-hero.jpg"
+                alt="Smileys members gathered on an Istanbul rooftop at sunset, Galata Tower and the Bosphorus in the background"
+                fill
+                priority
+                fetchPriority="high"
+                sizes="(max-width: 1024px) 100vw, 50vw"
+                className="object-cover"
+                style={{ objectPosition: 'center 65%' }}
+              />
+            </div>
           </div>
         </div>
       </section>
