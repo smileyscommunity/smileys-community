@@ -132,13 +132,10 @@ export default function AboutPage() {
               value-then-label, so each pair sits in a flex-col-reverse
               that flips the render while keeping the dt-before-dd
               source order the spec requires. */}
-          {/* text-gray-900 / text-amber-950 (not white / amber-100) — white
-              on bg-amber-500 is only 2.15:1 and amber-100 is 1.93:1, both
-              well under WCAG AA. These dark shades hit 8.26:1 / 6.97:1. */}
-          <dl className="grid grid-cols-1 md:grid-cols-3 gap-10 md:gap-8 text-center text-gray-900">
+          <dl className="grid grid-cols-1 md:grid-cols-3 gap-10 md:gap-8 text-center text-white">
             {stats.map((s: { value: string; label: string }) => (
               <div key={s.label} className="flex flex-col-reverse gap-1">
-                <dt className="text-amber-950 text-sm font-medium uppercase tracking-wider">{s.label}</dt>
+                <dt className="text-amber-100 text-sm font-medium uppercase tracking-wider">{s.label}</dt>
                 <dd className="text-4xl md:text-5xl font-extrabold">{s.value}</dd>
               </div>
             ))}
@@ -278,17 +275,17 @@ export default function AboutPage() {
       <section className="bg-amber-500">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
           <div aria-hidden="true" className="text-5xl mb-6">😊</div>
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-4">
+          <h2 className="text-3xl sm:text-4xl font-extrabold text-white mb-4">
             Ready to feel at home in Istanbul?
           </h2>
-          <p className="text-amber-950 mb-10 text-lg">
+          <p className="text-amber-100 mb-10 text-lg">
             Join a community of people who came from all over the world and found their people here.
           </p>
           <div className="flex items-center gap-4 flex-wrap">
             <Link href="/apply" className="btn-white">
               Apply to join
             </Link>
-            <Link href="/contact" className="inline-flex items-center justify-center gap-2 px-8 py-4 border border-gray-900/30 hover:bg-gray-900/10 text-gray-900 font-semibold rounded-xl transition-all duration-200 active:scale-95 text-base">
+            <Link href="/contact" className="btn-outline-white">
               Get in touch
             </Link>
           </div>
