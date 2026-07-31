@@ -123,9 +123,9 @@ export default function EventPhotos({ eventId, photos: initial, canUpload, curre
           <p className="text-sm text-gray-400">No photos yet. Be the first to share a moment!</p>
         </div>
       ) : (
-        <div className="grid grid-cols-3 gap-1.5">
+        <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1">
           {photos.map(p => (
-            <div key={p.id} className="relative group aspect-square rounded-xl overflow-hidden cursor-pointer bg-gray-100"
+            <div key={p.id} className="relative group shrink-0 w-24 h-24 rounded-xl overflow-hidden cursor-pointer bg-gray-100"
               onClick={() => setLightbox(p)}>
               <img src={resolveImageUrl(p.url)} alt={p.caption ?? 'Event photo'} className="w-full h-full object-cover" />
               {(currentUserId === p.user.id) && (

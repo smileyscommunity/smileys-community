@@ -58,7 +58,14 @@
 // v14: 2026-07-11 — Force-evict stale cached chunks: a device kept
 //                  rendering the pre-feed /admin/participants page
 //                  through multiple deploys despite full reloads.
-const CACHE = 'smileys-v14'
+// v15: 2026-07-31 — Event photo gallery resize (grid → single scrollable
+//                  row of smaller thumbnails) wasn't showing on returning
+//                  visitors — evict the cached EventPhotos chunk.
+// v16: 2026-07-31 — Real root cause of "photos still big" was inline
+//                  <img> tags pasted into event rich-text descriptions
+//                  (unrelated to EventPhotos), capped via .rich-content
+//                  img in globals.css. Evict cached CSS bundle.
+const CACHE = 'smileys-v16'
 
 // API endpoints to cache for offline use. Empty by design — see v13 note.
 // Auth-bearing responses MUST NOT be cached in this shared CACHE because
