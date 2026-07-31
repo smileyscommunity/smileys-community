@@ -97,9 +97,15 @@ export default function AboutPage() {
               <p className="text-base text-gray-600 max-w-xl leading-relaxed">
                 {about.subtitle ?? 'We bring together curious, open-minded people through handpicked events, interest-based clubs, and a community that actually feels like one.'}
               </p>
-              <div className="mt-8 flex items-center gap-4 flex-wrap">
-                <Link href="/apply" className="btn-primary--lg">Apply to join</Link>
-                <Link href="/events" className="btn-secondary">Browse events</Link>
+              {/* flex-col + default stretch makes both buttons the same
+                  (full) width on mobile — matches the homepage hero CTA
+                  pair exactly. Previously btn-primary--lg (px-8 py-4) vs
+                  bare btn-secondary (px-6 py-3) sized differently on every
+                  viewport, and flex-wrap (no flex-col) let them size to
+                  their own text instead of matching. */}
+              <div className="mt-8 flex flex-col sm:flex-row gap-4">
+                <Link href="/apply" className="btn-primary text-base px-8 py-4">Apply to join</Link>
+                <Link href="/events" className="btn-secondary text-base px-8 py-4">Browse events</Link>
               </div>
             </div>
             <div className="relative aspect-[4/3] rounded-2xl overflow-hidden shadow-xl">
@@ -126,10 +132,13 @@ export default function AboutPage() {
               value-then-label, so each pair sits in a flex-col-reverse
               that flips the render while keeping the dt-before-dd
               source order the spec requires. */}
-          <dl className="grid grid-cols-1 md:grid-cols-3 gap-10 md:gap-8 text-center text-white">
+          {/* text-gray-900 / text-amber-950 (not white / amber-100) — white
+              on bg-amber-500 is only 2.15:1 and amber-100 is 1.93:1, both
+              well under WCAG AA. These dark shades hit 8.26:1 / 6.97:1. */}
+          <dl className="grid grid-cols-1 md:grid-cols-3 gap-10 md:gap-8 text-center text-gray-900">
             {stats.map((s: { value: string; label: string }) => (
               <div key={s.label} className="flex flex-col-reverse gap-1">
-                <dt className="text-amber-100 text-sm font-medium uppercase tracking-wider">{s.label}</dt>
+                <dt className="text-amber-950 text-sm font-medium uppercase tracking-wider">{s.label}</dt>
                 <dd className="text-4xl md:text-5xl font-extrabold">{s.value}</dd>
               </div>
             ))}
@@ -138,8 +147,13 @@ export default function AboutPage() {
       </section>
 
       {/* ── Story ── */}
+      {/* max-w-4xl matches the other text sections on this page (How it
+          works, What to expect, Clubs preview) — max-w-3xl made this one
+          narrower, so its left edge sat further right than its neighbors'
+          (all mx-auto-centered), reading as "centered" against sections
+          that "lean left" by comparison. */}
       <section className="bg-white">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
           <h2 className="section-title mb-6">Our story</h2>
           <div className="prose prose-gray max-w-none text-gray-600 leading-relaxed space-y-5">
             <p className="text-lg">{about.story_p1 ?? "Smileys started from a frustration most people moving to Istanbul share: the city is magnificent, full of energy and culture — but breaking into it socially is surprisingly hard. Existing expat groups felt impersonal. Dating apps weren't the answer. And showing up to a random \"networking event\" felt like the opposite of fun."}</p>
@@ -262,17 +276,17 @@ export default function AboutPage() {
       <section className="bg-amber-500">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
           <div aria-hidden="true" className="text-5xl mb-6">😊</div>
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-white mb-4">
+          <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-4">
             Ready to feel at home in Istanbul?
           </h2>
-          <p className="text-amber-100 mb-10 text-lg">
+          <p className="text-amber-950 mb-10 text-lg">
             Join a community of people who came from all over the world and found their people here.
           </p>
           <div className="flex items-center gap-4 flex-wrap">
             <Link href="/apply" className="btn-white">
               Apply to join
             </Link>
-            <Link href="/contact" className="btn-outline-white">
+            <Link href="/contact" className="inline-flex items-center justify-center gap-2 px-8 py-4 border border-gray-900/30 hover:bg-gray-900/10 text-gray-900 font-semibold rounded-xl transition-all duration-200 active:scale-95 text-base">
               Get in touch
             </Link>
           </div>
