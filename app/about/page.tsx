@@ -274,9 +274,8 @@ export default function AboutPage() {
       {/* ── Final CTA ── */}
       <section className="bg-amber-500">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
-          <div aria-hidden="true" className="text-5xl mb-6">😊</div>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-white mb-4">
-            Ready to feel at home in Istanbul?
+            😊 Ready to feel at home in Istanbul?
           </h2>
           <p className="text-amber-100 mb-10 text-lg">
             Join a community of people who came from all over the world and found their people here.
