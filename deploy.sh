@@ -84,6 +84,10 @@ if [ -z "$SKIP_BUILD" ]; then
   # Preserve .next/cache (webpack incremental cache) — nuking it forces a full
   # cold build every deploy and causes OOM kills on low-memory machines.
   find "$LOCAL/.next" -mindepth 1 -maxdepth 1 ! -name 'cache' -exec rm -rf {} + 2>/dev/null || true
+  # PostHog sourcemap upload (see next.config.js) is opt-in via
+  # UPLOAD_SOURCEMAPS=1 — it costs ~52s and only matters if you're about to
+  # debug a production JS error. Skipped by default: `UPLOAD_SOURCEMAPS=1
+  # ./deploy.sh` to include it for a release you expect to need that for.
   APP_RELEASE="$APP_RELEASE" npm run build
 else
   echo "→ Skipping build (SKIP_BUILD set, using existing .next)..."

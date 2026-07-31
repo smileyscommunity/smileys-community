@@ -108,6 +108,12 @@ const nextConfig = {
 // write" + "organization read") set in .env.local on the build machine. Until
 // that env var is present this is a complete no-op and the build is unchanged.
 //
+// ALSO GUARDED on UPLOAD_SOURCEMAPS=1 — measured at ~52s/deploy (re-uploads
+// every symbol set in the app, not just what changed) with zero benefit
+// unless you're actively about to debug a production JS error. Opt in with
+// `UPLOAD_SOURCEMAPS=1 ./deploy.sh` right before/after a release you expect
+// to need readable stack traces for; routine deploys skip it by default.
+//
 // Also guarded against `next dev`: the sourcemap step races the incremental
 // compiler and corrupts the build dir. Sourcemap upload only makes sense for
 // the production build anyway.
@@ -119,7 +125,7 @@ const nextConfig = {
 // Leaving the maps in place removes the race entirely; the maps are already
 // uploaded to PostHog by then, and deploy.sh's rsync excludes `*.map` so the
 // retained (hidden, non-served) server maps never ship to prod.
-module.exports = process.env.POSTHOG_API_KEY && process.env.NODE_ENV !== 'development'
+module.exports = process.env.POSTHOG_API_KEY && process.env.UPLOAD_SOURCEMAPS === '1' && process.env.NODE_ENV !== 'development'
   ? withPostHogConfig(nextConfig, {
       personalApiKey: process.env.POSTHOG_API_KEY,
       projectId:      process.env.POSTHOG_PROJECT_ID || '185891',
