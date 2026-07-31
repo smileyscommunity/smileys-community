@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
@@ -16,11 +16,17 @@ import EventBadges from '@/components/EventBadges'
 import { useRSVP } from '@/hooks/useRSVP'
 
 function Tip({ text, children }: { text: string; children: React.ReactNode }) {
+  // tabIndex on the wrapper + :focus-within (rather than only :hover) is what
+  // makes this reachable for keyboard users — some callers pass a plain,
+  // non-interactive span as children with nothing else focusable inside.
+  // role="tooltip" + aria-describedby exposes the text to screen readers too;
+  // previously it was hover-only and invisible to both.
+  const id = useId()
   return (
-    <span className="group/tip relative inline-flex">
+    <span className="group/tip relative inline-flex" tabIndex={0} aria-describedby={id}>
       {children}
-      <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50
-        invisible opacity-0 group-hover/tip:visible group-hover/tip:opacity-100 transition-opacity duration-150">
+      <span id={id} role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50
+        invisible opacity-0 group-hover/tip:visible group-hover/tip:opacity-100 group-focus-within/tip:visible group-focus-within/tip:opacity-100 transition-opacity duration-150">
         <span className="block bg-gray-900 text-white text-xs font-medium leading-tight px-2.5 py-1.5 rounded-lg whitespace-nowrap shadow-lg">
           {text}
         </span>
@@ -45,6 +51,16 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
     e.preventDefault()
     e.stopPropagation()
     router.push(`/neighborhoods/${neighborhoodToSlug(event.neighborhood)}`)
+  }
+
+  // Vibe pills used to be inert (just a tooltip) even though the exact
+  // same tags are already filterable via the /events Filters sheet — this
+  // wires the card pill straight into that existing filter instead of
+  // building a second filtering mechanism.
+  function goToVibeFilter(e: React.MouseEvent, vibe: string) {
+    e.preventDefault()
+    e.stopPropagation()
+    router.push(`/events?tags=${encodeURIComponent(vibe)}`)
   }
   const fillPercent = event.totalSpots > 0 ? (goingCount / event.totalSpots) * 100 : 0
   const urgency     = getUrgency(event.spotsLeft, event.totalSpots, event.limitedSpots, fillPercent)
@@ -87,7 +103,7 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
               <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent pointer-events-none" />
             </>
           ) : (
-            <div className={`w-full h-full flex items-center justify-center ${
+            <div aria-hidden="true" className={`w-full h-full flex items-center justify-center ${
               event.isPremium
                 ? 'bg-gradient-to-br from-amber-200 via-yellow-100 to-orange-100'
                 : 'bg-gradient-to-br from-amber-100 to-orange-100'
@@ -130,7 +146,7 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
               <svg className="w-3 h-3 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
-              {formatShortDate(event.date)} · {formatTime(event.time)}
+              {formatShortDate(event.date)} · {formatTime(event.time)} · Istanbul
             </div>
             {event.featured && (
               <div className="flex items-center gap-1 bg-amber-500 text-white text-[11px] font-bold px-2.5 py-1 rounded-full shadow-md">
@@ -187,10 +203,14 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
               {event.vibes.slice(0, 3).map((vibe) => {
                 const cfg = vibeConfig[vibe]
                 return cfg ? (
-                  <Tip key={vibe} text={cfg.description}>
-                    <span className={`badge shrink-0 ${cfg.bg} ${cfg.text} gap-1`}>
-                      {cfg.emoji} {vibe}
-                    </span>
+                  <Tip key={vibe} text={`${cfg.description} — tap to see more ${vibe} events`}>
+                    <button
+                      type="button"
+                      onClick={(e) => goToVibeFilter(e, vibe)}
+                      className={`badge shrink-0 ${cfg.bg} ${cfg.text} gap-1 hover:brightness-95 transition-[filter]`}
+                    >
+                      <span aria-hidden="true">{cfg.emoji}</span> {vibe}
+                    </button>
                   </Tip>
                 ) : null
               })}

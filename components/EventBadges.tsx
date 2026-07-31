@@ -1,5 +1,6 @@
 'use client'
 
+import { useId } from 'react'
 import type { Event } from '@/lib/data'
 
 interface Props {
@@ -15,11 +16,17 @@ interface Props {
 }
 
 function Tip({ text, children }: { text: string; children: React.ReactNode }) {
+  // tabIndex on the wrapper + :focus-within (rather than only :hover) is what
+  // makes this reachable for keyboard users — callers here pass a plain,
+  // non-interactive span as children, so nothing else is focusable inside.
+  // role="tooltip" + aria-describedby exposes the text to screen readers too;
+  // previously it was hover-only and invisible to both.
+  const id = useId()
   return (
-    <span className="group/tip relative inline-flex">
+    <span className="group/tip relative inline-flex" tabIndex={0} aria-describedby={id}>
       {children}
-      <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50
-        invisible opacity-0 group-hover/tip:visible group-hover/tip:opacity-100 transition-opacity duration-150">
+      <span id={id} role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50
+        invisible opacity-0 group-hover/tip:visible group-hover/tip:opacity-100 group-focus-within/tip:visible group-focus-within/tip:opacity-100 transition-opacity duration-150">
         <span className="block bg-gray-900 text-white text-xs font-medium leading-tight px-2.5 py-1.5 rounded-lg whitespace-nowrap shadow-lg">
           {text}
         </span>

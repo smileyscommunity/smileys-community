@@ -14,7 +14,7 @@ export default function ClubCard({ club, hideEmptyNextEvent = false }: ClubCardP
     <Link href={`/clubs/${club.slug}`} className="group block">
       <div className="card group-hover:-translate-y-1 transition-transform duration-300 h-full">
         {/* Header */}
-        <div className={`${club.bgColor} h-28 flex items-center justify-center`}>
+        <div aria-hidden="true" className={`${club.bgColor} h-28 flex items-center justify-center`}>
           <span className="text-5xl select-none">{club.emoji}</span>
         </div>
 

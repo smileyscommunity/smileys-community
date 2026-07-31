@@ -341,7 +341,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                   <span className="font-semibold">{user.name.split(' ')[0]}</span>
                   {' joined '}
                   <Link href={`/clubs/${club.slug}`} className="font-semibold text-amber-600 hover:underline">
-                    {club.emoji} {club.name}
+                    <span aria-hidden="true">{club.emoji}</span> {club.name}
                   </Link>
                 </p>
                 <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
@@ -359,7 +359,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                   <p className="text-xs text-gray-700 leading-snug">
                     <span className="font-semibold">{user.name.split(' ')[0]}</span>
                     {' '}{verb}{' '}
-                    <span className="font-semibold text-amber-600">{club.emoji} {club.name}</span>
+                    <span className="font-semibold text-amber-600"><span aria-hidden="true">{club.emoji}</span> {club.name}</span>
                   </p>
                   <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{content || poll?.question}</p>
                 </div>
@@ -391,7 +391,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                 <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
                   <span className="font-semibold">{user.name.split(' ')[0]}</span>
                   {' is going to '}
-                  <span className="font-semibold text-amber-600">{event.emoji} {event.title}</span>
+                  <span className="font-semibold text-amber-600"><span aria-hidden="true">{event.emoji}</span> {event.title}</span>
                 </p>
                 <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
               </Link>
@@ -486,7 +486,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                 <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
                   <span className="font-semibold">{user.name.split(' ')[0]}</span>
                   {' rated '}
-                  <span className="font-semibold text-amber-600">{event.emoji} {event.title}</span>
+                  <span className="font-semibold text-amber-600"><span aria-hidden="true">{event.emoji}</span> {event.title}</span>
                   {' '}<span className="text-amber-500">{'★'.repeat(rating)}</span>
                 </p>
                 <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
@@ -514,7 +514,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
             return (
               <Link key={`v-${i}`} href="/visiting"
                     className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
-                <div className="w-7 h-7 rounded-xl bg-amber-50 flex items-center justify-center text-base shrink-0">
+                <div aria-hidden="true" className="w-7 h-7 rounded-xl bg-amber-50 flex items-center justify-center text-base shrink-0">
                   🧳
                 </div>
                 <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
@@ -564,12 +564,12 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
             return (
               <Link key={`res-${i}`} href={`/clubs/${club.slug}`}
                     className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
-                <div className="w-7 h-7 rounded-xl bg-amber-50 flex items-center justify-center text-base shrink-0">
+                <div aria-hidden="true" className="w-7 h-7 rounded-xl bg-amber-50 flex items-center justify-center text-base shrink-0">
                   {emoji}
                 </div>
                 <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
                   {'New resource in '}
-                  <span className="font-semibold text-amber-600">{club.emoji} {club.name}</span>
+                  <span className="font-semibold text-amber-600"><span aria-hidden="true">{club.emoji}</span> {club.name}</span>
                   {' — '}
                   <span className="font-semibold">{title}</span>
                 </p>
@@ -683,7 +683,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
             return (
               <Link key={`nc-${i}`} href={`/clubs/${slug}`}
                     className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
-                <div className="w-7 h-7 rounded-xl bg-amber-50 flex items-center justify-center text-base shrink-0">
+                <div aria-hidden="true" className="w-7 h-7 rounded-xl bg-amber-50 flex items-center justify-center text-base shrink-0">
                   {emoji}
                 </div>
                 <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
@@ -699,7 +699,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
           return (
             <Link key={`e-${i}`} href={`/events/${id}`}
                   className="flex gap-2.5 hover:opacity-80 transition-opacity">
-              <div className="w-7 h-7 rounded-xl bg-amber-50 flex items-center justify-center text-base shrink-0">
+              <div aria-hidden="true" className="w-7 h-7 rounded-xl bg-amber-50 flex items-center justify-center text-base shrink-0">
                 {emoji}
               </div>
               <div className="min-w-0 flex-1">
@@ -707,7 +707,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                   New event{club && (
                     <>
                       {' in '}
-                      <span className="font-semibold text-amber-600">{club.emoji} {club.name}</span>
+                      <span className="font-semibold text-amber-600"><span aria-hidden="true">{club.emoji}</span> {club.name}</span>
                     </>
                   )}
                 </p>

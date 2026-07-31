@@ -868,7 +868,7 @@ function ListingsInner() {
           </div>
         ) : listings.length === 0 ? (
           <div className="text-center py-24">
-            <div className="text-6xl mb-4">
+            <div aria-hidden="true" className="text-6xl mb-4">
               {debouncedSearch ? '🔍' : category === 'SAVED' ? '❤️' : activeCat?.emoji ?? '📋'}
             </div>
             <p className="text-xl font-bold text-gray-700">

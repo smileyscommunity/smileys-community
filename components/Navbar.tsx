@@ -211,7 +211,7 @@ export default function Navbar() {
                                 : 'text-gray-700 hover:bg-gray-50'
                             }`}
                           >
-                            <span className="text-base">{link.emoji}</span>
+                            <span aria-hidden="true" className="text-base">{link.emoji}</span>
                             <span>{link.label}</span>
                           </Link>
                         ))}
