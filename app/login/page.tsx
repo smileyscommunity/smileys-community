@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Turnstile from '@/components/Turnstile'
 import { useAuth } from '@/contexts/AuthContext'
 import type { AppUser } from '@/lib/auth'
@@ -12,9 +12,28 @@ import posthog from 'posthog-js'
 // admins the cross-account match signal ("is this banned user back?").
 import FingerprintJS from '@fingerprintjs/fingerprintjs'
 
-export default function LoginPage() {
+// Friendly labels for the member-only routes a logged-out visitor can be
+// bounced here from (some, like Members and World Cup, are linked from the
+// nav even when logged out). Falls back to a generic message for anything
+// not listed rather than staying silent about why they landed here.
+const FROM_LABELS: [string, string][] = [
+  ['/members',   'The members directory'],
+  ['/cup',       'The Smileys World Cup'],
+  ['/visiting',  'That page'],
+  ['/dashboard', 'Your dashboard'],
+  ['/messages',  'Messages'],
+]
+
+function fromMessage(from: string | null): string | null {
+  if (!from) return null
+  const label = FROM_LABELS.find(([prefix]) => from === prefix || from.startsWith(prefix + '/'))?.[1] ?? 'That page'
+  return `${label} is for members only — sign in to continue, or apply to join.`
+}
+
+function LoginPageInner() {
   const router = useRouter()
   const { setUser } = useAuth()
+  const reason = fromMessage(useSearchParams().get('from'))
 
   const [email,         setEmail]         = useState('')
   const [password,      setPassword]      = useState('')
@@ -172,6 +191,11 @@ export default function LoginPage() {
         </div>
 
         <div className="bg-white rounded-2xl shadow-card p-7">
+          {reason && step === 'credentials' && !error && (
+            <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm px-4 py-3 rounded-xl mb-4">
+              {reason}
+            </div>
+          )}
           {step === 'credentials' ? (
             <form onSubmit={handleSubmit} className="space-y-4">
               {error && (
@@ -314,5 +338,14 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  // Suspense wrapper is required by useSearchParams() in Next.js App Router.
+  return (
+    <Suspense>
+      <LoginPageInner />
+    </Suspense>
   )
 }
