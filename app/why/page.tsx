@@ -102,7 +102,7 @@ export default async function WhyPage() {
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase mb-8">
             😊 Smileys Community
           </div>
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-gray-900 tracking-tight leading-tight mb-4">
+          <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 tracking-tight leading-tight mb-4">
             {why.headline ?? 'Istanbul can feel crowded — and still lonely.'}
           </h1>
           <p className="text-base font-semibold text-amber-600 mb-6">
@@ -131,19 +131,24 @@ export default async function WhyPage() {
       {/* ── STATS ────────────────────────────────────────────── */}
       <section className="bg-amber-500">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-10">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-10 sm:gap-6 text-center text-white">
+          {/* dl/dt/dd so SRs read this as a definition list, matching the
+              About page's identical stat band. value-then-label visually via
+              flex-col-reverse, dt-before-dd in source order as the spec
+              requires. Also fixes the value size previously going
+              4xl → md:3xl → lg:4xl (shrinking then growing back). */}
+          <dl className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-10 sm:gap-6 text-center text-white">
             {(c.stats ?? [
               { value: '4,000+', label: 'Members'        },
               { value: '500+',   label: 'Events hosted'  },
               { value: '20+',    label: 'Active clubs'   },
               { value: '59+',    label: 'Neighborhoods' },
             ]).map((s: { value: string; label: string }) => (
-              <div key={s.label}>
-                <div className="text-4xl md:text-3xl lg:text-4xl font-extrabold">{s.value}</div>
-                <div className="text-amber-100 text-sm mt-1 uppercase tracking-wider">{s.label}</div>
+              <div key={s.label} className="flex flex-col-reverse gap-1">
+                <dt className="text-amber-100 text-sm uppercase tracking-wider">{s.label}</dt>
+                <dd className="text-4xl md:text-5xl font-extrabold">{s.value}</dd>
               </div>
             ))}
-          </div>
+          </dl>
         </div>
       </section>
 
@@ -160,9 +165,9 @@ export default async function WhyPage() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {DIFFERENTIATORS.map(d => (
-              <div key={d.title} className="bg-gray-50 rounded-2xl p-6 border border-gray-100 hover:border-amber-200 hover:bg-amber-50/30 transition-colors group">
-                <div className="text-3xl mb-4">{d.icon}</div>
-                <h3 className="font-extrabold text-gray-900 mb-2 group-hover:text-amber-700 transition-colors">{d.title}</h3>
+              <div key={d.title} className="bg-white rounded-2xl p-7 border border-gray-100 shadow-sm">
+                <div aria-hidden="true" className="text-2xl mb-4">{d.icon}</div>
+                <h3 className="font-bold text-gray-900 mb-2">{d.title}</h3>
                 <p className="text-sm text-gray-600 leading-relaxed">{d.body}</p>
               </div>
             ))}
@@ -236,7 +241,7 @@ export default async function WhyPage() {
                 { emoji: '📚', label: 'Learning & growth'    },
               ].map(c => (
                 <div key={c.label} className="bg-gray-50 rounded-2xl p-4 text-center border border-gray-100 hover:border-amber-200 transition-colors">
-                  <div className="text-3xl mb-2">{c.emoji}</div>
+                  <div aria-hidden="true" className="text-3xl mb-2">{c.emoji}</div>
                   <p className="text-xs font-semibold text-gray-600">{c.label}</p>
                 </div>
               ))}
@@ -258,7 +263,7 @@ export default async function WhyPage() {
                 <Link key={c.id} href={`/clubs/${c.slug}`}
                   className="rounded-2xl p-4 text-center hover:-translate-y-0.5 hover:shadow-md transition-all duration-200 border border-white/60"
                   style={{ backgroundColor: c.bgColor || '#fef3c7' }}>
-                  <div className="text-3xl mb-2">{c.emoji}</div>
+                  <div aria-hidden="true" className="text-3xl mb-2">{c.emoji}</div>
                   <p className="text-sm font-bold text-gray-900 leading-snug">{c.name}</p>
                   <p className="text-xs mt-1" style={{ color: c.color || '#92400e' }}>{c.memberCount} members</p>
                 </Link>
@@ -365,7 +370,7 @@ export default async function WhyPage() {
               { step: '03', icon: '🤝', title: 'Show up',   desc: 'Attend an event. Join a club. Meet someone. Your circle starts with a single yes.' },
             ].map(s => (
               <div key={s.step} className="text-center">
-                <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-white border border-amber-200 shadow-sm text-2xl mb-4">
+                <div aria-hidden="true" className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-white border border-amber-200 shadow-sm text-2xl mb-4">
                   {s.icon}
                 </div>
                 <div className="step-label mb-1">{s.step}</div>
@@ -397,7 +402,7 @@ export default async function WhyPage() {
               { icon: '🏛️', title: 'Clubs are always free', desc: 'Every interest-based club is free to join. No exceptions.' },
             ].map(s => (
               <div key={s.title} className="text-center sm:text-left">
-                <div className="text-3xl mb-3">{s.icon}</div>
+                <div aria-hidden="true" className="text-3xl mb-3">{s.icon}</div>
                 <h3 className="font-bold text-gray-900 mb-2">{s.title}</h3>
                 <p className="text-sm text-gray-600 leading-relaxed">{s.desc}</p>
               </div>
@@ -411,7 +416,7 @@ export default async function WhyPage() {
 
       {/* ── PHILOSOPHY ───────────────────────────────────────── */}
       <section className="py-24 bg-white">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="section-title mb-12">What we believe.</h2>
           <div className="space-y-6">
             {PHILOSOPHY.map((p, i) => (
@@ -436,7 +441,7 @@ export default async function WhyPage() {
               { icon: '✅', title: 'Real profiles',         desc: 'No anonymous accounts. Everyone shows up as themselves.' },
             ].map(s => (
               <div key={s.title}>
-                <div className="text-3xl mb-3">{s.icon}</div>
+                <div aria-hidden="true" className="text-3xl mb-3">{s.icon}</div>
                 <h3 className="font-bold text-gray-900 mb-2">{s.title}</h3>
                 <p className="text-sm text-gray-600 leading-relaxed">{s.desc}</p>
               </div>
@@ -449,7 +454,7 @@ export default async function WhyPage() {
       <section className="py-28 bg-amber-500 relative overflow-hidden">
         <div className="absolute inset-0 opacity-10"
           style={{ backgroundImage: 'radial-gradient(circle at 30% 50%, #ffffff 0%, transparent 50%), radial-gradient(circle at 70% 50%, #92400e 0%, transparent 50%)' }} />
-        <div className="relative max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+        <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <p className="text-amber-200 text-sm font-bold tracking-widest uppercase mb-4">The feeling you're looking for</p>
           <h2 className="text-4xl sm:text-5xl font-extrabold text-white tracking-tight mb-5">
             😊 Ready to feel at home in Istanbul?
@@ -461,7 +466,10 @@ export default async function WhyPage() {
           <p className="text-white text-xl font-bold mb-10">
             A place to actually belong.
           </p>
-          <div className="flex items-center justify-center gap-4 flex-wrap">
+          {/* flex-col + default stretch matches the hero CTA pair's mobile
+              stacking fix — this footer CTA had the same two-different-widths
+              issue on narrow screens that the hero already fixed. */}
+          <div className="flex flex-col sm:flex-row sm:justify-center gap-4">
             <Link href="/apply" className="btn-white">
               Apply to join
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

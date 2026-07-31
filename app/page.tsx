@@ -164,7 +164,7 @@ export default async function HomePage() {
 
             {/* Text column */}
             <div>
-              <div className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-amber-200 text-amber-700 rounded-full text-xs font-semibold tracking-widest uppercase mb-8">
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase mb-8">
                 Curated Social Community
               </div>
 

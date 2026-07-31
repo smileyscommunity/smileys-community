@@ -53,16 +53,19 @@ const DEFAULT_STATS = [
 const HOW_IT_WORKS = [
   {
     step: '01',
+    icon: '📝',
     title: 'Apply',
     body: 'Tell us about yourself, what draws you to Istanbul, and what you\'re looking for in a community. Applications take about 5 minutes.',
   },
   {
     step: '02',
+    icon: '✅',
     title: 'Get vetted',
     body: 'Our team reviews every application personally — looking for vibe alignment, not credentials. Expect a response within 24–48 hours.',
   },
   {
     step: '03',
+    icon: '🤝',
     title: 'Join the community',
     body: 'Once approved, browse upcoming events, join clubs that match your interests, and meet people who are actually excited to be there.',
   },
@@ -200,10 +203,11 @@ export default function AboutPage() {
           <ol className="list-none p-0 m-0 grid grid-cols-1 sm:grid-cols-3 gap-8">
             {HOW_IT_WORKS.map(step => (
               <li key={step.step} className="text-center">
-                <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center mx-auto mb-5">
-                  <span className="text-amber-600 font-extrabold text-lg">{step.step}</span>
+                <div aria-hidden="true" className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-white border border-amber-200 shadow-sm text-2xl mb-4">
+                  {step.icon}
                 </div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2">{step.title}</h3>
+                <div className="step-label mb-1">{step.step}</div>
+                <h3 className="text-lg font-extrabold text-gray-900 mb-2">{step.title}</h3>
                 <p className="text-gray-600 text-sm leading-relaxed">{step.body}</p>
               </li>
             ))}
@@ -280,7 +284,10 @@ export default function AboutPage() {
           <p className="text-amber-100 mb-10 text-lg">
             Join a community of people who came from all over the world and found their people here.
           </p>
-          <div className="flex items-center gap-4 flex-wrap">
+          {/* flex-col + default stretch matches the hero CTA pair's mobile
+              stacking fix — this footer CTA had the same two-different-widths
+              issue on narrow screens that the hero already fixed. */}
+          <div className="flex flex-col sm:flex-row gap-4">
             <Link href="/apply" className="btn-white">
               Apply to join
             </Link>
