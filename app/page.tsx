@@ -260,7 +260,7 @@ export default async function HomePage() {
                 <div className="w-16 h-16 rounded-2xl bg-white shadow-card flex items-center justify-center mx-auto mb-5 text-3xl group-hover:scale-110 transition-transform duration-300">
                   {s.emoji}
                 </div>
-                <span className="step-label">Step {s.step}</span>
+                <span className="step-label">{s.step}</span>
                 <h3 className="text-xl font-bold text-gray-900 mt-2 mb-3">{s.title}</h3>
                 <p className="text-gray-600 leading-relaxed text-sm">{s.description}</p>
               </div>
@@ -359,14 +359,17 @@ export default async function HomePage() {
       {/* Testimonial strip */}
       {testimonials.length > 0 && (
         <section className="py-12 sm:py-16 bg-white border-t border-gray-100">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center justify-between mb-8">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-end justify-between mb-8">
               <div>
-                <h2 className="text-2xl font-bold text-gray-900">What members say</h2>
-                <p className="text-sm text-gray-600 mt-1">Real stories from real people</p>
+                <h2 className="section-title">What members say</h2>
+                <p className="section-subtitle">Real stories from real people</p>
               </div>
-              <Link href="/why" className="inline-flex items-center min-h-[44px] shrink-0 text-sm font-semibold text-amber-600 hover:underline">
-                Read all stories →
+              <Link href="/why" className="hidden md:flex btn-ghost text-sm items-center gap-1">
+                Read all stories
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                </svg>
               </Link>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -389,6 +392,9 @@ export default async function HomePage() {
                   </div>
                 </div>
               ))}
+            </div>
+            <div className="text-center mt-10 md:hidden">
+              <Link href="/why" className="btn-secondary">Read all stories</Link>
             </div>
           </div>
         </section>
