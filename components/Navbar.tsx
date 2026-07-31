@@ -72,10 +72,9 @@ const primaryLinks = [
 // Adding new content sections in the future drops in here instead of bloating
 // the top row.
 const discoverLinks = [
-  // Smileys Cup 2026 — public so logged-out viewers see the page and get
-  // an Apply CTA. Pinned to the top of the dropdown until the tournament
-  // wraps (Jul 19, 2026); we'll demote it back down or remove afterwards.
-  { label: 'World Cup',     href: '/cup',           emoji: '⚽', public: true  },
+  // Smileys Cup 2026 nav entry removed post-tournament (recap published as
+  // its own Community post); /cup page + data stay live for anyone linking
+  // in from there or a bookmark, just no longer in primary nav.
   { label: 'Hangouts',      href: '/hangouts',      emoji: '☕', public: false },
   { label: 'Guide',         href: '/guide',         emoji: '🗺️', public: true  },
   { label: 'Handbook',      href: '/handbook',      emoji: '📖', public: true  },
