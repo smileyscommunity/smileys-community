@@ -12,6 +12,7 @@ const PAGE_SIZE = 20
 const CAT_LABELS: Record<string, string> = {
   ROOMS: 'Room', JOBS: 'Job', BUY_SELL: 'Buy/Sell',
   SERVICES: 'Service', FREE: 'Free stuff', RECO: 'Recommendation',
+  LOST_FOUND: 'Lost & Found', EXPERIENCES: 'Experience', PETS: 'Adopt a Pet',
 }
 
 export async function GET(req: NextRequest) {
@@ -97,7 +98,7 @@ export async function POST(req: NextRequest) {
 
   const { category, title, description, price, photo, photoPosition, contact, neighborhood } = await req.json()
 
-  const VALID_CATEGORIES = ['ROOMS', 'JOBS', 'BUY_SELL', 'SERVICES', 'FREE', 'RECO']
+  const VALID_CATEGORIES = ['ROOMS', 'JOBS', 'BUY_SELL', 'SERVICES', 'FREE', 'RECO', 'LOST_FOUND', 'EXPERIENCES', 'PETS']
   if (!category || !VALID_CATEGORIES.includes(category)) {
     return NextResponse.json({ error: 'Invalid category' }, { status: 400 })
   }

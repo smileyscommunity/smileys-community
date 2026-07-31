@@ -55,6 +55,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const ALLOWED = ['active', 'deleted', 'expired', 'filled']
     if (!ALLOWED.includes(body.status)) return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
     data.status = body.status
+
+    // Reactivating a listing whose expiresAt is already in the past is a
+    // no-op in disguise: the hourly cron (auto-expire sweep in
+    // /api/admin/cron/reminders) immediately flips it back to 'expired'
+    // since expiresAt never moved. Mirror the member-facing renew flow
+    // (30 more days) whenever admin activates a past-due listing.
+    if (body.status === 'active') {
+      const current = await prisma.listing.findUnique({ where: { id }, select: { expiresAt: true } })
+      if (current && current.expiresAt < new Date()) {
+        data.expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+      }
+    }
   }
   if ('title' in body && typeof body.title === 'string' && body.title.trim()) {
     data.title = body.title.trim().slice(0, 120)
