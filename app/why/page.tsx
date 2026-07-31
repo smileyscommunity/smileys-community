@@ -152,7 +152,7 @@ export default async function WhyPage() {
             <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 tracking-tight mb-4">
               Not just another group.
             </h2>
-            <p className="text-lg text-gray-600 max-w-xl mx-auto">
+            <p className="text-lg text-gray-600 max-w-xl">
               There are plenty of WhatsApp chats, Meetup pages, and nightlife groups. Here's why people choose Smileys instead.
             </p>
           </div>
@@ -372,6 +372,38 @@ export default async function WhyPage() {
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* ── PRICING ──────────────────────────────────────────── */}
+      {/* Applying and event pages both stay silent on cost until after
+          approval — a curious visitor had no way to find this out short of
+          finishing a 5-step application. Numbers here are the real current
+          shape of pricing (checked against live event data), described
+          qualitatively rather than as a stat that'll go stale next week. */}
+      <section className="py-24 bg-white">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mb-14">
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 tracking-tight mb-4">What does it cost?</h2>
+            <p className="text-gray-600 max-w-xl">No membership fee. No surprises.</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[
+              { icon: '💛', title: 'Free to apply',        desc: 'Applying and getting approved costs nothing — no membership fee, ever.' },
+              { icon: '🎉', title: 'Most events are free',  desc: 'The majority of our events have no cost at all. Just RSVP and show up.' },
+              { icon: '🎟️', title: 'Paid events, upfront',  desc: 'When an event has a cost — venue, food, an activity — the price is shown clearly before you RSVP, usually ₺250–1,200.' },
+              { icon: '🏛️', title: 'Clubs are always free', desc: 'Every interest-based club is free to join. No exceptions.' },
+            ].map(s => (
+              <div key={s.title} className="text-center sm:text-left">
+                <div className="text-3xl mb-3">{s.icon}</div>
+                <h3 className="font-bold text-gray-900 mb-2">{s.title}</h3>
+                <p className="text-sm text-gray-600 leading-relaxed">{s.desc}</p>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-gray-400 mt-8 max-w-xl">
+            Some hosts also offer a discounted member price on paid events — one more reason approval is worth it.
+          </p>
         </div>
       </section>
 
