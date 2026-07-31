@@ -50,28 +50,33 @@ export default function CookieBanner() {
           {/* Offset above the mobile bottom nav where it's actually showing
               (logged-in + an in-app route); elsewhere — notably the
               anonymous marketing homepage, the most likely first-visit
-              page — there's no bar to clear, so don't bury more of the
-              page under empty space. Flush (mb-0) on desktop either way. */}
-          <div className={`${clearsBottomNav ? 'mb-16' : 'mb-3'} md:mb-0 mx-3 md:mx-0`}>
-            <div className="md:max-w-2xl md:mx-auto md:mb-6 bg-gray-900 text-white rounded-2xl shadow-2xl px-4 py-3 sm:px-5 sm:py-4 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
-              <div className="flex-1 min-w-0">
-                <p className="text-sm leading-relaxed text-gray-200">
-                  We use essential cookies to keep you signed in, and optional analytics cookies to improve the experience.{' '}
-                  <Link href="/cookies" className="underline underline-offset-2 text-amber-400 hover:text-amber-300 transition-colors whitespace-nowrap">
-                    Cookie policy
-                  </Link>
-                </p>
+              page — there's no bar to clear. Flush (mb-0) on desktop either way. */}
+          <div className={clearsBottomNav ? 'mb-16 md:mb-0' : 'md:mb-0'}>
+            {/* Mobile: a flush, edge-to-edge bar — no side margin, no
+                rounding, single row (text truncates, buttons never do).
+                Desktop: the previous floating card, where screen space
+                isn't scarce and stacking was never the issue. */}
+            <div className="md:max-w-2xl md:mx-auto md:mb-6 bg-gray-900 text-white md:rounded-2xl shadow-lg md:shadow-2xl px-4 py-2.5 md:px-5 md:py-4 flex items-center gap-3">
+              <div className="flex-1 min-w-0 flex items-center gap-1.5 text-xs md:text-sm text-gray-200">
+                <span className="truncate">We use cookies to keep you signed in and improve your experience.</span>
+                <Link href="/cookies" className="shrink-0 underline underline-offset-2 text-amber-400 hover:text-amber-300 transition-colors">
+                  Details
+                </Link>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-1.5 md:gap-2 shrink-0">
+                {/* Visual pill stays slim (this is what keeps the bar
+                    ~48px tall) but the tappable area is expanded to 44px
+                    via an invisible ::before overlay — width already clears
+                    44px so only height needs the hit-area boost. */}
                 <button
                   onClick={decline}
-                  className="px-4 py-2 rounded-xl text-sm font-medium text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+                  className="relative px-2.5 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl text-xs md:text-sm font-medium text-gray-400 hover:text-white hover:bg-white/10 transition-colors before:absolute before:content-[''] before:inset-x-0 before:-inset-y-2.5 md:before:inset-0"
                 >
                   Essential only
                 </button>
                 <button
                   onClick={accept}
-                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-white text-sm font-semibold transition-colors"
+                  className="relative px-2.5 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl bg-amber-500 hover:bg-amber-400 text-white text-xs md:text-sm font-semibold transition-colors before:absolute before:content-[''] before:inset-x-0 before:-inset-y-2.5 md:before:inset-0"
                 >
                   Accept all
                 </button>
