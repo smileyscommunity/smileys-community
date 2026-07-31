@@ -452,7 +452,7 @@ export default async function WhyPage() {
         <div className="relative max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <p className="text-amber-200 text-sm font-bold tracking-widest uppercase mb-4">The feeling you're looking for</p>
           <h2 className="text-4xl sm:text-5xl font-extrabold text-white tracking-tight mb-5">
-            "These are my kind of people."
+            😊 Ready to feel at home in Istanbul?
           </h2>
           <p className="text-amber-100 text-lg mb-3 max-w-xl mx-auto leading-relaxed">
             Not another endless group chat.<br />
