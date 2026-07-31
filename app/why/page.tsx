@@ -131,10 +131,7 @@ export default async function WhyPage() {
       {/* ── STATS ────────────────────────────────────────────── */}
       <section className="bg-amber-500">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-10">
-          {/* text-gray-900 / text-amber-950 (not white / amber-100) — white
-              on bg-amber-500 is only 2.15:1 and amber-100 is 1.93:1, both
-              well under WCAG AA. Matches the About page stats band. */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-10 sm:gap-6 text-center text-gray-900">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-10 sm:gap-6 text-center text-white">
             {(c.stats ?? [
               { value: '4,000+', label: 'Members'        },
               { value: '500+',   label: 'Events hosted'  },
@@ -143,7 +140,7 @@ export default async function WhyPage() {
             ]).map((s: { value: string; label: string }) => (
               <div key={s.label}>
                 <div className="text-4xl md:text-3xl lg:text-4xl font-extrabold">{s.value}</div>
-                <div className="text-amber-950 text-sm mt-1 uppercase tracking-wider">{s.label}</div>
+                <div className="text-amber-100 text-sm mt-1 uppercase tracking-wider">{s.label}</div>
               </div>
             ))}
           </div>
@@ -452,21 +449,16 @@ export default async function WhyPage() {
       <section className="py-28 bg-amber-500 relative overflow-hidden">
         <div className="absolute inset-0 opacity-10"
           style={{ backgroundImage: 'radial-gradient(circle at 30% 50%, #ffffff 0%, transparent 50%), radial-gradient(circle at 70% 50%, #92400e 0%, transparent 50%)' }} />
-        {/* Dark text on this amber-500 band matches the About page's Final
-            CTA fix — white/amber-100/amber-200 text here failed WCAG AA
-            (2.15:1 / 1.93:1 / ~2.4:1). btn-outline-white was swapped for
-            the same dark-outline treatment used on About for the same
-            reason (white text on amber-500 also fails AA). */}
         <div className="relative max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <p className="text-amber-950 text-sm font-bold tracking-widest uppercase mb-4">The feeling you're looking for</p>
-          <h2 className="text-4xl sm:text-5xl font-extrabold text-gray-900 tracking-tight mb-5">
+          <p className="text-amber-200 text-sm font-bold tracking-widest uppercase mb-4">The feeling you're looking for</p>
+          <h2 className="text-4xl sm:text-5xl font-extrabold text-white tracking-tight mb-5">
             "These are my kind of people."
           </h2>
-          <p className="text-amber-950 text-lg mb-3 max-w-xl mx-auto leading-relaxed">
+          <p className="text-amber-100 text-lg mb-3 max-w-xl mx-auto leading-relaxed">
             Not another endless group chat.<br />
             Not another networking event you forget tomorrow.
           </p>
-          <p className="text-gray-900 text-xl font-bold mb-10">
+          <p className="text-white text-xl font-bold mb-10">
             A place to actually belong.
           </p>
           <div className="flex items-center justify-center gap-4 flex-wrap">
@@ -476,7 +468,7 @@ export default async function WhyPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
               </svg>
             </Link>
-            <Link href="/events" className="inline-flex items-center justify-center gap-2 px-8 py-4 border border-gray-900/30 hover:bg-gray-900/10 text-gray-900 font-semibold rounded-xl transition-all duration-200 active:scale-95 text-base">Browse events first</Link>
+            <Link href="/events" className="btn-outline-white">Browse events first</Link>
           </div>
         </div>
       </section>
