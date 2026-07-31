@@ -155,7 +155,7 @@ export default function AboutPage() {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
           <h2 className="section-title mb-6">Our story</h2>
           <div className="prose prose-gray max-w-none text-gray-600 leading-relaxed space-y-5">
-            <p className="text-lg">{about.story_p1 ?? "Smileys started from a frustration most people moving to Istanbul share: the city is magnificent, full of energy and culture — but breaking into it socially is surprisingly hard. Existing expat groups felt impersonal. Dating apps weren't the answer. And showing up to a random \"networking event\" felt like the opposite of fun."}</p>
+            <p>{about.story_p1 ?? "Smileys started from a frustration most people moving to Istanbul share: the city is magnificent, full of energy and culture — but breaking into it socially is surprisingly hard. Existing expat groups felt impersonal. Dating apps weren't the answer. And showing up to a random \"networking event\" felt like the opposite of fun."}</p>
             <p>{about.story_p2 ?? "We built Smileys to fix that. Not another app where you swipe through strangers, but a real community where every face you see at an event has been thoughtfully welcomed. Where the host knows your name. Where the guest list is balanced, the venue is handpicked, and the atmosphere is warm from the moment you walk in."}</p>
             <p>{about.story_p3 ?? "Istanbul deserves a social scene that matches its character — vibrant, layered, and genuinely welcoming. That's what we're building, one event at a time."}</p>
           </div>
