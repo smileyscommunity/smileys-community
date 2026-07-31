@@ -126,7 +126,7 @@ export default function AboutPage() {
 
       {/* ── Stats ── */}
       <section className="bg-amber-500">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-10">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-10">
           {/* dl/dt/dd so SRs read this as a definition list ("term:
               Community members, value: 4,000+"). Visual order is
               value-then-label, so each pair sits in a flex-col-reverse
@@ -147,13 +147,15 @@ export default function AboutPage() {
       </section>
 
       {/* ── Story ── */}
-      {/* max-w-4xl matches the other text sections on this page (How it
-          works, What to expect, Clubs preview) — max-w-3xl made this one
-          narrower, so its left edge sat further right than its neighbors'
-          (all mx-auto-centered), reading as "centered" against sections
-          that "lean left" by comparison. */}
+      {/* Every section on this page shares max-w-5xl (matching the Hero)
+          so every mx-auto-centered container's left edge lines up all the
+          way down the page — the homepage does the same thing (max-w-7xl
+          everywhere). This page used to mix 5xl/4xl/3xl across sections;
+          narrower sections sat visibly inset from the Hero above them,
+          reading as "centered" by comparison even though the text itself
+          was always left-aligned. */}
       <section className="bg-white">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
           <h2 className="section-title mb-6">Our story</h2>
           <div className="prose prose-gray max-w-none text-gray-600 leading-relaxed space-y-5">
             <p className="text-lg">{about.story_p1 ?? "Smileys started from a frustration most people moving to Istanbul share: the city is magnificent, full of energy and culture — but breaking into it socially is surprisingly hard. Existing expat groups felt impersonal. Dating apps weren't the answer. And showing up to a random \"networking event\" felt like the opposite of fun."}</p>
@@ -186,7 +188,7 @@ export default function AboutPage() {
 
       {/* ── How it works ── */}
       <section className="bg-white border-t border-gray-100">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
           <div className="mb-10">
             <h2 className="section-title mb-3">How it works</h2>
             <p className="text-gray-600 max-w-xl">
@@ -214,7 +216,7 @@ export default function AboutPage() {
 
       {/* ── What to expect ── */}
       <section className="bg-white border-t border-gray-100">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div>
               <h2 className="section-title mb-4">What to expect</h2>
@@ -256,7 +258,7 @@ export default function AboutPage() {
 
       {/* ── Clubs preview ── */}
       <section className="bg-gray-50 border-t border-gray-100">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
           <h2 className="section-title mb-3">Find your people</h2>
           <p className="text-gray-600 max-w-xl mb-10">
             From sailing and wine tasting to book clubs and language exchange — our clubs are built
@@ -274,7 +276,7 @@ export default function AboutPage() {
 
       {/* ── Final CTA ── */}
       <section className="bg-amber-500">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
           <div aria-hidden="true" className="text-5xl mb-6">😊</div>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-4">
             Ready to feel at home in Istanbul?
