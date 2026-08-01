@@ -119,7 +119,10 @@ export default async function VisitingPage() {
                 Visiting Istanbul?
               </h1>
               <p className="text-base text-gray-600 mt-1 max-w-xl">
-                Tell us when you&apos;re coming. Locals will reach out for coffee, tips, and intros before you arrive.
+                Tell us when you&apos;re coming. Locals will reach out for coffee, tips, and introductions before you arrive.
+              </p>
+              <p className="text-base text-gray-900 font-semibold mt-3 max-w-xl">
+                Arrive with connections, not as a stranger.
               </p>
               {/* Posting requires membership (anonymous posting was tried
                   and reverted — see app/(member)/visiting/new/page.tsx),
