@@ -1541,6 +1541,10 @@ model VisitorAnnouncement {
   travelerType String?
   languages    String[] @default([])
   lookingFor   String[] @default([])
+  // 'members' (default) hides the card from the logged-out /visiting page;
+  // 'public' lists it for guests too, with contact/email redacted the same
+  // way they already are. See VISITOR_VISIBILITY in lib/data.ts.
+  visibility   String   @default("members")
   user         User?    @relation(fields: [userId], references: [id])
 
   @@index([status, endsOn])

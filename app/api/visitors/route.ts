@@ -20,6 +20,10 @@ export async function GET(req: NextRequest) {
     where: {
       status: 'active',
       endsOn: { gte: today },
+      // Visibility is enforced here as well as on the page — otherwise a
+      // guest could read members-only visits straight off the API while
+      // the rendered page correctly hid them.
+      ...(session ? {} : { visibility: 'public' }),
       ...(neighborhood ? { neighborhood } : {}),
     },
     orderBy: { startsOn: 'asc' },
@@ -49,7 +53,7 @@ export async function POST(req: NextRequest) {
     const session = await getSession()
     const body = await req.json()
     const { name, email, fromCity, intro, startsOn, endsOn, neighborhood, contact, _cf,
-      travelerType, languages, lookingFor } = body
+      travelerType, languages, lookingFor, visibility } = body
 
     // Turnstile required for anonymous posts; members are already gated by login.
     if (!session) {
@@ -90,6 +94,11 @@ export async function POST(req: NextRequest) {
       ? [...new Set(lookingFor.filter((v): v is string => typeof v === 'string' && LOOKING_FOR_VALUES.has(v)))].slice(0, 10)
       : []
 
+    // Anything other than an explicit 'public' falls back to the private
+    // default — a malformed or missing value must never accidentally list
+    // someone's trip on the public web.
+    const safeVisibility = visibility === 'public' ? 'public' : 'members'
+
     // Free text, no fixed list — capped on count and per-item length so a
     // malicious payload can't stuff an oversized array into the column.
     const safeLanguages = Array.isArray(languages)
@@ -110,6 +119,7 @@ export async function POST(req: NextRequest) {
         travelerType: safeTravelerType,
         languages:    safeLanguages,
         lookingFor:   safeLookingFor,
+        visibility:   safeVisibility,
       },
     })
 

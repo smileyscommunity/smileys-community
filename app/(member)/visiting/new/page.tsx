@@ -1,13 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
-import { ISTANBUL_NEIGHBORHOODS, VISITOR_TRAVELER_TYPES, VISITOR_LOOKING_FOR } from '@/lib/data'
+import { toast } from 'sonner'
+import { ISTANBUL_NEIGHBORHOODS, VISITOR_TRAVELER_TYPES, VISITOR_LOOKING_FOR, VISITOR_VISIBILITY } from '@/lib/data'
 
 export default function NewVisitingPage() {
-  const router = useRouter()
   const { user } = useAuth()
 
   const [name,         setName]         = useState('')
@@ -20,8 +19,13 @@ export default function NewVisitingPage() {
   const [travelerType, setTravelerType] = useState('')
   const [languages,    setLanguages]    = useState('')
   const [lookingFor,   setLookingFor]   = useState<string[]>([])
+  const [visibility,   setVisibility]   = useState<string>('members')
   const [submitting,   setSubmitting]   = useState(false)
   const [error,        setError]        = useState('')
+  // Set once the post succeeds — swaps the whole form for the confirmation
+  // rather than bouncing to /visiting, so the payoff ("Istanbul knows you're
+  // coming") lands before the visitor goes looking for their own card.
+  const [posted,       setPosted]       = useState(false)
 
   function toggleLookingFor(value: string) {
     setLookingFor(prev => prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value])
@@ -50,11 +54,12 @@ export default function NewVisitingPage() {
           travelerType: travelerType || undefined,
           languages: languages.split(',').map(l => l.trim()).filter(Boolean),
           lookingFor,
+          visibility,
         }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Could not post'); return }
-      router.push('/visiting')
+      setPosted(true)
     } catch {
       setError('Network error')
     } finally {
@@ -64,6 +69,60 @@ export default function NewVisitingPage() {
 
   const todayStr = new Date().toISOString().split('T')[0]
 
+  async function shareVisit() {
+    const url = `${window.location.origin}/app/visiting`
+    // Native share sheet on mobile, clipboard everywhere else. A cancelled
+    // share rejects, which is not an error worth surfacing.
+    if (navigator.share) {
+      try { await navigator.share({ title: 'My Istanbul visit', url }) } catch { /* dismissed */ }
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(url)
+      toast.success('Link copied')
+    } catch {
+      toast.error('Could not copy link')
+    }
+  }
+
+  if (posted) {
+    return (
+      <div className="min-h-screen bg-warm">
+        <div className="max-w-xl mx-auto px-4 sm:px-6 py-16 sm:py-24 text-center">
+          <div aria-hidden="true" className="text-6xl mb-6">👋</div>
+          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">
+            Istanbul knows you&apos;re coming.
+          </h1>
+          <p className="text-base text-gray-700 mt-4">
+            Your visit is now visible to the Smileys community.
+          </p>
+          <p className="text-sm text-gray-600 mt-2 leading-relaxed">
+            Members can welcome you, share recommendations and invite you to join them while you&apos;re here.
+          </p>
+          {visibility === 'members' && (
+            <p className="text-xs text-gray-500 mt-4 bg-white border border-gray-200 rounded-xl px-4 py-3 inline-block">
+              🔒 Only signed-in Smileys members can see your visit. You can change this any time.
+            </p>
+          )}
+          <div className="flex flex-col sm:flex-row gap-3 mt-8">
+            <Link href="/visiting"
+              className="flex-1 inline-flex items-center justify-center px-6 py-3.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl transition-colors">
+              See my visitor card
+            </Link>
+            <Link href="/neighborhoods"
+              className="flex-1 inline-flex items-center justify-center px-6 py-3.5 border border-gray-200 hover:bg-white text-gray-700 font-bold rounded-xl transition-colors">
+              Explore Istanbul
+            </Link>
+          </div>
+          <button onClick={shareVisit}
+            className="mt-5 text-sm font-semibold text-gray-500 hover:text-amber-600 transition-colors">
+            Share my visit
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-warm pb-16">
       <div className="bg-white border-b border-gray-100">
@@ -71,8 +130,10 @@ export default function NewVisitingPage() {
           <Link href="/visiting" className="text-sm text-gray-400 hover:text-gray-600 mb-4 inline-flex items-center gap-1 transition-colors">
             ← All visitors
           </Link>
-          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">Post your visit</h1>
-          <p className="text-base text-gray-600 mt-1">Members in Istanbul will see this and can reach out.</p>
+          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">Coming to Istanbul?</h1>
+          <p className="text-base text-gray-600 mt-1">
+            Put yourself on the Smileys radar and start making connections before you arrive.
+          </p>
         </div>
       </div>
 
@@ -169,11 +230,42 @@ export default function NewVisitingPage() {
               placeholder="+90 ... or @handle" className="input" />
           </div>
 
+          {/* Defaults to members-only. Radios rather than a toggle so both
+              outcomes are stated outright — someone posting travel dates
+              should never have to infer what a switch position means. */}
+          <fieldset>
+            <legend className="block text-sm font-semibold text-gray-700 mb-1.5">Who can see my visit?</legend>
+            <div className="space-y-2">
+              {VISITOR_VISIBILITY.map(v => (
+                <label key={v.value}
+                  className={`flex items-start gap-3 border rounded-xl px-4 py-3 cursor-pointer transition-colors ${
+                    visibility === v.value ? 'border-amber-400 bg-amber-50' : 'border-gray-200 bg-white hover:border-amber-200'
+                  }`}>
+                  <input type="radio" name="visibility" value={v.value}
+                    checked={visibility === v.value}
+                    onChange={() => setVisibility(v.value)}
+                    className="mt-0.5 accent-amber-500" />
+                  <span>
+                    <span className="block text-sm font-semibold text-gray-900">{v.label}</span>
+                    <span className="block text-xs text-gray-500 mt-0.5">{v.hint}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
           {error && <p className="text-sm text-red-600 bg-red-50 px-4 py-3 rounded-xl">{error}</p>}
 
           <button type="submit" disabled={submitting}
-            className="w-full bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition-colors">
-            {submitting ? 'Posting…' : 'Post visit'}
+            className="w-full inline-flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition-colors">
+            {submitting ? 'Posting…' : (
+              <>
+                Let Istanbul Know I&apos;m Coming
+                <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                </svg>
+              </>
+            )}
           </button>
         </form>
       </div>

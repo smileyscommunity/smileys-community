@@ -17,25 +17,39 @@ export type ClubCategory = typeof CLUB_CATEGORIES[number]
 // posts on /visiting) — single-select traveler type + multi-select "what
 // are you looking for", both fixed lists so they render as consistent
 // pills instead of free text. languages stays free text (no fixed list).
+// These answer "What brings you to Istanbul?" — purpose of the trip, not
+// traveler archetype. Safe to have been reshaped: when this list changed no
+// stored row used any of the previous values, so nothing was orphaned.
 export const VISITOR_TRAVELER_TYPES = [
-  { value: 'first_visit',  label: 'First visit'    },
-  { value: 'return_visit', label: 'Been before'    },
-  { value: 'nomad',        label: 'Digital nomad'  },
-  { value: 'relocating',   label: 'Relocating'     },
-  { value: 'weekend',      label: 'Weekend trip'   },
-  { value: 'solo',         label: 'Solo traveler'  },
-  { value: 'with_partner', label: 'With partner'   },
+  { value: 'vacation',         label: 'Vacation'           },
+  { value: 'nomad',            label: 'Digital nomad'      },
+  { value: 'business',         label: 'Business'           },
+  { value: 'visiting_friends', label: 'Visiting friends'   },
+  { value: 'relocating',       label: 'Moving to Istanbul' },
+  { value: 'exploring',        label: 'Just exploring'     },
 ] as const
 
 export const VISITOR_LOOKING_FOR = [
-  { value: 'coffee',         label: 'Coffee',            emoji: '☕' },
-  { value: 'walk',           label: 'Neighborhood walk', emoji: '🚶' },
-  { value: 'coworking',      label: 'Coworking buddy',   emoji: '💻' },
-  { value: 'dinner',         label: 'Dinner',            emoji: '🍽️' },
-  { value: 'nightlife',      label: 'Nightlife',         emoji: '🌃' },
-  { value: 'activity',       label: 'Activity buddy',    emoji: '🎯' },
-  { value: 'local_tips',     label: 'Local tips',        emoji: '💡' },
+  { value: 'coffee',            label: 'Coffee',            emoji: '☕' },
+  { value: 'food',              label: 'Food',              emoji: '🍽️' },
+  { value: 'drinks',            label: 'Drinks',            emoji: '🍸' },
+  { value: 'live_music',        label: 'Live Music',        emoji: '🎶' },
+  { value: 'sailing',           label: 'Sailing',           emoji: '⛵' },
+  { value: 'culture',           label: 'Culture',           emoji: '🏛️' },
+  { value: 'exploring',         label: 'Exploring',         emoji: '🚶' },
+  { value: 'networking',        label: 'Networking',        emoji: '💼' },
+  { value: 'events',            label: 'Events',            emoji: '🎉' },
+  { value: 'language_exchange', label: 'Language Exchange', emoji: '🗣️' },
 ] as const
+
+// Who can see a posted visit. 'members' (the default) keeps the card off
+// the public, logged-out page entirely; 'public' also lists it for guests
+// with contact details redacted, same as every other public surface.
+export const VISITOR_VISIBILITY = [
+  { value: 'members', label: 'Only Smileys members', hint: 'Your visit stays off the public web.' },
+  { value: 'public',  label: 'Anyone browsing Smileys', hint: 'Also listed publicly — contact details stay hidden.' },
+] as const
+export type VisitorVisibility = typeof VISITOR_VISIBILITY[number]['value']
 
 export type VisitorTravelerType = typeof VISITOR_TRAVELER_TYPES[number]['value']
 export type VisitorLookingFor   = typeof VISITOR_LOOKING_FOR[number]['value']

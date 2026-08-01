@@ -12,9 +12,16 @@ import VisitingClient from './VisitingClient'
 // cache entry (different cache key per day). Session-independent by
 // design (see redaction below) so this stays a single shared cache
 // entry per day instead of forking per viewer.
+// Cached per (day, viewer-class) rather than per viewer: `forMembers` only
+// ever takes two values, so this stays two shared cache entries instead of
+// forking per session. Guests get the public-only subset.
 const getAnnouncements = unstable_cache(
-  async (today: string) => prisma.visitorAnnouncement.findMany({
-    where:   { status: 'active', endsOn: { gte: today } },
+  async (today: string, forMembers: boolean) => prisma.visitorAnnouncement.findMany({
+    where: {
+      status: 'active',
+      endsOn: { gte: today },
+      ...(forMembers ? {} : { visibility: 'public' }),
+    },
     orderBy: { startsOn: 'asc' },
     take:    100,
     include: { user: { select: { id: true, name: true, color: true, profilePhoto: true, interests: true } } },
@@ -58,9 +65,12 @@ export default async function VisitingPage() {
   const today         = new Date().toISOString().split('T')[0]
   const sixtyDaysOut  = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
-  const [session, announcements, upcomingEvents, featuredLocals] = await Promise.all([
-    getSession(),
-    getAnnouncements(today),
+  // Session resolves first because the announcement query's visibility
+  // filter depends on it; the rest still run in parallel.
+  const session = await getSession()
+
+  const [announcements, upcomingEvents, featuredLocals] = await Promise.all([
+    getAnnouncements(today, !!session),
     prisma.event.findMany({
       where:   { status: 'published', date: { gte: today, lte: sixtyDaysOut } },
       select:  { id: true, title: true, emoji: true, date: true },
