@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Image from 'next/image'
 import { APP_URL } from '@/lib/env'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
@@ -106,35 +107,53 @@ export default async function VisitingPage() {
           The previous icon-on-left layout was the odd one out. */}
       <div className="bg-white border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-8">
-          <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">
-            <span aria-hidden="true">👋</span> Newcomers &amp; Visitors
-          </span>
-          <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">
-            Visiting Istanbul?
-          </h1>
-          <p className="text-base text-gray-600 mt-1 max-w-xl">
-            Tell us when you&apos;re coming. Locals will reach out for coffee, tips, and intros before you arrive.
-          </p>
-          {/* "Apply to join" leads — membership is the real goal, not just
-              a posted announcement. Posting stays one tap away and works
-              without an account (the growth lever), but it's the secondary
-              action here, not the headline. */}
-          <div className="flex flex-col sm:flex-row gap-3 mt-6">
-            <Link href="/apply"
-              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors shadow-sm">
-              Apply to join Smileys
-              <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-              </svg>
-            </Link>
-            <Link href="/visiting/new"
-              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 border border-gray-200 hover:bg-gray-50 text-gray-700 text-sm font-bold rounded-xl transition-colors">
-              Just post your visit
-            </Link>
+          {/* Two-column on desktop, stacked on mobile — the copy and both
+              CTAs stay above the fold on a phone, with the photo below
+              rather than pushing the "post your visit" action off-screen. */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-14 items-center">
+            <div>
+              <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">
+                <span aria-hidden="true">👋</span> Newcomers &amp; Visitors
+              </span>
+              <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">
+                Visiting Istanbul?
+              </h1>
+              <p className="text-base text-gray-600 mt-1 max-w-xl">
+                Tell us when you&apos;re coming. Locals will reach out for coffee, tips, and intros before you arrive.
+              </p>
+              {/* Posting requires membership (anonymous posting was tried
+                  and reverted — see app/(member)/visiting/new/page.tsx),
+                  so there's no second CTA competing with signup here: this
+                  page browses publicly for SEO/reach, but "Apply to join"
+                  is the only real path forward for a non-member. */}
+              <div className="mt-6">
+                <Link href="/apply"
+                  className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors shadow-sm">
+                  Apply to join Smileys
+                  <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                  </svg>
+                </Link>
+              </div>
+              <p className="text-xs text-gray-400 mt-3">
+                Members get the full community — clubs, events, and everyone else here. Posting your own visit is a member feature too.
+              </p>
+            </div>
+            {/* aspect-[3/2] matches the source file exactly, so object-cover
+                never actually crops — the signpost and the group at the
+                bottom edge both survive at every breakpoint. */}
+            <div className="relative aspect-[3/2] rounded-2xl overflow-hidden shadow-xl">
+              <Image
+                src="/app/images/visiting-hero.jpg"
+                alt="Four Smileys members at an Istanbul viewpoint at sunset, one pointing across the Bosphorus toward a domed mosque, beside a signpost pointing to Galata Tower, Sultanahmet, and Hagia Sophia"
+                fill
+                priority
+                fetchPriority="high"
+                sizes="(max-width: 1024px) 100vw, 50vw"
+                className="object-cover"
+              />
+            </div>
           </div>
-          <p className="text-xs text-gray-400 mt-3">
-            Members get the full community — clubs, events, and everyone else here. Posting a visit alone doesn&apos;t require an account.
-          </p>
         </div>
       </div>
 

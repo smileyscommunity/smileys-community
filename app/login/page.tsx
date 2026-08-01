@@ -19,8 +19,10 @@ import FingerprintJS from '@fingerprintjs/fingerprintjs'
 const FROM_LABELS: [string, string][] = [
   ['/members',   'The members directory'],
   ['/cup',       'The Smileys World Cup'],
-  // /visiting and /visiting/new (posting) are both fully public now —
-  // POST /api/visitors always supported anonymous submissions.
+  // Bare /visiting is public (see app/visiting/page.tsx) — only posting
+  // your own visit requires an account. Anonymous posting was tried and
+  // reverted: undercut the point of the page nudging people to join.
+  ['/visiting/new', 'Posting a visit announcement'],
   ['/dashboard', 'Your dashboard'],
   ['/messages',  'Messages'],
 ]

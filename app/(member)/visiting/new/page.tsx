@@ -5,18 +5,10 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { ISTANBUL_NEIGHBORHOODS, VISITOR_TRAVELER_TYPES, VISITOR_LOOKING_FOR } from '@/lib/data'
-import Turnstile from '@/components/Turnstile'
-
-// Public — POST /api/visitors already accepts anonymous submissions
-// (Turnstile-verified, 3/day/IP rate-limited) as an explicit growth lever:
-// non-members can announce a visit and get discovered before ever signing
-// up. This page previously lived under app/(member)/, which blocked
-// anonymous visitors from ever reaching the form the API was built for.
-const turnstileRequired = !!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
 
 export default function NewVisitingPage() {
   const router = useRouter()
-  const { user, isLoggedIn } = useAuth()
+  const { user } = useAuth()
 
   const [name,         setName]         = useState('')
   const [fromCity,     setFromCity]     = useState('')
@@ -34,13 +26,6 @@ export default function NewVisitingPage() {
   function toggleLookingFor(value: string) {
     setLookingFor(prev => prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value])
   }
-
-  // Turnstile tokens are single-use — a failed submit consumes the current
-  // one, so resetSignal forces the widget to mint a fresh one on retry.
-  // Members skip this entirely: the API only requires it when there's no
-  // session.
-  const [turnstileToken, setTurnstileToken] = useState('')
-  const [turnstileReset, setTurnstileReset] = useState(0)
 
   useEffect(() => {
     if (user.name && !name) setName(user.name)
@@ -65,15 +50,10 @@ export default function NewVisitingPage() {
           travelerType: travelerType || undefined,
           languages: languages.split(',').map(l => l.trim()).filter(Boolean),
           lookingFor,
-          _cf: !isLoggedIn ? turnstileToken : undefined,
         }),
       })
       const data = await res.json()
-      if (!res.ok) {
-        setError(data.error ?? 'Could not post')
-        if (!isLoggedIn) { setTurnstileToken(''); setTurnstileReset(n => n + 1) }
-        return
-      }
+      if (!res.ok) { setError(data.error ?? 'Could not post'); return }
       router.push('/visiting')
     } catch {
       setError('Network error')
@@ -83,7 +63,6 @@ export default function NewVisitingPage() {
   }
 
   const todayStr = new Date().toISOString().split('T')[0]
-  const canSubmit = !submitting && (isLoggedIn || !turnstileRequired || !!turnstileToken)
 
   return (
     <div className="min-h-screen bg-warm pb-16">
@@ -190,16 +169,9 @@ export default function NewVisitingPage() {
               placeholder="+90 ... or @handle" className="input" />
           </div>
 
-          {/* Anonymous posters only — members are already gated by login,
-              matching how POST /api/visitors decides whether to require a
-              token. */}
-          {!isLoggedIn && (
-            <Turnstile onVerify={setTurnstileToken} onExpire={() => setTurnstileToken('')} resetSignal={turnstileReset} />
-          )}
-
           {error && <p className="text-sm text-red-600 bg-red-50 px-4 py-3 rounded-xl">{error}</p>}
 
-          <button type="submit" disabled={!canSubmit}
+          <button type="submit" disabled={submitting}
             className="w-full bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition-colors">
             {submitting ? 'Posting…' : 'Post visit'}
           </button>
