@@ -195,6 +195,62 @@ function CoffeeInviteModal({ target, onClose }: { target: VisitorUser; onClose: 
   )
 }
 
+// A tip is one-way by design: it lands in the visitor's notifications and
+// opens no thread. See app/api/visiting/tip/route.ts for why that channel
+// is guarded the way it is.
+function TipModal({ target, onClose }: { target: VisitorUser; onClose: () => void }) {
+  const [text,    setText]    = useState('')
+  const [sending, setSending] = useState(false)
+  const firstName = target.name.split(' ')[0]
+  const remaining = 200 - text.length
+
+  async function send() {
+    if (sending || !text.trim()) return
+    setSending(true)
+    try {
+      const res = await fetch('/app/api/visiting/tip', {
+        method:      'POST',
+        credentials: 'include',
+        headers:     { 'Content-Type': 'application/json' },
+        body:        JSON.stringify({ targetUserId: target.id, text }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { toast.error(data.error ?? 'Could not send tip'); return }
+      toast.success(`Tip sent to ${firstName}!`)
+      onClose()
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4"
+      onClick={onClose}>
+      <div className="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-5 shadow-xl"
+        onClick={e => e.stopPropagation()}>
+        <h3 className="text-lg font-bold text-gray-900 mb-1">Share a tip with {firstName}</h3>
+        <p className="text-xs text-gray-500 mb-4">
+          Goes straight to their notifications — no chat, no reply needed.
+        </p>
+        <textarea value={text} onChange={e => setText(e.target.value)} rows={3} maxLength={200}
+          placeholder="Try the Moda waterfront around sunset."
+          className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400" />
+        <p className="text-right text-xs text-gray-400 mt-1 mb-4">{remaining} left · links are removed</p>
+        <div className="flex gap-2">
+          <button onClick={onClose}
+            className="flex-1 px-4 py-2.5 border border-gray-200 hover:bg-gray-50 text-gray-700 text-sm font-bold rounded-xl transition-colors">
+            Cancel
+          </button>
+          <button onClick={send} disabled={sending || !text.trim()}
+            className="flex-1 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white text-sm font-bold rounded-xl transition-colors">
+            {sending ? 'Sending…' : 'Send tip'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function WaveButton({ targetUserId, targetName }: { targetUserId: string; targetName: string }) {
   const [sending, setSending] = useState(false)
   const [sent,    setSent]    = useState(false)
@@ -370,6 +426,7 @@ function AnnouncementCard({ a, viewerId, viewerInterests, events, allAnnouncemen
   todayUTC:         number
 }) {
   const [coffeeOpen, setCoffeeOpen] = useState(false)
+  const [tipOpen,    setTipOpen]    = useState(false)
   const status          = arrivalStatus(a, todayUTC)
   const isSelf          = !!(viewerId && a.user && viewerId === a.user.id)
   const sharedInterests = viewerInterests.filter(i => a.interests.includes(i)).slice(0, 3)
@@ -483,6 +540,10 @@ function AnnouncementCard({ a, viewerId, viewerInterests, events, allAnnouncemen
             className="shrink-0 text-xs font-bold px-3 py-1.5 rounded-full border border-amber-200 text-amber-700 hover:bg-amber-50 transition-colors whitespace-nowrap">
             ☕ Invite for coffee
           </button>
+          <button onClick={() => setTipOpen(true)}
+            className="shrink-0 text-xs font-bold px-3 py-1.5 rounded-full border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
+            💡 Share a tip
+          </button>
           <Link href={`/members/${a.user.id}`}
             className="text-xs font-semibold text-gray-500 hover:text-amber-600 transition-colors whitespace-nowrap">
             View profile →
@@ -492,6 +553,9 @@ function AnnouncementCard({ a, viewerId, viewerInterests, events, allAnnouncemen
 
       {coffeeOpen && a.user && (
         <CoffeeInviteModal target={a.user} onClose={() => setCoffeeOpen(false)} />
+      )}
+      {tipOpen && a.user && (
+        <TipModal target={a.user} onClose={() => setTipOpen(false)} />
       )}
     </div>
   )

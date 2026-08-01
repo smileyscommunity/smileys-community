@@ -26,6 +26,7 @@ const TYPE_ICON: Record<string, string> = {
   reminder_24h:        '⏰',
   reminder_2h:         '⚡',
   message:             '💬',
+  visitor_tip:         '💡',
   warning:             '⚠️',
   announcement:        '📢',
   system_alert:        '🚨',
