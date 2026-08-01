@@ -100,13 +100,26 @@ export default async function VisitingPage() {
           <p className="text-base text-gray-600 mt-1 max-w-xl">
             Tell us when you&apos;re coming. Locals will reach out for coffee, tips, and intros before you arrive.
           </p>
-          <Link href="/visiting/new"
-            className="inline-flex items-center gap-2 mt-6 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors shadow-sm">
-            <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Post your visit
-          </Link>
+          {/* "Apply to join" leads — membership is the real goal, not just
+              a posted announcement. Posting stays one tap away and works
+              without an account (the growth lever), but it's the secondary
+              action here, not the headline. */}
+          <div className="flex flex-col sm:flex-row gap-3 mt-6">
+            <Link href="/apply"
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors shadow-sm">
+              Apply to join Smileys
+              <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+              </svg>
+            </Link>
+            <Link href="/visiting/new"
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 border border-gray-200 hover:bg-gray-50 text-gray-700 text-sm font-bold rounded-xl transition-colors">
+              Just post your visit
+            </Link>
+          </div>
+          <p className="text-xs text-gray-400 mt-3">
+            Members get the full community — clubs, events, and everyone else here. Posting a visit alone doesn&apos;t require an account.
+          </p>
         </div>
       </div>
 
