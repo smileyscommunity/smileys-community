@@ -7,6 +7,7 @@ import type { Metadata } from 'next'
 import { getSession } from '@/lib/session'
 import { NEIGHBORHOOD_META, neighborhoodToSlug } from '@/lib/neighborhoods'
 import VisitingClient from './VisitingClient'
+import StickyVisitCta from './StickyVisitCta'
 
 // Cached 2-min — visitor announcements don't churn second-by-second.
 // `today` is passed in so day-boundary rollover invalidates the
@@ -405,6 +406,8 @@ export default async function VisitingPage() {
           </div>
         </div>
       </section>
+
+      <StickyVisitCta hasPosted={!!viewerVisit} />
     </div>
   )
 }
