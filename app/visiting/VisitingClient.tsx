@@ -300,8 +300,10 @@ function AnnouncementCard({ a, viewerId, viewerInterests, events, allAnnouncemen
           </div>
         </div>
         {/* Wave sends a connection request with a templated welcome
-            note; existing accepted connection → jumps straight to DM. */}
-        {a.user && !isSelf && (
+            note; existing accepted connection → jumps straight to DM.
+            Gated on viewerId — this page is now public, and an anonymous
+            click would just 401 against the wave API with no explanation. */}
+        {viewerId && a.user && !isSelf && (
           <WaveButton targetUserId={a.user.id} targetName={a.user.name} />
         )}
       </div>

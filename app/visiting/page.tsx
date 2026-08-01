@@ -3,14 +3,14 @@ import { APP_URL } from '@/lib/env'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import type { Metadata } from 'next'
+import { getSession } from '@/lib/session'
 import VisitingClient from './VisitingClient'
 
 // Cached 2-min — visitor announcements don't churn second-by-second.
 // `today` is passed in so day-boundary rollover invalidates the
-// cache entry (different cache key per day). The page used to read
-// the session here just to pass viewerId to VisitingClient, which
-// forced force-dynamic and blocked caching; that branch moved into
-// the client (useAuth) so this server fetch can be cached.
+// cache entry (different cache key per day). Session-independent by
+// design (see redaction below) so this stays a single shared cache
+// entry per day instead of forking per viewer.
 const getAnnouncements = unstable_cache(
   async (today: string) => prisma.visitorAnnouncement.findMany({
     where:   { status: 'active', endsOn: { gte: today } },
@@ -42,7 +42,8 @@ export default async function VisitingPage() {
   const today         = new Date().toISOString().split('T')[0]
   const sixtyDaysOut  = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
-  const [announcements, upcomingEvents, featuredLocals] = await Promise.all([
+  const [session, announcements, upcomingEvents, featuredLocals] = await Promise.all([
+    getSession(),
     getAnnouncements(today),
     prisma.event.findMany({
       where:   { status: 'published', date: { gte: today, lte: sixtyDaysOut } },
@@ -58,6 +59,12 @@ export default async function VisitingPage() {
     }),
   ])
 
+  // This page is public (anonymous visitors are the point — it's a growth
+  // surface like /guide and /handbook). Strip contact info for anyone
+  // without a session, matching the exact same redaction already done in
+  // GET /api/visitors — a signed-out request must never see a member's raw
+  // contact/email, only that they exist and how to reach them (sign up).
+  const isMember = !!session
   const serialised = announcements.map(a => ({
     id:           a.id,
     name:         a.name,
@@ -66,8 +73,8 @@ export default async function VisitingPage() {
     fromCity:     a.fromCity     ?? null,
     neighborhood: a.neighborhood ?? null,
     intro:        a.intro,
-    contact:      a.contact      ?? null,
-    email:        a.email        ?? null,
+    contact:      isMember ? (a.contact ?? null) : null,
+    email:        isMember ? (a.email   ?? null) : null,
     interests:    (a.user?.interests ?? []) as string[],
     user:         a.user ? { id: a.user.id, name: a.user.name, color: a.user.color, profilePhoto: a.user.profilePhoto } : null,
   }))
