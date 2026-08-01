@@ -87,13 +87,112 @@ function bucketOf(a: Announcement, todayUTC: number): Exclude<FilterKey, 'all'> 
   return 'later'
 }
 
-const SECTION_LABELS: Record<Exclude<FilterKey, 'all'>, string> = {
-  week:  'This week',
-  // "Next 30 days" was misleading here because the section actually
-  // contains only the 8–30 day bucket (this-week visitors render in
-  // the section above). "Coming up" reads as "later but not far off".
-  month: 'Coming up',
-  later: 'Later',
+// Arrival status shown as a badge on each card. "Here now" wins over any
+// countdown — someone mid-trip is the most actionable person on the page,
+// which is also why they sort first. Day maths uses the same UTC-midnight
+// anchor as bucketOf so both agree on a boundary day.
+type ArrivalStatus = { label: string; tone: 'now' | 'soon' | 'later' }
+
+function arrivalStatus(a: Announcement, todayUTC: number): ArrivalStatus {
+  const [sy, sm, sd] = a.startsOn.split('-').map(Number)
+  const [ey, em, ed] = a.endsOn.split('-').map(Number)
+  const startUTC = Date.UTC(sy, sm - 1, sd)
+  const endUTC   = Date.UTC(ey, em - 1, ed)
+
+  if (startUTC <= todayUTC && endUTC >= todayUTC) return { label: 'Here now', tone: 'now' }
+
+  const days = Math.round((startUTC - todayUTC) / 86_400_000)
+  if (days < 0)  return { label: 'Visit ended',      tone: 'later' }
+  if (days === 0) return { label: 'Arriving today',   tone: 'now'  }
+  if (days === 1) return { label: 'Arriving tomorrow', tone: 'soon' }
+  if (days <= 7)  return { label: `Arriving in ${days} days`, tone: 'soon' }
+  if (days <= 14) return { label: 'Coming next week', tone: 'soon' }
+  return {
+    label: `Visiting in ${new Date(startUTC).toLocaleDateString('en-GB', { month: 'long', timeZone: 'UTC' })}`,
+    tone:  'later',
+  }
+}
+
+const STATUS_TONE: Record<ArrivalStatus['tone'], string> = {
+  now:   'bg-green-100 text-green-800',
+  soon:  'bg-amber-100 text-amber-800',
+  later: 'bg-gray-100 text-gray-600',
+}
+
+// Coffee invite goes out as a CONNECTION REQUEST carrying the details as
+// its note — not a DM. The wave endpoint deliberately bypasses the
+// "must be connected" guard because its text is a fixed template nobody
+// can edit; this one carries free-form text, so it routes through the
+// normal request flow and the visitor consents before they read it.
+function CoffeeInviteModal({ target, onClose }: { target: VisitorUser; onClose: () => void }) {
+  const [when,         setWhen]         = useState('')
+  const [neighborhood, setNeighborhood] = useState('')
+  const [message,      setMessage]      = useState('')
+  const [sending,      setSending]      = useState(false)
+
+  const firstName = target.name.split(' ')[0]
+
+  async function send() {
+    if (sending) return
+    setSending(true)
+    try {
+      const parts = [
+        `☕ Coffee invite${when ? ` — ${when}` : ''}${neighborhood ? ` in ${neighborhood}` : ''}`,
+        message.trim(),
+      ].filter(Boolean)
+      const res = await fetch('/app/api/connections', {
+        method:      'POST',
+        credentials: 'include',
+        headers:     { 'Content-Type': 'application/json' },
+        body:        JSON.stringify({ receiverId: target.id, note: parts.join('\n').slice(0, 280) }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { toast.error(data.error ?? 'Could not send invite'); return }
+      toast.success(`Invite sent to ${firstName}!`)
+      onClose()
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4"
+      onClick={onClose}>
+      <div className="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-5 shadow-xl"
+        onClick={e => e.stopPropagation()}>
+        <h3 className="text-lg font-bold text-gray-900 mb-1">Invite {firstName} for coffee</h3>
+        <p className="text-xs text-gray-500 mb-4">
+          Sends a connection request with your invite. {firstName} sees it once they accept.
+        </p>
+
+        <label className="block text-xs font-bold text-gray-700 mb-1">Suggested day</label>
+        <input value={when} onChange={e => setWhen(e.target.value)}
+          placeholder="e.g. Thursday afternoon"
+          className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-amber-400" />
+
+        <label className="block text-xs font-bold text-gray-700 mb-1">Neighborhood</label>
+        <input value={neighborhood} onChange={e => setNeighborhood(e.target.value)}
+          placeholder="e.g. Kadıköy"
+          className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-amber-400" />
+
+        <label className="block text-xs font-bold text-gray-700 mb-1">Message <span className="font-normal text-gray-400">(optional)</span></label>
+        <textarea value={message} onChange={e => setMessage(e.target.value)} rows={3} maxLength={280}
+          placeholder="Happy to show you around the neighborhood…"
+          className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm mb-4 resize-none focus:outline-none focus:ring-2 focus:ring-amber-400" />
+
+        <div className="flex gap-2">
+          <button onClick={onClose}
+            className="flex-1 px-4 py-2.5 border border-gray-200 hover:bg-gray-50 text-gray-700 text-sm font-bold rounded-xl transition-colors">
+            Cancel
+          </button>
+          <button onClick={send} disabled={sending}
+            className="flex-1 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white text-sm font-bold rounded-xl transition-colors">
+            {sending ? 'Sending…' : 'Send invite'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function WaveButton({ targetUserId, targetName }: { targetUserId: string; targetName: string }) {
@@ -262,13 +361,16 @@ function FirstTimeChecklist({ hasPosted, viewerId }: { hasPosted: boolean; viewe
   )
 }
 
-function AnnouncementCard({ a, viewerId, viewerInterests, events, allAnnouncements }: {
+function AnnouncementCard({ a, viewerId, viewerInterests, events, allAnnouncements, todayUTC }: {
   a:                Announcement
   viewerId:         string | null
   viewerInterests:  string[]
   events:           EventSummary[]
   allAnnouncements: Announcement[]
+  todayUTC:         number
 }) {
+  const [coffeeOpen, setCoffeeOpen] = useState(false)
+  const status          = arrivalStatus(a, todayUTC)
   const isSelf          = !!(viewerId && a.user && viewerId === a.user.id)
   const sharedInterests = viewerInterests.filter(i => a.interests.includes(i)).slice(0, 3)
   const eventsInWindow  = events.filter(e => e.date >= a.startsOn && e.date <= a.endsOn)
@@ -281,32 +383,32 @@ function AnnouncementCard({ a, viewerId, viewerInterests, events, allAnnouncemen
     .sort((x, y) => y.shared.length - x.shared.length)
     .slice(0, 3)
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
+    <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col h-full">
       <div className="flex items-start gap-3 mb-3">
         {a.user?.profilePhoto ? (
-          <Image src={a.user.profilePhoto} alt={a.name} width={40} height={40}
-            className="w-10 h-10 rounded-full object-cover shrink-0" />
+          <Image src={a.user.profilePhoto} alt={a.name} width={56} height={56}
+            className="w-14 h-14 rounded-full object-cover shrink-0" />
         ) : (
           /* aria-hidden because the visitor name is announced as the
              next element, so the SR hearing "K" or "M" for the
              fallback initial would just be redundant noise. */
           <div aria-hidden="true"
-            className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0"
+            className="w-14 h-14 rounded-full flex items-center justify-center text-white text-lg font-bold shrink-0"
             style={{ backgroundColor: a.user?.color || '#f59e0b' }}>
             {a.name[0]?.toUpperCase() ?? '?'}
           </div>
         )}
         <div className="flex-1 min-w-0">
+          <span className={`inline-block text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full mb-1.5 ${STATUS_TONE[status.tone]}`}>
+            {status.label}
+          </span>
           <div className="flex items-center gap-2 flex-wrap">
             {a.user ? (
-              <Link href={`/members/${a.user.id}`} className="text-sm font-bold text-gray-900 hover:text-amber-600 transition-colors">{a.name}</Link>
+              <Link href={`/members/${a.user.id}`} className="text-base font-bold text-gray-900 hover:text-amber-600 transition-colors">{a.name}</Link>
             ) : (
-              <p className="text-sm font-bold text-gray-900">{a.name}</p>
+              <p className="text-base font-bold text-gray-900">{a.name}</p>
             )}
             {a.fromCity && <span className="text-xs text-gray-600">from {a.fromCity}</span>}
-            {a.user && (
-              <Link href={`/members/${a.user.id}`} className="text-[10px] font-bold uppercase tracking-wide bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full hover:bg-amber-200 transition-colors">Member →</Link>
-            )}
           </div>
           <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-600 flex-wrap">
             <span className="font-semibold text-amber-700">{formatRange(a.startsOn, a.endsOn)}</span>
@@ -319,13 +421,6 @@ function AnnouncementCard({ a, viewerId, viewerInterests, events, allAnnouncemen
             )}
           </div>
         </div>
-        {/* Wave sends a connection request with a templated welcome
-            note; existing accepted connection → jumps straight to DM.
-            Gated on viewerId — this page is now public, and an anonymous
-            click would just 401 against the wave API with no explanation. */}
-        {viewerId && a.user && !isSelf && (
-          <WaveButton targetUserId={a.user.id} targetName={a.user.name} />
-        )}
       </div>
       <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap mb-3">{a.intro}</p>
 
@@ -376,6 +471,28 @@ function AnnouncementCard({ a, viewerId, viewerInterests, events, allAnnouncemen
           {a.email   && <p><span aria-hidden="true">✉️ </span><span className="font-mono text-gray-700">{a.email}</span></p>}
         </div>
       )}
+
+      {/* Actions pinned to the card bottom (mt-auto) so cards in a row keep
+          their buttons on one line regardless of intro length. Hidden for
+          logged-out viewers — this page browses publicly, and an anonymous
+          click would just 401 with no explanation. */}
+      {viewerId && a.user && !isSelf && (
+        <div className="flex flex-wrap items-center gap-2 mt-auto pt-4">
+          <WaveButton targetUserId={a.user.id} targetName={a.user.name} />
+          <button onClick={() => setCoffeeOpen(true)}
+            className="shrink-0 text-xs font-bold px-3 py-1.5 rounded-full border border-amber-200 text-amber-700 hover:bg-amber-50 transition-colors whitespace-nowrap">
+            ☕ Invite for coffee
+          </button>
+          <Link href={`/members/${a.user.id}`}
+            className="text-xs font-semibold text-gray-500 hover:text-amber-600 transition-colors whitespace-nowrap">
+            View profile →
+          </Link>
+        </div>
+      )}
+
+      {coffeeOpen && a.user && (
+        <CoffeeInviteModal target={a.user} onClose={() => setCoffeeOpen(false)} />
+      )}
     </div>
   )
 }
@@ -415,6 +532,14 @@ export default function VisitingClient({ announcements, events, cityCount, featu
     return announcements.filter(a => bucketOf(a, todayUTC) === filter)
   }, [announcements, filter, todayUTC])
 
+  // Anyone currently in Istanbul sorts to the top — they're the only people
+  // on this page you can actually meet today — then by arrival date so the
+  // soonest arrivals lead the rest.
+  const sorted = useMemo(() => {
+    const rank = (a: Announcement) => (arrivalStatus(a, todayUTC).tone === 'now' ? 0 : 1)
+    return [...filtered].sort((x, y) => rank(x) - rank(y) || x.startsOn.localeCompare(y.startsOn))
+  }, [filtered, todayUTC])
+
   const CHIPS: { key: FilterKey; label: string; count: number }[] = [
     { key: 'all',   label: 'All',          count: announcements.length },
     { key: 'week',  label: 'This week',    count: buckets.week },
@@ -426,13 +551,21 @@ export default function VisitingClient({ announcements, events, cityCount, featu
 
   return (
     <>
-      {/* Stats banner */}
-      {upcomingCount > 0 && (
-        <p className="text-sm text-gray-600 mb-3">
-          <span className="font-semibold text-gray-800">{upcomingCount}</span> visitor{upcomingCount !== 1 ? 's' : ''} in the next 30 days
-          {cityCount > 1 && <> · from <span className="font-semibold text-gray-800">{cityCount}</span> cities</>}
+      <div className="mb-6">
+        <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">
+          Who&apos;s Coming to Istanbul?
+        </h2>
+        <p className="text-gray-600 mt-2">
+          Meet Smileys members arriving soon and help them feel at home.
         </p>
-      )}
+        {/* Stats banner */}
+        {upcomingCount > 0 && (
+          <p className="text-sm text-gray-500 mt-3">
+            <span className="font-semibold text-gray-700">{upcomingCount}</span> visitor{upcomingCount !== 1 ? 's' : ''} in the next 30 days
+            {cityCount > 1 && <> · from <span className="font-semibold text-gray-700">{cityCount}</span> cities</>}
+          </p>
+        )}
+      </div>
 
       {/* Filter chips */}
       {announcements.length > 0 && (
@@ -465,29 +598,19 @@ export default function VisitingClient({ announcements, events, cityCount, featu
             No visitors in this window — try a different filter.
           </div>
         )
-      ) : filter === 'all' ? (
-        <div className="space-y-8">
-          {(['week', 'month', 'later'] as const).map(bucket => {
-            const items = filtered.filter(a => bucketOf(a, todayUTC) === bucket)
-            if (items.length === 0) return null
-            return (
-              <div key={bucket}>
-                <h3 className="text-xs font-bold uppercase tracking-wide text-gray-400 mb-3">
-                  {SECTION_LABELS[bucket]} <span className="font-normal">({items.length})</span>
-                </h3>
-                <div className="space-y-4">
-                  {items.map(a => (
-                    <AnnouncementCard key={a.id} a={a} viewerId={viewerId} viewerInterests={viewerInterests} events={events} allAnnouncements={announcements} />
-                  ))}
-                </div>
-              </div>
-            )
-          })}
-        </div>
       ) : (
-        <div className="space-y-4">
-          {filtered.map(a => (
-            <AnnouncementCard key={a.id} a={a} viewerId={viewerId} viewerInterests={viewerInterests} events={events} allAnnouncements={announcements} />
+        /* Grid widens with the roster rather than forcing a 3-up layout the
+           page can't fill yet: one visitor gets a single readable card, not
+           a lone tile stranded beside two empty columns. Bucket headings are
+           gone because each card now carries its own arrival badge, which
+           says the same thing more precisely. */
+        <div className={
+          sorted.length === 1 ? 'grid grid-cols-1 max-w-2xl gap-5'
+          : sorted.length === 2 ? 'grid grid-cols-1 md:grid-cols-2 gap-5'
+          : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5'
+        }>
+          {sorted.map(a => (
+            <AnnouncementCard key={a.id} a={a} viewerId={viewerId} viewerInterests={viewerInterests} events={events} allAnnouncements={announcements} todayUTC={todayUTC} />
           ))}
         </div>
       )}

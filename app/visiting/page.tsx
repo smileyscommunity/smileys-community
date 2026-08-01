@@ -102,76 +102,97 @@ export default async function VisitingPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Hero — typographic, pill eyebrow + h1 to match the rest of
-          the public surfaces (/guide, /about, /handbook, /posts).
-          The previous icon-on-left layout was the odd one out. */}
-      <div className="bg-white border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-8">
-          {/* Two-column on desktop, stacked on mobile — the copy and both
-              CTAs stay above the fold on a phone, with the photo below
-              rather than pushing the "post your visit" action off-screen. */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-14 items-center">
-            <div>
-              <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">
-                <span aria-hidden="true">👋</span> Newcomers &amp; Visitors
-              </span>
-              <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">
-                Visiting Istanbul?
+      {/* Hero — full-bleed cinematic photo with the copy overlaid. The
+          gradient is what makes white text legible over a bright sunset
+          photo: without it the headline sits on the blown-out sky at the
+          horizon and drops well below AA. Kept opaque enough at the
+          bottom that the CTAs never land on the busy boat/crowd detail. */}
+      <section className="relative h-[500px] sm:h-[560px] lg:h-[620px] w-full overflow-hidden">
+        <Image
+          src="/app/images/visiting-hero.jpg"
+          alt="Four Smileys members at an Istanbul viewpoint at sunset, one pointing across the Bosphorus toward a domed mosque, beside a signpost pointing to Galata Tower, Sultanahmet, and Hagia Sophia"
+          fill
+          priority
+          fetchPriority="high"
+          sizes="100vw"
+          className="object-cover object-center"
+        />
+        <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/55 to-black/30" />
+        <div className="absolute inset-0 flex items-center">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+            <div className="max-w-2xl">
+              <p className="text-xs font-bold tracking-[0.2em] uppercase text-amber-300 mb-4">
+                Visiting Istanbul
+              </p>
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-[1.1]">
+                Your Istanbul starts before you arrive.
               </h1>
-              <p className="text-base text-gray-600 mt-1 max-w-xl">
-                Tell us when you&apos;re coming. Locals will reach out for coffee, tips, and introductions before you arrive.
+              <p className="text-base sm:text-lg text-white/90 mt-5 leading-relaxed max-w-xl">
+                Tell us when you&apos;re coming. Smileys members in Istanbul can reach out with
+                local tips, coffee invitations, introductions and plans before you arrive.
               </p>
-              <p className="text-base text-gray-900 font-semibold mt-3 max-w-xl">
-                Arrive with connections, not as a stranger.
-              </p>
-              {/* Posting requires membership (anonymous posting was tried
-                  and reverted — see app/(member)/visiting/new/page.tsx),
-                  so there's no second CTA competing with signup here: this
-                  page browses publicly for SEO/reach, but "Apply to join"
-                  is the only real path forward for a non-member. */}
-              <div className="mt-6">
-                <Link href="/apply"
-                  className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors shadow-sm">
-                  Apply to join Smileys
+              <div className="mt-8 flex flex-col sm:flex-row gap-3">
+                {/* Posting is member-only (anonymous posting was tried and
+                    reverted — see app/(member)/visiting/new/page.tsx), so a
+                    logged-out visitor is sent to /apply rather than into a
+                    form that would just bounce them to login. */}
+                <Link href={isMember ? '/visiting/new' : '/apply'}
+                  className="inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-amber-500 hover:bg-amber-600 text-white text-base font-bold rounded-xl transition-colors shadow-lg">
+                  Tell Us You&apos;re Coming
                   <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                   </svg>
                 </Link>
+                <a href="#visitors"
+                  className="inline-flex items-center justify-center gap-2 px-7 py-3.5 border border-white/50 hover:bg-white/10 text-white text-base font-semibold rounded-xl transition-colors backdrop-blur-sm">
+                  See Who&apos;s Visiting
+                </a>
               </div>
-              <p className="text-xs text-gray-400 mt-3">
-                Members get the full community — clubs, events, and everyone else here. Posting your own visit is a member feature too.
+              <p className="text-xs sm:text-sm text-white/70 mt-5">
+                Real people <span aria-hidden="true">•</span> Local connections <span aria-hidden="true">•</span> No awkward cold introductions
               </p>
-            </div>
-            {/* aspect-[3/2] matches the source file exactly, so object-cover
-                never actually crops — the signpost and the group at the
-                bottom edge both survive at every breakpoint. */}
-            <div className="relative aspect-[3/2] rounded-2xl overflow-hidden shadow-xl">
-              <Image
-                src="/app/images/visiting-hero.jpg"
-                alt="Four Smileys members at an Istanbul viewpoint at sunset, one pointing across the Bosphorus toward a domed mosque, beside a signpost pointing to Galata Tower, Sultanahmet, and Hagia Sophia"
-                fill
-                priority
-                fetchPriority="high"
-                sizes="(max-width: 1024px) 100vw, 50vw"
-                className="object-cover"
-              />
             </div>
           </div>
         </div>
-      </div>
+      </section>
+
+      {/* Value strip — four short promises. Deliberately terse: this sits
+          between the hero and the visitor list, so anything longer pushes
+          the actual people (the point of the page) further down. */}
+      <section className="border-b border-gray-100 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-12">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              { icon: '☕', title: 'Meet a Local',      body: 'Grab a coffee, drink or meal with someone already living in Istanbul.' },
+              { icon: '💬', title: 'Get Local Tips',    body: 'Ask real people about neighborhoods, transport, restaurants and everyday life.' },
+              { icon: '🤝', title: 'Make Connections',  body: 'Start meeting people before your flight even lands.' },
+              { icon: '🎉', title: 'Find Plans',        body: "Discover Smileys events and activities happening while you're here." },
+            ].map(v => (
+              <div key={v.title} className="bg-gray-50 border border-gray-100 rounded-2xl p-5">
+                <div aria-hidden="true" className="text-2xl mb-3">{v.icon}</div>
+                <h2 className="text-sm font-bold text-gray-900 mb-1.5">{v.title}</h2>
+                <p className="text-xs text-gray-600 leading-relaxed">{v.body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        <div className="max-w-3xl">
+        {/* Full container width (not max-w-3xl) so the visitor cards can
+            lay out 3-up on desktop; the handbook cross-link below keeps
+            its own reading width so it doesn't stretch into a banner. */}
+        <div id="visitors" className="scroll-mt-20">
+
+        <VisitingClient announcements={serialised} events={upcomingEvents} cityCount={cityCount} featuredLocals={featuredLocals} />
 
         {/* Cross-link to /handbook — visitors landing here are the exact
             audience for the long-form survival reads. Closes the loop
             with /handbook (and /guide) which both link back here as
             "Visiting first?". Soft grey card so it doesn't compete
             with the post-CTA. */}
-        <VisitingClient announcements={serialised} events={upcomingEvents} cityCount={cityCount} featuredLocals={featuredLocals} />
-
         <Link href="/handbook"
-          className="block mt-8 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-2xl px-5 py-4 transition-colors group">
+          className="block mt-8 max-w-3xl bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-2xl px-5 py-4 transition-colors group">
           <div className="flex items-center gap-4">
             <div aria-hidden="true" className="text-2xl shrink-0">📖</div>
             <div className="flex-1 min-w-0">
