@@ -4,7 +4,7 @@ import { getSession } from '@/lib/session'
 import { rateLimit, getIp } from '@/lib/rateLimit'
 import { verifyTurnstile } from '@/lib/turnstile'
 import { createNotification } from '@/lib/notify'
-import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
+import { ISTANBUL_NEIGHBORHOODS, VISITOR_TRAVELER_TYPES, VISITOR_LOOKING_FOR } from '@/lib/data'
 
 // "I'm visiting Istanbul" announcements. Anonymous posting allowed to capture
 // visitors before they sign up (the whole growth lever); Turnstile + 3/day/IP
@@ -48,7 +48,8 @@ export async function POST(req: NextRequest) {
 
     const session = await getSession()
     const body = await req.json()
-    const { name, email, fromCity, intro, startsOn, endsOn, neighborhood, contact, _cf } = body
+    const { name, email, fromCity, intro, startsOn, endsOn, neighborhood, contact, _cf,
+      travelerType, languages, lookingFor } = body
 
     // Turnstile required for anonymous posts; members are already gated by login.
     if (!session) {
@@ -80,6 +81,21 @@ export async function POST(req: NextRequest) {
       && (ISTANBUL_NEIGHBORHOODS as readonly string[]).includes(neighborhood)
       ? neighborhood : null
 
+    const safeTravelerType = typeof travelerType === 'string'
+      && (VISITOR_TRAVELER_TYPES as readonly { value: string }[]).some(t => t.value === travelerType)
+      ? travelerType : null
+
+    const LOOKING_FOR_VALUES = new Set((VISITOR_LOOKING_FOR as readonly { value: string }[]).map(t => t.value))
+    const safeLookingFor = Array.isArray(lookingFor)
+      ? [...new Set(lookingFor.filter((v): v is string => typeof v === 'string' && LOOKING_FOR_VALUES.has(v)))].slice(0, 10)
+      : []
+
+    // Free text, no fixed list — capped on count and per-item length so a
+    // malicious payload can't stuff an oversized array into the column.
+    const safeLanguages = Array.isArray(languages)
+      ? [...new Set(languages.filter((v): v is string => typeof v === 'string' && v.trim().length > 0).map(v => v.trim().slice(0, 30)))].slice(0, 8)
+      : []
+
     const created = await prisma.visitorAnnouncement.create({
       data: {
         userId:       session?.id ?? null,
@@ -91,6 +107,9 @@ export async function POST(req: NextRequest) {
         endsOn,
         neighborhood: safeNeighborhood,
         contact:      typeof contact === 'string' ? contact.trim().slice(0, 200) || null : null,
+        travelerType: safeTravelerType,
+        languages:    safeLanguages,
+        lookingFor:   safeLookingFor,
       },
     })
 

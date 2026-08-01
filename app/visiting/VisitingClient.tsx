@@ -5,6 +5,12 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { toast } from 'sonner'
 import { useAuth } from '@/contexts/AuthContext'
+import { VISITOR_TRAVELER_TYPES, VISITOR_LOOKING_FOR } from '@/lib/data'
+
+const TRAVELER_LABEL: Record<string, string> = Object.fromEntries(VISITOR_TRAVELER_TYPES.map(t => [t.value, t.label]))
+const LOOKING_FOR_META: Record<string, { label: string; emoji: string }> = Object.fromEntries(
+  VISITOR_LOOKING_FOR.map(t => [t.value, { label: t.label, emoji: t.emoji }]),
+)
 
 interface VisitorUser {
   id: string
@@ -24,6 +30,9 @@ interface Announcement {
   contact:      string | null
   email:        string | null
   interests:    string[]
+  travelerType: string | null
+  languages:    string[]
+  lookingFor:   string[]
   user:         VisitorUser | null
 }
 
@@ -263,9 +272,14 @@ function AnnouncementCard({ a, viewerId, viewerInterests, events, allAnnouncemen
   const isSelf          = !!(viewerId && a.user && viewerId === a.user.id)
   const sharedInterests = viewerInterests.filter(i => a.interests.includes(i)).slice(0, 3)
   const eventsInWindow  = events.filter(e => e.date >= a.startsOn && e.date <= a.endsOn)
-  const overlapping     = allAnnouncements.filter(o =>
-    o.id !== a.id && o.startsOn <= a.endsOn && o.endsOn >= a.startsOn
-  ).slice(0, 3)
+  // Overlapping visitors ranked by shared "looking for" tags first (e.g. two
+  // people who both want a coworking buddy during the same week are a much
+  // better match than two people who merely happen to overlap in dates).
+  const overlapping = allAnnouncements
+    .filter(o => o.id !== a.id && o.startsOn <= a.endsOn && o.endsOn >= a.startsOn)
+    .map(o => ({ o, shared: o.lookingFor.filter(v => a.lookingFor.includes(v)) }))
+    .sort((x, y) => y.shared.length - x.shared.length)
+    .slice(0, 3)
   return (
     <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
       <div className="flex items-start gap-3 mb-3">
@@ -294,9 +308,15 @@ function AnnouncementCard({ a, viewerId, viewerInterests, events, allAnnouncemen
               <Link href={`/members/${a.user.id}`} className="text-[10px] font-bold uppercase tracking-wide bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full hover:bg-amber-200 transition-colors">Member →</Link>
             )}
           </div>
-          <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-600">
+          <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-600 flex-wrap">
             <span className="font-semibold text-amber-700">{formatRange(a.startsOn, a.endsOn)}</span>
             {a.neighborhood && <span><span aria-hidden="true">· 📍 </span>{a.neighborhood}</span>}
+            {a.travelerType && TRAVELER_LABEL[a.travelerType] && (
+              <span><span aria-hidden="true">· </span>{TRAVELER_LABEL[a.travelerType]}</span>
+            )}
+            {a.languages.length > 0 && (
+              <span><span aria-hidden="true">· 🗣️ </span>{a.languages.join(', ')}</span>
+            )}
           </div>
         </div>
         {/* Wave sends a connection request with a templated welcome
@@ -309,9 +329,14 @@ function AnnouncementCard({ a, viewerId, viewerInterests, events, allAnnouncemen
       </div>
       <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap mb-3">{a.intro}</p>
 
-      {/* Shared interests + events during stay */}
-      {(sharedInterests.length > 0 || eventsInWindow.length > 0) && (
+      {/* Looking for + shared interests + events during stay */}
+      {(a.lookingFor.length > 0 || sharedInterests.length > 0 || eventsInWindow.length > 0) && (
         <div className="flex flex-wrap items-center gap-2 mb-3">
+          {a.lookingFor.map(v => LOOKING_FOR_META[v] && (
+            <span key={v} className="text-xs bg-violet-50 text-violet-700 border border-violet-100 px-2 py-0.5 rounded-full font-medium">
+              {LOOKING_FOR_META[v].emoji} {LOOKING_FOR_META[v].label}
+            </span>
+          ))}
           {sharedInterests.map(i => (
             <span key={i} className="text-xs bg-amber-50 text-amber-700 border border-amber-100 px-2 py-0.5 rounded-full font-medium">
               🎯 {i}
@@ -329,13 +354,16 @@ function AnnouncementCard({ a, viewerId, viewerInterests, events, allAnnouncemen
       {overlapping.length > 0 && (
         <p className="text-xs text-gray-500 mb-3">
           Also visiting:{' '}
-          {overlapping.map((o, i) => (
+          {overlapping.map(({ o, shared }, i) => (
             <span key={o.id}>
               {i > 0 && ', '}
               {o.user
                 ? <Link href={`/members/${o.user.id}`} className="font-semibold text-gray-700 hover:text-amber-600 transition-colors">{o.name.split(' ')[0]}</Link>
                 : <span className="font-semibold text-gray-700">{o.name.split(' ')[0]}</span>
               }
+              {shared.length > 0 && LOOKING_FOR_META[shared[0]] && (
+                <span className="text-violet-600"> (also wants {LOOKING_FOR_META[shared[0]].label.toLowerCase()})</span>
+              )}
             </span>
           ))}
           {' '}at the same time

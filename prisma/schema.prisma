@@ -1534,6 +1534,13 @@ model VisitorAnnouncement {
   contact      String?
   status       String   @default("active")
   createdAt    DateTime @default(now())
+  // Structured tags — see VISITOR_TRAVELER_TYPES / VISITOR_LOOKING_FOR in
+  // lib/data.ts for the fixed option sets travelerType/lookingFor validate
+  // against. languages is free text (no fixed list — too many to enumerate),
+  // capped server-side on count and per-item length.
+  travelerType String?
+  languages    String[] @default([])
+  lookingFor   String[] @default([])
   user         User?    @relation(fields: [userId], references: [id])
 
   @@index([status, endsOn])

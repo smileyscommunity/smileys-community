@@ -76,6 +76,9 @@ export default async function VisitingPage() {
     contact:      isMember ? (a.contact ?? null) : null,
     email:        isMember ? (a.email   ?? null) : null,
     interests:    (a.user?.interests ?? []) as string[],
+    travelerType: a.travelerType ?? null,
+    languages:    a.languages,
+    lookingFor:   a.lookingFor,
     user:         a.user ? { id: a.user.id, name: a.user.name, color: a.user.color, profilePhoto: a.user.profilePhoto } : null,
   }))
 

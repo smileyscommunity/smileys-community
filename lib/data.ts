@@ -13,6 +13,33 @@ export const CLUB_CATEGORIES = [
 
 export type ClubCategory = typeof CLUB_CATEGORIES[number]
 
+// Structured tags for VisitorAnnouncement (the "I'm visiting Istanbul"
+// posts on /visiting) — single-select traveler type + multi-select "what
+// are you looking for", both fixed lists so they render as consistent
+// pills instead of free text. languages stays free text (no fixed list).
+export const VISITOR_TRAVELER_TYPES = [
+  { value: 'first_visit',  label: 'First visit'    },
+  { value: 'return_visit', label: 'Been before'    },
+  { value: 'nomad',        label: 'Digital nomad'  },
+  { value: 'relocating',   label: 'Relocating'     },
+  { value: 'weekend',      label: 'Weekend trip'   },
+  { value: 'solo',         label: 'Solo traveler'  },
+  { value: 'with_partner', label: 'With partner'   },
+] as const
+
+export const VISITOR_LOOKING_FOR = [
+  { value: 'coffee',         label: 'Coffee',            emoji: '☕' },
+  { value: 'walk',           label: 'Neighborhood walk', emoji: '🚶' },
+  { value: 'coworking',      label: 'Coworking buddy',   emoji: '💻' },
+  { value: 'dinner',         label: 'Dinner',            emoji: '🍽️' },
+  { value: 'nightlife',      label: 'Nightlife',         emoji: '🌃' },
+  { value: 'activity',       label: 'Activity buddy',    emoji: '🎯' },
+  { value: 'local_tips',     label: 'Local tips',        emoji: '💡' },
+] as const
+
+export type VisitorTravelerType = typeof VISITOR_TRAVELER_TYPES[number]['value']
+export type VisitorLookingFor   = typeof VISITOR_LOOKING_FOR[number]['value']
+
 // Tiny amber-100 SVG — used as blur placeholder for all dynamic images
 export const BLUR_PLACEHOLDER = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMCIgaGVpZ2h0PSI2Ij48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZmVmM2M3Ii8+PC9zdmc+'
 

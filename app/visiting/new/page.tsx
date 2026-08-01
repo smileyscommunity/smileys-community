@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
-import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
+import { ISTANBUL_NEIGHBORHOODS, VISITOR_TRAVELER_TYPES, VISITOR_LOOKING_FOR } from '@/lib/data'
 import Turnstile from '@/components/Turnstile'
 
 // Public — POST /api/visitors already accepts anonymous submissions
@@ -25,8 +25,15 @@ export default function NewVisitingPage() {
   const [neighborhood, setNeighborhood] = useState('')
   const [intro,        setIntro]        = useState('')
   const [contact,      setContact]      = useState('')
+  const [travelerType, setTravelerType] = useState('')
+  const [languages,    setLanguages]    = useState('')
+  const [lookingFor,   setLookingFor]   = useState<string[]>([])
   const [submitting,   setSubmitting]   = useState(false)
   const [error,        setError]        = useState('')
+
+  function toggleLookingFor(value: string) {
+    setLookingFor(prev => prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value])
+  }
 
   // Turnstile tokens are single-use — a failed submit consumes the current
   // one, so resetSignal forces the widget to mint a fresh one on retry.
@@ -55,6 +62,9 @@ export default function NewVisitingPage() {
           name, fromCity: fromCity || undefined,
           intro, startsOn, endsOn, neighborhood: neighborhood || undefined,
           contact: contact || undefined,
+          travelerType: travelerType || undefined,
+          languages: languages.split(',').map(l => l.trim()).filter(Boolean),
+          lookingFor,
           _cf: !isLoggedIn ? turnstileToken : undefined,
         }),
       })
@@ -124,6 +134,44 @@ export default function NewVisitingPage() {
               {ISTANBUL_NEIGHBORHOODS.map(n => <option key={n} value={n}>{n}</option>)}
             </select>
             <p className="text-xs text-gray-400 mt-1">Locals from that area get notified.</p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                Traveler type <span className="text-gray-400 font-normal">(optional)</span>
+              </label>
+              <select value={travelerType} onChange={e => setTravelerType(e.target.value)} className="input bg-white">
+                <option value="">— Not sure —</option>
+                {VISITOR_TRAVELER_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                Languages <span className="text-gray-400 font-normal">(optional)</span>
+              </label>
+              <input type="text" value={languages} onChange={e => setLanguages(e.target.value)} maxLength={200}
+                placeholder="English, Spanish…" className="input" />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+              What are you looking for? <span className="text-gray-400 font-normal">(optional)</span>
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {VISITOR_LOOKING_FOR.map(t => {
+                const active = lookingFor.includes(t.value)
+                return (
+                  <button key={t.value} type="button" onClick={() => toggleLookingFor(t.value)}
+                    className={`text-sm px-3 py-1.5 rounded-full border font-medium transition-colors ${
+                      active ? 'bg-amber-500 border-amber-500 text-white' : 'bg-white border-gray-200 text-gray-600 hover:border-amber-300'
+                    }`}>
+                    {t.emoji} {t.label}
+                  </button>
+                )
+              })}
+            </div>
           </div>
 
           <div>
