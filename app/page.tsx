@@ -184,6 +184,10 @@ export default async function HomePage() {
                   the image LCP is measuring. fetchPriority is explicit on
                   top of `priority` since the browser hint isn't otherwise
                   guaranteed to land on the rendered <img>. */}
+              {/* sizes accounts for the section's horizontal padding (px-4
+                  below sm, sm:px-6 above) — actual rendered width is
+                  viewport minus that padding, not the full 100vw the old
+                  value assumed. */}
               <div className="lg:hidden relative aspect-[3/2] rounded-2xl overflow-hidden shadow-xl mb-10">
                 <Image
                   src="/app/images/hero-istanbul.jpg"
@@ -191,7 +195,7 @@ export default async function HomePage() {
                   fill
                   priority
                   fetchPriority="high"
-                  sizes="100vw"
+                  sizes="(max-width: 639px) calc(100vw - 32px), calc(100vw - 48px)"
                   className="object-cover"
                 />
               </div>
@@ -208,8 +212,11 @@ export default async function HomePage() {
                 </Link>
               </div>
               {/* Commitment info at the moment of decision — cost, wait time,
-                  and what approval means, so "Apply" isn't a leap of faith. */}
-              <p className="text-xs text-gray-500 mb-16">
+                  and what approval means, so "Apply" isn't a leap of faith.
+                  Promoted from text-xs/gray-500 (read as fine print) — this
+                  is the page's strongest reassurance line and was
+                  undersized relative to what it's doing. */}
+              <p className="text-sm font-medium text-gray-700 mb-16">
                 Free to join · Applications reviewed by hand within 24 hours · Pay only for events you attend
               </p>
 
@@ -228,6 +235,11 @@ export default async function HomePage() {
             {/* -top-10 lifts the image ~40px above its centered position so
                 its top edge sits closer to the headline instead of hanging
                 low against the taller text column (stats push the center down). */}
+            {/* sizes was a flat 50vw, which ignores the max-w-7xl (1280px)
+                cap on the grid this column lives in — past ~1344px viewport
+                width the column stops scaling and holds at a fixed ~576px
+                ((1280 - px-8*2 - gap-16) / 2), so 50vw on a 4K monitor was
+                requesting ~2x the resolution ever actually rendered. */}
             <div className="hidden lg:block relative -top-10 h-[520px] rounded-2xl overflow-hidden shadow-xl">
               <Image
                 src="/app/images/hero-istanbul.jpg"
@@ -235,7 +247,7 @@ export default async function HomePage() {
                 fill
                 priority
                 fetchPriority="high"
-                sizes="(max-width: 1024px) 0px, 50vw"
+                sizes="(max-width: 1024px) 0px, (max-width: 1344px) calc(50vw - 64px), 576px"
                 className="object-cover"
               />
             </div>
