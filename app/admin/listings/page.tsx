@@ -285,14 +285,14 @@ export default function AdminListingsPage() {
           <p className="text-zinc-400 text-sm mt-1">{total} listing{total !== 1 ? 's' : ''}</p>
         </div>
         <div className="flex items-center gap-2">
-          <a href="/admin/listings/new"
+          <Link href="/admin/listings/new"
             className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold border bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20 transition-colors">
             <span>＋</span> Add listing
-          </a>
-          <a href="/admin/listings/bulk"
+          </Link>
+          <Link href="/admin/listings/bulk"
             className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold border bg-zinc-800 border-zinc-700 text-zinc-300 hover:border-amber-500/40 hover:text-amber-400 transition-colors">
             <span>＋</span> Bulk add
-          </a>
+          </Link>
           <button
             onClick={() => setShowSettings(s => !s)}
             className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold border transition-colors ${

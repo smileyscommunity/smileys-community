@@ -47,6 +47,11 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
           >
             Try again
           </button>
+          {/* Intentionally a plain <a>, not next/link: this is the global
+              error boundary, so the React tree is already broken. A
+              client-side navigation would keep that broken tree mounted —
+              a full document load is what actually recovers the app. */}
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
           <a
             href="/"
             className="px-6 py-3 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 font-semibold text-sm transition-colors"

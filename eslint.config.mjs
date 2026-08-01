@@ -37,4 +37,23 @@ export default [
     // Keeping them reported-but-not-removed preserves that intent.
     linterOptions: { reportUnusedDisableDirectives: 'off' },
   },
+  {
+    // Legacy backlog, demoted to warnings so `npm run lint` can act as a
+    // gate on NEW code instead of failing permanently on 515 pre-existing
+    // findings. Still reported — not silenced — and worth clearing over
+    // time. Anything left as an error below is at zero and should stay
+    // there.
+    rules: {
+      'react/no-unescaped-entities':        'warn', // 216 — cosmetic in JSX text
+      '@typescript-eslint/no-explicit-any': 'warn', // 159 — each needs a real type decision
+      '@next/next/no-img-element':          'warn', // 140 — perf, not correctness
+    },
+  },
+  {
+    // Build config files are genuinely CommonJS — Node loads them as CJS, so
+    // require() is correct here and converting them to ESM would be a real
+    // risk for zero benefit. The TypeScript rule simply doesn't apply.
+    files: ['*.config.js', '*.config.mjs', 'postcss.config.js'],
+    rules: { '@typescript-eslint/no-require-imports': 'off' },
+  },
 ]

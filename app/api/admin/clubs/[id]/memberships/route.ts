@@ -154,7 +154,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const delta     = countDelta(prior.status, nextStatus)
 
     const ops: Promise<unknown>[] = []
-    let membership: unknown
     if (isReject) {
       ops.push(prisma.clubMembership.delete({ where: { userId_clubId: { userId, clubId: id } } }))
     } else {
@@ -166,8 +165,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (delta !== 0) {
       ops.push(prisma.club.update({ where: { id }, data: { memberCount: { increment: delta } } }))
     }
-    const result = await prisma.$transaction(ops as never)
-    membership = (result as unknown[])[0]
+    // Declared here rather than above the branches so it can be const:
+    // the first op's result is this endpoint's response body (see the
+    // NextResponse.json(membership) below).
+    const membership = (await prisma.$transaction(ops as never) as unknown[])[0]
 
     // Notifications + audit are fire-and-forget (no rollback needed
     // if they fail). The club + user lookups run out of the
