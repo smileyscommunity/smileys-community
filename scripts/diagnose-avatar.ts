@@ -50,7 +50,7 @@ async function main() {
 
     // Strip the leading /app/api/files/ or /api/files/ or /uploads/
     // and look for the file at public/uploads/<rest>
-    let rel = u.profilePhoto
+    const rel = u.profilePhoto
       .replace(/^\/app\/api\/files\//, '')
       .replace(/^\/api\/files\//,      '')
       .replace(/^\/uploads\//,         '')

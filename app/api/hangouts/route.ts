@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
   // queries: (1) caller's friend IDs, (2) host↔friend edges. Cheap because
   // both are indexed on (requesterId|receiverId).
   const hostIds = [...new Set(hangouts.map(h => h.userId).filter(id => id !== session.id))]
-  let mutualsByHost: Record<string, number> = {}
+  const mutualsByHost: Record<string, number> = {}
   if (hostIds.length > 0) {
     const myConns = await prisma.memberConnection.findMany({
       where:  { status: 'accepted', OR: [{ requesterId: session.id }, { receiverId: session.id }] },

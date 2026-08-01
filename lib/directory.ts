@@ -139,7 +139,7 @@ export async function queryDirectory(filters: DirectoryFilters): Promise<Directo
   const trendingByBiz = new Map(trendingStats.map(s => [s.businessId, s._count._all]))
   const claimByBiz   = new Map(myClaims.map(c     => [c.businessId, c.status]))
 
-  let items = page.map(b => {
+  const items = page.map(b => {
     const { submittedBy, claimedById, ...rest } = b
     const rawStatus = claimByBiz.get(b.id)
     const myClaimStatus: DirectoryBusiness['myClaimStatus'] =
