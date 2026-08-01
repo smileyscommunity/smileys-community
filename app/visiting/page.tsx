@@ -5,6 +5,7 @@ import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import type { Metadata } from 'next'
 import { getSession } from '@/lib/session'
+import { NEIGHBORHOOD_META, neighborhoodToSlug } from '@/lib/neighborhoods'
 import VisitingClient from './VisitingClient'
 
 // Cached 2-min — visitor announcements don't churn second-by-second.
@@ -72,11 +73,16 @@ export default async function VisitingPage() {
   // filter depends on it; the rest still run in parallel.
   const session = await getSession()
 
-  const [announcements, upcomingEvents, featuredLocals] = await Promise.all([
+  const [announcements, upcomingEvents, featuredLocals, neighborhoodCounts] = await Promise.all([
     getAnnouncements(today, !!session),
     prisma.event.findMany({
       where:   { status: 'published', date: { gte: today, lte: sixtyDaysOut } },
-      select:  { id: true, title: true, emoji: true, date: true },
+      select:  {
+        id: true, title: true, emoji: true, date: true, location: true, neighborhood: true,
+        // Attendee count is filtered to approved RSVPs so the "N going"
+        // figure matches what the event page itself shows.
+        _count: { select: { attendees: { where: { status: 'approved' } } } },
+      },
       orderBy: { date: 'asc' },
       take:    60,
     }),
@@ -85,6 +91,11 @@ export default async function VisitingPage() {
       select:  { id: true, name: true, color: true, profilePhoto: true, neighborhood: true },
       orderBy: { goodHangouts: 'desc' },
       take:    5,
+    }),
+    prisma.user.groupBy({
+      by:      ['neighborhood'],
+      where:   { neighborhood: { not: null }, status: 'approved' },
+      _count:  { _all: true },
     }),
   ])
 
@@ -112,6 +123,37 @@ export default async function VisitingPage() {
   }))
 
   const cityCount = new Set(serialised.map(a => a.fromCity).filter(Boolean)).size
+
+  // The viewer's own active visit, when they have one — drives the
+  // date-matched events and neighborhood picks below. Without it those
+  // sections fall back to a generic prompt rather than guessing.
+  const viewerVisit = session ? serialised.find(a => a.user?.id === session.id) ?? null : null
+
+  const eventsDuringVisit = viewerVisit
+    ? upcomingEvents.filter(e => e.date >= viewerVisit.startsOn && e.date <= viewerVisit.endsOn).slice(0, 6)
+    : []
+
+  // Their neighborhood leads when known, then the busiest ones fill the row.
+  const memberCountFor = (n: string) =>
+    neighborhoodCounts.find(c => c.neighborhood === n)?._count._all ?? 0
+
+  const neighborhoodPicks = [
+    ...(viewerVisit?.neighborhood ? [viewerVisit.neighborhood] : []),
+    ...Object.keys(NEIGHBORHOOD_META)
+      .filter(n => n !== viewerVisit?.neighborhood)
+      .sort((a, b) => memberCountFor(b) - memberCountFor(a)),
+  ].slice(0, 4).map(name => ({
+    name,
+    meta:    NEIGHBORHOOD_META[name],
+    members: memberCountFor(name),
+  }))
+
+  const fmtEventDate = (d: string) => {
+    const [y, m, day] = d.split('-').map(Number)
+    return new Date(Date.UTC(y, m - 1, day))
+      .toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
+      .toUpperCase()
+  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -217,6 +259,152 @@ export default async function VisitingPage() {
         </Link>
         </div>
       </div>
+
+      {/* ── Know where you're staying? ── */}
+      <section className="bg-gray-50 border-t border-gray-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
+          <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">
+            Know where you&apos;re staying?
+          </h2>
+          <p className="text-gray-600 mt-2 mb-8">Discover your neighborhood before you arrive.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {neighborhoodPicks.map(n => (
+              <Link key={n.name} href={`/neighborhoods/${neighborhoodToSlug(n.name)}`}
+                className="bg-white border border-gray-100 rounded-2xl p-5 hover:border-amber-200 hover:shadow-md transition-all group">
+                <div aria-hidden="true" className="text-2xl mb-2">{n.meta?.emoji ?? '📍'}</div>
+                <h3 className="font-bold text-gray-900">{n.name}</h3>
+                {n.members > 0 && (
+                  <p className="text-xs font-semibold text-amber-700 mt-0.5">{n.members} Smileys nearby</p>
+                )}
+                <p className="text-xs text-gray-500 mt-2 leading-relaxed">{n.meta?.vibe ?? 'Local recommendations · People nearby'}</p>
+                <span className="inline-block text-xs font-bold text-gray-700 mt-3 group-hover:text-amber-600 transition-colors">
+                  Explore {n.name} →
+                </span>
+              </Link>
+            ))}
+          </div>
+          <Link href="/neighborhoods" className="inline-block mt-8 text-sm font-bold text-amber-600 hover:underline">
+            Explore all Istanbul neighborhoods →
+          </Link>
+        </div>
+      </section>
+
+      {/* ── Events during your visit ──
+          Personalised only when the viewer has posted their own dates;
+          otherwise it prompts for them rather than showing a generic list
+          that quietly pretends to be matched to a trip. */}
+      <section className="bg-white border-t border-gray-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
+          <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">
+            What&apos;s happening while you&apos;re here
+          </h2>
+          {viewerVisit ? (
+            eventsDuringVisit.length > 0 ? (
+              <>
+                <p className="text-gray-600 mt-2 mb-8">
+                  Events between {viewerVisit.startsOn} and {viewerVisit.endsOn}.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {eventsDuringVisit.map(e => (
+                    <Link key={e.id} href={`/events/${e.id}`}
+                      className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-amber-200 transition-all group">
+                      <p className="text-xs font-bold tracking-wide text-amber-600">{fmtEventDate(e.date)}</p>
+                      <h3 className="font-bold text-gray-900 mt-1.5 leading-snug">
+                        <span aria-hidden="true">{e.emoji} </span>{e.title}
+                      </h3>
+                      <p className="text-xs text-gray-500 mt-2">
+                        <span aria-hidden="true">📍 </span>{e.neighborhood || e.location}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        <span aria-hidden="true">👥 </span>{e._count.attendees} going
+                      </p>
+                      <span className="inline-block text-xs font-bold text-gray-700 mt-3 group-hover:text-amber-600 transition-colors">
+                        View event →
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <p className="text-gray-600 mt-2">
+                Nothing scheduled between {viewerVisit.startsOn} and {viewerVisit.endsOn} yet — new events go up every week.
+              </p>
+            )
+          ) : (
+            <div className="mt-4">
+              <p className="text-gray-600 mb-5">Add your travel dates to see what&apos;s happening during your stay.</p>
+              <Link href={isMember ? '/visiting/new' : '/apply'}
+                className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
+                Add my dates
+              </Link>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* ── Already in Istanbul? ── */}
+      <section className="bg-amber-50 border-t border-amber-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
+          <div className="max-w-3xl">
+            <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">Already in Istanbul?</h2>
+            <p className="text-gray-700 mt-3 leading-relaxed">
+              Someone is about to experience your city for the first time.
+              Help make their arrival a little easier.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-8">
+            {[
+              { icon: '☕', label: 'Invite someone for coffee' },
+              { icon: '💡', label: 'Share a local tip'         },
+              { icon: '🤝', label: 'Make an introduction'      },
+            ].map(a => (
+              <div key={a.label} className="bg-white border border-amber-100 rounded-2xl p-5">
+                <div aria-hidden="true" className="text-2xl mb-2">{a.icon}</div>
+                <p className="text-sm font-bold text-gray-900">{a.label}</p>
+              </div>
+            ))}
+          </div>
+          <a href="#visitors"
+            className="inline-flex items-center justify-center gap-2 px-6 py-3 mt-8 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
+            Welcome someone
+            <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+            </svg>
+          </a>
+        </div>
+      </section>
+
+      {/* Social proof (§10 of the brief) is deliberately absent: the only
+          testimonials on record are general Smileys ones, not from visitors
+          who used this feature. Dressing those up as visit stories would be
+          fabrication, so the section stays out until real ones exist. */}
+
+      {/* ── Final CTA ── */}
+      <section className="bg-gray-900">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center">
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-white leading-tight">
+            Don&apos;t just visit Istanbul.<br />Know someone here.
+          </h2>
+          <p className="text-gray-300 mt-5 max-w-xl mx-auto leading-relaxed">
+            Tell the community you&apos;re coming and start making connections before you arrive.
+          </p>
+          <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
+            <Link href={isMember ? '/visiting/new' : '/apply'}
+              className="inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-amber-500 hover:bg-amber-600 text-white text-base font-bold rounded-xl transition-colors">
+              Tell Us You&apos;re Coming
+              <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+              </svg>
+            </Link>
+            {!isMember && (
+              <Link href="/apply"
+                className="inline-flex items-center justify-center gap-2 px-7 py-3.5 border border-white/40 hover:bg-white/10 text-white text-base font-semibold rounded-xl transition-colors">
+                Join Smileys
+              </Link>
+            )}
+          </div>
+        </div>
+      </section>
     </div>
   )
 }
