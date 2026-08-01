@@ -7,6 +7,9 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     const rawTitle = searchParams.get('title')?.trim()
     const eyebrow  = searchParams.get('eyebrow')?.trim() || 'Istanbul Handbook'
+    // Defaults to the handbook's original CTA so every existing caller
+    // (handbook articles that never passed this param) renders identically.
+    const cta      = searchParams.get('cta')?.trim() || 'Read the handbook'
 
     // Title card — passed by handbook articles that have no cover image, so
     // each shared link gets a tailored preview (article title + category)
@@ -80,7 +83,7 @@ export async function GET(req: Request) {
                   fontWeight: 700,
                 }}
               >
-                Read the handbook
+                {cta}
               </div>
             </div>
           </div>

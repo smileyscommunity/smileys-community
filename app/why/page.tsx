@@ -16,6 +16,15 @@ const getWhyPageData = unstable_cache(
   { revalidate: 300, tags: ['why-page'] },
 )
 
+// See app/about/page.tsx for why this is needed — a page-level `openGraph`
+// block loses the root layout's default og:image, so this page shared with
+// no preview at all on WhatsApp/iMessage/Twitter until this was added.
+const ogImage = `${APP_URL}/api/og?${new URLSearchParams({
+  title:   'Why Smileys?',
+  eyebrow: 'Find your people in Istanbul',
+  cta:     'Apply to join',
+}).toString()}`
+
 export const metadata = {
   alternates: { canonical: `${APP_URL}/why` },
   title: 'Why Smileys? — Find Your People in Istanbul',
@@ -24,11 +33,13 @@ export const metadata = {
     title: 'Why Smileys? — Find Your People in Istanbul',
     description: 'A curated real-life social ecosystem for globally minded people in Istanbul.',
     url: `${APP_URL}/why`,
+    images: [{ url: ogImage, width: 1200, height: 630, alt: 'Why Smileys? — Find Your People in Istanbul' }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Why Smileys? — Find Your People in Istanbul',
     description: 'A curated real-life social ecosystem for globally minded people in Istanbul.',
+    images: [ogImage],
   },
 }
 

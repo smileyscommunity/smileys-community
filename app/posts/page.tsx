@@ -18,6 +18,15 @@ const getPosts = unstable_cache(
   { revalidate: 300, tags: ['posts'] },
 )
 
+// See app/about/page.tsx — a page-level `openGraph` block loses the root
+// layout's default og:image, so this shared with no preview at all on
+// WhatsApp/iMessage/Twitter until this was added.
+const ogImage = `${APP_URL}/api/og?${new URLSearchParams({
+  title:   'Articles & Stories',
+  eyebrow: 'Smileys Community',
+  cta:     'Read the stories',
+}).toString()}`
+
 export const metadata = {
   alternates: { canonical: `${APP_URL}/posts` },
   title: 'Articles & Stories — Smileys Community',
@@ -26,11 +35,13 @@ export const metadata = {
     title: 'Articles & Stories — Smileys Community',
     description: 'Club spotlights, Istanbul guides, and stories from the Smileys community.',
     url: `${APP_URL}/posts`,
+    images: [{ url: ogImage, width: 1200, height: 630, alt: 'Articles & Stories — Smileys Community' }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Articles & Stories — Smileys Community',
     description: 'Club spotlights, Istanbul guides, and stories from the Smileys community.',
+    images: [ogImage],
   },
 }
 

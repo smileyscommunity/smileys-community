@@ -22,12 +22,24 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const title = `${meta.emoji} ${name} — Social Events in Istanbul · Smileys Community`
   const desc  = `Discover upcoming social events in ${name}, Istanbul. ${meta.vibe}. Join Smileys Community — Istanbul's expat & digital nomad social platform.`
   const url   = `${APP_URL}/neighborhoods/${slug}`
+  // A page-level `openGraph` block loses the root layout's default
+  // og:image (Next.js doesn't deep-merge nested metadata) — see
+  // app/about/page.tsx. Without this every neighborhood page shared with
+  // no preview at all on WhatsApp/iMessage/Twitter.
+  const ogImage = `${APP_URL}/api/og?${new URLSearchParams({
+    title:   `${meta.emoji} ${name}`,
+    eyebrow: 'Istanbul Neighborhoods · Smileys Community',
+    cta:     'See events here',
+  }).toString()}`
   return {
     title,
     description: desc,
     alternates: { canonical: url },
-    openGraph: { title, description: desc, url, siteName: 'Smileys Community', type: 'website' },
-    twitter: { card: 'summary', title, description: desc },
+    openGraph: {
+      title, description: desc, url, siteName: 'Smileys Community', type: 'website',
+      images: [{ url: ogImage, width: 1200, height: 630, alt: `${name} — Smileys Community` }],
+    },
+    twitter: { card: 'summary_large_image', title, description: desc, images: [ogImage] },
   }
 }
 

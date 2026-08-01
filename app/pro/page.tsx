@@ -8,6 +8,15 @@ export const dynamic = 'force-dynamic'
 
 const FOUNDER_CAP = 100
 
+// See app/about/page.tsx — a page-level `openGraph` block loses the root
+// layout's default og:image, so this shared with no preview at all on
+// WhatsApp/iMessage/Twitter until this was added.
+const ogImage = `${APP_URL}/api/og?${new URLSearchParams({
+  title:   'Smileys Pro',
+  eyebrow: 'Coming Soon',
+  cta:     'Reserve your spot',
+}).toString()}`
+
 export const metadata = {
   alternates: { canonical: `${APP_URL}/pro` },
   title: 'Smileys Pro — The Professional Network for Istanbul\'s Internationals',
@@ -16,11 +25,13 @@ export const metadata = {
     title: 'Smileys Pro — Coming Soon',
     description: 'A vetted professional network on top of the community you already trust. Founding membership: 50% off for life.',
     url: `${APP_URL}/pro`,
+    images: [{ url: ogImage, width: 1200, height: 630, alt: 'Smileys Pro — Coming Soon' }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Smileys Pro — Coming Soon',
     description: 'A vetted professional network on top of the community you already trust. Founding membership: 50% off for life.',
+    images: [ogImage],
   },
 }
 

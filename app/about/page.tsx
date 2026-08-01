@@ -5,6 +5,19 @@ import { loadContent } from '@/lib/content'
 
 export const revalidate = 3600
 
+// A page-level `openGraph` block loses the root layout's default og:image —
+// Next.js doesn't deep-merge nested metadata fields — so any page that
+// customizes openGraph needs to set its own image or it shares with no
+// preview at all on WhatsApp/iMessage/Twitter (all require og:image to
+// render a card). The static hero photo (about-hero.jpg, 570KB) is over
+// WhatsApp's ~300KB silent-drop threshold, so this uses the same dynamic
+// title-card generator as the homepage default instead of the raw photo.
+const ogImage = `${APP_URL}/api/og?${new URLSearchParams({
+  title:   'About Smileys Community',
+  eyebrow: "Istanbul's curated social community",
+  cta:     'Apply to join',
+}).toString()}`
+
 export const metadata = {
   alternates: { canonical: `${APP_URL}/about` },
   title: 'About Us — Smileys Community',
@@ -13,11 +26,13 @@ export const metadata = {
     title: 'About Smileys Community',
     description: "Istanbul's curated social community for expats and globally minded people.",
     url: `${APP_URL}/about`,
+    images: [{ url: ogImage, width: 1200, height: 630, alt: 'About Smileys Community' }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'About Smileys Community',
     description: "Istanbul's curated social community for expats and globally minded people.",
+    images: [ogImage],
   },
 }
 

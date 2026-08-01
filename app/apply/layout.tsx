@@ -6,6 +6,16 @@ import { areApplicationsOpen } from '@/lib/communitySettings'
 // /admin/settings takes effect immediately (no deploy).
 export const dynamic = 'force-dynamic'
 
+// A page-level `openGraph` block loses the root layout's default og:image
+// (Next.js doesn't deep-merge nested metadata) — see app/about/page.tsx for
+// the full explanation. Without this, the page shared with no preview at
+// all on WhatsApp/iMessage/Twitter.
+const ogImage = `${APP_URL}/api/og?${new URLSearchParams({
+  title:   'Apply to Join Smileys',
+  eyebrow: "Istanbul's curated social community",
+  cta:     '5-minute application',
+}).toString()}`
+
 export const metadata = {
   alternates: { canonical: `${APP_URL}/apply` },
   title: 'Apply to Join Smileys — Istanbul\'s Curated Social Community',
@@ -14,11 +24,13 @@ export const metadata = {
     title: 'Apply to Join Smileys Community',
     description: 'Join Istanbul\'s most vibrant curated social community. Application takes 5 minutes.',
     url: `${APP_URL}/apply`,
+    images: [{ url: ogImage, width: 1200, height: 630, alt: 'Apply to Join Smileys Community' }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Apply to Join Smileys Community',
     description: 'Join Istanbul\'s most vibrant curated social community. Application takes 5 minutes.',
+    images: [ogImage],
   },
 }
 

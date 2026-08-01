@@ -22,6 +22,19 @@ const getAnnouncements = unstable_cache(
   { revalidate: 120, tags: ['visitor-announcements'] },
 )
 
+// A page that defines its own `openGraph` object does NOT inherit the root
+// layout's default og:image — Next.js doesn't deep-merge nested metadata
+// fields, so any page with a custom openGraph block silently loses the
+// image unless it sets one itself. This page is specifically meant to be
+// shared (a friend sending it to someone visiting Istanbul), so a blank
+// preview on WhatsApp/iMessage/Twitter — all of which require og:image to
+// render a card at all — would kill exactly the traffic this exists for.
+const ogImage = `${APP_URL}/api/og?${new URLSearchParams({
+  title:   'Visiting Istanbul?',
+  eyebrow: 'Meet locals before you arrive',
+  cta:     'Post your visit',
+}).toString()}`
+
 export const metadata: Metadata = {
   alternates: { canonical: `${APP_URL}/visiting` },
   title: 'Visiting Istanbul? Meet locals — Smileys Community',
@@ -30,11 +43,13 @@ export const metadata: Metadata = {
     title: 'Visiting Istanbul? Meet locals — Smileys Community',
     description: 'Post your trip dates, see who else is in town, and connect with locals before you arrive.',
     url: `${APP_URL}/visiting`,
+    images: [{ url: ogImage, width: 1200, height: 630, alt: 'Visiting Istanbul? — Smileys Community' }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Visiting Istanbul? Meet locals — Smileys Community',
     description: 'Post your trip dates, see who else is in town, and connect with locals before you arrive.',
+    images: [ogImage],
   },
 }
 

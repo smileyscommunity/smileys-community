@@ -5,6 +5,15 @@ import { loadContent } from '@/lib/content'
 
 export const revalidate = 3600
 
+// See app/about/page.tsx — a page-level `openGraph` block loses the root
+// layout's default og:image, so this shared with no preview at all on
+// WhatsApp/iMessage/Twitter until this was added.
+const ogImage = `${APP_URL}/api/og?${new URLSearchParams({
+  title:   'Advertise with Smileys',
+  eyebrow: "Reach Istanbul's Internationals",
+  cta:     'Get in touch',
+}).toString()}`
+
 export const metadata = {
   alternates: { canonical: `${APP_URL}/advertise` },
   title: 'Advertise with Smileys — Reach Istanbul\'s Most Engaged Internationals',
@@ -13,11 +22,13 @@ export const metadata = {
     title: 'Advertise with Smileys Community',
     description: 'Reach vetted, active English-speaking internationals living in Istanbul through Smileys events, newsletter, and clubs.',
     url: `${APP_URL}/advertise`,
+    images: [{ url: ogImage, width: 1200, height: 630, alt: 'Advertise with Smileys Community' }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Advertise with Smileys Community',
     description: 'Reach vetted, active English-speaking internationals living in Istanbul through Smileys events, newsletter, and clubs.',
+    images: [ogImage],
   },
 }
 
