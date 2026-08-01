@@ -37,11 +37,14 @@ const getAnnouncements = unstable_cache(
 // shared (a friend sending it to someone visiting Istanbul), so a blank
 // preview on WhatsApp/iMessage/Twitter — all of which require og:image to
 // render a card at all — would kill exactly the traffic this exists for.
-const ogImage = `${APP_URL}/api/og?${new URLSearchParams({
-  title:   'Visiting Istanbul?',
-  eyebrow: 'Meet locals before you arrive',
-  cta:     'Post your visit',
-}).toString()}`
+//
+// Uses the real hero photo (visiting-hero.jpg) instead of the generated
+// title-card now that one exists. It's a static public/ asset, not an
+// uploaded file, so it doesn't go through the /api/files resize route —
+// pre-resized+compressed once to visiting-hero-og.jpg (1200x800, ~250KB)
+// instead, since the 456KB original is over WhatsApp's ~300KB silent-drop
+// threshold for og:image.
+const ogImage = `${APP_URL}/images/visiting-hero-og.jpg`
 
 export const metadata: Metadata = {
   alternates: { canonical: `${APP_URL}/visiting` },
@@ -51,7 +54,7 @@ export const metadata: Metadata = {
     title: 'Visiting Istanbul? Meet locals — Smileys Community',
     description: 'Post your trip dates, see who else is in town, and connect with locals before you arrive.',
     url: `${APP_URL}/visiting`,
-    images: [{ url: ogImage, width: 1200, height: 630, alt: 'Visiting Istanbul? — Smileys Community' }],
+    images: [{ url: ogImage, width: 1200, height: 800, alt: 'Visiting Istanbul? — Smileys Community' }],
   },
   twitter: {
     card: 'summary_large_image',
