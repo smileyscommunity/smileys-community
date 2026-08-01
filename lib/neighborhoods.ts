@@ -26,6 +26,20 @@ export interface NeighborhoodMeta {
   lon:   number
 }
 
+// Photography is added per-neighborhood over time, so this is deliberately a
+// lookup rather than a required META field: a neighborhood without a photo
+// renders its gradient/emoji treatment instead of a broken image slot, and
+// dropping a file in public/images + one line here is the whole change.
+// Filenames follow neighborhoodToSlug(name) — e.g. 'Kadıköy' -> kadikoy.
+export const NEIGHBORHOOD_IMAGE: Record<string, string> = {
+  // Populated as photos land, e.g.:
+  // 'Kadıköy': '/app/images/neighborhood-kadikoy.jpg',
+}
+
+export function neighborhoodImage(name: string): string | null {
+  return NEIGHBORHOOD_IMAGE[name] ?? null
+}
+
 export const NEIGHBORHOOD_META: Record<string, NeighborhoodMeta> = {
   // ── Central Social Hubs ──────────────────────────────────────────────────
   'Kadıköy':        { emoji: '🎨', vibe: 'Artsy & vibrant',                side: 'Central',  cost: 2, lat: 40.9906, lon: 29.0234 },

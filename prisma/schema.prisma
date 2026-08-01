@@ -15,6 +15,13 @@ model User {
   color                      String                  @default("#f59e0b")
   bio                        String?
   neighborhood               String?
+  // Opt-OUT of appearing in "People around you" on /neighborhoods. Defaults
+  // to true because these members are already discoverable via /members and
+  // the directory — defaulting to false would silently empty a section for
+  // all 1,298 members who have set a neighborhood. This narrows discovery,
+  // it never widens it: profileVisibility is still applied on top, so a
+  // member set to 'connections' stays hidden regardless of this flag.
+  neighborhoodVisible        Boolean                 @default(true)
   instagram                  String?
   joinedAt                   DateTime                @default(now())
   emailVerified              Boolean                 @default(false)

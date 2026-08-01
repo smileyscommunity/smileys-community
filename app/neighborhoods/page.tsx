@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Image from 'next/image'
 import { readFileSync } from 'fs'
 import { join } from 'path'
 import { unstable_cache } from 'next/cache'
@@ -144,24 +145,59 @@ export default async function NeighborhoodsPage() {
 
   return (
     <main>
-      {/* Hero */}
-      <section className="bg-white border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-8">
-          <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-100 text-amber-700 text-xs font-bold tracking-wide uppercase mb-5">
-            {nh.badge ?? '📍 Explore by neighborhood'}
-          </span>
-          <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900 mb-3">
-            {nh.headline ?? 'Find events near you'}
-          </h1>
-          <p className="text-base text-gray-600 max-w-2xl leading-relaxed">
-            {nh.subtitle ?? "Smileys events happen all across Istanbul. Pick a neighborhood and see what's coming up."}
-          </p>
+      {/* Hero — full-bleed photo with the copy overlaid. Same gradient
+          reasoning as /visiting: the image is a bright sunset waterfront, so
+          without the overlay the headline sits on blown-out sky and drops
+          below AA. Content overrides (nh.*) are preserved so the copy stays
+          editable without a deploy. */}
+      <section className="relative h-[450px] sm:h-[500px] lg:h-[550px] w-full overflow-hidden">
+        <Image
+          src="/app/images/neighborhoods-hero.jpg"
+          alt="People walking along an Istanbul waterfront promenade at sunset, café awnings on one side and the Galata skyline across the water"
+          fill
+          priority
+          fetchPriority="high"
+          sizes="100vw"
+          className="object-cover object-center"
+        />
+        <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/55 to-black/30" />
+        <div className="absolute inset-0 flex items-center">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+            <div className="max-w-2xl">
+              <p className="text-xs font-bold tracking-[0.2em] uppercase text-amber-300 mb-4">
+                {nh.badge ?? 'Istanbul Neighborhoods'}
+              </p>
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-[1.1]">
+                {nh.headline ?? 'Find your Istanbul.'}
+              </h1>
+              <p className="text-base sm:text-lg text-white/90 mt-5 leading-relaxed max-w-xl">
+                {nh.subtitle ?? 'Discover the people, events and local favorites around where you live, work or hang out.'}
+              </p>
+              <div className="mt-8 flex flex-col sm:flex-row gap-3">
+                {/* Where this points depends on what the viewer can actually
+                    do next: jump to their own neighborhood, go set one, or
+                    join first. A single fixed target would be a dead end for
+                    two of the three. */}
+                <a href={userNeighborhood ? '#your-neighborhood' : session ? '/settings' : '/apply'}
+                  className="inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-amber-500 hover:bg-amber-600 text-white text-base font-bold rounded-xl transition-colors shadow-lg">
+                  <span aria-hidden="true">📍</span> Find My Neighborhood
+                </a>
+                <a href="#explore"
+                  className="inline-flex items-center justify-center gap-2 px-7 py-3.5 border border-white/50 hover:bg-white/10 text-white text-base font-semibold rounded-xl transition-colors backdrop-blur-sm">
+                  Explore Neighborhoods
+                </a>
+              </div>
+              <p className="text-xs sm:text-sm text-white/70 mt-5">
+                Local people <span aria-hidden="true">•</span> Local plans <span aria-hidden="true">•</span> Your part of the city
+              </p>
+            </div>
+          </div>
         </div>
       </section>
 
       {/* Your neighborhood banner */}
       {userNeighborhood && NEIGHBORHOOD_META[userNeighborhood] && (
-        <div className="bg-amber-50 border-b border-amber-100">
+        <div id="your-neighborhood" className="scroll-mt-20 bg-amber-50 border-b border-amber-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-3">
               <span className="text-2xl">{NEIGHBORHOOD_META[userNeighborhood].emoji}</span>
@@ -251,6 +287,7 @@ export default async function NeighborhoodsPage() {
             )}
           </div>
         )}
+        <div id="explore" className="scroll-mt-20" />
         <NeighborhoodGrid groups={groups} />
 
         {/* Leaderboard — top neighborhoods this month */}
