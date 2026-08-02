@@ -279,6 +279,52 @@ export default async function NeighborhoodSections({
         </div>
       )}
 
+      {/* Local members */}
+      {locals.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">
+              Local members ({totalLocals})
+            </h2>
+            <a href={`/members?neighborhood=${encodeURIComponent(name)}`}
+              className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
+              See all →
+            </a>
+          </div>
+          <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+            <div className="flex flex-wrap gap-4">
+              {locals.map(m => (
+                <Link key={m.id} href={`/members/${m.id}`} className="flex flex-col items-center gap-1.5 group hover:opacity-80 transition-opacity">
+                  <AvatarImg src={avatarUrl(m.profilePhoto, 128)} name={m.name} color={m.color} />
+                  <span className="text-xs text-gray-600 max-w-[56px] text-center truncate group-hover:text-amber-600 transition-colors">
+                    {m.name.split(' ')[0]}
+                  </span>
+                </Link>
+              ))}
+            </div>
+            {totalLocals > 12 && (
+              <p className="text-xs text-gray-400 mt-4">+ {totalLocals - 12} more Smileys members in {name}</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Spotlight quote */}
+      {guide?.spotlight && (
+        <div className="bg-amber-50 border border-amber-100 rounded-2xl p-6">
+          <div className="flex items-start gap-4">
+            <span className="text-3xl shrink-0 mt-0.5">💬</span>
+            <div>
+              <p className="text-gray-800 text-sm leading-relaxed italic mb-3">"{guide.spotlight.quote}"</p>
+              <p className="text-xs font-semibold text-amber-700">
+                — {guide.spotlight.name}
+                {guide.spotlight.since && <span className="font-normal text-amber-600"> · {guide.spotlight.since}</span>}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Events */}
       {upcomingRaw.length === 0 ? (
         <div className="text-center py-20">
@@ -366,62 +412,118 @@ export default async function NeighborhoodSections({
         </div>
       )}
 
-      {/* Neighborhood Wall */}
-      {myId && (
-        <div id="wall">
-          <div className="flex items-center gap-3 mb-5">
-            <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">
-              Neighborhood Wall{wallPostCount !== null && wallPostCount > 0 ? ` (${wallPostCount})` : ''}
-            </h2>
-            <div className="flex-1 h-px bg-gray-100" />
-            <span className="text-xs text-gray-400">Open to all members</span>
-          </div>
-          <NeighborhoodWall slug={slug} name={name} myId={myId} isStaff={isStaff} />
-        </div>
-      )}
-
-      {/* Spotlight quote */}
-      {guide?.spotlight && (
-        <div className="bg-amber-50 border border-amber-100 rounded-2xl p-6">
-          <div className="flex items-start gap-4">
-            <span className="text-3xl shrink-0 mt-0.5">💬</span>
-            <div>
-              <p className="text-gray-800 text-sm leading-relaxed italic mb-3">"{guide.spotlight.quote}"</p>
-              <p className="text-xs font-semibold text-amber-700">
-                — {guide.spotlight.name}
-                {guide.spotlight.since && <span className="font-normal text-amber-600"> · {guide.spotlight.since}</span>}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Local members */}
-      {locals.length > 0 && (
+      {/* Local hosts */}
+      {rankedHosts.length > 0 && (
         <div>
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">
-              Local members ({totalLocals})
-            </h2>
-            <a href={`/members?neighborhood=${encodeURIComponent(name)}`}
+          <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-5">Local hosts</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {rankedHosts.map((h, i) => (
+              <Link key={h.id} href={`/members/${h.id}`}
+                className="group flex items-center gap-3 bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-amber-200 transition-all">
+                <div className="relative shrink-0">
+                  <AvatarImg src={avatarUrl(h.profilePhoto, 128)} name={h.name} color={h.color} />
+                  {i === 0 && <span className="absolute -top-1 -right-1 text-sm">🏆</span>}
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-gray-900 group-hover:text-amber-600 transition-colors truncate">{h.name}</div>
+                  <div className="text-xs text-gray-400">{h.eventCount} event{h.eventCount !== 1 ? 's' : ''} hosted in {name}</div>
+                </div>
+                <svg className="w-4 h-4 text-gray-300 group-hover:text-amber-400 transition-colors ml-auto shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Visitors heading to this neighborhood — silent when empty so quiet
+          areas don't broadcast "0 visitors". Three slots, link to /visiting
+          for the full list. */}
+      {upcomingVisitors.length > 0 && (
+        <div className="pt-6 border-t border-gray-100">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">Visitors heading to {name}</h2>
+            <Link href={`/visiting?neighborhood=${encodeURIComponent(name)}`}
               className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
               See all →
-            </a>
+            </Link>
           </div>
-          <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
-            <div className="flex flex-wrap gap-4">
-              {locals.map(m => (
-                <Link key={m.id} href={`/members/${m.id}`} className="flex flex-col items-center gap-1.5 group hover:opacity-80 transition-opacity">
-                  <AvatarImg src={avatarUrl(m.profilePhoto, 128)} name={m.name} color={m.color} />
-                  <span className="text-xs text-gray-600 max-w-[56px] text-center truncate group-hover:text-amber-600 transition-colors">
-                    {m.name.split(' ')[0]}
-                  </span>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {upcomingVisitors.map(v => {
+              const s = new Date(v.startsOn + 'T00:00:00')
+              const e = new Date(v.endsOn + 'T00:00:00')
+              const sameMonth = s.getMonth() === e.getMonth() && s.getFullYear() === e.getFullYear()
+              const fmtRange = sameMonth
+                ? `${s.toLocaleDateString('en-GB', { day: 'numeric' })}–${e.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`
+                : `${s.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – ${e.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`
+              return (
+                <Link key={v.id} href="/visiting" className="group block">
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hover:shadow-md hover:-translate-y-0.5 transition-all h-full">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-2xl">👋</span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-gray-900 truncate">{v.name}</p>
+                        {v.fromCity && <p className="text-xs text-gray-600 truncate">from {v.fromCity}</p>}
+                      </div>
+                    </div>
+                    <p className="text-xs font-semibold text-amber-700 mb-2">{fmtRange}</p>
+                    <p className="text-xs text-gray-600 line-clamp-3 leading-relaxed">{v.intro}</p>
+                  </div>
                 </Link>
-              ))}
-            </div>
-            {totalLocals > 12 && (
-              <p className="text-xs text-gray-400 mt-4">+ {totalLocals - 12} more Smileys members in {name}</p>
-            )}
+              )
+            })}
+          </div>
+        </div>
+      )}
+      {/* Local businesses in this neighborhood — expat-owned / expat-friendly
+          spots from the community directory. Silent when empty. "See all →"
+          deep-links /directory with this neighborhood pre-selected so the
+          context survives the click. */}
+      {businesses.length > 0 && (
+        <div className="pt-6 border-t border-gray-100">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">Local businesses in {name}</h2>
+            <Link href={`/directory?neighborhood=${encodeURIComponent(name)}`}
+              className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
+              See all →
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {businesses.map(b => {
+              const cover = resolveImageUrl(b.coverImage)
+              const logo  = resolveImageUrl(b.logo)
+              return (
+                <Link key={b.id} href={`/directory?neighborhood=${encodeURIComponent(name)}`} className="group block">
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all h-full flex flex-col">
+                    <div className="relative h-32 bg-gray-100">
+                      {cover ? (
+                        <img src={cover} alt={b.name} loading="lazy" className="absolute inset-0 w-full h-full object-cover" />
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center text-4xl text-gray-300">🏢</div>
+                      )}
+                      {/* Expat badges — top-left so the logo (bottom-right) doesn't collide. */}
+                      <div className="absolute top-2 left-2 flex flex-col gap-1">
+                        {b.isExpatOwned    && <span className="bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-tight">Expat-owned</span>}
+                        {b.isExpatFriendly && <span className="bg-teal-500  text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-tight">Expat-friendly</span>}
+                      </div>
+                      {logo && (
+                        <div className="absolute bottom-2 right-2 w-9 h-9 rounded-xl overflow-hidden border-2 border-white shadow-sm bg-white">
+                          <img src={logo} alt={b.name} className="w-full h-full object-cover" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-3 flex flex-col gap-1">
+                      <h3 className="font-semibold text-gray-900 text-sm leading-snug line-clamp-1 group-hover:text-amber-600 transition-colors">
+                        {b.name}
+                      </h3>
+                      <p className="text-[11px] text-gray-400">{b.category}</p>
+                      <p className="text-xs text-gray-600 line-clamp-2 mt-1">{b.description}</p>
+                    </div>
+                  </div>
+                </Link>
+              )
+            })}
           </div>
         </div>
       )}
@@ -458,6 +560,20 @@ export default async function NeighborhoodSections({
               </Link>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Neighborhood Wall */}
+      {myId && (
+        <div id="wall">
+          <div className="flex items-center gap-3 mb-5">
+            <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">
+              Neighborhood Wall{wallPostCount !== null && wallPostCount > 0 ? ` (${wallPostCount})` : ''}
+            </h2>
+            <div className="flex-1 h-px bg-gray-100" />
+            <span className="text-xs text-gray-400">Open to all members</span>
+          </div>
+          <NeighborhoodWall slug={slug} name={name} myId={myId} isStaff={isStaff} />
         </div>
       )}
 
@@ -506,28 +622,21 @@ export default async function NeighborhoodSections({
         </div>
       )}
 
-      {/* Local hosts */}
-      {rankedHosts.length > 0 && (
+      {/* Community photos */}
+      {communityPhotos.length > 0 && (
         <div>
-          <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-5">Local hosts</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {rankedHosts.map((h, i) => (
-              <Link key={h.id} href={`/members/${h.id}`}
-                className="group flex items-center gap-3 bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-amber-200 transition-all">
-                <div className="relative shrink-0">
-                  <AvatarImg src={avatarUrl(h.profilePhoto, 128)} name={h.name} color={h.color} />
-                  {i === 0 && <span className="absolute -top-1 -right-1 text-sm">🏆</span>}
-                </div>
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold text-gray-900 group-hover:text-amber-600 transition-colors truncate">{h.name}</div>
-                  <div className="text-xs text-gray-400">{h.eventCount} event{h.eventCount !== 1 ? 's' : ''} hosted in {name}</div>
-                </div>
-                <svg className="w-4 h-4 text-gray-300 group-hover:text-amber-400 transition-colors ml-auto shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
+          <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-5">Community photos</h2>
+          <div className="grid grid-cols-3 gap-2">
+            {communityPhotos.map(photo => (
+              <Link key={photo.id} href={`/events/${photo.event.id}`}
+                className="group relative aspect-square rounded-xl overflow-hidden bg-gray-100">
+                <img src={resolveImageUrl(photo.url)} alt={photo.caption ?? photo.event.title}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
               </Link>
             ))}
           </div>
+          <p className="text-xs text-gray-400 mt-3 text-center">Photos from Smileys events in {name}</p>
         </div>
       )}
 
@@ -591,24 +700,6 @@ export default async function NeighborhoodSections({
         </div>
       )}
 
-      {/* Community photos */}
-      {communityPhotos.length > 0 && (
-        <div>
-          <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-5">Community photos</h2>
-          <div className="grid grid-cols-3 gap-2">
-            {communityPhotos.map(photo => (
-              <Link key={photo.id} href={`/events/${photo.event.id}`}
-                className="group relative aspect-square rounded-xl overflow-hidden bg-gray-100">
-                <img src={resolveImageUrl(photo.url)} alt={photo.caption ?? photo.event.title}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
-              </Link>
-            ))}
-          </div>
-          <p className="text-xs text-gray-400 mt-3 text-center">Photos from Smileys events in {name}</p>
-        </div>
-      )}
-
       {/* Nearby neighborhoods */}
       {nearby.length > 0 && (
         <div>
@@ -657,97 +748,6 @@ export default async function NeighborhoodSections({
         </div>
       )}
 
-      {/* Local businesses in this neighborhood — expat-owned / expat-friendly
-          spots from the community directory. Silent when empty. "See all →"
-          deep-links /directory with this neighborhood pre-selected so the
-          context survives the click. */}
-      {businesses.length > 0 && (
-        <div className="pt-6 border-t border-gray-100">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">Local businesses in {name}</h2>
-            <Link href={`/directory?neighborhood=${encodeURIComponent(name)}`}
-              className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
-              See all →
-            </Link>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {businesses.map(b => {
-              const cover = resolveImageUrl(b.coverImage)
-              const logo  = resolveImageUrl(b.logo)
-              return (
-                <Link key={b.id} href={`/directory?neighborhood=${encodeURIComponent(name)}`} className="group block">
-                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all h-full flex flex-col">
-                    <div className="relative h-32 bg-gray-100">
-                      {cover ? (
-                        <img src={cover} alt={b.name} loading="lazy" className="absolute inset-0 w-full h-full object-cover" />
-                      ) : (
-                        <div className="absolute inset-0 flex items-center justify-center text-4xl text-gray-300">🏢</div>
-                      )}
-                      {/* Expat badges — top-left so the logo (bottom-right) doesn't collide. */}
-                      <div className="absolute top-2 left-2 flex flex-col gap-1">
-                        {b.isExpatOwned    && <span className="bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-tight">Expat-owned</span>}
-                        {b.isExpatFriendly && <span className="bg-teal-500  text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-tight">Expat-friendly</span>}
-                      </div>
-                      {logo && (
-                        <div className="absolute bottom-2 right-2 w-9 h-9 rounded-xl overflow-hidden border-2 border-white shadow-sm bg-white">
-                          <img src={logo} alt={b.name} className="w-full h-full object-cover" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="p-3 flex flex-col gap-1">
-                      <h3 className="font-semibold text-gray-900 text-sm leading-snug line-clamp-1 group-hover:text-amber-600 transition-colors">
-                        {b.name}
-                      </h3>
-                      <p className="text-[11px] text-gray-400">{b.category}</p>
-                      <p className="text-xs text-gray-600 line-clamp-2 mt-1">{b.description}</p>
-                    </div>
-                  </div>
-                </Link>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Visitors heading to this neighborhood — silent when empty so quiet
-          areas don't broadcast "0 visitors". Three slots, link to /visiting
-          for the full list. */}
-      {upcomingVisitors.length > 0 && (
-        <div className="pt-6 border-t border-gray-100">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">Visitors heading to {name}</h2>
-            <Link href={`/visiting?neighborhood=${encodeURIComponent(name)}`}
-              className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
-              See all →
-            </Link>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {upcomingVisitors.map(v => {
-              const s = new Date(v.startsOn + 'T00:00:00')
-              const e = new Date(v.endsOn + 'T00:00:00')
-              const sameMonth = s.getMonth() === e.getMonth() && s.getFullYear() === e.getFullYear()
-              const fmtRange = sameMonth
-                ? `${s.toLocaleDateString('en-GB', { day: 'numeric' })}–${e.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`
-                : `${s.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – ${e.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`
-              return (
-                <Link key={v.id} href="/visiting" className="group block">
-                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hover:shadow-md hover:-translate-y-0.5 transition-all h-full">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-2xl">👋</span>
-                      <div className="min-w-0">
-                        <p className="text-sm font-bold text-gray-900 truncate">{v.name}</p>
-                        {v.fromCity && <p className="text-xs text-gray-600 truncate">from {v.fromCity}</p>}
-                      </div>
-                    </div>
-                    <p className="text-xs font-semibold text-amber-700 mb-2">{fmtRange}</p>
-                    <p className="text-xs text-gray-600 line-clamp-3 leading-relaxed">{v.intro}</p>
-                  </div>
-                </Link>
-              )
-            })}
-          </div>
-        </div>
-      )}
     </>
   )
 }
