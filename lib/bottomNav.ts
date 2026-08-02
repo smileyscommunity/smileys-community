@@ -4,7 +4,7 @@
 export const BOTTOM_NAV_ROUTES = [
   '/events', '/clubs', '/members', '/perks', '/dashboard', '/profile', '/my-events',
   '/notifications', '/pending', '/reviews', '/board', '/messages', '/neighborhoods',
-  '/invite', '/guide', '/hangouts', '/visiting', '/directory',
+  '/invite', '/guide', '/hangouts', '/visiting', '/directory', '/marketplace',
 ]
 
 export function isBottomNavRoute(pathname: string): boolean {

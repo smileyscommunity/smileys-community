@@ -7,7 +7,7 @@ import { APP_URL } from '@/lib/env'
 // sets its own, which overrides this for detail pages.
 // Fixed-size cover (1200×800) served from public/ under the /app basePath.
 const BOARD_OG_IMAGE = `${APP_URL}/images/board-cover.jpg`
-const BOARD_DESC     = 'Rooms, jobs, services, buy & sell and more — the Smileys community board for Istanbul.'
+const BOARD_DESC     = 'Plans, questions and recommendations from the Smileys community in Istanbul — ask, share, connect.'
 
 export const metadata: Metadata = {
   alternates: { canonical: `${APP_URL}/board` },

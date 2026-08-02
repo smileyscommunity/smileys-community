@@ -161,7 +161,8 @@ export default function Footer({ stats }: FooterProps) {
                 { href: '/guide',         label: 'Istanbul Guide 🗺️'     },
                 { href: '/handbook',      label: 'The Handbook 📖'       },
                 { href: '/neighborhoods', label: 'Neighborhoods 🏘️'      },
-                { href: '/board',      label: 'Community Board 🛍️'    },
+                { href: '/board',       label: 'Community Board 💬'    },
+                { href: '/marketplace', label: 'Marketplace 🛍️'       },
                 { href: '/directory',     label: 'Business Directory 🏢'  },
                 { href: '/posts',         label: 'Articles 📰'           },
               ].map(l => (
