@@ -17,6 +17,7 @@ interface Post {
   viewerInterested: boolean; viewerSaved: boolean
 }
 interface Reply { id: string; body: string; parentId: string | null; createdAt: string; user: PostUser }
+interface Visitor { id: string; name: string; fromCity: string | null; startsOn: string; neighborhood: string | null }
 
 const TYPE_META = Object.fromEntries(BOARD_POST_TYPES.map(t => [t.value, t]))
 
@@ -28,6 +29,33 @@ function timeAgo(iso: string) {
   if (hrs < 24)   return `${hrs} hr${hrs > 1 ? 's' : ''} ago`
   const days = Math.floor(hrs / 24)
   return `${days} day${days > 1 ? 's' : ''} ago`
+}
+
+function fmtArrival(iso: string) {
+  const [y, m, d] = iso.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
+}
+
+function VisitorsModule({ visitors }: { visitors: Visitor[] }) {
+  if (visitors.length === 0) return null
+  return (
+    <div className="bg-sky-50 border border-sky-100 rounded-2xl p-5">
+      <p className="text-xs font-bold uppercase tracking-wide text-sky-700 mb-3">✈️ Coming to Istanbul</p>
+      <div className="space-y-2">
+        {visitors.map(v => (
+          <p key={v.id} className="text-sm text-gray-700">
+            <span className="font-bold text-gray-900">{v.name.split(' ')[0]}</span>
+            {v.fromCity && <> · {v.fromCity}</>}
+            {v.neighborhood && <> · 📍 {v.neighborhood}</>}
+            <> · arriving {fmtArrival(v.startsOn)}</>
+          </p>
+        ))}
+      </div>
+      <Link href="/visiting" className="inline-block mt-3 text-xs font-bold text-sky-700 hover:underline">
+        Welcome someone →
+      </Link>
+    </div>
+  )
 }
 
 // ── Composer ────────────────────────────────────────────────────────────────
@@ -419,10 +447,22 @@ const FEED_CHIPS = [
 ]
 
 export default function BoardFeed() {
-  const [posts,   setPosts]   = useState<Post[]>([])
-  const [filter,  setFilter]  = useState('')
-  const [loading, setLoading] = useState(true)
-  const [hasMore, setHasMore] = useState(false)
+  const [posts,    setPosts]    = useState<Post[]>([])
+  const [filter,   setFilter]   = useState('')
+  const [loading,  setLoading]  = useState(true)
+  const [hasMore,  setHasMore]  = useState(false)
+  const [visitors, setVisitors] = useState<Visitor[]>([])
+
+  // Visiting Istanbul module — same records as /visiting (the API already
+  // handles member-only visibility and contact redaction). Fetched once;
+  // the module renders only when there are real upcoming visitors.
+  useEffect(() => {
+    fetch('/app/api/visitors', { credentials: 'include' })
+      .then(r => r.json())
+      .then(d => setVisitors((d.announcements ?? []).slice(0, 3).map((a: { id: string; name: string; fromCity: string | null; startsOn: string; neighborhood: string | null }) =>
+        ({ id: a.id, name: a.name, fromCity: a.fromCity, startsOn: a.startsOn, neighborhood: a.neighborhood }))))
+      .catch(() => {})
+  }, [])
 
   const load = useCallback(async (type: string, offset: number, append: boolean) => {
     setLoading(true)
@@ -469,17 +509,26 @@ export default function BoardFeed() {
           ))}
         </div>
       ) : posts.length === 0 ? (
-        /* Actionable empty state — never a bare "no posts" */
-        <div className="bg-gray-50 border border-gray-200 rounded-2xl p-8 text-center mt-3">
-          <div aria-hidden="true" className="text-4xl mb-3">🌱</div>
-          <p className="font-bold text-gray-900">It&apos;s quiet right now. Start something.</p>
-          <p className="text-sm text-gray-600 mt-1">
-            Make a coffee plan, ask your neighborhood a question, or share a local favorite.
-          </p>
+        /* Actionable empty state — never a bare "no posts". The visitors
+           module still renders under it: a quiet feed showing real people
+           arriving is the opposite of a dead page. */
+        <div>
+          <div className="bg-gray-50 border border-gray-200 rounded-2xl p-8 text-center mt-3">
+            <div aria-hidden="true" className="text-4xl mb-3">🌱</div>
+            <p className="font-bold text-gray-900">It&apos;s quiet right now. Start something.</p>
+            <p className="text-sm text-gray-600 mt-1">
+              Make a coffee plan, ask your neighborhood a question, or share a local favorite.
+            </p>
+          </div>
+          <div className="mt-4"><VisitorsModule visitors={visitors} /></div>
         </div>
       ) : (
         <div className="space-y-4 mt-3">
-          {posts.map(p => (
+          {posts.slice(0, 3).map(p => (
+            <PostCard key={p.id} p={p} onRemoved={id => setPosts(prev => prev.filter(x => x.id !== id))} />
+          ))}
+          <VisitorsModule visitors={visitors} />
+          {posts.slice(3).map(p => (
             <PostCard key={p.id} p={p} onRemoved={id => setPosts(prev => prev.filter(x => x.id !== id))} />
           ))}
           {hasMore && (

@@ -39,6 +39,7 @@ export default async function NeighborhoodSections({
     upcomingRaw, pastCount, locals, hostCounts,
     totalLocals, allEventCounts, communityPhotos, wallPostCount,
     activeListings, upcomingVisitors, activeHangouts, businesses, activePulses,
+    boardPosts,
   ] = await Promise.all([
     prisma.event.findMany({
       where:   { neighborhood: name, date: { gte: today }, status: 'published' },
@@ -147,6 +148,22 @@ export default async function NeighborhoodSections({
           },
         })
       : Promise.resolve([]),
+    // Board conversations tagged to this neighborhood — same records as the
+    // /board Community feed, filtered. This page is the reason board posts
+    // carry a neighborhood at all.
+    prisma.boardPost.findMany({
+      where: {
+        neighborhood: name, status: 'active',
+        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 4,
+      select: {
+        id: true, type: true, title: true, whenLabel: true, createdAt: true,
+        user: { select: { id: true, name: true, color: true, profilePhoto: true } },
+        _count: { select: { replies: true, interests: true } },
+      },
+    }),
   ])
 
   const hosts = hostCounts.length > 0
@@ -405,6 +422,41 @@ export default async function NeighborhoodSections({
             {totalLocals > 12 && (
               <p className="text-xs text-gray-400 mt-4">+ {totalLocals - 12} more Smileys members in {name}</p>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Board conversations — plans and questions tagged here. Above the
+          marketplace: a person asking "anyone around?" is the stronger
+          social signal than a desk for sale. */}
+      {boardPosts.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">On the Board in {name}</h2>
+            <Link href="/board" className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
+              Open Istanbul Board →
+            </Link>
+          </div>
+          <div className="space-y-3">
+            {boardPosts.map(bp => (
+              <Link key={bp.id} href={`/board?post=${bp.id}`}
+                className="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3.5 hover:border-amber-200 hover:shadow-md transition-all group">
+                <AvatarImg src={avatarUrl(bp.user.profilePhoto, 64)} name={bp.user.name} color={bp.user.color}
+                  size="w-9 h-9" textSize="text-xs" className="shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 leading-snug truncate group-hover:text-amber-700 transition-colors">
+                    {bp.type === 'plan' ? '☕ ' : bp.type === 'question' ? '❓ ' : bp.type === 'reco' ? '💡 ' : '📣 '}{bp.title}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {bp.user.name.split(' ')[0]}
+                    {bp.whenLabel && <> · 🕐 {bp.whenLabel}</>}
+                    {bp._count.replies > 0 && <> · 💬 {bp._count.replies}</>}
+                    {bp._count.interests > 0 && <> · 👋 {bp._count.interests} interested</>}
+                  </p>
+                </div>
+                <span className="shrink-0 text-gray-300 group-hover:text-amber-500 transition-colors">→</span>
+              </Link>
+            ))}
           </div>
         </div>
       )}
