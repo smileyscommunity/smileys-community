@@ -151,6 +151,7 @@ export default function ProfilePage() {
     socialStyles:      [] as string[],
     lookingFor:        [] as string[],
     profileVisibility: 'everyone',
+    neighborhoodVisible: true,
     industry:           '',
     professionalRole:   '',
     professionalStatus: '',
@@ -185,6 +186,7 @@ export default function ProfilePage() {
         socialStyles:      Array.isArray(data.socialStyles) ? data.socialStyles : [],
         lookingFor:        Array.isArray(data.lookingFor)   ? data.lookingFor   : [],
         profileVisibility: data.profileVisibility ?? 'everyone',
+        neighborhoodVisible: data.neighborhoodVisible ?? true,
         industry:           data.industry           ?? '',
         professionalRole:   data.professionalRole   ?? '',
         professionalStatus: data.professionalStatus ?? '',
@@ -610,6 +612,29 @@ export default function ProfilePage() {
                     </div>
                   </label>
                 ))}
+              </div>
+
+              {/* Neighborhood discovery is a separate axis from directory
+                  visibility: someone can be happy to appear in the directory
+                  and still not want to be listed as "near you" on a page
+                  organised by where they live. Only narrows — a
+                  'connections only' profile stays restricted either way. */}
+              <div className="pt-4 border-t border-gray-100">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input type="checkbox" checked={form.neighborhoodVisible}
+                    onChange={e => set('neighborhoodVisible', e.target.checked)}
+                    className="mt-0.5 accent-amber-500 w-4 h-4" />
+                  <span>
+                    <span className="block text-sm font-semibold text-gray-900">
+                      Show me to members in my neighborhood
+                    </span>
+                    <span className="block text-xs text-gray-400 mt-0.5">
+                      Lists you under “People around you” on the Neighborhoods page
+                      {form.neighborhood ? ` for ${form.neighborhood}` : ''}. Your address is never
+                      shown — only the neighborhood you picked.
+                    </span>
+                  </span>
+                </label>
               </div>
             </div>
 

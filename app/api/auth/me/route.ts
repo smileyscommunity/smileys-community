@@ -33,7 +33,7 @@ export async function GET() {
           phone: true, gender: true, nationality: true, languages: true, interests: true, socialStyles: true,
           status: true, membershipType: true, profilePhoto: true, lastActive: true,
           partnerId: true, suspendedUntil: true, totpEnabled: true,
-          openToCoffee: true, openToLanguage: true, openToHosting: true,
+          openToCoffee: true, openToLanguage: true, openToHosting: true, neighborhoodVisible: true,
           industry: true, professionalRole: true, professionalStatus: true,
         },
       }),
@@ -90,11 +90,21 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json()
     const allowed = ['name', 'bio', 'neighborhood', 'instagram', 'linkedin', 'lookingFor', 'color',
                      'phone', 'gender', 'nationality', 'languages', 'interests', 'profileVisibility', 'socialStyles', 'emailMarketing',
-                     'openToCoffee', 'openToLanguage', 'openToHosting',
+                     'openToCoffee', 'openToLanguage', 'openToHosting', 'neighborhoodVisible',
                      'industry', 'professionalRole', 'professionalStatus']
     const data: Record<string, unknown> = {}
     for (const key of allowed) {
       if (key in body) data[key] = body[key]
+    }
+
+    // Booleans were previously copied through unchecked, so a non-boolean
+    // reached Prisma and surfaced as a 500. Reject them explicitly instead —
+    // for neighborhoodVisible in particular a silently-coerced value would
+    // decide whether someone appears in neighborhood discovery.
+    for (const key of ['emailMarketing', 'openToCoffee', 'openToLanguage', 'openToHosting', 'neighborhoodVisible']) {
+      if (key in data && typeof data[key] !== 'boolean') {
+        return NextResponse.json({ error: `${key} must be true or false` }, { status: 400 })
+      }
     }
 
     // Normalise professional fields. Empty strings → null so members
