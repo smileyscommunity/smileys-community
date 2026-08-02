@@ -33,6 +33,7 @@ export interface NeighborhoodMeta {
 // Filenames follow neighborhoodToSlug(name) — e.g. 'Kadıköy' -> kadikoy.
 export const NEIGHBORHOOD_IMAGE: Record<string, string> = {
   'Kadıköy':    '/app/images/neighborhood-kadikoy.jpg',
+  'Moda':       '/app/images/neighborhood-moda.jpg',
   'Şişli':      '/app/images/neighborhood-sisli.jpg',
   'Beşiktaş':   '/app/images/neighborhood-besiktas.jpg',
   'Üsküdar':    '/app/images/neighborhood-uskudar.jpg',
