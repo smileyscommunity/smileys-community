@@ -8,6 +8,7 @@ import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { resolveImageUrl, avatarUrl, ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
 import { toast } from 'sonner'
 import { SkeletonCard } from '@/components/Skeleton'
+import BoardFeed from '@/components/BoardFeed'
 import SocialShare from '@/components/SocialShare'
 import { APP_URL } from '@/lib/env'
 
@@ -471,6 +472,15 @@ function ListingsInner() {
     const tab = searchParams.get('tab')?.toUpperCase()
     return tab && CATEGORIES.some(c => c.id === tab) ? tab : 'ALL'
   })
+  // Conversations vs classifieds. Community leads (the Board's new identity),
+  // but old deep links keep working: a listing-category ?tab=, an ?id= share
+  // link, or a ?q= search all land straight on Marketplace.
+  const [view, setView] = useState<'community' | 'market'>(() => {
+    const tab = searchParams.get('tab')?.toUpperCase()
+    if (tab && CATEGORIES.some(c => c.id === tab)) return 'market'
+    if (searchParams.get('id') || searchParams.get('q')) return 'market'
+    return 'community'
+  })
   const [neighborhood, setNeighborhood] = useState(searchParams.get('neighborhood') ?? '')
   const [search, setSearch]             = useState(searchParams.get('q') ?? '')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -676,12 +686,29 @@ function ListingsInner() {
           <div className="flex items-start justify-between gap-4 mb-6">
             <div>
               <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-3 py-1.5 mb-4">
-                📋 Classifieds
+                {view === 'community' ? '💬 Istanbul Board' : '📋 Classifieds'}
               </span>
-              <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">Community Board</h1>
+              <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">
+                {view === 'community' ? "What's happening, Istanbul?" : 'Community Board'}
+              </h1>
               <p className="text-base text-gray-600 mt-1 max-w-xl">
-                Rooms, jobs, services & more — posted by Smileys members for Smileys members.
+                {view === 'community'
+                  ? 'Ask a question, make a plan, share something useful or see what people around you are talking about.'
+                  : 'Rooms, jobs, services & more — posted by Smileys members for Smileys members.'}
               </p>
+              <div className="flex gap-2 mt-5">
+                {([
+                  { id: 'community' as const, label: '💬 Community' },
+                  { id: 'market'    as const, label: '🛍️ Marketplace' },
+                ]).map(t => (
+                  <button key={t.id} onClick={() => setView(t.id)}
+                    className={`px-4 py-2 rounded-xl text-sm font-bold border transition-colors ${
+                      view === t.id ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+                    }`}>
+                    {t.label}
+                  </button>
+                ))}
+              </div>
               {/* Share the whole board. cacheKey pins a ?v= suffix so X / Facebook
                   cache a URL that already has the cover image — the bare /board URL
                   can stay stuck on an old blank scrape (X has no re-scrape tool).
@@ -696,7 +723,7 @@ function ListingsInner() {
                 />
               </div>
             </div>
-            <Link
+            {view === 'market' && <Link
               href={isLoggedIn ? '/board/new' : '/login?return=/board/new'}
               className="hidden sm:flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors shrink-0 shadow-sm"
             >
@@ -704,9 +731,10 @@ function ListingsInner() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
               {isLoggedIn ? 'Post a listing' : 'Sign in to post'}
-            </Link>
+            </Link>}
           </div>
 
+          {view === 'market' && (<>
           {/* Search bar */}
           <div className="relative mb-4">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -830,11 +858,13 @@ function ListingsInner() {
             )}
             </div>
           </div>
+          </>)}
         </div>
       </div>
 
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {view === 'community' ? <BoardFeed /> : (<>
 
         {/* Mobile post button */}
         <div className="sm:hidden mb-6">
@@ -936,6 +966,7 @@ function ListingsInner() {
             )}
           </>
         )}
+        </>)}
       </div>
     </div>
   )

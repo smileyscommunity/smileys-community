@@ -136,6 +136,10 @@ model User {
   memberSaves                MemberSave[]            @relation("MemberSaveOwner")
   savedByMembers             MemberSave[]            @relation("MemberSaveTarget")
   neighborhoodPostLikes      NeighborhoodPostLike[]
+  boardPosts                 BoardPost[]
+  boardReplies               BoardReply[]
+  boardInterests             BoardInterest[]
+  boardSaves                 BoardSave[]
   neighborhoodPostReplies    NeighborhoodPostReply[]
   neighborhoodPosts          NeighborhoodPost[]
   postLikes                  PostLike[]
@@ -252,12 +256,14 @@ model Report {
   escalatedBy   String?
   escalatedAt   DateTime?
   listingId     String?
+  boardPostId   String?
   reported      User      @relation("ReportsReceived", fields: [reportedId], references: [id], onDelete: Cascade)
   reporter      User      @relation("ReportsMade", fields: [reporterId], references: [id], onDelete: Cascade)
 
   @@index([reportedId])
   @@index([status])
   @@index([listingId])
+  @@index([boardPostId])
   @@map("reports")
 }
 
@@ -1776,4 +1782,83 @@ model ProWaitlistEntry {
   @@index([status])
   @@index([createdAt])
   @@map("pro_waitlist")
+}
+
+// ── Istanbul Board: conversation layer ──────────────────────────────────────
+// Structured community posts (plan / question / reco / share) — the social
+// layer of the Board. Classifieds stay on the existing Listing model; these
+// are conversations, so they carry replies and type-specific reactions
+// instead of price/contact. Neighborhood-tagged posts also surface on
+// /neighborhoods/[slug], same record, filtered — deliberately NOT a second
+// discussion table (NeighborhoodPost predates this and is being retired).
+model BoardPost {
+  id           String          @id @default(cuid())
+  userId       String
+  type         String          // 'plan' | 'question' | 'reco' | 'share'
+  title        String
+  body         String          @default("")
+  neighborhood String?
+  tag          String?         // plan activity or question topic chip
+  whenLabel    String?         // plans: 'Today' | 'Tonight' | 'Tomorrow' | 'Sat 9 Aug'
+  // Plans go stale the moment the time passes: expired plans drop out of
+  // the default feed (an "anyone around tonight?" from last week reads as
+  // a dead community) but stay readable at their own URL marked ENDED.
+  expiresAt    DateTime?
+  status       String          @default("active") // 'active' | 'removed'
+  pinned       Boolean         @default(false)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replies      BoardReply[]
+  interests    BoardInterest[]
+  saves        BoardSave[]
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([neighborhood, status])
+  @@index([type, status])
+  @@index([userId])
+  @@map("board_posts")
+}
+
+model BoardReply {
+  id        String       @id @default(cuid())
+  postId    String
+  userId    String
+  // One level only: a reply to a reply carries the top-level parent's id,
+  // never a deeper one — coordination, not Reddit threads.
+  parentId  String?
+  body      String
+  createdAt DateTime     @default(now())
+  post      BoardPost    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent    BoardReply?  @relation("BoardReplyParent", fields: [parentId], references: [id])
+  children  BoardReply[] @relation("BoardReplyParent")
+
+  @@index([postId, createdAt])
+  @@index([userId])
+  @@map("board_replies")
+}
+
+// "I'm interested" on a plan (or "I can help" on a question) — a signal to
+// the author, not a like. Unique per member so it can't be spammed.
+model BoardInterest {
+  postId    String
+  userId    String
+  createdAt DateTime  @default(now())
+  post      BoardPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([postId, userId])
+  @@map("board_interests")
+}
+
+model BoardSave {
+  postId    String
+  userId    String
+  createdAt DateTime  @default(now())
+  post      BoardPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([postId, userId])
+  @@map("board_saves")
 }
