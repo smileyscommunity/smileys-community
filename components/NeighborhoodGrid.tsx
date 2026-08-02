@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import NeighborhoodsMapView, { type MapPoint } from './NeighborhoodsMapView'
 import Link from 'next/link'
 import type { NeighborhoodMeta } from '@/lib/neighborhoods'
 
@@ -12,6 +13,7 @@ export interface NeighborhoodItem {
   meta:          NeighborhoodMeta
   eventCount:    number
   memberCount:   number
+  pickCount:     number
   activityScore: number
   isYours:       boolean
   signal:        ActivitySignal
@@ -171,6 +173,11 @@ function NeighborhoodCard({ n, cardBg, cardBorder }: { n: NeighborhoodItem; card
             {n.memberCount} local{n.memberCount !== 1 ? 's' : ''}
           </span>
         )}
+        {n.pickCount > 0 && (
+          <span className="text-[11px] text-gray-400">
+            <span aria-hidden="true">❤️ </span>{n.pickCount} local pick{n.pickCount !== 1 ? 's' : ''}
+          </span>
+        )}
       </div>
     </Link>
   )
@@ -180,6 +187,12 @@ function NeighborhoodCard({ n, cardBg, cardBorder }: { n: NeighborhoodItem; card
 export default function NeighborhoodGrid({ groups }: { groups: Group[] }) {
   const [query,      setQuery]      = useState('')
   const [activeSide, setActiveSide] = useState<string | null>(null)
+  const [view,       setView]       = useState<'cards' | 'map'>('cards')
+  const [sort,       setSort]       = useState<'active' | 'events' | null>(null)
+  // The directory is 100+ neighborhoods. Showing all of them on arrival
+  // buries the dozen that actually have people in them, so the default is a
+  // ranked shortlist and the full grouped directory is one click away.
+  const [showAll,    setShowAll]    = useState(false)
 
   const q = query.toLowerCase().trim()
 
@@ -189,6 +202,27 @@ export default function NeighborhoodGrid({ groups }: { groups: Group[] }) {
 
   const totalEvents  = groups.flatMap(g => g.items).reduce((s, n) => s + n.eventCount,  0)
   const totalMembers = groups.flatMap(g => g.items).reduce((s, n) => s + n.memberCount, 0)
+
+  // Ranked shortlist for the default view. "Events this week" is a filter
+  // (drop the ones with nothing on), the others are orderings.
+  const WEEK_AHEAD = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10)
+  const shortlist = (() => {
+    let items = [...allItems]
+    if (sort === 'events') items = items.filter(n => n.nextEvent && n.nextEvent.date <= WEEK_AHEAD)
+    items.sort((a, b) =>
+      sort === 'events'
+        ? b.eventCount - a.eventCount
+        : b.activityScore - a.activityScore || b.memberCount - a.memberCount)
+    return items
+  })()
+
+  const mapPoints: MapPoint[] = allItems
+    .filter(n => n.memberCount > 0 || n.eventCount > 0)
+    .map(n => ({
+      name: n.name, slug: n.slug,
+      lat: n.meta.lat, lon: n.meta.lon,
+      memberCount: n.memberCount, eventCount: n.eventCount,
+    }))
 
   // Top 3 most active neighborhoods with upcoming events for featured section
   const featured = groups
@@ -239,10 +273,50 @@ export default function NeighborhoodGrid({ groups }: { groups: Group[] }) {
             </button>
           ))}
         </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          {([
+            { key: 'active' as const, label: '⚡ Most active'     },
+            { key: 'events' as const, label: '🎉 Events this week' },
+          ]).map(o => (
+            <button key={o.key} onClick={() => setSort(sort === o.key ? null : o.key)}
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+                sort === o.key ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+              }`}>
+              {o.label}
+            </button>
+          ))}
+
+          {/* Cards | Map. Map plots neighborhood centres only — see
+              NeighborhoodsMapView for why no member data reaches it. */}
+          <div className="ml-auto inline-flex rounded-full border border-gray-200 bg-white p-0.5">
+            {([
+              { key: 'cards' as const, label: 'Cards' },
+              { key: 'map'   as const, label: 'Map'   },
+            ]).map(v => (
+              <button key={v.key} onClick={() => setView(v.key)}
+                aria-pressed={view === v.key}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-colors ${
+                  view === v.key ? 'bg-amber-500 text-white' : 'text-gray-600 hover:text-gray-900'
+                }`}>
+                {v.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
-      {/* Search results */}
-      {filtered !== null ? (
+      {/* Map replaces the results area entirely — the toggle is a view
+          switch, not an extra panel to scroll past. */}
+      {view === 'map' ? (
+        <div>
+          <NeighborhoodsMapView points={mapPoints} />
+          <p className="text-xs text-gray-400 mt-3">
+            Showing {mapPoints.length} neighborhoods with members or upcoming events.
+            Markers are neighborhood centres — never a member&apos;s location.
+          </p>
+        </div>
+      ) : filtered !== null ? (
         filtered.length === 0 ? (
           <div className="text-center py-16">
             <div className="text-4xl mb-3">🔍</div>
@@ -262,6 +336,30 @@ export default function NeighborhoodGrid({ groups }: { groups: Group[] }) {
             </div>
           </div>
         )
+      ) : !showAll ? (
+        <div>
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-xs font-bold text-gray-600 uppercase tracking-widest">
+              {sort === 'events' ? 'Events this week' : 'Most active right now'}
+            </span>
+            <div className="flex-1 h-px bg-gray-100" />
+          </div>
+          {shortlist.length === 0 ? (
+            <p className="text-sm text-gray-600 py-8">Nothing scheduled in the next week — try “Most active”.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {shortlist.slice(0, 12).map(n => (
+                <NeighborhoodCard key={n.slug} n={n}
+                  cardBg={SIDE_SECTION[n.meta.side]?.cardBg}
+                  cardBorder={SIDE_SECTION[n.meta.side]?.cardBorder} />
+              ))}
+            </div>
+          )}
+          <button onClick={() => setShowAll(true)}
+            className="mt-6 inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl border border-gray-200 bg-white hover:border-amber-300 hover:text-amber-700 text-sm font-bold text-gray-700 transition-colors">
+            Show all {allItems.length} neighborhoods ↓
+          </button>
+        </div>
       ) : (
         <div className="space-y-8">
           {/* Featured section — most active, shown at the top */}

@@ -60,6 +60,12 @@ const getNeighborhoodStats = unstable_cache(
       orderBy: { date: 'asc' },
       take: 300,
     }),
+    // "Local picks" per neighborhood — approved, active directory listings.
+    prisma.business.groupBy({
+      by: ['neighborhood'],
+      where: { neighborhood: { not: null }, isApproved: true, isActive: true },
+      _count: { _all: true },
+    }),
   ]),
   ['neighborhood-stats'],
   { revalidate: 300, tags: ['neighborhoods'] },
@@ -85,7 +91,7 @@ export default async function NeighborhoodsPage() {
   const nh = c.neighborhoods ?? {}
   const today = new Date().toISOString().split('T')[0]
 
-  const [session, [eventCounts, memberCounts, nextEventsRaw]] = await Promise.all([
+  const [session, [eventCounts, memberCounts, nextEventsRaw, pickCounts]] = await Promise.all([
     getSession(),
     getNeighborhoodStats(today),
   ])
@@ -110,6 +116,7 @@ export default async function NeighborhoodsPage() {
   const neighborhoods = Object.entries(NEIGHBORHOOD_META).map(([name, meta]) => {
     const eventCount  = eventCounts.find(e => e.neighborhood === name)?._count._all  ?? 0
     const memberCount = memberCounts.find(m => m.neighborhood === name)?._count._all ?? 0
+    const pickCount   = pickCounts.find(p => p.neighborhood === name)?._count._all   ?? 0
     const activityScore = eventCount * 3 + Math.round(memberCount / 6)
     return {
       name,
@@ -117,6 +124,7 @@ export default async function NeighborhoodsPage() {
       meta,
       eventCount,
       memberCount,
+      pickCount,
       activityScore,
       isYours:   name === userNeighborhood,
       signal:    getActivitySignal(eventCount, memberCount),
@@ -446,8 +454,11 @@ export default async function NeighborhoodsPage() {
           </section>
         )}
 
-        <div id="explore" className="scroll-mt-20" />
-        <NeighborhoodGrid groups={groups} />
+        <section id="explore" className="scroll-mt-20">
+          <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900">Explore Istanbul</h2>
+          <p className="text-gray-600 mt-1.5 mb-6">Every neighborhood has its own rhythm. Find yours.</p>
+          <NeighborhoodGrid groups={groups} />
+        </section>
 
         {/* Leaderboard — top neighborhoods this month */}
         {(() => {
