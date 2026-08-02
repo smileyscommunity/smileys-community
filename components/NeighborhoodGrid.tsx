@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import NeighborhoodsMapView, { type MapPoint } from './NeighborhoodsMapView'
 import Link from 'next/link'
 import { neighborhoodImage, type NeighborhoodMeta } from '@/lib/neighborhoods'
@@ -216,6 +216,19 @@ export default function NeighborhoodGrid({ groups }: { groups: Group[] }) {
   // buries the dozen that actually have people in them, so the default is a
   // ranked shortlist and the full grouped directory is one click away.
   const [showAll,    setShowAll]    = useState(false)
+
+  // Deep link: /neighborhoods?side=Asian#explore (the Cross the Bosphorus
+  // cards). Pre-select the side filter and expand past the shortlist so
+  // the promise on the card — "explore this side" — is what actually
+  // renders. Read on mount only; the chips own the state afterwards.
+  useEffect(() => {
+    const side = new URLSearchParams(window.location.search).get('side')
+    if (side && groups.some(g => g.side === side)) {
+      setActiveSide(side)
+      setShowAll(true)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const q = query.toLowerCase().trim()
 

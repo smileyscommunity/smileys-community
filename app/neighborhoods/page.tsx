@@ -571,17 +571,16 @@ export default async function NeighborhoodsPage() {
           </section>
         )}
 
-        {/* ── Cross the Bosphorus (§9) ──
-            Gradient treatment rather than photography: the two side images
-            the brief calls for don't exist yet, and a placeholder would look
-            worse than a deliberate colour block. */}
+        {/* ── Cross the Bosphorus (§9) ── */}
         <section className="mb-12">
           <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900">Cross the Bosphorus.</h2>
           <p className="text-gray-600 mt-1.5 mb-6">Your next favorite neighborhood might be on the other side.</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Photo backgrounds land per side as the shots arrive; a side
+                without one keeps its gradient rather than an empty slot. */}
             {([
-              { side: 'Asian',    label: 'Explore the Asian Side',    gradient: 'from-emerald-500 to-teal-600',  emoji: '🌏' },
-              { side: 'European', label: 'Explore the European Side', gradient: 'from-blue-500 to-indigo-600',   emoji: '🇹🇷' },
+              { side: 'Asian',    label: 'Explore the Asian Side',    gradient: 'from-emerald-500 to-teal-600',  emoji: '🌏', photo: '/app/images/side-asian.jpg' },
+              { side: 'European', label: 'Explore the European Side', gradient: 'from-blue-500 to-indigo-600',   emoji: '🇹🇷', photo: '/app/images/side-european.jpg' },
             ]).map(s2 => {
               const names = neighborhoods
                 .filter(n => n.meta.side === s2.side)
@@ -589,9 +588,20 @@ export default async function NeighborhoodsPage() {
                 .slice(0, 5)
                 .map(n => n.name)
               if (names.length === 0) return null
+              // ?side= pre-selects the matching filter in the grid — a bare
+              // #explore scrolled to the directory but left it unfiltered,
+              // which made the card a broken promise.
               return (
-                <a key={s2.side} href="#explore"
+                <a key={s2.side} href={`?side=${s2.side}#explore`}
                   className={`group relative overflow-hidden rounded-2xl bg-gradient-to-br ${s2.gradient} p-6 min-h-[160px] flex flex-col justify-between shadow-md hover:shadow-xl transition-all`}>
+                  {s2.photo && (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={s2.photo} alt="" aria-hidden="true" loading="lazy"
+                        className="absolute inset-0 w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/40 to-black/20" />
+                    </>
+                  )}
                   <div aria-hidden="true" className="absolute right-4 bottom-2 text-7xl opacity-20 select-none leading-none">{s2.emoji}</div>
                   <p className="relative text-lg font-extrabold text-white">{s2.label} →</p>
                   <p className="relative text-xs text-white/80 mt-3 leading-relaxed">{names.join(' · ')}</p>
