@@ -38,6 +38,12 @@ export async function POST(req: NextRequest, { params }: Params) {
   const body = typeof raw.body === 'string' ? raw.body.trim().slice(0, 500) : ''
   if (!body) return NextResponse.json({ error: 'Reply cannot be empty' }, { status: 400 })
 
+  // Same one-link cap as posts — replies have a 60/day allowance, which is
+  // otherwise the bigger link-spam surface.
+  if ((body.match(/\b(?:https?:\/\/|www\.)\S+/gi) ?? []).length > 1) {
+    return NextResponse.json({ error: 'One link per reply, please' }, { status: 400 })
+  }
+
   // One level of nesting only: replying to a nested reply re-anchors to its
   // top-level parent, so depth can never exceed one regardless of input.
   let parentId: string | null = null

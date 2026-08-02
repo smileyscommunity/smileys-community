@@ -81,6 +81,17 @@ export async function POST(req: NextRequest) {
 
   const text = typeof body.body === 'string' ? body.body.trim().slice(0, 1000) : ''
 
+  // Links are legitimate in a community feed (sharing an article, a place),
+  // but the 10-post daily cap times unlimited URLs is a workable spam
+  // payload for a compromised member account. One link per post keeps the
+  // legitimate use and removes the fan-out. Counted across title+body so
+  // the title can't smuggle a second one.
+  const URL_PATTERN = /\b(?:https?:\/\/|www\.)\S+/gi
+  const linkCount = (`${title} ${text}`.match(URL_PATTERN) ?? []).length
+  if (linkCount > 1) {
+    return NextResponse.json({ error: 'One link per post, please' }, { status: 400 })
+  }
+
   const neighborhood = typeof body.neighborhood === 'string'
     && (ISTANBUL_NEIGHBORHOODS as readonly string[]).includes(body.neighborhood)
     ? body.neighborhood : null
