@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import { useAuth } from '@/contexts/AuthContext'
 import AvatarImg from '@/components/AvatarImg'
 import { avatarUrl, ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
-import { BOARD_POST_TYPES, PLAN_TAGS, QUESTION_TAGS, PLAN_WHEN, TAG_LABEL, type BoardPostType } from '@/lib/board'
+import { BOARD_POST_TYPES, QUESTION_TAGS, TAG_LABEL, type BoardPostType } from '@/lib/board'
 
 interface PostUser { id: string; name: string; color: string; profilePhoto: string | null }
 interface Post {
@@ -18,6 +18,7 @@ interface Post {
 }
 interface Reply { id: string; body: string; parentId: string | null; createdAt: string; user: PostUser }
 interface Visitor { id: string; name: string; fromCity: string | null; startsOn: string; neighborhood: string | null }
+interface FeedHangout { id: string; title: string; neighborhood: string | null; location: string; startsAt: string; joinCount: number; host: string }
 
 const TYPE_META = Object.fromEntries(BOARD_POST_TYPES.map(t => [t.value, t]))
 
@@ -34,6 +35,45 @@ function timeAgo(iso: string) {
 function fmtArrival(iso: string) {
   const [y, m, d] = iso.split('-').map(Number)
   return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
+}
+
+function fmtHangoutTime(iso: string) {
+  return new Date(iso).toLocaleString('en-GB', {
+    weekday: 'short', day: 'numeric', month: 'short',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+    timeZone: 'Europe/Istanbul',
+  })
+}
+
+// Active hangouts rendered as the feed's "plan" cards. Hangouts are the
+// system of record for informal plans (times, joins, group chat) — the
+// Board surfaces them instead of running a competing plan type.
+function HangoutsModule({ hangouts }: { hangouts: FeedHangout[] }) {
+  if (hangouts.length === 0) return null
+  return (
+    <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5">
+      <p className="text-xs font-bold uppercase tracking-wide text-amber-700 mb-3">☕ Plans happening</p>
+      <div className="space-y-2.5">
+        {hangouts.map(h => (
+          <Link key={h.id} href={`/hangouts/${h.id}`}
+            className="flex items-center gap-3 bg-white rounded-xl border border-amber-100 px-3.5 py-2.5 hover:border-amber-300 transition-colors group">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-gray-900 truncate group-hover:text-amber-700 transition-colors">{h.title}</p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {h.host} · 🕐 {fmtHangoutTime(h.startsAt)}
+                {h.neighborhood && <> · 📍 {h.neighborhood}</>}
+                {h.joinCount > 0 && <> · 👥 {h.joinCount} joined</>}
+              </p>
+            </div>
+            <span className="shrink-0 text-xs font-bold text-amber-600">Join →</span>
+          </Link>
+        ))}
+      </div>
+      <Link href="/hangouts" className="inline-block mt-3 text-xs font-bold text-amber-700 hover:underline">
+        All plans & hangouts →
+      </Link>
+    </div>
+  )
 }
 
 function VisitorsModule({ visitors }: { visitors: Visitor[] }) {
@@ -62,16 +102,14 @@ function VisitorsModule({ visitors }: { visitors: Visitor[] }) {
 function Composer({ onPosted }: { onPosted: () => void }) {
   const { user, isLoggedIn } = useAuth()
   const [open,         setOpen]         = useState(false)
-  const [type,         setType]         = useState<BoardPostType>('plan')
+  const [type,         setType]         = useState<BoardPostType>('question')
   const [title,        setTitle]        = useState('')
   const [body,         setBody]         = useState('')
   const [tag,          setTag]          = useState('')
-  const [whenLabel,    setWhenLabel]    = useState('')
   const [neighborhood, setNeighborhood] = useState('')
   const [posting,      setPosting]      = useState(false)
 
   const PLACEHOLDER: Record<BoardPostType, string> = {
-    plan:     'Anyone around for coffee in Moda this afternoon?',
     question: 'What would you like help with?',
     reco:     'Found a great quiet café for working in Kadıköy…',
     share:    'Share something useful with the community',
@@ -99,21 +137,20 @@ function Composer({ onPosted }: { onPosted: () => void }) {
         body: JSON.stringify({
           type, title, body,
           tag: tag || undefined,
-          whenLabel: whenLabel || undefined,
           neighborhood: neighborhood || undefined,
         }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) { toast.error(data.error ?? 'Could not post'); return }
       toast.success('Posted!')
-      setTitle(''); setBody(''); setTag(''); setWhenLabel(''); setOpen(false)
+      setTitle(''); setBody(''); setTag(''); setOpen(false)
       onPosted()
     } finally {
       setPosting(false)
     }
   }
 
-  const tagChips = type === 'plan' ? PLAN_TAGS : type === 'question' ? QUESTION_TAGS : []
+  const tagChips = type === 'question' ? QUESTION_TAGS : []
 
   return (
     <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm mb-6">
@@ -128,12 +165,18 @@ function Composer({ onPosted }: { onPosted: () => void }) {
       ) : (
         <div>
           <div className="flex gap-2 flex-wrap mb-4">
+            {/* Plans live on Hangouts (times, joins, group chat) — the
+                composer routes there instead of duplicating the system. */}
+            <Link href="/hangouts"
+              className="px-3 py-1.5 rounded-full text-xs font-bold border bg-white text-amber-700 border-amber-300 hover:bg-amber-50 transition-colors">
+              ☕ Make a Plan ↗
+            </Link>
             {BOARD_POST_TYPES.map(t => (
-              <button key={t.value} onClick={() => { setType(t.value); setTag(''); setWhenLabel('') }}
+              <button key={t.value} onClick={() => { setType(t.value); setTag('') }}
                 className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
                   type === t.value ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-gray-600 border-gray-200 hover:border-amber-300'
                 }`}>
-                {t.emoji} {t.value === 'plan' ? 'Make a Plan' : t.value === 'question' ? 'Ask' : t.value === 'reco' ? 'Recommend' : 'Share'}
+                {t.emoji} {t.value === 'question' ? 'Ask' : t.value === 'reco' ? 'Recommend' : 'Share'}
               </button>
             ))}
           </div>
@@ -158,18 +201,6 @@ function Composer({ onPosted }: { onPosted: () => void }) {
             </div>
           )}
 
-          {type === 'plan' && (
-            <div className="flex gap-1.5 flex-wrap mb-3">
-              {PLAN_WHEN.map(w => (
-                <button key={w} onClick={() => setWhenLabel(whenLabel === w ? '' : w)}
-                  className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-colors ${
-                    whenLabel === w ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-white text-gray-600 border-gray-200'
-                  }`}>
-                  {w}
-                </button>
-              ))}
-            </div>
-          )}
 
           <div className="flex items-center gap-2 flex-wrap">
             <select value={neighborhood} onChange={e => setNeighborhood(e.target.value)}
@@ -184,7 +215,7 @@ function Composer({ onPosted }: { onPosted: () => void }) {
               </button>
               <button onClick={submit} disabled={posting || !title.trim()}
                 className="px-5 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-colors">
-                {posting ? 'Posting…' : type === 'plan' ? 'Post Plan →' : type === 'question' ? 'Ask the Community →' : type === 'reco' ? 'Share Recommendation →' : 'Post →'}
+                {posting ? 'Posting…' : type === 'question' ? 'Ask the Community →' : type === 'reco' ? 'Share Recommendation →' : 'Post →'}
               </button>
             </div>
           </div>
@@ -305,13 +336,11 @@ function PostCard({ p, onRemoved }: { p: Post; onRemoved: (id: string) => void }
   const meta = TYPE_META[p.type]
   const [showReplies, setShowReplies] = useState(false)
   const [replyCount,  setReplyCount]  = useState(p.replyCount)
-  const [interested,  setInterested]  = useState(p.viewerInterested)
-  const [interestN,   setInterestN]   = useState(p.interestCount)
   const [saved,       setSaved]       = useState(p.viewerSaved)
   const [menuOpen,    setMenuOpen]    = useState(false)
   const isOwn = isLoggedIn && user.id === p.user.id
 
-  async function react(kind: 'interest' | 'save') {
+  async function react(kind: 'save') {
     if (!isLoggedIn) { toast.error('Join Smileys to continue'); return }
     const res = await fetch(`/app/api/board/${p.id}/react`, {
       method: 'POST', credentials: 'include',
@@ -320,8 +349,7 @@ function PostCard({ p, onRemoved }: { p: Post; onRemoved: (id: string) => void }
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) { toast.error(data.error ?? 'Something went wrong'); return }
-    if (kind === 'interest') { setInterested(data.active); setInterestN(n => n + (data.active ? 1 : -1)) }
-    else setSaved(data.active)
+    setSaved(data.active)
   }
 
   async function report(reason: string) {
@@ -405,19 +433,6 @@ function PostCard({ p, onRemoved }: { p: Post; onRemoved: (id: string) => void }
       )}
 
       <div className="flex items-center gap-2 mt-4 flex-wrap">
-        {p.type === 'plan' && !isOwn && (
-          <button onClick={() => react('interest')}
-            className={`text-xs font-bold px-3 py-1.5 rounded-full border transition-colors ${
-              interested ? 'bg-green-100 text-green-800 border-green-200' : 'bg-amber-500 text-white border-amber-500 hover:bg-amber-600'
-            }`}>
-            {interested ? '✓ Interested' : "👋 I'm interested"}{interestN > 0 && ` · ${interestN}`}
-          </button>
-        )}
-        {p.type === 'plan' && isOwn && interestN > 0 && (
-          <span className="text-xs font-bold text-green-700 bg-green-50 px-3 py-1.5 rounded-full">
-            👋 {interestN} interested
-          </span>
-        )}
         {p.type === 'reco' && !isOwn && (
           <button onClick={() => react('save')}
             className={`text-xs font-bold px-3 py-1.5 rounded-full border transition-colors ${
@@ -440,18 +455,32 @@ function PostCard({ p, onRemoved }: { p: Post; onRemoved: (id: string) => void }
 // ── Feed ────────────────────────────────────────────────────────────────────
 const FEED_CHIPS = [
   { id: '',         label: 'Latest' },
-  { id: 'plan',     label: '☕ Plans' },
   { id: 'question', label: '❓ Questions' },
   { id: 'reco',     label: '💡 Recommendations' },
   { id: 'share',    label: '📣 Community' },
 ]
 
 export default function BoardFeed() {
+  const { isLoggedIn: viewerIsMember } = useAuth()
   const [posts,    setPosts]    = useState<Post[]>([])
   const [filter,   setFilter]   = useState('')
   const [loading,  setLoading]  = useState(true)
   const [hasMore,  setHasMore]  = useState(false)
   const [visitors, setVisitors] = useState<Visitor[]>([])
+  const [hangouts, setHangouts] = useState<FeedHangout[]>([])
+
+  // Members only — /api/hangouts is member-gated, so guests skip the fetch
+  // rather than collecting a 401 in the console.
+  useEffect(() => {
+    if (!viewerIsMember) return
+    fetch('/app/api/hangouts', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : { hangouts: [] })
+      .then(d => setHangouts((d.hangouts ?? []).slice(0, 3).map((h: { id: string; title: string; neighborhood: string | null; location: string; startsAt: string; joins?: unknown[]; user?: { name?: string } }) => ({
+        id: h.id, title: h.title, neighborhood: h.neighborhood, location: h.location,
+        startsAt: h.startsAt, joinCount: h.joins?.length ?? 0, host: h.user?.name?.split(' ')[0] ?? 'A Smiley',
+      }))))
+      .catch(() => {})
+  }, [viewerIsMember])
 
   // Visiting Istanbul module — same records as /visiting (the API already
   // handles member-only visibility and contact redaction). Fetched once;
@@ -520,10 +549,14 @@ export default function BoardFeed() {
               Make a coffee plan, ask your neighborhood a question, or share a local favorite.
             </p>
           </div>
-          <div className="mt-4"><VisitorsModule visitors={visitors} /></div>
+          <div className="mt-4 space-y-4">
+            <HangoutsModule hangouts={hangouts} />
+            <VisitorsModule visitors={visitors} />
+          </div>
         </div>
       ) : (
         <div className="space-y-4 mt-3">
+          <HangoutsModule hangouts={hangouts} />
           {posts.slice(0, 3).map(p => (
             <PostCard key={p.id} p={p} onRemoved={id => setPosts(prev => prev.filter(x => x.id !== id))} />
           ))}

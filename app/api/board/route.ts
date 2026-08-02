@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
 import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
-import { BOARD_POST_TYPES, PLAN_TAGS, QUESTION_TAGS, PLAN_WHEN } from '@/lib/board'
+import { BOARD_POST_TYPES, QUESTION_TAGS } from '@/lib/board'
 
 // Istanbul Board conversation feed. Publicly readable (the Board is a
 // public growth surface like /visiting and /neighborhoods) — but posts
@@ -12,7 +12,7 @@ import { BOARD_POST_TYPES, PLAN_TAGS, QUESTION_TAGS, PLAN_WHEN } from '@/lib/boa
 // member-only.
 
 const TYPE_VALUES = new Set(BOARD_POST_TYPES.map(t => t.value))
-const TAG_VALUES  = new Set([...PLAN_TAGS, ...QUESTION_TAGS].map(t => t.value))
+const TAG_VALUES  = new Set(QUESTION_TAGS.map(t => t.value))
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -87,20 +87,8 @@ export async function POST(req: NextRequest) {
 
   const tag = typeof body.tag === 'string' && TAG_VALUES.has(body.tag) ? body.tag : null
 
-  // Plans expire. 'Today'/'Tonight' die at Istanbul midnight, 'Tomorrow' at
-  // the following midnight; anything unstated gets 48h so no plan lingers.
-  let whenLabel: string | null = null
-  let expiresAt: Date | null = null
-  if (type === 'plan') {
-    whenLabel = typeof body.whenLabel === 'string' && (PLAN_WHEN as readonly string[]).includes(body.whenLabel)
-      ? body.whenLabel : null
-    const nowIst = new Date(Date.now() + 3 * 3_600_000) // Istanbul is UTC+3, no DST
-    const midnight = Date.UTC(nowIst.getUTCFullYear(), nowIst.getUTCMonth(), nowIst.getUTCDate() + 1) - 3 * 3_600_000
-    expiresAt = new Date(whenLabel === 'Tomorrow' ? midnight + 86_400_000 : whenLabel ? midnight : Date.now() + 48 * 3_600_000)
-  }
-
   const created = await prisma.boardPost.create({
-    data: { userId: session.id, type, title, body: text, neighborhood, tag, whenLabel, expiresAt },
+    data: { userId: session.id, type, title, body: text, neighborhood, tag },
     select: { id: true },
   })
 
