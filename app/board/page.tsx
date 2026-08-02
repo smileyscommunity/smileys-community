@@ -463,7 +463,7 @@ function ListingCard({ listing, onClick, isLoggedIn, isSaved, onToggleSave }: {
 }
 
 function ListingsInner() {
-  const { user, isLoggedIn } = useAuth()
+  const { user, isLoggedIn, isLoading: authLoading } = useAuth()
   const currentUserId = isLoggedIn ? user.id : null
   const searchParams = useSearchParams()
   const router       = useRouter()
@@ -472,15 +472,27 @@ function ListingsInner() {
     const tab = searchParams.get('tab')?.toUpperCase()
     return tab && CATEGORIES.some(c => c.id === tab) ? tab : 'ALL'
   })
-  // Conversations vs classifieds. Community leads (the Board's new identity),
-  // but old deep links keep working: a listing-category ?tab=, an ?id= share
-  // link, or a ?q= search all land straight on Marketplace.
+  // Conversations vs classifieds. The default splits by who's looking:
+  // guests land on Marketplace (real listings, and they can't post to the
+  // feed anyway — an empty composer-less feed does nothing for them), while
+  // members land on Community, because they're the only people who can seed
+  // it. Old deep links still win over both: a listing-category ?tab=, an
+  // ?id= share link, a ?q= search, or a ?post= notification link.
   const [view, setView] = useState<'community' | 'market'>(() => {
     const tab = searchParams.get('tab')?.toUpperCase()
     if (tab && CATEGORIES.some(c => c.id === tab)) return 'market'
     if (searchParams.get('id') || searchParams.get('q')) return 'market'
-    return 'community'
+    if (searchParams.get('post')) return 'community'
+    return 'market'
   })
+  // Auth resolves after first paint; flip members to Community unless a deep
+  // link or their own click already decided the view.
+  const viewChosen = useRef(searchParams.get('tab') !== null || searchParams.get('id') !== null
+    || searchParams.get('q') !== null || searchParams.get('post') !== null)
+  useEffect(() => {
+    if (!authLoading && isLoggedIn && !viewChosen.current) setView('community')
+  }, [authLoading, isLoggedIn])
+  const chooseView = (v: 'community' | 'market') => { viewChosen.current = true; setView(v) }
   const [neighborhood, setNeighborhood] = useState(searchParams.get('neighborhood') ?? '')
   const [search, setSearch]             = useState(searchParams.get('q') ?? '')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -701,7 +713,7 @@ function ListingsInner() {
                   { id: 'community' as const, label: '💬 Community' },
                   { id: 'market'    as const, label: '🛍️ Marketplace' },
                 ]).map(t => (
-                  <button key={t.id} onClick={() => setView(t.id)}
+                  <button key={t.id} onClick={() => chooseView(t.id)}
                     className={`px-4 py-2 rounded-xl text-sm font-bold border transition-colors ${
                       view === t.id ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
                     }`}>
