@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import NeighborhoodsMapView, { type MapPoint } from './NeighborhoodsMapView'
 import Link from 'next/link'
-import type { NeighborhoodMeta } from '@/lib/neighborhoods'
+import { neighborhoodImage, type NeighborhoodMeta } from '@/lib/neighborhoods'
 
 interface ActivitySignal { label: string; icon: string; cls: string }
 
@@ -53,11 +53,22 @@ function fmt(d: string) {
 // ── Featured card (large, gradient) ──────────────────────────────────────────
 function FeaturedCard({ n }: { n: NeighborhoodItem }) {
   const gradient = SIDE_GRADIENT[n.meta.side] ?? 'from-amber-500 to-orange-400'
+  const photo = neighborhoodImage(n.name)
   return (
     <Link href={`/neighborhoods/${n.slug}`}
       className="group relative rounded-2xl overflow-hidden shadow-md hover:shadow-xl hover:-translate-y-1 transition-all">
-      {/* Gradient background */}
+      {/* Photo background when one exists (dark overlay keeps the white
+          text at AA); gradient otherwise. */}
+      {photo ? (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={photo} alt="" aria-hidden="true" loading="lazy"
+            className="absolute inset-0 w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/45 to-black/25" />
+        </>
+      ) : (
       <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-90`} />
+      )}
       {/* Large emoji watermark */}
       <div className="absolute right-4 bottom-3 text-7xl opacity-20 select-none pointer-events-none leading-none">
         {n.meta.emoji}
@@ -124,9 +135,21 @@ function NeighborhoodCard({ n, cardBg, cardBorder }: { n: NeighborhoodItem; card
   const border = n.isYours ? 'border-amber-300 ring-1 ring-amber-200' : (cardBorder ?? 'border-gray-100 hover:border-gray-200')
   const bg     = cardBg ?? 'bg-white'
 
+  const photo = neighborhoodImage(n.name)
+
   return (
     <Link href={`/neighborhoods/${n.slug}`}
-      className={`group flex flex-col gap-3 ${bg} border rounded-2xl p-4 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all ${border}`}>
+      className={`group flex flex-col gap-3 ${bg} border rounded-2xl p-4 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all overflow-hidden ${border}`}>
+      {/* Photo banner — only for neighborhoods with real photography; the
+          rest keep the emoji/gradient treatment rather than an empty slot.
+          Negative margins bleed it to the card edges past the p-4. */}
+      {photo && (
+        <div className="-mx-4 -mt-4 h-28 overflow-hidden">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={photo} alt="" aria-hidden="true" loading="lazy"
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+        </div>
+      )}
       <div className="flex items-start gap-3">
         <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0 bg-white/80 shadow-sm">
           {n.meta.emoji}
