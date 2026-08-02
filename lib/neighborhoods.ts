@@ -32,7 +32,18 @@ export interface NeighborhoodMeta {
 // dropping a file in public/images + one line here is the whole change.
 // Filenames follow neighborhoodToSlug(name) — e.g. 'Kadıköy' -> kadikoy.
 export const NEIGHBORHOOD_IMAGE: Record<string, string> = {
-  'Kadıköy': '/app/images/neighborhood-kadikoy.jpg',
+  'Kadıköy':    '/app/images/neighborhood-kadikoy.jpg',
+  'Şişli':      '/app/images/neighborhood-sisli.jpg',
+  'Beşiktaş':   '/app/images/neighborhood-besiktas.jpg',
+  'Üsküdar':    '/app/images/neighborhood-uskudar.jpg',
+  'Beylikdüzü': '/app/images/neighborhood-beylikduzu.jpg',
+  'Beyoğlu':    '/app/images/neighborhood-beyoglu.jpg',
+  'Fatih':      '/app/images/neighborhood-fatih.jpg',
+  'Ataşehir':   '/app/images/neighborhood-atasehir.jpg',
+  'Maltepe':    '/app/images/neighborhood-maltepe.jpg',
+  'Levent':     '/app/images/neighborhood-levent.jpg',
+  'Ümraniye':   '/app/images/neighborhood-umraniye.jpg',
+  'Bakırköy':   '/app/images/neighborhood-bakirkoy.jpg',
 }
 
 export function neighborhoodImage(name: string): string | null {
