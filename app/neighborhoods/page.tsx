@@ -7,6 +7,8 @@ import { prisma } from '@/lib/prisma'
 import { neighborhoodToSlug, NEIGHBORHOOD_META } from '@/lib/neighborhoods'
 import { APP_URL } from '@/lib/env'
 import { getSession } from '@/lib/session'
+import { restrictedSetFor } from '@/lib/memberPrivacy'
+import SayHiButton from '@/components/SayHiButton'
 
 // Fixed-size cover (1200×800) served from public/ under the /app basePath.
 const NEIGHBORHOODS_OG_IMAGE = `${APP_URL}/images/neighborhoods-cover.jpg`
@@ -62,6 +64,13 @@ const getNeighborhoodStats = unstable_cache(
   ['neighborhood-stats'],
   { revalidate: 300, tags: ['neighborhoods'] },
 )
+
+function fmtEventDate(d: string) {
+  const [y, m, day] = d.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, day))
+    .toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
+    .toUpperCase()
+}
 
 function getActivitySignal(eventCount: number, memberCount: number) {
   const score = eventCount * 3 + Math.round(memberCount / 6)
@@ -141,6 +150,58 @@ export default async function NeighborhoodsPage() {
       take:    5,
       orderBy: { joinedAt: 'desc' },
     })
+  }
+
+  // "Near you" needs somewhere to point. With no neighborhood set — every
+  // logged-out visitor, and members who haven't picked one — these sections
+  // would otherwise be blank, so they fall back to the busiest neighborhood
+  // and say so in the heading rather than implying it's the viewer's own.
+  const busiest = [...memberCounts]
+    .filter(m => m.neighborhood && NEIGHBORHOOD_META[m.neighborhood])
+    .sort((a, b) => b._count._all - a._count._all)[0]?.neighborhood ?? null
+  const focusNeighborhood = userNeighborhood ?? busiest
+  const focusIsYours      = !!userNeighborhood
+
+  let nearbyEvents: {
+    id: string; title: string; emoji: string; date: string; location: string
+    _count: { attendees: number }
+  }[] = []
+  let peopleNearby: {
+    id: string; name: string; color: string; profilePhoto: string | null
+    nationality: string | null; interests: string[]
+  }[] = []
+
+  if (focusNeighborhood) {
+    nearbyEvents = await prisma.event.findMany({
+      where:   { status: 'published', date: { gte: today }, neighborhood: focusNeighborhood },
+      select:  {
+        id: true, title: true, emoji: true, date: true, location: true,
+        _count: { select: { attendees: { where: { status: 'approved' } } } },
+      },
+      orderBy: { date: 'asc' },
+      take:    4,
+    })
+
+    // neighborhoodVisible is the member's own opt-out for exactly this
+    // section. profileVisibility is then applied on top: a 'connections'
+    // member is hidden from guests outright, and from signed-in viewers
+    // unless they're actually connected (restrictedSetFor).
+    const candidates = await prisma.user.findMany({
+      where: {
+        neighborhood: focusNeighborhood,
+        status: 'approved',
+        neighborhoodVisible: true,
+        ...(session ? { id: { not: session.id } } : { profileVisibility: { not: 'connections' } }),
+      },
+      select: {
+        id: true, name: true, color: true, profilePhoto: true,
+        nationality: true, interests: true, profileVisibility: true,
+      },
+      orderBy: { goodHangouts: 'desc' },
+      take:    12,
+    })
+    const restricted = session ? await restrictedSetFor(session, candidates) : new Set<string>()
+    peopleNearby = candidates.filter(m => !restricted.has(m.id)).slice(0, 8)
   }
 
   return (
@@ -287,6 +348,104 @@ export default async function NeighborhoodsPage() {
             )}
           </div>
         )}
+        {/* ── Happening near you ── */}
+        {focusNeighborhood && (
+          <section className="mb-12">
+            <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900">
+              {focusIsYours ? 'Happening near you' : `Happening in ${focusNeighborhood}`}
+            </h2>
+            <p className="text-gray-600 mt-1.5 mb-6">
+              {focusIsYours
+                ? 'Events and plans around your side of Istanbul.'
+                : `Istanbul's most active Smileys neighborhood right now.`}
+            </p>
+            {nearbyEvents.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {nearbyEvents.map(e => (
+                  <Link key={e.id} href={`/events/${e.id}`}
+                    className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-amber-200 transition-all group">
+                    <p className="text-xs font-bold tracking-wide text-amber-600">{fmtEventDate(e.date)}</p>
+                    <h3 className="font-bold text-gray-900 mt-1.5 leading-snug">
+                      <span aria-hidden="true">{e.emoji} </span>{e.title}
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-2"><span aria-hidden="true">📍 </span>{e.location}</p>
+                    <p className="text-xs text-gray-500 mt-0.5"><span aria-hidden="true">👥 </span>{e._count.attendees} going</p>
+                    <span className="inline-block text-xs font-bold text-gray-700 mt-3 group-hover:text-amber-600 transition-colors">
+                      View event →
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div className="bg-gray-50 border border-gray-200 rounded-2xl p-6">
+                <p className="font-bold text-gray-900">Nothing happening nearby yet?</p>
+                <p className="text-sm text-gray-600 mt-1 mb-4">
+                  Neighborhoods come alive when someone starts something.
+                </p>
+                <Link href="/hangouts"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
+                  Create a meetup →
+                </Link>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* ── People around you ──
+            Neighborhood only — never a distance, never coordinates. The
+            member's own neighborhoodVisible opt-out plus profileVisibility
+            are both applied in the query above. */}
+        {peopleNearby.length > 0 && (
+          <section className="mb-12">
+            <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900">
+              {focusIsYours ? 'People around you' : `People in ${focusNeighborhood}`}
+            </h2>
+            <p className="text-gray-600 mt-1.5 mb-6">
+              Meet Smileys members who call {focusIsYours ? 'your part of Istanbul' : focusNeighborhood} home.
+            </p>
+            {/* Horizontal scroll on mobile per the brief; a plain grid once
+                there's room for it. */}
+            <div className="flex gap-4 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:overflow-visible scrollbar-hide">
+              {peopleNearby.map(m => (
+                <div key={m.id}
+                  className="shrink-0 w-64 sm:w-auto bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
+                  <Link href={`/members/${m.id}`} className="block">
+                    {/* AvatarImg handles the initials fallback itself, including
+                        a photo that 403s behind the applications gate. */}
+                    <AvatarImg src={avatarUrl(m.profilePhoto, 128)} name={m.name} color={m.color}
+                      size="w-16 h-16" textSize="text-xl" className="mb-3" />
+                    <p className="font-bold text-gray-900 leading-snug hover:text-amber-600 transition-colors">{m.name}</p>
+                  </Link>
+                  <p className="text-xs text-gray-500 mt-1">
+                    <span aria-hidden="true">📍 </span>{focusNeighborhood}
+                    {m.nationality && <span> · {m.nationality}</span>}
+                  </p>
+                  {m.interests.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-3">
+                      {m.interests.slice(0, 3).map(i => (
+                        <span key={i} className="text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-100 px-2 py-0.5 rounded-full">
+                          {i}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 mt-4">
+                    {session && <SayHiButton targetId={m.id} targetName={m.name} />}
+                    <Link href={`/members/${m.id}`}
+                      className="text-xs font-semibold text-gray-500 hover:text-amber-600 transition-colors whitespace-nowrap">
+                      View profile →
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <Link href={`/neighborhoods/${neighborhoodToSlug(focusNeighborhood!)}`}
+              className="inline-block mt-6 text-sm font-bold text-amber-600 hover:underline">
+              See everyone in {focusNeighborhood} →
+            </Link>
+          </section>
+        )}
+
         <div id="explore" className="scroll-mt-20" />
         <NeighborhoodGrid groups={groups} />
 
