@@ -34,6 +34,7 @@ export interface NeighborhoodMeta {
 export const NEIGHBORHOOD_IMAGE: Record<string, string> = {
   'Kadıköy':    '/app/images/neighborhood-kadikoy.jpg',
   'Moda':       '/app/images/neighborhood-moda.jpg',
+  'Nişantaşı':  '/app/images/neighborhood-nisantasi.jpg',
   'Şişli':      '/app/images/neighborhood-sisli.jpg',
   'Beşiktaş':   '/app/images/neighborhood-besiktas.jpg',
   'Üsküdar':    '/app/images/neighborhood-uskudar.jpg',
