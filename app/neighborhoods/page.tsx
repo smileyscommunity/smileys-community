@@ -248,6 +248,10 @@ export default async function NeighborhoodsPage() {
       },
       _count: { select: { reviews: true } },
     },
+    // Ordered by recommendation count: "Recommended by 18 Smileys" carries
+    // community consensus, "by 1 Smiley" doesn't, and unordered results let
+    // the weakest signal lead the section.
+    orderBy: { reviews: { _count: 'desc' } },
     take: 24,
   })
 
@@ -406,6 +410,27 @@ export default async function NeighborhoodsPage() {
             )}
           </div>
         )}
+        {/* ── Where's your Istanbul? ──
+            Signed-in members with no neighborhood set see the fallback
+            sections below labelled with Kadıköy's name — which reads as
+            "this page isn't about me". This prompt names the fix. Guests
+            don't get it: their path is /apply, already all over the page. */}
+        {session && !userNeighborhood && (
+          <section className="mb-10 bg-amber-50 border border-amber-100 rounded-2xl p-6 sm:p-8">
+            <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-gray-900">
+              Where&apos;s your Istanbul?
+            </h2>
+            <p className="text-gray-700 mt-1.5 mb-5 max-w-xl">
+              Choose the neighborhood where you live or spend most of your time, and this
+              page starts showing your people, your events, and your part of the city.
+            </p>
+            <Link href="/profile"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
+              <span aria-hidden="true">📍</span> Choose my neighborhood
+            </Link>
+          </section>
+        )}
+
         {/* ── Happening near you ── */}
         {focusNeighborhood && (
           <section className="mb-12">
@@ -510,38 +535,6 @@ export default async function NeighborhoodsPage() {
           <NeighborhoodGrid groups={groups} />
         </section>
 
-        {/* Leaderboard — top neighborhoods this month */}
-        {(() => {
-          const top5 = [...neighborhoods]
-            .filter(n => n.eventCount > 0 || n.memberCount > 0)
-            .sort((a, b) => b.activityScore - a.activityScore)
-            .slice(0, 5)
-          const maxScore = top5[0]?.activityScore ?? 1
-          if (top5.length < 2) return null
-          return (
-            <div className="mt-8 bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-              <h2 className="text-sm font-bold text-gray-900 mb-4">🏆 Most active neighborhoods</h2>
-              <div className="space-y-3">
-                {top5.map((n, i) => (
-                  <Link key={n.name} href={`/neighborhoods/${n.slug}`}
-                    className="flex items-center gap-3 hover:opacity-80 transition-opacity group">
-                    <span className="text-xs font-bold text-gray-400 w-5 text-center shrink-0">#{i + 1}</span>
-                    <span className="text-lg shrink-0">{n.meta.emoji}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-semibold text-gray-900 group-hover:text-amber-600 transition-colors truncate">{n.name}</span>
-                        <span className="text-xs text-gray-400 shrink-0 ml-2">{n.eventCount} events · {n.memberCount} locals</span>
-                      </div>
-                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-amber-400 rounded-full" style={{ width: `${(n.activityScore / maxScore) * 100}%` }} />
-                      </div>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          )
-        })()}
         {/* ── Local favorites (§8) ── */}
         <LocalFavorites picks={serialisedPicks} />
 
