@@ -348,7 +348,7 @@ export default function NeighborhoodGrid({ groups }: { groups: Group[] }) {
             <p className="text-sm text-gray-600 py-8">Nothing scheduled in the next week — try “Most active”.</p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {shortlist.slice(0, 12).map(n => (
+              {shortlist.slice(0, 9).map(n => (
                 <NeighborhoodCard key={n.slug} n={n}
                   cardBg={SIDE_SECTION[n.meta.side]?.cardBg}
                   cardBorder={SIDE_SECTION[n.meta.side]?.cardBorder} />
