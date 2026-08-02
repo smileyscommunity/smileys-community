@@ -127,6 +127,16 @@ rsync -av --delete \
   --exclude='data/handbook-heroes.json' \
   "$LOCAL/" "$SERVER:$REMOTE/" || { CODE=$?; [ "$CODE" = "23" ] || [ "$CODE" = "24" ] || exit $CODE; }
 
+# Stamp the service-worker cache key with this release, ON THE SERVER after
+# rsync. Without this, deploys that forget a manual bump leave returning PWA
+# visitors on a cached app shell referencing chunk hashes the deploy just
+# deleted — the site "never loads" for exactly the people who use it most
+# (took the site down for returning visitors on 2026-08-02 after ~8 unbumped
+# deploys). Stamping server-side keeps the local file (and git) untouched;
+# the literal version in public/sw.js now only matters for local dev.
+echo "→ Stamping SW cache key (smileys-$APP_RELEASE)..."
+ssh "$SERVER" "sed -i \"s/const CACHE = 'smileys-[^']*'/const CACHE = 'smileys-$APP_RELEASE'/\" $REMOTE/public/sw.js && grep -o \"smileys-[a-z0-9]*'\" $REMOTE/public/sw.js | head -1"
+
 echo "→ Restarting server (graceful)..."
 # Restart instead of stop+start so the gap between old and new
 # processes is just pm2's drain window. Falls back to start if

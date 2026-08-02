@@ -74,6 +74,10 @@
 //                  a page that never loads and floods the server log with
 //                  "Failed to find Server Action ... from an older or newer
 //                  deployment". Bumping the key is what actually evicts it.
+// v18+: no more manual bumps — deploy.sh stamps this line with the release
+//                  hash on the server after every rsync, so each deploy gets
+//                  a fresh cache automatically. The literal value below only
+//                  matters for local dev.
 const CACHE = 'smileys-v17'
 
 // API endpoints to cache for offline use. Empty by design — see v13 note.
