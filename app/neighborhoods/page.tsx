@@ -9,6 +9,7 @@ import { APP_URL } from '@/lib/env'
 import { getSession } from '@/lib/session'
 import { restrictedSetFor } from '@/lib/memberPrivacy'
 import SayHiButton from '@/components/SayHiButton'
+import LocalFavorites, { type LocalPick } from '@/components/LocalFavorites'
 
 // Fixed-size cover (1200×800) served from public/ under the /app basePath.
 const NEIGHBORHOODS_OG_IMAGE = `${APP_URL}/images/neighborhoods-cover.jpg`
@@ -211,6 +212,55 @@ export default async function NeighborhoodsPage() {
     const restricted = session ? await restrictedSetFor(session, candidates) : new Set<string>()
     peopleNearby = candidates.filter(m => !restricted.has(m.id)).slice(0, 8)
   }
+
+  // §13 — visitors heading for the focus neighborhood. Renders only when
+  // there are real ones; an empty "coming to your neighborhood" block is
+  // worse than no block. Contact details are never selected here.
+  const visitorsNearby = focusNeighborhood
+    ? await prisma.visitorAnnouncement.findMany({
+        where:  {
+          status: 'active',
+          neighborhood: focusNeighborhood,
+          endsOn: { gte: today },
+          ...(session ? {} : { visibility: 'public' }),
+        },
+        select: {
+          id: true, name: true, fromCity: true, startsOn: true,
+          user: { select: { id: true, name: true, color: true, profilePhoto: true } },
+        },
+        orderBy: { startsOn: 'asc' },
+        take: 4,
+      })
+    : []
+
+  // §8 — local picks. Every approved+active listing has a cover image, but
+  // only a handful have review text, so the member quote is opportunistic
+  // rather than assumed.
+  const localPicks = await prisma.business.findMany({
+    where:  { isApproved: true, isActive: true, coverImage: { not: null } },
+    select: {
+      id: true, name: true, category: true, neighborhood: true, coverImage: true,
+      reviews: {
+        where:  { comment: { not: null } },
+        select: { comment: true, author: { select: { name: true } } },
+        take:   1,
+        orderBy: { createdAt: 'desc' },
+      },
+      _count: { select: { reviews: true } },
+    },
+    take: 24,
+  })
+
+  const serialisedPicks: LocalPick[] = localPicks.map(b => ({
+    id:           b.id,
+    name:         b.name,
+    category:     b.category,
+    neighborhood: b.neighborhood,
+    coverImage:   b.coverImage,
+    reviewCount:  b._count.reviews,
+    quote:        b.reviews[0]?.comment ?? null,
+    quoteBy:      b.reviews[0]?.author?.name ?? null,
+  }))
 
   return (
     <main>
@@ -492,6 +542,91 @@ export default async function NeighborhoodsPage() {
             </div>
           )
         })()}
+        {/* ── Local favorites (§8) ── */}
+        <LocalFavorites picks={serialisedPicks} />
+
+        {/* ── Coming to your neighborhood (§13) ──
+            Rendered only when real visitors exist; an empty "coming to your
+            neighborhood" block reads worse than no block at all. */}
+        {visitorsNearby.length > 0 && (
+          <section className="mb-12">
+            <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900">
+              Coming to {focusIsYours ? 'your neighborhood' : focusNeighborhood}
+            </h2>
+            <p className="text-gray-600 mt-1.5 mb-6">
+              {visitorsNearby.length} Smiley{visitorsNearby.length !== 1 ? 's are' : ' is'} visiting {focusNeighborhood} soon.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {visitorsNearby.map(v => (
+                <div key={v.id} className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+                  <AvatarImg src={avatarUrl(v.user?.profilePhoto ?? null, 128)} name={v.name}
+                    color={v.user?.color ?? '#f59e0b'} size="w-12 h-12" textSize="text-base" className="mb-3" />
+                  <p className="font-bold text-gray-900">{v.name}</p>
+                  {v.fromCity && <p className="text-xs text-gray-500 mt-0.5">{v.fromCity}</p>}
+                  <p className="text-xs font-semibold text-amber-700 mt-1">Arriving {fmtEventDate(v.startsOn)}</p>
+                  {session && v.user && (
+                    <div className="mt-3">
+                      <SayHiButton targetId={v.user.id} targetName={v.user.name} />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <Link href="/visiting" className="inline-block mt-6 text-sm font-bold text-amber-600 hover:underline">
+              See who&apos;s visiting →
+            </Link>
+          </section>
+        )}
+
+        {/* ── Cross the Bosphorus (§9) ──
+            Gradient treatment rather than photography: the two side images
+            the brief calls for don't exist yet, and a placeholder would look
+            worse than a deliberate colour block. */}
+        <section className="mb-12">
+          <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900">Cross the Bosphorus.</h2>
+          <p className="text-gray-600 mt-1.5 mb-6">Your next favorite neighborhood might be on the other side.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {([
+              { side: 'Asian',    label: 'Explore the Asian Side',    gradient: 'from-emerald-500 to-teal-600',  emoji: '🌏' },
+              { side: 'European', label: 'Explore the European Side', gradient: 'from-blue-500 to-indigo-600',   emoji: '🇹🇷' },
+            ]).map(s2 => {
+              const names = neighborhoods
+                .filter(n => n.meta.side === s2.side)
+                .sort((a, b) => b.memberCount - a.memberCount)
+                .slice(0, 5)
+                .map(n => n.name)
+              if (names.length === 0) return null
+              return (
+                <a key={s2.side} href="#explore"
+                  className={`group relative overflow-hidden rounded-2xl bg-gradient-to-br ${s2.gradient} p-6 min-h-[160px] flex flex-col justify-between shadow-md hover:shadow-xl transition-all`}>
+                  <div aria-hidden="true" className="absolute right-4 bottom-2 text-7xl opacity-20 select-none leading-none">{s2.emoji}</div>
+                  <p className="relative text-lg font-extrabold text-white">{s2.label} →</p>
+                  <p className="relative text-xs text-white/80 mt-3 leading-relaxed">{names.join(' · ')}</p>
+                </a>
+              )
+            })}
+          </div>
+        </section>
+
+        {/* ── Final CTA (§14) ── */}
+        <section className="rounded-2xl bg-gray-900 px-6 py-14 sm:py-16 text-center mb-4">
+          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white leading-tight">
+            Istanbul is huge.<br />Your community doesn&apos;t have to be.
+          </h2>
+          <p className="text-gray-300 mt-4 max-w-xl mx-auto leading-relaxed">
+            Choose your neighborhood and discover who&apos;s around you.
+          </p>
+          <div className="mt-7 flex flex-col sm:flex-row gap-3 justify-center">
+            <Link href={session ? '/settings' : '/apply'}
+              className="inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-amber-500 hover:bg-amber-600 text-white text-base font-bold rounded-xl transition-colors">
+              <span aria-hidden="true">📍</span> {session ? 'Set my neighborhood' : 'Join Smileys'}
+            </Link>
+            <a href="#explore"
+              className="inline-flex items-center justify-center gap-2 px-7 py-3.5 border border-white/40 hover:bg-white/10 text-white text-base font-semibold rounded-xl transition-colors">
+              Explore Istanbul
+            </a>
+          </div>
+        </section>
       </div>
     </main>
   )
