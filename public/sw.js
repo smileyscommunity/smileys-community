@@ -65,7 +65,16 @@
 //                  <img> tags pasted into event rich-text descriptions
 //                  (unrelated to EventPhotos), capped via .rich-content
 //                  img in globals.css. Evict cached CSS bundle.
-const CACHE = 'smileys-v16'
+// v17: 2026-08-02 — Roughly eight deploys landed in one day (visiting
+//                  redesign, neighborhoods redesign, lint setup) without a
+//                  cache bump. `activate` only deletes caches whose key
+//                  differs from CACHE, so v16 was never purged: returning
+//                  visitors kept getting a cached app shell pointing at
+//                  chunk hashes those deploys had deleted, which renders as
+//                  a page that never loads and floods the server log with
+//                  "Failed to find Server Action ... from an older or newer
+//                  deployment". Bumping the key is what actually evicts it.
+const CACHE = 'smileys-v17'
 
 // API endpoints to cache for offline use. Empty by design — see v13 note.
 // Auth-bearing responses MUST NOT be cached in this shared CACHE because
