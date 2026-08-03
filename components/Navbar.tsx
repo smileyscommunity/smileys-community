@@ -79,8 +79,8 @@ const discoverLinks = [
   { label: 'Guide',         href: '/guide',         emoji: '🗺️', public: true  },
   { label: 'Handbook',      href: '/handbook',      emoji: '📖', public: true  },
   { label: 'Neighborhoods', href: '/neighborhoods', emoji: '🏘️', public: true  },
-  { label: 'Board',         href: '/board',       emoji: '💬', public: true  },
-  { label: 'Marketplace',   href: '/marketplace', emoji: '🛍️', public: true  },
+  { label: 'Community Board', href: '/board',       emoji: '💬', public: true  },
+  { label: 'Marketplace',     href: '/marketplace', emoji: '🛍️', public: true  },
   { label: 'Directory',     href: '/directory',     emoji: '🏢', public: true  },
   { label: 'Visiting?',     href: '/visiting',      emoji: '👋', public: true  },
 ]
