@@ -1447,6 +1447,12 @@ model Hangout {
   notifiedStartingAt DateTime?
   meetMode           String             @default("group")
   photo              String?
+  // Phase 2 of the hangouts plan: optional activity taxonomy (drives the
+  // emoji chip + future filters) and optional capacity. maxPeople counts
+  // EVERYONE including the host — "6" means host + 5 joiners — matching
+  // the card's "N going" figure, which has always included the host.
+  activity           String?
+  maxPeople          Int?
   joins              HangoutJoin[]
   messages           HangoutMessage[]
   references         HangoutReference[]

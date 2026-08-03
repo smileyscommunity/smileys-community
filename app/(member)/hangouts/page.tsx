@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { ISTANBUL_NEIGHBORHOODS, resolveImageUrl, avatarUrl, getInitials } from '@/lib/data'
 import { countryFlag } from '@/lib/countries'
 import { matchesTimeFilter, statusBadge, type TimeFilter } from '@/lib/hangoutTime'
+import { HANGOUT_ACTIVITIES, ACTIVITY_META, HANGOUT_CAPACITIES } from '@/lib/hangoutActivities'
 import { toast } from 'sonner'
 import { downscaleImage } from '@/lib/image-resize'
 
@@ -31,6 +32,9 @@ interface Hangout {
   endsAt:       string
   status:       string
   meetMode:     'solo' | 'group'
+  activity:     string | null
+  // Total capacity INCLUDING the host; null = no limit.
+  maxPeople:    number | null
   // Optional photo of the meeting spot — single image URL.
   photo:        string | null
   user:         JoinerSummary
@@ -191,6 +195,8 @@ export default function HangoutsPage() {
   const [startsAt,     setStartsAt]     = useState(defaultStartsAt())
   const [endsAt,       setEndsAt]       = useState(defaultEndsAt())
   const [meetMode,     setMeetMode]     = useState<'group' | 'solo'>('group')
+  const [activity,     setActivity]     = useState('')
+  const [maxPeople,    setMaxPeople]    = useState(0) // 0 = no limit
   const [photo,        setPhoto]        = useState<string | null>(null)
   const [uploading,    setUploading]    = useState(false)
   const [submitting,   setSubmitting]   = useState(false)
@@ -206,9 +212,13 @@ export default function HangoutsPage() {
     { emoji: '🎲', label: 'Games',   title: 'Board games 🎲',       description: 'Playing some games — bring your competitive side.' },
     { emoji: '💻', label: 'Cowork',  title: 'Coworking 💻',         description: 'Working from a café — join for focused company.' },
   ]
-  function quickStart(p: { title: string; description: string }) {
+  const QUICK_START_ACTIVITY: Record<string, string> = {
+    Coffee: 'coffee', Drinks: 'drinks', Walk: 'walk', Food: 'food', Games: 'games', Cowork: 'cowork',
+  }
+  function quickStart(p: { label: string; title: string; description: string }) {
     setTitle(p.title)
     setDescription(p.description)
+    setActivity(QUICK_START_ACTIVITY[p.label] ?? '')
     setMeetMode('group')
     setStartsAt(defaultStartsAt())
     setEndsAt(defaultEndsAt())
@@ -292,6 +302,8 @@ export default function HangoutsPage() {
           endsAt:   istanbulInputToISO(endsAt),
           meetMode,
           photo: photo || undefined,
+          activity: activity || undefined,
+          maxPeople: maxPeople || undefined,
         }),
       })
       const data = await res.json()
@@ -299,7 +311,7 @@ export default function HangoutsPage() {
       toast.success('Hangout posted — neighbors are getting pinged')
       await loadFeed()
       setShowForm(false)
-      setTitle(''); setLocation(''); setNeighborhood(''); setDescription('')
+      setTitle(''); setLocation(''); setNeighborhood(''); setDescription(''); setActivity(''); setMaxPeople(0)
       setStartsAt(defaultStartsAt()); setEndsAt(defaultEndsAt()); setMeetMode('group')
       setPhoto(null)
     } catch {
@@ -499,6 +511,27 @@ export default function HangoutsPage() {
               <span className="block text-sm font-semibold text-gray-700 mb-1.5">What&apos;s happening?</span>
               <input value={title} onChange={e => setTitle(e.target.value)} maxLength={120}
                 placeholder="Coffee at Moda İskele" className="input" />
+            </label>
+            <div>
+              <span className="block text-sm font-semibold text-gray-700 mb-1.5">What kind of thing? <span className="text-gray-400 font-normal">(optional)</span></span>
+              <div className="flex gap-1.5 flex-wrap">
+                {HANGOUT_ACTIVITIES.map(a => (
+                  <button key={a.value} type="button" onClick={() => setActivity(activity === a.value ? '' : a.value)}
+                    className={`text-xs font-semibold px-2.5 py-1.5 rounded-full border transition-colors ${
+                      activity === a.value ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-gray-600 border-gray-200 hover:border-amber-300'
+                    }`}>
+                    {a.emoji} {a.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <label className="block">
+              <span className="block text-sm font-semibold text-gray-700 mb-1.5">How many people? <span className="text-gray-400 font-normal">(including you)</span></span>
+              <select value={maxPeople} onChange={e => setMaxPeople(Number(e.target.value))} className="input bg-white">
+                <option value={0}>No limit</option>
+                {HANGOUT_CAPACITIES.map(n => <option key={n} value={n}>{n} people</option>)}
+              </select>
+              <span className="block text-xs text-gray-400 mt-1">Expecting more than 10? That sounds like a Smileys Event.</span>
             </label>
             <label className="block">
               <span className="block text-sm font-semibold text-gray-700 mb-1.5">Where</span>
@@ -1211,6 +1244,11 @@ function HangoutCard({ h, currentUser, onCancel, onMutated }: {
                 1-on-1
               </span>
             )}
+            {h.activity && ACTIVITY_META[h.activity] && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600 text-[10px] font-semibold border border-gray-200 shrink-0">
+                {ACTIVITY_META[h.activity].emoji} {ACTIVITY_META[h.activity].label}
+              </span>
+            )}
             {(() => {
               const b = statusBadge(h.startsAt, h.endsAt)
               return b && (
@@ -1385,16 +1423,30 @@ function HangoutCard({ h, currentUser, onCancel, onMutated }: {
           )
         })()}
 
-        {!isOwner && (
-          <button onClick={toggleJoin} disabled={joining}
-            className={`text-xs font-bold px-3 py-1.5 rounded-full transition-colors shrink-0 ${
-              h.joinedByMe
-                ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-                : 'bg-amber-500 text-white hover:bg-amber-600'
-            }`}>
-            {h.joinedByMe ? 'You’re in ✓' : "I’m in"}
-          </button>
-        )}
+        {!isOwner && (() => {
+          // maxPeople includes the host; "going" (joiners+1) is compared
+          // against it. A member already in can always leave a full hangout.
+          const going     = h.joiners.length + 1
+          const spotsLeft = h.maxPeople ? h.maxPeople - going : null
+          const isFull    = spotsLeft !== null && spotsLeft <= 0 && !h.joinedByMe
+          return (
+            <div className="flex items-center gap-1.5 shrink-0">
+              {spotsLeft !== null && spotsLeft > 0 && spotsLeft <= 3 && !h.joinedByMe && (
+                <span className="text-[10px] font-bold text-orange-600 whitespace-nowrap">{spotsLeft} spot{spotsLeft !== 1 ? 's' : ''} left</span>
+              )}
+              <button onClick={toggleJoin} disabled={joining || isFull}
+                className={`text-xs font-bold px-3 py-1.5 rounded-full transition-colors ${
+                  isFull
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : h.joinedByMe
+                      ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                      : 'bg-amber-500 text-white hover:bg-amber-600'
+                }`}>
+                {isFull ? 'Full' : h.joinedByMe ? 'You’re in ✓' : "I’m in"}
+              </button>
+            </div>
+          )
+        })()}
 
         <button onClick={() => setThreadOpen(o => !o)}
           aria-label="Toggle comments" aria-expanded={threadOpen}

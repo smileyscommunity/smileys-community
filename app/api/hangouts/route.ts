@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
+import { HANGOUT_ACTIVITIES } from '@/lib/hangoutActivities'
 import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
 
 // Members-only — hangouts are real-time, contact-required, and we don't want
@@ -87,6 +88,8 @@ export async function GET(req: NextRequest) {
     status:       h.status,
     meetMode:     h.meetMode,
     photo:        h.photo,
+    activity:     h.activity,
+    maxPeople:    h.maxPeople,
     user:         {
       ...h.user,
       // Number of caller's friends who are also friends with this host.
@@ -110,7 +113,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Too many hangouts this hour. Take a breath.' }, { status: 429 })
     }
 
-    const { title, description, location, neighborhood, startsAt, endsAt, meetMode, photo } = await req.json()
+    const { title, description, location, neighborhood, startsAt, endsAt, meetMode, photo, activity, maxPeople } = await req.json()
 
     if (!title?.trim() || !location?.trim() || !startsAt || !endsAt) {
       return NextResponse.json({ error: 'Title, location, and times are required' }, { status: 400 })
@@ -147,6 +150,15 @@ export async function POST(req: NextRequest) {
     // strings (we filter on this in the feed).
     const safeMeetMode = meetMode === 'solo' ? 'solo' : 'group'
 
+    // activity: fixed taxonomy or nothing. maxPeople counts everyone
+    // including the host; 2–10 (plan caps hangouts at 10 — bigger is an
+    // Event), anything else means no limit.
+    const safeActivity = typeof activity === 'string'
+      && (HANGOUT_ACTIVITIES as readonly { value: string }[]).some(a => a.value === activity)
+      ? activity : null
+    const safeMaxPeople = Number.isInteger(maxPeople) && maxPeople >= 2 && maxPeople <= 10
+      ? maxPeople : null
+
     // photo: must be a string matching the upload-output URL pattern. Same
     // regex as DM image attachments — prevents a malicious client from
     // smuggling a remote URL through this field.
@@ -164,6 +176,8 @@ export async function POST(req: NextRequest) {
         endsAt:       endDate,
         meetMode:     safeMeetMode,
         photo:        safePhoto,
+        activity:     safeActivity,
+        maxPeople:    safeMaxPeople,
       },
     })
 

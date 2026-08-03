@@ -13,7 +13,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   const { id: hangoutId } = await params
   const hangout = await prisma.hangout.findUnique({
     where:  { id: hangoutId },
-    select: { id: true, userId: true, title: true, status: true, endsAt: true },
+    select: { id: true, userId: true, title: true, status: true, endsAt: true, maxPeople: true },
   })
   if (!hangout) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (hangout.status !== 'active' || hangout.endsAt < new Date()) {
@@ -31,7 +31,23 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ joined: false })
   }
 
-  await prisma.hangoutJoin.create({ data: { hangoutId, userId: session.id } })
+  // Capacity check + create inside one transaction so two simultaneous
+  // joins can't both squeeze into the last spot. maxPeople includes the
+  // host, so joiners are capped at maxPeople - 1.
+  try {
+    await prisma.$transaction(async tx => {
+      if (hangout.maxPeople) {
+        const count = await tx.hangoutJoin.count({ where: { hangoutId } })
+        if (count >= hangout.maxPeople - 1) throw new Error('HANGOUT_FULL')
+      }
+      await tx.hangoutJoin.create({ data: { hangoutId, userId: session.id } })
+    })
+  } catch (e) {
+    if (e instanceof Error && e.message === 'HANGOUT_FULL') {
+      return NextResponse.json({ error: 'This hangout is full' }, { status: 400 })
+    }
+    throw e
+  }
 
   // Ping the host — createNotification gives them an inbox row AND a push
   // (so they catch up if they missed the notification).
