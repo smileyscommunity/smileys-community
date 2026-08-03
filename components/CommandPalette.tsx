@@ -84,7 +84,8 @@ export default function CommandPalette() {
     { id: 'clubs',         label: 'Clubs',          hint: 'Explore clubs',              icon: '🏛️', group: 'Navigate', action: () => go('/clubs')         },
     { id: 'members',       label: 'Members',        hint: 'Discover the community',     icon: '👥', group: 'Navigate', action: () => go('/members')       },
     { id: 'hangouts',      label: 'Hangouts',       hint: 'Live meetups happening now',  icon: '🤝', group: 'Navigate', action: () => go('/hangouts')      },
-    { id: 'board',         label: 'Board',          hint: 'Rooms, jobs & more',         icon: '📋', group: 'Navigate', action: () => go('/board')      },
+    { id: 'board',         label: 'Community Board', hint: 'Ask, share & discuss',      icon: '📋', group: 'Navigate', action: () => go('/board')      },
+    { id: 'marketplace',   label: 'Marketplace',    hint: 'Rooms, jobs, buy & sell',    icon: '🛍️', group: 'Navigate', action: () => go('/marketplace')   },
     { id: 'directory',     label: 'Directory',      hint: 'Local businesses & services', icon: '🏢', group: 'Navigate', action: () => go('/directory')     },
     { id: 'dashboard',     label: 'Dashboard',      hint: 'Your personal dashboard',    icon: '⬛', group: 'You', action: () => go('/dashboard')     },
     { id: 'my-events',     label: 'My Events',      hint: 'Your events & QR codes',     icon: '🎟️', group: 'You', action: () => go('/my-events')     },
@@ -121,8 +122,19 @@ export default function CommandPalette() {
     ]),
   ]
 
-  const hasResults = results && (results.events.length + results.members.length + results.clubs.length + results.listings.length) > 0
   const showStatic = !query || query.length < 2
+
+  // Once the query is 2+ chars, the static nav list (Board, Marketplace,
+  // Dashboard…) is replaced entirely by live API results — so typing a
+  // destination's own name (e.g. "marketplace") found nothing, since the
+  // live search only covers events/members/clubs/listings, not page names.
+  // Surface matching static commands alongside the live results too.
+  const matchedStatic = !showStatic
+    ? staticCommands.filter(c => `${c.label} ${c.hint ?? ''}`.toLowerCase().includes(query.toLowerCase()))
+    : []
+
+  const hasResults = matchedStatic.length > 0 ||
+    (results != null && (results.events.length + results.members.length + results.clubs.length + results.listings.length) > 0)
 
   if (!open) return null
 
@@ -158,6 +170,29 @@ export default function CommandPalette() {
             <Command.Empty className="py-10 text-center text-sm text-gray-400">
               {searching ? 'Searching…' : 'No results found.'}
             </Command.Empty>
+
+            {/* Matching destinations (Board, Marketplace, Dashboard…) */}
+            {!showStatic && matchedStatic.length > 0 && (
+              <Command.Group className="px-2">
+                <div className="px-2 pt-3 pb-1">
+                  <span className="text-xs font-semibold text-gray-600 uppercase tracking-widest">Go to</span>
+                </div>
+                {matchedStatic.map(cmd => (
+                  <Command.Item
+                    key={cmd.id}
+                    value={`goto-${cmd.id}`}
+                    onSelect={cmd.action}
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer text-sm text-gray-700 data-[selected=true]:bg-amber-50 data-[selected=true]:text-amber-700 transition-colors mb-0.5"
+                  >
+                    <span className="w-6 h-6 flex items-center justify-center text-base shrink-0">{cmd.icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <span className="font-medium">{cmd.label}</span>
+                      {cmd.hint && <span className="ml-2 text-xs text-gray-400">{cmd.hint}</span>}
+                    </div>
+                  </Command.Item>
+                ))}
+              </Command.Group>
+            )}
 
             {/* Live search results */}
             {!showStatic && results && (
