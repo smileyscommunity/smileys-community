@@ -1418,6 +1418,13 @@ model Listing {
   price         String?
   photo         String?
   photoPosition Int            @default(50)
+  // Marketplace phase 2: gallery beyond the single cover (photo stays the
+  // cover for legacy rows and card thumbnails), and per-category attributes
+  // (housing type / available-from / furnished, job type / remote, service
+  // rate unit, pet goal) as one validated JSON column instead of a dozen
+  // mostly-null scalars.
+  photos        String[]       @default([])
+  attrs         Json?
   contact       String?
   status        String         @default("active")
   expiresAt     DateTime

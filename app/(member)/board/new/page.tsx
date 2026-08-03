@@ -36,6 +36,17 @@ export default function NewListingPage() {
   const [contact, setContact]       = useState('')
   const [neighborhood, setNeighborhood] = useState('')
   const [photo, setPhoto]           = useState('')
+  const [photos, setPhotos]         = useState<string[]>([])   // gallery beyond the cover, max 4
+  // Category-specific attributes (§9-12) — the API allowlists per category,
+  // so anything inapplicable is dropped server-side.
+  const [housingType,   setHousingType]   = useState('')
+  const [availableFrom, setAvailableFrom] = useState('')
+  const [furnished,     setFurnished]     = useState<boolean | null>(null)
+  const [jobType,       setJobType]       = useState('')
+  const [remote,        setRemote]        = useState('')
+  const [rateUnit,      setRateUnit]      = useState('')
+  const [serviceOnline, setServiceOnline] = useState(false)
+  const [petGoal,       setPetGoal]       = useState('')
   const [photoPosition, setPhotoPosition] = useState(50)
   const [uploading, setUploading]   = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -55,6 +66,20 @@ export default function NewListingPage() {
     setUploading(false)
   }
 
+  async function handleGalleryPhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file || photos.length >= 4) return
+    setUploading(true)
+    const upload = await downscaleImage(file)
+    const form = new FormData()
+    form.append('file', upload)
+    form.append('folder', 'listings')
+    const res  = await fetch('/app/api/upload', { method: 'POST', body: form, credentials: 'include' })
+    const data = await res.json()
+    if (data.url) setPhotos(prev => [...prev, data.url])
+    setUploading(false)
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
@@ -67,7 +92,17 @@ export default function NewListingPage() {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ category, title, description, price: price || null, contact: contact || null, photo: photo || null, photoPosition, neighborhood: neighborhood || null }),
+      body: JSON.stringify({
+        category, title, description, price: price || null, contact: contact || null,
+        photo: photo || null, photoPosition, neighborhood: neighborhood || null,
+        photos,
+        attrs: {
+          ...(category === 'ROOMS' ? { ...(housingType && { housingType }), ...(availableFrom && { availableFrom }), ...(furnished !== null && { furnished }) } : {}),
+          ...(category === 'JOBS'  ? { ...(jobType && { jobType }), ...(remote && { remote }) } : {}),
+          ...(category === 'SERVICES' ? { ...(rateUnit && { rateUnit }), online: serviceOnline } : {}),
+          ...(category === 'PETS'  ? { ...(petGoal && { petGoal }) } : {}),
+        },
+      }),
     })
     if (res.ok) {
       router.push('/board')
@@ -154,6 +189,106 @@ export default function NewListingPage() {
             />
             <p className="text-right text-xs text-gray-400 mt-1">{description.length}/2000</p>
           </div>
+
+          {/* Category-specific fields (§9-12) — only the active category's
+              block renders, so the form never shows an inapplicable input. */}
+          {category === 'ROOMS' && (
+            <div className="space-y-3 bg-blue-50/50 border border-blue-100 rounded-xl p-4">
+              <div className="flex gap-1.5 flex-wrap">
+                {([['room','Room'],['apartment','Apartment'],['roommate','Roommate wanted'],['sublet','Sublet']] as const).map(([v, l]) => (
+                  <button key={v} type="button" onClick={() => setHousingType(housingType === v ? '' : v)}
+                    className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${
+                      housingType === v ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200'
+                    }`}>{l}</button>
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="block text-xs font-semibold text-gray-700 mb-1">Available from</span>
+                  <input type="date" value={availableFrom} onChange={e => setAvailableFrom(e.target.value)} className="input" />
+                </label>
+                <label className="block">
+                  <span className="block text-xs font-semibold text-gray-700 mb-1">Furnished?</span>
+                  <select value={furnished === null ? '' : String(furnished)} onChange={e => setFurnished(e.target.value === '' ? null : e.target.value === 'true')} className="input bg-white">
+                    <option value="">—</option><option value="true">Yes</option><option value="false">No</option>
+                  </select>
+                </label>
+              </div>
+              <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                ⚠️ Never send deposits before seeing a property and verifying who you&apos;re dealing with.
+              </p>
+            </div>
+          )}
+          {category === 'JOBS' && (
+            <div className="grid grid-cols-2 gap-3 bg-green-50/50 border border-green-100 rounded-xl p-4">
+              <label className="block">
+                <span className="block text-xs font-semibold text-gray-700 mb-1">Job type</span>
+                <select value={jobType} onChange={e => setJobType(e.target.value)} className="input bg-white">
+                  <option value="">—</option><option value="full_time">Full-time</option><option value="part_time">Part-time</option>
+                  <option value="freelance">Freelance</option><option value="gig">One-off gig</option>
+                </select>
+              </label>
+              <label className="block">
+                <span className="block text-xs font-semibold text-gray-700 mb-1">Where</span>
+                <select value={remote} onChange={e => setRemote(e.target.value)} className="input bg-white">
+                  <option value="">—</option><option value="remote">Remote</option><option value="in_person">In person</option><option value="hybrid">Hybrid</option>
+                </select>
+              </label>
+            </div>
+          )}
+          {category === 'SERVICES' && (
+            <div className="flex items-end gap-3 bg-orange-50/50 border border-orange-100 rounded-xl p-4">
+              <label className="block flex-1">
+                <span className="block text-xs font-semibold text-gray-700 mb-1">Price is per</span>
+                <select value={rateUnit} onChange={e => setRateUnit(e.target.value)} className="input bg-white">
+                  <option value="">—</option><option value="hour">Hour</option><option value="session">Session</option>
+                  <option value="day">Day</option><option value="fixed">Fixed price</option>
+                </select>
+              </label>
+              <label className="flex items-center gap-2 pb-2.5 cursor-pointer">
+                <input type="checkbox" checked={serviceOnline} onChange={e => setServiceOnline(e.target.checked)} className="accent-amber-500 w-4 h-4" />
+                <span className="text-sm text-gray-700">Also online</span>
+              </label>
+            </div>
+          )}
+          {category === 'PETS' && (
+            <div className="bg-pink-50/50 border border-pink-100 rounded-xl p-4 space-y-2">
+              <div className="flex gap-1.5">
+                {([['adoption','Adoption'],['foster','Foster']] as const).map(([v, l]) => (
+                  <button key={v} type="button" onClick={() => setPetGoal(petGoal === v ? '' : v)}
+                    className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${
+                      petGoal === v ? 'bg-pink-600 text-white border-pink-600' : 'bg-white text-gray-600 border-gray-200'
+                    }`}>{l}</button>
+                ))}
+              </div>
+              <p className="text-xs text-gray-500">Adoption and foster only — no buying or selling animals.</p>
+            </div>
+          )}
+
+          {photo && (
+            <div>
+              <span className="block text-sm font-semibold text-gray-700 mb-1.5">
+                More photos <span className="text-gray-400 font-normal">(up to 4)</span>
+              </span>
+              <div className="flex gap-2 flex-wrap items-center">
+                {photos.map((u, i) => (
+                  <div key={u} className="relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={u.startsWith('/app') ? u : `/app${u}`} alt={`Photo ${i + 2}`} className="w-16 h-16 rounded-xl object-cover border border-gray-200" />
+                    <button type="button" onClick={() => setPhotos(prev => prev.filter(x => x !== u))}
+                      aria-label="Remove photo"
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-gray-900 text-white text-xs leading-none">×</button>
+                  </div>
+                ))}
+                {photos.length < 4 && (
+                  <label className="w-16 h-16 rounded-xl border-2 border-dashed border-gray-300 hover:border-amber-400 flex items-center justify-center cursor-pointer text-gray-400 text-2xl">
+                    +
+                    <input type="file" accept="image/*" onChange={handleGalleryPhoto} className="hidden" disabled={uploading} />
+                  </label>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Price */}
           <div>

@@ -47,6 +47,13 @@ const CAT_META: Record<string, { label: string; badge: string; header: string }>
   EXPERIENCES: { label: 'Experience',  badge: 'bg-indigo-100 text-indigo-700', header: 'from-indigo-400 to-indigo-500'   },
 }
 
+// Per-category resolution verb (brief §16) — same mark-filled mechanism,
+// honest label: nobody "fills" a desk.
+const RESOLVE_LABEL: Record<string, string> = {
+  ROOMS: 'Mark as rented', JOBS: 'Mark as filled', PETS: 'Adopted ❤️',
+  BUY_SELL: 'Mark as sold', FREE: 'Mark as claimed', SERVICES: 'Mark as done',
+}
+
 const CAT_EMOJI: Record<string, string> = {
   ROOMS: '🏠', JOBS: '💼', SERVICES: '🛠️', BUY_SELL: '🛍️', FREE: '🎁', LOST_FOUND: '🔍', RECO: '⭐', PETS: '🐾', EXPERIENCES: '🎟️',
 }
@@ -64,6 +71,8 @@ interface Listing {
   description: string
   price: string | null
   photo: string | null
+  photos: string[]
+  attrs: Record<string, unknown> | null
   photoPosition: number
   contact: string | null
   neighborhood: string | null
@@ -115,6 +124,14 @@ function ListingModal({ listing, currentUserId, isLoggedIn, isSaved, onToggleSav
   onRenew: (id: string) => void
 }) {
   const [copied, setCopied] = useState(false)
+  // Gallery: cover + up to 4 more. activePhoto swaps the hero; guests get
+  // an empty photos array from the API so this collapses to the cover.
+  const allPhotos = [listing.photo, ...(listing.photos ?? [])].filter((u): u is string => !!u)
+  const [activePhoto, setActivePhoto] = useState(0)
+  const [contactOpen, setContactOpen] = useState(false)
+  const [contactText, setContactText] = useState(`Hi ${listing.user.name.split(' ')[0]}, I'm interested in "${listing.title.slice(0, 40)}". Is it still available?`)
+  const [contactSending, setContactSending] = useState(false)
+  const [contactSent, setContactSent] = useState(false)
   const [reportOpen, setReportOpen] = useState(false)
   const [reportReason, setReportReason] = useState('')
   const [reportDetails, setReportDetails] = useState('')
@@ -125,7 +142,7 @@ function ListingModal({ listing, currentUserId, isLoggedIn, isSaved, onToggleSav
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const isOwner  = listing.user.id === currentUserId
   const isGuest  = !currentUserId
-  const photo    = resolveImageUrl(listing.photo)
+  const photo    = resolveImageUrl(allPhotos[activePhoto] ?? listing.photo)
   // #7 perf: 64-wide thumb for the small author avatar (w-9 css = 36px).
   // photo (listing image) stays full-size — it's the actual content.
   const avatar   = avatarUrl(listing.user.profilePhoto, 64)
@@ -187,6 +204,17 @@ function ListingModal({ listing, currentUserId, isLoggedIn, isSaved, onToggleSav
             <Image src={photo} alt={listing.title} fill sizes="(min-width: 640px) 512px, 100vw"
               style={{ objectPosition: `center ${listing.photoPosition ?? 50}%` }}
               className="object-cover" />
+            {allPhotos.length > 1 && (
+              <div className="absolute bottom-2 left-2 right-2 flex gap-1.5 justify-center">
+                {allPhotos.map((u, i) => (
+                  <button key={u} onClick={e => { e.stopPropagation(); setActivePhoto(i) }}
+                    aria-label={`Photo ${i + 1}`}
+                    className={`w-2.5 h-2.5 rounded-full border transition-colors ${
+                      i === activePhoto ? 'bg-white border-white' : 'bg-white/40 border-white/60 hover:bg-white/70'
+                    }`} />
+                ))}
+              </div>
+            )}
             <div className="absolute top-3 right-3 flex items-center gap-2">
               {isLoggedIn && (
               <button onClick={() => onToggleSave(listing.id)} aria-label={isSaved ? 'Unsave listing' : 'Save listing'} className={`w-8 h-8 rounded-full backdrop-blur-sm flex items-center justify-center transition-colors ${isSaved ? 'bg-red-500 text-white' : 'bg-black/30 text-white hover:bg-black/50'}`} title={isSaved ? 'Unsave' : 'Save'}>
@@ -261,6 +289,51 @@ function ListingModal({ listing, currentUserId, isLoggedIn, isSaved, onToggleSav
               Sign in to see contact & full details →
             </Link>
           )}
+          {/* Contact via internal DM — the primary path (brief §7). The
+              endpoint bypasses the connection gate because a listing is an
+              explicit invitation for contact; once-per-listing + 10/day +
+              blocks + URL-stripping do the safety work server-side. */}
+          {isLoggedIn && !isOwner && !contactSent && (
+            !contactOpen ? (
+              <button onClick={() => setContactOpen(true)}
+                className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-2xl transition-colors">
+                💬 Contact {listing.user.name.split(' ')[0]}
+              </button>
+            ) : (
+              <div className="space-y-2">
+                <textarea value={contactText} onChange={e => setContactText(e.target.value)} rows={3} maxLength={300}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400" />
+                <div className="flex gap-2">
+                  <button onClick={() => setContactOpen(false)}
+                    className="px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-xl transition-colors">Cancel</button>
+                  <button disabled={contactSending || !contactText.trim()}
+                    onClick={async () => {
+                      setContactSending(true)
+                      try {
+                        const res = await fetch(`/app/api/listings/${listing.id}/contact`, {
+                          method: 'POST', credentials: 'include',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ text: contactText }),
+                        })
+                        const data = await res.json().catch(() => ({}))
+                        if (!res.ok) { toast.error(data.error ?? 'Could not send'); return }
+                        setContactSent(true); setContactOpen(false)
+                        toast.success('Message sent — replies land in your Messages')
+                      } finally { setContactSending(false) }
+                    }}
+                    className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-colors">
+                    {contactSending ? 'Sending…' : 'Send message'}
+                  </button>
+                </div>
+              </div>
+            )
+          )}
+          {contactSent && (
+            <Link href={`/messages/${listing.user.id}`}
+              className="block text-center w-full py-3 bg-green-100 text-green-800 text-sm font-bold rounded-2xl">
+              ✓ Sent — open the conversation →
+            </Link>
+          )}
           {waHref && (
             <a href={waHref} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 w-full py-3 bg-[#25D366] hover:bg-[#1ebe5d] text-white text-sm font-bold rounded-2xl transition-colors">
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
@@ -274,7 +347,7 @@ function ListingModal({ listing, currentUserId, isLoggedIn, isSaved, onToggleSav
             <div className="flex gap-2">
               {daysLeft <= 7
                 ? <button onClick={() => { onRenew(listing.id); onClose() }} className="flex-1 text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-white py-2.5 rounded-xl transition-colors">Renew listing</button>
-                : <button onClick={() => { onMarkFilled(listing.id); onClose() }} className="flex-1 text-sm font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-xl transition-colors">Mark as done</button>
+                : <button onClick={() => { onMarkFilled(listing.id); onClose() }} className="flex-1 text-sm font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-xl transition-colors">{RESOLVE_LABEL[listing.category] ?? 'Mark as done'}</button>
               }
               {deleteConfirm ? (
                 <>

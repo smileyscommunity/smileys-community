@@ -35,6 +35,9 @@ export function redactListingForGuest<T extends ListingWithUser>(listing: T): T 
     ...listing,
     description: truncated,
     contact: null,
+    // Gallery is member-only; the cover alone is the guest teaser. Without
+    // this the ...spread would pass the new photos array straight through.
+    photos: [],
     user: {
       id: 'member',
       name: 'Smileys member',

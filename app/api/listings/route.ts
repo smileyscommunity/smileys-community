@@ -96,9 +96,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Too many listings. Try again in a minute.' }, { status: 429 })
   }
 
-  const { category, title, description, price, photo, photoPosition, contact, neighborhood } = await req.json()
+  const { category, title, description, price, photo, photoPosition, contact, neighborhood, photos, attrs } = await req.json()
 
-  const VALID_CATEGORIES = ['ROOMS', 'JOBS', 'BUY_SELL', 'SERVICES', 'FREE', 'RECO', 'LOST_FOUND', 'EXPERIENCES', 'PETS']
+  // RECO / LOST_FOUND / EXPERIENCES retired from posting (legacy rows
+  // still render) — their jobs moved to Board posts.
+  const VALID_CATEGORIES = ['ROOMS', 'JOBS', 'BUY_SELL', 'SERVICES', 'FREE', 'PETS']
   if (!category || !VALID_CATEGORIES.includes(category)) {
     return NextResponse.json({ error: 'Invalid category' }, { status: 400 })
   }
@@ -108,7 +110,41 @@ export async function POST(req: NextRequest) {
   if (title.length > 120) return NextResponse.json({ error: 'Title too long' }, { status: 400 })
   if (description.length > 2000) return NextResponse.json({ error: 'Description too long' }, { status: 400 })
 
-  const safePhoto = typeof photo === 'string' && /^\/app\/api\/files\/[a-zA-Z0-9\-]+\/[a-zA-Z0-9\-]+\.(jpg|jpeg|png|webp|gif)$/.test(photo) ? photo : null
+  const PHOTO_RE = /^\/app\/api\/files\/[a-zA-Z0-9\-]+\/[a-zA-Z0-9\-]+\.(jpg|jpeg|png|webp|gif)$/
+  const safePhoto = typeof photo === 'string' && PHOTO_RE.test(photo) ? photo : null
+  // Gallery: up to 4 more shots, each held to the same upload-URL shape as
+  // the cover so nothing external can be embedded.
+  const safePhotos = Array.isArray(photos)
+    ? [...new Set(photos.filter((u): u is string => typeof u === 'string' && PHOTO_RE.test(u)))].slice(0, 4)
+    : []
+
+  // Category-specific attributes — one JSON column, but only allowlisted
+  // keys with allowlisted values ever reach it; everything else is dropped
+  // silently so a stale client can't poison the filters built on these.
+  const ATTR_RULES: Record<string, Record<string, (v: unknown) => boolean>> = {
+    ROOMS: {
+      housingType:   v => typeof v === 'string' && ['room', 'apartment', 'roommate', 'sublet'].includes(v),
+      availableFrom: v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v),
+      furnished:     v => typeof v === 'boolean',
+    },
+    JOBS: {
+      jobType: v => typeof v === 'string' && ['full_time', 'part_time', 'freelance', 'gig'].includes(v),
+      remote:  v => typeof v === 'string' && ['remote', 'in_person', 'hybrid'].includes(v),
+    },
+    SERVICES: {
+      rateUnit: v => typeof v === 'string' && ['hour', 'session', 'day', 'fixed'].includes(v),
+      online:   v => typeof v === 'boolean',
+    },
+    PETS: {
+      petGoal: v => typeof v === 'string' && ['adoption', 'foster'].includes(v),
+    },
+  }
+  let safeAttrs: Record<string, unknown> | null = null
+  if (attrs && typeof attrs === 'object' && !Array.isArray(attrs)) {
+    const rules = ATTR_RULES[category] ?? {}
+    const kept = Object.fromEntries(Object.entries(attrs).filter(([k, v]) => rules[k]?.(v)))
+    if (Object.keys(kept).length > 0) safeAttrs = kept
+  }
   const safeContact = typeof contact === 'string' && contact.length <= 200 ? contact : null
   // Validate against the canonical neighborhood list so we don't store typos that
   // would never match the filter dropdown on the browse page.
@@ -127,6 +163,8 @@ export async function POST(req: NextRequest) {
       description: description.trim(),
       price: price?.trim() || null,
       photo: safePhoto,
+      photos: safePhotos,
+      attrs: safeAttrs === null ? undefined : (safeAttrs as object),
       photoPosition: typeof photoPosition === 'number' && photoPosition >= 0 && photoPosition <= 100 ? Math.round(photoPosition) : 50,
       contact: safeContact,
       neighborhood: safeNeighborhood,
