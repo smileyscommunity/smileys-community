@@ -140,6 +140,7 @@ model User {
   boardReplies               BoardReply[]
   boardInterests             BoardInterest[]
   boardSaves                 BoardSave[]
+  movingSales                MovingSale[]
   neighborhoodPostReplies    NeighborhoodPostReply[]
   neighborhoodPosts          NeighborhoodPost[]
   postLikes                  PostLike[]
@@ -1874,4 +1875,35 @@ model BoardSave {
 
   @@id([postId, userId])
   @@map("board_saves")
+}
+
+// ── Marketplace phase 3: Moving Sales (plan §13) ─────────────────────────────
+// One parent per departure, many items — the whole point is NOT creating
+// fifteen separate listings when someone leaves Istanbul. Expiry is the
+// leaving date itself: a moving sale after the mover has left is noise.
+model MovingSale {
+  id           String           @id @default(cuid())
+  userId       String
+  leavingOn    String           // YYYY-MM-DD, also the expiry
+  neighborhood String?
+  note         String?
+  status       String           @default("active") // 'active' | 'done' | 'removed'
+  createdAt    DateTime         @default(now())
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items        MovingSaleItem[]
+
+  @@index([status, leavingOn])
+  @@map("moving_sales")
+}
+
+model MovingSaleItem {
+  id      String     @id @default(cuid())
+  saleId  String
+  name    String
+  price   String?    // null = FREE
+  claimed Boolean    @default(false)
+  sale    MovingSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@index([saleId])
+  @@map("moving_sale_items")
 }

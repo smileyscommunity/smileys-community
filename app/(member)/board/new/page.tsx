@@ -12,6 +12,7 @@ const CATEGORIES = [
   { id: 'SERVICES', label: 'Service / Skill',    emoji: '🛠️' },
   { id: 'BUY_SELL', label: 'Buy & Sell',         emoji: '🛍️' },
   { id: 'FREE',       label: 'Free stuff',         emoji: '🎁' },
+  { id: 'WANTED',     label: 'Wanted',             emoji: '🔎' },
   { id: 'PETS',       label: 'Adopt a Pet',        emoji: '🐾' },
 ]
 // LOST_FOUND / RECO / EXPERIENCES retired from posting (zero active

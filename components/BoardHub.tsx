@@ -6,9 +6,11 @@ import Image from 'next/image'
 import { useAuth } from '@/contexts/AuthContext'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { resolveImageUrl, avatarUrl, ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
+import posthog from 'posthog-js'
 import { toast } from 'sonner'
 import { SkeletonCard } from '@/components/Skeleton'
 import BoardFeed from '@/components/BoardFeed'
+import MovingSales from '@/components/MovingSales'
 import SocialShare from '@/components/SocialShare'
 import { APP_URL } from '@/lib/env'
 
@@ -21,6 +23,7 @@ const CATEGORIES: Array<{ id: string; label: string; emoji: string; activeCls: s
   { id: 'SERVICES', label: 'Services',        emoji: '🛠️', activeCls: 'bg-orange-500 text-white border-orange-500'       },
   { id: 'BUY_SELL', label: 'Buy & Sell',      emoji: '🛍️', activeCls: 'bg-purple-500 text-white border-purple-500'       },
   { id: 'FREE',       label: 'Free stuff',      emoji: '🎁', activeCls: 'bg-teal-500 text-white border-teal-500'           },
+  { id: 'WANTED',   label: 'Wanted',          emoji: '🔎', activeCls: 'bg-cyan-600 text-white border-cyan-600'           },
   { id: 'PETS',     label: 'Adopt a Pet',     emoji: '🐾', activeCls: 'bg-pink-500 text-white border-pink-500'           },
 ]
 // LOST_FOUND / RECO / EXPERIENCES retired (zero active listings): their
@@ -32,6 +35,7 @@ const ALERT_CATS = [
   { id: 'SERVICES', label: 'Services',        emoji: '🛠️' },
   { id: 'BUY_SELL', label: 'Buy & Sell',      emoji: '🛍️' },
   { id: 'FREE',     label: 'Free stuff',      emoji: '🎁' },
+  { id: 'WANTED',   label: 'Wanted',          emoji: '🔎' },
   { id: 'PETS',     label: 'Adopt a Pet',     emoji: '🐾' },
 ]
 
@@ -41,6 +45,7 @@ const CAT_META: Record<string, { label: string; badge: string; header: string }>
   SERVICES: { label: 'Service',        badge: 'bg-orange-100 text-orange-700',header: 'from-orange-400 to-orange-500' },
   BUY_SELL: { label: 'Buy / Sell',     badge: 'bg-purple-100 text-purple-700',header: 'from-purple-400 to-purple-500' },
   FREE:     { label: 'Free',           badge: 'bg-teal-100 text-teal-700',    header: 'from-teal-400 to-teal-500'     },
+  WANTED:   { label: 'Wanted',         badge: 'bg-cyan-100 text-cyan-700',    header: 'from-cyan-400 to-cyan-500'     },
   RECO:     { label: 'Recommendation', badge: 'bg-amber-100 text-amber-700',  header: 'from-amber-400 to-amber-500'   },
   LOST_FOUND:  { label: 'Lost & Found', badge: 'bg-yellow-100 text-yellow-700', header: 'from-yellow-400 to-yellow-500'   },
   PETS:        { label: 'Adopt a Pet',  badge: 'bg-pink-100 text-pink-700',    header: 'from-pink-400 to-pink-500'       },
@@ -52,9 +57,11 @@ const CAT_META: Record<string, { label: string; badge: string; header: string }>
 const RESOLVE_LABEL: Record<string, string> = {
   ROOMS: 'Mark as rented', JOBS: 'Mark as filled', PETS: 'Adopted ❤️',
   BUY_SELL: 'Mark as sold', FREE: 'Mark as claimed', SERVICES: 'Mark as done',
+  WANTED: 'Mark as found',
 }
 
 const CAT_EMOJI: Record<string, string> = {
+  WANTED: '🔎',
   ROOMS: '🏠', JOBS: '💼', SERVICES: '🛠️', BUY_SELL: '🛍️', FREE: '🎁', LOST_FOUND: '🔍', RECO: '⭐', PETS: '🐾', EXPERIENCES: '🎟️',
 }
 
@@ -318,6 +325,7 @@ function ListingModal({ listing, currentUserId, isLoggedIn, isSaved, onToggleSav
                         const data = await res.json().catch(() => ({}))
                         if (!res.ok) { toast.error(data.error ?? 'Could not send'); return }
                         setContactSent(true); setContactOpen(false)
+                        posthog.capture('listing_contacted', { category: listing.category })
                         toast.success('Message sent — replies land in your Messages')
                       } finally { setContactSending(false) }
                     }}
@@ -347,7 +355,7 @@ function ListingModal({ listing, currentUserId, isLoggedIn, isSaved, onToggleSav
             <div className="flex gap-2">
               {daysLeft <= 7
                 ? <button onClick={() => { onRenew(listing.id); onClose() }} className="flex-1 text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-white py-2.5 rounded-xl transition-colors">Renew listing</button>
-                : <button onClick={() => { onMarkFilled(listing.id); onClose() }} className="flex-1 text-sm font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-xl transition-colors">{RESOLVE_LABEL[listing.category] ?? 'Mark as done'}</button>
+                : <button onClick={() => { posthog.capture('listing_resolved', { category: listing.category }); onMarkFilled(listing.id); onClose() }} className="flex-1 text-sm font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-xl transition-colors">{RESOLVE_LABEL[listing.category] ?? 'Mark as done'}</button>
               }
               {deleteConfirm ? (
                 <>
@@ -948,14 +956,16 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
             the cards vanish once a category or search narrows the view and
             the pill row takes over as the filter UI. */}
         {view === 'market' && category === 'ALL' && !debouncedSearch && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-8">
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 mb-8">
             {([
               { id: 'ROOMS',    label: 'Homes & Rooms',   emoji: '🏠' },
               { id: 'JOBS',     label: 'Jobs & Gigs',     emoji: '💼' },
               { id: 'SERVICES', label: 'Services',        emoji: '🛠️' },
               { id: 'BUY_SELL', label: 'Buy & Sell',      emoji: '🛍️' },
               { id: 'FREE',     label: 'Free Stuff',      emoji: '🎁' },
+              { id: 'WANTED',   label: 'Wanted',          emoji: '🔎' },
               { id: 'PETS',     label: 'Pets & Adoption', emoji: '🐾' },
+              { id: 'MOVING',   label: 'Moving & Leaving', emoji: '📦' },
             ]).map(c => (
               <button key={c.id} onClick={() => setCategory(c.id)}
                 className="bg-white border border-gray-100 rounded-2xl p-4 text-center shadow-sm hover:shadow-md hover:border-amber-300 hover:-translate-y-0.5 transition-all">
@@ -983,6 +993,9 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
             )
           })()}
 
+        {category === 'MOVING' ? (
+          <MovingSales />
+        ) : (<>
         {/* Active filter label */}
         {!loading && listings.length > 0 && (
           <p className="text-sm text-gray-600 mb-5">
@@ -1070,6 +1083,8 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
             )}
           </>
         )}
+
+        </>)}
 
         {/* Stay safe (§21) — always visible on the marketplace, compact.
             Smileys connects members; it doesn't guarantee transactions. */}

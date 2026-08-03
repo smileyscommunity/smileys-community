@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
 
   // RECO / LOST_FOUND / EXPERIENCES retired from posting (legacy rows
   // still render) — their jobs moved to Board posts.
-  const VALID_CATEGORIES = ['ROOMS', 'JOBS', 'BUY_SELL', 'SERVICES', 'FREE', 'PETS']
+  const VALID_CATEGORIES = ['ROOMS', 'JOBS', 'BUY_SELL', 'SERVICES', 'FREE', 'WANTED', 'PETS']
   if (!category || !VALID_CATEGORIES.includes(category)) {
     return NextResponse.json({ error: 'Invalid category' }, { status: 400 })
   }
