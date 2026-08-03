@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { ISTANBUL_NEIGHBORHOODS, resolveImageUrl, avatarUrl, getInitials } from '@/lib/data'
 import { countryFlag } from '@/lib/countries'
+import { matchesTimeFilter, statusBadge, type TimeFilter } from '@/lib/hangoutTime'
 import { toast } from 'sonner'
 import { downscaleImage } from '@/lib/image-resize'
 
@@ -178,6 +179,7 @@ export default function HangoutsPage() {
   // All default to "off" / "all" so newcomers see the full feed by default;
   // filters are an explicit narrowing action.
   const [modeFilter,          setModeFilter]          = useState<ModeFilter>('all')
+  const [timeFilter,          setTimeFilter]          = useState<TimeFilter>('all')
   const [neighborhoodFilter,  setNeighborhoodFilter]  = useState<string | null>(null)
   const [languageOnly,        setLanguageOnly]        = useState(false)
 
@@ -396,9 +398,9 @@ export default function HangoutsPage() {
               + buttons was nearly a full phone screen before any content. */}
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-3 mb-1">
             <div>
-              <span className="hidden sm:inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">☕ Spontaneous</span>
-              <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-gray-900">Hangouts</h1>
-              <p className="text-sm sm:text-base text-gray-600 mt-1">&quot;I&apos;m at X right now — join me?&quot;</p>
+              <span className="hidden sm:inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">☕ Hangouts</span>
+              <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-gray-900">Who&apos;s around?</h1>
+              <p className="text-sm sm:text-base text-gray-600 mt-1">See what Smileys members are doing nearby — or start something yourself.</p>
             </div>
             <div className="flex items-center gap-2 w-full sm:w-auto sm:shrink-0">
               {/* Recap entry point — anyone who's had a recent hangout can
@@ -422,7 +424,7 @@ export default function HangoutsPage() {
                 aria-expanded={showForm}
                 className="flex-1 sm:flex-initial flex flex-col items-center justify-center px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl transition-colors">
                 {showForm ? <span className="text-sm font-bold">× Close</span> : <>
-                  <span className="text-sm font-bold">＋ Post a hangout</span>
+                  <span className="text-sm font-bold">＋ Start a Hangout</span>
                   <span className="text-[10px] font-normal text-amber-100 mt-0.5">I’m at X — come join</span>
                 </>}
               </button>
@@ -640,6 +642,28 @@ export default function HangoutsPage() {
                 only the mode chips share the role=tab semantics; the
                 toggles are independent on/off filters and use
                 aria-pressed instead. */}
+            <div role="tablist" aria-label="Filter hangouts by time" className="contents">
+              {([
+                { v: 'all',      label: 'Any time' },
+                { v: 'now',      label: '🟢 Now' },
+                { v: 'today',    label: 'Today' },
+                { v: 'tonight',  label: '🌙 Tonight' },
+                { v: 'tomorrow', label: 'Tomorrow' },
+              ] as { v: TimeFilter; label: string }[]).map(opt => (
+                <button
+                  key={opt.v}
+                  onClick={() => setTimeFilter(opt.v)}
+                  role="tab"
+                  aria-selected={timeFilter === opt.v}
+                  className={`text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap transition-colors ${
+                    timeFilter === opt.v
+                      ? 'bg-gray-900 text-white'
+                      : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300'
+                  }`}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
             <div role="tablist" aria-label="Filter hangouts by meet mode" className="contents">
               {([
                 { v: 'all',   label: 'All' },
@@ -714,6 +738,7 @@ export default function HangoutsPage() {
           // are exclusive single-select; language is an independent toggle.
           const myLangs = new Set(user.languages ?? [])
           const filtered = hangouts.filter(h => {
+            if (!matchesTimeFilter(h, timeFilter)) return false
             if (modeFilter !== 'all' && h.meetMode !== modeFilter) return false
             if (neighborhoodFilter && h.neighborhood !== neighborhoodFilter) return false
             if (languageOnly) {
@@ -732,7 +757,7 @@ export default function HangoutsPage() {
           }
 
           if (filtered.length === 0 && pulses.length === 0) {
-            const anyFilterOn = modeFilter !== 'all' || neighborhoodFilter !== null || languageOnly
+            const anyFilterOn = modeFilter !== 'all' || timeFilter !== 'all' || neighborhoodFilter !== null || languageOnly
             if (anyFilterOn) {
               return (
                 <div className="text-center py-16">
@@ -1186,6 +1211,14 @@ function HangoutCard({ h, currentUser, onCancel, onMutated }: {
                 1-on-1
               </span>
             )}
+            {(() => {
+              const b = statusBadge(h.startsAt, h.endsAt)
+              return b && (
+                <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold border shrink-0 ${b.cls}`}>
+                  {b.label}
+                </span>
+              )
+            })()}
           </div>
           <p className={`text-sm font-bold mt-0.5 flex items-center gap-1.5 ${status.live ? 'text-green-700' : 'text-amber-700'}`}>
             {status.live && (

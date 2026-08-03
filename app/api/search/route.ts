@@ -10,11 +10,11 @@ export async function GET(req: NextRequest) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   if (!await rateLimit(`search:${session.id}`, 30, 60_000)) {
-    return NextResponse.json({ events: [], members: [], clubs: [] })
+    return NextResponse.json({ events: [], members: [], clubs: [], listings: [] })
   }
 
   const q = req.nextUrl.searchParams.get('q')?.trim()
-  if (!q || q.length < 2 || q.length > 100) return NextResponse.json({ events: [], members: [], clubs: [] })
+  if (!q || q.length < 2 || q.length > 100) return NextResponse.json({ events: [], members: [], clubs: [], listings: [] })
 
   const today = todayIstanbul()
 
@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
   })
   const blockedIds = blockRelations.map(b => b.blockerId === session.id ? b.blockedId : b.blockerId)
 
-  const [events, members, clubs] = await Promise.all([
+  const [events, members, clubs, listings] = await Promise.all([
     prisma.event.findMany({
       where: {
         status: 'published',
@@ -55,6 +55,18 @@ export async function GET(req: NextRequest) {
       select: { id: true, name: true, emoji: true, slug: true, memberCount: true },
       take: 5,
     }),
+    prisma.listing.findMany({
+      where: {
+        status: 'active',
+        OR: [
+          { title:       { contains: q, mode: 'insensitive' } },
+          { description: { contains: q, mode: 'insensitive' } },
+        ],
+      },
+      select: { id: true, title: true, category: true, price: true, neighborhood: true },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+    }),
   ])
 
   // Flag 'connections only' members the viewer can't fully see so the
@@ -66,5 +78,5 @@ export async function GET(req: NextRequest) {
     restricted: restricted.has(m.id),
   }))
 
-  return NextResponse.json({ events, members: membersOut, clubs })
+  return NextResponse.json({ events, members: membersOut, clubs, listings })
 }

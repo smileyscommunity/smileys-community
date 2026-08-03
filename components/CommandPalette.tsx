@@ -11,9 +11,15 @@ interface Cmd {
 }
 
 interface SearchResults {
-  events:  { id: string; title: string; date: string; emoji: string; neighborhood: string }[]
-  members: { id: string; name: string; color: string; profilePhoto: string | null; neighborhood: string | null; restricted?: boolean }[]
-  clubs:   { id: string; name: string; emoji: string; slug: string; memberCount: number }[]
+  events:   { id: string; title: string; date: string; emoji: string; neighborhood: string }[]
+  members:  { id: string; name: string; color: string; profilePhoto: string | null; neighborhood: string | null; restricted?: boolean }[]
+  clubs:    { id: string; name: string; emoji: string; slug: string; memberCount: number }[]
+  listings: { id: string; title: string; category: string; price: string | null; neighborhood: string | null }[]
+}
+
+const LISTING_CAT_EMOJI: Record<string, string> = {
+  ROOMS: '🏠', JOBS: '💼', SERVICES: '🛠️', BUY_SELL: '🛍️', FREE: '🎁',
+  LOST_FOUND: '🔍', RECO: '⭐', PETS: '🐾', EXPERIENCES: '🎟️',
 }
 
 export default function CommandPalette() {
@@ -115,7 +121,7 @@ export default function CommandPalette() {
     ]),
   ]
 
-  const hasResults = results && (results.events.length + results.members.length + results.clubs.length) > 0
+  const hasResults = results && (results.events.length + results.members.length + results.clubs.length + results.listings.length) > 0
   const showStatic = !query || query.length < 2
 
   if (!open) return null
@@ -139,7 +145,7 @@ export default function CommandPalette() {
               autoFocus
               value={query}
               onValueChange={setQuery}
-              placeholder="Search events, members, clubs…"
+              placeholder="Search events, members, clubs, board…"
               className="flex-1 text-sm text-gray-900 placeholder-gray-400 outline-none bg-transparent"
             />
             {searching && (
@@ -229,6 +235,28 @@ export default function CommandPalette() {
                         <div className="flex-1 min-w-0">
                           <p className="font-medium text-gray-900 truncate">{c.name}</p>
                           <p className="text-xs text-gray-400">{c.memberCount} members</p>
+                        </div>
+                      </Command.Item>
+                    ))}
+                  </Command.Group>
+                )}
+
+                {results.listings.length > 0 && (
+                  <Command.Group className="px-2">
+                    <div className="px-2 pt-3 pb-1">
+                      <span className="text-xs font-semibold text-gray-600 uppercase tracking-widest">Board & Marketplace</span>
+                    </div>
+                    {results.listings.map(l => (
+                      <Command.Item
+                        key={l.id}
+                        value={`listing-${l.id}`}
+                        onSelect={() => go(`/board/${l.id}`)}
+                        className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer text-sm data-[selected=true]:bg-amber-50 data-[selected=true]:text-amber-700 transition-colors mb-0.5"
+                      >
+                        <span className="w-7 h-7 flex items-center justify-center bg-purple-50 rounded-lg text-base shrink-0">{LISTING_CAT_EMOJI[l.category] ?? '📋'}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-gray-900 truncate">{l.title}</p>
+                          <p className="text-xs text-gray-400">{[l.price, l.neighborhood].filter(Boolean).join(' · ')}</p>
                         </div>
                       </Command.Item>
                     ))}
