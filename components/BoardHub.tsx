@@ -21,11 +21,10 @@ const CATEGORIES: Array<{ id: string; label: string; emoji: string; activeCls: s
   { id: 'SERVICES', label: 'Services',        emoji: '🛠️', activeCls: 'bg-orange-500 text-white border-orange-500'       },
   { id: 'BUY_SELL', label: 'Buy & Sell',      emoji: '🛍️', activeCls: 'bg-purple-500 text-white border-purple-500'       },
   { id: 'FREE',       label: 'Free stuff',      emoji: '🎁', activeCls: 'bg-teal-500 text-white border-teal-500'           },
-  { id: 'LOST_FOUND', label: 'Lost & Found',  emoji: '🔍', activeCls: 'bg-yellow-500 text-white border-yellow-500'       },
-  { id: 'RECO',       label: 'Recommendations',emoji: '⭐', activeCls: 'bg-amber-500 text-white border-amber-500'         },
-  { id: 'EXPERIENCES', label: 'Experiences',  emoji: '🎟️', activeCls: 'bg-indigo-500 text-white border-indigo-500'       },
   { id: 'PETS',     label: 'Adopt a Pet',     emoji: '🐾', activeCls: 'bg-pink-500 text-white border-pink-500'           },
 ]
+// LOST_FOUND / RECO / EXPERIENCES retired (zero active listings): their
+// deep links fall back to ALL, legacy rows still render inside ALL.
 
 const ALERT_CATS = [
   { id: 'ROOMS',    label: 'Rooms',           emoji: '🏠' },
@@ -33,10 +32,7 @@ const ALERT_CATS = [
   { id: 'SERVICES', label: 'Services',        emoji: '🛠️' },
   { id: 'BUY_SELL', label: 'Buy & Sell',      emoji: '🛍️' },
   { id: 'FREE',     label: 'Free stuff',      emoji: '🎁' },
-  { id: 'RECO',     label: 'Recommendations', emoji: '⭐' },
-  { id: 'LOST_FOUND',   label: 'Lost & Found', emoji: '🔍' },
-  { id: 'EXPERIENCES',  label: 'Experiences',  emoji: '🎟️' },
-  { id: 'PETS',         label: 'Adopt a Pet',  emoji: '🐾' },
+  { id: 'PETS',     label: 'Adopt a Pet',     emoji: '🐾' },
 ]
 
 const CAT_META: Record<string, { label: string; badge: string; header: string }> = {
@@ -428,7 +424,10 @@ function ListingCard({ listing, onClick, isLoggedIn, isSaved, onToggleSave }: {
               {listing.user.name[0]}
             </div>
           )}
-          <p className="text-[11px] text-gray-600 truncate flex-1">{listing.user.name}</p>
+          <p className="text-[11px] text-gray-600 truncate flex-1">
+            {listing.user.name}
+            <span className="text-green-700 font-semibold"> · ✓ member</span>
+          </p>
           {isLoggedIn && (
           <button
             onClick={async e => {
@@ -477,6 +476,15 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
   // page wrappers own deep-link redirects between the two routes.
   const view = forcedView
   const [neighborhood, setNeighborhood] = useState(searchParams.get('neighborhood') ?? '')
+  // Rotating search examples (brief §2) — teaches the search's range
+  // without a wall of copy.
+  const SEARCH_HINTS = ['Room in Kadıköy', 'English teacher', 'Desk', 'Cat sitter', 'Photographer', 'Moving boxes']
+  const [hintIdx, setHintIdx] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setHintIdx(i => (i + 1) % SEARCH_HINTS.length), 3500)
+    return () => clearInterval(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [search, setSearch]             = useState(searchParams.get('q') ?? '')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [listings, setListings] = useState<Listing[]>([])
@@ -725,7 +733,7 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
             </svg>
             <input
               type="text"
-              placeholder="Search listings…"
+              placeholder={view === 'market' ? `🔎 ${SEARCH_HINTS[hintIdx]}…` : "Search listings…"}
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition"
@@ -862,6 +870,46 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
           </Link>
         </div>
 
+        {/* Category cards (brief §3) — the primary navigation on the
+            default view. Marketplace is category-first, Board is feed-first;
+            the cards vanish once a category or search narrows the view and
+            the pill row takes over as the filter UI. */}
+        {view === 'market' && category === 'ALL' && !debouncedSearch && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-8">
+            {([
+              { id: 'ROOMS',    label: 'Homes & Rooms',   emoji: '🏠' },
+              { id: 'JOBS',     label: 'Jobs & Gigs',     emoji: '💼' },
+              { id: 'SERVICES', label: 'Services',        emoji: '🛠️' },
+              { id: 'BUY_SELL', label: 'Buy & Sell',      emoji: '🛍️' },
+              { id: 'FREE',     label: 'Free Stuff',      emoji: '🎁' },
+              { id: 'PETS',     label: 'Pets & Adoption', emoji: '🐾' },
+            ]).map(c => (
+              <button key={c.id} onClick={() => setCategory(c.id)}
+                className="bg-white border border-gray-100 rounded-2xl p-4 text-center shadow-sm hover:shadow-md hover:border-amber-300 hover:-translate-y-0.5 transition-all">
+                <span aria-hidden="true" className="block text-3xl mb-2">{c.emoji}</span>
+                <span className="block text-xs font-bold text-gray-900 leading-tight">{c.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Fresh near you (brief) — a shortcut into the viewer's own
+            neighborhood, not a duplicated carousel: at today's volume a
+            second copy of the same cards would just confuse the grid. */}
+        {view === 'market' && category === 'ALL' && !debouncedSearch && !neighborhood && isLoggedIn && user.neighborhood
+          && (() => {
+            const nearby = listings.filter(l => l.neighborhood === user.neighborhood).length
+            return nearby > 0 && (
+              <button onClick={() => setNeighborhood(user.neighborhood!)}
+                className="w-full mb-6 flex items-center justify-between gap-3 bg-amber-50 border border-amber-100 rounded-2xl px-5 py-3.5 hover:bg-amber-100/60 transition-colors text-left">
+                <span className="text-sm font-bold text-gray-900">
+                  <span aria-hidden="true">📍 </span>Fresh near you — {nearby} listing{nearby !== 1 ? 's' : ''} in {user.neighborhood}
+                </span>
+                <span className="text-xs font-bold text-amber-700 shrink-0">View →</span>
+              </button>
+            )
+          })()}
+
         {/* Active filter label */}
         {!loading && listings.length > 0 && (
           <p className="text-sm text-gray-600 mb-5">
@@ -949,6 +997,17 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
             )}
           </>
         )}
+
+        {/* Stay safe (§21) — always visible on the marketplace, compact.
+            Smileys connects members; it doesn't guarantee transactions. */}
+        <div className="mt-10 bg-gray-50 border border-gray-200 rounded-2xl p-5">
+          <p className="text-xs font-bold text-gray-700 uppercase tracking-widest mb-2">🛡️ Stay safe</p>
+          <p className="text-xs text-gray-600 leading-relaxed">
+            Meet in public when possible · inspect items before paying · never send deposits before
+            seeing a property and verifying who you&apos;re dealing with · report anything that feels off
+            via the <span className="font-semibold">•••</span> menu on any listing.
+          </p>
+        </div>
         </>)}
       </div>
     </div>

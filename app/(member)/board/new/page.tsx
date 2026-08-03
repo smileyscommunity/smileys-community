@@ -12,11 +12,11 @@ const CATEGORIES = [
   { id: 'SERVICES', label: 'Service / Skill',    emoji: '🛠️' },
   { id: 'BUY_SELL', label: 'Buy & Sell',         emoji: '🛍️' },
   { id: 'FREE',       label: 'Free stuff',         emoji: '🎁' },
-  { id: 'LOST_FOUND', label: 'Lost & Found',      emoji: '🔍' },
-  { id: 'RECO',       label: 'Recommendation',    emoji: '⭐' },
-  { id: 'EXPERIENCES', label: 'Events & Experiences',  emoji: '🎟️' },
-  { id: 'PETS',        label: 'Adopt a Pet',           emoji: '🐾' },
+  { id: 'PETS',       label: 'Adopt a Pet',        emoji: '🐾' },
 ]
+// LOST_FOUND / RECO / EXPERIENCES retired from posting (zero active
+// listings at retirement): recommendations and lost&found now live as
+// Board posts. Legacy listings in those categories still render.
 
 export default function NewListingPage() {
   const router = useRouter()
