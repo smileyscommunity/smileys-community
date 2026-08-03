@@ -134,6 +134,25 @@ export default async function VisitingPage() {
     ? upcomingEvents.filter(e => e.date >= viewerVisit.startsOn && e.date <= viewerVisit.endsOn).slice(0, 6)
     : []
 
+  // §20 of the hangouts plan — spontaneous plans surfaced to visitors.
+  // Members only (hangouts are member content); date-matched to the
+  // viewer's own visit when they've posted one, otherwise just what's
+  // active or imminent. Server-side, so no client fetch/401 dance.
+  const hangoutsDuringVisit = session ? await prisma.hangout.findMany({
+    where: {
+      status: 'active',
+      endsAt: { gte: new Date() },
+      ...(viewerVisit ? { startsAt: { lte: new Date(viewerVisit.endsOn + 'T23:59:59+03:00') } } : {}),
+    },
+    select: {
+      id: true, title: true, activity: true, neighborhood: true, startsAt: true, maxPeople: true,
+      user: { select: { name: true } },
+      _count: { select: { joins: true } },
+    },
+    orderBy: { startsAt: 'asc' },
+    take: 4,
+  }) : []
+
   // Their neighborhood leads when known, then the busiest ones fill the row.
   const memberCountFor = (n: string) =>
     neighborhoodCounts.find(c => c.neighborhood === n)?._count._all ?? 0
@@ -342,6 +361,44 @@ export default async function VisitingPage() {
           )}
         </div>
       </section>
+
+      {/* ── Hangouts while you're here (§20) — members only, silent when
+          there are none. Spontaneous plans are the fastest way a visitor
+          actually meets people, which is this page's whole promise. */}
+      {hangoutsDuringVisit.length > 0 && (
+        <section className="bg-amber-50/60 border-t border-amber-100">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
+            <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">
+              Hangouts while you&apos;re here
+            </h2>
+            <p className="text-gray-600 mt-2 mb-8">
+              Spontaneous plans from members — no RSVP ceremony, just show up.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {hangoutsDuringVisit.map(hg => (
+                <Link key={hg.id} href={`/hangouts/${hg.id}`}
+                  className="bg-white border border-amber-100 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-amber-300 transition-all group">
+                  <p className="font-bold text-gray-900 leading-snug group-hover:text-amber-700 transition-colors">
+                    {hg.title}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1.5">
+                    🕐 {new Date(hg.startsAt).toLocaleString('en-GB', { weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'Europe/Istanbul' })}
+                    {hg.neighborhood && <> · 📍 {hg.neighborhood}</>}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {hg.user.name.split(' ')[0]} · 👥 {hg._count.joins + 1} going
+                    {hg.maxPeople && hg.maxPeople - hg._count.joins - 1 > 0 && <> · {hg.maxPeople - hg._count.joins - 1} spots left</>}
+                  </p>
+                  <span className="inline-block text-xs font-bold text-amber-600 mt-3">Join →</span>
+                </Link>
+              ))}
+            </div>
+            <Link href="/hangouts" className="inline-block mt-6 text-sm font-bold text-amber-600 hover:underline">
+              All hangouts →
+            </Link>
+          </div>
+        </section>
+      )}
 
       {/* ── Already in Istanbul? ── */}
       <section className="bg-amber-50 border-t border-amber-100">

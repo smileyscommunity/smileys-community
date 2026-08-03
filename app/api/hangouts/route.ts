@@ -77,6 +77,15 @@ export async function GET(req: NextRequest) {
 
   // Shape into something the client can render directly — joinedByMe is a
   // boolean instead of forcing the client to scan the joins array.
+  // ✈️ Visitor-host badge (§20): hosts with an active visit get flagged so
+  // their hangouts carry the "Visiting Istanbul" treatment. One batch query
+  // for the whole feed, not per row.
+  const today = new Date().toISOString().slice(0, 10)
+  const visitorHosts = new Set((await prisma.visitorAnnouncement.findMany({
+    where:  { userId: { in: [...new Set(hangouts.map(h => h.userId))], not: null }, status: 'active', endsOn: { gte: today } },
+    select: { userId: true },
+  })).map(v => v.userId))
+
   const shaped = hangouts.map(h => ({
     id:           h.id,
     title:        h.title,
@@ -90,6 +99,7 @@ export async function GET(req: NextRequest) {
     photo:        h.photo,
     activity:     h.activity,
     maxPeople:    h.maxPeople,
+    hostIsVisitor: visitorHosts.has(h.userId),
     user:         {
       ...h.user,
       // Number of caller's friends who are also friends with this host.

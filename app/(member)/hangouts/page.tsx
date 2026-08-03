@@ -35,6 +35,7 @@ interface Hangout {
   activity:     string | null
   // Total capacity INCLUDING the host; null = no limit.
   maxPeople:    number | null
+  hostIsVisitor: boolean
   // Optional photo of the meeting spot — single image URL.
   photo:        string | null
   user:         JoinerSummary
@@ -1244,6 +1245,11 @@ function HangoutCard({ h, currentUser, onCancel, onMutated }: {
                 1-on-1
               </span>
             )}
+            {h.hostIsVisitor && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-700 text-[10px] font-semibold border border-sky-200 shrink-0">
+                ✈️ Visiting Istanbul
+              </span>
+            )}
             {h.activity && ACTIVITY_META[h.activity] && (
               <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600 text-[10px] font-semibold border border-gray-200 shrink-0">
                 {ACTIVITY_META[h.activity].emoji} {ACTIVITY_META[h.activity].label}
@@ -1423,6 +1429,12 @@ function HangoutCard({ h, currentUser, onCancel, onMutated }: {
           )
         })()}
 
+        {isOwner && h.joiners.length + 1 >= 8 && (
+          <Link href="/contact"
+            className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-3 py-1.5 shrink-0 hover:bg-amber-100 transition-colors">
+            🎉 Getting popular — make it an Event?
+          </Link>
+        )}
         {!isOwner && (() => {
           // maxPeople includes the host; "going" (joiners+1) is compared
           // against it. A member already in can always leave a full hangout.
