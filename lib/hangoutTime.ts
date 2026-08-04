@@ -3,7 +3,7 @@
 // day/hour maths in Istanbul wall-clock, matching the rest of the page.
 const TZ = 'Europe/Istanbul'
 
-export type TimeFilter = 'all' | 'now' | 'today' | 'tonight' | 'tomorrow'
+export type TimeFilter = 'all' | 'now' | 'today' | 'tonight' | 'tomorrow' | 'week'
 
 const istanbulDay = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: TZ })
 
@@ -20,6 +20,7 @@ export function matchesTimeFilter(h: { startsAt: string; endsAt: string }, f: Ti
   const startsTomorrow = istanbulDay(s) === istanbulDay(new Date(now.getTime() + 86_400_000))
   if (f === 'today')    return live || startsToday
   if (f === 'tomorrow') return startsTomorrow
+  if (f === 'week')     return live || (s > now && s.getTime() - now.getTime() <= 7 * 86_400_000)
   // tonight: starts today from 17:00 Istanbul onwards (or is live into it)
   const startHour = parseInt(s.toLocaleTimeString('en-GB', { timeZone: TZ, hourCycle: 'h23', hour: '2-digit' }), 10)
   return (live || startsToday) && startHour >= 17

@@ -8,6 +8,7 @@ import { ISTANBUL_NEIGHBORHOODS, resolveImageUrl, avatarUrl, getInitials } from 
 import { countryFlag } from '@/lib/countries'
 import { matchesTimeFilter, statusBadge, type TimeFilter } from '@/lib/hangoutTime'
 import { HANGOUT_ACTIVITIES, ACTIVITY_META, HANGOUT_CAPACITIES } from '@/lib/hangoutActivities'
+import posthog from 'posthog-js'
 import { toast } from 'sonner'
 import { downscaleImage } from '@/lib/image-resize'
 
@@ -185,6 +186,7 @@ export default function HangoutsPage() {
   // filters are an explicit narrowing action.
   const [modeFilter,          setModeFilter]          = useState<ModeFilter>('all')
   const [timeFilter,          setTimeFilter]          = useState<TimeFilter>('all')
+  const [activityFilter,      setActivityFilter]      = useState<string | null>(null)
   const [neighborhoodFilter,  setNeighborhoodFilter]  = useState<string | null>(null)
   const [languageOnly,        setLanguageOnly]        = useState(false)
 
@@ -309,6 +311,7 @@ export default function HangoutsPage() {
       })
       const data = await res.json()
       if (!res.ok) { toast.error(data.error ?? 'Could not post'); return }
+      posthog.capture('hangout_created', { activity: activity || null, capped: maxPeople > 0 })
       toast.success('Hangout posted — neighbors are getting pinged')
       await loadFeed()
       setShowForm(false)
@@ -414,6 +417,7 @@ export default function HangoutsPage() {
               <span className="hidden sm:inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">☕ Hangouts</span>
               <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-gray-900">Who&apos;s around?</h1>
               <p className="text-sm sm:text-base text-gray-600 mt-1">See what Smileys members are doing nearby — or start something yourself.</p>
+              <p className="hidden sm:block text-xs text-gray-400 mt-1.5">Spontaneous plans · Real people · Right now</p>
             </div>
             <div className="flex items-center gap-2 w-full sm:w-auto sm:shrink-0">
               {/* Recap entry point — anyone who's had a recent hangout can
@@ -542,6 +546,37 @@ export default function HangoutsPage() {
             {/* Stack on mobile — native datetime-local inputs reserve a
                 fixed width for their date+time controls and overflow a
                 2-col grid on phones, causing the two fields to overlap. */}
+            {/* Quick when-picks (brief §8): one tap fills both time fields —
+                the datetime inputs below stay for fine-tuning. Istanbul
+                wall-clock via the same helpers the inputs already use. */}
+            <div className="flex gap-1.5 flex-wrap">
+              {([
+                { label: '⚡ Now',       start: 0,    dur: 120 },
+                { label: 'In 30 min',   start: 30,   dur: 120 },
+                { label: 'In 1 hour',   start: 60,   dur: 120 },
+                { label: '🌙 Tonight',  start: -1,   dur: 240 },
+              ]).map(q => (
+                <button key={q.label} type="button"
+                  onClick={() => {
+                    let s0: Date
+                    if (q.start === -1) {
+                      // Tonight = 19:00 Istanbul today
+                      const nowIst = new Date()
+                      s0 = new Date(nowIst)
+                      const [y, m, d] = nowIst.toLocaleDateString('en-CA', { timeZone: 'Europe/Istanbul' }).split('-').map(Number)
+                      s0 = new Date(Date.UTC(y, m - 1, d, 19 - 3, 0)) // 19:00 UTC+3
+                      if (s0 < nowIst) s0 = new Date(nowIst.getTime() + 30 * 60_000)
+                    } else {
+                      s0 = new Date(Date.now() + q.start * 60_000)
+                    }
+                    setStartsAt(toIstanbulInputValue(s0))
+                    setEndsAt(toIstanbulInputValue(new Date(s0.getTime() + q.dur * 60_000)))
+                  }}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-full border bg-white text-gray-600 border-gray-200 hover:border-amber-400 hover:bg-amber-50 transition-colors">
+                  {q.label}
+                </button>
+              ))}
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label className="block">
                 <span className="block text-sm font-semibold text-gray-700 mb-1.5">From</span>
@@ -683,6 +718,7 @@ export default function HangoutsPage() {
                 { v: 'today',    label: 'Today' },
                 { v: 'tonight',  label: '🌙 Tonight' },
                 { v: 'tomorrow', label: 'Tomorrow' },
+                { v: 'week',     label: 'This week' },
               ] as { v: TimeFilter; label: string }[]).map(opt => (
                 <button
                   key={opt.v}
@@ -692,6 +728,31 @@ export default function HangoutsPage() {
                   className={`text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap transition-colors ${
                     timeFilter === opt.v
                       ? 'bg-gray-900 text-white'
+                      : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300'
+                  }`}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <div role="tablist" aria-label="Filter hangouts by activity" className="contents">
+              {([
+                { v: null,       label: 'All' },
+                { v: 'coffee',   label: '☕ Coffee' },
+                { v: 'drinks',   label: '🍸 Drinks' },
+                { v: 'food',     label: '🍽️ Food' },
+                { v: 'walk',     label: '🚶 Walk' },
+                { v: 'cowork',   label: '💻 Cowork' },
+                { v: 'exercise', label: '🏃 Active' },
+                { v: 'music',    label: '🎶 Music' },
+              ] as { v: string | null; label: string }[]).map(opt => (
+                <button
+                  key={opt.label}
+                  onClick={() => setActivityFilter(opt.v)}
+                  role="tab"
+                  aria-selected={activityFilter === opt.v}
+                  className={`text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap transition-colors ${
+                    activityFilter === opt.v
+                      ? 'bg-amber-500 text-white'
                       : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300'
                   }`}>
                   {opt.label}
@@ -773,6 +834,9 @@ export default function HangoutsPage() {
           const myLangs = new Set(user.languages ?? [])
           const filtered = hangouts.filter(h => {
             if (!matchesTimeFilter(h, timeFilter)) return false
+            // Legacy hangouts (activity null) only surface under "All" —
+            // hiding them from a specific chip beats mislabeling them.
+            if (activityFilter && h.activity !== activityFilter) return false
             if (modeFilter !== 'all' && h.meetMode !== modeFilter) return false
             if (neighborhoodFilter && h.neighborhood !== neighborhoodFilter) return false
             if (languageOnly) {
@@ -791,7 +855,7 @@ export default function HangoutsPage() {
           }
 
           if (filtered.length === 0 && pulses.length === 0) {
-            const anyFilterOn = modeFilter !== 'all' || timeFilter !== 'all' || neighborhoodFilter !== null || languageOnly
+            const anyFilterOn = modeFilter !== 'all' || timeFilter !== 'all' || activityFilter !== null || neighborhoodFilter !== null || languageOnly
             if (anyFilterOn) {
               return (
                 <div className="text-center py-16">
@@ -986,6 +1050,46 @@ export default function HangoutsPage() {
           </div>
         )}
 
+        {/* Explore by activity (§23) — the same activity filter, presented
+            as an invitation instead of a control. Scrolls back to the feed
+            with the chip applied. */}
+        <div className="pt-4">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 px-1">What are you up for?</p>
+          <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+            {([
+              { v: 'coffee',   label: 'Coffee',   emoji: '☕' },
+              { v: 'drinks',   label: 'Drinks',   emoji: '🍸' },
+              { v: 'food',     label: 'Food',     emoji: '🍽️' },
+              { v: 'walk',     label: 'Walks',    emoji: '🚶' },
+              { v: 'cowork',   label: 'Cowork',   emoji: '💻' },
+              { v: 'exercise', label: 'Active',   emoji: '🏃' },
+              { v: 'outdoors', label: 'Outdoors', emoji: '🌳' },
+              { v: 'music',    label: 'Music',    emoji: '🎶' },
+            ]).map(a => (
+              <button key={a.v}
+                onClick={() => { setActivityFilter(a.v); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+                className="bg-white border border-gray-100 rounded-2xl p-3 text-center shadow-sm hover:border-amber-300 hover:-translate-y-0.5 transition-all">
+                <span aria-hidden="true" className="block text-2xl mb-1">{a.emoji}</span>
+                <span className="block text-[11px] font-bold text-gray-700">{a.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Events cross-link (§24) — reinforces the plan-ahead / right-now
+            split without competing with it. */}
+        <Link href="/events"
+          className="block bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-2xl px-5 py-4 transition-colors group">
+          <div className="flex items-center gap-4">
+            <div aria-hidden="true" className="text-2xl shrink-0">🎉</div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-gray-900">Looking for something planned?</p>
+              <p className="text-xs text-gray-600 mt-0.5">Workshops, sailing, dinners, language exchanges — organized Smileys events.</p>
+            </div>
+            <span className="text-sm font-bold text-gray-700 shrink-0 group-hover:translate-x-0.5 transition-transform">→</span>
+          </div>
+        </Link>
+
         </div>
       </div>
     </div>
@@ -1164,6 +1268,7 @@ function HangoutCard({ h, currentUser, onCancel, onMutated }: {
       const res = await fetch(`/app/api/hangouts/${h.id}/join`, { method: 'POST', credentials: 'include' })
       const data = await res.json()
       if (!res.ok) { toast.error(data.error ?? 'Could not update'); return }
+      posthog.capture(data.joined ? 'hangout_joined' : 'hangout_left', { activity: h.activity ?? null })
       // Update locally — count + avatar strip + my-join flip
       // Optimistic add uses the real user — name + color + photo —
       // so the avatar strip shows the right initials + brand colour
