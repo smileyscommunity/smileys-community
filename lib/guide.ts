@@ -59,4 +59,7 @@ export interface Experience {
   neighborhoods: string[]
   // §6 — surfaces on the "First time in Istanbul?" strip.
   firstTime?: boolean
+  // Annotated at render time by the server loader when
+  // public/images/guide/<slug>.jpg exists — never set in the JSON.
+  photo?: string | null
 }

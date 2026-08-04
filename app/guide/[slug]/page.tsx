@@ -6,6 +6,7 @@ export const revalidate = 300
 
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import Image from 'next/image'
 import { notFound } from 'next/navigation'
 import { GUIDE_COLLECTIONS } from '@/lib/guide'
 import { loadExperiences, getExperience } from '@/lib/guideContent'
@@ -62,9 +63,18 @@ export default async function ExperiencePage({ params }: { params: Promise<{ slu
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Hero — gradient + emoji until experience photography lands. */}
+      {/* Hero — the experience photo when its drop-in asset exists
+          (dark overlay keeps the copy readable); gradient fallback
+          otherwise. */}
       <div className="relative bg-gradient-to-br from-gray-900 via-gray-800 to-amber-900 overflow-hidden">
-        <div aria-hidden="true" className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_75%_30%,#f59e0b_0%,transparent_55%)]" />
+        {exp.photo ? (
+          <>
+            <Image src={exp.photo} alt="" fill priority sizes="100vw" className="object-cover object-center" />
+            <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/55 to-black/25" />
+          </>
+        ) : (
+          <div aria-hidden="true" className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_75%_30%,#f59e0b_0%,transparent_55%)]" />
+        )}
         <div className="relative max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-12 sm:pt-14 sm:pb-16">
           <Link href="/guide" className="inline-block text-xs font-bold text-amber-300 hover:text-amber-200 mb-5">
             ← Istanbul Guide

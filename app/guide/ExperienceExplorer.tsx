@@ -76,11 +76,19 @@ export default function ExperienceExplorer({ experiences }: { experiences: Exper
           {filtered.map(e => (
             <Link key={e.slug} href={`/guide/${e.slug}`}
               className="group bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-md hover:border-amber-200 hover:-translate-y-0.5 transition-all overflow-hidden flex flex-col">
-              {/* Emoji banner until real photography lands — same fallback
-                  approach the neighborhood cards used pre-photos. */}
-              <div className="h-24 bg-gradient-to-br from-amber-100 via-orange-50 to-amber-50 flex items-center justify-center">
-                <span aria-hidden="true" className="text-5xl group-hover:scale-110 transition-transform">{e.emoji}</span>
-              </div>
+              {/* Photo banner when the drop-in asset exists; emoji
+                  gradient otherwise — same fallback approach as the
+                  neighborhood cards. */}
+              {e.photo ? (
+                <div className="h-32 overflow-hidden">
+                  <img src={e.photo} alt="" loading="lazy" decoding="async"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                </div>
+              ) : (
+                <div className="h-24 bg-gradient-to-br from-amber-100 via-orange-50 to-amber-50 flex items-center justify-center">
+                  <span aria-hidden="true" className="text-5xl group-hover:scale-110 transition-transform">{e.emoji}</span>
+                </div>
+              )}
               <div className="p-5 flex-1 flex flex-col">
                 <h3 className="font-bold text-gray-900 leading-snug group-hover:text-amber-700 transition-colors">
                   {e.title}
