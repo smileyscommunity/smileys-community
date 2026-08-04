@@ -42,10 +42,21 @@ export async function GET() {
       : []
     const boardPostMap = new Map(boardPosts.map(p => [p.id, p]))
 
+    // Same gap, same fix, for Marketplace listing reports (Report.listingId,
+    // created by /api/listings/[id]/report) — previously invisible in this
+    // queue despite the reuse-the-Report-model comment on that route saying
+    // it was meant to surface here.
+    const listingIds = [...new Set(reports.flatMap(r => r.listingId ? [r.listingId] : []))]
+    const listings = listingIds.length
+      ? await prisma.listing.findMany({ where: { id: { in: listingIds } }, select: { id: true, title: true, category: true, status: true } })
+      : []
+    const listingMap = new Map(listings.map(l => [l.id, l]))
+
     return NextResponse.json(reports.map(r => ({
       ...r,
       event:     r.eventId     ? (eventMap.get(r.eventId)         ?? null) : null,
       boardPost: r.boardPostId ? (boardPostMap.get(r.boardPostId) ?? null) : null,
+      listing:   r.listingId   ? (listingMap.get(r.listingId)     ?? null) : null,
     })))
   } catch (e) {
     console.error(e)
