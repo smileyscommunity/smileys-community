@@ -19,9 +19,35 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const name = slugToNeighborhood(slug)
   if (!name) return {}
   const meta  = getNeighborhoodMeta(name)
-  const title = `${meta.emoji} ${name} — Social Events in Istanbul · Smileys Community`
-  const desc  = `Discover upcoming social events in ${name}, Istanbul. ${meta.vibe}. Join Smileys Community — Istanbul's expat & digital nomad social platform.`
-  const url   = `${APP_URL}/neighborhoods/${slug}`
+  const guide = loadNeighborhoodGuide(slug)
+
+  // 89 of 103 neighborhoods have real, hand-authored place content (named
+  // venues, addresses, tips — see buildAboutCopy's comment on why the other
+  // 14 don't get invented specifics). That content never reached the title/
+  // description Google actually indexes — every page used the same "Social
+  // Events" template regardless, so none of them targeted "things to do in
+  // X" search intent despite having the material to. Pull a few real place
+  // names in when they exist; fall back to the old generic copy otherwise.
+  const topPlaces: string[] = guide?.places
+    ? guide.places.flatMap((cat: { items?: { name: string }[] }) => cat.items?.map(it => it.name) ?? []).slice(0, 2)
+    : []
+
+  const title = guide?.tagline
+    ? `${meta.emoji} ${name}: Things to Do & Local Guide · Smileys Community`
+    : `${meta.emoji} ${name} — Social Events in Istanbul · Smileys Community`
+  // Taglines run 79-199 chars on their own (avg 150), so a raw concat with
+  // place names routinely blew past Google's ~155-160 char display budget.
+  // Brand mention is dropped here — it's already in the title, and every
+  // char here is better spent on the "things to do" content Google needs
+  // to match search intent. Hard-capped as a safety net for the longest
+  // taglines even after dropping the brand sentence.
+  const rawDesc = guide?.tagline
+    ? `${guide.tagline}${topPlaces.length ? ` Try ${topPlaces.join(', ')}.` : ''}`
+    : `Discover upcoming social events in ${name}, Istanbul. ${meta.vibe}. Join Smileys Community — Istanbul's expat & digital nomad social platform.`
+  const desc = rawDesc.length > 160
+    ? `${rawDesc.slice(0, 157).replace(/\s+\S*$/, '').trimEnd()}…`
+    : rawDesc
+  const url = `${APP_URL}/neighborhoods/${slug}`
   // A page-level `openGraph` block loses the root layout's default
   // og:image (Next.js doesn't deep-merge nested metadata) — see
   // app/about/page.tsx. Without this every neighborhood page shared with
