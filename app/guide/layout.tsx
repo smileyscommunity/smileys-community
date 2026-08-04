@@ -3,27 +3,25 @@ import { APP_URL } from '@/lib/env'
 
 // See app/about/page.tsx — a page-level `openGraph` block loses the root
 // layout's default og:image, so this shared with no preview at all on
-// WhatsApp/iMessage/Twitter until this was added.
-const ogImage = `${APP_URL}/api/og?${new URLSearchParams({
-  title:   'Istanbul City Guide',
-  eyebrow: 'Smileys Community',
-  cta:     'Read the guide',
-}).toString()}`
+// WhatsApp/iMessage/Twitter until this was added. Now the real hero
+// photo, pre-resized to guide-hero-og.jpg (~200KB — under WhatsApp's
+// ~300KB silent-drop threshold; the 500KB display version is too big).
+const ogImage = `${APP_URL}/images/guide-hero-og.jpg`
 
 export const metadata: Metadata = {
   alternates: { canonical: `${APP_URL}/guide` },
   title: 'Istanbul City Guide — Smileys Community',
-  description: 'Practical, admin-curated guide for expats in Istanbul. Transit tips, essential apps, neighborhood guides, and local know-how.',
+  description: 'Experience Istanbul like you know someone here — things worth doing, recommended by people who actually live in the city.',
   openGraph: {
     title: 'Istanbul City Guide — Smileys Community',
-    description: 'Ferries, metro lines, neighborhoods, apps and practical tips — everything you need to navigate Istanbul as an expat.',
+    description: 'Experience Istanbul like you know someone here — things worth doing, recommended by people who actually live in the city.',
     url: `${APP_URL}/guide`,
-    images: [{ url: ogImage, width: 1200, height: 630, alt: 'Istanbul City Guide — Smileys Community' }],
+    images: [{ url: ogImage, width: 1200, height: 630, alt: 'Overlooking the Golden Horn at sunset — Istanbul Guide' }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Istanbul City Guide — Smileys Community',
-    description: 'Ferries, metro lines, neighborhoods, apps and practical tips — everything you need to navigate Istanbul as an expat.',
+    description: 'Experience Istanbul like you know someone here — things worth doing, recommended by people who actually live in the city.',
     images: [ogImage],
   },
 }

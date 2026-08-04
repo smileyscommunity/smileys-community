@@ -10,6 +10,7 @@ export const revalidate = 300
 import { readFileSync } from 'fs'
 import { join } from 'path'
 import Link from 'next/link'
+import Image from 'next/image'
 import { prisma } from '@/lib/prisma'
 import { neighborhoodToSlug, getNeighborhoodMeta } from '@/lib/neighborhoods'
 import TransitLinks, { categoryId, type Category } from '@/components/TransitLinks'
@@ -147,10 +148,21 @@ export default async function GuidePage() {
       {/* Hero — typographic, no avatar block. Gives the title and
           tagline more breathing room and removes the icon-vs-text
           alignment that was crowding mobile. */}
-      {/* Hero (§29) — gradient until real experiential photography lands
-          (same photo pipeline as the neighborhoods hero, when ready). */}
-      <div className="relative bg-gradient-to-br from-gray-900 via-gray-800 to-amber-900 overflow-hidden">
-        <div aria-hidden="true" className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_75%_30%,#f59e0b_0%,transparent_55%)]" />
+      {/* Hero (§29) — the real photo. The left-heavy gradient is what keeps
+          white copy readable over the bright sky and sunset; the image's
+          subject (right of center) stays clear of the text block. */}
+      <div className="relative bg-gray-900 overflow-hidden">
+        <Image
+          src="/app/images/guide-hero.jpg"
+          alt="A traveler with a straw hat overlooking the Golden Horn at sunset, Galata Tower to the left, ferries crossing toward the old city"
+          fill
+          priority
+          fetchPriority="high"
+          sizes="100vw"
+          className="object-cover object-center"
+        />
+        <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/45 to-black/15" />
+        <div aria-hidden="true" className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/50 to-transparent" />
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-14 pb-12 sm:pt-20 sm:pb-16">
           <span className="inline-block bg-white/10 text-amber-300 text-xs font-bold tracking-[0.2em] uppercase rounded-full px-4 py-1.5 mb-4 backdrop-blur-sm">🗺️ Istanbul Guide</span>
           <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight text-white max-w-3xl leading-tight">
