@@ -62,4 +62,9 @@ export interface Experience {
   // Annotated at render time by the server loader when
   // public/images/guide/<slug>.jpg exists — never set in the JSON.
   photo?: string | null
+  // Contextual integrations (IA brief §16/§18/§19) — the Guide references
+  // canonical homes, never duplicates them. All optional.
+  handbook?: { slug: string; label: string }[]
+  directory?: { label: string; href: string }
+  clubs?: string[]
 }

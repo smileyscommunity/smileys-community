@@ -1,4 +1,7 @@
 import Link from 'next/link'
+import { readFileSync } from 'fs'
+import { join } from 'path'
+import TransitLinks, { type Category } from '@/components/TransitLinks'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { resolveImageUrl } from '@/lib/data'
@@ -73,6 +76,36 @@ const VALID_CATEGORIES = new Set(CATEGORIES.map(c => c.key as string))
 function formatDate(d: Date | string | null) {
   if (!d) return ''
   return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+// Quick-reference links (apps, official sites, practical how-tos) —
+// moved here from /guide in the information-architecture cleanup: the
+// Handbook owns "how Istanbul works", the Guide owns experiences. The
+// content still lives in data/city-guide.json (server-authoritative,
+// edited via /admin's guide editor). Food & Drink is skipped: its
+// cultural content was rebuilt as Guide experiences.
+function loadQuickReference(): Category[] {
+  try {
+    const raw = JSON.parse(readFileSync(join(process.cwd(), 'data', 'city-guide.json'), 'utf8'))
+    return (raw.categories ?? [])
+      .filter((cat: { label?: string }) => cat.label !== 'Food & Drink')
+      .map((cat: { icon: string; label: string; updatedAt?: string; resources?: unknown[] }) => ({
+        icon:      cat.icon,
+        label:     cat.label,
+        color:     'bg-amber-100 text-amber-700',
+        updatedAt: cat.updatedAt,
+        resources: ((cat.resources ?? []) as { title: string; description: string; href?: string; badge?: string; tip?: string }[]).map(r => ({
+          title:       r.title,
+          description: r.description,
+          href:        r.href || undefined,
+          badge:       r.badge || undefined,
+          badgeColor:  r.badge ? 'bg-amber-100 text-amber-700' : undefined,
+          tip:         r.tip  || undefined,
+        })),
+      }))
+  } catch {
+    return []
+  }
 }
 
 export default async function HandbookPage() {
@@ -245,6 +278,21 @@ export default async function HandbookPage() {
           </div>
         </section>
       )}
+      {(() => {
+        const quickRef = loadQuickReference()
+        if (quickRef.length === 0) return null
+        return (
+          <section className="bg-white border-t border-gray-100">
+            <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+              <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900">Quick reference</h2>
+              <p className="text-gray-600 mt-1 mb-8">
+                Apps, official sites and practical links for functioning in Istanbul — vetted by the Smileys team, updated regularly.
+              </p>
+              <TransitLinks categories={quickRef} />
+            </div>
+          </section>
+        )
+      })()}
     </main>
   )
 }

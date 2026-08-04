@@ -83,7 +83,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE}/events`,        priority: 0.9, changeFrequency: 'daily',   lastModified: newestEvent },
     { url: `${BASE}/board`,         priority: 0.8, changeFrequency: 'daily',   lastModified: newestListing },
     { url: `${BASE}/visiting`,      priority: 0.8, changeFrequency: 'daily'   },
-    { url: `${BASE}/guide`,         priority: 0.8, changeFrequency: 'weekly',  lastModified: fileMtime('city-guide.json') },
+    { url: `${BASE}/guide`,         priority: 0.8, changeFrequency: 'weekly',  lastModified: fileMtime('guide-experiences.json') },
     { url: `${BASE}/clubs`,         priority: 0.8, changeFrequency: 'weekly',  lastModified: newestClub },
     { url: `${BASE}/apply`,         priority: 0.8, changeFrequency: 'monthly' },
     { url: `${BASE}/about`,         priority: 0.7, changeFrequency: 'monthly' },

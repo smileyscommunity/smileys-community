@@ -4,8 +4,10 @@
 // from here so a rename only happens in one place.
 
 // Handbook category (Post.category for kind='handbook') →
-// City Guide anchor on /guide, plus a short callout label. The
-// anchor matches the slugified label TransitLinks generates (see
+// quick-reference anchor, plus a short callout label. The quick-links
+// block moved from /guide to /handbook in the IA cleanup, so these
+// anchors now resolve on /handbook itself. The anchor matches the
+// slugified label TransitLinks generates (see
 // components/TransitLinks.tsx#categoryId).
 export const HANDBOOK_TO_GUIDE: Record<string, { anchor: string; label: string }> = {
   'Bureaucracy':    { anchor: 'visa-residence',   label: 'Visa & Residence apps and links' },

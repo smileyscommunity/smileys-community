@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import posthog from 'posthog-js'
 import { GUIDE_MOODS, type Experience, type GuideMood } from '@/lib/guide'
 
 // §4 of the Guide plan — "What are you in the mood for?" chips filtering
@@ -21,6 +22,13 @@ export default function ExperienceExplorer({ experiences }: { experiences: Exper
   // Search (plan s20) covers the full set regardless of mood/collapse:
   // title, tagline, why, the Take, and mood labels all match.
   const q = query.trim().toLowerCase()
+
+  // search_performed — debounced so we log search intents, not keystrokes.
+  useEffect(() => {
+    if (q.length < 3) return
+    const t = setTimeout(() => posthog.capture('search_performed', { surface: 'guide', query: q }), 1200)
+    return () => clearTimeout(t)
+  }, [q])
   const searched = q
     ? experiences.filter(e =>
         [e.title, e.tagline, e.why, e.take, ...e.moods].join(' ').toLowerCase().includes(q))
@@ -56,7 +64,11 @@ export default function ExperienceExplorer({ experiences }: { experiences: Exper
       <div className="flex gap-2 overflow-x-auto pb-3 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-hide" role="tablist" aria-label="Mood filter">
         {GUIDE_MOODS.map(m => (
           <button key={m.value} role="tab" aria-selected={mood === m.value}
-            onClick={() => setMood(v => v === m.value ? null : m.value)}
+            onClick={() => setMood(v => {
+              const next = v === m.value ? null : m.value
+              if (next) posthog.capture('mood_selected', { mood: next })
+              return next
+            })}
             className={`shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-sm font-bold border whitespace-nowrap transition-all ${
               mood === m.value
                 ? 'bg-amber-500 border-amber-500 text-white shadow-sm'

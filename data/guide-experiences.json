@@ -6,7 +6,12 @@
       "title": "Take the Ferry at Sunset",
       "emoji": "⛴️",
       "collection": "bosphorus",
-      "moods": ["bosphorus", "free", "iconic", "night"],
+      "moods": [
+        "bosphorus",
+        "free",
+        "iconic",
+        "night"
+      ],
       "tagline": "One of the simplest ways to fall in love with Istanbul.",
       "cost": "Free-ish",
       "time": "1–2 hours",
@@ -33,14 +38,31 @@
           ]
         }
       ],
-      "neighborhoods": ["Karaköy", "Kadıköy", "Üsküdar", "Beşiktaş"]
+      "neighborhoods": [
+        "Karaköy",
+        "Kadıköy",
+        "Üsküdar",
+        "Beşiktaş"
+      ],
+      "handbook": [
+        {
+          "slug": "istanbulkart-mastery",
+          "label": "Using the İstanbulkart"
+        }
+      ],
+      "clubs": [
+        "sailing"
+      ]
     },
     {
       "slug": "turkish-breakfast",
       "title": "Eat a Real Turkish Breakfast",
       "emoji": "🍳",
       "collection": "eat",
-      "moods": ["eat", "people"],
+      "moods": [
+        "eat",
+        "people"
+      ],
       "tagline": "Not a meal — a two-hour weekend ritual you'll start defending to foreigners.",
       "cost": "₺₺",
       "time": "2–3 hours",
@@ -66,14 +88,28 @@
           ]
         }
       ],
-      "neighborhoods": ["Cihangir", "Kadıköy", "Çengelköy"]
+      "neighborhoods": [
+        "Cihangir",
+        "Kadıköy",
+        "Çengelköy"
+      ],
+      "directory": {
+        "label": "Find breakfast & brunch spots",
+        "href": "/directory?category=Cafe"
+      },
+      "clubs": [
+        "brunch"
+      ]
     },
     {
       "slug": "princes-islands",
       "title": "A Day on the Princes' Islands",
       "emoji": "🏝️",
       "collection": "escape",
-      "moods": ["escape", "iconic"],
+      "moods": [
+        "escape",
+        "iconic"
+      ],
       "tagline": "No cars, pine forests, faded mansions — an hour from the city and a century away.",
       "cost": "₺",
       "time": "Full day",
@@ -99,14 +135,33 @@
           ]
         }
       ],
-      "neighborhoods": ["Büyükada", "Heybeliada", "Burgazada", "Kınalıada"]
+      "neighborhoods": [
+        "Büyükada",
+        "Heybeliada",
+        "Burgazada",
+        "Kınalıada"
+      ],
+      "handbook": [
+        {
+          "slug": "istanbulkart-mastery",
+          "label": "Ferries & the İstanbulkart"
+        }
+      ],
+      "clubs": [
+        "picnic",
+        "hiking"
+      ]
     },
     {
       "slug": "turkish-hammam",
       "title": "Experience a Turkish Hammam",
       "emoji": "🧖",
       "collection": "different",
-      "moods": ["different", "rainy", "iconic"],
+      "moods": [
+        "different",
+        "rainy",
+        "iconic"
+      ],
       "tagline": "Five hundred years of steam, marble, and being scrubbed humbler than you've ever been.",
       "cost": "₺₺₺",
       "time": "2–3 hours",
@@ -124,14 +179,23 @@
           ]
         }
       ],
-      "neighborhoods": ["Sultanahmet", "Fatih", "Beyoğlu"]
+      "neighborhoods": [
+        "Sultanahmet",
+        "Fatih",
+        "Beyoğlu"
+      ]
     },
     {
       "slug": "meyhane-night",
       "title": "A Proper Meyhane Night",
       "emoji": "🥂",
       "collection": "night",
-      "moods": ["eat", "night-out", "people", "night"],
+      "moods": [
+        "eat",
+        "night-out",
+        "people",
+        "night"
+      ],
       "tagline": "Mezes, rakı, and three hours of conversation — dinner as Istanbul's favorite sport.",
       "cost": "₺₺₺",
       "time": "3–4 hours",
@@ -156,14 +220,30 @@
           ]
         }
       ],
-      "neighborhoods": ["Beyoğlu", "Kadıköy", "Kuzguncuk"]
+      "neighborhoods": [
+        "Beyoğlu",
+        "Kadıköy",
+        "Kuzguncuk"
+      ],
+      "directory": {
+        "label": "Find restaurants & bars",
+        "href": "/directory?category=Restaurant"
+      },
+      "clubs": [
+        "after-work",
+        "speak-easy"
+      ]
     },
     {
       "slug": "balat-fener-walk",
       "title": "Wander Balat & Fener",
       "emoji": "🏘️",
       "collection": "different",
-      "moods": ["different", "free", "iconic"],
+      "moods": [
+        "different",
+        "free",
+        "iconic"
+      ],
       "tagline": "Rainbow houses, Greek Orthodox history, and the best aimless walking in Istanbul.",
       "cost": "Free",
       "time": "Half day",
@@ -188,14 +268,25 @@
           ]
         }
       ],
-      "neighborhoods": ["Balat", "Fener", "Eyüpsultan"]
+      "neighborhoods": [
+        "Balat",
+        "Fener",
+        "Eyüpsultan"
+      ],
+      "clubs": [
+        "arts",
+        "hiking"
+      ]
     },
     {
       "slug": "historic-peninsula-sanely",
       "title": "Historic Istanbul Without Losing Your Mind",
       "emoji": "🕌",
       "collection": "different",
-      "moods": ["iconic", "rainy"],
+      "moods": [
+        "iconic",
+        "rainy"
+      ],
       "tagline": "Hagia Sophia, the Blue Mosque, and Topkapı — a realistic plan instead of a death march.",
       "cost": "₺₺₺",
       "time": "Full day",
@@ -223,14 +314,30 @@
           ]
         }
       ],
-      "neighborhoods": ["Sultanahmet", "Eminönü", "Fatih"]
+      "neighborhoods": [
+        "Sultanahmet",
+        "Eminönü",
+        "Fatih"
+      ],
+      "handbook": [
+        {
+          "slug": "istanbulkart-mastery",
+          "label": "Trams & the İstanbulkart"
+        }
+      ],
+      "clubs": [
+        "arts"
+      ]
     },
     {
       "slug": "bebek-rumeli-walk",
       "title": "Walk the Bosphorus: Bebek to Rumeli Hisarı",
       "emoji": "🚶",
       "collection": "bosphorus",
-      "moods": ["bosphorus", "free"],
+      "moods": [
+        "bosphorus",
+        "free"
+      ],
       "tagline": "The prettiest 20 minutes of flat walking in Istanbul, ending at a fortress.",
       "cost": "Free",
       "time": "1–3 hours",
@@ -255,14 +362,25 @@
           ]
         }
       ],
-      "neighborhoods": ["Bebek", "Rumeli Hisarı", "Arnavutköy"]
+      "neighborhoods": [
+        "Bebek",
+        "Rumeli Hisarı",
+        "Arnavutköy"
+      ],
+      "clubs": [
+        "hiking"
+      ]
     },
     {
       "slug": "kadikoy-market-graze",
       "title": "Graze Through Kadıköy Market",
       "emoji": "🫒",
       "collection": "eat",
-      "moods": ["eat", "different", "people"],
+      "moods": [
+        "eat",
+        "different",
+        "people"
+      ],
       "tagline": "Istanbul's best food neighborhood, eaten one counter at a time.",
       "cost": "₺₺",
       "time": "2–3 hours",
@@ -288,14 +406,28 @@
           ]
         }
       ],
-      "neighborhoods": ["Kadıköy", "Moda"]
+      "neighborhoods": [
+        "Kadıköy",
+        "Moda"
+      ],
+      "directory": {
+        "label": "Find cafés & food spots",
+        "href": "/directory?category=Cafe"
+      },
+      "clubs": [
+        "brunch"
+      ]
     },
     {
       "slug": "rooftop-sunset-drinks",
       "title": "Rooftops & Sunset Drinks",
       "emoji": "🍸",
       "collection": "night",
-      "moods": ["night-out", "night", "bosphorus"],
+      "moods": [
+        "night-out",
+        "night",
+        "bosphorus"
+      ],
       "tagline": "The skyline you came for, glass in hand.",
       "cost": "₺₺₺",
       "time": "2–3 hours",
@@ -312,14 +444,28 @@
           ]
         }
       ],
-      "neighborhoods": ["Karaköy", "Cihangir", "Kadıköy"]
+      "neighborhoods": [
+        "Karaköy",
+        "Cihangir",
+        "Kadıköy"
+      ],
+      "directory": {
+        "label": "Find bars with a view",
+        "href": "/directory?category=Bar"
+      },
+      "clubs": [
+        "after-work"
+      ]
     },
     {
       "slug": "belgrad-forest",
       "title": "Breathe in Belgrad Forest",
       "emoji": "🌲",
       "collection": "escape",
-      "moods": ["escape", "free"],
+      "moods": [
+        "escape",
+        "free"
+      ],
       "tagline": "5,000 hectares of oak and beech where Istanbul goes to remember what quiet sounds like.",
       "cost": "Free-ish",
       "time": "Half day",
@@ -337,14 +483,26 @@
           ]
         }
       ],
-      "neighborhoods": ["Sarıyer", "Göktürk", "Kemerburgaz"]
+      "neighborhoods": [
+        "Sarıyer",
+        "Göktürk",
+        "Kemerburgaz"
+      ],
+      "clubs": [
+        "hiking",
+        "camping"
+      ]
     },
     {
       "slug": "turkish-coffee-slow",
       "title": "Slow Down over Turkish Coffee",
       "emoji": "☕",
       "collection": "eat",
-      "moods": ["eat", "rainy", "different"],
+      "moods": [
+        "eat",
+        "rainy",
+        "different"
+      ],
       "tagline": "Forty minutes, one tiny cup, and a fortune waiting in the grounds.",
       "cost": "₺",
       "time": "Under 1 hour",
@@ -369,14 +527,29 @@
           ]
         }
       ],
-      "neighborhoods": ["Kadıköy", "Beyoğlu", "Üsküdar"]
+      "neighborhoods": [
+        "Kadıköy",
+        "Beyoğlu",
+        "Üsküdar"
+      ],
+      "directory": {
+        "label": "Find cafés",
+        "href": "/directory?category=Cafe"
+      },
+      "clubs": [
+        "book"
+      ]
     },
     {
       "slug": "moda-sunset",
       "title": "Sunset on the Moda Seaside",
       "emoji": "🌅",
       "collection": "free",
-      "moods": ["free", "people", "night"],
+      "moods": [
+        "free",
+        "people",
+        "night"
+      ],
       "tagline": "Bring something to sit on, something to drink, and watch the Asian side's nightly ritual.",
       "cost": "Free",
       "time": "1–2 hours",
@@ -393,14 +566,25 @@
           ]
         }
       ],
-      "neighborhoods": ["Moda", "Kadıköy"]
+      "neighborhoods": [
+        "Moda",
+        "Kadıköy"
+      ],
+      "clubs": [
+        "picnic"
+      ]
     },
     {
       "slug": "live-music-night",
       "title": "Find Istanbul's Live Music",
       "emoji": "🎶",
       "collection": "night",
-      "moods": ["night-out", "night", "different", "people"],
+      "moods": [
+        "night-out",
+        "night",
+        "different",
+        "people"
+      ],
       "tagline": "From meyhane singalongs to basement blues — the city plays every night.",
       "cost": "₺₺",
       "time": "3+ hours",
@@ -425,14 +609,29 @@
           ]
         }
       ],
-      "neighborhoods": ["Kadıköy", "Beyoğlu"]
+      "neighborhoods": [
+        "Kadıköy",
+        "Beyoğlu"
+      ],
+      "directory": {
+        "label": "Find bars & venues",
+        "href": "/directory?category=Bar"
+      },
+      "clubs": [
+        "live-music"
+      ]
     },
     {
       "slug": "uskudar-evening",
       "title": "An Evening in Üsküdar",
       "emoji": "🌙",
       "collection": "bosphorus",
-      "moods": ["bosphorus", "free", "iconic", "night"],
+      "moods": [
+        "bosphorus",
+        "free",
+        "iconic",
+        "night"
+      ],
       "tagline": "Tea by the water, the Maiden's Tower lit up, and the least touristy sunset in Istanbul.",
       "cost": "Free-ish",
       "time": "2–3 hours",
@@ -457,7 +656,16 @@
           ]
         }
       ],
-      "neighborhoods": ["Üsküdar", "Kuzguncuk"]
+      "neighborhoods": [
+        "Üsküdar",
+        "Kuzguncuk"
+      ],
+      "handbook": [
+        {
+          "slug": "istanbulkart-mastery",
+          "label": "Ferries, Marmaray & the İstanbulkart"
+        }
+      ]
     }
   ]
 }

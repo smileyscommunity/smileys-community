@@ -13,7 +13,6 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { prisma } from '@/lib/prisma'
 import { neighborhoodToSlug, getNeighborhoodMeta } from '@/lib/neighborhoods'
-import TransitLinks, { categoryId, type Category } from '@/components/TransitLinks'
 import GuideCTA from './GuideCTA'
 import GuideStickyNav from './GuideStickyNav'
 import ExperienceExplorer from './ExperienceExplorer'
@@ -35,57 +34,7 @@ function loadBanner(): Banner | null {
   } catch { return null }
 }
 
-const COLOR_MAP: Record<string, string> = {
-  blue:   'bg-blue-100 text-blue-700',
-  green:  'bg-green-100 text-green-700',
-  amber:  'bg-amber-100 text-amber-700',
-  rose:   'bg-rose-100 text-rose-700',
-  violet: 'bg-violet-100 text-violet-700',
-  teal:   'bg-teal-100 text-teal-700',
-  orange: 'bg-orange-100 text-orange-700',
-}
 
-const BADGE_COLOR_MAP: Record<string, string> = {
-  '':      'bg-amber-100 text-amber-700',
-  blue:    'bg-blue-100 text-blue-700',
-  green:   'bg-green-100 text-green-700',
-  violet:  'bg-violet-100 text-violet-700',
-  rose:    'bg-rose-100 text-rose-700',
-}
-
-// Dev-only: surface unknown color keys from data/city-guide.json so a
-// typo doesn't silently fall back to blue/amber in prod. Prod stays
-// quiet — a bad key still renders, just in the fallback color.
-function pickColor(map: Record<string, string>, key: string | undefined, fallback: string, source: string) {
-  const hit = map[key ?? '']
-  if (hit) return hit
-  if (process.env.NODE_ENV !== 'production' && key) {
-    console.warn(`[guide] unknown ${source} color "${key}" — falling back. Add it to the map or fix the JSON.`)
-  }
-  return fallback
-}
-
-function loadGuide(): Category[] {
-  try {
-    const raw = JSON.parse(readFileSync(join(process.cwd(), 'data', 'city-guide.json'), 'utf8'))
-    return (raw.categories ?? []).map((cat: any) => ({
-      icon:      cat.icon,
-      label:     cat.label,
-      color:     pickColor(COLOR_MAP, cat.color, COLOR_MAP.blue, 'category'),
-      updatedAt: cat.updatedAt,
-      resources: (cat.resources ?? []).map((r: any) => ({
-        title:       r.title,
-        description: r.description,
-        href:        r.href || undefined,
-        badge:       r.badge || undefined,
-        badgeColor:  r.badge ? pickColor(BADGE_COLOR_MAP, r.badgeColor, BADGE_COLOR_MAP[''], 'badge') : undefined,
-        tip:         r.tip  || undefined,
-      })),
-    }))
-  } catch {
-    return []
-  }
-}
 
 export default async function GuidePage() {
   const today = new Date().toISOString().split('T')[0]
@@ -122,13 +71,6 @@ export default async function GuidePage() {
       }
     })
 
-  const categories = loadGuide()
-  // Dev-only: surface empty guide content so a missing/invalid
-  // data/city-guide.json doesn't silently render a gap where the
-  // category list should be.
-  if (process.env.NODE_ENV !== 'production' && categories.length === 0) {
-    console.warn('[guide] loadGuide() returned no categories — TransitLinks section will be skipped. Check data/city-guide.json.')
-  }
   const banner = loadBanner()
 
   const experiences = loadExperiences()
@@ -138,7 +80,6 @@ export default async function GuidePage() {
       { id: 'experiences', icon: '✨', label: 'Experiences' },
       { id: 'collections', icon: '🗂️', label: 'Collections' },
     ] : []),
-    ...categories.map(c => ({ id: categoryId(c.label), icon: c.icon, label: c.label })),
     ...(neighborhoods.length > 0 ? [{ id: 'neighborhoods', icon: '🏘️', label: 'Neighborhoods' }] : []),
   ]
 
@@ -215,6 +156,46 @@ export default async function GuidePage() {
           {/* §5 — Istanbul Today: time + season aware suggestions. */}
           <IstanbulToday />
 
+          {/* §12 — Popular Right Now, from real save/recommend counts.
+              Below the engagement floor it falls back to an editorial
+              list HONESTLY labelled as curated — never faked numbers. */}
+          {await (async () => {
+            const counts = await prisma.guideSave.groupBy({
+              by: ['slug'],
+              where: { OR: [{ saved: true }, { recommended: true }] },
+              _count: { _all: true },
+              orderBy: { _count: { slug: 'desc' } },
+              take: 4,
+            })
+            const bySlug = new Map(experiences.map(e => [e.slug, e]))
+            const dataDriven = counts.map(c => bySlug.get(c.slug)).filter((e): e is NonNullable<typeof e> => !!e)
+            const editorial = ['ferry-at-sunset', 'turkish-breakfast', 'princes-islands', 'meyhane-night']
+              .map(sl => bySlug.get(sl)).filter((e): e is NonNullable<typeof e> => !!e)
+            const enough = dataDriven.length >= 3
+            const list = enough ? dataDriven : editorial
+            if (list.length === 0) return null
+            return (
+              <div className="mt-12">
+                <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900 mb-1">
+                  {enough ? 'Popular right now' : 'Popular with Smileys'}
+                </h2>
+                <p className="text-gray-600 mb-5">
+                  {enough ? 'What members are saving and recommending.' : 'The experiences members keep coming back to.'}
+                </p>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                  {list.map(e => (
+                    <Link key={e.slug} href={`/guide/${e.slug}`}
+                      className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:border-amber-200 hover:shadow-md transition-all group">
+                      <span aria-hidden="true" className="block text-3xl mb-2">{e.emoji}</span>
+                      <p className="text-sm font-bold text-gray-900 leading-snug group-hover:text-amber-700 transition-colors">{e.title}</p>
+                      <span className="inline-block text-xs font-bold text-amber-600 mt-2">Explore →</span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
+
           {/* §7 — collections: browsable shelves instead of category trees. */}
           <div id="collections" className="mt-12 scroll-mt-16">
             <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900 mb-6">Istanbul Collections</h2>
@@ -272,16 +253,22 @@ export default async function GuidePage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="max-w-3xl space-y-0">
 
-        {/* The practical layer — the original quick-links directory,
-            demoted below the experiences (§25: how-to content belongs to
-            the Handbook's world; it stays here as reference, not as the
-            headline). */}
-        <div className="border-t border-gray-100 mt-6 pt-8 mb-6">
-          <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900">The practical stuff</h2>
-          <p className="text-gray-600 mt-1">
-            Apps, services and links for functioning in Istanbul — vetted by the Smileys team.
-            For deep how-tos, read <Link href="/handbook" className="text-amber-600 font-semibold hover:underline">the Handbook</Link>.
-          </p>
+        {/* IA cleanup: the practical quick-links block moved to /handbook
+            (its canonical owner — "how Istanbul works"). The Guide keeps a
+            compact pointer instead of a duplicate. */}
+        <div className="border-t border-gray-100 mt-6 pt-8 mb-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Link href="/handbook"
+            className="bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-2xl px-5 py-4 transition-colors group">
+            <p className="text-sm font-bold text-gray-900"><span aria-hidden="true">📖</span> Understand Istanbul</p>
+            <p className="text-xs text-gray-600 mt-1">Residence permits, banking, transport, quick links — the Handbook.</p>
+            <span className="inline-block text-xs font-bold text-gray-700 mt-2 group-hover:translate-x-0.5 transition-transform">Read the Handbook →</span>
+          </Link>
+          <Link href="/directory"
+            className="bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-2xl px-5 py-4 transition-colors group">
+            <p className="text-sm font-bold text-gray-900"><span aria-hidden="true">🏢</span> Find what you need</p>
+            <p className="text-xs text-gray-600 mt-1">Cafés, restaurants, services — member-vetted businesses.</p>
+            <span className="inline-block text-xs font-bold text-gray-700 mt-2 group-hover:translate-x-0.5 transition-transform">Browse the Directory →</span>
+          </Link>
         </div>
 
         {/* Banner — one inner per banner.type, then wrap in <a> (or
@@ -362,7 +349,6 @@ export default async function GuidePage() {
           </Link>
         </div>
 
-        {categories.length > 0 && <TransitLinks categories={categories} />}
 
         {/* Neighborhoods — header redesigned to match the new
             TransitLinks section style (title + meta line) instead of

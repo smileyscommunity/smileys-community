@@ -221,7 +221,7 @@ export default async function HandbookArticlePage({ params }: Params) {
             use?") without sending members away to search. */}
         {HANDBOOK_TO_GUIDE[post.category] && (
           <section className="mt-12 pt-8 border-t border-gray-100">
-            <Link href={`/guide#${HANDBOOK_TO_GUIDE[post.category].anchor}`}
+            <Link href={`/handbook#${HANDBOOK_TO_GUIDE[post.category].anchor}`}
               className="block bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-2xl px-5 py-4 transition-colors group">
               <div className="flex items-center gap-4">
                 <div className="text-2xl shrink-0">🗺️</div>

@@ -16,6 +16,7 @@ import { prisma } from '@/lib/prisma'
 import ExperienceActions from './ExperienceActions'
 import LiveHangouts from './LiveHangouts'
 import EventMatches from './EventMatches'
+import TrackedLink from '@/components/TrackedLink'
 
 export function generateStaticParams() {
   return loadExperiences().map(e => ({ slug: e.slug }))
@@ -57,6 +58,13 @@ export default async function ExperiencePage({ params }: { params: Promise<{ slu
     orderBy: { date: 'asc' },
     take:    3,
   }) : []
+  // §19 — clubs relevant to this experience, validated against the DB so
+  // a renamed club silently drops instead of 404ing.
+  const matchedClubs = exp.clubs?.length ? await prisma.club.findMany({
+    where:  { slug: { in: exp.clubs } },
+    select: { slug: true, name: true, emoji: true, memberCount: true },
+  }) : []
+
   const related = loadExperiences()
     .filter(e => e.slug !== exp.slug && (e.collection === exp.collection || e.moods.some(m => exp.moods.includes(m))))
     .slice(0, 3)
@@ -136,18 +144,42 @@ export default async function ExperiencePage({ params }: { params: Promise<{ slu
           </section>
         ))}
 
+        {/* §16 — practical details live in the Handbook; the Guide links,
+            never duplicates. */}
+        {(exp.handbook?.length || exp.directory) && (
+          <section className="flex flex-col sm:flex-row gap-3">
+            {exp.handbook?.map(h => (
+              <TrackedLink key={h.slug} href={`/handbook/${h.slug}`} event="guide_to_handbook"
+                eventProps={{ experience: exp.slug, article: h.slug }}
+                className="flex-1 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-2xl px-5 py-4 transition-colors group">
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Need the practical details?</p>
+                <p className="text-sm font-bold text-gray-900 group-hover:text-amber-700 transition-colors"><span aria-hidden="true">📖</span> {h.label} →</p>
+              </TrackedLink>
+            ))}
+            {exp.directory && (
+              <TrackedLink href={exp.directory.href} event="guide_to_directory"
+                eventProps={{ experience: exp.slug }}
+                className="flex-1 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-2xl px-5 py-4 transition-colors group">
+                <p className="text-xs font-bold text-amber-700 uppercase tracking-widest mb-1">Ready to go?</p>
+                <p className="text-sm font-bold text-gray-900 group-hover:text-amber-700 transition-colors"><span aria-hidden="true">🏢</span> {exp.directory.label} →</p>
+              </TrackedLink>
+            )}
+          </section>
+        )}
+
         {/* §13 — nearby neighborhoods, linking out instead of duplicating. */}
         {nearby.length > 0 && (
           <section>
             <h2 className="text-xl font-extrabold tracking-tight text-gray-900 mb-3">Explore nearby</h2>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {nearby.map(n => (
-                <Link key={n} href={`/neighborhoods/${neighborhoodToSlug(n)}`}
+                <TrackedLink key={n} href={`/neighborhoods/${neighborhoodToSlug(n)}`} event="guide_to_neighborhood"
+                  eventProps={{ experience: exp.slug, neighborhood: n }}
                   className="bg-white border border-gray-100 rounded-2xl p-4 text-center shadow-sm hover:border-amber-300 hover:-translate-y-0.5 transition-all group">
                   <span aria-hidden="true" className="block text-2xl mb-1.5">{NEIGHBORHOOD_META[n].emoji}</span>
                   <span className="block text-sm font-bold text-gray-900 group-hover:text-amber-700 transition-colors">{n}</span>
                   <span className="block text-[11px] text-gray-400 mt-0.5">{NEIGHBORHOOD_META[n].vibe}</span>
-                </Link>
+                </TrackedLink>
               ))}
             </div>
           </section>
@@ -162,6 +194,22 @@ export default async function ExperiencePage({ params }: { params: Promise<{ slu
             The Smileys community does things like this every week — organized events, spontaneous hangouts, and visitors looking for company.
           </p>
           <EventMatches events={matchedEvents} />
+          {matchedClubs.length > 0 && (
+            <div className="relative space-y-2 mb-5">
+              <p className="text-xs font-bold text-amber-400 uppercase tracking-widest">Find your people</p>
+              <div className="flex flex-wrap gap-2">
+                {matchedClubs.map(c => (
+                  <TrackedLink key={c.slug} href={`/clubs/${c.slug}`} event="guide_to_club"
+                    eventProps={{ experience: exp.slug, club: c.slug }}
+                    className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 rounded-xl px-4 py-2 transition-colors">
+                    <span aria-hidden="true">{c.emoji}</span>
+                    <span className="text-sm font-bold text-white">{c.name}</span>
+                    {c.memberCount > 0 && <span className="text-xs text-gray-300">{c.memberCount} members</span>}
+                  </TrackedLink>
+                ))}
+              </div>
+            </div>
+          )}
           <LiveHangouts neighborhoods={nearby} />
           <div className="relative flex flex-wrap gap-3 mt-5">
             <Link href="/events" className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
