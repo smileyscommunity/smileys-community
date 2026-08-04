@@ -70,7 +70,7 @@ export default async function DashboardPage() {
   const monthEnd    = new Date(); monthEnd.setDate(monthEnd.getDate() + 30)
   const monthEndStr = monthEnd.toISOString().split('T')[0]
 
-  const [myAttendances, myMemberships, eventsThisMonth, userProfile, , unreviewedRaw, weeklyVisitors, recentListings] = await Promise.all([
+  const [myAttendances, myMemberships, eventsThisMonth, userProfile, , unreviewedRaw, weeklyVisitors, recentListings, recentMovingSales] = await Promise.all([
     // Lightweight: only ids + dates are needed for the id lists, counts,
     // and month/streak math. Full event objects for the upcoming cards
     // come from the separate (take: 5) query below — avoids loading every
@@ -109,6 +109,18 @@ export default async function DashboardPage() {
       orderBy: { createdAt: 'desc' },
       take: 4,
       select: { id: true, title: true, category: true, photo: true, photoPosition: true, price: true, createdAt: true, user: { select: { name: true, color: true, profilePhoto: true } } },
+    }),
+    // Moving Sales — separate table from Listing, so it needs its own
+    // query; was previously missing from the dashboard entirely.
+    prisma.movingSale.findMany({
+      where: { status: 'active', userId: { not: session.id } },
+      orderBy: { createdAt: 'desc' },
+      take: 3,
+      select: {
+        id: true, leavingOn: true, neighborhood: true, createdAt: true,
+        items: { select: { name: true }, take: 3 },
+        user: { select: { name: true, color: true, profilePhoto: true } },
+      },
     }),
   ])
 
@@ -1528,6 +1540,33 @@ export default async function DashboardPage() {
                   className="mt-4 flex items-center justify-center gap-1.5 w-full py-2 text-xs font-semibold text-amber-600 border border-amber-200 rounded-xl hover:bg-amber-50 transition-colors">
                   + Post a listing
                 </Link>
+              </div>
+            )}
+
+            {/* ── MOVING SALES — separate table from Listing, own small card
+                rather than merged into Community Board above (different
+                shape: multiple items + leaving date instead of one price). ── */}
+            {recentMovingSales.length > 0 && (
+              <div className="bg-white rounded-2xl shadow-card p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-sm font-bold text-gray-900">📦 Moving Sales</h2>
+                  <Link href="/board?tab=MOVING" className="text-xs text-amber-600 font-semibold hover:underline">See all →</Link>
+                </div>
+                <div className="space-y-3">
+                  {recentMovingSales.map((s) => (
+                    <Link key={s.id} href="/board?tab=MOVING" className="flex items-center gap-3 group">
+                      <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center text-lg shrink-0">📦</div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 group-hover:text-amber-600 transition-colors truncate">
+                          {s.user.name.split(' ')[0]} is leaving{s.neighborhood ? ` ${s.neighborhood}` : ''}
+                        </p>
+                        <p className="text-xs text-gray-400 truncate">
+                          {s.items.map(it => it.name).join(', ')}
+                        </p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
               </div>
             )}
 

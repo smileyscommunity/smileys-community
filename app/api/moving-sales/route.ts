@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
 import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
+import { sendListingAlertEmail, recordEmailFailure } from '@/lib/email'
+import { createNotification } from '@/lib/notify'
 
 // Moving Sales (plan §13). Publicly readable like listings — seller shown as
 // name + neighborhood only, no contact data exists on the model at all; the
@@ -63,5 +65,32 @@ export async function POST(req: NextRequest) {
     },
     select: { id: true },
   })
+
+  // Fire alert emails + push in background — same pattern as the Listing
+  // POST route (listingAlerts, 'MOVING' category). Previously missing
+  // entirely, so nobody subscribed to moving-sale alerts ever heard about
+  // a new one.
+  const title = `Moving sale: ${safeItems.length} item${safeItems.length !== 1 ? 's' : ''}${safeNeighborhood ? ` in ${safeNeighborhood}` : ''}`
+  const description = safeNote || safeItems.map(it => it.name).join(', ')
+  prisma.user.findMany({
+    where: { listingAlerts: { has: 'MOVING' }, id: { not: session.id } },
+    select: { id: true, email: true, name: true },
+  }).then(alertees => {
+    for (const u of alertees) {
+      sendListingAlertEmail(u.email, u.name, 'Moving sale', { title, description })
+        .catch(async err => {
+          console.error('[moving-sales POST] sendListingAlertEmail failed', { saleId: sale.id, userId: u.id, err: String(err) })
+          await recordEmailFailure({ helper: 'sendListingAlertEmail', recipient: u.email, error: err, context: { saleId: sale.id, userId: u.id, category: 'MOVING' } })
+        })
+      createNotification(
+        u.id,
+        'listing_new',
+        'New moving sale',
+        title,
+        '/board?tab=MOVING',
+      ).catch(err => console.error('[moving-sales POST] createNotification failed', { saleId: sale.id, userId: u.id, err: String(err) }))
+    }
+  }).catch(err => console.error('[moving-sales POST] alert fan-out failed', { saleId: sale.id, err: String(err) }))
+
   return NextResponse.json({ id: sale.id }, { status: 201 })
 }

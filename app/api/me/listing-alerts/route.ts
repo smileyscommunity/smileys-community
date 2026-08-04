@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 
-const VALID = ['ROOMS', 'JOBS', 'SERVICES', 'BUY_SELL', 'FREE', 'RECO']
+// Mirrors BoardHub's ALERT_CATS — was missing WANTED/PETS/MOVING (added
+// to the UI toggle list later), so toggling those alerts silently never
+// persisted: the PATCH below filtered them straight back out.
+const VALID = ['ROOMS', 'JOBS', 'SERVICES', 'BUY_SELL', 'FREE', 'RECO', 'WANTED', 'PETS', 'MOVING']
 
 export async function GET() {
   const session = await getSession()

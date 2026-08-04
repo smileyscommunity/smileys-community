@@ -38,6 +38,7 @@ const ALERT_CATS = [
   { id: 'FREE',     label: 'Free stuff',      emoji: '🎁' },
   { id: 'WANTED',   label: 'Wanted',          emoji: '🔎' },
   { id: 'PETS',     label: 'Adopt a Pet',     emoji: '🐾' },
+  { id: 'MOVING',   label: 'Moving Sales',    emoji: '📦' },
 ]
 
 const CAT_META: Record<string, { label: string; badge: string; header: string }> = {
