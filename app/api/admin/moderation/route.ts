@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { canModerateReports, isAdmin } from '@/lib/access'
+import { neighborhoodToSlug } from '@/lib/neighborhoods'
 
 export async function GET() {
   try {
@@ -52,11 +53,22 @@ export async function GET() {
       : []
     const listingMap = new Map(listings.map(l => [l.id, l]))
 
+    // Same gap again, for neighborhood-wall reports (Report.neighborhoodPostId,
+    // created by /api/neighborhoods/[slug]/posts/[postId]/report). No admin
+    // page exists for NeighborhoodPost — the neighborhood slug lets staff jump
+    // to the page and use the existing in-place Delete action there.
+    const neighborhoodPostIds = [...new Set(reports.flatMap(r => r.neighborhoodPostId ? [r.neighborhoodPostId] : []))]
+    const neighborhoodPosts = neighborhoodPostIds.length
+      ? await prisma.neighborhoodPost.findMany({ where: { id: { in: neighborhoodPostIds } }, select: { id: true, content: true, neighborhood: true } })
+      : []
+    const neighborhoodPostMap = new Map(neighborhoodPosts.map(p => [p.id, { ...p, slug: neighborhoodToSlug(p.neighborhood) }]))
+
     return NextResponse.json(reports.map(r => ({
       ...r,
-      event:     r.eventId     ? (eventMap.get(r.eventId)         ?? null) : null,
-      boardPost: r.boardPostId ? (boardPostMap.get(r.boardPostId) ?? null) : null,
-      listing:   r.listingId   ? (listingMap.get(r.listingId)     ?? null) : null,
+      event:            r.eventId            ? (eventMap.get(r.eventId)                      ?? null) : null,
+      boardPost:        r.boardPostId        ? (boardPostMap.get(r.boardPostId)              ?? null) : null,
+      listing:          r.listingId          ? (listingMap.get(r.listingId)                  ?? null) : null,
+      neighborhoodPost: r.neighborhoodPostId ? (neighborhoodPostMap.get(r.neighborhoodPostId) ?? null) : null,
     })))
   } catch (e) {
     console.error(e)

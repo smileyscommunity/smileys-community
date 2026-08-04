@@ -1,9 +1,18 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { toast } from 'sonner'
 import { resolveImageUrl, getInitials } from '@/lib/data'
 import MentionTextarea, { MentionInput } from '@/components/MentionTextarea'
 import { confirmToast } from '@/lib/confirmToast'
+
+const REPORT_REASONS = [
+  { value: 'spam',          label: 'Spam' },
+  { value: 'scam',          label: 'Scam or suspicious' },
+  { value: 'inappropriate', label: 'Inappropriate / offensive' },
+  { value: 'duplicate',     label: 'Duplicate post' },
+  { value: 'other',         label: 'Other' },
+]
 
 function renderContent(text: string) {
   const parts = text.split(/(@\w+)/g)
@@ -66,6 +75,10 @@ function PostRow({
   const [menu,           setMenu]           = useState(false)
   const [allReplies,     setAllReplies]     = useState<Reply[] | null>(null)
   const [loadingReplies, setLoadingReplies] = useState(false)
+  const [reportOpen,       setReportOpen]       = useState(false)
+  const [reportReason,     setReportReason]     = useState('')
+  const [reportDetails,    setReportDetails]    = useState('')
+  const [reportSubmitting, setReportSubmitting] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const canEdit = post.author.id === myId || isStaff
 
@@ -104,6 +117,26 @@ function PostRow({
       body: JSON.stringify({ isPinned: !post.isPinned }),
     })
     if (res.ok) onPin(post.id, !post.isPinned)
+  }
+
+  async function submitReport() {
+    if (!reportReason) { toast.error('Pick a reason'); return }
+    setReportSubmitting(true)
+    try {
+      const res = await fetch(`/app/api/neighborhoods/${slug}/posts/${post.id}/report`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: reportReason, details: reportDetails || undefined }),
+      })
+      const data = await res.json()
+      if (!res.ok) { toast.error(data.error ?? 'Could not submit report'); return }
+      toast.success('Reported — thanks. Moderators will review.')
+      setReportOpen(false); setReportReason(''); setReportDetails('')
+    } catch {
+      toast.error('Network error')
+    } finally {
+      setReportSubmitting(false)
+    }
   }
 
   async function submitReply() {
@@ -153,30 +186,37 @@ function PostRow({
               <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 shrink-0">Staff</span>
             )}
             <span className="text-[11px] text-gray-400 ml-auto shrink-0">{timeAgo(post.createdAt)}</span>
-            {canEdit && (
-              <div className="relative shrink-0" ref={menuRef}>
-                <button onClick={() => setMenu(v => !v)}
-                  className="p-0.5 rounded text-gray-300 hover:text-gray-600 transition-colors">
-                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
-                    <circle cx="12" cy="5" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="12" cy="19" r="1.5" />
-                  </svg>
-                </button>
-                {menu && (
-                  <div className="absolute right-0 top-5 bg-white border border-gray-100 rounded-xl shadow-lg z-20 py-1 min-w-[130px]">
-                    {isStaff && (
-                      <button onClick={pinPost}
-                        className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-                        📌 {post.isPinned ? 'Unpin' : 'Pin'}
+            <div className="relative shrink-0" ref={menuRef}>
+              <button onClick={() => setMenu(v => !v)}
+                className="p-0.5 rounded text-gray-300 hover:text-gray-600 transition-colors">
+                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                  <circle cx="12" cy="5" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="12" cy="19" r="1.5" />
+                </svg>
+              </button>
+              {menu && (
+                <div className="absolute right-0 top-5 bg-white border border-gray-100 rounded-xl shadow-lg z-20 py-1 min-w-[130px]">
+                  {canEdit ? (
+                    <>
+                      {isStaff && (
+                        <button onClick={pinPost}
+                          className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                          📌 {post.isPinned ? 'Unpin' : 'Pin'}
+                        </button>
+                      )}
+                      <button onClick={deletePost}
+                        className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2">
+                        🗑️ Delete
                       </button>
-                    )}
-                    <button onClick={deletePost}
+                    </>
+                  ) : (
+                    <button onClick={() => { setMenu(false); setReportOpen(true) }}
                       className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2">
-                      🗑️ Delete
+                      🚩 Report
                     </button>
-                  </div>
-                )}
-              </div>
-            )}
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Content */}
@@ -185,6 +225,29 @@ function PostRow({
           )}
           {post.imageUrl && (
             <img src={resolveImageUrl(post.imageUrl)} alt="" className="mt-1.5 rounded-lg max-h-48 object-cover w-full" />
+          )}
+
+          {reportOpen && (
+            <div className="mt-1.5 bg-red-50 border border-red-100 rounded-xl p-3 space-y-2">
+              <p className="text-xs font-semibold text-red-700">Why are you flagging this?</p>
+              <select value={reportReason} onChange={e => setReportReason(e.target.value)}
+                className="w-full bg-white border border-red-200 rounded-lg px-3 py-2 text-sm">
+                <option value="">Pick a reason…</option>
+                {REPORT_REASONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+              </select>
+              <textarea value={reportDetails} onChange={e => setReportDetails(e.target.value)}
+                placeholder="Details (optional)" rows={2} maxLength={500}
+                className="w-full bg-white border border-red-200 rounded-lg px-3 py-2 text-xs resize-none" />
+              <div className="flex gap-2 justify-end">
+                <button onClick={() => { setReportOpen(false); setReportReason(''); setReportDetails('') }}
+                  disabled={reportSubmitting}
+                  className="text-xs px-3 py-1.5 text-gray-600 hover:text-gray-900">Cancel</button>
+                <button onClick={submitReport} disabled={reportSubmitting || !reportReason}
+                  className="text-xs px-4 py-1.5 bg-red-500 hover:bg-red-600 disabled:opacity-40 text-white font-bold rounded-lg transition-colors">
+                  {reportSubmitting ? 'Sending…' : 'Submit report'}
+                </button>
+              </div>
+            </div>
           )}
 
           {/* Reactions + actions row */}

@@ -22,6 +22,7 @@ interface Report {
   event?: { id: string; title: string } | null
   boardPost?: { id: string; title: string; body: string; status: string } | null
   listing?: { id: string; title: string; category: string; status: string } | null
+  neighborhoodPost?: { id: string; content: string; neighborhood: string; slug: string } | null
 }
 
 interface BannedUser {
@@ -566,6 +567,12 @@ function ModerationPageInner() {
                         className="text-xs text-amber-500 hover:underline mb-1 block">
                         🛍️ {r.listing.title}
                         {r.listing.status !== 'active' && <span className="text-zinc-500"> (already removed)</span>}
+                      </Link>
+                    )}
+                    {r.neighborhoodPost && (
+                      <Link href={`/neighborhoods/${r.neighborhoodPost.slug}`} target="_blank" rel="noopener noreferrer"
+                        className="text-xs text-amber-500 hover:underline mb-1 block">
+                        🏘️ {r.neighborhoodPost.neighborhood}: &ldquo;{r.neighborhoodPost.content.slice(0, 80)}&rdquo;
                       </Link>
                     )}
                     {r.details && <p className="text-xs text-zinc-500 mb-1 line-clamp-2">"{r.details}"</p>}
