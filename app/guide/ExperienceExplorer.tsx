@@ -10,6 +10,7 @@ import { GUIDE_MOODS, type Experience, type GuideMood } from '@/lib/guide'
 export default function ExperienceExplorer({ experiences }: { experiences: Experience[] }) {
   const [mood, setMood] = useState<GuideMood | null>(null)
   const [showAll, setShowAll] = useState(false)
+  const [query, setQuery] = useState('')
 
   // Default view is a handful of picks, NOT the whole catalog — the
   // collection shelves below already list everything, and rendering all
@@ -17,18 +18,40 @@ export default function ExperienceExplorer({ experiences }: { experiences: Exper
   // the flagships (the first-timer strip now lives on /visiting, so the
   // essentials belong in this grid again). Choosing a mood or searching
   // always covers everything.
-  const filtered = mood
-    ? experiences.filter(e => e.moods.includes(mood))
-    : showAll
-      ? experiences
-      : experiences.slice(0, 6)
+  // Search (plan s20) covers the full set regardless of mood/collapse:
+  // title, tagline, why, the Take, and mood labels all match.
+  const q = query.trim().toLowerCase()
+  const searched = q
+    ? experiences.filter(e =>
+        [e.title, e.tagline, e.why, e.take, ...e.moods].join(' ').toLowerCase().includes(q))
+    : null
+  const filtered = searched
+    ? (mood ? searched.filter(e => e.moods.includes(mood)) : searched)
+    : mood
+      ? experiences.filter(e => e.moods.includes(mood))
+      : showAll
+        ? experiences
+        : experiences.slice(0, 6)
 
   return (
     <div>
       <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900 mb-1">
         What are you in the mood for?
       </h2>
-      <p className="text-gray-600 mb-5">Pick a mood — or start with a few favorites.</p>
+      <p className="text-gray-600 mb-4">Pick a mood, search, or start with a few favorites.</p>
+
+      <div className="relative mb-4 max-w-md">
+        <svg aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <input type="text" value={query} onChange={e => setQuery(e.target.value)}
+          placeholder="What do you want to experience? sunset, hammam, jazz…"
+          className="w-full pl-9 pr-8 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition" />
+        {query && (
+          <button onClick={() => setQuery('')} aria-label="Clear search"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-lg leading-none"><span aria-hidden="true">×</span></button>
+        )}
+      </div>
 
       <div className="flex gap-2 overflow-x-auto pb-3 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-hide" role="tablist" aria-label="Mood filter">
         {GUIDE_MOODS.map(m => (
@@ -79,7 +102,7 @@ export default function ExperienceExplorer({ experiences }: { experiences: Exper
         </div>
       )}
 
-      {!mood && !showAll && filtered.length < experiences.length && (
+      {!q && !mood && !showAll && filtered.length < experiences.length && (
         <button onClick={() => setShowAll(true)}
           className="mt-5 w-full py-3 border border-gray-200 rounded-2xl text-sm font-bold text-gray-700 hover:border-amber-300 hover:text-amber-700 bg-white transition-colors">
           Show all {experiences.length} experiences

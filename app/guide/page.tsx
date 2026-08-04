@@ -17,6 +17,7 @@ import GuideCTA from './GuideCTA'
 import GuideStickyNav from './GuideStickyNav'
 import ExperienceExplorer from './ExperienceExplorer'
 import MyIstanbul from './MyIstanbul'
+import IstanbulToday from './IstanbulToday'
 import { GUIDE_COLLECTIONS } from '@/lib/guide'
 import { loadExperiences } from '@/lib/guideContent'
 
@@ -163,10 +164,19 @@ export default async function GuidePage() {
               className="inline-flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
               Explore Istanbul
             </a>
-            <a href="#collections"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-white/10 hover:bg-white/20 text-white text-sm font-bold rounded-xl transition-colors backdrop-blur-sm">
-              Browse collections
-            </a>
+            {experiences.length > 0 && (() => {
+              /* Rotates with the page's ISR window — a genuinely different
+                 action from the Explore anchor (the old second button
+                 scrolled to essentially the same place). Retire when
+                 "What should I do today?" becomes a full feature. */
+              const surprise = experiences[Math.floor(Math.random() * experiences.length)]
+              return (
+                <Link href={`/guide/${surprise.slug}`}
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-white/10 hover:bg-white/20 text-white text-sm font-bold rounded-xl transition-colors backdrop-blur-sm">
+                  <span aria-hidden="true">🎲</span> Surprise me
+                </Link>
+              )
+            })()}
           </div>
         </div>
       </div>
@@ -189,6 +199,9 @@ export default async function GuidePage() {
               Collections below, so it was pure duplication on this page.
               "First time in Istanbul?" is /visiting's exact audience; the
               "Visiting first?" cross-link further down sends people there. */}
+
+          {/* §5 — Istanbul Today: time + season aware suggestions. */}
+          <IstanbulToday />
 
           {/* §7 — collections: browsable shelves instead of category trees. */}
           <div id="collections" className="mt-12 scroll-mt-16">

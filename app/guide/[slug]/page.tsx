@@ -14,6 +14,7 @@ import { APP_URL } from '@/lib/env'
 import { prisma } from '@/lib/prisma'
 import ExperienceActions from './ExperienceActions'
 import LiveHangouts from './LiveHangouts'
+import EventMatches from './EventMatches'
 
 export function generateStaticParams() {
   return loadExperiences().map(e => ({ slug: e.slug }))
@@ -150,25 +151,7 @@ export default async function ExperiencePage({ params }: { params: Promise<{ slu
           <p className="relative text-sm text-gray-300 mb-5">
             The Smileys community does things like this every week — organized events, spontaneous hangouts, and visitors looking for company.
           </p>
-          {matchedEvents.length > 0 && (
-            <div className="relative space-y-2 mb-5">
-              <p className="text-xs font-bold text-amber-400 uppercase tracking-widest">Coming up nearby</p>
-              {matchedEvents.map(ev => (
-                <Link key={ev.id} href={`/events/${ev.id}`}
-                  className="flex items-center gap-3 bg-white/10 hover:bg-white/20 rounded-xl px-4 py-2.5 transition-colors">
-                  <span aria-hidden="true" className="shrink-0">{ev.emoji}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-white truncate">{ev.title}</p>
-                    <p className="text-xs text-gray-300 mt-0.5">
-                      {new Date(ev.date + 'T12:00:00+03:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
-                      {ev.neighborhood && <> · 📍 {ev.neighborhood}</>}
-                    </p>
-                  </div>
-                  <span className="shrink-0 text-xs font-bold text-amber-400">View →</span>
-                </Link>
-              ))}
-            </div>
-          )}
+          <EventMatches events={matchedEvents} />
           <LiveHangouts neighborhoods={nearby} />
           <div className="relative flex flex-wrap gap-3 mt-5">
             <Link href="/events" className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
