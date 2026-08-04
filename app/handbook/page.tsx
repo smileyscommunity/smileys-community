@@ -283,12 +283,18 @@ export default async function HandbookPage() {
         if (quickRef.length === 0) return null
         return (
           <section className="bg-white border-t border-gray-100">
-            <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            {/* max-w-7xl matches every other handbook section so the
+                heading shares the page's left edge; the link list itself
+                stays reading-width (TransitLinks was designed for a
+                3xl column) but left-aligned, not floating centered. */}
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
               <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900">Quick reference</h2>
               <p className="text-gray-600 mt-1 mb-8">
                 Apps, official sites and practical links for functioning in Istanbul — vetted by the Smileys team, updated regularly.
               </p>
-              <TransitLinks categories={quickRef} />
+              <div className="max-w-3xl">
+                <TransitLinks categories={quickRef} />
+              </div>
             </div>
           </section>
         )
