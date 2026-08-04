@@ -100,7 +100,7 @@ function VisitorsModule({ visitors }: { visitors: Visitor[] }) {
 }
 
 // ── Composer ────────────────────────────────────────────────────────────────
-function Composer({ onPosted }: { onPosted: () => void }) {
+function Composer({ onPosted, prefillNeighborhood }: { onPosted: () => void; prefillNeighborhood?: string | null }) {
   const { user, isLoggedIn } = useAuth()
   const [open,         setOpen]         = useState(false)
   const [type,         setType]         = useState<BoardPostType>('question')
@@ -109,6 +109,15 @@ function Composer({ onPosted }: { onPosted: () => void }) {
   const [tag,          setTag]          = useState('')
   const [neighborhood, setNeighborhood] = useState('')
   const [posting,      setPosting]      = useState(false)
+
+  // Compose intent from a neighborhood page ("Ask about Moda →"): open the
+  // composer with the neighborhood preset. Arrives via state (captured from
+  // the URL upstream), so it can land after mount.
+  useEffect(() => {
+    if (prefillNeighborhood === undefined || prefillNeighborhood === null) return
+    setOpen(true)
+    if (prefillNeighborhood) setNeighborhood(prefillNeighborhood)
+  }, [prefillNeighborhood])
 
   const PLACEHOLDER: Record<BoardPostType, string> = {
     question: 'What would you like help with?',
@@ -473,6 +482,7 @@ export default function BoardFeed() {
   const [filter,   setFilter]   = useState('')
   const [hood,     setHood]     = useState('')
   const [deepPost, setDeepPost] = useState<string | null>(null)
+  const [composeHood, setComposeHood] = useState<string | null>(null)
   const [loading,  setLoading]  = useState(true)
   const [hasMore,  setHasMore]  = useState(false)
   const [visitors, setVisitors] = useState<Visitor[]>([])
@@ -516,6 +526,8 @@ export default function BoardFeed() {
     if (post) setDeepPost(post)
     const n = searchParams.get('neighborhood')
     if (n) setHood(n)
+    // ?compose=1 opens the composer, with ?neighborhood= preset when given.
+    if (searchParams.get('compose') === '1') setComposeHood(n ?? '')
   }, [searchParams])
 
   const load = useCallback(async (type: string, offset: number, append: boolean) => {
@@ -540,7 +552,7 @@ export default function BoardFeed() {
 
   return (
     <div className="max-w-2xl">
-      <Composer onPosted={() => load(filter, 0, false)} />
+      <Composer onPosted={() => load(filter, 0, false)} prefillNeighborhood={composeHood} />
 
       <div className="flex gap-1.5 overflow-x-auto pb-3 scrollbar-hide">
         {FEED_CHIPS.map(c => (

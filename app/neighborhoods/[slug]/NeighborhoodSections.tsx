@@ -626,9 +626,15 @@ export default async function NeighborhoodSections({
         <div>
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">On the Board in {name}</h2>
-            <Link href="/board" className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
-              Open Istanbul Board →
-            </Link>
+            <div className="flex items-center gap-4">
+              <Link href={`/board?compose=1&neighborhood=${encodeURIComponent(name)}`}
+                className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
+                Ask about {name} →
+              </Link>
+              <Link href={`/board?neighborhood=${encodeURIComponent(name)}`} className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
+                See all →
+              </Link>
+            </div>
           </div>
           <div className="space-y-3">
             {boardPosts.map(bp => (

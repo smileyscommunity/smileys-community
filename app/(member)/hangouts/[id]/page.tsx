@@ -5,6 +5,7 @@ import { notFound, redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { resolveImageUrl } from '@/lib/data'
+import { neighborhoodToSlug, NEIGHBORHOOD_META } from '@/lib/neighborhoods'
 import { APP_URL, SITE_URL } from '@/lib/env'
 import SocialShare from '@/components/SocialShare'
 import HangoutJoinButton from '@/components/HangoutJoinButton'
@@ -190,7 +191,10 @@ export default async function HangoutPermalinkPage({ params }: PageProps) {
 
             <div className="text-sm text-gray-700 space-y-1">
               <p>📍 <span className="font-medium">{hangout.location}</span>
-                {hangout.neighborhood && <span className="text-gray-600"> · {hangout.neighborhood}</span>}
+                {hangout.neighborhood && (NEIGHBORHOOD_META[hangout.neighborhood]
+                  ? <Link href={`/neighborhoods/${neighborhoodToSlug(hangout.neighborhood)}`}
+                      className="text-gray-600 hover:text-amber-700 hover:underline"> · {hangout.neighborhood}</Link>
+                  : <span className="text-gray-600"> · {hangout.neighborhood}</span>)}
               </p>
               <p>🕒 <span className="font-medium">
                 {hangout.startsAt.toLocaleString('en-GB', { timeZone: 'Europe/Istanbul', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}

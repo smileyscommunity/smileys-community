@@ -159,7 +159,15 @@ export default async function VisitingPage() {
       _count: { select: { joins: true } },
     },
     orderBy: { startsAt: 'asc' },
-    take: 4,
+    // Overfetch then sort so hangouts in the visitor's own stay-
+    // neighborhood lead the row — those are the ones they can actually
+    // walk to. Stable within groups: soonest first.
+    take: 8,
+  }).then(rows => {
+    if (!viewerVisit?.neighborhood) return rows.slice(0, 4)
+    return [...rows]
+      .sort((a, b) => Number(b.neighborhood === viewerVisit.neighborhood) - Number(a.neighborhood === viewerVisit.neighborhood))
+      .slice(0, 4)
   }) : []
 
   // Their neighborhood leads when known, then the busiest ones fill the row.
