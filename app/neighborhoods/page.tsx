@@ -301,10 +301,10 @@ export default async function NeighborhoodsPage() {
                     do next: jump to their own neighborhood, go set one, or
                     join first. A single fixed target would be a dead end for
                     two of the three. */}
-                <a href={userNeighborhood ? '#your-neighborhood' : session ? '/settings' : '/apply'}
+                <Link href={userNeighborhood ? '#your-neighborhood' : session ? '/settings' : '/apply'}
                   className="inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-amber-500 hover:bg-amber-600 text-white text-base font-bold rounded-xl transition-colors shadow-lg">
                   <span aria-hidden="true">📍</span> Find My Neighborhood
-                </a>
+                </Link>
                 <a href="#explore"
                   className="inline-flex items-center justify-center gap-2 px-7 py-3.5 border border-white/50 hover:bg-white/10 text-white text-base font-semibold rounded-xl transition-colors backdrop-blur-sm">
                   Explore Neighborhoods
