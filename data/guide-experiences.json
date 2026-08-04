@@ -1,0 +1,463 @@
+{
+  "updatedAt": "2026-08-04",
+  "experiences": [
+    {
+      "slug": "ferry-at-sunset",
+      "title": "Take the Ferry at Sunset",
+      "emoji": "⛴️",
+      "collection": "bosphorus",
+      "moods": ["bosphorus", "free", "iconic", "night"],
+      "tagline": "One of the simplest ways to fall in love with Istanbul.",
+      "cost": "Free-ish",
+      "time": "1–2 hours",
+      "when": "About an hour before sunset",
+      "why": "For the price of a transit fare you get the skyline, the seagulls, the tea, and twenty minutes where the city finally slows down. It's the single best return-on-lira experience Istanbul offers.",
+      "take": "Skip the expensive tourist cruise at least once and take a regular city ferry instead. Grab a tea from the vendor, sit outside on the leeward side, and don't look at your phone until you dock.",
+      "firstTime": true,
+      "sections": [
+        {
+          "title": "Best routes",
+          "items": [
+            "Kadıköy → Beşiktaş — the classic crossing, skyline the whole way",
+            "Üsküdar → Eminönü — minarets and Topkapı silhouetted against the sun",
+            "Karaköy → Kadıköy — a 20-minute reset between two different Istanbuls"
+          ]
+        },
+        {
+          "title": "Good to know",
+          "items": [
+            "Pay with an İstanbulkart — contactless bank cards work too but cost more",
+            "It gets windy on deck even in summer; bring a layer",
+            "Ferries run late but thin out in the evening — check the last return before you linger",
+            "The tea on board is part of the ritual, not an upsell"
+          ]
+        }
+      ],
+      "neighborhoods": ["Karaköy", "Kadıköy", "Üsküdar", "Beşiktaş"]
+    },
+    {
+      "slug": "turkish-breakfast",
+      "title": "Eat a Real Turkish Breakfast",
+      "emoji": "🍳",
+      "collection": "eat",
+      "moods": ["eat", "people"],
+      "tagline": "Not a meal — a two-hour weekend ritual you'll start defending to foreigners.",
+      "cost": "₺₺",
+      "time": "2–3 hours",
+      "when": "Weekend morning, before 11:00 if you hate queues",
+      "why": "Serpme kahvaltı — the spread — is cheeses, olives, honey with clotted cream, menemen, börek, and endless tea, designed for a table of people with nowhere to be. It's Turkish social life on a tablecloth.",
+      "take": "Go with at least one other person — the spread is built for sharing, and ordering it alone is a rookie tell. Van-style breakfast places are the gold standard; if the menu says 'unlimited tea', you're in the right place.",
+      "firstTime": true,
+      "sections": [
+        {
+          "title": "How to do it right",
+          "items": [
+            "Order one serpme (spread) for the table plus a menemen — not one spread each",
+            "Tea keeps coming until you turn your glass on its side, metaphorically speaking — just say 'yeter' with a smile",
+            "Weekday breakfasts are the local secret: same food, no queue, half the noise"
+          ]
+        },
+        {
+          "title": "Where to look",
+          "items": [
+            "Cihangir and Kadıköy have the densest breakfast scenes",
+            "Çengelköy on the Asian Bosphorus does breakfast with a waterfront",
+            "Every neighborhood has a beloved kahvaltı spot — ask on the Board"
+          ]
+        }
+      ],
+      "neighborhoods": ["Cihangir", "Kadıköy", "Çengelköy"]
+    },
+    {
+      "slug": "princes-islands",
+      "title": "A Day on the Princes' Islands",
+      "emoji": "🏝️",
+      "collection": "escape",
+      "moods": ["escape", "iconic"],
+      "tagline": "No cars, pine forests, faded mansions — an hour from the city and a century away.",
+      "cost": "₺",
+      "time": "Full day",
+      "when": "A weekday in spring or autumn; summer weekends are a crush",
+      "why": "The Adalar are Istanbul's pressure valve: ferries, swimming coves, forested hills, and streets where the loudest sound is a bicycle bell. Nothing else this close resets you this hard.",
+      "take": "Don't try to see all four islands — pick one and slow down. Büyükada is the grandest, Heybeliada the greenest, Burgazada the quietest. And note: the famous horse carriages were retired in 2020; it's electric shuttles, bikes, and your own feet now.",
+      "firstTime": true,
+      "sections": [
+        {
+          "title": "Getting there",
+          "items": [
+            "Ferries from Kabataş (European side) or Bostancı (Asian side) — Bostancı is faster and less crowded",
+            "Order of stops: Kınalıada → Burgazada → Heybeliada → Büyükada",
+            "Check the last ferry back before you settle into a long lunch"
+          ]
+        },
+        {
+          "title": "Good to know",
+          "items": [
+            "Bring cash — many island vendors and small restaurants don't take cards",
+            "On Büyükada, walk or take the electric shuttle to the base of the Aya Yorgi hill, then climb — visitors tie a string along the path as a wish",
+            "Kınalıada works as a half-day trip if a full day is too much"
+          ]
+        }
+      ],
+      "neighborhoods": ["Büyükada", "Heybeliada", "Burgazada", "Kınalıada"]
+    },
+    {
+      "slug": "turkish-hammam",
+      "title": "Experience a Turkish Hammam",
+      "emoji": "🧖",
+      "collection": "different",
+      "moods": ["different", "rainy", "iconic"],
+      "tagline": "Five hundred years of steam, marble, and being scrubbed humbler than you've ever been.",
+      "cost": "₺₺₺",
+      "time": "2–3 hours",
+      "when": "A cold or rainy day makes it twice as good",
+      "why": "A proper hammam — hot marble, a kese scrub that removes a layer of you, foam wash, then tea in a robe — is the most Ottoman thing you can still do with your afternoon. You walk out lighter in every sense.",
+      "take": "The historic hammams are worth their tourist prices once — the architecture is the ticket. After that, do what locals do: find a neighborhood hammam at a third of the price. Either way, take the kese. That's the whole point.",
+      "sections": [
+        {
+          "title": "Know before you go",
+          "items": [
+            "Men's and women's sections (or hours) are separate in traditional hammams",
+            "You'll be given a peştemal (thin cotton wrap) — swimwear underneath is fine if you prefer",
+            "Book historic hammams ahead; neighborhood ones are walk-in",
+            "Hydrate before and after — the hot room takes it out of you"
+          ]
+        }
+      ],
+      "neighborhoods": ["Sultanahmet", "Fatih", "Beyoğlu"]
+    },
+    {
+      "slug": "meyhane-night",
+      "title": "A Proper Meyhane Night",
+      "emoji": "🥂",
+      "collection": "night",
+      "moods": ["eat", "night-out", "people", "night"],
+      "tagline": "Mezes, rakı, and three hours of conversation — dinner as Istanbul's favorite sport.",
+      "cost": "₺₺₺",
+      "time": "3–4 hours",
+      "when": "From 20:00; Friday and Saturday need a reservation or luck",
+      "why": "The meyhane is Istanbul's dinner theatre: cold mezes arrive on a tray, you point at what you want, hot plates follow, rakı turns cloudy over ice, and somewhere around hour two somebody at the next table starts singing.",
+      "take": "Pace yourself on the cold mezes — the tray is an opening argument, not the menu. Rakı is drunk slowly, with water, over food, across an entire evening. If you're up for the classic chaos, Nevizade in Beyoğlu; for the local version, Kadıköy's back streets.",
+      "sections": [
+        {
+          "title": "The ritual",
+          "items": [
+            "Pick 3–4 cold mezes for the table, then one or two hot ones, then fish if you're hungry",
+            "Rakı comes with a water glass and ice — mix to taste, sip, don't shoot",
+            "Şerefe (to honor) is the toast; eye contact matters"
+          ]
+        },
+        {
+          "title": "Where to look",
+          "items": [
+            "Nevizade Sokak, Beyoğlu — the loud, historic, touristy-but-fun strip",
+            "Kadıköy çarşı back streets — younger, cheaper, more local",
+            "Kuzguncuk and Beylerbeyi for a quiet waterfront version"
+          ]
+        }
+      ],
+      "neighborhoods": ["Beyoğlu", "Kadıköy", "Kuzguncuk"]
+    },
+    {
+      "slug": "balat-fener-walk",
+      "title": "Wander Balat & Fener",
+      "emoji": "🏘️",
+      "collection": "different",
+      "moods": ["different", "free", "iconic"],
+      "tagline": "Rainbow houses, Greek Orthodox history, and the best aimless walking in Istanbul.",
+      "cost": "Free",
+      "time": "Half day",
+      "when": "Weekday morning — weekend afternoons get very crowded",
+      "why": "Centuries of Greek, Jewish, and Armenian history stacked on two hillsides of cobblestones, antique shops, and defiantly colorful houses. It's the rare Instagram-famous place that's genuinely better in person.",
+      "take": "Do Balat and Fener together — they're adjacent and make one natural route; plan 3–4 hours. Come on a weekday morning, wear real shoes for the hills, and budget for one antique-shop mistake you'll love forever.",
+      "sections": [
+        {
+          "title": "Getting there",
+          "items": [
+            "The T5 tram along the Golden Horn stops at both Fener and Balat",
+            "Or a 30-minute waterfront walk from Eminönü",
+            "The Golden Horn shore path below Fener is quieter than the streets above"
+          ]
+        },
+        {
+          "title": "Don't miss",
+          "items": [
+            "The Ecumenical Patriarchate — still the heart of Greek Orthodoxy",
+            "The red-brick Fener Greek School looming over everything",
+            "Balat's antique market streets — go in without a plan"
+          ]
+        }
+      ],
+      "neighborhoods": ["Balat", "Fener", "Eyüpsultan"]
+    },
+    {
+      "slug": "historic-peninsula-sanely",
+      "title": "Historic Istanbul Without Losing Your Mind",
+      "emoji": "🕌",
+      "collection": "different",
+      "moods": ["iconic", "rainy"],
+      "tagline": "Hagia Sophia, the Blue Mosque, and Topkapı — a realistic plan instead of a death march.",
+      "cost": "₺₺₺",
+      "time": "Full day",
+      "when": "Start before 09:00 or after 15:00; never a summer midday",
+      "why": "The monuments earn the hype — Byzantine domes, Ottoman courtyards, the Basilica Cistern's underwater columns. What ruins them is trying to do everything at noon in a crowd. Sequenced right, it's one of the world's great walking days.",
+      "take": "Two major monuments a day, maximum — pair them with the sea walls, a köfte lunch, and the courtyards that don't need tickets. When the crowds peak mid-afternoon, walk downhill to Cankurtaran and the water, where old Istanbul is suddenly, blessedly empty.",
+      "firstTime": true,
+      "sections": [
+        {
+          "title": "A sane sequence",
+          "items": [
+            "08:30 — Hagia Sophia at opening, before the tour groups",
+            "10:30 — Basilica Cistern or Topkapı (pick one, seriously)",
+            "12:30 — köfte or esnaf lokantası lunch off the main drag",
+            "14:00 — Blue Mosque courtyard + Hippodrome, then drift to the sea walls"
+          ]
+        },
+        {
+          "title": "Good to know",
+          "items": [
+            "The T1 tram (Sultanahmet stop) is the easiest arrival",
+            "Mosques close to visitors at prayer times — plan around them",
+            "Dress modestly; scarves are provided at mosque entrances",
+            "Sultanahmet restaurant prices run high — eat one street back"
+          ]
+        }
+      ],
+      "neighborhoods": ["Sultanahmet", "Eminönü", "Fatih"]
+    },
+    {
+      "slug": "bebek-rumeli-walk",
+      "title": "Walk the Bosphorus: Bebek to Rumeli Hisarı",
+      "emoji": "🚶",
+      "collection": "bosphorus",
+      "moods": ["bosphorus", "free"],
+      "tagline": "The prettiest 20 minutes of flat walking in Istanbul, ending at a fortress.",
+      "cost": "Free",
+      "time": "1–3 hours",
+      "when": "Late afternoon, so the fortress catches the low sun",
+      "why": "Waterfront the whole way: fishermen, yalıs, absurd yachts, and the Bosphorus narrowing until a 15th-century fortress rises straight out of the shore. It's the walk to take visitors on their first day.",
+      "take": "Start in Bebek with a coffee, walk north, and take the bus back instead of retracing. If you have the legs, Arnavutköy → Bebek → Rumeli Hisarı strings together the three prettiest Bosphorus villages in one afternoon.",
+      "sections": [
+        {
+          "title": "The route",
+          "items": [
+            "Bebek Park → waterfront promenade → Rumeli Hisarı village (about 20 minutes at a stroll)",
+            "The fortress courtyard is worth the ticket — check for summer concerts",
+            "Extend south to Arnavutköy's wooden mansions for the full set"
+          ]
+        },
+        {
+          "title": "Good to know",
+          "items": [
+            "Buses along the coast road (22, 25E) run you back to Beşiktaş",
+            "Weekend afternoons are busy; weekday mornings feel private",
+            "Boğaziçi University's campus sits just above the fortress — one of the city's best viewpoints"
+          ]
+        }
+      ],
+      "neighborhoods": ["Bebek", "Rumeli Hisarı", "Arnavutköy"]
+    },
+    {
+      "slug": "kadikoy-market-graze",
+      "title": "Graze Through Kadıköy Market",
+      "emoji": "🫒",
+      "collection": "eat",
+      "moods": ["eat", "different", "people"],
+      "tagline": "Istanbul's best food neighborhood, eaten one counter at a time.",
+      "cost": "₺₺",
+      "time": "2–3 hours",
+      "when": "Late morning, hungry",
+      "why": "The çarşı packs fishmongers, pickle shops, olive counters, coffee roasters, and some of Turkey's most celebrated regional cooking into a few walkable blocks. It's less a market than an edible museum with free samples.",
+      "take": "Come hungry and order small everywhere instead of sitting down once. The Anatolian dishes at the market's famous lokantas are the headline — but the supporting cast of turşu (pickle) juice, a wood-fired lahmacun, and a Turkish coffee finish is what you'll remember.",
+      "sections": [
+        {
+          "title": "A grazing route",
+          "items": [
+            "Start at the fish market end — look, don't commit yet",
+            "Regional Anatolian lunch at a çarşı lokanta (this is the sit-down moment)",
+            "Pickle juice from a turşucu — braver than it sounds, better than it sounds",
+            "Finish with Turkish coffee in the Moda direction"
+          ]
+        },
+        {
+          "title": "Good to know",
+          "items": [
+            "The ferry from Karaköy or Beşiktaş is the correct arrival",
+            "Most counters are cash-friendly and queue-based — no reservations anywhere",
+            "Tuesday and Friday add the open-air neighborhood pazar for produce"
+          ]
+        }
+      ],
+      "neighborhoods": ["Kadıköy", "Moda"]
+    },
+    {
+      "slug": "rooftop-sunset-drinks",
+      "title": "Rooftops & Sunset Drinks",
+      "emoji": "🍸",
+      "collection": "night",
+      "moods": ["night-out", "night", "bosphorus"],
+      "tagline": "The skyline you came for, glass in hand.",
+      "cost": "₺₺₺",
+      "time": "2–3 hours",
+      "when": "Arrive an hour before sunset for the good seats",
+      "why": "Istanbul from six floors up at golden hour — minarets, water, and ten million lights coming on — is the cheapest expensive drink you'll ever buy. Every visitor deserves it once; most residents keep one rooftop in rotation forever.",
+      "take": "Karaköy and Cihangir rooftops face the historic peninsula — that's the sunset side. Book ahead on weekends, and know that one round at a view bar plus dinner somewhere honest beats three overpriced courses in the sky.",
+      "sections": [
+        {
+          "title": "How to play it",
+          "items": [
+            "Golden hour drink up high, then descend to street level for dinner",
+            "Cihangir and Karaköy for the classic view; Kadıköy rooftops for the sunset over the European side",
+            "Some rooftops close or move indoors in winter — check before climbing six floors"
+          ]
+        }
+      ],
+      "neighborhoods": ["Karaköy", "Cihangir", "Kadıköy"]
+    },
+    {
+      "slug": "belgrad-forest",
+      "title": "Breathe in Belgrad Forest",
+      "emoji": "🌲",
+      "collection": "escape",
+      "moods": ["escape", "free"],
+      "tagline": "5,000 hectares of oak and beech where Istanbul goes to remember what quiet sounds like.",
+      "cost": "Free-ish",
+      "time": "Half day",
+      "when": "Weekday mornings are empty; autumn is spectacular",
+      "why": "Twenty minutes past the metro's end, the city simply stops: running loops around reservoirs, picnic clearings under century-old trees, and air that tastes different. It's the fastest complete exit Istanbul offers without a ferry.",
+      "take": "Take the M2 to Hacıosman, then a short taxi — it's not walkable from the station. Go on a weekday if you can; Sunday picnic crowds are their own kind of lovely chaos, but they're not quiet.",
+      "sections": [
+        {
+          "title": "Good to know",
+          "items": [
+            "The main loop trails are flat, marked, and runnable",
+            "Bring water and snacks — facilities inside are sparse",
+            "Nearby Göktürk village makes a good post-forest café stop",
+            "Mobile signal drops in the deep sections; download an offline map"
+          ]
+        }
+      ],
+      "neighborhoods": ["Sarıyer", "Göktürk", "Kemerburgaz"]
+    },
+    {
+      "slug": "turkish-coffee-slow",
+      "title": "Slow Down over Turkish Coffee",
+      "emoji": "☕",
+      "collection": "eat",
+      "moods": ["eat", "rainy", "different"],
+      "tagline": "Forty minutes, one tiny cup, and a fortune waiting in the grounds.",
+      "cost": "₺",
+      "time": "Under 1 hour",
+      "when": "Mid-afternoon, ideally when it's raining",
+      "why": "Turkish coffee is UNESCO-listed for a reason: it's coffee as ceremony — unfiltered, slowly brewed, served with water and lokum, and never, ever taken to go. Learning to sit with it is learning something about the city.",
+      "take": "Order it orta (medium sweet) your first time. When you're done, flip the cup onto the saucer and let it cool — whether or not anyone reads your fortune, you've bought yourself ten more minutes of doing nothing, which is the actual point.",
+      "sections": [
+        {
+          "title": "Where it hits different",
+          "items": [
+            "Kadıköy's historic roasters — the smell reaches the street",
+            "A hole-in-the-wall in Beyoğlu that's been doing only this for decades",
+            "Any çay bahçesi (tea garden) with a Bosphorus view — order coffee anyway"
+          ]
+        },
+        {
+          "title": "The vocabulary",
+          "items": [
+            "sade — no sugar · orta — medium · şekerli — sweet (decide before brewing, not after)",
+            "The grounds stay in the cup: stop sipping when it gets thick",
+            "Lokum (Turkish delight) on the saucer is standard, not a tourist flourish"
+          ]
+        }
+      ],
+      "neighborhoods": ["Kadıköy", "Beyoğlu", "Üsküdar"]
+    },
+    {
+      "slug": "moda-sunset",
+      "title": "Sunset on the Moda Seaside",
+      "emoji": "🌅",
+      "collection": "free",
+      "moods": ["free", "people", "night"],
+      "tagline": "Bring something to sit on, something to drink, and watch the Asian side's nightly ritual.",
+      "cost": "Free",
+      "time": "1–2 hours",
+      "when": "Golden hour, any day it isn't raining",
+      "why": "Every evening the grass slope and sea rocks of Moda fill with students, families, guitars, and picnic blankets facing the sun as it drops behind the old city. It's Istanbul's most democratic front-row seat.",
+      "take": "This is a bring-your-own experience — pick up snacks in Kadıköy çarşı on the walk down. The concrete jetty gets the classic photo; the grass above the rocks gets the better evening.",
+      "sections": [
+        {
+          "title": "Good to know",
+          "items": [
+            "15-minute walk from Kadıköy ferry through the market streets — that's part of it",
+            "The historic Moda ferry pier café is the fallback if the ground isn't your thing",
+            "Weekends add street musicians and a fair amount of happy crowd — come weekdays for calm"
+          ]
+        }
+      ],
+      "neighborhoods": ["Moda", "Kadıköy"]
+    },
+    {
+      "slug": "live-music-night",
+      "title": "Find Istanbul's Live Music",
+      "emoji": "🎶",
+      "collection": "night",
+      "moods": ["night-out", "night", "different", "people"],
+      "tagline": "From meyhane singalongs to basement blues — the city plays every night.",
+      "cost": "₺₺",
+      "time": "3+ hours",
+      "when": "From 21:00; the real sets start late",
+      "why": "Istanbul's music scene sprawls from Kadıköy's alternative bars to Beyoğlu's jazz stages and blues clubs, with meyhane musicians filling in everything between. Cover charges are modest and the crowds actually listen.",
+      "take": "Kadife Sokak in Kadıköy — 'Bar Street' — is the highest hit rate per hundred meters: stick your head into three venues and stay where the sound pulls you. On the European side, Beyoğlu's blues and jazz rooms reward showing up without a plan.",
+      "sections": [
+        {
+          "title": "Where to start",
+          "items": [
+            "Kadife Sokak (Kadıköy) — alternative, rock, and DJ sets in converted houses",
+            "Beyoğlu side streets — jazz stages and long-running blues bars",
+            "Meyhane musicians — not a concert, better than a concert"
+          ]
+        },
+        {
+          "title": "Good to know",
+          "items": [
+            "Check Smileys Events — the community runs open mics and gig nights",
+            "Most venues are cash-friendly with cheap cover or none",
+            "Last metro is around midnight; night buses and ferries cover the stragglers"
+          ]
+        }
+      ],
+      "neighborhoods": ["Kadıköy", "Beyoğlu"]
+    },
+    {
+      "slug": "uskudar-evening",
+      "title": "An Evening in Üsküdar",
+      "emoji": "🌙",
+      "collection": "bosphorus",
+      "moods": ["bosphorus", "free", "iconic", "night"],
+      "tagline": "Tea by the water, the Maiden's Tower lit up, and the least touristy sunset in Istanbul.",
+      "cost": "Free-ish",
+      "time": "2–3 hours",
+      "when": "The hour before and after sunset",
+      "why": "Üsküdar's waterfront looks straight back at the entire European skyline — Topkapı, Hagia Sophia, the Galata Tower — with the Maiden's Tower floating in front. Locals line the shore with tea and simit every evening; tourists mostly never make it across.",
+      "take": "Take the ferry over (that's half the experience), walk the promenade south toward the Maiden's Tower viewpoint, and buy tea from a shore vendor rather than sitting in a café — the seawall is the best seat. If you have an extra hour, the waterfront walk north to Kuzguncuk's wooden houses is the quiet masterpiece of the Asian shore.",
+      "sections": [
+        {
+          "title": "The evening",
+          "items": [
+            "Ferry from Eminönü (15 min) or Beşiktaş (10 min)",
+            "Promenade south for the Maiden's Tower and skyline views",
+            "Tea + simit from a vendor at the seawall as the lights come on",
+            "Optional: 20-minute waterfront walk north to Kuzguncuk"
+          ]
+        },
+        {
+          "title": "Good to know",
+          "items": [
+            "Üsküdar is one of the city's more traditional districts — it's lively, dry-ish, and family-heavy in the evenings",
+            "The Marmaray gets you back under the Bosphorus in minutes if the ferries have thinned"
+          ]
+        }
+      ],
+      "neighborhoods": ["Üsküdar", "Kuzguncuk"]
+    }
+  ]
+}

@@ -15,6 +15,9 @@ import { neighborhoodToSlug, getNeighborhoodMeta } from '@/lib/neighborhoods'
 import TransitLinks, { categoryId, type Category } from '@/components/TransitLinks'
 import GuideCTA from './GuideCTA'
 import GuideStickyNav from './GuideStickyNav'
+import ExperienceExplorer from './ExperienceExplorer'
+import { GUIDE_COLLECTIONS } from '@/lib/guide'
+import { loadExperiences } from '@/lib/guideContent'
 
 interface Banner {
   id: string; type: string; active: boolean
@@ -125,7 +128,14 @@ export default async function GuidePage() {
   }
   const banner = loadBanner()
 
+  const experiences = loadExperiences()
+  const firstTimers = experiences.filter(e => e.firstTime)
+
   const navItems = [
+    ...(experiences.length > 0 ? [
+      { id: 'experiences', icon: '✨', label: 'Experiences' },
+      { id: 'collections', icon: '🗂️', label: 'Collections' },
+    ] : []),
     ...categories.map(c => ({ id: categoryId(c.label), icon: c.icon, label: c.label })),
     ...(neighborhoods.length > 0 ? [{ id: 'neighborhoods', icon: '🏘️', label: 'Neighborhoods' }] : []),
   ]
@@ -136,15 +146,28 @@ export default async function GuidePage() {
       {/* Hero — typographic, no avatar block. Gives the title and
           tagline more breathing room and removes the icon-vs-text
           alignment that was crowding mobile. */}
-      <div className="bg-white border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-6">
-          <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">🗺️ Istanbul Guide</span>
-          <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">
-            Quick links members trust.
+      {/* Hero (§29) — gradient until real experiential photography lands
+          (same photo pipeline as the neighborhoods hero, when ready). */}
+      <div className="relative bg-gradient-to-br from-gray-900 via-gray-800 to-amber-900 overflow-hidden">
+        <div aria-hidden="true" className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_75%_30%,#f59e0b_0%,transparent_55%)]" />
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-14 pb-12 sm:pt-20 sm:pb-16">
+          <span className="inline-block bg-white/10 text-amber-300 text-xs font-bold tracking-[0.2em] uppercase rounded-full px-4 py-1.5 mb-4 backdrop-blur-sm">🗺️ Istanbul Guide</span>
+          <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight text-white max-w-3xl leading-tight">
+            Experience Istanbul like you know someone here.
           </h1>
-          <p className="text-base text-gray-600 mt-1 max-w-xl">
-            Apps, services, and websites for getting around and settling into Istanbul — vetted by the Smileys team. Updated regularly.
+          <p className="text-base sm:text-lg text-gray-300 mt-4 max-w-2xl">
+            Things worth doing, places worth discovering and experiences recommended by people who actually live here.
           </p>
+          <div className="flex flex-wrap gap-3 mt-7">
+            <a href="#experiences"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
+              Explore Istanbul
+            </a>
+            <a href="#collections"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-white/10 hover:bg-white/20 text-white text-sm font-bold rounded-xl transition-colors backdrop-blur-sm">
+              Browse collections
+            </a>
+          </div>
         </div>
       </div>
 
@@ -154,8 +177,96 @@ export default async function GuidePage() {
           in-view header just below the sticky bar (~52px tall). */}
       <GuideStickyNav navItems={navItems} />
 
+      {experiences.length > 0 && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10">
+          {/* §4 — mood-based discovery over the full experience set. */}
+          <div id="experiences" className="scroll-mt-16">
+            <ExperienceExplorer experiences={experiences} />
+          </div>
+
+          {/* §6 — first-timer strip: the curated essentials, not 100
+              attractions. */}
+          {firstTimers.length > 0 && (
+            <div className="mt-12 bg-amber-50 border border-amber-100 rounded-3xl p-6 sm:p-8">
+              <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-gray-900">First time in Istanbul?</h2>
+              <p className="text-gray-600 mt-1 mb-5">Start with these — everything else can wait.</p>
+              <div className="flex gap-3 overflow-x-auto pb-1 -mx-2 px-2">
+                {firstTimers.map(e => (
+                  <Link key={e.slug} href={`/guide/${e.slug}`}
+                    className="shrink-0 w-56 bg-white border border-amber-100 rounded-2xl p-4 hover:border-amber-300 hover:shadow-md transition-all group">
+                    <span aria-hidden="true" className="block text-3xl mb-2">{e.emoji}</span>
+                    <p className="text-sm font-bold text-gray-900 leading-snug group-hover:text-amber-700 transition-colors">{e.title}</p>
+                    <span className="inline-block text-xs font-bold text-amber-600 mt-2">Read guide →</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* §7 — collections: browsable shelves instead of category trees. */}
+          <div id="collections" className="mt-12 scroll-mt-16">
+            <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900 mb-6">Istanbul Collections</h2>
+            <div className="space-y-8">
+              {GUIDE_COLLECTIONS.map(col => {
+                const items = experiences.filter(e => e.collection === col.value)
+                if (items.length === 0) return null
+                return (
+                  <div key={col.value}>
+                    <h3 className="text-sm font-bold text-gray-600 uppercase tracking-widest mb-3">
+                      <span aria-hidden="true">{col.emoji}</span> {col.label}
+                    </h3>
+                    <div className="flex gap-3 overflow-x-auto pb-1 -mx-2 px-2">
+                      {items.map(e => (
+                        <Link key={e.slug} href={`/guide/${e.slug}`}
+                          className="shrink-0 w-64 bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:border-amber-200 hover:shadow-md transition-all group">
+                          <div className="flex items-center gap-2.5">
+                            <span aria-hidden="true" className="text-2xl shrink-0">{e.emoji}</span>
+                            <p className="text-sm font-bold text-gray-900 leading-snug group-hover:text-amber-700 transition-colors">{e.title}</p>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-2 line-clamp-2">{e.tagline}</p>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* §15/16 — experience it with people. Static cross-links in
+              phase 1; live counts arrive with the save/social phase. */}
+          <div className="mt-12 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Link href="/events" className="bg-gray-900 rounded-3xl p-6 sm:p-8 group relative overflow-hidden">
+              <div aria-hidden="true" className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_80%_20%,#f59e0b_0%,transparent_60%)]" />
+              <p className="relative text-xs font-bold text-amber-400 uppercase tracking-widest mb-2">Do it together</p>
+              <p className="relative text-xl font-extrabold text-white leading-snug">Experience it at a Smileys event</p>
+              <p className="relative text-sm text-gray-300 mt-2">Sailing, dinners, walks, live music — organized and waiting.</p>
+              <span className="relative inline-block text-sm font-bold text-amber-400 mt-4 group-hover:translate-x-0.5 transition-transform">Browse events →</span>
+            </Link>
+            <Link href="/hangouts" className="bg-amber-500 rounded-3xl p-6 sm:p-8 group relative overflow-hidden">
+              <p className="text-xs font-bold text-amber-100 uppercase tracking-widest mb-2">Right now</p>
+              <p className="text-xl font-extrabold text-white leading-snug">Someone's probably doing it today</p>
+              <p className="text-sm text-amber-50 mt-2">Spontaneous coffees, walks and plans — join a hangout.</p>
+              <span className="inline-block text-sm font-bold text-white mt-4 group-hover:translate-x-0.5 transition-transform">See hangouts →</span>
+            </Link>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="max-w-3xl space-y-0">
+
+        {/* The practical layer — the original quick-links directory,
+            demoted below the experiences (§25: how-to content belongs to
+            the Handbook's world; it stays here as reference, not as the
+            headline). */}
+        <div className="border-t border-gray-100 mt-6 pt-8 mb-6">
+          <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900">The practical stuff</h2>
+          <p className="text-gray-600 mt-1">
+            Apps, services and links for functioning in Istanbul — vetted by the Smileys team.
+            For deep how-tos, read <Link href="/handbook" className="text-amber-600 font-semibold hover:underline">the Handbook</Link>.
+          </p>
+        </div>
 
         {/* Banner — one inner per banner.type, then wrap in <a> (or
             fragment) depending on whether banner.link is set. Was 6
