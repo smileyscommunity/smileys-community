@@ -229,7 +229,7 @@ export default async function NeighborhoodPage({ params }: { params: Promise<{ s
           </div>
         ) : (
           <div className={`absolute inset-0 bg-gradient-to-br ${SIDE_GRADIENTS[meta.side] ?? 'from-amber-500 to-orange-500'}`}>
-            <div className="absolute inset-0 flex items-center justify-center opacity-10 text-[160px] select-none pointer-events-none">
+            <div aria-hidden="true" className="absolute inset-0 flex items-center justify-center opacity-10 text-[160px] select-none pointer-events-none">
               {meta.emoji}
             </div>
           </div>
@@ -248,7 +248,7 @@ export default async function NeighborhoodPage({ params }: { params: Promise<{ s
                 intent — the name stays visually dominant (large, first), the
                 rest reads as a natural subtitle rather than SEO boilerplate. */}
             <h1 className="text-4xl sm:text-5xl font-extrabold text-white tracking-tight drop-shadow-sm">
-              {meta.emoji} {name}, Istanbul
+              <span aria-hidden="true">{meta.emoji}</span> {name}, Istanbul
               <span className="block text-lg sm:text-xl font-semibold text-white/70 mt-1">
                 A neighborhood guide for the Smileys community
               </span>
@@ -261,7 +261,8 @@ export default async function NeighborhoodPage({ params }: { params: Promise<{ s
           <div className="flex items-center gap-2 mt-2 flex-wrap">
             <p className="text-white/75 text-sm font-medium">{meta.vibe} · {sideLabel[meta.side]}</p>
             <span className="text-xs font-semibold bg-white/15 backdrop-blur-sm text-white px-2 py-0.5 rounded-full">
-              {meta.cost === 1 ? '💰 Affordable' : meta.cost === 2 ? '💰💰 Mid-range' : '💰💰💰 Pricey'}
+              <span aria-hidden="true">{meta.cost === 1 ? '💰' : meta.cost === 2 ? '💰💰' : '💰💰💰'}</span>{' '}
+              {meta.cost === 1 ? 'Affordable' : meta.cost === 2 ? 'Mid-range' : 'Pricey'}
             </span>
           </div>
 
@@ -322,7 +323,7 @@ export default async function NeighborhoodPage({ params }: { params: Promise<{ s
         {hasNoNeighborhood && (
           <div className="flex items-center justify-between gap-4 bg-blue-50 border border-blue-100 rounded-2xl px-5 py-4">
             <div className="flex items-center gap-3">
-              <span className="text-xl">🏡</span>
+              <span aria-hidden="true" className="text-xl">🏡</span>
               <p className="text-sm text-blue-800 font-medium">
                 Do you live in {name}? Set it as your neighborhood so locals can find you.
               </p>
@@ -340,7 +341,7 @@ export default async function NeighborhoodPage({ params }: { params: Promise<{ s
             <MapSection lat={meta.lat} lon={meta.lon} name={name} />
           </div>
           <div className="bg-white px-4 py-3 flex items-center justify-between">
-            <span className="text-xs text-gray-600 font-medium">📍 {name}, Istanbul</span>
+            <span className="text-xs text-gray-600 font-medium"><span aria-hidden="true">📍</span> {name}, Istanbul</span>
             <a href={`https://www.google.com/maps/search/${encodeURIComponent(name + ' Istanbul Turkey')}`}
               target="_blank" rel="noopener noreferrer"
               className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">

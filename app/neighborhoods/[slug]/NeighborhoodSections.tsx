@@ -1,10 +1,33 @@
 import Link from 'next/link'
 import Image from 'next/image'
+import { headers } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { neighborhoodToSlug, getNeighborhoodMeta, NEIGHBORHOOD_META } from '@/lib/neighborhoods'
 import { formatShortDate, formatTime, BLUR_PLACEHOLDER, resolveImageUrl, avatarUrl } from '@/lib/data'
+import { SITE_URL, APP_URL } from '@/lib/env'
 import NeighborhoodWall from '@/components/NeighborhoodWall'
 import AvatarImg from '@/components/AvatarImg'
+
+// Absolute URL for JSON-LD `image` — schema.org wants a full URL, but
+// resolveImageUrl only returns app-relative paths (fine for <img src>,
+// not for structured data consumed off-page by crawlers).
+function absoluteImageUrl(path: string | null | undefined): string | undefined {
+  if (!path) return undefined
+  const resolved = resolveImageUrl(path)
+  if (!resolved) return undefined
+  return resolved.startsWith('http') ? resolved : `${SITE_URL}${resolved}`
+}
+
+// Same script-tag escaping used by every other JSON-LD block in the app
+// (handbook article / event detail / FAQ / neighborhood Place) — JSON.stringify
+// doesn't escape `<`, so a literal `</script>` in interpolated text would
+// break out of the tag.
+function jsonLdHtml(data: unknown): string {
+  return JSON.stringify(data)
+    .replace(/</g, '\\u003c')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029')
+}
 
 interface PlaceItem {
   name: string; description: string; address?: string; tip?: string; badge?: string
@@ -195,8 +218,76 @@ export default async function NeighborhoodSections({
     .sort((a, b) => b.eventCount - a.eventCount)
     .slice(0, 3)
 
+  // Read the per-request CSP nonce set by middleware — this component streams
+  // in under a <Suspense> boundary but still renders within the same request,
+  // so headers() resolves the same nonce page.tsx used for its own JSON-LD.
+  const nonce = (await headers()).get('x-nonce') ?? undefined
+
+  // Mirrors the visible event cards below: only real, published, upcoming
+  // events actually rendered on the page, so the markup never claims content
+  // a crawler wouldn't also see in the DOM.
+  const eventsJsonLd = upcomingRaw.length > 0 ? {
+    '@context': 'https://schema.org',
+    '@type':    'ItemList',
+    itemListElement: upcomingRaw.slice(0, 3).map((e, i) => ({
+      '@type':   'ListItem',
+      position:  i + 1,
+      item: {
+        '@type':      'Event',
+        name:         e.title,
+        description:  e.description
+          ? e.description.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 500)
+          : `${e.emoji} ${e.title} in ${name}, Istanbul`,
+        startDate:    `${e.date}T${e.time ?? '00:00'}:00+03:00`,
+        eventStatus:  'https://schema.org/EventScheduled',
+        eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
+        location: {
+          '@type': 'Place',
+          name:    e.location || name || 'Istanbul',
+          address: { '@type': 'PostalAddress', addressLocality: 'Istanbul', addressCountry: 'TR' },
+        },
+        image:     absoluteImageUrl(e.coverImage),
+        url:       `${APP_URL}/events/${e.id}`,
+        organizer: { '@type': 'Organization', name: 'Smileys Community', url: SITE_URL },
+      },
+    })),
+  } : null
+
+  // Mirrors the visible business cards below (same query, same 6-item cap).
+  const businessJsonLd = businesses.length > 0 ? {
+    '@context': 'https://schema.org',
+    '@type':    'ItemList',
+    itemListElement: businesses.map((b, i) => ({
+      '@type':   'ListItem',
+      position:  i + 1,
+      item: {
+        '@type':      'LocalBusiness',
+        name:         b.name,
+        description:  b.description
+          ? b.description.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 500)
+          : undefined,
+        image:        absoluteImageUrl(b.logo || b.coverImage),
+        url:          b.website || `${APP_URL}/directory?neighborhood=${encodeURIComponent(name)}`,
+        address: {
+          '@type':         'PostalAddress',
+          addressLocality: name,
+          addressRegion:   'Istanbul',
+          addressCountry:  'TR',
+        },
+      },
+    })),
+  } : null
+
   return (
     <>
+      {eventsJsonLd && (
+        <script type="application/ld+json" nonce={nonce}
+          dangerouslySetInnerHTML={{ __html: jsonLdHtml(eventsJsonLd) }} />
+      )}
+      {businessJsonLd && (
+        <script type="application/ld+json" nonce={nonce}
+          dangerouslySetInnerHTML={{ __html: jsonLdHtml(businessJsonLd) }} />
+      )}
       {/* Members free to meet up right now in this neighborhood (availability
           pulses). Member-only signal (gated on myId), non-expired only.
           Leads the page — "free right now" is the most time-sensitive signal
@@ -205,7 +296,7 @@ export default async function NeighborhoodSections({
       {myId && activePulses.length > 0 && (
         <div className="rounded-2xl border border-green-100 bg-green-50/40 p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xs font-bold text-green-700 uppercase tracking-widest">🟢 Around right now in {name}</h2>
+            <h2 className="text-xs font-bold text-green-700 uppercase tracking-widest"><span aria-hidden="true">🟢</span> Around right now in {name}</h2>
             <Link href="/hangouts"
               className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
               See all →
@@ -260,14 +351,14 @@ export default async function NeighborhoodSections({
               return (
                 <Link key={h.id} href="/hangouts" className="group block">
                   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hover:shadow-md hover:-translate-y-0.5 transition-all h-full">
-                    <p className="text-xs font-bold text-amber-700 uppercase tracking-wide mb-2">☕ {window}</p>
+                    <p className="text-xs font-bold text-amber-700 uppercase tracking-wide mb-2"><span aria-hidden="true">☕</span> {window}</p>
                     <p className="text-sm font-bold text-gray-900 mb-1 line-clamp-2">{h.title}</p>
-                    <p className="text-xs text-gray-600 mb-3 line-clamp-1">📍 {h.location}</p>
+                    <p className="text-xs text-gray-600 mb-3 line-clamp-1"><span aria-hidden="true">📍</span> {h.location}</p>
                     <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
                       <AvatarImg src={avatarUrl(h.user.profilePhoto, 64)} name={h.user.name} color={h.user.color} size="w-6 h-6" textSize="text-[10px]" className="shrink-0" />
                       <span className="text-xs text-gray-600 truncate">{h.user.name}</span>
                       {h.user.goodHangouts > 0 && (
-                        <span className="text-[10px] font-semibold text-green-700 shrink-0">✓ {h.user.goodHangouts}</span>
+                        <span className="text-[10px] font-semibold text-green-700 shrink-0"><span aria-hidden="true">✓</span> {h.user.goodHangouts}</span>
                       )}
                       <span className="text-xs text-gray-400 ml-auto shrink-0">{going} going</span>
                     </div>
@@ -313,7 +404,7 @@ export default async function NeighborhoodSections({
       {guide?.spotlight && (
         <div className="bg-amber-50 border border-amber-100 rounded-2xl p-6">
           <div className="flex items-start gap-4">
-            <span className="text-3xl shrink-0 mt-0.5">💬</span>
+            <span aria-hidden="true" className="text-3xl shrink-0 mt-0.5">💬</span>
             <div>
               <p className="text-gray-800 text-sm leading-relaxed italic mb-3">"{guide.spotlight.quote}"</p>
               <p className="text-xs font-semibold text-amber-700">
@@ -328,7 +419,7 @@ export default async function NeighborhoodSections({
       {/* Events */}
       {upcomingRaw.length === 0 ? (
         <div className="text-center py-20">
-          <div className="text-5xl mb-4">🔍</div>
+          <div aria-hidden="true" className="text-5xl mb-4">🔍</div>
           <h2 className="text-xl font-bold text-gray-900 mb-2">No upcoming events in {name}</h2>
           <p className="text-gray-600 text-sm mb-6">New events are added weekly — check back soon.</p>
           <Link href="/neighborhoods" className="px-5 py-2.5 rounded-xl bg-amber-500 text-white text-sm font-semibold hover:bg-amber-600 transition-colors">
@@ -359,12 +450,12 @@ export default async function NeighborhoodSections({
                           placeholder="blur" blurDataURL={BLUR_PLACEHOLDER} />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-amber-100 to-orange-100">
-                          <span className="text-5xl">{event.emoji}</span>
+                          <span aria-hidden="true" className="text-5xl">{event.emoji}</span>
                         </div>
                       )}
-                      {isHot && <span className="absolute top-3 left-3 text-xs font-bold bg-red-500 text-white px-2 py-0.5 rounded-full">🔥 Popular</span>}
-                      {!isHot && event.isPremium && <span className="absolute top-3 left-3 text-xs font-bold bg-gray-900 text-amber-400 px-2 py-0.5 rounded-full">♛ Premium</span>}
-                      {isHot && event.isPremium && <span className="absolute top-3 right-3 text-xs font-bold bg-gray-900 text-amber-400 px-2 py-0.5 rounded-full">♛ Premium</span>}
+                      {isHot && <span className="absolute top-3 left-3 text-xs font-bold bg-red-500 text-white px-2 py-0.5 rounded-full"><span aria-hidden="true">🔥</span> Popular</span>}
+                      {!isHot && event.isPremium && <span className="absolute top-3 left-3 text-xs font-bold bg-gray-900 text-amber-400 px-2 py-0.5 rounded-full"><span aria-hidden="true">♛</span> Premium</span>}
+                      {isHot && event.isPremium && <span className="absolute top-3 right-3 text-xs font-bold bg-gray-900 text-amber-400 px-2 py-0.5 rounded-full"><span aria-hidden="true">♛</span> Premium</span>}
                     </div>
                     <div className="p-4">
                       <div className="text-xs text-amber-600 font-semibold mb-1.5">
@@ -422,7 +513,7 @@ export default async function NeighborhoodSections({
                 className="group flex items-center gap-3 bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-amber-200 transition-all">
                 <div className="relative shrink-0">
                   <AvatarImg src={avatarUrl(h.profilePhoto, 128)} name={h.name} color={h.color} />
-                  {i === 0 && <span className="absolute -top-1 -right-1 text-sm">🏆</span>}
+                  {i === 0 && <span aria-hidden="true" className="absolute -top-1 -right-1 text-sm">🏆</span>}
                 </div>
                 <div className="min-w-0">
                   <div className="text-sm font-semibold text-gray-900 group-hover:text-amber-600 transition-colors truncate">{h.name}</div>
@@ -461,7 +552,7 @@ export default async function NeighborhoodSections({
                 <Link key={v.id} href="/visiting" className="group block">
                   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hover:shadow-md hover:-translate-y-0.5 transition-all h-full">
                     <div className="flex items-center gap-2 mb-2">
-                      <span className="text-2xl">👋</span>
+                      <span aria-hidden="true" className="text-2xl">👋</span>
                       <div className="min-w-0">
                         <p className="text-sm font-bold text-gray-900 truncate">{v.name}</p>
                         {v.fromCity && <p className="text-xs text-gray-600 truncate">from {v.fromCity}</p>}
@@ -500,7 +591,7 @@ export default async function NeighborhoodSections({
                       {cover ? (
                         <img src={cover} alt={b.name} loading="lazy" className="absolute inset-0 w-full h-full object-cover" />
                       ) : (
-                        <div className="absolute inset-0 flex items-center justify-center text-4xl text-gray-300">🏢</div>
+                        <div aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-4xl text-gray-300">🏢</div>
                       )}
                       {/* Expat badges — top-left so the logo (bottom-right) doesn't collide. */}
                       <div className="absolute top-2 left-2 flex flex-col gap-1">
@@ -547,13 +638,13 @@ export default async function NeighborhoodSections({
                   size="w-9 h-9" textSize="text-xs" className="shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900 leading-snug truncate group-hover:text-amber-700 transition-colors">
-                    {bp.type === 'plan' ? '☕ ' : bp.type === 'question' ? '❓ ' : bp.type === 'reco' ? '💡 ' : '📣 '}{bp.title}
+                    <span aria-hidden="true">{bp.type === 'plan' ? '☕' : bp.type === 'question' ? '❓' : bp.type === 'reco' ? '💡' : '📣'} </span>{bp.title}
                   </p>
                   <p className="text-xs text-gray-500 mt-0.5">
                     {bp.user.name.split(' ')[0]}
-                    {bp.whenLabel && <> · 🕐 {bp.whenLabel}</>}
-                    {bp._count.replies > 0 && <> · 💬 {bp._count.replies}</>}
-                    {bp._count.interests > 0 && <> · 👋 {bp._count.interests} interested</>}
+                    {bp.whenLabel && <> · <span aria-hidden="true">🕐</span> {bp.whenLabel}</>}
+                    {bp._count.replies > 0 && <> · <span aria-hidden="true">💬</span> {bp._count.replies}</>}
+                    {bp._count.interests > 0 && <> · <span aria-hidden="true">👋</span> {bp._count.interests} interested</>}
                   </p>
                 </div>
                 <span className="shrink-0 text-gray-300 group-hover:text-amber-500 transition-colors">→</span>
@@ -605,7 +696,7 @@ export default async function NeighborhoodSections({
                       </div>
                     ) : (
                       <div className="h-24 flex items-center justify-center bg-gradient-to-br from-amber-50 to-orange-50">
-                        <span className="text-4xl opacity-70">{emoji}</span>
+                        <span aria-hidden="true" className="text-4xl opacity-70">{emoji}</span>
                       </div>
                     )}
                     <div className="p-3">
@@ -651,7 +742,7 @@ export default async function NeighborhoodSections({
             {guide.places.map(cat => (
               <div key={cat.category}>
                 <h3 className="flex items-center gap-2 text-sm font-bold text-gray-700 uppercase tracking-wider mb-3">
-                  <span>{cat.emoji}</span> {cat.category}
+                  <span aria-hidden="true">{cat.emoji}</span> {cat.category}
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {cat.items.map(place => (
@@ -676,7 +767,7 @@ export default async function NeighborhoodSections({
                         </a>
                       )}
                       {place.tip && (
-                        <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-2.5 py-1.5 leading-relaxed">💡 {place.tip}</p>
+                        <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-2.5 py-1.5 leading-relaxed"><span aria-hidden="true">💡</span> {place.tip}</p>
                       )}
                     </div>
                   ))}
@@ -686,7 +777,7 @@ export default async function NeighborhoodSections({
           </div>
           {guide.tips && guide.tips.length > 0 && (
             <div className="mt-6 bg-gray-50 rounded-2xl p-5">
-              <h3 className="text-sm font-bold text-gray-700 mb-3">📌 Local Tips</h3>
+              <h3 className="text-sm font-bold text-gray-700 mb-3"><span aria-hidden="true">📌</span> Local Tips</h3>
               <ul className="space-y-2">
                 {guide.tips.map((tip, i) => (
                   <li key={i} className="flex items-start gap-2 text-xs text-gray-600">
@@ -710,7 +801,7 @@ export default async function NeighborhoodSections({
             {nearby.map(n => (
               <Link key={n.slug} href={`/neighborhoods/${n.slug}`}
                 className="group flex items-center gap-3 bg-white border border-gray-100 rounded-xl p-4 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all">
-                <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-xl shrink-0 group-hover:bg-amber-100 transition-colors">
+                <div aria-hidden="true" className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-xl shrink-0 group-hover:bg-amber-100 transition-colors">
                   {n.meta.emoji}
                 </div>
                 <div className="min-w-0">
@@ -732,14 +823,16 @@ export default async function NeighborhoodSections({
             {similar.map(n => (
               <Link key={n.slug} href={`/neighborhoods/${n.slug}`}
                 className="group flex items-center gap-3 bg-white border border-gray-100 rounded-xl p-4 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all">
-                <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center text-xl shrink-0 group-hover:bg-amber-50 transition-colors">
+                <div aria-hidden="true" className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center text-xl shrink-0 group-hover:bg-amber-50 transition-colors">
                   {n.meta.emoji}
                 </div>
                 <div className="min-w-0">
                   <div className="font-semibold text-sm text-gray-900 group-hover:text-amber-600 transition-colors truncate">{n.name}</div>
                   <div className="text-xs text-gray-400 truncate">{n.meta.vibe}</div>
                   <div className="text-xs text-gray-400 mt-0.5">
-                    {n.meta.cost === 1 ? '💰' : n.meta.cost === 2 ? '💰💰' : '💰💰💰'} · {sideLabel[n.meta.side]}
+                    <span aria-label={n.meta.cost === 1 ? 'Affordable' : n.meta.cost === 2 ? 'Mid-range' : 'Pricey'}>
+                      <span aria-hidden="true">{n.meta.cost === 1 ? '💰' : n.meta.cost === 2 ? '💰💰' : '💰💰💰'}</span>
+                    </span> · {sideLabel[n.meta.side]}
                   </div>
                 </div>
               </Link>

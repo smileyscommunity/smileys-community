@@ -70,7 +70,7 @@ function FeaturedCard({ n }: { n: NeighborhoodItem }) {
       <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-90`} />
       )}
       {/* Large emoji watermark */}
-      <div className="absolute right-4 bottom-3 text-7xl opacity-20 select-none pointer-events-none leading-none">
+      <div aria-hidden="true" className="absolute right-4 bottom-3 text-7xl opacity-20 select-none pointer-events-none leading-none">
         {n.meta.emoji}
       </div>
 
@@ -79,7 +79,7 @@ function FeaturedCard({ n }: { n: NeighborhoodItem }) {
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-              <span className="text-2xl shrink-0">{n.meta.emoji}</span>
+              <span aria-hidden="true" className="text-2xl shrink-0">{n.meta.emoji}</span>
               <span className="text-lg font-extrabold text-white tracking-tight leading-tight truncate">{n.name}</span>
               {n.isYours && (
                 <span className="text-[10px] font-bold bg-white/25 text-white px-1.5 py-0.5 rounded-full shrink-0">Your area</span>
@@ -98,7 +98,7 @@ function FeaturedCard({ n }: { n: NeighborhoodItem }) {
         {/* Next event pill — title only, date moved to top */}
         {n.nextEvent && (
           <div className="inline-flex items-center gap-1.5 bg-white/20 backdrop-blur-sm text-white text-xs font-semibold px-2.5 py-1.5 rounded-xl self-start max-w-full">
-            <span className="shrink-0">{n.nextEvent.emoji}</span>
+            <span aria-hidden="true" className="shrink-0">{n.nextEvent.emoji}</span>
             <span className="truncate">{n.nextEvent.title}</span>
           </div>
         )}
@@ -106,7 +106,7 @@ function FeaturedCard({ n }: { n: NeighborhoodItem }) {
         {/* Stats + signal */}
         <div className="mt-auto flex items-center gap-3 text-white/70 text-xs font-medium">
           <span className="shrink-0 inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-white/20 text-white">
-            {n.signal.icon} {n.signal.label}
+            <span aria-hidden="true">{n.signal.icon}</span> {n.signal.label}
           </span>
           {n.eventCount > 0 && (
             <span className="flex items-center gap-1">
@@ -151,7 +151,7 @@ function NeighborhoodCard({ n, cardBg, cardBorder }: { n: NeighborhoodItem; card
         </div>
       )}
       <div className="flex items-start gap-3">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0 bg-white/80 shadow-sm">
+        <div aria-hidden="true" className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0 bg-white/80 shadow-sm">
           {n.meta.emoji}
         </div>
         <div className="min-w-0 flex-1">
@@ -175,7 +175,7 @@ function NeighborhoodCard({ n, cardBg, cardBorder }: { n: NeighborhoodItem; card
       {/* Next event */}
       {n.nextEvent && (
         <div className="flex items-center gap-1.5 text-xs text-gray-600 bg-white/70 rounded-lg px-2 py-1.5 min-w-0">
-          <span className="shrink-0">{n.nextEvent.emoji}</span>
+          <span aria-hidden="true" className="shrink-0">{n.nextEvent.emoji}</span>
           <span className="truncate font-medium text-gray-700">{n.nextEvent.title}</span>
           <span className="shrink-0 text-gray-400">· {fmt(n.nextEvent.date)}</span>
         </div>
@@ -184,7 +184,7 @@ function NeighborhoodCard({ n, cardBg, cardBorder }: { n: NeighborhoodItem; card
       {/* Footer stats */}
       <div className="flex items-center gap-2 flex-wrap">
         <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full ${n.signal.cls}`}>
-          {n.signal.icon} {n.signal.label}
+          <span aria-hidden="true">{n.signal.icon}</span> {n.signal.label}
         </span>
         {n.eventCount > 0 && (
           <span className="text-[11px] font-semibold text-gray-600 bg-white/70 px-2 py-0.5 rounded-full">
@@ -286,7 +286,7 @@ export default function NeighborhoodGrid({ groups }: { groups: Group[] }) {
             placeholder="Search neighborhoods…"
             className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent" />
           {query && (
-            <button onClick={() => setQuery('')}
+            <button onClick={() => setQuery('')} aria-label="Clear search"
               className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">✕</button>
           )}
         </div>
@@ -303,7 +303,7 @@ export default function NeighborhoodGrid({ groups }: { groups: Group[] }) {
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
                 activeSide === g.side ? `${g.color} border-transparent` : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
               }`}>
-              <span>{g.icon}</span>
+              <span aria-hidden="true">{g.icon}</span>
               {g.label}
               <span className={`font-bold ${activeSide === g.side ? 'opacity-70' : 'text-gray-400'}`}>{g.items.length}</span>
             </button>
@@ -312,14 +312,14 @@ export default function NeighborhoodGrid({ groups }: { groups: Group[] }) {
 
         <div className="flex items-center gap-2 flex-wrap">
           {([
-            { key: 'active' as const, label: '⚡ Most active'     },
-            { key: 'events' as const, label: '🎉 Events this week' },
+            { key: 'active' as const, emoji: '⚡', text: 'Most active'     },
+            { key: 'events' as const, emoji: '🎉', text: 'Events this week' },
           ]).map(o => (
             <button key={o.key} onClick={() => setSort(sort === o.key ? null : o.key)}
               className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
                 sort === o.key ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
               }`}>
-              {o.label}
+              <span aria-hidden="true">{o.emoji}</span> {o.text}
             </button>
           ))}
 
@@ -355,7 +355,7 @@ export default function NeighborhoodGrid({ groups }: { groups: Group[] }) {
       ) : filtered !== null ? (
         filtered.length === 0 ? (
           <div className="text-center py-16">
-            <div className="text-4xl mb-3">🔍</div>
+            <div aria-hidden="true" className="text-4xl mb-3">🔍</div>
             <p className="text-gray-600 text-sm">No neighborhoods match "{query}"</p>
           </div>
         ) : (
@@ -418,7 +418,7 @@ export default function NeighborhoodGrid({ groups }: { groups: Group[] }) {
               return (
                 <div key={group.side} className={`${sec.bg} border ${sec.border} rounded-2xl p-5`}>
                   <div className="flex items-center gap-3 mb-4">
-                    <span className={`w-9 h-9 rounded-xl flex items-center justify-center text-base shrink-0 shadow-sm ${group.color}`}>
+                    <span aria-hidden="true" className={`w-9 h-9 rounded-xl flex items-center justify-center text-base shrink-0 shadow-sm ${group.color}`}>
                       {group.icon}
                     </span>
                     <h2 className="text-base font-bold text-gray-900 tracking-tight">{group.label}</h2>

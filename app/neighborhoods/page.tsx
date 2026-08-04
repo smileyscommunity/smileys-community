@@ -3,6 +3,7 @@ import Image from 'next/image'
 import { readFileSync } from 'fs'
 import { join } from 'path'
 import { unstable_cache } from 'next/cache'
+import { headers } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { neighborhoodToSlug, NEIGHBORHOOD_META } from '@/lib/neighborhoods'
 import { APP_URL } from '@/lib/env'
@@ -10,6 +11,15 @@ import { getSession } from '@/lib/session'
 import { restrictedSetFor } from '@/lib/memberPrivacy'
 import SayHiButton from '@/components/SayHiButton'
 import LocalFavorites, { type LocalPick } from '@/components/LocalFavorites'
+
+// Same script-tag escaping as the neighborhood detail page's JSON-LD
+// (handbook article / event detail / FAQ / neighborhood Place all match).
+function jsonLdHtml(data: unknown): string {
+  return JSON.stringify(data)
+    .replace(/</g, '\\u003c')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029')
+}
 
 // Fixed-size cover (1200×800) served from public/ under the /app basePath.
 const NEIGHBORHOODS_OG_IMAGE = `${APP_URL}/images/neighborhoods-cover.jpg`
@@ -266,8 +276,38 @@ export default async function NeighborhoodsPage() {
     quoteBy:      b.reviews[0]?.author?.name ?? null,
   }))
 
+  // Read the per-request CSP nonce set by middleware so the JSON-LD <script>
+  // isn't blocked under 'strict-dynamic' (same pattern as the neighborhood
+  // detail page / handbook article / event detail / FAQ JSON-LD).
+  const nonce = (await headers()).get('x-nonce') ?? undefined
+
+  // ItemList of Place — deterministic, non-personalized (built from the
+  // static NEIGHBORHOOD_META set, not the viewer's session), so it's safe to
+  // mirror in structured data regardless of who/what is crawling. Mirrors
+  // the neighborhood cards actually rendered on the page.
+  const neighborhoodsJsonLd = {
+    '@context': 'https://schema.org',
+    '@type':    'ItemList',
+    itemListElement: neighborhoods.map((n, i) => ({
+      '@type':  'ListItem',
+      position: i + 1,
+      item: {
+        '@type': 'Place',
+        name:    `${n.name}, Istanbul`,
+        url:     `${APP_URL}/neighborhoods/${n.slug}`,
+        containedInPlace: {
+          '@type': 'City',
+          name:    'Istanbul',
+          containedInPlace: { '@type': 'Country', name: 'Turkey' },
+        },
+      },
+    })),
+  }
+
   return (
     <main>
+      <script type="application/ld+json" nonce={nonce}
+        dangerouslySetInnerHTML={{ __html: jsonLdHtml(neighborhoodsJsonLd) }} />
       {/* Hero — full-bleed photo with the copy overlaid. Same gradient
           reasoning as /visiting: the image is a bright sunset waterfront, so
           without the overlay the headline sits on blown-out sky and drops
@@ -323,7 +363,7 @@ export default async function NeighborhoodsPage() {
         <div id="your-neighborhood" className="scroll-mt-20 bg-amber-50 border-b border-amber-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-3">
-              <span className="text-2xl">{NEIGHBORHOOD_META[userNeighborhood].emoji}</span>
+              <span aria-hidden="true" className="text-2xl">{NEIGHBORHOOD_META[userNeighborhood].emoji}</span>
               <div>
                 <div className="text-xs font-bold text-amber-600 uppercase tracking-wide">Your neighborhood</div>
                 <div className="font-bold text-gray-900">{userNeighborhood}</div>
@@ -357,7 +397,7 @@ export default async function NeighborhoodsPage() {
               <a href={adBanner.link} target="_blank" rel="noopener noreferrer" className="block group">
                 {adBanner.type === 'strip' ? (
                   <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5">
-                    <span className="text-lg shrink-0">{adBanner.emoji}</span>
+                    <span aria-hidden="true" className="text-lg shrink-0">{adBanner.emoji}</span>
                     <p className="flex-1 text-sm font-semibold text-amber-900 truncate">{adBanner.headline}</p>
                     {adBanner.cta && <span className="text-xs font-bold text-amber-600 shrink-0">{adBanner.cta} →</span>}
                   </div>
@@ -368,7 +408,7 @@ export default async function NeighborhoodsPage() {
                       <p className="text-sm font-bold text-white truncate">{adBanner.headline}</p>
                       {adBanner.subtitle && <p className="text-xs text-amber-100 truncate">{adBanner.subtitle}</p>}
                     </div>
-                    <div className="shrink-0 w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center text-2xl">{adBanner.emoji}</div>
+                    <div aria-hidden="true" className="shrink-0 w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center text-2xl">{adBanner.emoji}</div>
                   </div>
                 ) : (
                   <div className="flex items-center gap-3 bg-gradient-to-r from-gray-900 to-gray-700 rounded-2xl px-4 py-3 overflow-hidden relative group">
@@ -378,13 +418,13 @@ export default async function NeighborhoodsPage() {
                       <p className="text-sm font-bold text-white truncate group-hover:text-amber-300 transition-colors">{adBanner.headline}</p>
                       {adBanner.subtitle && <p className="text-xs text-gray-400 truncate">{adBanner.subtitle}</p>}
                     </div>
-                    <div className="shrink-0 w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center text-2xl">{adBanner.emoji}</div>
+                    <div aria-hidden="true" className="shrink-0 w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center text-2xl">{adBanner.emoji}</div>
                   </div>
                 )}
               </a>
             ) : adBanner.type === 'strip' ? (
               <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5">
-                <span className="text-lg shrink-0">{adBanner.emoji}</span>
+                <span aria-hidden="true" className="text-lg shrink-0">{adBanner.emoji}</span>
                 <p className="flex-1 text-sm font-semibold text-amber-900 truncate">{adBanner.headline}</p>
                 {adBanner.cta && <span className="text-xs font-bold text-amber-600 shrink-0">{adBanner.cta} →</span>}
               </div>
@@ -395,7 +435,7 @@ export default async function NeighborhoodsPage() {
                   <p className="text-sm font-bold text-white truncate">{adBanner.headline}</p>
                   {adBanner.subtitle && <p className="text-xs text-amber-100 truncate">{adBanner.subtitle}</p>}
                 </div>
-                <div className="shrink-0 w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center text-2xl">{adBanner.emoji}</div>
+                <div aria-hidden="true" className="shrink-0 w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center text-2xl">{adBanner.emoji}</div>
               </div>
             ) : (
               <div className="flex items-center gap-3 bg-gradient-to-r from-gray-900 to-gray-700 rounded-2xl px-4 py-3 overflow-hidden relative">
@@ -405,7 +445,7 @@ export default async function NeighborhoodsPage() {
                   <p className="text-sm font-bold text-white truncate">{adBanner.headline}</p>
                   {adBanner.subtitle && <p className="text-xs text-gray-400 truncate">{adBanner.subtitle}</p>}
                 </div>
-                <div className="shrink-0 w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center text-2xl">{adBanner.emoji}</div>
+                <div aria-hidden="true" className="shrink-0 w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center text-2xl">{adBanner.emoji}</div>
               </div>
             )}
           </div>
