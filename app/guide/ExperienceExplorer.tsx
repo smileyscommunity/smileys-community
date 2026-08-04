@@ -9,15 +9,26 @@ import { GUIDE_MOODS, type Experience, type GuideMood } from '@/lib/guide'
 // Hangouts activity chips: exclusive toggle, tap again to clear.
 export default function ExperienceExplorer({ experiences }: { experiences: Experience[] }) {
   const [mood, setMood] = useState<GuideMood | null>(null)
+  const [showAll, setShowAll] = useState(false)
 
-  const filtered = mood ? experiences.filter(e => e.moods.includes(mood)) : experiences
+  // Default view is a handful of picks, NOT the whole catalog — the
+  // first-timer strip and collection shelves below already list the rest,
+  // and rendering all 15 here made the page repeat every experience up to
+  // three times. Picks skip the firstTime set (that strip sits directly
+  // below), so nothing appears twice above the collections. Choosing a
+  // mood always searches everything.
+  const filtered = mood
+    ? experiences.filter(e => e.moods.includes(mood))
+    : showAll
+      ? experiences
+      : experiences.filter(e => !e.firstTime).slice(0, 6)
 
   return (
     <div>
       <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900 mb-1">
         What are you in the mood for?
       </h2>
-      <p className="text-gray-600 mb-5">Pick a mood — or just browse.</p>
+      <p className="text-gray-600 mb-5">Pick a mood — or start with a few favorites.</p>
 
       <div className="flex gap-2 overflow-x-auto pb-3 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-hide" role="tablist" aria-label="Mood filter">
         {GUIDE_MOODS.map(m => (
@@ -66,6 +77,13 @@ export default function ExperienceExplorer({ experiences }: { experiences: Exper
             </Link>
           ))}
         </div>
+      )}
+
+      {!mood && !showAll && filtered.length < experiences.length && (
+        <button onClick={() => setShowAll(true)}
+          className="mt-5 w-full py-3 border border-gray-200 rounded-2xl text-sm font-bold text-gray-700 hover:border-amber-300 hover:text-amber-700 bg-white transition-colors">
+          Show all {experiences.length} experiences
+        </button>
       )}
     </div>
   )

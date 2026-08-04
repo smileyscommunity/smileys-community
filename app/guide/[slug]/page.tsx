@@ -11,6 +11,9 @@ import { GUIDE_COLLECTIONS } from '@/lib/guide'
 import { loadExperiences, getExperience } from '@/lib/guideContent'
 import { NEIGHBORHOOD_META, neighborhoodToSlug } from '@/lib/neighborhoods'
 import { APP_URL } from '@/lib/env'
+import { prisma } from '@/lib/prisma'
+import ExperienceActions from './ExperienceActions'
+import LiveHangouts from './LiveHangouts'
 
 export function generateStaticParams() {
   return loadExperiences().map(e => ({ slug: e.slug }))
@@ -42,6 +45,16 @@ export default async function ExperiencePage({ params }: { params: Promise<{ slu
 
   const collection = GUIDE_COLLECTIONS.find(c => c.value === exp.collection)
   const nearby = exp.neighborhoods.filter(n => NEIGHBORHOOD_META[n])
+
+  // §15 — upcoming events in this experience's neighborhoods. Public
+  // data, refreshed with the page's ISR window; empty renders nothing.
+  const today = new Date().toISOString().split('T')[0]
+  const matchedEvents = nearby.length > 0 ? await prisma.event.findMany({
+    where:   { status: 'published', date: { gte: today }, neighborhood: { in: nearby } },
+    select:  { id: true, title: true, emoji: true, date: true, neighborhood: true },
+    orderBy: { date: 'asc' },
+    take:    3,
+  }) : []
   const related = loadExperiences()
     .filter(e => e.slug !== exp.slug && (e.collection === exp.collection || e.moods.some(m => exp.moods.includes(m))))
     .slice(0, 3)
@@ -75,6 +88,9 @@ export default async function ExperiencePage({ params }: { params: Promise<{ slu
                 {chip}
               </span>
             ))}
+          </div>
+          <div className="mt-6">
+            <ExperienceActions slug={exp.slug} />
           </div>
         </div>
       </div>
@@ -134,7 +150,27 @@ export default async function ExperiencePage({ params }: { params: Promise<{ slu
           <p className="relative text-sm text-gray-300 mb-5">
             The Smileys community does things like this every week — organized events, spontaneous hangouts, and visitors looking for company.
           </p>
-          <div className="relative flex flex-wrap gap-3">
+          {matchedEvents.length > 0 && (
+            <div className="relative space-y-2 mb-5">
+              <p className="text-xs font-bold text-amber-400 uppercase tracking-widest">Coming up nearby</p>
+              {matchedEvents.map(ev => (
+                <Link key={ev.id} href={`/events/${ev.id}`}
+                  className="flex items-center gap-3 bg-white/10 hover:bg-white/20 rounded-xl px-4 py-2.5 transition-colors">
+                  <span aria-hidden="true" className="shrink-0">{ev.emoji}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-white truncate">{ev.title}</p>
+                    <p className="text-xs text-gray-300 mt-0.5">
+                      {new Date(ev.date + 'T12:00:00+03:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
+                      {ev.neighborhood && <> · 📍 {ev.neighborhood}</>}
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-xs font-bold text-amber-400">View →</span>
+                </Link>
+              ))}
+            </div>
+          )}
+          <LiveHangouts neighborhoods={nearby} />
+          <div className="relative flex flex-wrap gap-3 mt-5">
             <Link href="/events" className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
               Browse events
             </Link>

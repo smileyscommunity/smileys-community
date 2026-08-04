@@ -141,6 +141,7 @@ model User {
   boardInterests             BoardInterest[]
   boardSaves                 BoardSave[]
   movingSales                MovingSale[]
+  guideSaves                 GuideSave[]
   neighborhoodPostReplies    NeighborhoodPostReply[]
   neighborhoodPosts          NeighborhoodPost[]
   postLikes                  PostLike[]
@@ -1906,4 +1907,24 @@ model MovingSaleItem {
 
   @@index([saleId])
   @@map("moving_sale_items")
+}
+
+// Istanbul Guide interactions (§11/§18 of the Guide plan) — one row per
+// (member, experience slug), carrying both the private save ("My
+// Istanbul" bucket list) and the public recommend. Slugs reference
+// data/guide-experiences.json — editorial content, so no FK; the API
+// validates slugs against the loaded set on write.
+model GuideSave {
+  id          String   @id @default(cuid())
+  userId      String
+  slug        String
+  saved       Boolean  @default(false)
+  recommended Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, slug])
+  @@index([slug, recommended])
+  @@map("guide_saves")
 }

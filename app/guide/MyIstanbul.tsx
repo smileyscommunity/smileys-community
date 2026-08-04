@@ -1,0 +1,46 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { useAuth } from '@/contexts/AuthContext'
+
+interface ExperienceCard { slug: string; title: string; emoji: string }
+
+// §18/§27 — "Your saved Istanbul" on the guide homepage. Client island
+// (the page is ISR-cached); guests and members with nothing saved render
+// nothing at all.
+export default function MyIstanbul({ experiences }: { experiences: ExperienceCard[] }) {
+  const { isLoggedIn } = useAuth()
+  const [savedSlugs, setSavedSlugs] = useState<string[]>([])
+
+  useEffect(() => {
+    if (!isLoggedIn) return
+    fetch('/app/api/guide/saves', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : { saves: [] })
+      .then(d => setSavedSlugs((d.saves ?? []).filter((s: { saved: boolean }) => s.saved).map((s: { slug: string }) => s.slug)))
+      .catch(() => {})
+  }, [isLoggedIn])
+
+  const saved = experiences.filter(e => savedSlugs.includes(e.slug))
+  if (saved.length === 0) return null
+
+  return (
+    <div className="mt-12 bg-gray-900 rounded-3xl p-6 sm:p-8 relative overflow-hidden">
+      <div aria-hidden="true" className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_80%_20%,#f59e0b_0%,transparent_60%)]" />
+      <h2 className="relative text-xl sm:text-2xl font-extrabold text-white">My Istanbul</h2>
+      <p className="relative text-sm text-gray-300 mt-1 mb-5">
+        {saved.length} experience{saved.length !== 1 ? 's' : ''} on your list.
+      </p>
+      <div className="relative flex gap-3 overflow-x-auto pb-1 -mx-2 px-2">
+        {saved.map(e => (
+          <Link key={e.slug} href={`/guide/${e.slug}`}
+            className="shrink-0 w-52 bg-white/10 hover:bg-white/20 rounded-2xl p-4 transition-colors group">
+            <span aria-hidden="true" className="block text-3xl mb-2">{e.emoji}</span>
+            <p className="text-sm font-bold text-white leading-snug">{e.title}</p>
+            <span className="inline-block text-xs font-bold text-amber-400 mt-2 group-hover:translate-x-0.5 transition-transform">Do it →</span>
+          </Link>
+        ))}
+      </div>
+    </div>
+  )
+}

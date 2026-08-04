@@ -16,6 +16,7 @@ import TransitLinks, { categoryId, type Category } from '@/components/TransitLin
 import GuideCTA from './GuideCTA'
 import GuideStickyNav from './GuideStickyNav'
 import ExperienceExplorer from './ExperienceExplorer'
+import MyIstanbul from './MyIstanbul'
 import { GUIDE_COLLECTIONS } from '@/lib/guide'
 import { loadExperiences } from '@/lib/guideContent'
 
@@ -250,6 +251,10 @@ export default async function GuidePage() {
               <span className="inline-block text-sm font-bold text-white mt-4 group-hover:translate-x-0.5 transition-transform">See hangouts →</span>
             </Link>
           </div>
+
+          {/* §18/§27 — the viewer's saved list. Client island; renders
+              nothing for guests or empty lists. */}
+          <MyIstanbul experiences={experiences.map(e => ({ slug: e.slug, title: e.title, emoji: e.emoji }))} />
         </div>
       )}
 
