@@ -25,6 +25,7 @@ const CATEGORIES: Array<{ id: string; label: string; emoji: string; activeCls: s
   { id: 'FREE',       label: 'Free stuff',      emoji: '🎁', activeCls: 'bg-teal-500 text-white border-teal-500'           },
   { id: 'WANTED',   label: 'Wanted',          emoji: '🔎', activeCls: 'bg-cyan-600 text-white border-cyan-600'           },
   { id: 'PETS',     label: 'Adopt a Pet',     emoji: '🐾', activeCls: 'bg-pink-500 text-white border-pink-500'           },
+  { id: 'MOVING',   label: 'Moving & Leaving', emoji: '📦', activeCls: 'bg-stone-600 text-white border-stone-600'        },
 ]
 // LOST_FOUND / RECO / EXPERIENCES retired (zero active listings): their
 // deep links fall back to ALL, legacy rows still render inside ALL.
@@ -828,11 +829,24 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
               The neighborhood select + alert bell drop to a row below
               so the rightmost pills never collide with the select on
               desktop — earlier attempts to fit both in one row kept
-              breaking on certain widths. */}
+              breaking on certain widths.
+
+              On the default browse view the category cards below are the
+              primary navigation, so the pill row collapses to just the
+              member shortcuts (Mine / Saved) that have no card — a second
+              full set of categories directly above the cards read as pure
+              duplication. Narrowing by category or search hides the cards
+              and the full pill row takes over as the filter UI. */}
+          {(() => {
+            const cardsShowing = category === 'ALL' && !debouncedSearch
+            const pills = CATEGORIES.filter(c =>
+              (isLoggedIn || !c.memberOnly) && (!cardsShowing || c.memberOnly))
+            return (
           <div className="flex flex-col gap-2 sm:gap-3">
+            {pills.length > 0 && (
             <div className="relative min-w-0 overflow-hidden -mx-4 px-4 sm:mx-0 sm:px-0">
               <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
-                {CATEGORIES.filter(c => isLoggedIn || !c.memberOnly).map(cat => {
+                {pills.map(cat => {
                 const isActive = category === cat.id
                 return (
                   <button
@@ -861,6 +875,7 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
                   pointer-events-none so clicks still reach the pill. */}
               <div aria-hidden="true" className="pointer-events-none absolute right-0 top-0 bottom-1 w-8 bg-gradient-to-l from-white to-transparent hidden sm:block" />
             </div>
+            )}
 
             <div className="flex items-center gap-2 shrink-0">
             {/* Neighborhood filter */}
@@ -930,6 +945,8 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
             )}
             </div>
           </div>
+            )
+          })()}
           </>)}
         </div>
       </div>

@@ -11,7 +11,7 @@ import BoardHub from '@/components/BoardHub'
 // The hub must NOT render while a redirect is due: it has its own URL-sync
 // effect that would race the redirect and strip the query before it lands.
 const MARKET_TABS = new Set(['ALL', 'MINE', 'SAVED', 'ROOMS', 'JOBS', 'SERVICES', 'BUY_SELL',
-  'FREE', 'LOST_FOUND', 'RECO', 'EXPERIENCES', 'PETS'])
+  'FREE', 'LOST_FOUND', 'RECO', 'EXPERIENCES', 'PETS', 'WANTED', 'MOVING'])
 
 function BoardInner() {
   const router = useRouter()
