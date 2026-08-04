@@ -33,9 +33,19 @@ export async function GET() {
       : []
     const eventMap = new Map(events.map(e => [e.id, e]))
 
+    // Attach the reported post's title/body for board-post reports — without
+    // this a boardPostId report showed up with no indication of what was
+    // actually flagged, since there's no admin page for BoardPost to link to.
+    const boardPostIds = [...new Set(reports.flatMap(r => r.boardPostId ? [r.boardPostId] : []))]
+    const boardPosts = boardPostIds.length
+      ? await prisma.boardPost.findMany({ where: { id: { in: boardPostIds } }, select: { id: true, title: true, body: true, status: true } })
+      : []
+    const boardPostMap = new Map(boardPosts.map(p => [p.id, p]))
+
     return NextResponse.json(reports.map(r => ({
       ...r,
-      event: r.eventId ? (eventMap.get(r.eventId) ?? null) : null,
+      event:     r.eventId     ? (eventMap.get(r.eventId)         ?? null) : null,
+      boardPost: r.boardPostId ? (boardPostMap.get(r.boardPostId) ?? null) : null,
     })))
   } catch (e) {
     console.error(e)
