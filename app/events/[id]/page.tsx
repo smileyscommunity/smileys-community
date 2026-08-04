@@ -4,7 +4,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import type { Metadata } from 'next'
 import { getEventById } from '@/lib/db'
-import { formatDate, formatTime, formatPrice, vibeConfig, resolveImageUrl, avatarUrl, getInitials } from '@/lib/data'
+import { formatDate, formatTime, formatPrice, vibeConfig, resolveImageUrl, avatarUrl, getInitials, type Event } from '@/lib/data'
 import { countryFlag } from '@/lib/countries'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
@@ -39,6 +39,57 @@ function absoluteImageUrl(coverImage: string | null | undefined, title?: string)
   // JPEG q75 ~250 KB. Keeps WhatsApp / iMessage / X under their
   // ~600 KB OG-image cap and shrinks the in-page hero load too.
   return `${SITE_URL}${resolved}?w=1200`
+}
+
+// Shared by both the guest and member branches below — this used to be two
+// separately hand-maintained JSON-LD objects, and the guest one (the only
+// one Google ever actually sees, since Googlebot never carries a session)
+// had drifted behind: no `offers` at all, eventStatus hardcoded to always
+// "Scheduled" regardless of cancellation, and never switched to
+// VirtualLocation for online events. None of that is guest-sensitive data —
+// price/status/address are exactly what Event rich results need, and the
+// visible page UI already handles what actually should stay member-only
+// (RSVP, messages, attendee list).
+function buildEventJsonLd(event: Event, eventUrl: string) {
+  return {
+    '@context': 'https://schema.org',
+    '@type':    'Event',
+    name:        event.title,
+    description: event.description
+      ? event.description.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 500)
+      : `${event.emoji} ${event.title} in ${event.neighborhood}, Istanbul`,
+    startDate: `${event.date}T${event.time ?? '00:00'}:00+03:00`,
+    eventStatus: event.status === 'cancelled'
+      ? 'https://schema.org/EventCancelled'
+      : 'https://schema.org/EventScheduled',
+    eventAttendanceMode: event.meetingUrl
+      ? 'https://schema.org/OnlineEventAttendanceMode'
+      : 'https://schema.org/OfflineEventAttendanceMode',
+    location: event.meetingUrl
+      ? { '@type': 'VirtualLocation', url: event.meetingUrl }
+      : {
+          '@type': 'Place',
+          name:    event.location || event.neighborhood || 'Istanbul',
+          address: {
+            '@type':         'PostalAddress',
+            streetAddress:   event.address ?? event.location ?? '',
+            addressLocality: 'Istanbul',
+            addressCountry:  'TR',
+          },
+        },
+    image: absoluteImageUrl(event.coverImage, event.title) || undefined,
+    url:   eventUrl,
+    offers: {
+      '@type':       'Offer',
+      price:         String(event.price ?? 0),
+      priceCurrency: event.currency ?? 'TRY',
+      availability:  event.spotsLeft === 0
+        ? 'https://schema.org/SoldOut'
+        : 'https://schema.org/InStock',
+      url: eventUrl,
+    },
+    organizer: { '@type': 'Organization', name: 'Smileys Community', url: SITE_URL },
+  }
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
@@ -103,29 +154,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
     // attendee list, and private address/links stay member-only — the page
     // pushes the user to /apply for the unlock.
     const eventUrl = `${APP_URL}/events/${id}`
-    const guestJsonLd = {
-      '@context': 'https://schema.org',
-      '@type':    'Event',
-      name:        event.title,
-      description: event.description
-        ? event.description.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 500)
-        : `${event.emoji} ${event.title} in ${event.neighborhood}, Istanbul`,
-      startDate:   `${event.date}T${event.time ?? '00:00'}:00+03:00`,
-      eventStatus: 'https://schema.org/EventScheduled',
-      eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
-      location: {
-        '@type': 'Place',
-        name:    event.location || event.neighborhood || 'Istanbul',
-        address: {
-          '@type':         'PostalAddress',
-          addressLocality: 'Istanbul',
-          addressCountry:  'TR',
-        },
-      },
-      image: absoluteImageUrl(event.coverImage, event.title) || undefined,
-      url:   eventUrl,
-      organizer: { '@type': 'Organization', name: 'Smileys Community', url: SITE_URL },
-    }
+    const guestJsonLd = buildEventJsonLd(event, eventUrl)
 
     const goingCount = await prisma.eventAttendee.count({
       where: { eventId: id, status: 'approved' },
@@ -413,50 +442,8 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
     : null
 
   // Build JSON-LD Event schema
-  const eventUrl   = `${APP_URL}/events/${id}`
-  const jsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'Event',
-    name: event.title,
-    description: event.description
-      ? event.description.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 500)
-      : `${event.emoji} ${event.title} in ${event.neighborhood}, Istanbul`,
-    startDate: `${event.date}T${event.time ?? '00:00'}:00+03:00`,
-    eventStatus: event.status === 'cancelled'
-      ? 'https://schema.org/EventCancelled'
-      : 'https://schema.org/EventScheduled',
-    eventAttendanceMode: event.meetingUrl
-      ? 'https://schema.org/OnlineEventAttendanceMode'
-      : 'https://schema.org/OfflineEventAttendanceMode',
-    location: event.meetingUrl
-      ? { '@type': 'VirtualLocation', url: event.meetingUrl }
-      : {
-          '@type': 'Place',
-          name:    event.location || event.neighborhood || 'Istanbul',
-          address: {
-            '@type':           'PostalAddress',
-            streetAddress:     event.address ?? event.location ?? '',
-            addressLocality:   'Istanbul',
-            addressCountry:    'TR',
-          },
-        },
-    image:     absoluteImageUrl(event.coverImage, event.title) || undefined,
-    url:       eventUrl,
-    offers: {
-      '@type':       'Offer',
-      price:         String(event.price ?? 0),
-      priceCurrency: event.currency ?? 'TRY',
-      availability:  event.spotsLeft === 0
-        ? 'https://schema.org/SoldOut'
-        : 'https://schema.org/InStock',
-      url: eventUrl,
-    },
-    organizer: {
-      '@type': 'Organization',
-      name:    'Smileys Community',
-      url:     SITE_URL,
-    },
-  }
+  const eventUrl = `${APP_URL}/events/${id}`
+  const jsonLd = buildEventJsonLd(event, eventUrl)
 
   return (
     <div className="min-h-screen bg-warm pb-36 md:pb-28 lg:pb-10">
