@@ -130,7 +130,6 @@ export default async function GuidePage() {
   const banner = loadBanner()
 
   const experiences = loadExperiences()
-  const firstTimers = experiences.filter(e => e.firstTime)
 
   const navItems = [
     ...(experiences.length > 0 ? [
@@ -185,24 +184,11 @@ export default async function GuidePage() {
             <ExperienceExplorer experiences={experiences} />
           </div>
 
-          {/* §6 — first-timer strip: the curated essentials, not 100
-              attractions. */}
-          {firstTimers.length > 0 && (
-            <div className="mt-12 bg-amber-50 border border-amber-100 rounded-3xl p-6 sm:p-8">
-              <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-gray-900">First time in Istanbul?</h2>
-              <p className="text-gray-600 mt-1 mb-5">Start with these — everything else can wait.</p>
-              <div className="flex gap-3 overflow-x-auto pb-1 -mx-2 px-2">
-                {firstTimers.map(e => (
-                  <Link key={e.slug} href={`/guide/${e.slug}`}
-                    className="shrink-0 w-56 bg-white border border-amber-100 rounded-2xl p-4 hover:border-amber-300 hover:shadow-md transition-all group">
-                    <span aria-hidden="true" className="block text-3xl mb-2">{e.emoji}</span>
-                    <p className="text-sm font-bold text-gray-900 leading-snug group-hover:text-amber-700 transition-colors">{e.title}</p>
-                    <span className="inline-block text-xs font-bold text-amber-600 mt-2">Read guide →</span>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* §6's first-timer strip moved to /visiting — same curated
+              experiences were also reachable via the Explorer above and
+              Collections below, so it was pure duplication on this page.
+              "First time in Istanbul?" is /visiting's exact audience; the
+              "Visiting first?" cross-link further down sends people there. */}
 
           {/* §7 — collections: browsable shelves instead of category trees. */}
           <div id="collections" className="mt-12 scroll-mt-16">

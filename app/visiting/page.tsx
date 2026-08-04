@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma'
 import type { Metadata } from 'next'
 import { getSession } from '@/lib/session'
 import { NEIGHBORHOOD_META, neighborhoodToSlug } from '@/lib/neighborhoods'
+import { loadExperiences } from '@/lib/guideContent'
 import VisitingClient from './VisitingClient'
 import StickyVisitCta from './StickyVisitCta'
 
@@ -73,6 +74,12 @@ export default async function VisitingPage() {
   // Session resolves first because the announcement query's visibility
   // filter depends on it; the rest still run in parallel.
   const session = await getSession()
+
+  // Moved here from /guide — "First time in Istanbul?" is this page's exact
+  // audience, and the same experiences were already reachable there via the
+  // mood explorer and collections, so the strip was pure duplication on the
+  // reference page.
+  const firstTimers = loadExperiences().filter(e => e.firstTime)
 
   const [announcements, viewerVisit, upcomingEvents, featuredLocals, neighborhoodCounts] = await Promise.all([
     getAnnouncements(today, !!session),
@@ -269,6 +276,27 @@ export default async function VisitingPage() {
           </div>
         </div>
       </section>
+
+      {/* First-timer strip — moved from /guide (see the comment above the
+          firstTimers query): the curated essentials, not 100 attractions. */}
+      {firstTimers.length > 0 && (
+        <section className="bg-amber-50 border-b border-amber-100">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-12">
+            <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-gray-900">First time in Istanbul?</h2>
+            <p className="text-gray-600 mt-1 mb-5">Start with these — everything else can wait.</p>
+            <div className="flex gap-3 overflow-x-auto pb-1 -mx-2 px-2">
+              {firstTimers.map(e => (
+                <Link key={e.slug} href={`/guide/${e.slug}`}
+                  className="shrink-0 w-56 bg-white border border-amber-100 rounded-2xl p-4 hover:border-amber-300 hover:shadow-md transition-all group">
+                  <span aria-hidden="true" className="block text-3xl mb-2">{e.emoji}</span>
+                  <p className="text-sm font-bold text-gray-900 leading-snug group-hover:text-amber-700 transition-colors">{e.title}</p>
+                  <span className="inline-block text-xs font-bold text-amber-600 mt-2">Read guide →</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
         {/* Full container width (not max-w-3xl) so the visitor cards can

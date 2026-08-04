@@ -12,16 +12,16 @@ export default function ExperienceExplorer({ experiences }: { experiences: Exper
   const [showAll, setShowAll] = useState(false)
 
   // Default view is a handful of picks, NOT the whole catalog — the
-  // first-timer strip and collection shelves below already list the rest,
-  // and rendering all 15 here made the page repeat every experience up to
-  // three times. Picks skip the firstTime set (that strip sits directly
-  // below), so nothing appears twice above the collections. Choosing a
-  // mood always searches everything.
+  // collection shelves below already list everything, and rendering all
+  // 15 here made the page repeat every experience. JSON order leads with
+  // the flagships (the first-timer strip now lives on /visiting, so the
+  // essentials belong in this grid again). Choosing a mood or searching
+  // always covers everything.
   const filtered = mood
     ? experiences.filter(e => e.moods.includes(mood))
     : showAll
       ? experiences
-      : experiences.filter(e => !e.firstTime).slice(0, 6)
+      : experiences.slice(0, 6)
 
   return (
     <div>
