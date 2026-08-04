@@ -120,7 +120,7 @@ export async function getSession(): Promise<SessionUser | null> {
     const [dbUser, sessionRow] = await Promise.all([
       prisma.user.findUnique({
         where: { id: user.id },
-        select: { status: true, suspendedUntil: true, tokenVersion: true, cityId: true, email: true, totpEnabled: true },
+        select: { status: true, suspendedUntil: true, tokenVersion: true, cityId: true, email: true, totpEnabled: true, neighborhood: true },
       }),
       // Skip the Session lookup when the JWT has no jti (legacy session
       // issued before the per-device column was added). Those expire
@@ -164,10 +164,13 @@ export async function getSession(): Promise<SessionUser | null> {
       }).catch(() => {})
     }
 
-    // Inject the live cityId + email from the DB so capability checks
-    // and audit-log attribution have fresh values even for sessions
-    // issued before later edits. Avoids forcing every member to re-login.
-    return { ...user, cityId: dbUser.cityId, email: dbUser.email, totpEnabled: dbUser.totpEnabled, totpVerified: sessionRow?.totpVerified ?? false, sessionId: jti }
+    // Inject the live cityId + email + neighborhood from the DB so
+    // capability checks, audit-log attribution and personalization have
+    // fresh values even for sessions issued before later edits. (The
+    // login JWT never carried neighborhood at all, so without this the
+    // neighborhoods pages treated every member as having none.) Avoids
+    // forcing every member to re-login.
+    return { ...user, cityId: dbUser.cityId, email: dbUser.email, neighborhood: dbUser.neighborhood ?? undefined, totpEnabled: dbUser.totpEnabled, totpVerified: sessionRow?.totpVerified ?? false, sessionId: jti }
   } catch {
     return null
   }
