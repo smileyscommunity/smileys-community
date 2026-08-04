@@ -20,9 +20,23 @@ export async function GET(req: NextRequest) {
   const neighborhood = searchParams.get('neighborhood') || undefined
   const offset       = Math.max(0, parseInt(searchParams.get('offset') || '0', 10) || 0)
 
+  const postId       = searchParams.get('post') || undefined
+
   const session = await getSession()
 
-  const posts = await prisma.boardPost.findMany({
+  const select = {
+    id: true, type: true, title: true, body: true, neighborhood: true,
+    tag: true, whenLabel: true, expiresAt: true, pinned: true, createdAt: true,
+    user: { select: { id: true, name: true, color: true, profilePhoto: true } },
+    _count: { select: { replies: true, interests: true, saves: true } },
+    // The viewer's own reactions, so buttons render in the right state.
+    ...(session ? {
+      interests: { where: { userId: session.id }, select: { userId: true as const } },
+      saves:     { where: { userId: session.id }, select: { userId: true as const } },
+    } : {}),
+  }
+
+  let posts = await prisma.boardPost.findMany({
     where: {
       status: 'active',
       // Expired plans drop out of the feed (stale "tonight?" posts read as
@@ -34,18 +48,20 @@ export async function GET(req: NextRequest) {
     orderBy: [{ pinned: 'desc' }, { createdAt: 'desc' }],
     skip: offset,
     take: 15,
-    select: {
-      id: true, type: true, title: true, body: true, neighborhood: true,
-      tag: true, whenLabel: true, expiresAt: true, pinned: true, createdAt: true,
-      user: { select: { id: true, name: true, color: true, profilePhoto: true } },
-      _count: { select: { replies: true, interests: true, saves: true } },
-      // The viewer's own reactions, so buttons render in the right state.
-      ...(session ? {
-        interests: { where: { userId: session.id }, select: { userId: true } },
-        saves:     { where: { userId: session.id }, select: { userId: true } },
-      } : {}),
-    },
+    select,
   })
+
+  // Deep-linked post (?post=<id>, from reply notifications and the
+  // neighborhood pages): prepend it when the first page doesn't already
+  // contain it — this is what keeps expired plans "reachable at their own
+  // URL" per the comment above (only the status gate applies here).
+  if (postId && !posts.some(p => p.id === postId)) {
+    const single = await prisma.boardPost.findFirst({
+      where: { id: postId, status: 'active' },
+      select,
+    })
+    if (single) posts = [single, ...posts]
+  }
 
   return NextResponse.json({
     posts: posts.map(p => ({

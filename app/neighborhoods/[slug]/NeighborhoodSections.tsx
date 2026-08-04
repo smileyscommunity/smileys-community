@@ -297,7 +297,7 @@ export default async function NeighborhoodSections({
         <div className="rounded-2xl border border-green-100 bg-green-50/40 p-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xs font-bold text-green-700 uppercase tracking-widest"><span aria-hidden="true">🟢</span> Around right now in {name}</h2>
-            <Link href="/hangouts"
+            <Link href={`/hangouts?neighborhood=${encodeURIComponent(name)}`}
               className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
               See all →
             </Link>
@@ -349,7 +349,7 @@ export default async function NeighborhoodSections({
                              : s.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
               const going  = h._count.joins + 1  // +1 = host
               return (
-                <Link key={h.id} href="/hangouts" className="group block">
+                <Link key={h.id} href={`/hangouts/${h.id}`} className="group block">
                   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hover:shadow-md hover:-translate-y-0.5 transition-all h-full">
                     <p className="text-xs font-bold text-amber-700 uppercase tracking-wide mb-2"><span aria-hidden="true">☕</span> {window}</p>
                     <p className="text-sm font-bold text-gray-900 mb-1 line-clamp-2">{h.title}</p>

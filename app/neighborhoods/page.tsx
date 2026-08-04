@@ -505,7 +505,7 @@ export default async function NeighborhoodsPage() {
                 <p className="text-sm text-gray-600 mt-1 mb-4">
                   Neighborhoods come alive when someone starts something.
                 </p>
-                <Link href="/hangouts"
+                <Link href={`/hangouts?new=1${focusNeighborhood ? `&neighborhood=${encodeURIComponent(focusNeighborhood)}` : ''}`}
                   className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
                   Create a meetup →
                 </Link>

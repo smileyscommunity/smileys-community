@@ -188,6 +188,27 @@ export default function HangoutsPage() {
   const [timeFilter,          setTimeFilter]          = useState<TimeFilter>('all')
   const [activityFilter,      setActivityFilter]      = useState<string | null>(null)
   const [neighborhoodFilter,  setNeighborhoodFilter]  = useState<string | null>(null)
+
+  // Deep-link intake — neighborhood pages link /hangouts?neighborhood=X
+  // ("see all here") and /hangouts?new=1&neighborhood=X ("start one here");
+  // ?activity= mirrors the activity chips. window.location instead of
+  // useSearchParams keeps this page out of the Suspense contract; read
+  // once on mount.
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search)
+    const hood = p.get('neighborhood')
+    const act  = p.get('activity')
+    if (act && HANGOUT_ACTIVITIES.some(a => a.value === act)) setActivityFilter(act)
+    if (p.get('new') === '1') {
+      // Creation intent: open the form (prefilled) instead of filtering a
+      // feed they didn't come to browse.
+      setShowForm(true)
+      if (hood) setNeighborhood(hood)
+    } else if (hood) {
+      setNeighborhoodFilter(hood)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [languageOnly,        setLanguageOnly]        = useState(false)
 
   // Hangout form

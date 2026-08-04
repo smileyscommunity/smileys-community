@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { useAuth } from '@/contexts/AuthContext'
@@ -331,10 +332,16 @@ function RepliesBlock({ postId, onCount }: { postId: string; onCount: (n: number
 }
 
 // ── Post card ───────────────────────────────────────────────────────────────
-function PostCard({ p, onRemoved }: { p: Post; onRemoved: (id: string) => void }) {
+function PostCard({ p, onRemoved, defaultOpen }: { p: Post; onRemoved: (id: string) => void; defaultOpen?: boolean }) {
   const { user, isLoggedIn } = useAuth()
   const meta = TYPE_META[p.type]
-  const [showReplies, setShowReplies] = useState(false)
+  const [showReplies, setShowReplies] = useState(!!defaultOpen)
+  // Deep-linked post (/board?post=<id> — reply notifications, neighborhood
+  // pages): scroll it into view with its replies open.
+  const cardRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (defaultOpen) cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [defaultOpen])
   const [replyCount,  setReplyCount]  = useState(p.replyCount)
   const [saved,       setSaved]       = useState(p.viewerSaved)
   const [menuOpen,    setMenuOpen]    = useState(false)
@@ -373,7 +380,7 @@ function PostCard({ p, onRemoved }: { p: Post; onRemoved: (id: string) => void }
   }
 
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+    <div ref={cardRef} className={`bg-white border rounded-2xl p-5 shadow-sm ${defaultOpen ? 'border-amber-300 ring-1 ring-amber-200' : 'border-gray-100'}`}>
       <div className="flex items-start gap-3">
         <Link href={`/members/${p.user.id}`}>
           <AvatarImg src={avatarUrl(p.user.profilePhoto, 96)} name={p.user.name} color={p.user.color}
@@ -464,6 +471,8 @@ export default function BoardFeed() {
   const { isLoggedIn: viewerIsMember } = useAuth()
   const [posts,    setPosts]    = useState<Post[]>([])
   const [filter,   setFilter]   = useState('')
+  const [hood,     setHood]     = useState('')
+  const [deepPost, setDeepPost] = useState<string | null>(null)
   const [loading,  setLoading]  = useState(true)
   const [hasMore,  setHasMore]  = useState(false)
   const [visitors, setVisitors] = useState<Visitor[]>([])
@@ -493,12 +502,30 @@ export default function BoardFeed() {
       .catch(() => {})
   }, [])
 
+  // Deep-link intake — /board?post=<id> (reply notifications, neighborhood
+  // pages) opens that post; ?neighborhood=<name> pre-filters the feed the
+  // way the neighborhood pages' "see all conversations" links promise.
+  // useSearchParams (already in use higher in this tree) rather than a
+  // read-once window.location so soft navigations re-fire it — e.g.
+  // clicking a reply notification while already on /board. Params are only
+  // ever *applied*, never cleared, so BoardHub's own URL-sync stripping
+  // the query moments later is harmless.
+  const searchParams = useSearchParams()
+  useEffect(() => {
+    const post = searchParams.get('post')
+    if (post) setDeepPost(post)
+    const n = searchParams.get('neighborhood')
+    if (n) setHood(n)
+  }, [searchParams])
+
   const load = useCallback(async (type: string, offset: number, append: boolean) => {
     setLoading(true)
     try {
       const params = new URLSearchParams()
       if (type) params.set('type', type)
       if (offset) params.set('offset', String(offset))
+      if (hood) params.set('neighborhood', hood)
+      if (deepPost && !offset) params.set('post', deepPost)
       const res = await fetch(`/app/api/board?${params}`, { credentials: 'include' })
       const data = await res.json().catch(() => ({ posts: [] }))
       const next: Post[] = data.posts ?? []
@@ -507,7 +534,7 @@ export default function BoardFeed() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [hood, deepPost])
 
   useEffect(() => { load(filter, 0, false) }, [filter, load])
 
@@ -524,6 +551,12 @@ export default function BoardFeed() {
             {c.label}
           </button>
         ))}
+        {hood && (
+          <button onClick={() => setHood('')} title="Clear neighborhood filter"
+            className="shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold border bg-amber-50 border-amber-300 text-amber-700 whitespace-nowrap">
+            <span aria-hidden="true">📍 </span>{hood} <span aria-hidden="true">×</span>
+          </button>
+        )}
       </div>
 
       {loading && posts.length === 0 ? (
@@ -558,11 +591,11 @@ export default function BoardFeed() {
         <div className="space-y-4 mt-3">
           <HangoutsModule hangouts={hangouts} />
           {posts.slice(0, 3).map(p => (
-            <PostCard key={p.id} p={p} onRemoved={id => setPosts(prev => prev.filter(x => x.id !== id))} />
+            <PostCard key={p.id} p={p} defaultOpen={p.id === deepPost} onRemoved={id => setPosts(prev => prev.filter(x => x.id !== id))} />
           ))}
           <VisitorsModule visitors={visitors} />
           {posts.slice(3).map(p => (
-            <PostCard key={p.id} p={p} onRemoved={id => setPosts(prev => prev.filter(x => x.id !== id))} />
+            <PostCard key={p.id} p={p} defaultOpen={p.id === deepPost} onRemoved={id => setPosts(prev => prev.filter(x => x.id !== id))} />
           ))}
           {hasMore && (
             <button onClick={() => load(filter, posts.length, true)} disabled={loading}
