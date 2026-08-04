@@ -275,6 +275,23 @@ export function getInitials(name: string): string {
   return name.trim().split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
 }
 
+// Event titles often arrive with the emoji typed into the title as well
+// ("💬 Let's Get Social" alongside emoji 💬). Every surface renders the
+// emoji field next to the title, so a leading emoji in the title always
+// displays doubled. Pull it off the title and hand it back separately so
+// callers can use it as the emoji-field fallback instead of losing it.
+// Handles ZWJ sequences, variation selectors and skin tones (🧘‍♀️, ⛵️).
+// A title that is nothing but emoji is returned unchanged.
+const LEADING_EMOJI = /^(?:(?:\p{Extended_Pictographic}|\p{Emoji_Modifier})[\uFE0F\u200D]*)+/u
+export function splitLeadingEmoji(raw: string): { emoji: string | null; title: string } {
+  const trimmed = raw.trim()
+  const match = trimmed.match(LEADING_EMOJI)
+  if (!match) return { emoji: null, title: trimmed }
+  const rest = trimmed.slice(match[0].length).trim()
+  if (!rest) return { emoji: null, title: trimmed }
+  return { emoji: match[0], title: rest }
+}
+
 const TURKISH_NATIONALITIES = new Set(['turkey', 'türkiye', 'turkiye', 'tr', 'turkish'])
 
 // WhatsApp URL with smarter country-code handling than the old

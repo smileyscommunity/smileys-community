@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin, isModerator, isClubHost, isClubHostFor } from '@/lib/access'
 import { createNotification, notifyNewEvent } from '@/lib/notify'
-import { todayIstanbul } from '@/lib/data'
+import { todayIstanbul, splitLeadingEmoji } from '@/lib/data'
 import { normalizePaymentContact } from '@/lib/safeUrl'
 import { computeEventSurveyRollup } from '@/lib/survey'
 import { ensurePendingVenueBusiness } from '@/lib/venueDirectory'
@@ -101,6 +101,11 @@ export async function POST(req: NextRequest) {
     if (!title || !date || !time || !location || !clubId || !hostId) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
+
+    // A leading emoji typed into the title would render doubled everywhere
+    // (every surface shows the emoji field next to the title) — move it
+    // into the emoji field instead, unless one was chosen explicitly.
+    const { emoji: titleEmoji, title: cleanTitle } = splitLeadingEmoji(String(title))
 
     if (clubHost && (!description?.trim() || !coverImage || !address?.trim())) {
       return NextResponse.json({ error: 'Description, cover image, and full address are required' }, { status: 400 })
@@ -236,7 +241,7 @@ export async function POST(req: NextRequest) {
 
     const event = await prisma.event.create({
       data: {
-        title:                title.trim(),
+        title:                cleanTitle,
         date, time,
         location:             location.trim(),
         neighborhood:         neighborhood?.trim() ?? '',
@@ -255,7 +260,7 @@ export async function POST(req: NextRequest) {
         payTo:                payTo || 'venue',
         paymentContact:       contact,
         ticketUrl:            ticketUrl?.trim() || null,
-        emoji:                emoji || '🎉',
+        emoji:                emoji || titleEmoji || '🎉',
         isPremium:            isPremium ?? false,
         membersOnly:          membersOnly ?? false,
         limitedSpots:         limitedSpots ?? true,
@@ -312,7 +317,7 @@ export async function POST(req: NextRequest) {
         hostId,
         'host_assigned',
         'You\'ve been assigned to host an event! 🎤',
-        `You've been assigned as host for "${title.trim()}". Head to your host panel to manage it.`,
+        `You've been assigned as host for "${cleanTitle}". Head to your host panel to manage it.`,
         '/host/events'
       ).catch(() => {})
     }
@@ -324,7 +329,7 @@ export async function POST(req: NextRequest) {
         await Promise.all(admins.map(a =>
           createNotification(a.id, 'host_message',
             `New event needs approval 📋`,
-            `"${title.trim()}" submitted by ${session.name} — tap to review and publish.`,
+            `"${cleanTitle}" submitted by ${session.name} — tap to review and publish.`,
             `/admin/events/${event.id}/edit`,
           )
         ))
@@ -334,7 +339,7 @@ export async function POST(req: NextRequest) {
     // Announce to club members when created directly as published
     // (fire-and-forget; batched + idempotency-guarded inside notifyNewEvent).
     if (eventStatus === 'published') {
-      notifyNewEvent({ id: event.id, title: title.trim(), clubId, hostId }).catch(() => {})
+      notifyNewEvent({ id: event.id, title: cleanTitle, clubId, hostId }).catch(() => {})
     }
 
     return NextResponse.json(event)
