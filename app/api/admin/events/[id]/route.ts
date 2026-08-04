@@ -5,7 +5,7 @@ import { isAdmin, isAdminOrModerator, isClubHost, isClubHostFor } from '@/lib/ac
 import { createNotification, notifyNewEvent } from '@/lib/notify'
 import { writeAudit, getDiff } from '@/lib/audit'
 import { normalizePaymentContact } from '@/lib/safeUrl'
-import { splitLeadingEmoji } from '@/lib/data'
+import { splitLeadingEmoji, stripDupTrailingEmoji } from '@/lib/data'
 import { sendEventCancelledEmail, recordEmailFailure } from '@/lib/email'
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 
@@ -103,8 +103,9 @@ export async function PUT(req: NextRequest, { params }: Params) {
     // into the emoji field instead, unless this update sets one anyway.
     if (typeof rest.title === 'string') {
       const split = splitLeadingEmoji(rest.title)
-      rest.title = split.title
       if (split.emoji && !('emoji' in rest)) rest.emoji = split.emoji
+      const effectiveEmoji = typeof rest.emoji === 'string' ? rest.emoji : before.emoji
+      rest.title = stripDupTrailingEmoji(split.title, effectiveEmoji)
     }
 
     // URL validation

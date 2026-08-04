@@ -7,6 +7,11 @@
 // holds the generic default 🎉 — a deliberately chosen emoji (even a
 // variant like 🧘 next to a 🧘‍♀️ title) is kept.
 //
+// Second pass in the same run: a TRAILING emoji that duplicates the emoji
+// field ("Let's Get Social 💬" + emoji 💬) doubles at the other end and is
+// dropped too. Trailing emoji that differ from the field ("Picnic in Moda
+// 🧺" + emoji 🌳) are deliberate decoration and stay.
+//
 // Usage (on the server, from /root/smileys-community):
 //   DRY_RUN=1 npx tsx --env-file=.env --env-file=.env.local scripts/strip-event-title-emoji.ts
 //   npx tsx --env-file=.env --env-file=.env.local scripts/strip-event-title-emoji.ts
@@ -25,6 +30,21 @@ function splitLeadingEmoji(raw: string): { emoji: string | null; title: string }
   return { emoji: match[0], title: rest }
 }
 
+// Trailing twin of the above; only strips when the trailing run equals the
+// emoji field, compared with variation selectors (U+FE0F) removed so
+// ⛵︎/⛵️/⛵ count as the same emoji.
+const TRAILING_EMOJI = /(?:(?:\p{Extended_Pictographic}|\p{Emoji_Modifier})[\uFE0F\u200D]*)+$/u
+function stripDupTrailingEmoji(raw: string, emoji: string | null | undefined): string {
+  const trimmed = raw.trim()
+  if (!emoji) return trimmed
+  const match = trimmed.match(TRAILING_EMOJI)
+  if (!match) return trimmed
+  const norm = (s: string) => s.replace(/\uFE0F/g, '')
+  if (norm(match[0]) !== norm(emoji.trim())) return trimmed
+  const rest = trimmed.slice(0, trimmed.length - match[0].length).trim()
+  return rest || trimmed
+}
+
 const DRY_RUN = process.env.DRY_RUN === '1'
 
 async function main() {
@@ -34,10 +54,11 @@ async function main() {
 
   let changed = 0
   for (const e of events) {
-    const { emoji, title } = splitLeadingEmoji(e.title)
-    if (!emoji || title === e.title) continue
+    const { emoji, title: afterLeading } = splitLeadingEmoji(e.title)
+    const newEmoji = emoji && e.emoji === '🎉' ? emoji : e.emoji
+    const title    = stripDupTrailingEmoji(afterLeading, newEmoji)
+    if (title === e.title) continue
 
-    const newEmoji = e.emoji === '🎉' ? emoji : e.emoji
     changed++
     console.log(`${DRY_RUN ? '[dry] ' : ''}${e.id} (${e.status}): ${JSON.stringify(e.title)} → ${JSON.stringify(title)}` +
       (newEmoji !== e.emoji ? ` · emoji ${e.emoji} → ${newEmoji}` : ` · emoji ${e.emoji} kept`))

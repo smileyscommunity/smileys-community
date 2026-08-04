@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { splitLeadingEmoji } from '../lib/data'
+import { splitLeadingEmoji, stripDupTrailingEmoji } from '../lib/data'
 
 // Event titles typed with a leading emoji ("💬 Let's Get Social") render
 // doubled everywhere because every surface shows the emoji field next to
@@ -41,5 +41,34 @@ describe('splitLeadingEmoji', () => {
   it('does not treat leading digits or # as emoji', () => {
     expect(splitLeadingEmoji('5-a-side football')).toEqual({ emoji: null, title: '5-a-side football' })
     expect(splitLeadingEmoji('#1 rooftop meetup')).toEqual({ emoji: null, title: '#1 rooftop meetup' })
+  })
+})
+
+// Trailing counterpart: only strips when the trailing emoji duplicates
+// the emoji field; different trailing emoji are deliberate decoration.
+describe('stripDupTrailingEmoji', () => {
+  it('strips an exact trailing duplicate', () => {
+    expect(stripDupTrailingEmoji('Let’s Get Social 💬', '💬')).toBe('Let’s Get Social')
+  })
+
+  it('matches across variation selectors (⛵️ title vs ⛵ field)', () => {
+    expect(stripDupTrailingEmoji('Sunset Sailing Cruise ⛵️', '⛵')).toBe('Sunset Sailing Cruise')
+  })
+
+  it('keeps a different trailing emoji', () => {
+    expect(stripDupTrailingEmoji('Picnic in Moda 🧺', '🌳')).toBe('Picnic in Moda 🧺')
+    expect(stripDupTrailingEmoji('Afterwork Happy Hour & Chill 😎', '🍹')).toBe('Afterwork Happy Hour & Chill 😎')
+  })
+
+  it('leaves plain titles alone (still trims)', () => {
+    expect(stripDupTrailingEmoji('Basketball Lovers Meetup ', '🏀')).toBe('Basketball Lovers Meetup')
+  })
+
+  it('never empties an all-emoji title', () => {
+    expect(stripDupTrailingEmoji('💬', '💬')).toBe('💬')
+  })
+
+  it('handles a missing emoji field', () => {
+    expect(stripDupTrailingEmoji('Happy Hour 🍸', null)).toBe('Happy Hour 🍸')
   })
 })

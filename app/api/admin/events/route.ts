@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin, isModerator, isClubHost, isClubHostFor } from '@/lib/access'
 import { createNotification, notifyNewEvent } from '@/lib/notify'
-import { todayIstanbul, splitLeadingEmoji } from '@/lib/data'
+import { todayIstanbul, splitLeadingEmoji, stripDupTrailingEmoji } from '@/lib/data'
 import { normalizePaymentContact } from '@/lib/safeUrl'
 import { computeEventSurveyRollup } from '@/lib/survey'
 import { ensurePendingVenueBusiness } from '@/lib/venueDirectory'
@@ -105,7 +105,9 @@ export async function POST(req: NextRequest) {
     // A leading emoji typed into the title would render doubled everywhere
     // (every surface shows the emoji field next to the title) — move it
     // into the emoji field instead, unless one was chosen explicitly.
-    const { emoji: titleEmoji, title: cleanTitle } = splitLeadingEmoji(String(title))
+    const { emoji: titleEmoji, title: titleSansLeading } = splitLeadingEmoji(String(title))
+    const finalEmoji = emoji || titleEmoji || '🎉'
+    const cleanTitle = stripDupTrailingEmoji(titleSansLeading, finalEmoji)
 
     if (clubHost && (!description?.trim() || !coverImage || !address?.trim())) {
       return NextResponse.json({ error: 'Description, cover image, and full address are required' }, { status: 400 })
@@ -260,7 +262,7 @@ export async function POST(req: NextRequest) {
         payTo:                payTo || 'venue',
         paymentContact:       contact,
         ticketUrl:            ticketUrl?.trim() || null,
-        emoji:                emoji || titleEmoji || '🎉',
+        emoji:                finalEmoji,
         isPremium:            isPremium ?? false,
         membersOnly:          membersOnly ?? false,
         limitedSpots:         limitedSpots ?? true,

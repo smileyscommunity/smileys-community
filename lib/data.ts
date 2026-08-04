@@ -292,6 +292,25 @@ export function splitLeadingEmoji(raw: string): { emoji: string | null; title: s
   return { emoji: match[0], title: rest }
 }
 
+// Trailing twin of splitLeadingEmoji: a title ending in the same emoji
+// as the emoji field ("Let's Get Social" + a trailing speech balloon,
+// with the field set to the same balloon) doubles at the other end.
+// Strips the trailing run only when it duplicates the emoji field,
+// compared with variation selectors (U+FE0F) removed so the sailboat
+// with and without VS16 count as the same emoji - a different trailing
+// emoji is deliberate decoration and stays.
+const TRAILING_EMOJI = /(?:(?:\p{Extended_Pictographic}|\p{Emoji_Modifier})[\uFE0F\u200D]*)+$/u
+export function stripDupTrailingEmoji(raw: string, emoji: string | null | undefined): string {
+  const trimmed = raw.trim()
+  if (!emoji) return trimmed
+  const match = trimmed.match(TRAILING_EMOJI)
+  if (!match) return trimmed
+  const norm = (s: string) => s.replace(/\uFE0F/g, '')
+  if (norm(match[0]) !== norm(emoji.trim())) return trimmed
+  const rest = trimmed.slice(0, trimmed.length - match[0].length).trim()
+  return rest || trimmed
+}
+
 const TURKISH_NATIONALITIES = new Set(['turkey', 'türkiye', 'turkiye', 'tr', 'turkish'])
 
 // WhatsApp URL with smarter country-code handling than the old
