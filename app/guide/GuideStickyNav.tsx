@@ -50,12 +50,15 @@ export default function GuideStickyNav({ navItems }: { navItems: NavItem[] }) {
 
   return (
     /* relative on the outer bar so the right-edge fade sits at the
-       VIEWPORT edge, not at the centered max-w-4xl inner edge.
+       VIEWPORT edge, not at the centered max-w-7xl inner edge.
        On wide screens the previous setup left the fade as a small
        smudge floating in the middle of the bar; now the fade bleeds
-       off the visible bar edge like a true affordance. */
+       off the visible bar edge like a true affordance.
+       max-w-7xl + lg:px-8 matches the hero and content sections below —
+       max-w-4xl left this row narrower than its siblings, so it didn't
+       start at the same left edge as the page title on wide screens. */
     <div className="sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-gray-100 relative">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <nav aria-label="Guide sections" className="flex gap-1.5 overflow-x-auto py-2 scrollbar-hide">
           {navItems.map(item => {
             const isActive = item.id === activeId
