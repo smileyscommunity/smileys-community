@@ -1892,6 +1892,7 @@ model MovingSale {
   leavingOn    String           // YYYY-MM-DD, also the expiry
   neighborhood String?
   note         String?
+  photo        String?
   status       String           @default("active") // 'active' | 'done' | 'removed'
   createdAt    DateTime         @default(now())
   user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)

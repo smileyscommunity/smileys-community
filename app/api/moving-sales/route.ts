@@ -17,7 +17,7 @@ export async function GET() {
     orderBy: { leavingOn: 'asc' },
     take:    30,
     select: {
-      id: true, leavingOn: true, neighborhood: true, note: true, createdAt: true,
+      id: true, leavingOn: true, neighborhood: true, note: true, photo: true, createdAt: true,
       user:  { select: { id: true, name: true, color: true, profilePhoto: true } },
       items: { select: { id: true, name: true, price: true, claimed: true }, orderBy: { claimed: 'asc' } },
     },
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Daily limit reached' }, { status: 429 })
   }
 
-  const { leavingOn, neighborhood, note, items } = await req.json()
+  const { leavingOn, neighborhood, note, items, photo } = await req.json()
   if (typeof leavingOn !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(leavingOn)) {
     return NextResponse.json({ error: 'When are you leaving?' }, { status: 400 })
   }
@@ -44,6 +44,10 @@ export async function POST(req: NextRequest) {
   const safeNeighborhood = typeof neighborhood === 'string'
     && (ISTANBUL_NEIGHBORHOODS as readonly string[]).includes(neighborhood) ? neighborhood : null
   const safeNote = typeof note === 'string' ? note.trim().slice(0, 500) || null : null
+  // Matches the Listing route's PHOTO_RE — only accept a URL our own
+  // upload route produced, never an arbitrary external string.
+  const PHOTO_RE = /^\/app\/api\/files\/[a-zA-Z0-9\-]+\/[a-zA-Z0-9\-]+\.(jpg|jpeg|png|webp|gif)$/
+  const safePhoto = typeof photo === 'string' && PHOTO_RE.test(photo) ? photo : null
 
   // Items: 1–20, name required, price free text (matches Listing.price) or
   // empty = FREE.
@@ -60,7 +64,7 @@ export async function POST(req: NextRequest) {
 
   const sale = await prisma.movingSale.create({
     data: {
-      userId: session.id, leavingOn, neighborhood: safeNeighborhood, note: safeNote,
+      userId: session.id, leavingOn, neighborhood: safeNeighborhood, note: safeNote, photo: safePhoto,
       items: { create: safeItems },
     },
     select: { id: true },

@@ -10,6 +10,7 @@ interface Sale {
   leavingOn: string
   neighborhood: string | null
   note: string | null
+  photo: string | null
   status: string
   createdAt: string
   user: { id: string; name: string; email: string; color: string }
@@ -113,7 +114,12 @@ export default function AdminMovingSalesPage() {
             <div key={s.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-start gap-3 min-w-0">
-                  <Avatar name={s.user.name} color={s.user.color} />
+                  {s.photo ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={s.photo} alt="" className="w-11 h-11 rounded-lg object-cover shrink-0" />
+                  ) : (
+                    <Avatar name={s.user.name} color={s.user.color} />
+                  )}
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-semibold text-white">{s.user.name}</span>

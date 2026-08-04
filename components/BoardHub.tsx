@@ -582,6 +582,25 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
   const [showAlertMenu, setShowAlertMenu] = useState(false)
   const alertMenuRef = useRef<HTMLDivElement>(null)
 
+  // Preview strip for the ALL view — Moving Sale is its own table, not a
+  // Listing row, so it never appears in the main `listings` grid above no
+  // matter how recent. Without this, the only way to find one is knowing
+  // to click the "Moving & Leaving" category card first. A few small
+  // fetches on mount (list is already capped at 30 server-side) rather
+  // than reusing the paginated `listings` fetch/state, which is typed to
+  // Listing and used for save/delete/pagination.
+  const [movingPreview, setMovingPreview] = useState<{
+    id: string; leavingOn: string; neighborhood: string | null; photo: string | null
+    items: { name: string }[]
+    user: { name: string; color: string; profilePhoto: string | null }
+  }[]>([])
+  useEffect(() => {
+    fetch('/app/api/moving-sales', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => setMovingPreview((data?.sales ?? []).slice(0, 3)))
+      .catch(() => {})
+  }, [])
+
   // Debounce search
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 300)
@@ -1029,6 +1048,38 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
               </button>
             )
           })()}
+
+        {/* Moving Sales preview — see the movingPreview effect above for
+            why this can't just be part of the `listings` grid below. */}
+        {view === 'market' && category === 'ALL' && !debouncedSearch && movingPreview.length > 0 && (
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-bold text-gray-900"><span aria-hidden="true">📦 </span>Moving Sales</h2>
+              <button onClick={() => setCategory('MOVING')} className="text-xs font-bold text-amber-600 hover:underline">
+                See all →
+              </button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {movingPreview.map(s => (
+                <button key={s.id} onClick={() => setCategory('MOVING')}
+                  className="text-left bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:border-amber-200 transition-all">
+                  {s.photo ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={s.photo} alt="" className="w-full h-32 object-cover" />
+                  ) : (
+                    <div className="w-full h-32 bg-amber-50 flex items-center justify-center text-4xl" aria-hidden="true">📦</div>
+                  )}
+                  <div className="p-3.5">
+                    <p className="text-sm font-bold text-gray-900 truncate">{s.user.name.split(' ')[0]}&apos;s Moving Sale</p>
+                    <p className="text-xs text-gray-400 mt-0.5 truncate">
+                      {s.items.length} item{s.items.length !== 1 ? 's' : ''}{s.neighborhood ? ` · ${s.neighborhood}` : ''}
+                    </p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {category === 'MOVING' ? (
           <MovingSales />

@@ -6,10 +6,11 @@ import { toast } from 'sonner'
 import { useAuth } from '@/contexts/AuthContext'
 import AvatarImg from '@/components/AvatarImg'
 import { avatarUrl, ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
+import { downscaleImage } from '@/lib/image-resize'
 
 interface SaleItem { id: string; name: string; price: string | null; claimed: boolean }
 interface Sale {
-  id: string; leavingOn: string; neighborhood: string | null; note: string | null
+  id: string; leavingOn: string; neighborhood: string | null; note: string | null; photo: string | null
   user: { id: string; name: string; color: string; profilePhoto: string | null }
   items: SaleItem[]
 }
@@ -33,6 +34,8 @@ export default function MovingSales() {
   const [note,         setNote]         = useState('')
   const [items,        setItems]        = useState<{ name: string; price: string }[]>([{ name: '', price: '' }])
   const [posting,      setPosting]      = useState(false)
+  const [photo,        setPhoto]        = useState('')
+  const [uploading,    setUploading]    = useState(false)
 
   // per-sale contact composer
   const [contactFor,  setContactFor]  = useState<string | null>(null)
@@ -46,6 +49,22 @@ export default function MovingSales() {
   }, [])
   useEffect(() => { load() }, [load])
 
+  async function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setUploading(true)
+    try {
+      const upload = await downscaleImage(file)
+      const form = new FormData()
+      form.append('file', upload)
+      const res  = await fetch('/app/api/upload', { method: 'POST', body: form, credentials: 'include' })
+      const data = await res.json().catch(() => ({}))
+      if (data.url) setPhoto(data.url)
+      else toast.error('Could not upload photo')
+    } finally { setUploading(false) }
+  }
+
   async function submit() {
     if (posting) return
     setPosting(true)
@@ -53,13 +72,13 @@ export default function MovingSales() {
       const res = await fetch('/app/api/moving-sales', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ leavingOn, neighborhood: neighborhood || undefined, note: note || undefined, items }),
+        body: JSON.stringify({ leavingOn, neighborhood: neighborhood || undefined, note: note || undefined, items, photo: photo || undefined }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) { toast.error(data.error ?? 'Could not post'); return }
       posthog.capture('moving_sale_created', { items: items.filter(i => i.name.trim()).length })
       toast.success('Moving sale posted')
-      setShowForm(false); setLeavingOn(''); setNeighborhood(''); setNote(''); setItems([{ name: '', price: '' }])
+      setShowForm(false); setLeavingOn(''); setNeighborhood(''); setNote(''); setItems([{ name: '', price: '' }]); setPhoto('')
       load()
     } finally { setPosting(false) }
   }
@@ -133,6 +152,28 @@ export default function MovingSales() {
               placeholder="Everything must go by the 28th — pickup in Cihangir." className="input" />
           </label>
           <div>
+            <span className="block text-sm font-semibold text-gray-700 mb-1.5">Photo <span className="text-gray-400 font-normal">(optional — a wide shot of the pile sells better than a description)</span></span>
+            {photo ? (
+              <div className="relative w-full h-40 rounded-xl overflow-hidden">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={photo} alt="" className="w-full h-full object-cover" />
+                <button type="button" onClick={() => setPhoto('')}
+                  className="absolute top-2 right-2 w-7 h-7 bg-black/60 hover:bg-black/80 text-white rounded-full flex items-center justify-center text-sm transition-colors">
+                  ×
+                </button>
+              </div>
+            ) : (
+              <label className="flex items-center justify-center w-full h-40 border-2 border-dashed border-gray-200 rounded-xl cursor-pointer hover:border-amber-300 transition-colors">
+                {uploading ? (
+                  <span className="text-sm text-gray-400">Uploading…</span>
+                ) : (
+                  <span className="text-sm text-gray-400">Tap to upload a photo</span>
+                )}
+                <input type="file" accept="image/*" onChange={handlePhoto} className="hidden" disabled={uploading} />
+              </label>
+            )}
+          </div>
+          <div>
             <span className="block text-sm font-semibold text-gray-700 mb-1.5">Items <span className="text-gray-400 font-normal">(up to 20 — leave price empty for FREE)</span></span>
             <div className="space-y-2">
               {items.map((it, i) => (
@@ -153,7 +194,7 @@ export default function MovingSales() {
                 className="mt-2 text-xs font-bold text-amber-600 hover:underline">+ Add item</button>
             )}
           </div>
-          <button onClick={submit} disabled={posting || !leavingOn || !items.some(i => i.name.trim())}
+          <button onClick={submit} disabled={posting || uploading || !leavingOn || !items.some(i => i.name.trim())}
             className="w-full py-3 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-colors">
             {posting ? 'Posting…' : 'Post Moving Sale →'}
           </button>
@@ -186,6 +227,10 @@ export default function MovingSales() {
                 </p>
               </div>
             </div>
+            {sale.photo && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={sale.photo} alt="" className="mt-3 w-full h-48 object-cover rounded-xl" />
+            )}
             {sale.note && <p className="text-sm text-gray-700 mt-3">{sale.note}</p>}
             <ul className="mt-3 divide-y divide-gray-50 border border-gray-100 rounded-xl overflow-hidden">
               {sale.items.map(it => (

@@ -19,7 +19,7 @@ export async function GET() {
       orderBy: { createdAt: 'desc' },
       take: 200,
       select: {
-        id: true, leavingOn: true, neighborhood: true, note: true, status: true, createdAt: true,
+        id: true, leavingOn: true, neighborhood: true, note: true, photo: true, status: true, createdAt: true,
         user:  { select: { id: true, name: true, email: true, color: true } },
         items: { select: { id: true, name: true, price: true, claimed: true } },
       },
