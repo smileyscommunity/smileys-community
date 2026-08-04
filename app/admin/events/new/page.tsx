@@ -21,7 +21,7 @@ export default function NewEventPage() {
   const [form, setForm] = useState({
     title: '', date: '', time: '', location: '', neighborhood: '',
     address: '', clubId: '', hostId: '', description: '',
-    totalSpots: '20', price: '', memberPrice: '', payTo: 'venue', paymentContact: '', ticketUrl: '',
+    totalSpots: '20', price: '', memberPrice: '', payTo: 'free', paymentContact: '', ticketUrl: '',
     emoji: '🎉', status: 'published',
     isPremium: false, membersOnly: false, limitedSpots: true, isFirstTimerFriendly: false, isRecurring: false,
     approvalRequired: false,
@@ -167,6 +167,8 @@ export default function NewEventPage() {
     if (!form.neighborhood) missing.push('Neighborhood')
     if (!form.clubId)       missing.push('Club')
     if (!form.hostId)       missing.push('Host')
+    if (form.payTo === 'buyonline' && !form.ticketUrl.trim()) missing.push('Ticket link')
+    if (form.payTo !== 'free' && !(Number(form.price) > 0)) missing.push('Guest price (or choose Free)')
     if (missing.length) { setError(`Missing: ${missing.join(', ')}`); return }
 
     const dates = buildDates()
@@ -174,6 +176,12 @@ export default function NewEventPage() {
     const seriesId = isSeriesCreate ? crypto.randomUUID() : undefined
     const payload = {
       ...form,
+      // "Free" and "Buy online" are UI-only states on top of payTo's two
+      // real values — Smileys still never touches the money for either, so
+      // both map to payTo='venue' underneath.
+      payTo:          form.payTo === 'free' || form.payTo === 'buyonline' ? 'venue' : form.payTo,
+      ticketUrl:      form.payTo === 'buyonline' ? form.ticketUrl : '',
+      paymentContact: form.payTo === 'smileys'   ? form.paymentContact : '',
       isRecurring: isSeriesCreate ? true : form.isRecurring,
       tagIds: selectedTagIds, vibes: [],
       seriesId,
@@ -468,34 +476,20 @@ export default function NewEventPage() {
           </div>
           <div>
             <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Guest price</label>
-            <input type="number" min="0" value={form.price} onChange={e => set('price', e.target.value)} placeholder="0 = free" className={inputCls} />
+            <input type="number" min="0" value={form.price} onChange={e => {
+              const v = e.target.value
+              set('price', v)
+              // Keep the price and the payment-method selector in sync either
+              // direction: typing a real price walks you off "Free"; clearing
+              // it back to 0 walks you back on.
+              if (Number(v) > 0 && form.payTo === 'free') set('payTo', 'venue')
+              if (!(Number(v) > 0) && form.payTo !== 'free') set('payTo', 'free')
+            }} placeholder="0 = free" className={inputCls} />
           </div>
           <div>
             <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Member price</label>
             <input type="number" min="0" value={form.memberPrice} onChange={e => set('memberPrice', e.target.value)} placeholder="Optional" className={inputCls} />
           </div>
-          <div>
-            <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Who collects payment?</label>
-            <select value={form.payTo} onChange={e => set('payTo', e.target.value)} className={inputCls}>
-              <option value="venue">At the event — venue or organizer collects</option>
-              <option value="smileys">Smileys — we collect and reconcile</option>
-            </select>
-          </div>
-          {form.payTo === 'smileys' && (
-            <div>
-              <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Payment contact (WhatsApp)</label>
-              <input type="text" value={form.paymentContact} onChange={e => set('paymentContact', e.target.value)}
-                placeholder="+90 555 000 0000" className={inputCls} />
-            </div>
-          )}
-          {form.payTo === 'venue' && (
-            <div>
-              <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Ticket link (external)</label>
-              <input type="text" value={form.ticketUrl} onChange={e => set('ticketUrl', e.target.value)}
-                placeholder="https://… (optional)" className={inputCls} />
-              <p className="text-xs text-zinc-600 mt-1">Shown as a “Buy tickets” button on the event page.</p>
-            </div>
-          )}
           <div>
             <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Min age</label>
             <input type="number" min="0" value={form.minAge} onChange={e => set('minAge', e.target.value)} placeholder="Optional" className={inputCls} />
@@ -504,6 +498,52 @@ export default function NewEventPage() {
             <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Max age</label>
             <input type="number" min="0" value={form.maxAge} onChange={e => set('maxAge', e.target.value)} placeholder="Optional" className={inputCls} />
           </div>
+        </div>
+        {/* Payment method — always 4 explicit options. "Free" and "Buy
+            online" are UI-only states layered on top of payTo's two real
+            values (Smileys never touches the money for either): "Free"
+            maps to payTo='venue' with price forced to 0, "Buy online" maps
+            to payTo='venue' with a required ticketUrl. Kept in sync with
+            the price field above (see its onChange) and re-mapped back to
+            real payTo/ticketUrl/paymentContact in handleSave's payload. */}
+        <div className="mb-4">
+          <label className="block text-xs font-semibold text-zinc-400 mb-1.5">How do guests pay?</label>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {[
+              { value: 'free',      label: 'Free',           hint: 'No payment required' },
+              { value: 'venue',     label: 'Pay at venue',   hint: 'Guests pay when they arrive' },
+              { value: 'buyonline', label: 'Buy online',     hint: 'External ticket link' },
+              { value: 'smileys',   label: 'Pay to Smileys', hint: 'We collect & reconcile' },
+            ].map(opt => (
+              <button key={opt.value} type="button" onClick={() => {
+                set('payTo', opt.value)
+                if (opt.value === 'free') { set('price', '0'); set('memberPrice', '') }
+              }}
+                className={`text-left px-3 py-2.5 rounded-xl border transition-colors ${
+                  form.payTo === opt.value
+                    ? 'bg-amber-500/10 border-amber-500 text-white'
+                    : 'bg-zinc-800 border-zinc-700 text-zinc-300 hover:border-zinc-600'
+                }`}>
+                <div className="text-sm font-semibold">{opt.label}</div>
+                <div className="text-xs text-zinc-500 mt-0.5">{opt.hint}</div>
+              </button>
+            ))}
+          </div>
+          {form.payTo === 'buyonline' && (
+            <div className="mt-3">
+              <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Ticket link</label>
+              <input type="text" value={form.ticketUrl} onChange={e => set('ticketUrl', e.target.value)}
+                placeholder="https://…" className={inputCls} />
+              <p className="text-xs text-zinc-600 mt-1">Shown as a “Buy tickets” button on the event page.</p>
+            </div>
+          )}
+          {form.payTo === 'smileys' && (
+            <div className="mt-3">
+              <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Payment contact (WhatsApp)</label>
+              <input type="text" value={form.paymentContact} onChange={e => set('paymentContact', e.target.value)}
+                placeholder="+90 555 000 0000" className={inputCls} />
+            </div>
+          )}
         </div>
         <div className="mb-4">
           <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Refund policy</label>

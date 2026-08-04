@@ -208,7 +208,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                     <span className="text-base">💰</span>
                     <span>
                       {formatPrice(event.price, event.currency)}
-                      <span className="text-gray-400"> · {event.payTo === 'smileys' ? 'pay in advance' : 'pay at the event'}</span>
+                      <span className="text-gray-400"> · {event.payTo === 'smileys' ? 'pay in advance' : event.ticketUrl ? 'buy online' : 'pay at the venue'}</span>
                     </span>
                   </div>
                 )}
@@ -549,7 +549,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                   <span className="flex items-center gap-2 flex-wrap">
                     <span>
                       <span className="font-medium">{formatPrice(event.price, event.currency)}</span>
-                      <span className="text-gray-400"> · {event.payTo === 'smileys' ? 'pay in advance' : 'pay at the event'}</span>
+                      <span className="text-gray-400"> · {event.payTo === 'smileys' ? 'pay in advance' : event.ticketUrl ? 'buy online' : 'pay at the venue'}</span>
                     </span>
                     {/* Advance payment is arranged over WhatsApp — a direct
                         contact when the event has one, else the group link

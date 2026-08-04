@@ -31,6 +31,10 @@ function HostNewEventForm() {
   const [aiLoading,   setAiLoading]   = useState(false)
   const [geocoding,   setGeocoding]   = useState(false)
   const [mapsUrl,     setMapsUrl]     = useState('')
+  // Hosts can't collect payment in-app (that's Smileys-only, set via the
+  // admin form) — just whether guests pay when they arrive or buy a ticket
+  // externally. UI-only; maps onto the existing ticketUrl field on submit.
+  const [paymentMethod, setPaymentMethod] = useState<'venue' | 'buyonline'>('venue')
 
   const [form, setForm] = useState({
     title:       '',
@@ -193,6 +197,9 @@ function HostNewEventForm() {
     if (!form.address.trim())     { setError('Full address is required'); return }
     if (!form.description.trim()) { setError('Description is required'); return }
     if (!form.coverImage)         { setError('Cover image is required'); return }
+    if (Number(form.price) > 0 && paymentMethod === 'buyonline' && !form.ticketUrl.trim()) {
+      setError('Ticket link is required for "Buy online"'); return
+    }
 
     const hostId = user?.id
     if (!hostId) { setError('Session expired — please refresh'); return }
@@ -212,7 +219,7 @@ function HostNewEventForm() {
         time:         form.time,
         endTime:      form.endTime || undefined,
         whatsappUrl:  form.whatsappUrl.trim() || undefined,
-        ticketUrl:    form.ticketUrl.trim() || undefined,
+        ticketUrl:    paymentMethod === 'buyonline' ? (form.ticketUrl.trim() || undefined) : undefined,
         location:     form.location.trim(),
         neighborhood: form.neighborhood,
         address:      form.address.trim(),
@@ -506,22 +513,43 @@ function HostNewEventForm() {
           </div>
         </div>
 
-        {/* Links — both optional. Ticket link renders as a 🎟 Buy
-            tickets button on the event page; the WhatsApp group is
-            shown to registered members. */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {/* Payment method — moot for free events. */}
+        {Number(form.price) > 0 && (
           <div>
-            <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Ticket link (external)</label>
-            <input type="text" value={form.ticketUrl}
-              onChange={e => setForm(f => ({ ...f, ticketUrl: e.target.value }))}
-              placeholder="https://… (optional)" className={inputCls} />
+            <label className="block text-xs font-semibold text-zinc-400 mb-1.5">How do guests pay?</label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {[
+                { value: 'venue' as const,     label: 'Pay at venue', hint: 'Guests pay when they arrive' },
+                { value: 'buyonline' as const,  label: 'Buy online',   hint: 'External ticket link' },
+              ].map(opt => (
+                <button key={opt.value} type="button" onClick={() => setPaymentMethod(opt.value)}
+                  className={`text-left px-3 py-2.5 rounded-xl border transition-colors ${
+                    paymentMethod === opt.value
+                      ? 'bg-amber-500/10 border-amber-500 text-white'
+                      : 'bg-zinc-800 border-zinc-700 text-zinc-300 hover:border-zinc-600'
+                  }`}>
+                  <div className="text-sm font-semibold">{opt.label}</div>
+                  <div className="text-xs text-zinc-500 mt-0.5">{opt.hint}</div>
+                </button>
+              ))}
+            </div>
+            {paymentMethod === 'buyonline' && (
+              <div className="mt-3">
+                <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Ticket link</label>
+                <input type="text" value={form.ticketUrl}
+                  onChange={e => setForm(f => ({ ...f, ticketUrl: e.target.value }))}
+                  placeholder="https://…" className={inputCls} />
+              </div>
+            )}
           </div>
-          <div>
-            <label className="block text-xs font-semibold text-zinc-400 mb-1.5">WhatsApp group URL</label>
-            <input type="text" value={form.whatsappUrl}
-              onChange={e => setForm(f => ({ ...f, whatsappUrl: e.target.value }))}
-              placeholder="https://chat.whatsapp.com/… (optional)" className={inputCls} />
-          </div>
+        )}
+
+        {/* WhatsApp group — optional, shown to registered members. */}
+        <div>
+          <label className="block text-xs font-semibold text-zinc-400 mb-1.5">WhatsApp group URL</label>
+          <input type="text" value={form.whatsappUrl}
+            onChange={e => setForm(f => ({ ...f, whatsappUrl: e.target.value }))}
+            placeholder="https://chat.whatsapp.com/… (optional)" className={inputCls} />
         </div>
 
         {/* Cover image */}

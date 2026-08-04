@@ -43,6 +43,10 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
   const [aiLoading,     setAiLoading]     = useState(false)
   const [geocoding,     setGeocoding]     = useState(false)
   const [mapsUrl,       setMapsUrl]       = useState('')
+  // Hosts can't collect payment in-app (Smileys-only, admin-only field) —
+  // just whether guests pay when they arrive or buy a ticket externally.
+  // UI-only; maps onto the existing ticketUrl field on submit.
+  const [paymentMethod, setPaymentMethod] = useState<'venue' | 'buyonline'>('venue')
   const [cohosts,       setCohosts]       = useState<{ id: string; userId: string; user: { id: string; name: string; color: string; profilePhoto: string | null } }[]>([])
   const [cohostSearch,  setCohostSearch]  = useState('')
   const [cohostResults, setCohostResults] = useState<{ id: string; name: string }[]>([])
@@ -146,6 +150,7 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
           endTime:          event.endTime          ?? '',
           approvalRequired: event.approvalRequired ?? false,
         })
+        setPaymentMethod(event.ticketUrl ? 'buyonline' : 'venue')
         if (Array.isArray(event.tags) && event.tags.length) setSelectedTagIds(event.tags)
         if (event.seriesId) setSeriesId(event.seriesId)
       }
@@ -224,6 +229,9 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
     if (!form.neighborhood) { setError('Neighborhood is required'); return }
     if (form.meetingUrl && !isValidUrl(form.meetingUrl)) { setError('Map link must be a valid URL (https://…)'); return }
     if (form.whatsappUrl && !isValidUrl(form.whatsappUrl)) { setError('WhatsApp URL must be a valid URL (https://…)'); return }
+    if (Number(form.price) > 0 && paymentMethod === 'buyonline' && !form.ticketUrl.trim()) {
+      setError('Ticket link is required for "Buy online"'); return
+    }
     setError(''); setSaving(true)
     try {
       const res = await fetch(`/app/api/admin/events/${id}`, {
@@ -238,6 +246,7 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
           whatsappUrl: form.whatsappUrl || null, address: form.address || null,
           language: form.language || null, refundPolicy: form.refundPolicy || null,
           registrationDeadline: form.registrationDeadline || null,
+          ticketUrl: paymentMethod === 'buyonline' ? (form.ticketUrl.trim() || null) : null,
         }),
       })
       const data = await res.json()
@@ -289,6 +298,7 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
       whatsappUrl: form.whatsappUrl || null, address: form.address || null,
       language: form.language || null, refundPolicy: form.refundPolicy || null,
       registrationDeadline: null,
+      ticketUrl: paymentMethod === 'buyonline' ? (form.ticketUrl.trim() || null) : null,
     }
     try {
       for (const date of dates) {
@@ -520,12 +530,36 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
             <label className="block text-xs font-semibold text-zinc-400 mb-1.5">WhatsApp group URL</label>
             <input type="text" value={form.whatsappUrl} onChange={e => set('whatsappUrl', e.target.value)} className={inputCls} />
           </div>
-          <div className="mb-4">
-            <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Ticket link (external)</label>
-            <input type="text" value={form.ticketUrl} onChange={e => set('ticketUrl', e.target.value)}
-              placeholder="https://… (optional)" className={inputCls} />
-            <p className="text-xs text-zinc-600 mt-1">Shown as a “Buy tickets” button on the event page.</p>
-          </div>
+          {/* Payment method — moot for free events. */}
+          {Number(form.price) > 0 && (
+            <div className="mb-4">
+              <label className="block text-xs font-semibold text-zinc-400 mb-1.5">How do guests pay?</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {[
+                  { value: 'venue' as const,     label: 'Pay at venue', hint: 'Guests pay when they arrive' },
+                  { value: 'buyonline' as const,  label: 'Buy online',   hint: 'External ticket link' },
+                ].map(opt => (
+                  <button key={opt.value} type="button" onClick={() => setPaymentMethod(opt.value)}
+                    className={`text-left px-3 py-2.5 rounded-xl border transition-colors ${
+                      paymentMethod === opt.value
+                        ? 'bg-amber-500/10 border-amber-500 text-white'
+                        : 'bg-zinc-800 border-zinc-700 text-zinc-300 hover:border-zinc-600'
+                    }`}>
+                    <div className="text-sm font-semibold">{opt.label}</div>
+                    <div className="text-xs text-zinc-500 mt-0.5">{opt.hint}</div>
+                  </button>
+                ))}
+              </div>
+              {paymentMethod === 'buyonline' && (
+                <div className="mt-3">
+                  <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Ticket link</label>
+                  <input type="text" value={form.ticketUrl} onChange={e => set('ticketUrl', e.target.value)}
+                    placeholder="https://…" className={inputCls} />
+                  <p className="text-xs text-zinc-600 mt-1">Shown as a “Buy tickets” button on the event page.</p>
+                </div>
+              )}
+            </div>
+          )}
           <div className="flex flex-wrap gap-4">
             {[
               { key: 'limitedSpots',     label: 'Limited spots'        },
