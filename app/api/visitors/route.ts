@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit, getIp } from '@/lib/rateLimit'
@@ -122,6 +123,10 @@ export async function POST(req: NextRequest) {
         visibility:   safeVisibility,
       },
     })
+
+    // Bust /visiting's 2-minute list cache so the new post (and the
+    // poster's own "events during your visit" view) shows up immediately.
+    revalidateTag('visitor-announcements')
 
     // Push members in the relevant neighborhood — high-intent, low-volume signal.
     // Skip if no neighborhood (avoid spamming everyone).

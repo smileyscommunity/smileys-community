@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
@@ -19,5 +20,8 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   }
 
   await prisma.visitorAnnouncement.update({ where: { id }, data: { status: 'removed' } })
+  // /visiting caches the announcement list for 2 minutes — a removed post
+  // lingering there after the owner deleted it reads as broken.
+  revalidateTag('visitor-announcements')
   return NextResponse.json({ ok: true })
 }

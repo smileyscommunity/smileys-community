@@ -74,8 +74,19 @@ export default async function VisitingPage() {
   // filter depends on it; the rest still run in parallel.
   const session = await getSession()
 
-  const [announcements, upcomingEvents, featuredLocals, neighborhoodCounts] = await Promise.all([
+  const [announcements, viewerVisit, upcomingEvents, featuredLocals, neighborhoodCounts] = await Promise.all([
     getAnnouncements(today, !!session),
+    // The viewer's own visit is queried directly rather than fished out of
+    // the cached list above: that cache lags mutations by up to 2 minutes
+    // and caps at 100 rows, so a visitor who just posted their dates would
+    // still be told to "add your travel dates" right below their own card.
+    session
+      ? prisma.visitorAnnouncement.findFirst({
+          where:   { userId: session.id, status: 'active', endsOn: { gte: today } },
+          orderBy: { startsOn: 'asc' },
+          select:  { startsOn: true, endsOn: true, neighborhood: true },
+        })
+      : null,
     prisma.event.findMany({
       where:   { status: 'published', date: { gte: today, lte: sixtyDaysOut } },
       select:  {
@@ -125,11 +136,9 @@ export default async function VisitingPage() {
 
   const cityCount = new Set(serialised.map(a => a.fromCity).filter(Boolean)).size
 
-  // The viewer's own active visit, when they have one — drives the
-  // date-matched events and neighborhood picks below. Without it those
-  // sections fall back to a generic prompt rather than guessing.
-  const viewerVisit = session ? serialised.find(a => a.user?.id === session.id) ?? null : null
-
+  // viewerVisit (fetched above) drives the date-matched events and
+  // neighborhood picks below. Without it those sections fall back to a
+  // general upcoming list rather than guessing.
   const eventsDuringVisit = viewerVisit
     ? upcomingEvents.filter(e => e.date >= viewerVisit.startsOn && e.date <= viewerVisit.endsOn).slice(0, 6)
     : []
