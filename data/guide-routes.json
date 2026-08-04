@@ -1,0 +1,63 @@
+{
+  "routes": [
+    {
+      "slug": "half-day-kadikoy",
+      "title": "Half a Day in Kadıköy",
+      "emoji": "🛥️",
+      "time": "4–5 hours",
+      "tagline": "Ferry in, graze the market, coffee in Moda, sunset on the rocks.",
+      "intro": "The Asian side's greatest hits in one unhurried afternoon. Everything is walkable; the ferry is the opening act, the sunset is the finale.",
+      "stops": [
+        { "title": "Ferry to Kadıköy", "note": "From Karaköy or Beşiktaş — sit outside, this is part of the route, not transport.", "experience": "ferry-at-sunset" },
+        { "title": "Graze the çarşı", "note": "Arrive hungry. Fish market end first, then the lokantas and pickle counters.", "experience": "kadikoy-market-graze" },
+        { "title": "Turkish coffee toward Moda", "note": "Pick a roaster on the walk up — the smell will choose for you.", "experience": "turkish-coffee-slow" },
+        { "title": "Moda seaside for sunset", "note": "Grab picnic supplies on the way down. The grass above the rocks beats the jetty.", "experience": "moda-sunset" }
+      ],
+      "neighborhoods": ["Kadıköy", "Moda"]
+    },
+    {
+      "slug": "bosphorus-day",
+      "title": "A Day Along the Bosphorus",
+      "emoji": "🌊",
+      "time": "Full day",
+      "tagline": "Village-hop the European shore from Arnavutköy to the fortress, then cross the water for the view back.",
+      "intro": "The Bosphorus rewards slowness: wooden mansions, waterfront tea, a 15th-century fortress, and a ferry crossing timed for golden hour.",
+      "stops": [
+        { "title": "Breakfast in Arnavutköy", "note": "Start among the wooden yalıs before the crowds.", "experience": "turkish-breakfast" },
+        { "title": "Walk Bebek → Rumeli Hisarı", "note": "The prettiest flat 20 minutes in the city; fortress courtyard at the end.", "experience": "bebek-rumeli-walk" },
+        { "title": "Bus back, ferry across", "note": "Coastal bus to Beşiktaş, then the Üsküdar ferry as the light turns.", "experience": "ferry-at-sunset" },
+        { "title": "Evening on the Üsküdar seawall", "note": "Tea, simit, the Maiden's Tower lighting up — the day's closing argument.", "experience": "uskudar-evening" }
+      ],
+      "neighborhoods": ["Arnavutköy", "Bebek", "Rumeli Hisarı", "Üsküdar"]
+    },
+    {
+      "slug": "first-day-istanbul",
+      "title": "Your First Day in Istanbul",
+      "emoji": "🧭",
+      "time": "Full day",
+      "tagline": "The monuments before the crowds, lunch off the tourist strip, and a ferry to end it properly.",
+      "intro": "A first day that earns the hype without the death march: two monuments maximum, real food, and the skyline from the water while the sun drops.",
+      "stops": [
+        { "title": "Historic peninsula, early", "note": "Hagia Sophia at opening, one more monument, then out before the crowd peak.", "experience": "historic-peninsula-sanely" },
+        { "title": "Lunch one street back", "note": "Esnaf lokantası or köfte — never on the monument squares.", "experience": "historic-peninsula-sanely" },
+        { "title": "Wander down to the water", "note": "Cankurtaran and the sea walls — old Istanbul, suddenly empty.", "experience": "historic-peninsula-sanely" },
+        { "title": "Sunset ferry to Kadıköy", "note": "End your first day the way locals end every day — on the water.", "experience": "ferry-at-sunset" }
+      ],
+      "neighborhoods": ["Sultanahmet", "Eminönü", "Kadıköy"]
+    },
+    {
+      "slug": "rainy-istanbul",
+      "title": "Istanbul When It's Raining",
+      "emoji": "☔",
+      "time": "Half day",
+      "tagline": "Steam, coffee, and covered bazaars — the city's best indoor ritual, in the right order.",
+      "intro": "Rain is a feature here, not a bug: it empties the hammams' waiting lists, makes coffee taste better, and gives you an excuse for a long meyhane evening.",
+      "stops": [
+        { "title": "Morning hammam", "note": "A cold, wet day doubles the pleasure of hot marble.", "experience": "turkish-hammam" },
+        { "title": "Long Turkish coffee", "note": "Find a covered corner and let the rain do its thing.", "experience": "turkish-coffee-slow" },
+        { "title": "Meyhane evening", "note": "Rakı, mezes, and three hours of steam-fogged windows.", "experience": "meyhane-night" }
+      ],
+      "neighborhoods": ["Sultanahmet", "Beyoğlu", "Kadıköy"]
+    }
+  ]
+}

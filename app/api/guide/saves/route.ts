@@ -10,8 +10,8 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const rows = await prisma.guideSave.findMany({
-    where:  { userId: session.id, OR: [{ saved: true }, { recommended: true }] },
-    select: { slug: true, saved: true, recommended: true },
+    where:  { userId: session.id, OR: [{ saved: true }, { recommended: true }, { done: true }] },
+    select: { slug: true, saved: true, recommended: true, done: true },
   })
   return NextResponse.json({ saves: rows })
 }

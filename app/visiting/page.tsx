@@ -81,6 +81,16 @@ export default async function VisitingPage() {
   // reference page.
   const firstTimers = loadExperiences().filter(e => e.firstTime)
 
+  // §22 of the Guide IA brief — "Perfect for your stay": guide experiences
+  // matched to the season of the viewer's own visit dates (not today's).
+  // Simple curated filtering, no itinerary engine.
+  function seasonalPicks(startsOn: string): string[] {
+    const month = Number(startsOn.slice(5, 7))
+    if (month >= 6 && month <= 9) return ['princes-islands', 'moda-sunset', 'ferry-at-sunset', 'bebek-rumeli-walk']
+    if (month === 12 || month <= 2) return ['turkish-hammam', 'turkish-coffee-slow', 'meyhane-night', 'historic-peninsula-sanely']
+    return ['ferry-at-sunset', 'balat-fener-walk', 'kadikoy-market-graze', 'meyhane-night']
+  }
+
   const [announcements, viewerVisit, upcomingEvents, featuredLocals, neighborhoodCounts] = await Promise.all([
     getAnnouncements(today, !!session),
     // The viewer's own visit is queried directly rather than fished out of
@@ -439,6 +449,38 @@ export default async function VisitingPage() {
           )}
         </div>
       </section>
+
+      {/* ── Perfect for your stay — Guide experiences matched to the
+          season of the viewer's posted dates. Members with dates only. */}
+      {viewerVisit && (() => {
+        const bySlug = new Map(loadExperiences().map(e => [e.slug, e]))
+        const picks = seasonalPicks(viewerVisit.startsOn)
+          .map(sl => bySlug.get(sl))
+          .filter((e): e is NonNullable<typeof e> => !!e)
+        if (picks.length === 0) return null
+        return (
+          <section className="bg-white border-t border-gray-100">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
+              <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">
+                Perfect for your stay
+              </h2>
+              <p className="text-gray-600 mt-2 mb-8">
+                Experiences that suit the season you&apos;ll be here — from the Istanbul Guide.
+              </p>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {picks.map(e => (
+                  <Link key={e.slug} href={`/guide/${e.slug}`}
+                    className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:border-amber-200 hover:shadow-md hover:-translate-y-0.5 transition-all group">
+                    <span aria-hidden="true" className="block text-3xl mb-2">{e.emoji}</span>
+                    <p className="text-sm font-bold text-gray-900 leading-snug group-hover:text-amber-700 transition-colors">{e.title}</p>
+                    <span className="inline-block text-xs font-bold text-amber-600 mt-2">Read guide →</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </section>
+        )
+      })()}
 
       {/* ── Hangouts while you're here (§20) — members only, silent when
           there are none. Spontaneous plans are the fastest way a visitor

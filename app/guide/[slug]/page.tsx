@@ -17,6 +17,7 @@ import ExperienceActions from './ExperienceActions'
 import LiveHangouts from './LiveHangouts'
 import EventMatches from './EventMatches'
 import TrackedLink from '@/components/TrackedLink'
+import TipsBlock from './TipsBlock'
 
 export function generateStaticParams() {
   return loadExperiences().map(e => ({ slug: e.slug }))
@@ -220,6 +221,9 @@ export default async function ExperiencePage({ params }: { params: Promise<{ slu
             </Link>
           </div>
         </section>
+
+        {/* §25 — member tips. */}
+        <TipsBlock slug={exp.slug} />
 
         {/* Related experiences */}
         {related.length > 0 && (

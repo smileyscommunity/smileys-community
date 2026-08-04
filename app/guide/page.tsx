@@ -19,7 +19,7 @@ import ExperienceExplorer from './ExperienceExplorer'
 import MyIstanbul from './MyIstanbul'
 import IstanbulToday from './IstanbulToday'
 import { GUIDE_COLLECTIONS } from '@/lib/guide'
-import { loadExperiences } from '@/lib/guideContent'
+import { loadExperiences, loadRoutes } from '@/lib/guideContent'
 
 interface Banner {
   id: string; type: string; active: boolean
@@ -225,6 +225,29 @@ export default async function GuidePage() {
               })}
             </div>
           </div>
+
+          {/* §29 — routes: sequenced days built from the experiences. */}
+          {(() => {
+            const routes = loadRoutes()
+            if (routes.length === 0) return null
+            return (
+              <div className="mt-12">
+                <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900 mb-1">Make a day of it</h2>
+                <p className="text-gray-600 mb-5">Curated routes that string the experiences together.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {routes.map(r => (
+                    <Link key={r.slug} href={`/guide/routes/${r.slug}`}
+                      className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:border-amber-200 hover:shadow-md hover:-translate-y-0.5 transition-all group">
+                      <span aria-hidden="true" className="block text-3xl mb-2">{r.emoji}</span>
+                      <p className="font-bold text-gray-900 leading-snug group-hover:text-amber-700 transition-colors">{r.title}</p>
+                      <p className="text-xs text-gray-500 mt-1.5 line-clamp-2">{r.tagline}</p>
+                      <span className="inline-block text-[11px] font-semibold text-gray-500 bg-gray-50 border border-gray-100 rounded-full px-2 py-0.5 mt-3">{r.time}</span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
 
           {/* §15/16 — experience it with people. Static cross-links in
               phase 1; live counts arrive with the save/social phase. */}

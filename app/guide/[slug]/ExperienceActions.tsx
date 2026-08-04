@@ -13,6 +13,7 @@ export default function ExperienceActions({ slug }: { slug: string }) {
   const { isLoggedIn } = useAuth()
   const [saved,       setSaved]       = useState(false)
   const [recommended, setRecommended] = useState(false)
+  const [done,        setDone]        = useState(false)
   const [count,       setCount]       = useState<number | null>(null)
   const [busy,        setBusy]        = useState(false)
 
@@ -22,12 +23,12 @@ export default function ExperienceActions({ slug }: { slug: string }) {
       .then(d => {
         if (!d) return
         setCount(d.recommendCount)
-        if (d.viewer) { setSaved(d.viewer.saved); setRecommended(d.viewer.recommended) }
+        if (d.viewer) { setSaved(d.viewer.saved); setRecommended(d.viewer.recommended); setDone(d.viewer.done ?? false) }
       })
       .catch(() => {})
   }, [slug])
 
-  async function toggle(kind: 'save' | 'recommend') {
+  async function toggle(kind: 'save' | 'recommend' | 'done') {
     if (busy) return
     setBusy(true)
     try {
@@ -40,12 +41,17 @@ export default function ExperienceActions({ slug }: { slug: string }) {
       if (!res.ok) { toast.error(data.error ?? 'Something went wrong'); return }
       setSaved(data.saved)
       setRecommended(data.recommended)
+      setDone(data.done ?? false)
       setCount(data.recommendCount)
       if (kind === 'save' && data.saved) {
         toast.success('Saved to My Istanbul')
         posthog.capture('guide_saved', { slug })
       }
       if (kind === 'recommend' && data.recommended) posthog.capture('guide_recommended', { slug })
+      if (kind === 'done' && data.done) {
+        toast.success('Added to your Istanbul story ✓')
+        posthog.capture('guide_done', { slug })
+      }
     } finally {
       setBusy(false)
     }
@@ -80,6 +86,12 @@ export default function ExperienceActions({ slug }: { slug: string }) {
           recommended ? 'bg-red-500 text-white' : 'bg-white/10 hover:bg-white/20 text-white'
         }`}>
         <span aria-hidden="true">❤️</span> {recommended ? 'Recommended' : 'Recommend'}
+      </button>
+      <button onClick={() => toggle('done')} aria-pressed={done}
+        className={`inline-flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl transition-colors backdrop-blur-sm ${
+          done ? 'bg-green-600 text-white' : 'bg-white/10 hover:bg-white/20 text-white'
+        }`}>
+        <span aria-hidden="true">✓</span> {done ? 'Done' : "I've done this"}
       </button>
       {(count ?? 0) > 0 && (
         <span className="text-xs font-semibold text-amber-200">

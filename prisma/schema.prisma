@@ -142,6 +142,8 @@ model User {
   boardSaves                 BoardSave[]
   movingSales                MovingSale[]
   guideSaves                 GuideSave[]
+  guideTips                  GuideTip[]
+  guideTipLikes              GuideTipLike[]
   neighborhoodPostReplies    NeighborhoodPostReply[]
   neighborhoodPosts          NeighborhoodPost[]
   postLikes                  PostLike[]
@@ -241,30 +243,32 @@ model SponsorLead {
 }
 
 model Report {
-  id            String    @id @default(cuid())
-  reporterId    String
-  reportedId    String
-  eventId       String?
-  reason        String
-  details       String?
-  status        String    @default("pending")
-  reviewNote    String?
-  reviewedBy    String?
-  reviewedAt    DateTime?
-  createdAt     DateTime  @default(now())
-  screenshot    String?
-  escalated     Boolean   @default(false)
-  escalatedNote String?
-  escalatedBy   String?
-  escalatedAt   DateTime?
-  listingId     String?
-  boardPostId   String?
-  reported      User      @relation("ReportsReceived", fields: [reportedId], references: [id], onDelete: Cascade)
-  reporter      User      @relation("ReportsMade", fields: [reporterId], references: [id], onDelete: Cascade)
+  id                 String    @id @default(cuid())
+  reporterId         String
+  reportedId         String
+  eventId            String?
+  reason             String
+  details            String?
+  status             String    @default("pending")
+  reviewNote         String?
+  reviewedBy         String?
+  reviewedAt         DateTime?
+  createdAt          DateTime  @default(now())
+  screenshot         String?
+  escalated          Boolean   @default(false)
+  escalatedNote      String?
+  escalatedBy        String?
+  escalatedAt        DateTime?
+  listingId          String?
+  boardPostId        String?
+  neighborhoodPostId String?
+  reported           User      @relation("ReportsReceived", fields: [reportedId], references: [id], onDelete: Cascade)
+  reporter           User      @relation("ReportsMade", fields: [reporterId], references: [id], onDelete: Cascade)
 
   @@index([reportedId])
   @@index([status])
   @@index([listingId])
+  @@index([neighborhoodPostId])
   @@index([boardPostId])
   @@map("reports")
 }
@@ -1920,6 +1924,8 @@ model GuideSave {
   slug        String
   saved       Boolean  @default(false)
   recommended Boolean  @default(false)
+  // "I've done this" — light completion tracking for My Istanbul.
+  done        Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -1927,4 +1933,33 @@ model GuideSave {
   @@unique([userId, slug])
   @@index([slug, recommended])
   @@map("guide_saves")
+}
+
+// Member tips under Guide experiences ("Tips from Smileys"). Visible
+// immediately (member-only writes, rate-limited, plain text, links
+// stripped); owners and staff can delete. Likes are a join table so a
+// member can like a tip once.
+model GuideTip {
+  id        String         @id @default(cuid())
+  userId    String
+  slug      String
+  body      String
+  createdAt DateTime       @default(now())
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  likes     GuideTipLike[]
+
+  @@index([slug, createdAt])
+  @@map("guide_tips")
+}
+
+model GuideTipLike {
+  id        String   @id @default(cuid())
+  tipId     String
+  userId    String
+  createdAt DateTime @default(now())
+  tip       GuideTip @relation(fields: [tipId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tipId, userId])
+  @@map("guide_tip_likes")
 }

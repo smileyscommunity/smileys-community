@@ -19,14 +19,14 @@ export async function GET(_req: NextRequest, { params }: Params) {
     session
       ? prisma.guideSave.findUnique({
           where:  { userId_slug: { userId: session.id, slug } },
-          select: { saved: true, recommended: true },
+          select: { saved: true, recommended: true, done: true },
         })
       : Promise.resolve(null),
   ])
 
   return NextResponse.json({
     recommendCount,
-    viewer: session ? { saved: mine?.saved ?? false, recommended: mine?.recommended ?? false } : null,
+    viewer: session ? { saved: mine?.saved ?? false, recommended: mine?.recommended ?? false, done: mine?.done ?? false } : null,
   })
 }
 
@@ -45,8 +45,11 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (!getExperience(slug)) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const body = await req.json().catch(() => ({}))
-  const kind = body.kind === 'recommend' ? 'recommended' : body.kind === 'save' ? 'saved' : null
-  if (!kind) return NextResponse.json({ error: 'kind must be save or recommend' }, { status: 400 })
+  const kind = body.kind === 'recommend' ? 'recommended'
+    : body.kind === 'save' ? 'saved'
+    : body.kind === 'done' ? 'done'
+    : null
+  if (!kind) return NextResponse.json({ error: 'kind must be save, recommend or done' }, { status: 400 })
 
   const existing = await prisma.guideSave.findUnique({
     where: { userId_slug: { userId: session.id, slug } },
@@ -60,5 +63,5 @@ export async function POST(req: NextRequest, { params }: Params) {
   })
 
   const recommendCount = await prisma.guideSave.count({ where: { slug, recommended: true } })
-  return NextResponse.json({ saved: row.saved, recommended: row.recommended, recommendCount })
+  return NextResponse.json({ saved: row.saved, recommended: row.recommended, done: row.done, recommendCount })
 }

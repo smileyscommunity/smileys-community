@@ -30,3 +30,38 @@ export function loadExperiences(): Experience[] {
 export function getExperience(slug: string): Experience | undefined {
   return loadExperiences().find(e => e.slug === slug)
 }
+
+// §29 — curated routes: ordered stops referencing canonical experiences
+// (never duplicating their content). Same drop-in editorial JSON pattern.
+export interface RouteStop {
+  title: string
+  note: string
+  experience?: string
+}
+export interface GuideRoute {
+  slug: string
+  title: string
+  emoji: string
+  time: string
+  tagline: string
+  intro: string
+  stops: RouteStop[]
+  neighborhoods: string[]
+}
+
+let routeCache: GuideRoute[] | null = null
+
+export function loadRoutes(): GuideRoute[] {
+  if (routeCache && process.env.NODE_ENV === 'production') return routeCache
+  try {
+    const raw = JSON.parse(readFileSync(join(process.cwd(), 'data', 'guide-routes.json'), 'utf8'))
+    routeCache = (raw.routes ?? []) as GuideRoute[]
+  } catch {
+    routeCache = []
+  }
+  return routeCache
+}
+
+export function getRoute(slug: string): GuideRoute | undefined {
+  return loadRoutes().find(r => r.slug === slug)
+}

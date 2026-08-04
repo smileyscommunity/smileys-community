@@ -12,24 +12,30 @@ interface ExperienceCard { slug: string; title: string; emoji: string }
 export default function MyIstanbul({ experiences }: { experiences: ExperienceCard[] }) {
   const { isLoggedIn } = useAuth()
   const [savedSlugs, setSavedSlugs] = useState<string[]>([])
+  const [doneCount,  setDoneCount]  = useState(0)
 
   useEffect(() => {
     if (!isLoggedIn) return
     fetch('/app/api/guide/saves', { credentials: 'include' })
       .then(r => r.ok ? r.json() : { saves: [] })
-      .then(d => setSavedSlugs((d.saves ?? []).filter((s: { saved: boolean }) => s.saved).map((s: { slug: string }) => s.slug)))
+      .then(d => {
+        const rows = (d.saves ?? []) as { slug: string; saved: boolean; done?: boolean }[]
+        setSavedSlugs(rows.filter(r => r.saved).map(r => r.slug))
+        setDoneCount(rows.filter(r => r.done).length)
+      })
       .catch(() => {})
   }, [isLoggedIn])
 
   const saved = experiences.filter(e => savedSlugs.includes(e.slug))
-  if (saved.length === 0) return null
+  if (saved.length === 0 && doneCount === 0) return null
 
   return (
     <div className="mt-12 bg-gray-900 rounded-3xl p-6 sm:p-8 relative overflow-hidden">
       <div aria-hidden="true" className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_80%_20%,#f59e0b_0%,transparent_60%)]" />
       <h2 className="relative text-xl sm:text-2xl font-extrabold text-white">My Istanbul</h2>
       <p className="relative text-sm text-gray-300 mt-1 mb-5">
-        {saved.length} experience{saved.length !== 1 ? 's' : ''} on your list.
+        {saved.length > 0 && <>{saved.length} experience{saved.length !== 1 ? 's' : ''} on your list.</>}
+        {doneCount > 0 && <> <span className="text-green-400 font-bold">{doneCount} completed ✓</span></>}
       </p>
       <div className="relative flex gap-3 overflow-x-auto pb-1 -mx-2 px-2">
         {saved.map(e => (
