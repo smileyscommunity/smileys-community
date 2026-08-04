@@ -574,6 +574,7 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
   const [hasMore, setHasMore]   = useState(false)
   const [loading, setLoading]   = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [error, setError]       = useState(false)
   const [selected, setSelected] = useState<Listing | null>(null)
   const [savedSet, setSavedSet] = useState<Set<string>>(new Set())
   const [alertCategories, setAlertCategories] = useState<string[]>([])
@@ -628,6 +629,9 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
       .catch(() => {})
   }, [isLoggedIn])
 
+  // Throws on a non-2xx or malformed response — callers decide how to
+  // surface that (full-page error state for the initial load, a toast for
+  // pagination) rather than this silently leaving `listings` as `undefined`.
   const fetchListings = useCallback(async (cat: string, nbhd: string, q: string, offset: number, append = false) => {
     const params = new URLSearchParams({ offset: String(offset) })
     if (cat === 'SAVED') {
@@ -639,22 +643,32 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
     }
     if (nbhd) params.set('neighborhood', nbhd)
     if (q) params.set('q', q)
-    const res  = await fetch(`/app/api/listings?${params}`, { credentials: 'include' })
+    const res = await fetch(`/app/api/listings?${params}`, { credentials: 'include' })
+    if (!res.ok) throw new Error('Failed to load listings')
     const data = await res.json()
-    setListings(prev => append ? [...prev, ...data.listings] : data.listings)
+    setListings(prev => append ? [...prev, ...(data.listings ?? [])] : (data.listings ?? []))
     setSavedSet(prev => {
       const next = new Set(append ? prev : [])
       for (const id of (data.savedIds ?? [])) next.add(id)
       return next
     })
-    setTotal(data.total)
-    setHasMore(data.hasMore)
+    setTotal(data.total ?? 0)
+    setHasMore(!!data.hasMore)
   }, [])
 
-  useEffect(() => {
+  const loadListings = useCallback(async () => {
     setLoading(true)
-    fetchListings(category, neighborhood, debouncedSearch, 0).finally(() => setLoading(false))
+    setError(false)
+    try {
+      await fetchListings(category, neighborhood, debouncedSearch, 0)
+    } catch {
+      setError(true)
+    } finally {
+      setLoading(false)
+    }
   }, [category, neighborhood, debouncedSearch, fetchListings])
+
+  useEffect(() => { loadListings() }, [loadListings])
 
   // Auto-open listing from ?l= legacy share link
   const deepLinkId = searchParams.get('l')
@@ -668,8 +682,13 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
 
   async function loadMore() {
     setLoadingMore(true)
-    await fetchListings(category, neighborhood, debouncedSearch, listings.length, true)
-    setLoadingMore(false)
+    try {
+      await fetchListings(category, neighborhood, debouncedSearch, listings.length, true)
+    } catch {
+      toast.error('Could not load more listings')
+    } finally {
+      setLoadingMore(false)
+    }
   }
 
   async function toggleSave(listingId: string) {
@@ -1029,6 +1048,18 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
             {[...Array(8)].map((_, i) => (
               <SkeletonCard key={i} />
             ))}
+          </div>
+        ) : error ? (
+          <div className="text-center py-24">
+            <div aria-hidden="true" className="text-6xl mb-4">⚠️</div>
+            <p className="text-xl font-bold text-gray-700">Couldn&apos;t load listings</p>
+            <p className="text-sm text-gray-400 mt-2 mb-8">Something went wrong. Please try again.</p>
+            <button
+              onClick={loadListings}
+              className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold px-6 py-3 rounded-xl transition-colors shadow-sm"
+            >
+              Try again
+            </button>
           </div>
         ) : listings.length === 0 ? (
           <div className="text-center py-24">

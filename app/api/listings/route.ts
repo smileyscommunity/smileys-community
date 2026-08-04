@@ -16,73 +16,78 @@ const CAT_LABELS: Record<string, string> = {
 }
 
 export async function GET(req: NextRequest) {
-  // Public read — anonymous browsing is the whole point (SEO + "what's in the
-  // marketplace" pull for prospects). Session-only features (?saved=true,
-  // savedIds) just no-op for anonymous users.
-  const session = await getSession()
+  try {
+    // Public read — anonymous browsing is the whole point (SEO + "what's in
+    // the marketplace" pull for prospects). Session-only features
+    // (?saved=true, savedIds) just no-op for anonymous users.
+    const session = await getSession()
 
-  const { searchParams } = new URL(req.url)
-  const category     = searchParams.get('category') || undefined
-  const neighborhood = searchParams.get('neighborhood') || undefined
-  const saved        = searchParams.get('saved') === 'true'
-  const mine         = searchParams.get('mine') === 'true'
-  const q            = searchParams.get('q')?.trim() || undefined
-  const offset       = parseInt(searchParams.get('offset') || '0', 10)
+    const { searchParams } = new URL(req.url)
+    const category     = searchParams.get('category') || undefined
+    const neighborhood = searchParams.get('neighborhood') || undefined
+    const saved        = searchParams.get('saved') === 'true'
+    const mine         = searchParams.get('mine') === 'true'
+    const q            = searchParams.get('q')?.trim() || undefined
+    const offset       = parseInt(searchParams.get('offset') || '0', 10)
 
-  // ?saved=true requires a logged-in user; for anonymous, force the filter to
-  // match nothing instead of querying without it (which would return everything).
-  const savedFilter = saved
-    ? session
-      ? { savedBy: { some: { userId: session.id } } }
-      : { id: '__never__' }
-    : {}
+    // ?saved=true requires a logged-in user; for anonymous, force the filter
+    // to match nothing instead of querying without it (which would return everything).
+    const savedFilter = saved
+      ? session
+        ? { savedBy: { some: { userId: session.id } } }
+        : { id: '__never__' }
+      : {}
 
-  // ?mine=true — show the current user's own listings including expired/filled
-  // so they can see and manage everything they've posted. Both guards must
-  // require a session: an anonymous ?mine=true previously dropped the status
-  // filter (mine) AND the owner scope (no session), returning every listing
-  // of every status — incl. deleted/expired — to a logged-out visitor.
-  const mineFilter = mine && session ? { userId: session.id } : {}
-  const statusFilter = mine && session ? {} : { status: 'active' }
+    // ?mine=true — show the current user's own listings including expired/filled
+    // so they can see and manage everything they've posted. Both guards must
+    // require a session: an anonymous ?mine=true previously dropped the status
+    // filter (mine) AND the owner scope (no session), returning every listing
+    // of every status — incl. deleted/expired — to a logged-out visitor.
+    const mineFilter = mine && session ? { userId: session.id } : {}
+    const statusFilter = mine && session ? {} : { status: 'active' }
 
-  const where = {
-    ...statusFilter,
-    ...(category ? { category } : {}),
-    ...(neighborhood ? { neighborhood } : {}),
-    ...savedFilter,
-    ...mineFilter,
-    ...(q ? { OR: [
-      { title:       { contains: q, mode: 'insensitive' as const } },
-      { description: { contains: q, mode: 'insensitive' as const } },
-    ]} : {}),
+    const where = {
+      ...statusFilter,
+      ...(category ? { category } : {}),
+      ...(neighborhood ? { neighborhood } : {}),
+      ...savedFilter,
+      ...mineFilter,
+      ...(q ? { OR: [
+        { title:       { contains: q, mode: 'insensitive' as const } },
+        { description: { contains: q, mode: 'insensitive' as const } },
+      ]} : {}),
+    }
+
+    const [listings, total] = await Promise.all([
+      prisma.listing.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: offset,
+        take: PAGE_SIZE,
+        include: { user: { select: { id: true, name: true, color: true, profilePhoto: true } } },
+      }),
+      prisma.listing.count({ where }),
+    ])
+
+    const listingIds = listings.map(l => l.id)
+    const savedRows = session && listingIds.length > 0
+      ? await prisma.savedListing.findMany({
+          where: { userId: session.id, listingId: { in: listingIds } },
+          select: { listingId: true },
+        })
+      : []
+    const savedIds = savedRows.map(r => r.listingId)
+
+    // Guests see a teaser projection — no contact, no photo, truncated
+    // description, anonymized poster. The page itself is public for SEO,
+    // but the details are member-only.
+    const projected = session ? listings : listings.map(redactListingForGuest)
+
+    return NextResponse.json({ listings: projected, total, hasMore: offset + PAGE_SIZE < total, savedIds })
+  } catch (e) {
+    console.error('Listings GET error:', e)
+    return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
-
-  const [listings, total] = await Promise.all([
-    prisma.listing.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      skip: offset,
-      take: PAGE_SIZE,
-      include: { user: { select: { id: true, name: true, color: true, profilePhoto: true } } },
-    }),
-    prisma.listing.count({ where }),
-  ])
-
-  const listingIds = listings.map(l => l.id)
-  const savedRows = session && listingIds.length > 0
-    ? await prisma.savedListing.findMany({
-        where: { userId: session.id, listingId: { in: listingIds } },
-        select: { listingId: true },
-      })
-    : []
-  const savedIds = savedRows.map(r => r.listingId)
-
-  // Guests see a teaser projection — no contact, no photo, truncated
-  // description, anonymized poster. The page itself is public for SEO,
-  // but the details are member-only.
-  const projected = session ? listings : listings.map(redactListingForGuest)
-
-  return NextResponse.json({ listings: projected, total, hasMore: offset + PAGE_SIZE < total, savedIds })
 }
 
 export async function POST(req: NextRequest) {
