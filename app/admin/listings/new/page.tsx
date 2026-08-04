@@ -91,7 +91,7 @@ export default function AdminNewListingPage() {
   return (
     <div className="p-4 sm:p-8 max-w-2xl space-y-6">
       <Link href="/admin/listings" className="inline-flex items-center gap-1.5 text-sm text-zinc-400 hover:text-zinc-200 transition-colors">
-        ← Back to Board
+        ← Back to Marketplace
       </Link>
 
       <div>

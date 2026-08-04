@@ -134,7 +134,7 @@ export default function AdminListingsPage() {
         toast.error(d.error ?? 'Failed to save')
         return
       }
-      toast.success('Board settings saved ✓')
+      toast.success('Marketplace settings saved ✓')
     } finally {
       setSettingsSaving(false)
     }
@@ -281,7 +281,7 @@ export default function AdminListingsPage() {
       )}
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">Community Board</h1>
+          <h1 className="text-2xl font-bold text-white">Marketplace</h1>
           <p className="text-zinc-400 text-sm mt-1">{total} listing{total !== 1 ? 's' : ''}</p>
         </div>
         <div className="flex items-center gap-2">
@@ -313,7 +313,7 @@ export default function AdminListingsPage() {
       {/* Settings panel */}
       {showSettings && (
         <div className="mb-6 bg-zinc-900 border border-zinc-700 rounded-2xl p-6 space-y-6">
-          <h2 className="text-white font-bold text-sm uppercase tracking-widest">Board Settings</h2>
+          <h2 className="text-white font-bold text-sm uppercase tracking-widest">Marketplace Settings</h2>
 
           {/* Enabled categories */}
           <div>

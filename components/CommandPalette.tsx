@@ -100,7 +100,7 @@ export default function CommandPalette() {
       { id: 'a-moderation',   label: 'Moderation',       hint: 'Reports & warnings',         icon: '🚨', group: 'Admin', action: () => go('/admin/moderation')            },
       { id: 'a-payments',     label: 'Payments',         hint: 'Financial records',          icon: '💳', group: 'Admin', action: () => go('/admin/payments')              },
       { id: 'a-events',       label: 'Manage Events',    hint: 'All community events',       icon: '📅', group: 'Admin', action: () => go('/admin/events')                },
-      { id: 'a-board',        label: 'Community Board',  hint: 'Manage listings',            icon: '📋', group: 'Admin', action: () => go('/admin/listings')              },
+      { id: 'a-marketplace',  label: 'Marketplace',      hint: 'Manage listings',            icon: '🛍️', group: 'Admin', action: () => go('/admin/listings')              },
       { id: 'a-broadcast',    label: 'Notifications',    hint: 'Send broadcasts',            icon: '📢', group: 'Admin', action: () => go('/admin/notifications')         },
       { id: 'a-analytics',    label: 'Analytics',        hint: 'Growth & revenue trends',    icon: '📊', group: 'Admin', action: () => go('/admin/analytics')             },
     ] : []),

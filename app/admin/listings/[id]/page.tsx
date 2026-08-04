@@ -154,7 +154,7 @@ export default function AdminListingDetailPage() {
     <div className="p-4 sm:p-8 max-w-3xl space-y-6">
       {/* Back */}
       <Link href="/admin/listings" className="inline-flex items-center gap-1.5 text-sm text-zinc-400 hover:text-zinc-200 transition-colors">
-        ← Back to Board
+        ← Back to Marketplace
       </Link>
 
       {/* Header */}

@@ -114,7 +114,7 @@ const NAV_GROUPS = [
       { label: 'Cities',       href: '/admin/cities',       exact: false, roles: ['admin'],               icon: 'cities'       },
       { label: 'Clubs',        href: '/admin/clubs',        exact: false, roles: ['admin'],               icon: 'clubs'        },
       { label: 'Hosts',        href: '/admin/hosts',        exact: false, roles: ['admin'],               icon: 'hosts'        },
-      { label: 'Board',        href: '/admin/listings',     exact: false, roles: ['admin', 'moderator'],  icon: 'board'        },
+      { label: 'Marketplace',  href: '/admin/listings',     exact: false, roles: ['admin', 'moderator'],  icon: 'board'        },
       { label: 'Hangouts',     href: '/admin/hangouts',     exact: false, roles: ['admin', 'moderator'],  icon: 'hangouts'     },
       { label: 'Spotlight',    href: '/admin/spotlight',    exact: false, roles: ['admin', 'moderator'],  icon: 'spotlight'    },
       { label: 'Partners',     href: '/admin/partners',     exact: false, roles: ['admin', 'moderator'],  icon: 'partners'     },
