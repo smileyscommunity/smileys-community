@@ -2,10 +2,9 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
 import { toast } from 'sonner'
 import { useAuth } from '@/contexts/AuthContext'
-import { VISITOR_TRAVELER_TYPES, VISITOR_LOOKING_FOR } from '@/lib/data'
+import { VISITOR_TRAVELER_TYPES, VISITOR_LOOKING_FOR, avatarUrl } from '@/lib/data'
 
 const TRAVELER_LABEL: Record<string, string> = Object.fromEntries(VISITOR_TRAVELER_TYPES.map(t => [t.value, t.label]))
 const LOOKING_FOR_META: Record<string, { label: string; emoji: string }> = Object.fromEntries(
@@ -58,7 +57,7 @@ interface Props {
   featuredLocals: FeaturedLocal[]
 }
 
-type FilterKey = 'all' | 'week' | 'month' | 'later'
+type FilterKey = 'all' | 'now' | 'week' | 'month' | 'later'
 
 function formatRange(startsOn: string, endsOn: string) {
   const s = new Date(startsOn + 'T00:00:00')
@@ -70,17 +69,21 @@ function formatRange(startsOn: string, endsOn: string) {
   return sameMonth ? `${fmt(s, false)}–${fmt(e, true)}` : `${fmt(s, true)} – ${fmt(e, true)}`
 }
 
-// Bucket an announcement by when it starts. "Week" = next 7 days
-// inclusive of today, "Month" = 8–30 days out, "Later" = beyond 30
-// days. An announcement that started yesterday and ends tomorrow is
-// still "in town now", so we treat startsOn <= today as "week".
+// Bucket an announcement by when it starts. "Now" = mid-trip today,
+// "Week" = arriving in the next 7 days, "Month" = 8–30 days out,
+// "Later" = beyond 30 days. Someone already in town used to be folded
+// into "week", which made the chips contradict the card's "Here now"
+// badge (and the header's "arriving" count).
 //
 // Day arithmetic is done in UTC midnight so DST transitions don't
 // shift a date across a bucket boundary (the local-midnight version
 // got a ±1 day error on the day clocks change).
 function bucketOf(a: Announcement, todayUTC: number): Exclude<FilterKey, 'all'> {
-  const [y, m, d] = a.startsOn.split('-').map(Number)
-  const startsUTC = Date.UTC(y, m - 1, d)
+  const [sy, sm, sd] = a.startsOn.split('-').map(Number)
+  const [ey, em, ed] = a.endsOn.split('-').map(Number)
+  const startsUTC = Date.UTC(sy, sm - 1, sd)
+  const endsUTC   = Date.UTC(ey, em - 1, ed)
+  if (startsUTC <= todayUTC && endsUTC >= todayUTC) return 'now'
   const daysFromNow = Math.floor((startsUTC - todayUTC) / 86_400_000)
   if (daysFromNow <= 7)  return 'week'
   if (daysFromNow <= 30) return 'month'
@@ -342,7 +345,7 @@ function LocalsStrip({ locals, viewerId }: { locals: FeaturedLocal[]; viewerId: 
           <div key={l.id} className="flex flex-col items-center gap-2 text-center">
             <Link href={`/members/${l.id}`}>
               {l.profilePhoto
-                ? <Image src={l.profilePhoto} alt={l.name} width={48} height={48}
+                ? <img src={avatarUrl(l.profilePhoto, 96)} alt={l.name} width={48} height={48} loading="lazy" decoding="async"
                     className="w-12 h-12 rounded-full object-cover hover:ring-2 hover:ring-amber-400 transition-all" />
                 : <div className="w-12 h-12 rounded-full flex items-center justify-center text-white text-sm font-bold hover:ring-2 hover:ring-amber-400 transition-all"
                        style={{ backgroundColor: l.color }}>
@@ -443,7 +446,7 @@ function AnnouncementCard({ a, viewerId, viewerInterests, events, allAnnouncemen
     <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col h-full">
       <div className="flex items-start gap-3 mb-3">
         {a.user?.profilePhoto ? (
-          <Image src={a.user.profilePhoto} alt={a.name} width={56} height={56}
+          <img src={avatarUrl(a.user.profilePhoto, 128)} alt={a.name} width={56} height={56} loading="lazy" decoding="async"
             className="w-14 h-14 rounded-full object-cover shrink-0" />
         ) : (
           /* aria-hidden because the visitor name is announced as the
@@ -578,7 +581,7 @@ export default function VisitingClient({ announcements, events, cityCount, featu
   }, [])
 
   const buckets = useMemo(() => {
-    const out = { week: 0, month: 0, later: 0 }
+    const out = { now: 0, week: 0, month: 0, later: 0 }
     for (const a of announcements) out[bucketOf(a, todayUTC)]++
     return out
   }, [announcements, todayUTC])
@@ -606,6 +609,7 @@ export default function VisitingClient({ announcements, events, cityCount, featu
 
   const CHIPS: { key: FilterKey; label: string; count: number }[] = [
     { key: 'all',   label: 'All',          count: announcements.length },
+    { key: 'now',   label: 'Here now',     count: buckets.now },
     { key: 'week',  label: 'This week',    count: buckets.week },
     { key: 'month', label: 'Next 30 days', count: buckets.week + buckets.month },
     { key: 'later', label: 'Later',        count: buckets.later },
@@ -623,9 +627,11 @@ export default function VisitingClient({ announcements, events, cityCount, featu
           Meet Smileys members arriving soon and help them feel at home.
         </p>
         {/* Stats banner */}
-        {upcomingCount > 0 && (
+        {(buckets.now > 0 || upcomingCount > 0) && (
           <p className="text-sm text-gray-500 mt-3">
-            <span className="font-semibold text-gray-700">{upcomingCount}</span> visitor{upcomingCount !== 1 ? 's' : ''} in the next 30 days
+            {buckets.now > 0 && <><span className="font-semibold text-gray-700">{buckets.now}</span> here now</>}
+            {buckets.now > 0 && upcomingCount > 0 && ' · '}
+            {upcomingCount > 0 && <><span className="font-semibold text-gray-700">{upcomingCount}</span> arriving in the next 30 days</>}
             {cityCount > 1 && <> · from <span className="font-semibold text-gray-700">{cityCount}</span> cities</>}
           </p>
         )}

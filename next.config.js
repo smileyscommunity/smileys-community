@@ -19,6 +19,11 @@ const nextConfig = {
     // the OG-image cache-busting convention already used elsewhere) or
     // rename it — don't rely on this expiring on its own.
     minimumCacheTTL: 60 * 60 * 24 * 30,
+    // No source asset in the repo is wider than ~1600px (heroes are
+    // 1200–1536), so the default 3840 breakpoint only produces
+    // pointless max-width optimizer requests on retina desktops.
+    // Capping at 1920 keeps every real variant.
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920],
     remotePatterns: [
       {
         protocol: 'https',

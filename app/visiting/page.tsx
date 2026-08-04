@@ -310,9 +310,12 @@ export default async function VisitingPage() {
       </section>
 
       {/* ── Events during your visit ──
-          Personalised only when the viewer has posted their own dates;
-          otherwise it prompts for them rather than showing a generic list
-          that quietly pretends to be matched to a trip. */}
+          Date-matched when the viewer has posted their own dates;
+          otherwise a general upcoming list, honestly labelled as such —
+          the visitor cards above already advertise "N events while
+          you're here", so an empty prompt here read as a contradiction
+          (especially for logged-out visitors, this page's whole
+          audience). */}
       <section className="bg-white border-t border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
           <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">
@@ -350,7 +353,7 @@ export default async function VisitingPage() {
                 Nothing scheduled between {viewerVisit.startsOn} and {viewerVisit.endsOn} yet — new events go up every week.
               </p>
             )
-          ) : (
+          ) : upcomingEvents.length === 0 ? (
             <div className="mt-4">
               <p className="text-gray-600 mb-5">Add your travel dates to see what&apos;s happening during your stay.</p>
               <Link href={isMember ? '/visiting/new' : '/apply'}
@@ -358,6 +361,36 @@ export default async function VisitingPage() {
                 Add my dates
               </Link>
             </div>
+          ) : (
+            <>
+              <p className="text-gray-600 mt-2 mb-8">
+                Coming up over the next 60 days — add your dates and we&apos;ll match them to your trip.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {upcomingEvents.slice(0, 6).map(e => (
+                  <Link key={e.id} href={`/events/${e.id}`}
+                    className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-amber-200 transition-all group">
+                    <p className="text-xs font-bold tracking-wide text-amber-600">{fmtEventDate(e.date)}</p>
+                    <h3 className="font-bold text-gray-900 mt-1.5 leading-snug">
+                      <span aria-hidden="true">{e.emoji} </span>{e.title}
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-2">
+                      <span aria-hidden="true">📍 </span>{e.neighborhood || e.location}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      <span aria-hidden="true">👥 </span>{e._count.attendees} going
+                    </p>
+                    <span className="inline-block text-xs font-bold text-gray-700 mt-3 group-hover:text-amber-600 transition-colors">
+                      View event →
+                    </span>
+                  </Link>
+                ))}
+              </div>
+              <Link href={isMember ? '/visiting/new' : '/apply'}
+                className="inline-flex items-center justify-center gap-2 mt-8 px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
+                Add my dates
+              </Link>
+            </>
           )}
         </div>
       </section>
