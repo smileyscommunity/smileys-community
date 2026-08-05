@@ -126,6 +126,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
         setUser(d)
         setProfileForm({
           email: d.email || '',
+          phone: d.phone || '',
           nationality: d.nationality || '',
           neighborhood: d.neighborhood || '',
           instagram: d.instagram || '',
@@ -273,7 +274,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
 
   const [clubAssignments,  setClubAssignments]  = useState<{ clubId: string; clubName: string; emoji: string }[]>([])
   const [profileForm,   setProfileForm]   = useState({
-    email: '', nationality: '', neighborhood: '', instagram: '',
+    email: '', phone: '', nationality: '', neighborhood: '', instagram: '',
     languages: '', interests: '', bio: '', partnerId: '',
     industry: '', professionalRole: '', professionalStatus: '',
   })
@@ -540,6 +541,13 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                 <input type="email" value={profileForm.email} onChange={e => setProfileForm({ ...profileForm, email: e.target.value })}
                   className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-amber-500" />
                 <p className="text-[10px] text-zinc-600 mt-1">Login identifier — after a change they sign in with the new address.</p>
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-zinc-500 uppercase block mb-1">Phone</label>
+                <input type="text" value={profileForm.phone} onChange={e => setProfileForm({ ...profileForm, phone: e.target.value })}
+                  placeholder="+90 555 123 4567"
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-amber-500" />
+                <p className="text-[10px] text-zinc-600 mt-1">Include the country code — members often type only the local number, which breaks the WhatsApp link above.</p>
               </div>
               <div>
                 <label className="text-[10px] font-bold text-zinc-500 uppercase block mb-1">Nationality</label>
