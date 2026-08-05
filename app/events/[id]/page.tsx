@@ -20,6 +20,7 @@ import SimilarEvents from '@/components/SimilarEvents'
 import ReportButton from '@/components/ReportButton'
 import ShareButton from '@/components/ShareButton'
 import SocialShare from '@/components/SocialShare'
+import EventSaveButton from '@/components/EventSaveButton'
 import EventInviteButton from '@/components/EventInviteButton'
 import AddToCalendar from '@/components/AddToCalendar'
 import EventLocationMap from '@/components/EventLocationMap'
@@ -427,6 +428,14 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
           .sort((a, b) => (b.ctx!.weight - a.ctx!.weight))
       })()
     : []
+
+  // §35 — is this already on the viewer's saved list?
+  const savedByViewer = session
+    ? !!(await prisma.eventSave.findUnique({
+        where:  { userId_eventId: { userId: session.id, eventId: id } },
+        select: { id: true },
+      }))
+    : false
 
   const isApprovedHere   = isAdmin || isHost || myAttendance?.status === 'approved'
   const clubWhatsappUrl  = !event.whatsappUrl && club?.whatsappUrl &&
@@ -1130,6 +1139,14 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
               </Link>
+            )}
+
+            {/* §35 — Save sits beside Share as the quiet "maybe later"
+                action; it must never compete with the Join CTA. */}
+            {!isPast && (
+              <div className="flex justify-end">
+                <EventSaveButton eventId={event.id} initialSaved={savedByViewer} />
+              </div>
             )}
 
             <SocialShare

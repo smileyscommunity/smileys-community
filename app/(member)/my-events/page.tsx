@@ -67,29 +67,42 @@ function EventCard({ e, showQr, onQr }: { e: MyEvent; showQr?: boolean; onQr?: (
   )
 }
 
-type Tab = 'upcoming' | 'pending' | 'waitlist' | 'past'
+type Tab = 'upcoming' | 'pending' | 'waitlist' | 'hosting' | 'saved' | 'past'
 
 export default function MyEventsPage() {
   const { user }  = useAuth()
   const [events,  setEvents]  = useState<MyEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [tab,     setTab]     = useState<Tab>('upcoming')
+  // §36 — hosting + saved come from /api/events/mine; attending/pending/
+  // waitlist keep using the existing attending endpoint.
+  const [hosting, setHosting] = useState<MyEvent[]>([])
+  const [saved,   setSaved]   = useState<MyEvent[]>([])
   const [qrEvent, setQrEvent] = useState<MyEvent | null>(null)
 
   const today = todayIstanbul()
 
   useEffect(() => {
-    fetch('/app/api/events/attending', { credentials: 'include' })
-      .then(r => r.json())
-      .then(data => { if (Array.isArray(data)) setEvents(data) })
-      .finally(() => setLoading(false))
+    Promise.all([
+      fetch('/app/api/events/attending', { credentials: 'include' }).then(r => r.json()).catch(() => null),
+      fetch('/app/api/events/mine',      { credentials: 'include' }).then(r => r.ok ? r.json() : null).catch(() => null),
+    ]).then(([attending, mine]) => {
+      if (Array.isArray(attending)) setEvents(attending)
+      if (mine) { setHosting(mine.hosting ?? []); setSaved(mine.saved ?? []) }
+    }).finally(() => setLoading(false))
   }, [])
 
   const upcoming  = events.filter(e => e.status === 'approved'  && e.date >= today).sort((a, b) => a.date.localeCompare(b.date))
   const pending   = events.filter(e => e.status === 'pending').sort((a, b) => a.date.localeCompare(b.date))
   const waitlist  = events.filter(e => e.status === 'waitlisted').sort((a, b) => (a.waitlistPosition ?? 0) - (b.waitlistPosition ?? 0))
   const past      = events.filter(e => e.status === 'approved'  && e.date < today).sort((a, b) => b.date.localeCompare(a.date))
-  const displayed = tab === 'upcoming' ? upcoming : tab === 'pending' ? pending : tab === 'waitlist' ? waitlist : past
+  const displayed =
+    tab === 'upcoming' ? upcoming
+    : tab === 'pending'  ? pending
+    : tab === 'waitlist' ? waitlist
+    : tab === 'hosting'  ? hosting
+    : tab === 'saved'    ? saved
+    : past
 
   return (
     <div className="min-h-screen bg-warm pb-20 md:pb-0">
@@ -122,6 +135,8 @@ export default function MyEventsPage() {
               { key: 'upcoming', label: 'Upcoming', count: upcoming.length },
               { key: 'pending',  label: 'Pending',  count: pending.length  },
               { key: 'waitlist', label: 'Waitlist', count: waitlist.length },
+              { key: 'hosting',  label: 'Hosting',  count: hosting.length  },
+              { key: 'saved',    label: 'Saved',    count: saved.length    },
               { key: 'past',     label: 'Past',     count: past.length     },
             ] as { key: Tab; label: string; count: number }[]).map(t => (
               <button key={t.key} onClick={() => setTab(t.key)}
@@ -147,10 +162,19 @@ export default function MyEventsPage() {
           <SkeletonList rows={3} />
         ) : displayed.length === 0 ? (
           <EmptyState
-            icon={tab === 'upcoming' ? '📅' : tab === 'pending' ? '⏳' : '🎊'}
-            title={tab === 'upcoming' ? 'No upcoming events' : tab === 'pending' ? 'No pending requests' : 'No past events yet'}
+            icon={tab === 'upcoming' ? '📅' : tab === 'pending' ? '⏳' : tab === 'waitlist' ? '⏳'
+              : tab === 'hosting' ? '🎤' : tab === 'saved' ? '♡' : '🎊'}
+            title={tab === 'upcoming' ? 'No upcoming events'
+              : tab === 'pending' ? 'No pending requests'
+              : tab === 'waitlist' ? 'Not on any waitlists'
+              : tab === 'hosting' ? "You're not hosting anything yet"
+              : tab === 'saved' ? 'Nothing saved yet'
+              : 'No past events yet'}
             body={tab === 'upcoming' ? 'Find something fun and lock in your spot.'
               : tab === 'pending' ? 'Any events awaiting approval will show up here.'
+              : tab === 'waitlist' ? 'Full events you join the waitlist for will appear here.'
+              : tab === 'hosting' ? 'Events you host or co-host will appear here.'
+              : tab === 'saved' ? 'Tap ♡ on any event to keep it here for later.'
               : "Once you attend events, they'll appear here."}
             action={tab !== 'pending' ? { label: 'Browse events', href: '/events' } : undefined}
           />
