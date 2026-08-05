@@ -21,7 +21,7 @@ function newest(dates: Array<Date | null | undefined>): Date | undefined {
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [events, clubs, posts, listings, businesses] = await Promise.all([
+  const [events, clubs, posts, listings, businesses, movingSales] = await Promise.all([
     prisma.event.findMany({
       where: { status: 'published' },
       select: { id: true, updatedAt: true },
@@ -56,6 +56,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       orderBy: { updatedAt: 'desc' },
       take:    500,
     }),
+    // Moving sales are public, one-per-departure — each gets a shareable
+    // detail page at /moving-sales/[id] so a link sent off-platform still
+    // lands somewhere real instead of a 404.
+    prisma.movingSale.findMany({
+      where:   { status: 'active' },
+      select:  { id: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+      take:    200,
+    }),
   ])
 
   // Per-neighborhood guides are admin-edited JSON files; their mtime is the
@@ -75,13 +84,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const newestPost     = newest(posts.map(p => p.publishedAt))
   const newestListing  = newest(listings.map(l => l.updatedAt))
   const newestBusiness = newest(businesses.map(b => b.updatedAt))
+  const newestMovingSale = newest(movingSales.map(s => s.createdAt))
 
   // Pages with no honest signal (pure code-driven marketing copy) deliberately
   // omit lastModified — an invented date is worse than none.
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: BASE,                    priority: 1.0, changeFrequency: 'daily',   lastModified: newest([newestEvent, newestPost, newestClub]) },
     { url: `${BASE}/events`,        priority: 0.9, changeFrequency: 'daily',   lastModified: newestEvent },
-    { url: `${BASE}/board`,         priority: 0.8, changeFrequency: 'daily',   lastModified: newestListing },
+    { url: `${BASE}/board`,         priority: 0.8, changeFrequency: 'daily',   lastModified: newest([newestListing, newestMovingSale]) },
     { url: `${BASE}/visiting`,      priority: 0.8, changeFrequency: 'daily'   },
     { url: `${BASE}/guide`,         priority: 0.8, changeFrequency: 'weekly',  lastModified: fileMtime('guide-experiences.json') },
     { url: `${BASE}/clubs`,         priority: 0.8, changeFrequency: 'weekly',  lastModified: newestClub },
@@ -131,6 +141,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     changeFrequency: 'weekly',
   }))
 
+  const movingSaleRoutes: MetadataRoute.Sitemap = movingSales.map(s => ({
+    url:          `${BASE}/moving-sales/${s.id}`,
+    lastModified: s.createdAt,
+    priority:     0.5,
+    changeFrequency: 'weekly',
+  }))
+
   const businessRoutes: MetadataRoute.Sitemap = businesses.map(b => ({
     url:          `${BASE}/directory/${b.id}`,
     lastModified: b.updatedAt,
@@ -155,6 +172,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...clubRoutes,
     ...postRoutes,
     ...listingRoutes,
+    ...movingSaleRoutes,
     ...businessRoutes,
   ]
 }

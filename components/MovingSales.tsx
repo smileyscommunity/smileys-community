@@ -20,6 +20,20 @@ function fmtLeaving(d: string) {
   return new Date(Date.UTC(y, m - 1, day)).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
 }
 
+async function copyShare(id: string): Promise<boolean> {
+  const url = `${window.location.origin}/app/moving-sales/${id}`
+  try {
+    await navigator.clipboard.writeText(url)
+    return true
+  } catch {
+    // navigator.clipboard can be unavailable (older/embedded webviews); a
+    // native prompt() is suppressed in the installed PWA, so surface the
+    // link in a toast the user can long-press to copy instead.
+    toast(url, { description: 'Long-press to copy this link' })
+    return false
+  }
+}
+
 // Moving & Leaving (plan §13) — one sale per departure instead of fifteen
 // separate listings. Renders inside the Marketplace when the Moving card
 // is selected.
@@ -41,6 +55,12 @@ export default function MovingSales() {
   const [contactFor,  setContactFor]  = useState<string | null>(null)
   const [contactText, setContactText] = useState('')
   const [sending,     setSending]     = useState(false)
+  const [copiedId,    setCopiedId]    = useState<string | null>(null)
+
+  async function handleShare(id: string) {
+    const ok = await copyShare(id)
+    if (ok) { setCopiedId(id); toast.success('Link copied!'); setTimeout(() => setCopiedId(null), 2000) }
+  }
 
   const load = useCallback(async () => {
     const res = await fetch('/app/api/moving-sales', { credentials: 'include' })
@@ -226,6 +246,14 @@ export default function MovingSales() {
                   <> · {sale.items.length} item{sale.items.length !== 1 ? 's' : ''}{unclaimed < sale.items.length && ` (${unclaimed} left)`}</>
                 </p>
               </div>
+              <button onClick={() => handleShare(sale.id)} aria-label="Copy link to this moving sale"
+                className="shrink-0 w-8 h-8 rounded-full bg-gray-50 hover:bg-gray-100 flex items-center justify-center text-gray-500 transition-colors" title="Copy link">
+                {copiedId === sale.id ? <span aria-hidden="true">✓</span> : (
+                  <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                  </svg>
+                )}
+              </button>
             </div>
             {sale.photo && (
               // eslint-disable-next-line @next/next/no-img-element
