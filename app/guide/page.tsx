@@ -17,7 +17,7 @@ import GuideCTA from './GuideCTA'
 import GuideStickyNav from './GuideStickyNav'
 import ExperienceExplorer from './ExperienceExplorer'
 import MyIstanbul from './MyIstanbul'
-import IstanbulToday from './IstanbulToday'
+import IstanbulToday, { computeTodayPicks } from './IstanbulToday'
 import { GUIDE_COLLECTIONS } from '@/lib/guide'
 import { loadExperiences, loadRoutes } from '@/lib/guideContent'
 
@@ -74,6 +74,13 @@ export default async function GuidePage() {
   const banner = loadBanner()
 
   const experiences = loadExperiences()
+  // De-duplication across homepage sections (reviewer feedback): the
+  // explorer's default six lead; Istanbul Today picks around them; the
+  // editorial Popular list picks around both. Collections stay the one
+  // complete catalog.
+  const defaultSix = experiences.slice(0, 6).map(e => e.slug)
+  const todayPicks = computeTodayPicks(defaultSix)
+  const shownAbove = new Set([...defaultSix, ...todayPicks.slugs])
 
   const navItems = [
     ...(experiences.length > 0 ? [
@@ -154,7 +161,7 @@ export default async function GuidePage() {
               "Visiting first?" cross-link further down sends people there. */}
 
           {/* §5 — Istanbul Today: time + season aware suggestions. */}
-          <IstanbulToday />
+          <IstanbulToday exclude={defaultSix} />
 
           {/* §12 — Popular Right Now, from real save/recommend counts.
               Below the engagement floor it falls back to an editorial
@@ -169,8 +176,11 @@ export default async function GuidePage() {
             })
             const bySlug = new Map(experiences.map(e => [e.slug, e]))
             const dataDriven = counts.map(c => bySlug.get(c.slug)).filter((e): e is NonNullable<typeof e> => !!e)
-            const editorial = ['ferry-at-sunset', 'turkish-breakfast', 'princes-islands', 'meyhane-night']
-              .map(sl => bySlug.get(sl)).filter((e): e is NonNullable<typeof e> => !!e)
+            // Editorial fallback avoids everything already on screen above —
+            // a "popular" row repeating the default grid read as filler.
+            const editorial = experiences
+              .filter(e => !shownAbove.has(e.slug))
+              .slice(0, 4)
             const enough = dataDriven.length >= 3
             const list = enough ? dataDriven : editorial
             if (list.length === 0) return null
@@ -251,7 +261,13 @@ export default async function GuidePage() {
 
           {/* §15/16 — experience it with people. Static cross-links in
               phase 1; live counts arrive with the save/social phase. */}
-          <div className="mt-12 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="mt-12 grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <Link href="/clubs" className="bg-white border border-gray-200 rounded-3xl p-6 sm:p-8 group hover:border-amber-300 hover:shadow-md transition-all">
+              <p className="text-xs font-bold text-amber-600 uppercase tracking-widest mb-2">Find your people</p>
+              <p className="text-xl font-extrabold text-gray-900 leading-snug">Clubs for what you love</p>
+              <p className="text-sm text-gray-600 mt-2">Sailing, hiking, brunch, live music — communities around every experience.</p>
+              <span className="inline-block text-sm font-bold text-amber-600 mt-4 group-hover:translate-x-0.5 transition-transform">Explore clubs →</span>
+            </Link>
             <Link href="/events" className="bg-gray-900 rounded-3xl p-6 sm:p-8 group relative overflow-hidden">
               <div aria-hidden="true" className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_80%_20%,#f59e0b_0%,transparent_60%)]" />
               <p className="relative text-xs font-bold text-amber-400 uppercase tracking-widest mb-2">Do it together</p>
@@ -399,8 +415,8 @@ export default async function GuidePage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {neighborhoods.map(n => (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {neighborhoods.slice(0, 6).map(n => (
                 <Link key={n.slug} href={`/neighborhoods/${n.slug}`}
                   className="group bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-amber-200 transition-all flex flex-col justify-center">
                   <div className="flex items-start gap-3">

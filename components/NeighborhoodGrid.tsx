@@ -207,7 +207,7 @@ function NeighborhoodCard({ n, cardBg, cardBorder }: { n: NeighborhoodItem; card
 }
 
 // ── Main grid ─────────────────────────────────────────────────────────────────
-export default function NeighborhoodGrid({ groups }: { groups: Group[] }) {
+export default function NeighborhoodGrid({ groups, userNeighborhood }: { groups: Group[]; userNeighborhood?: string | null }) {
   const [query,      setQuery]      = useState('')
   const [activeSide, setActiveSide] = useState<string | null>(null)
   const [view,       setView]       = useState<'cards' | 'map'>('cards')
@@ -260,12 +260,20 @@ export default function NeighborhoodGrid({ groups }: { groups: Group[] }) {
       memberCount: n.memberCount, eventCount: n.eventCount,
     }))
 
-  // Top 3 most active neighborhoods with upcoming events for featured section
-  const featured = groups
-    .flatMap(g => g.items)
-    .filter(n => n.activityScore >= 5 && n.eventCount > 0)
-    .sort((a, b) => b.activityScore - a.activityScore)
-    .slice(0, 3)
+  // Top 3 most active neighborhoods with upcoming events for featured
+  // section — but a member's own neighborhood leads when set (reviewer
+  // feedback: the page defaulted to Kadıköy for everyone). The activity
+  // floor is waived for the member's own hood: "your" card is relevant
+  // even in a quiet week.
+  const featured = (() => {
+    const all = groups.flatMap(g => g.items)
+    const ranked = all
+      .filter(n => n.activityScore >= 5 && n.eventCount > 0)
+      .sort((a, b) => b.activityScore - a.activityScore)
+    const mine = userNeighborhood ? all.find(n => n.name === userNeighborhood) : undefined
+    if (!mine) return ranked.slice(0, 3)
+    return [mine, ...ranked.filter(n => n.name !== mine.name)].slice(0, 3)
+  })()
 
   return (
     <div className="space-y-8">

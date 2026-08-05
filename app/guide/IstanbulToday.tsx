@@ -21,26 +21,29 @@ function istanbulNow(): { hour: number; month: number } {
   return { hour, month }
 }
 
+// Five candidates per cell — the first three NOT already shown higher on
+// the page render, so the homepage stops repeating the same experiences
+// across sections (reviewer feedback). Order = preference.
 const PICKS: Record<Bucket, Record<Season, string[]>> = {
   morning: {
-    summer:   ['turkish-breakfast', 'balat-fener-walk', 'kadikoy-market-graze'],
-    winter:   ['turkish-breakfast', 'turkish-coffee-slow', 'historic-peninsula-sanely'],
-    shoulder: ['turkish-breakfast', 'kadikoy-market-graze', 'balat-fener-walk'],
+    summer:   ['turkish-breakfast', 'balat-fener-walk', 'kadikoy-market-graze', 'bebek-rumeli-walk', 'princes-islands'],
+    winter:   ['turkish-breakfast', 'turkish-coffee-slow', 'historic-peninsula-sanely', 'turkish-hammam', 'kadikoy-market-graze'],
+    shoulder: ['turkish-breakfast', 'kadikoy-market-graze', 'balat-fener-walk', 'bebek-rumeli-walk', 'historic-peninsula-sanely'],
   },
   afternoon: {
-    summer:   ['princes-islands', 'bebek-rumeli-walk', 'moda-sunset'],
-    winter:   ['turkish-hammam', 'historic-peninsula-sanely', 'turkish-coffee-slow'],
-    shoulder: ['bebek-rumeli-walk', 'historic-peninsula-sanely', 'belgrad-forest'],
+    summer:   ['princes-islands', 'bebek-rumeli-walk', 'moda-sunset', 'belgrad-forest', 'kadikoy-market-graze'],
+    winter:   ['turkish-hammam', 'historic-peninsula-sanely', 'turkish-coffee-slow', 'kadikoy-market-graze', 'balat-fener-walk'],
+    shoulder: ['bebek-rumeli-walk', 'historic-peninsula-sanely', 'belgrad-forest', 'balat-fener-walk', 'princes-islands'],
   },
   evening: {
-    summer:   ['ferry-at-sunset', 'moda-sunset', 'rooftop-sunset-drinks'],
-    winter:   ['ferry-at-sunset', 'meyhane-night', 'turkish-hammam'],
-    shoulder: ['ferry-at-sunset', 'uskudar-evening', 'rooftop-sunset-drinks'],
+    summer:   ['ferry-at-sunset', 'moda-sunset', 'rooftop-sunset-drinks', 'uskudar-evening', 'meyhane-night'],
+    winter:   ['ferry-at-sunset', 'meyhane-night', 'turkish-hammam', 'uskudar-evening', 'live-music-night'],
+    shoulder: ['ferry-at-sunset', 'uskudar-evening', 'rooftop-sunset-drinks', 'moda-sunset', 'meyhane-night'],
   },
   night: {
-    summer:   ['meyhane-night', 'live-music-night', 'rooftop-sunset-drinks'],
-    winter:   ['meyhane-night', 'live-music-night', 'turkish-coffee-slow'],
-    shoulder: ['meyhane-night', 'live-music-night', 'uskudar-evening'],
+    summer:   ['meyhane-night', 'live-music-night', 'rooftop-sunset-drinks', 'uskudar-evening', 'moda-sunset'],
+    winter:   ['meyhane-night', 'live-music-night', 'turkish-coffee-slow', 'turkish-hammam', 'rooftop-sunset-drinks'],
+    shoulder: ['meyhane-night', 'live-music-night', 'uskudar-evening', 'rooftop-sunset-drinks', 'ferry-at-sunset'],
   },
 }
 
@@ -51,7 +54,9 @@ const HEADLINE: Record<Bucket, { title: string; line: string }> = {
   night:     { title: 'Istanbul at night',       line: "The city's second shift is just getting started." },
 }
 
-export default async function IstanbulToday() {
+// Deterministic within a request — the page calls this too, so it can
+// exclude Today's picks from other sections without prop plumbing.
+export function computeTodayPicks(exclude: string[] = []): { bucket: Bucket; slugs: string[] } {
   const { hour, month } = istanbulNow()
   const bucket: Bucket =
     hour >= 6 && hour < 12 ? 'morning'
@@ -62,9 +67,17 @@ export default async function IstanbulToday() {
     month >= 6 && month <= 9 ? 'summer'
     : month === 12 || month <= 2 ? 'winter'
     : 'shoulder'
+  const candidates = PICKS[bucket][season]
+  let slugs = candidates.filter(s => !exclude.includes(s)).slice(0, 3)
+  // If exclusions gut the list, time-relevance wins over de-duplication.
+  if (slugs.length < 2) slugs = candidates.slice(0, 3)
+  return { bucket, slugs }
+}
 
+export default async function IstanbulToday({ exclude = [] }: { exclude?: string[] }) {
+  const { bucket, slugs } = computeTodayPicks(exclude)
   const bySlug = new Map(loadExperiences().map(e => [e.slug, e]))
-  const picks = PICKS[bucket][season].map(s => bySlug.get(s)).filter((e): e is Experience => !!e)
+  const picks = slugs.map(s => bySlug.get(s)).filter((e): e is Experience => !!e)
 
   // §5's "connect" line — today's organized events (public data). Counted
   // in Istanbul's calendar day; silent when zero.

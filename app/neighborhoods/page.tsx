@@ -572,7 +572,7 @@ export default async function NeighborhoodsPage() {
         <section id="explore" className="scroll-mt-20">
           <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900">Explore Istanbul</h2>
           <p className="text-gray-600 mt-1.5 mb-6">Every neighborhood has its own rhythm. Find yours.</p>
-          <NeighborhoodGrid groups={groups} />
+          <NeighborhoodGrid groups={groups} userNeighborhood={userNeighborhood} />
         </section>
 
         {/* ── Local favorites (§8) ── */}
