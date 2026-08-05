@@ -838,7 +838,10 @@ function AdminUsersPageInner() {
                         <Link href={`/admin/users/${u.id}`} className="font-semibold text-sm text-white truncate hover:text-amber-400 transition-colors">{u.name}</Link>
                         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full capitalize shrink-0 ${roleBadgeClass(u.role)}`}>{u.role}</span>
                       </div>
-                      <div className="text-xs text-zinc-500">{new Date(u.joinedAt).toLocaleDateString('en-GB')}</div>
+                      <div className="text-xs text-zinc-500">
+                        {new Date(u.joinedAt).toLocaleDateString('en-GB')}
+                        {u.phone && <> · 📱 {u.phone}</>}
+                      </div>
                       {isDeletedAccount(u) && u.deletedIdentity?.name && (
                         <div className="text-[11px] text-amber-400/80 truncate" title={`Admin-only safety record · ${u.deletedIdentity.email ?? ''}`}>was: {u.deletedIdentity.name}{u.deletedIdentity.email ? ` · ${u.deletedIdentity.email}` : ''}</div>
                       )}
@@ -886,6 +889,7 @@ function AdminUsersPageInner() {
                       <div className="text-xs text-zinc-500 flex items-center gap-2 flex-wrap">
                         <span>Joined {new Date(u.joinedAt).toLocaleDateString('en-GB')}</span>
                         {u.lastActive && <span className="text-zinc-600">· Active {new Date(u.lastActive).toLocaleDateString('en-GB')}</span>}
+                        {u.phone && <span className="text-zinc-600">· 📱 {u.phone}</span>}
                         {u.warningCount > 0 && <span className="text-orange-400 font-semibold">⚠ {u.warningCount}</span>}
                         {u.noShowCount >= 3 && <span className="text-red-400 font-semibold" title="Registered but didn't show up 3+ times">✗ {u.noShowCount} no-shows</span>}
                         {isDeletedAccount(u) && u.deletedIdentity?.name && <span className="text-amber-400/80 font-medium" title={`Admin-only safety record · ${u.deletedIdentity.email ?? ''}`}>· was {u.deletedIdentity.name}</span>}
