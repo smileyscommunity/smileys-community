@@ -187,6 +187,22 @@ export default async function VisitingPage() {
       .slice(0, 4)
   }) : []
 
+  // §32 of the Clubs brief — the viewer's clubs' events during their
+  // visit. Members with dates only; silent when empty.
+  const clubEventsDuringVisit = (session && viewerVisit) ? await prisma.event.findMany({
+    where: {
+      status: 'published',
+      date:   { gte: viewerVisit.startsOn, lte: viewerVisit.endsOn },
+      club:   { memberships: { some: { userId: session.id, status: 'approved' } } },
+    },
+    orderBy: { date: 'asc' },
+    take: 3,
+    select: {
+      id: true, title: true, emoji: true, date: true,
+      club: { select: { name: true, emoji: true, slug: true } },
+    },
+  }) : []
+
   // Their neighborhood leads when known, then the busiest ones fill the row.
   const memberCountFor = (n: string) =>
     neighborhoodCounts.find(c => c.neighborhood === n)?._count._all ?? 0
@@ -477,6 +493,28 @@ export default async function VisitingPage() {
                   </Link>
                 ))}
               </div>
+
+              {/* §32 (Clubs) — your clubs while you're here. */}
+              {clubEventsDuringVisit.length > 0 && (
+                <div className="mt-8">
+                  <h3 className="text-sm font-extrabold text-gray-600 uppercase tracking-widest mb-3">Your clubs while you&apos;re here</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {clubEventsDuringVisit.map(ev => (
+                      <Link key={ev.id} href={`/events/${ev.id}`}
+                        className="flex items-start gap-3 bg-white rounded-xl border border-gray-100 px-4 py-3 shadow-sm hover:border-amber-300 transition-colors">
+                        <span aria-hidden="true" className="text-xl shrink-0">{ev.emoji}</span>
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-gray-900 truncate">{ev.title}</p>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            {new Date(ev.date + 'T12:00:00+03:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
+                            {ev.club && <> · {ev.club.emoji} {ev.club.name}</>}
+                          </p>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </section>
         )

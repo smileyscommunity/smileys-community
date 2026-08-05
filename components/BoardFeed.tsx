@@ -103,6 +103,18 @@ function VisitorsModule({ visitors }: { visitors: Visitor[] }) {
 function Composer({ onPosted, prefillNeighborhood }: { onPosted: () => void; prefillNeighborhood?: string | null }) {
   const { user, isLoggedIn } = useAuth()
   const [open,         setOpen]         = useState(false)
+  // "Post to a club" (Clubs brief §30) — joined clubs, fetched lazily on
+  // first open; the post stays canonical here and also surfaces in the club.
+  const [myClubs,  setMyClubs]  = useState<{ id: string; slug: string; name: string; emoji: string }[]>([])
+  const [postClub, setPostClub] = useState('')
+  useEffect(() => {
+    if (!open || !isLoggedIn || myClubs.length > 0) return
+    fetch('/app/api/clubs/mine', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : { clubs: [] })
+      .then(d => setMyClubs(d.clubs ?? []))
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, isLoggedIn])
   const [type,         setType]         = useState<BoardPostType>('question')
   const [title,        setTitle]        = useState('')
   const [body,         setBody]         = useState('')
@@ -148,12 +160,13 @@ function Composer({ onPosted, prefillNeighborhood }: { onPosted: () => void; pre
           type, title, body,
           tag: tag || undefined,
           neighborhood: neighborhood || undefined,
+          club: postClub || undefined,
         }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) { toast.error(data.error ?? 'Could not post'); return }
       toast.success('Posted!')
-      setTitle(''); setBody(''); setTag(''); setOpen(false)
+      setTitle(''); setBody(''); setTag(''); setPostClub(''); setOpen(false)
       onPosted()
     } finally {
       setPosting(false)
@@ -218,6 +231,13 @@ function Composer({ onPosted, prefillNeighborhood }: { onPosted: () => void; pre
               <option value="">📍 Neighborhood (optional)</option>
               {ISTANBUL_NEIGHBORHOODS.map(n => <option key={n} value={n}>{n}</option>)}
             </select>
+            {myClubs.length > 0 && (
+              <select value={postClub} onChange={e => setPostClub(e.target.value)}
+                className="border border-gray-200 rounded-xl px-3 py-2 text-xs bg-white focus:outline-none">
+                <option value="">🏛️ Post to a club (optional)</option>
+                {myClubs.map(c => <option key={c.id} value={c.slug}>{c.emoji} {c.name}</option>)}
+              </select>
+            )}
             <div className="ml-auto flex gap-2">
               <button onClick={() => setOpen(false)}
                 className="px-4 py-2 text-xs font-bold text-gray-500 hover:text-gray-700 transition-colors">

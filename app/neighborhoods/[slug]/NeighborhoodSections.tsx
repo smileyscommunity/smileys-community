@@ -189,6 +189,30 @@ export default async function NeighborhoodSections({
     }),
   ])
 
+  // Clubs active around this neighborhood (Clubs brief §27) — clubs whose
+  // events (past 30 days or upcoming) happen here. Interest communities
+  // stay singular; only their local activity earns them a slot. Silent
+  // unless there is meaningful signal.
+  const clubActivity = await prisma.event.groupBy({
+    by: ['clubId'],
+    where: {
+      neighborhood: name,
+      clubId: { not: null },
+      date: { gte: new Date(Date.now() - 30 * 86_400_000).toISOString().split('T')[0] },
+    },
+    _count: { _all: true },
+    orderBy: { _count: { clubId: 'desc' } },
+    take: 3,
+  })
+  const clubsActiveHere = clubActivity.length > 0 ? await prisma.club.findMany({
+    where:  { id: { in: clubActivity.map(c => c.clubId as string) }, isActive: true },
+    select: { id: true, slug: true, name: true, emoji: true, memberCount: true },
+  }).then(clubs => clubs.map(c => ({
+    ...c,
+    localEvents: clubActivity.find(a => a.clubId === c.id)?._count._all ?? 0,
+  }))) : []
+
+
   const hosts = hostCounts.length > 0
     ? await prisma.user.findMany({
         where:  { id: { in: hostCounts.map(h => h.hostId) }, status: 'approved' },
@@ -322,6 +346,33 @@ export default async function NeighborhoodSections({
                 </Link>
               )
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Clubs active around this neighborhood (Clubs brief §27) — links to
+          the singular interest clubs whose activity happens here. */}
+      {clubsActiveHere.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">Clubs active around {name}</h2>
+            <Link href="/clubs" className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
+              All clubs →
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {clubsActiveHere.map(c => (
+              <Link key={c.id} href={`/clubs/${c.slug}`}
+                className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hover:shadow-md hover:-translate-y-0.5 transition-all group">
+                <div className="flex items-center gap-2.5">
+                  <span aria-hidden="true" className="text-2xl shrink-0">{c.emoji}</span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-gray-900 truncate group-hover:text-amber-700 transition-colors">{c.name}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{c.localEvents} event{c.localEvents !== 1 ? 's' : ''} here recently · {c.memberCount} members</p>
+                  </div>
+                </div>
+              </Link>
+            ))}
           </div>
         </div>
       )}

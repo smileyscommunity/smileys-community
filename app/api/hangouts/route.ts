@@ -124,7 +124,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Too many hangouts this hour. Take a breath.' }, { status: 429 })
     }
 
-    const { title, description, location, neighborhood, startsAt, endsAt, meetMode, photo, activity, maxPeople } = await req.json()
+    const body = await req.json()
+    const { title, description, location, neighborhood, startsAt, endsAt, meetMode, photo, activity, maxPeople } = body
 
     if (!title?.trim() || !location?.trim() || !startsAt || !endsAt) {
       return NextResponse.json({ error: 'Title, location, and times are required' }, { status: 400 })
@@ -176,9 +177,24 @@ export async function POST(req: NextRequest) {
     const PHOTO_URL_RE = /^\/app\/api\/files\/[a-zA-Z0-9\-]+\/[a-zA-Z0-9\-]+\.(jpg|jpeg|png|webp|gif)$/
     const safePhoto = typeof photo === 'string' && PHOTO_URL_RE.test(photo) ? photo : null
 
+    // Optional club share (Clubs brief §29) — one canonical Hangout,
+    // additionally surfaced in the club. Requires approved membership.
+    let safeClubId: string | null = null
+    if (typeof body.club === 'string' && body.club) {
+      const club = await prisma.club.findUnique({ where: { slug: body.club }, select: { id: true, isActive: true } })
+      if (club?.isActive) {
+        const member = await prisma.clubMembership.findUnique({
+          where: { userId_clubId: { userId: session.id, clubId: club.id } },
+          select: { status: true },
+        })
+        if (member?.status === 'approved') safeClubId = club.id
+      }
+    }
+
     const created = await prisma.hangout.create({
       data: {
         userId:       session.id,
+        clubId:       safeClubId,
         title:        title.trim().slice(0, 120),
         description:  typeof description === 'string' ? description.trim().slice(0, 500) || null : null,
         location:     location.trim().slice(0, 200),

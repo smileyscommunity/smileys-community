@@ -167,6 +167,13 @@ export default function HangoutsPage() {
   const [recapCount,     setRecapCount]     = useState(0)
   const [loading,        setLoading]        = useState(true)
   const [showForm, setShowForm] = useState(false)
+  useEffect(() => {
+    if (!showForm) return
+    fetch('/app/api/clubs/mine', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : { clubs: [] })
+      .then(d => setMyClubs(d.clubs ?? []))
+      .catch(() => {})
+  }, [showForm])
   const [showPulseForm, setShowPulseForm] = useState(false)
   // Ground rules: full box on the very first visit (norms matter in a
   // strangers-meet-strangers feature), a one-line collapsed bar after —
@@ -215,6 +222,10 @@ export default function HangoutsPage() {
   const [title,        setTitle]        = useState('')
   const [location,     setLocation]     = useState('')
   const [neighborhood, setNeighborhood] = useState('')
+  // "Share with a club" (Clubs brief §29) — the member's joined clubs,
+  // fetched lazily the first time the form opens.
+  const [myClubs,   setMyClubs]   = useState<{ id: string; slug: string; name: string; emoji: string }[]>([])
+  const [shareClub, setShareClub] = useState('')
   const [description,  setDescription]  = useState('')
   const [startsAt,     setStartsAt]     = useState(defaultStartsAt())
   const [endsAt,       setEndsAt]       = useState(defaultEndsAt())
@@ -321,6 +332,7 @@ export default function HangoutsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title, location, neighborhood: neighborhood || undefined,
+          club: shareClub || undefined,
           description: description || undefined,
           startsAt: istanbulInputToISO(startsAt),
           endsAt:   istanbulInputToISO(endsAt),
@@ -336,7 +348,7 @@ export default function HangoutsPage() {
       toast.success('Hangout posted — neighbors are getting pinged')
       await loadFeed()
       setShowForm(false)
-      setTitle(''); setLocation(''); setNeighborhood(''); setDescription(''); setActivity(''); setMaxPeople(0)
+      setTitle(''); setLocation(''); setNeighborhood(''); setDescription(''); setActivity(''); setMaxPeople(0); setShareClub('')
       setStartsAt(defaultStartsAt()); setEndsAt(defaultEndsAt()); setMeetMode('group')
       setPhoto(null)
     } catch {
@@ -617,6 +629,17 @@ export default function HangoutsPage() {
                 {ISTANBUL_NEIGHBORHOODS.map(n => <option key={n} value={n}>{n}</option>)}
               </select>
             </label>
+            {myClubs.length > 0 && (
+              <label className="block">
+                <span className="block text-sm font-semibold text-gray-700 mb-1.5">
+                  Share with a club <span className="text-gray-400 font-normal">(optional — also shows on the club page)</span>
+                </span>
+                <select value={shareClub} onChange={e => setShareClub(e.target.value)} className="input bg-white">
+                  <option value="">— Just the hangouts feed —</option>
+                  {myClubs.map(c => <option key={c.id} value={c.slug}>{c.emoji} {c.name}</option>)}
+                </select>
+              </label>
+            )}
             {/* Intent — 'group' is the default (broadest reach). 'solo' is
                 the "looking for one person" signal that joiners use to
                 self-select before they tap Going. */}
