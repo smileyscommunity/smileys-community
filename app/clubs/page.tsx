@@ -4,7 +4,9 @@ import Link from 'next/link'
 import { useState, useEffect, useMemo, Suspense } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { toast } from 'sonner'
-import { resolveImageUrl } from '@/lib/data'
+import { resolveImageUrl, avatarUrl } from '@/lib/data'
+import { CLUB_FILTER_GROUPS, HEALTH_RANK, type ClubHealthLabel } from '@/lib/clubDiscovery'
+import AvatarImg from '@/components/AvatarImg'
 import { useAuth } from '@/contexts/AuthContext'
 import ClubCardSkeleton from '@/components/ClubCardSkeleton'
 import AdBannerStrip from '@/components/AdBannerStrip'
@@ -21,6 +23,12 @@ interface Club {
   memberCount: number
   isPrivate: boolean
   coverImage?: string | null
+  // Discovery enrichment (phase 3) — computed server-side, cached 120s.
+  health?: ClubHealthLabel
+  upcomingCount?: number
+  activityThisWeek?: number
+  faces?: { name: string; color: string; profilePhoto: string | null }[]
+  nextEvent?: { title: string; date: string } | null
 }
 
 interface Membership {
@@ -108,10 +116,28 @@ function ClubCard({ club, membership, toggling, onToggle }: {
           <p className="text-xs text-gray-600 line-clamp-2 mt-1 leading-relaxed">{club.description}</p>
         </div>
 
+        {/* Discovery signals (brief §10): faces + honest activity state.
+            Upcoming activity beats a "quiet lately" note; neither fakes
+            anything. */}
+        {(club.upcomingCount ?? 0) > 0 ? (
+          <p className="text-[11px] font-semibold text-green-700"><span aria-hidden="true">📅</span> {club.upcomingCount} upcoming event{club.upcomingCount !== 1 ? 's' : ''}</p>
+        ) : club.health === 'quiet' ? (
+          <p className="text-[11px] text-gray-400">Quiet lately — be the spark</p>
+        ) : null}
 
         {/* Footer */}
         <div className="flex items-center justify-between mt-auto pt-2 border-t border-gray-50">
-          <span className="text-xs text-gray-400">{club.memberCount} member{club.memberCount !== 1 ? 's' : ''}</span>
+          <span className="flex items-center gap-1.5 text-xs text-gray-400">
+            {(club.faces?.length ?? 0) > 0 && (
+              <span className="flex -space-x-1.5">
+                {club.faces!.slice(0, 3).map((f, i) => (
+                  <AvatarImg key={i} src={avatarUrl(f.profilePhoto, 64)} name={f.name} color={f.color}
+                    size="w-5 h-5" textSize="text-[9px]" className="ring-2 ring-white rounded-full" />
+                ))}
+              </span>
+            )}
+            {club.memberCount} member{club.memberCount !== 1 ? 's' : ''}
+          </span>
           <div className="flex items-center gap-2">
             {/* Leave is now shown on every tab (was previously gated by a
                 tab-specific showLeave prop). A member who lands on a club
@@ -176,11 +202,12 @@ function AppClubsPageInner() {
     searchParams.get('tab') === 'mine' ? 'mine' : 'explore'
   )
   const [activeCategory, setActiveCategory] = useState<string>(() => searchParams.get('category') ?? 'All')
+  const [search,         setSearch]         = useState('')
   // CMS overrides land in this state on mount via /api/content. The
   // default headline used to be 'Clubs' — accurate but file-cabinet
   // bland. 'Find your community' reads as an invitation while leaving
   // the badge + subtitle communicating the actual content.
-  const [hero, setHero] = useState({ badge: 'Community', headline: 'Clubs', subtitle: 'Discover communities and manage your memberships.' })
+  const [hero, setHero] = useState({ badge: 'Smileys Clubs', headline: 'Find your people.', subtitle: "Whatever you're into, there's probably someone in Istanbul who's into it too." })
 
   // Mirror filter state to the URL. Defaults omitted from the
   // querystring so a "clean" URL means "all defaults".
@@ -260,10 +287,13 @@ function AppClubsPageInner() {
     }
   }
 
-  const categories = useMemo(() => {
-    const cats = [...new Set(clubs.map(c => c.category).filter(Boolean))].sort()
-    return ['All', ...cats]
+  // Browse filters are the 9 display-level groups (brief §8), not the 16
+  // raw DB categories. Only groups that actually contain clubs render.
+  const groups = useMemo(() => {
+    const cats = new Set(clubs.map(c => c.category))
+    return CLUB_FILTER_GROUPS.filter(g => g.categories.some(c => cats.has(c)))
   }, [clubs])
+  const groupOf = (club: Club) => CLUB_FILTER_GROUPS.find(g => g.categories.includes(club.category))?.value
 
   // Memoized so they don't re-filter on unrelated rerenders (typing in a
   // search box, hover state, etc). joinedClubs / pendingClubs feed the
@@ -278,14 +308,45 @@ function AppClubsPageInner() {
     [clubs, membershipByClubId]
   )
 
+  const q = search.trim().toLowerCase()
+  const matches = (c: Club) =>
+    (activeCategory === 'All' || groupOf(c) === activeCategory) &&
+    (!q || `${c.name} ${c.description} ${c.category}`.toLowerCase().includes(q))
+
+  // Health-ranked discovery (brief §36): Active first, New second, Quiet
+  // last; ties broken by this-week activity, then size.
   const exploreClubs = useMemo(
-    () => clubs.filter(c => activeCategory === 'All' || c.category === activeCategory),
-    [clubs, activeCategory]
+    () => clubs.filter(matches).sort((a, b) =>
+      (HEALTH_RANK[a.health ?? 'quiet'] - HEALTH_RANK[b.health ?? 'quiet'])
+      || ((b.activityThisWeek ?? 0) - (a.activityThisWeek ?? 0))
+      || (b.memberCount - a.memberCount)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [clubs, activeCategory, q]
   )
 
   const myClubs = useMemo(
-    () => [...joinedClubs, ...pendingClubs].filter(c => activeCategory === 'All' || c.category === activeCategory),
-    [joinedClubs, pendingClubs, activeCategory]
+    () => [...joinedClubs, ...pendingClubs].filter(matches),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [joinedClubs, pendingClubs, activeCategory, q]
+  )
+
+  // "Active this week" strip (brief §11) — real activity only, never
+  // membership size. Silent when nothing qualifies.
+  const activeThisWeek = useMemo(
+    () => clubs.filter(c => (c.activityThisWeek ?? 0) > 0)
+      .sort((a, b) => (b.activityThisWeek ?? 0) - (a.activityThisWeek ?? 0))
+      .slice(0, 4),
+    [clubs]
+  )
+
+  // "Coming up in your clubs" (brief §43) — next events across the
+  // viewer's joined clubs, soonest first.
+  const comingUp = useMemo(
+    () => joinedClubs
+      .filter(c => c.nextEvent)
+      .sort((a, b) => (a.nextEvent!.date).localeCompare(b.nextEvent!.date))
+      .slice(0, 3),
+    [joinedClubs]
   )
 
   const displayClubs = tab === 'mine' ? myClubs : exploreClubs
@@ -349,17 +410,32 @@ function AppClubsPageInner() {
             ))}
           </div>
 
-          {/* Category filter pills */}
-          {!loading && categories.length > 2 && (
-            <div className="flex flex-wrap gap-2 pb-1">
-              {categories.map(cat => (
-                <button key={cat} onClick={() => setActiveCategory(cat)}
-                  className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold border whitespace-nowrap transition-all ${
-                    activeCategory === cat
+          {/* Search (brief §7) */}
+          <div className="relative mb-3 max-w-md">
+            <svg aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Search interests, activities or clubs…"
+              className="w-full pl-9 pr-8 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition" />
+            {search && (
+              <button onClick={() => setSearch('')} aria-label="Clear search"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-lg leading-none"><span aria-hidden="true">×</span></button>
+            )}
+          </div>
+
+          {/* Interest-group pills (brief §8) — 9 display groups, not the
+              16 raw categories. */}
+          {!loading && groups.length > 1 && (
+            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+              {[{ value: 'All', label: 'All', emoji: '🗂️' }, ...groups].map(g => (
+                <button key={g.value} onClick={() => setActiveCategory(g.value)}
+                  className={`shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold border whitespace-nowrap transition-all ${
+                    activeCategory === g.value
                       ? 'bg-amber-500 text-white border-amber-500'
                       : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
                   }`}>
-                  {cat}
+                  <span aria-hidden="true">{g.emoji}</span> {g.label}
                 </button>
               ))}
             </div>
@@ -368,6 +444,90 @@ function AppClubsPageInner() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Your Clubs (brief §5) — members with clubs never rediscover
+            them; the row leads the page on the explore tab. */}
+        {!loading && tab === 'explore' && joinedClubs.length > 0 && (
+          <div className="mb-8">
+            <h2 className="text-xl font-extrabold tracking-tight text-gray-900 mb-3">Your clubs</h2>
+            <div className="flex gap-3 overflow-x-auto pb-2 -mx-2 px-2">
+              {joinedClubs.map(c => (
+                <Link key={c.id} href={`/clubs/${c.slug}`}
+                  className="shrink-0 w-60 bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:border-amber-200 hover:shadow-md transition-all group">
+                  <div className="flex items-center gap-2.5 mb-2">
+                    <span aria-hidden="true" className="text-2xl shrink-0">{c.emoji}</span>
+                    <p className="font-bold text-gray-900 leading-snug truncate group-hover:text-amber-700 transition-colors">{c.name}</p>
+                  </div>
+                  {c.nextEvent ? (
+                    <p className="text-xs text-gray-600">
+                      <span className="font-semibold text-amber-700">Next:</span> {c.nextEvent.title.slice(0, 40)}
+                      <span className="block text-gray-400 mt-0.5">{new Date(c.nextEvent.date + 'T12:00:00+03:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
+                    </p>
+                  ) : (
+                    <p className="text-xs text-gray-400">Nothing planned yet</p>
+                  )}
+                  <span className="inline-block text-xs font-bold text-amber-600 mt-2">Open club →</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Coming up in your clubs (brief §43). */}
+        {!loading && tab === 'explore' && comingUp.length > 0 && (
+          <div className="mb-8 bg-amber-50 border border-amber-100 rounded-2xl p-5">
+            <h2 className="text-sm font-extrabold text-amber-800 uppercase tracking-widest mb-3">Coming up in your clubs</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {comingUp.map(c => (
+                <Link key={c.id} href={`/clubs/${c.slug}`} className="flex items-start gap-3 bg-white rounded-xl border border-amber-100 px-4 py-3 hover:border-amber-300 transition-colors">
+                  <span aria-hidden="true" className="text-xl shrink-0">{c.emoji}</span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-gray-900 truncate">{c.nextEvent!.title}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {new Date(c.nextEvent!.date + 'T12:00:00+03:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })} · {c.name}
+                    </p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* What are you into? (brief §6) — members without clubs get
+            interest chips instead of a wall of cards. */}
+        {!loading && isLoggedIn && joinedClubs.length === 0 && pendingClubs.length === 0 && tab === 'explore' && activeCategory === 'All' && !q && (
+          <div className="mb-8 bg-amber-50 border border-amber-100 rounded-2xl p-6">
+            <h2 className="text-xl font-extrabold tracking-tight text-gray-900">What are you into?</h2>
+            <p className="text-sm text-gray-600 mt-1 mb-4">Pick an interest and we&apos;ll show you where your people are.</p>
+            <div className="flex flex-wrap gap-2">
+              {groups.map(g => (
+                <button key={g.value} onClick={() => setActiveCategory(g.value)}
+                  className="flex items-center gap-1.5 px-4 py-2.5 bg-white border border-amber-200 rounded-2xl text-sm font-bold text-gray-800 hover:border-amber-400 hover:-translate-y-0.5 transition-all">
+                  <span aria-hidden="true">{g.emoji}</span> {g.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Active this week (brief §11) — real activity, not size. */}
+        {!loading && tab === 'explore' && activeCategory === 'All' && !q && activeThisWeek.length > 0 && (
+          <div className="mb-8">
+            <h2 className="text-sm font-extrabold text-gray-600 uppercase tracking-widest mb-3"><span aria-hidden="true">🔥</span> Active this week</h2>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {activeThisWeek.map(c => (
+                <Link key={c.id} href={`/clubs/${c.slug}`}
+                  className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:border-amber-200 hover:shadow-md transition-all group">
+                  <div className="flex items-center gap-2">
+                    <span aria-hidden="true" className="text-xl shrink-0">{c.emoji}</span>
+                    <p className="text-sm font-bold text-gray-900 truncate group-hover:text-amber-700 transition-colors">{c.name}</p>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1.5">{c.activityThisWeek} activit{(c.activityThisWeek ?? 0) !== 1 ? 'ies' : 'y'} this week</p>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {Array.from({ length: 8 }).map((_, i) => <ClubCardSkeleton key={i} />)}

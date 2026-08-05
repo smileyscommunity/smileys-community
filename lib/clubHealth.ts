@@ -74,18 +74,7 @@ export async function classifyClubs(clubIds: string[], now = new Date()): Promis
   }, now)]))
 }
 
-// Discovery filter groups (brief §8) — a display-level consolidation of
-// the 16 stored categories into 9 browseable filters. Club.category in
-// the DB is untouched; renames happen here only. 'Exclusive' is a badge,
-// not a browse group.
-export const CLUB_FILTER_GROUPS: { value: string; label: string; categories: string[] }[] = [
-  { value: 'social',       label: 'Social',            categories: ['Social', 'Nightlife'] },
-  { value: 'outdoors',     label: 'Sports & Outdoors', categories: ['Sports', 'Outdoor'] },
-  { value: 'food',         label: 'Food & Drink',      categories: ['Food & Drinks'] },
-  { value: 'languages',    label: 'Languages',         categories: ['Language'] },
-  { value: 'arts',         label: 'Arts & Culture',    categories: ['Creative', 'Culture'] },
-  { value: 'professional', label: 'Professional',      categories: ['Networking', 'Business', 'Professional', 'Technology'] },
-  { value: 'wellness',     label: 'Wellness',          categories: ['Wellness'] },
-  { value: 'travel',       label: 'Travel',            categories: ['Travel'] },
-  { value: 'volunteering', label: 'Volunteering',      categories: ['Volunteering'] },
-]
+// Discovery filter groups moved to lib/clubDiscovery (client-safe — no
+// prisma import); re-exported here so server callers and tests keep one
+// import site.
+export { CLUB_FILTER_GROUPS } from './clubDiscovery'

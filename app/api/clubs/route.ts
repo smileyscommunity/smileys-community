@@ -1,7 +1,83 @@
 import { NextResponse } from 'next/server'
+import { unstable_cache } from 'next/cache'
+import { prisma } from '@/lib/prisma'
 import { getClubs } from '@/lib/db'
+import { classifyClubs } from '@/lib/clubHealth'
+
+// Discovery payload (Clubs brief phase 3): the base club list enriched
+// with computed health, this-week activity, upcoming-event counts and a
+// few member faces per club. Viewer-independent by design — membership
+// state comes from /api/clubs/memberships — so the whole payload caches
+// as one shared entry.
+const getDiscoveryClubs = unstable_cache(
+  async (today: string, weekOut: string) => {
+    const clubs = await getClubs()
+    const ids = clubs.map(c => c.id)
+    const weekCutoff = new Date(Date.now() - 7 * 86_400_000)
+
+    const [health, upcoming, weekEvents, weekPosts, weekHangs, faces] = await Promise.all([
+      classifyClubs(ids),
+      prisma.event.groupBy({
+        by: ['clubId'],
+        where: { clubId: { in: ids }, status: 'published', date: { gte: today } },
+        _count: { _all: true },
+      }),
+      prisma.event.groupBy({
+        by: ['clubId'],
+        where: { clubId: { in: ids }, status: 'published', date: { gte: today, lte: weekOut } },
+        _count: { _all: true },
+      }),
+      prisma.boardPost.groupBy({
+        by: ['clubId'],
+        where: { clubId: { in: ids }, status: 'active', createdAt: { gte: weekCutoff } },
+        _count: { _all: true },
+      }),
+      prisma.hangout.groupBy({
+        by: ['clubId'],
+        where: { clubId: { in: ids }, createdAt: { gte: weekCutoff } },
+        _count: { _all: true },
+      }),
+      // Four newest member faces per club in one window query — a
+      // per-club take isn't expressible in the Prisma query API.
+      prisma.$queryRaw<{ clubId: string; name: string; color: string; profilePhoto: string | null }[]>`
+        SELECT x."clubId", u.name, u.color, u."profilePhoto"
+        FROM (
+          SELECT cm."clubId", cm."userId",
+                 ROW_NUMBER() OVER (PARTITION BY cm."clubId" ORDER BY cm."joinedAt" DESC) AS rn
+          FROM club_memberships cm
+          WHERE cm.status = 'approved'
+        ) x
+        JOIN users u ON u.id = x."userId"
+        WHERE x.rn <= 4
+      `,
+    ])
+
+    const count = (rows: { clubId: string | null; _count: { _all: number } }[]) =>
+      new Map(rows.filter(r => r.clubId).map(r => [r.clubId as string, r._count._all]))
+    const up = count(upcoming), we = count(weekEvents), wp = count(weekPosts), wh = count(weekHangs)
+
+    const facesByClub = new Map<string, { name: string; color: string; profilePhoto: string | null }[]>()
+    for (const f of faces) {
+      const list = facesByClub.get(f.clubId) ?? []
+      list.push({ name: f.name, color: f.color, profilePhoto: f.profilePhoto })
+      facesByClub.set(f.clubId, list)
+    }
+
+    return clubs.map(c => ({
+      ...c,
+      health:           health.get(c.id) ?? 'quiet',
+      upcomingCount:    up.get(c.id) ?? 0,
+      activityThisWeek: (we.get(c.id) ?? 0) + (wp.get(c.id) ?? 0) + (wh.get(c.id) ?? 0),
+      faces:            facesByClub.get(c.id) ?? [],
+    }))
+  },
+  ['clubs-discovery'],
+  { revalidate: 120, tags: ['clubs'] },
+)
 
 export async function GET() {
-  const clubs = await getClubs()
+  const today = new Date().toISOString().split('T')[0]
+  const weekOut = new Date(Date.now() + 7 * 86_400_000).toISOString().split('T')[0]
+  const clubs = await getDiscoveryClubs(today, weekOut)
   return NextResponse.json(clubs)
 }
