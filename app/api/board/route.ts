@@ -37,6 +37,9 @@ export async function GET(req: NextRequest) {
   }
 
   const clubSlug = searchParams.get('club') || undefined
+  // §31 — an event's conversation is canonical Board content scoped by
+  // eventId; there is no separate event forum.
+  const eventId = searchParams.get('event') || undefined
 
   // Private-club scoping: the club feed of a private club is member-only.
   // (The general feed already excludes private-club posts entirely.)
@@ -73,6 +76,7 @@ export async function GET(req: NextRequest) {
         clubSlug
           ? { club: { slug: clubSlug } }
           : { OR: [{ clubId: null }, { club: { isPrivate: false } }] },
+        ...(eventId ? [{ eventId }] : []),
       ],
       ...(type && TYPE_VALUES.has(type as never) ? { type } : {}),
       ...(neighborhood ? { neighborhood } : {}),
@@ -163,8 +167,16 @@ export async function POST(req: NextRequest) {
     clubId = club.id
   }
 
+  // Optional event tie (§31) — the post stays canonical on the Board and
+  // also surfaces on the event page. Validated so a bad id can't orphan.
+  let eventTie: string | null = null
+  if (typeof body.event === 'string' && body.event) {
+    const ev = await prisma.event.findUnique({ where: { id: body.event }, select: { id: true, status: true } })
+    if (ev && ev.status === 'published') eventTie = ev.id
+  }
+
   const created = await prisma.boardPost.create({
-    data: { userId: session.id, type, title, body: text, neighborhood, tag, clubId },
+    data: { userId: session.id, type, title, body: text, neighborhood, tag, clubId, eventId: eventTie },
     select: { id: true },
   })
 

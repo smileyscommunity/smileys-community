@@ -8,6 +8,8 @@ import { formatDate, formatTime, formatPrice, vibeConfig, resolveImageUrl, avata
 import { countryFlag } from '@/lib/countries'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { loadViewerFacts, sharedContextFor } from '@/lib/sharedContext'
+import EventConnections from './EventConnections'
 import { restrictedSetFor } from '@/lib/memberPrivacy'
 import { SITE_URL, APP_URL } from '@/lib/env'
 import RSVPButton from '@/components/RSVPButton'
@@ -407,6 +409,25 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
   // club's event. The club page gates this link behind membership; showing it
   // to every member here would bypass private clubs' join approval.
   const isClubMember     = myClubMembership?.status === 'approved'
+  // §26 — "you'll know some people": which attendees share a club,
+  // neighborhood or connection with the viewer. The brief calls this the
+  // anxiety-reducer, and it's the single strongest reason someone
+  // hesitating on an RSVP decides to come. Reuses the Members
+  // shared-context engine; never invents a relationship.
+  const attendeeContext = session
+    ? await (async () => {
+        const others = attendees.map(a => a.user.id).filter(uid => uid !== session.id)
+        if (others.length === 0) return []
+        const viewer = await loadViewerFacts(session.id)
+        const map = await sharedContextFor(viewer, others)
+        return attendees
+          .filter(a => a.user.id !== session.id)
+          .map(a => ({ user: a.user, ctx: map.get(a.user.id) }))
+          .filter(x => x.ctx && x.ctx.weight > 0)
+          .sort((a, b) => (b.ctx!.weight - a.ctx!.weight))
+      })()
+    : []
+
   const isApprovedHere   = isAdmin || isHost || myAttendance?.status === 'approved'
   const clubWhatsappUrl  = !event.whatsappUrl && club?.whatsappUrl &&
     (isClubMember || (!club.isPrivate && isApprovedHere))
@@ -807,6 +828,44 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
           </div>
 
           <hr className="border-gray-100" />
+
+          {/* §26 — shared context with the people already going. Shown to
+              everyone signed in, including members who haven't RSVP'd:
+              this is precisely the information that turns "maybe" into
+              "I'm in". Only reveals overlap with what the viewer already
+              knows about themselves. */}
+          {attendeeContext.length > 0 && (
+            <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4">
+              <p className="text-sm font-extrabold text-amber-900 mb-2">
+                You&apos;ll know some people 👋
+              </p>
+              <ul className="space-y-1.5">
+                {attendeeContext.slice(0, 3).map(({ user, ctx }) => {
+                  const bits: string[] = []
+                  if (ctx!.clubs.length > 0) bits.push(ctx!.clubs.map(c => c.name).slice(0, 2).join(', '))
+                  if (ctx!.neighborhood) bits.push(`also around ${ctx!.neighborhood}`)
+                  if (bits.length === 0 && ctx!.interests.length > 0) bits.push(`also into ${ctx!.interests[0]}`)
+                  return (
+                    <li key={user.id} className="text-sm text-gray-800">
+                      <Link href={`/members/${user.id}`} className="font-bold text-amber-800 hover:underline">
+                        {user.name.split(' ')[0]}
+                      </Link>
+                      {bits.length > 0 && <span className="text-gray-600"> — {bits.join(' · ')}</span>}
+                    </li>
+                  )
+                })}
+              </ul>
+              {attendeeContext.length > 3 && (
+                <p className="text-xs text-amber-700 font-semibold mt-2">
+                  +{attendeeContext.length - 3} more you have something in common with
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* §30/§31 — plans and conversation around this event, both
+              canonical records elsewhere. Silent when there are none. */}
+          <EventConnections eventId={id} />
 
           {/* Attendees — full list only for attendees/host/admin; count only for others */}
           {totalAttendeeCount > 0 && (

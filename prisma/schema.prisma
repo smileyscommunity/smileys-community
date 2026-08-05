@@ -446,6 +446,8 @@ model Event {
   surveyDispatchedAt   DateTime?
   surveyReminderAt     DateTime?
   attendees            EventAttendee[]
+  hangouts             Hangout[]       @relation("EventHangouts")
+  boardPosts           BoardPost[]     @relation("EventBoardPosts")
   cohosts              EventCoHost[]
   messages             EventMessage[]
   photos               EventPhoto[]
@@ -1475,6 +1477,11 @@ model Hangout {
   // record, surfaced additionally in the club when set.
   clubId    String?
   club      Club?    @relation("ClubHangouts", fields: [clubId], references: [id])
+  // Optional event tie (Events brief §30) — "coffee before Smileys
+  // Wednesday", "drinks after". Still one canonical Hangout record; the
+  // event page merely surfaces it.
+  eventId   String?
+  event     Event?   @relation("EventHangouts", fields: [eventId], references: [id])
   user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([status, endsAt])
@@ -1825,6 +1832,9 @@ model BoardPost {
   // Posts tagged to a PRIVATE club are excluded from the public feed
   // and render only inside the club.
   clubId       String?
+  // Optional event association (Events brief §31): the event's
+  // conversation is canonical Board content — no separate event forum.
+  eventId      String?
   title        String
   body         String          @default("")
   neighborhood String?
@@ -1839,6 +1849,7 @@ model BoardPost {
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
   club         Club?           @relation("ClubBoardPosts", fields: [clubId], references: [id])
+  event        Event?          @relation("EventBoardPosts", fields: [eventId], references: [id])
   user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   replies      BoardReply[]
   interests    BoardInterest[]
@@ -1849,6 +1860,7 @@ model BoardPost {
   @@index([type, status])
   @@index([userId])
   @@index([clubId, createdAt(sort: Desc)])
+  @@index([eventId, createdAt(sort: Desc)])
   @@map("board_posts")
 }
 
