@@ -11,11 +11,15 @@ import { vibeConfig, todayIstanbul } from '@/lib/data'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePullToRefresh } from '@/hooks/usePullToRefresh'
 import InviteBanner from '@/components/InviteBanner'
+import EventDiscovery from './EventDiscovery'
 
 const EventMap = dynamic(() => import('@/components/EventMap'), { ssr: false })
 
-type TimeFilter = 'All' | 'Today' | 'This week' | 'This weekend'
-const TIME_FILTERS: TimeFilter[] = ['All', 'Today', 'This week', 'This weekend']
+type TimeFilter = 'All' | 'Today' | 'Tomorrow' | 'This week' | 'This weekend'
+// §5 — time is the primary discovery model, so the chips lead with the
+// nearest horizons. 'All' moves to the end: browsing everything is the
+// fallback, not the default intent.
+const TIME_FILTERS: TimeFilter[] = ['Today', 'Tomorrow', 'This week', 'This weekend', 'All']
 
 interface TagItem  { id: string; name: string; emoji: string }
 interface TagGroup { id: string; name: string; emoji: string; tags: TagItem[] }
@@ -207,6 +211,11 @@ function AppEventsPageInner() {
     if (timeFilter === 'Today') {
       const todayStr = todayIstanbul()
       result = result.filter(e => e.date === todayStr)
+    } else if (timeFilter === 'Tomorrow') {
+      // todayIstanbul(offsetDays) keeps this on the Istanbul calendar
+      // day rather than the browser's.
+      const tomorrowStr = todayIstanbul(1)
+      result = result.filter(e => e.date === tomorrowStr)
     } else if (timeFilter === 'This week') {
       const { start, end } = getWeekRange()
       result = result.filter(e => { const d = new Date(e.date); return d >= start && d <= end })
@@ -362,6 +371,27 @@ function AppEventsPageInner() {
               </span>
             )}
           </div>
+
+          {/* §5 — time is the primary discovery model, so the chips sit
+              directly under the header rather than buried in the filter
+              sheet (where they still live for the advanced case).
+              Horizontally scrollable on mobile. */}
+          <div className="flex gap-2 overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-hide" role="group" aria-label="Filter events by time">
+            {TIME_FILTERS.map(f => (
+              <button
+                key={f}
+                onClick={() => setTimeFilter(f)}
+                aria-pressed={timeFilter === f}
+                className={`shrink-0 px-4 py-2 rounded-full text-sm font-bold border whitespace-nowrap transition-all ${
+                  timeFilter === f
+                    ? 'bg-amber-500 text-white border-amber-500 shadow-sm'
+                    : 'bg-white text-gray-600 border-gray-200 hover:border-amber-300 hover:text-amber-600'
+                }`}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -484,6 +514,25 @@ function AppEventsPageInner() {
           )
         })()}
 
+        {/* §55 — personalized rows lead: your next event, coming up, this
+            weekend, from your clubs, near you, try something new. Hidden
+            while a filter or the past tab is active: the member is
+            answering a specific question then, not browsing. */}
+        {tab === 'upcoming' && timeFilter === 'All' && selectedTags.length === 0
+          && !neighborhoodFilter && !goingOnly && !showMap && (
+          <EventDiscovery />
+        )}
+
+        {/* Everything below is the full feed — the layer beneath
+            personalized discovery. */}
+        {tab === 'upcoming' && timeFilter === 'All' && selectedTags.length === 0
+          && !neighborhoodFilter && !goingOnly && !showMap && !loading && (
+          <div className="mb-4 pt-2 border-t border-gray-100">
+            <h2 className="text-lg sm:text-xl font-extrabold tracking-tight text-gray-900 mt-6">All upcoming events</h2>
+            <p className="text-sm text-gray-600 mt-0.5">Everything on the calendar — filter by time, area or vibe above.</p>
+          </div>
+        )}
+
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {Array.from({ length: 8 }).map((_, i) => <EventCardSkeleton key={i} />)}
@@ -492,10 +541,23 @@ function AppEventsPageInner() {
           <div className="text-center py-20 max-w-sm mx-auto">
             <div className="text-6xl mb-4">{neighborhoodFilter && !selectedTags.length && timeFilter === 'All' ? '📍' : '🔍'}</div>
             <h2 className="text-lg font-bold text-gray-900 mb-2">
-              {neighborhoodFilter && !selectedTags.length && timeFilter === 'All'
+              {timeFilter === 'Today' || timeFilter === 'Tomorrow'
+                ? `Nothing scheduled ${timeFilter.toLowerCase()}.`
+                : neighborhoodFilter && !selectedTags.length && timeFilter === 'All'
                 ? `No events in ${neighborhoodFilter} right now`
                 : 'No events match your filters'}
             </h2>
+            {/* §61 — an empty day isn't a dead end: Istanbul isn't
+                standing still, and Hangouts is the spontaneous layer. */}
+            {(timeFilter === 'Today' || timeFilter === 'Tomorrow') && (
+              <div className="mb-5">
+                <p className="text-sm text-gray-600 mb-3">But Istanbul isn&apos;t exactly standing still.</p>
+                <Link href="/hangouts"
+                  className="inline-block px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
+                  See hangouts happening now →
+                </Link>
+              </div>
+            )}
             {neighborhoodFilter && !selectedTags.length && timeFilter === 'All' && (
               <p className="text-sm text-gray-600 mb-4">Check back soon — new events are added regularly.</p>
             )}
