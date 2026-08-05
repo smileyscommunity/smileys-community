@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { loadViewerFacts, sharedContextFor } from '@/lib/sharedContext'
 import { todayIstanbul } from '@/lib/data'
 import { rateLimit, getIp } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
@@ -109,6 +110,28 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   // (first name, flag, photo, join date, hosted events, trust badges) only.
   const fullAccess = session.id === id || connection?.status === 'accepted' || privileged
 
+  // Shared context (Members brief §28) — deliberately NOT behind
+  // fullAccess. Every fact here is an INTERSECTION with something the
+  // viewer already knows about themselves: a club they're in, their own
+  // neighborhood, an event they're attending, an interest they listed.
+  // It reveals no new attribute of the member, and it's the entire
+  // reason a non-connected viewer would have to reach out — gating it
+  // would leave "Connect" with nothing to say. Never computed for the
+  // viewer's own profile.
+  const sharedCtx = session.id === id ? null : await (async () => {
+    const viewer = await loadViewerFacts(session.id)
+    const map = await sharedContextFor(viewer, [id])
+    const c = map.get(id)
+    if (!c) return null
+    return {
+      clubs: c.clubs,
+      neighborhood: c.neighborhood,
+      events: c.events,
+      hangouts: c.hangouts,
+      interests: c.interests,
+    }
+  })()
+
   // Count of approved members this user brought in — drives the
   // "🤝 Brought in N members" trust badge on the profile. Derived
   // (not from the User.referralCount column) so it stays accurate
@@ -178,6 +201,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     // True when the viewer sees the ungated profile (self / connected /
     // admin / moderator / club host) — drives the lock notice client-side.
     viewerHasFullProfile: fullAccess,
+    sharedContext: sharedCtx,
     isConnected:     connection?.status === 'accepted',
     connectionId:    connection?.id ?? null,
     connectionStatus: connection?.status ?? null,

@@ -5,27 +5,27 @@ import { resolveImageUrl } from '@/lib/data'
 
 // See app/about/page.tsx — a page-level `openGraph` block loses the root
 // layout's default og:image, so this shared with no preview at all on
-// WhatsApp/iMessage/Twitter until this was added.
-const ogImage = `${APP_URL}/api/og?${new URLSearchParams({
-  title:   'Clubs in Istanbul',
-  eyebrow: 'Smileys Community',
-  cta:     'Browse clubs',
-}).toString()}`
+// WhatsApp/iMessage/Twitter until this was added. Now the branded clubs
+// card (1200x1200, ~290KB — under WhatsApp's ~300KB silent-drop cap).
+// Square by design: it doubles as the Instagram asset, and the square
+// twitter 'summary' card renders it uncropped where 'summary_large_image'
+// would letterbox it.
+const ogImage = `${APP_URL}/images/clubs-og.jpg`
 
 export const metadata = {
   alternates: { canonical: `${APP_URL}/clubs` },
   title: 'Clubs in Istanbul — Smileys Community',
   description: 'Join interest-based clubs in Istanbul — hiking, photography, French conversation, sailing, book clubs and more. Find your people at Smileys.',
   openGraph: {
-    title: 'Istanbul Social Clubs — Smileys Community',
-    description: 'Over 70 interest-based clubs in Istanbul. Find your community at Smileys.',
+    title: 'Smileys Clubs — Find your people.',
+    description: "Whatever you're into, there's probably someone in Istanbul who's into it too.",
     url: `${APP_URL}/clubs`,
-    images: [{ url: ogImage, width: 1200, height: 630, alt: 'Istanbul Social Clubs — Smileys Community' }],
+    images: [{ url: ogImage, width: 1200, height: 1200, alt: 'Smileys Clubs — do more, meet more, live more' }],
   },
   twitter: {
-    card: 'summary_large_image',
-    title: 'Istanbul Social Clubs — Smileys Community',
-    description: 'Over 70 interest-based clubs in Istanbul. Find your community at Smileys.',
+    card: 'summary',
+    title: 'Smileys Clubs — Find your people.',
+    description: "Whatever you're into, there's probably someone in Istanbul who's into it too.",
     images: [ogImage],
   },
 }

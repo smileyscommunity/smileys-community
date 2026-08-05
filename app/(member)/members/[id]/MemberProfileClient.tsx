@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { SkeletonCard, SkeletonCircle, SkeletonLine } from '@/components/Skeleton'
 import MembershipBadge from '@/components/MembershipBadge'
 import ReportButton from '@/components/ReportButton'
+import SharedContextBlock, { suggestedOpeners, type ProfileSharedContext } from './SharedContextBlock'
 
 interface ReceivedReference {
   id:        string
@@ -60,6 +61,7 @@ interface MemberProfile {
   // neighborhood, interests, languages, socials, clubs) because the viewer
   // isn't self/connected/privileged — drives the lock notice.
   viewerHasFullProfile?: boolean
+  sharedContext?: ProfileSharedContext | null
   connectionId: string | null
   connectionStatus: string | null
   connectionIsRequester: boolean | null
@@ -126,6 +128,11 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
   const [blocking,     setBlocking]     = useState(false)
   const [confirmingBlock, setConfirmingBlock] = useState(false)
   const [connecting,   setConnecting]   = useState(false)
+  // §29 — contextual openers. Tapping Connect opens a small composer
+  // pre-loaded with openers built from real shared context, so the first
+  // message isn't a cold "hi". Sending without a note stays possible.
+  const [showOpeners, setShowOpeners] = useState(false)
+  const [note,        setNote]        = useState('')
   const [connStatus,   setConnStatus]   = useState<string | null>(null)
   const [connId,       setConnId]       = useState<string | null>(null)
   const [connIsReq,    setConnIsReq]    = useState<boolean | null>(null)
@@ -209,7 +216,7 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
   const canMessageByRole = !isOwnProfile && (me?.role === 'admin' || me?.role === 'moderator' || me?.isClubHost === true)
   const canMessage       = !isOwnProfile && (isAccepted || canMessageByRole)
 
-  async function handleConnect() {
+  async function handleConnect(withNote?: string) {
     if (connecting) return
     setConnecting(true)
     try {
@@ -222,7 +229,7 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
         const res = await fetch('/app/api/connections', {
           method: 'POST', credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ receiverId: member!.id }),
+          body: JSON.stringify({ receiverId: member!.id, note: withNote?.trim() || undefined }),
         })
         const data = await res.json()
         if (res.ok) {
@@ -234,6 +241,8 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
           } else {
             toast.success('Connection request sent!')
           }
+          setShowOpeners(false)
+          setNote('')
         } else {
           toast.error(data.error || 'Could not send request')
         }
@@ -526,7 +535,12 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
                 receiver-pending state is handled by branch A above. */}
             {!isAccepted && (connStatus !== 'pending' || connIsReq) && (
               <button
-                onClick={handleConnect}
+                onClick={() => {
+                  // Withdraw goes straight through; a fresh request opens
+                  // the opener composer first (§29).
+                  if (connStatus === 'pending' && connIsReq) { handleConnect(); return }
+                  setShowOpeners(true)
+                }}
                 disabled={connecting}
                 className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold rounded-2xl transition-colors shadow-sm disabled:opacity-60 ${
                   connStatus === 'pending'
@@ -596,6 +610,48 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
             </div>
           </div>
         )}
+
+        {/* §29 — opener composer. Suggestions come from real shared
+            context; sending without a note stays one tap away. */}
+        {showOpeners && (
+          <div className="bg-white rounded-2xl shadow-card p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-extrabold text-gray-900">Say hi to {member.name.split(' ')[0]} 👋</p>
+              <button onClick={() => setShowOpeners(false)} aria-label="Close" className="text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>
+            </div>
+            {suggestedOpeners(member.sharedContext ?? null, member.name.split(' ')[0]).length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Suggested</p>
+                {suggestedOpeners(member.sharedContext ?? null, member.name.split(' ')[0]).map(o => (
+                  <button key={o} onClick={() => setNote(o)}
+                    className={`w-full text-left text-sm px-3 py-2 rounded-xl border transition-colors ${
+                      note === o ? 'bg-amber-50 border-amber-300 text-amber-900' : 'bg-gray-50 border-gray-200 text-gray-700 hover:border-amber-200'
+                    }`}>
+                    {o}
+                  </button>
+                ))}
+              </div>
+            )}
+            <textarea value={note} onChange={e => setNote(e.target.value)} rows={3} maxLength={300}
+              placeholder="Add a short note (optional)"
+              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none" />
+            <div className="flex justify-end gap-2">
+              <button onClick={() => handleConnect()} disabled={connecting}
+                className="px-4 py-2 text-sm font-semibold text-gray-600 hover:text-gray-800 disabled:opacity-50">
+                Send without note
+              </button>
+              <button onClick={() => handleConnect(note)} disabled={connecting}
+                className="px-5 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-colors">
+                {connecting ? '…' : 'Send request'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* §28 — shared context. Sits above the lock notice on purpose:
+            a non-connected viewer should see WHY to connect before being
+            told what's hidden. */}
+        <SharedContextBlock ctx={member.sharedContext ?? null} firstName={member.name.split(' ')[0]} />
 
         {/* Locked state — the API redacts bio/interests/socials/clubs for
             non-connected viewers, so those sections simply don't render;
