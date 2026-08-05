@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo, useRef, memo, Suspense } from 'react'
+import posthog from 'posthog-js'
 import { useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import Link from 'next/link'
@@ -1041,6 +1042,12 @@ function MembersPageInner() {
     // through the same timer keeps the effect simple.
     const delay = trimmed ? 250 : 0
     const t = setTimeout(() => {
+      // §55 — search/filter usage. Debounced with the fetch so we log
+      // intents, not keystrokes.
+      if (trimmed) posthog.capture('member_search', { length: trimmed.length })
+      if (roleFilter !== 'All' || openToFilter || aroundNow) {
+        posthog.capture('member_filter_used', { role: roleFilter, openTo: openToFilter || null, aroundNow })
+      }
       setFilterLoading(true)
       const params = new URLSearchParams()
       if (roleFilter === 'Hosts')  params.set('isHost', 'true')

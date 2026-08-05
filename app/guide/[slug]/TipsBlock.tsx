@@ -87,7 +87,18 @@ export default function TipsBlock({ slug }: { slug: string }) {
                 <AvatarImg src={avatarUrl(t.user.profilePhoto, 64)} name={t.user.name} color={t.user.color}
                   size="w-8 h-8" textSize="text-xs" className="shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-gray-900">{t.user.name.split(' ')[0]}</p>
+                  {/* §39 (Members brief) — community advice gets a human
+                      identity; profiles are member-only, so guests see
+                      the name without a link. */}
+                  {isLoggedIn ? (
+                    <Link href={`/members/${t.user.id}`}
+                      onClick={() => posthog.capture('member_viewed', { from: 'guide_tip', memberId: t.user.id })}
+                      className="text-xs font-bold text-gray-900 hover:text-amber-600 transition-colors">
+                      {t.user.name.split(' ')[0]}
+                    </Link>
+                  ) : (
+                    <p className="text-xs font-bold text-gray-900">{t.user.name.split(' ')[0]}</p>
+                  )}
                   <p className="text-sm text-gray-700 mt-0.5 leading-relaxed">{t.body}</p>
                 </div>
                 <div className="shrink-0 flex items-center gap-2">

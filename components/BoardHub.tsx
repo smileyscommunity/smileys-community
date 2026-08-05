@@ -277,14 +277,27 @@ function ListingModal({ listing, currentUserId, isLoggedIn, isSaved, onToggleSav
           </div>
           <h2 id="listing-modal-title" className="text-lg font-extrabold text-gray-900 leading-snug">{listing.title}</h2>
           <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">{listing.description}</p>
+          {/* §38 (Members brief) — the seller is a canonical member;
+              signed-in viewers can open their profile. Guests keep the
+              plain identity block (profiles are member-only). */}
           <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
             {avatar
               ? <Image src={avatar} alt={listing.user.name} width={36} height={36} className="w-9 h-9 rounded-full object-cover shrink-0" />
               : <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ backgroundColor: listing.user.color || '#f59e0b' }}>{listing.user.name[0]}</div>
             }
             <div>
-              <p className="text-sm font-semibold text-gray-900">{listing.user.name}</p>
-              <p className="text-xs text-gray-400">Posted {timeAgo(listing.createdAt)}</p>
+              {isLoggedIn ? (
+                <Link href={`/members/${listing.user.id}`}
+                  onClick={() => posthog.capture('member_viewed', { from: 'marketplace', memberId: listing.user.id })}
+                  className="text-sm font-semibold text-gray-900 hover:text-amber-600 transition-colors">
+                  {listing.user.name}
+                </Link>
+              ) : (
+                <p className="text-sm font-semibold text-gray-900">{listing.user.name}</p>
+              )}
+              <p className="text-xs text-gray-400">
+                <span className="text-green-600 font-semibold">✓ Smileys member</span> · Posted {timeAgo(listing.createdAt)}
+              </p>
             </div>
             {isOwner && <span className="ml-auto text-xs text-gray-400">Your listing</span>}
           </div>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, use, useRef } from 'react'
+import posthog from 'posthog-js'
 import Link from 'next/link'
 import { resolveImageUrl, getInitials, formatDate } from '@/lib/data'
 import { countryFlag } from '@/lib/countries'
@@ -241,6 +242,11 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
           } else {
             toast.success('Connection request sent!')
           }
+          posthog.capture('connection_request_sent', {
+            memberId: member!.id,
+            withNote: !!withNote?.trim(),
+            hadSharedContext: !!member!.sharedContext,
+          })
           setShowOpeners(false)
           setNote('')
         } else {
@@ -539,6 +545,7 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
                   // Withdraw goes straight through; a fresh request opens
                   // the opener composer first (§29).
                   if (connStatus === 'pending' && connIsReq) { handleConnect(); return }
+                  posthog.capture('say_hi_initiated', { memberId: member.id })
                   setShowOpeners(true)
                 }}
                 disabled={connecting}
