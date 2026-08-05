@@ -369,6 +369,8 @@ model Club {
   city               City             @relation(fields: [cityId], references: [id])
   spotlightUser      User?            @relation("ClubSpotlight", fields: [spotlightUserId], references: [id])
   events             Event[]
+  boardPosts         BoardPost[]      @relation("ClubBoardPosts")
+  hangouts           Hangout[]        @relation("ClubHangouts")
 
   @@index([cityId])
   @@map("clubs")
@@ -1469,6 +1471,10 @@ model Hangout {
   joins              HangoutJoin[]
   messages           HangoutMessage[]
   references         HangoutReference[]
+  // Optional club share (Clubs brief §29) — one canonical Hangout
+  // record, surfaced additionally in the club when set.
+  clubId    String?
+  club      Club?    @relation("ClubHangouts", fields: [clubId], references: [id])
   user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([status, endsAt])
@@ -1814,6 +1820,11 @@ model BoardPost {
   id           String          @id @default(cuid())
   userId       String
   type         String          // 'plan' | 'question' | 'reco' | 'share'
+  // Optional club association (Clubs brief §18/§30): the post is
+  // canonical on the Board AND surfaces in the club's Conversations.
+  // Posts tagged to a PRIVATE club are excluded from the public feed
+  // and render only inside the club.
+  clubId       String?
   title        String
   body         String          @default("")
   neighborhood String?
@@ -1827,6 +1838,7 @@ model BoardPost {
   pinned       Boolean         @default(false)
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
+  club         Club?           @relation("ClubBoardPosts", fields: [clubId], references: [id])
   user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   replies      BoardReply[]
   interests    BoardInterest[]
@@ -1836,6 +1848,7 @@ model BoardPost {
   @@index([neighborhood, status])
   @@index([type, status])
   @@index([userId])
+  @@index([clubId, createdAt(sort: Desc)])
   @@map("board_posts")
 }
 

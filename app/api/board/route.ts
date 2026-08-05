@@ -36,12 +36,24 @@ export async function GET(req: NextRequest) {
     } : {}),
   }
 
+  const clubSlug = searchParams.get('club') || undefined
+
   let posts = await prisma.boardPost.findMany({
     where: {
       status: 'active',
-      // Expired plans drop out of the feed (stale "tonight?" posts read as
-      // a dead community) but stay reachable at their own URL.
-      OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      // Two OR groups must AND together (spreading them as sibling keys
+      // would silently overwrite one another): expiry — expired plans
+      // drop out of the feed but stay reachable at their own URL — and
+      // club scoping (Clubs brief §18/§30): ?club=<slug> narrows to that
+      // club's conversations, while the general feed excludes posts
+      // tagged to PRIVATE clubs (those render only inside the club,
+      // where membership is enforced).
+      AND: [
+        { OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] },
+        clubSlug
+          ? { club: { slug: clubSlug } }
+          : { OR: [{ clubId: null }, { club: { isPrivate: false } }] },
+      ],
       ...(type && TYPE_VALUES.has(type as never) ? { type } : {}),
       ...(neighborhood ? { neighborhood } : {}),
     },
