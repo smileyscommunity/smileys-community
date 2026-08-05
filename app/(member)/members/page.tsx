@@ -9,6 +9,7 @@ import { countryFlag } from '@/lib/countries'
 import { useAuth } from '@/contexts/AuthContext'
 import ReportButton from '@/components/ReportButton'
 import AdBannerStrip from '@/components/AdBannerStrip'
+import MemberDiscovery from './MemberDiscovery'
 import EmptyState from '@/components/EmptyState'
 import MembershipBadge from '@/components/MembershipBadge'
 import { SkeletonCard } from '@/components/Skeleton'
@@ -958,7 +959,7 @@ function MembersPageInner() {
   // CMS overrides land via /api/content. Default headline was a one-
   // word 'Members' file-cabinet label; 'Find your people' echoes the
   // landing-page line and reads as an invitation.
-  const [hero, setHero] = useState({ badge: 'People', headline: 'Members', subtitle: 'Connect with the Smileys community.' })
+  const [hero, setHero] = useState({ badge: 'Members', headline: 'Meet the community.', subtitle: 'Discover people through the neighborhoods, interests and experiences you share.' })
 
   const handleConnectionChange = useCallback((updated: ConnectionRecord | null, removed?: string) => {
     if (removed) {
@@ -1156,7 +1157,8 @@ function MembersPageInner() {
                   subsets of members so the · merge implied parallel
                   categories. The role-pill counts below already surface
                   the breakdowns where the user can act on them. */}
-              {!loading && <p className="text-base text-gray-600 mt-1">{total} members</p>}
+              <p className="text-base text-gray-600 mt-1 max-w-xl">{hero.subtitle}</p>
+              {!loading && <p className="text-sm text-gray-400 mt-1">{total} members</p>}
             </div>
             <div className="flex items-center gap-2 w-full sm:w-auto">
               <div className="relative flex-1 sm:w-72">
@@ -1309,6 +1311,24 @@ function MembersPageInner() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+        {/* Contextual discovery (Members brief §5–6): people connected to
+            the viewer's clubs, neighborhood and plans come FIRST; the
+            full directory is demoted below. Hidden while a search or
+            filter is active — the member is looking for someone specific
+            then, not browsing. */}
+        {!search && roleFilter === 'All' && !openToFilter && !aroundNow && (
+          <MemberDiscovery />
+        )}
+
+        {/* §43 — the full directory, explicitly framed as the layer below
+            contextual discovery. */}
+        {!search && roleFilter === 'All' && !openToFilter && !aroundNow && (
+          <div className="mb-4 pt-2 border-t border-gray-100">
+            <h2 className="text-lg sm:text-xl font-extrabold tracking-tight text-gray-900 mt-6">Explore the community</h2>
+            <p className="text-sm text-gray-600 mt-0.5">Everyone on Smileys — search, filter, browse.</p>
+          </div>
+        )}
 
         {/* Pending connection requests */}
         {pendingRequests.length > 0 && (
