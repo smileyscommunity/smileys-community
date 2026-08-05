@@ -9,7 +9,7 @@ type Params = { params: Promise<{ id: string }> }
 export async function GET(req: NextRequest, { params }: Params) {
   const { id } = await params
   const replies = await prisma.boardReply.findMany({
-    where:   { postId: id },
+    where:   { postId: id, user: { status: 'approved' } },
     orderBy: { createdAt: 'asc' },
     take:    200,
     select: {

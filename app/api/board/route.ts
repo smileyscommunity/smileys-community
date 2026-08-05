@@ -58,6 +58,9 @@ export async function GET(req: NextRequest) {
   let posts = await prisma.boardPost.findMany({
     where: {
       status: 'active',
+      // §48 (Members brief): posts by deactivated/banned members leave
+      // the public feed.
+      user: { status: 'approved' },
       // Two OR groups must AND together (spreading them as sibling keys
       // would silently overwrite one another): expiry — expired plans
       // drop out of the feed but stay reachable at their own URL — and

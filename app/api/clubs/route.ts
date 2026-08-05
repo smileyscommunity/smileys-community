@@ -48,7 +48,7 @@ const getDiscoveryClubs = unstable_cache(
           WHERE cm.status = 'approved'
         ) x
         JOIN users u ON u.id = x."userId"
-        WHERE x.rn <= 4
+        WHERE x.rn <= 4 AND u.status = 'approved'
       `,
     ])
 

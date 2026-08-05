@@ -16,7 +16,9 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
   const session = await getSession()
   const tips = await prisma.guideTip.findMany({
-    where:   { slug },
+    // §48 (Members brief): deactivated/banned authors drop out of
+    // discovery surfaces — their tips hide rather than showing a ghost.
+    where:   { slug, user: { status: 'approved' } },
     orderBy: [{ likes: { _count: 'desc' } }, { createdAt: 'desc' }],
     take:    30,
     select: {
