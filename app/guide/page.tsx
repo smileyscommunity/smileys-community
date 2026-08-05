@@ -262,11 +262,11 @@ export default async function GuidePage() {
           {/* §15/16 — experience it with people. Static cross-links in
               phase 1; live counts arrive with the save/social phase. */}
           <div className="mt-12 grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Link href="/clubs" className="bg-white border border-gray-200 rounded-3xl p-6 sm:p-8 group hover:border-amber-300 hover:shadow-md transition-all">
-              <p className="text-xs font-bold text-amber-600 uppercase tracking-widest mb-2">Find your people</p>
-              <p className="text-xl font-extrabold text-gray-900 leading-snug">Clubs for what you love</p>
-              <p className="text-sm text-gray-600 mt-2">Sailing, hiking, brunch, live music — communities around every experience.</p>
-              <span className="inline-block text-sm font-bold text-amber-600 mt-4 group-hover:translate-x-0.5 transition-transform">Explore clubs →</span>
+            <Link href="/clubs" className="bg-indigo-600 rounded-3xl p-6 sm:p-8 group hover:shadow-md transition-all">
+              <p className="text-xs font-bold text-indigo-200 uppercase tracking-widest mb-2">Find your people</p>
+              <p className="text-xl font-extrabold text-white leading-snug">Clubs for what you love</p>
+              <p className="text-sm text-indigo-100 mt-2">Sailing, hiking, brunch, live music — communities around every experience.</p>
+              <span className="inline-block text-sm font-bold text-white mt-4 group-hover:translate-x-0.5 transition-transform">Explore clubs →</span>
             </Link>
             <Link href="/events" className="bg-gray-900 rounded-3xl p-6 sm:p-8 group relative overflow-hidden">
               <div aria-hidden="true" className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_80%_20%,#f59e0b_0%,transparent_60%)]" />
