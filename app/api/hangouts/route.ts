@@ -98,6 +98,7 @@ export async function GET(req: NextRequest) {
     meetMode:     h.meetMode,
     photo:        h.photo,
     activity:     h.activity,
+    clubId:       h.clubId,
     maxPeople:    h.maxPeople,
     hostIsVisitor: visitorHosts.has(h.userId),
     user:         {

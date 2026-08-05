@@ -1,4 +1,6 @@
 import { notFound } from 'next/navigation'
+import { classifyClubs } from '@/lib/clubHealth'
+import { CLUB_FILTER_GROUPS, HEALTH_RANK } from '@/lib/clubDiscovery'
 import Link from 'next/link'
 import Image from 'next/image'
 import type { Metadata } from 'next'
@@ -63,10 +65,32 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   }
 }
 
+// Related clubs (Clubs brief §25) — same interest group, health-aware
+// ordering, never self, max 4. Server-rendered at the page bottom.
+async function relatedClubsFor(club: { id: string; category: string }) {
+  const group = CLUB_FILTER_GROUPS.find(g => g.categories.includes(club.category))
+  const candidates = await prisma.club.findMany({
+    where: {
+      isActive: true,
+      id: { not: club.id },
+      category: { in: group ? group.categories : [club.category] },
+    },
+    orderBy: { memberCount: 'desc' },
+    take: 12,
+    select: { id: true, name: true, slug: true, emoji: true, memberCount: true },
+  })
+  const health = await classifyClubs(candidates.map(c => c.id))
+  return [...candidates]
+    .sort((a, b) => (HEALTH_RANK[health.get(a.id) ?? 'quiet'] - HEALTH_RANK[health.get(b.id) ?? 'quiet']) || (b.memberCount - a.memberCount))
+    .slice(0, 4)
+}
+
 export default async function ClubDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
   const club = await getClubBySlug(slug)
   if (!club) notFound()
+
+  const relatedClubs = await relatedClubsFor(club)
 
   const clubEvents = await getEventsByClub(club.id)
 
@@ -613,6 +637,23 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
           </div>
         </div>
       </div>
+
+      {/* §25 — related clubs: same interest group, health-aware, max 4. */}
+      {relatedClubs.length > 0 && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
+          <h2 className="text-xl font-extrabold tracking-tight text-gray-900 mb-4">You might also like</h2>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {relatedClubs.map(rc => (
+              <Link key={rc.id} href={`/clubs/${rc.slug}`}
+                className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:border-amber-200 hover:shadow-md hover:-translate-y-0.5 transition-all group">
+                <span aria-hidden="true" className="block text-2xl mb-1.5">{rc.emoji}</span>
+                <p className="text-sm font-bold text-gray-900 leading-snug group-hover:text-amber-700 transition-colors">{rc.name}</p>
+                <p className="text-xs text-gray-400 mt-1">{rc.memberCount} members</p>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -38,6 +38,23 @@ export async function GET(req: NextRequest) {
 
   const clubSlug = searchParams.get('club') || undefined
 
+  // Private-club scoping: the club feed of a private club is member-only.
+  // (The general feed already excludes private-club posts entirely.)
+  if (clubSlug) {
+    const club = await prisma.club.findUnique({ where: { slug: clubSlug }, select: { id: true, isPrivate: true } })
+    if (!club) return NextResponse.json({ error: 'Club not found' }, { status: 404 })
+    if (club.isPrivate) {
+      const s = await getSession()
+      const member = s ? await prisma.clubMembership.findUnique({
+        where: { userId_clubId: { userId: s.id, clubId: club.id } },
+        select: { status: true },
+      }) : null
+      if (member?.status !== 'approved') {
+        return NextResponse.json({ error: 'Members only' }, { status: 403 })
+      }
+    }
+  }
+
   let posts = await prisma.boardPost.findMany({
     where: {
       status: 'active',
@@ -126,8 +143,25 @@ export async function POST(req: NextRequest) {
 
   const tag = typeof body.tag === 'string' && TAG_VALUES.has(body.tag) ? body.tag : null
 
+  // Optional club tag (Clubs brief §19/§30) — posting into a club
+  // requires approved membership of that club, private or not; the post
+  // stays canonical on the Board and also surfaces in the club.
+  let clubId: string | null = null
+  if (typeof body.club === 'string' && body.club) {
+    const club = await prisma.club.findUnique({ where: { slug: body.club }, select: { id: true, isActive: true } })
+    if (!club || !club.isActive) return NextResponse.json({ error: 'Club not found' }, { status: 404 })
+    const member = await prisma.clubMembership.findUnique({
+      where: { userId_clubId: { userId: session.id, clubId: club.id } },
+      select: { status: true },
+    })
+    if (member?.status !== 'approved') {
+      return NextResponse.json({ error: 'Join the club to post in it' }, { status: 403 })
+    }
+    clubId = club.id
+  }
+
   const created = await prisma.boardPost.create({
-    data: { userId: session.id, type, title, body: text, neighborhood, tag },
+    data: { userId: session.id, type, title, body: text, neighborhood, tag, clubId },
     select: { id: true },
   })
 

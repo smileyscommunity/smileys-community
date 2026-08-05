@@ -2,7 +2,8 @@
 
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import EventCard from '@/components/EventCard'
-import ClubWall from '@/components/ClubWall'
+import ClubConversations from '@/components/ClubConversations'
+import ClubHangouts from '@/components/ClubHangouts'
 import ClubAnnouncements from '@/components/ClubAnnouncements'
 import ClubPhotos from '@/components/ClubPhotos'
 import ClubMembers from '@/components/ClubMembers'
@@ -89,7 +90,7 @@ export default function ClubTabs({
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'events',  label: `Events${clubEvents.length > 0 ? ` (${clubEvents.length})` : ''}` },
-    { key: 'wall',    label: 'Wall' },
+    { key: 'wall',    label: 'Conversations' },
     { key: 'members', label: memberCount > 0 ? `Members (${memberCount})` : 'Members' },
     { key: 'photos',  label: 'Photos' },
     { key: 'reviews', label: reviewsLabel },
@@ -114,8 +115,8 @@ export default function ClubTabs({
         ))}
       </div>
 
-      {tab === 'events' ? (
-        clubEvents.length > 0 ? (
+      {tab === 'events' ? (<div className="space-y-8">
+        {clubEvents.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {clubEvents.map(event => (
               <div key={event.id}>
@@ -133,10 +134,13 @@ export default function ClubTabs({
             <button
               onClick={() => setTab('wall')}
               className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-amber-600 hover:text-amber-700 transition-colors">
-              Visit the Wall →
+              Start a conversation →
             </button>
           </div>
-        )
+        )}
+        {/* §17 — spontaneous plans shared with this club. */}
+        <ClubHangouts slug={slug} isMember={isMember} />
+      </div>
       ) : tab === 'wall' ? (
         <div className="space-y-10">
           <section>
@@ -152,14 +156,10 @@ export default function ClubTabs({
           </section>
 
           <section>
-            <ClubWall
-              slug={slug}
-              canPost={canPost}
-              canAnnounce={canAnnounce}
-              currentUserId={currentUserId}
-              isAdmin={isAdmin}
-              canPin={canPin}
-            />
+            {/* Conversations are canonical Board posts tagged to this club
+                (§18) — the legacy wall (club_posts) was migrated in
+                phase 2 and its writes retire here. */}
+            <ClubConversations slug={slug} isMember={isMember} />
           </section>
         </div>
       ) : tab === 'photos' ? (
