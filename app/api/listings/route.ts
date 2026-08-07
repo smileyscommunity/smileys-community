@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Too many listings. Try again in a minute.' }, { status: 429 })
   }
 
-  const { category, title, description, price, photo, photoPosition, contact, neighborhood, photos, attrs } = await req.json()
+  const { category, title, description, price, photo, photoPosition, contact, contactEmail, neighborhood, photos, attrs } = await req.json()
 
   // RECO / LOST_FOUND / EXPERIENCES retired from posting (legacy rows
   // still render) — their jobs moved to Board posts.
@@ -151,6 +151,9 @@ export async function POST(req: NextRequest) {
     if (Object.keys(kept).length > 0) safeAttrs = kept
   }
   const safeContact = typeof contact === 'string' && contact.length <= 200 ? contact : null
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  const safeContactEmail = typeof contactEmail === 'string' && contactEmail.trim().length <= 200 && EMAIL_RE.test(contactEmail.trim())
+    ? contactEmail.trim().toLowerCase() : null
   // Validate against the canonical neighborhood list so we don't store typos that
   // would never match the filter dropdown on the browse page.
   const safeNeighborhood = typeof neighborhood === 'string'
@@ -172,6 +175,7 @@ export async function POST(req: NextRequest) {
       attrs: safeAttrs === null ? undefined : (safeAttrs as object),
       photoPosition: typeof photoPosition === 'number' && photoPosition >= 0 && photoPosition <= 100 ? Math.round(photoPosition) : 50,
       contact: safeContact,
+      contactEmail: safeContactEmail,
       neighborhood: safeNeighborhood,
       expiresAt,
     },

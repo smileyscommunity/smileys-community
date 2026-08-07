@@ -84,6 +84,7 @@ interface Listing {
   attrs: Record<string, unknown> | null
   photoPosition: number
   contact: string | null
+  contactEmail: string | null
   neighborhood: string | null
   status: string
   expiresAt: string
@@ -191,6 +192,9 @@ function ListingModal({ listing, currentUserId, isLoggedIn, isSaved, onToggleSav
     ? (listing.contact.startsWith('http')
         ? listing.contact
         : `https://wa.me/${listing.contact.replace(/\D/g, '')}`)
+    : null
+  const mailHref = listing.contactEmail
+    ? `mailto:${listing.contactEmail}?subject=${encodeURIComponent(`Smileys: ${listing.title.slice(0, 60)}`)}`
     : null
 
   return (
@@ -364,6 +368,14 @@ function ListingModal({ listing, currentUserId, isLoggedIn, isSaved, onToggleSav
                 <path d="M12 0C5.373 0 0 5.373 0 12c0 2.134.558 4.133 1.534 5.864L.057 23.57a.5.5 0 00.612.612l5.706-1.477A11.943 11.943 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.794 9.794 0 01-5.002-1.374l-.358-.213-3.724.964.991-3.621-.234-.373A9.79 9.79 0 012.182 12C2.182 6.57 6.57 2.182 12 2.182S21.818 6.57 21.818 12 17.43 21.818 12 21.818z"/>
               </svg>
               Contact on WhatsApp
+            </a>
+          )}
+          {mailHref && (
+            <a href={mailHref} className="flex items-center justify-center gap-2 w-full py-3 bg-gray-100 hover:bg-gray-200 text-gray-800 text-sm font-bold rounded-2xl transition-colors">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+              Contact by Email
             </a>
           )}
           {isOwner && (

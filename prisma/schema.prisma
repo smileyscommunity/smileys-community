@@ -1438,6 +1438,7 @@ model Listing {
   photos        String[]       @default([])
   attrs         Json?
   contact       String?
+  contactEmail  String?
   status        String         @default("active")
   expiresAt     DateTime
   createdAt     DateTime       @default(now())

@@ -35,6 +35,7 @@ export default function NewListingPage() {
   const [description, setDesc]      = useState('')
   const [price, setPrice]           = useState('')
   const [contact, setContact]       = useState('')
+  const [contactEmail, setContactEmail] = useState('')
   const [neighborhood, setNeighborhood] = useState('')
   const [photo, setPhoto]           = useState('')
   const [photos, setPhotos]         = useState<string[]>([])   // gallery beyond the cover, max 4
@@ -94,7 +95,7 @@ export default function NewListingPage() {
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        category, title, description, price: price || null, contact: contact || null,
+        category, title, description, price: price || null, contact: contact || null, contactEmail: contactEmail || null,
         photo: photo || null, photoPosition, neighborhood: neighborhood || null,
         photos,
         attrs: {
@@ -338,6 +339,23 @@ export default function NewListingPage() {
               placeholder="Phone number or wa.me link"
               className="input"
             />
+          </div>
+
+          {/* Email contact */}
+          <div>
+            <label htmlFor="nl-contact-email" className="block text-sm font-semibold text-gray-700 mb-1.5">
+              Email contact <span className="text-gray-400 font-normal">(optional)</span>
+            </label>
+            <input
+              id="nl-contact-email"
+              type="email"
+              value={contactEmail}
+              onChange={e => setContactEmail(e.target.value)}
+              maxLength={200}
+              placeholder="you@example.com"
+              className="input"
+            />
+            <p className="text-xs text-gray-400 mt-1">Another way to reach you, alongside in-app messages.</p>
           </div>
 
           {/* Photo */}
