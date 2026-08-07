@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
+import posthog from 'posthog-js'
 import { useAuth } from '@/contexts/AuthContext'
 import AvatarImg from '@/components/AvatarImg'
 import { avatarUrl, ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
@@ -119,7 +120,14 @@ function Composer({ onPosted, prefillNeighborhood }: { onPosted: () => void; pre
   const [title,        setTitle]        = useState('')
   const [body,         setBody]         = useState('')
   const [tag,          setTag]          = useState('')
+  // Default to the member's own neighborhood. Board posts currently
+  // carry none at all, which leaves the neighborhood filter and every
+  // "On the Board in X" section with nothing to show — an opt-in field
+  // nobody opts into. Still freely changeable, including back to none.
   const [neighborhood, setNeighborhood] = useState('')
+  useEffect(() => {
+    if (isLoggedIn && user.neighborhood) setNeighborhood(user.neighborhood)
+  }, [isLoggedIn, user.neighborhood])
   const [posting,      setPosting]      = useState(false)
 
   // Compose intent from a neighborhood page ("Ask about Moda →"): open the
@@ -165,6 +173,15 @@ function Composer({ onPosted, prefillNeighborhood }: { onPosted: () => void; pre
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) { toast.error(data.error ?? 'Could not post'); return }
+      // Phase 2 measurement: did defaulting the neighborhood actually
+      // produce neighborhood-tagged posts, and where did the intent come
+      // from? Without this the phase can't answer its own question.
+      posthog.capture('board_post_created', {
+        type,
+        hasNeighborhood: !!neighborhood,
+        hasClub: !!postClub,
+        fromPrefill: !!prefillNeighborhood,
+      })
       toast.success('Posted!')
       setTitle(''); setBody(''); setTag(''); setPostClub(''); setOpen(false)
       onPosted()
@@ -228,7 +245,7 @@ function Composer({ onPosted, prefillNeighborhood }: { onPosted: () => void; pre
           <div className="flex items-center gap-2 flex-wrap">
             <select value={neighborhood} onChange={e => setNeighborhood(e.target.value)}
               className="border border-gray-200 rounded-xl px-3 py-2 text-xs bg-white focus:outline-none">
-              <option value="">📍 Neighborhood (optional)</option>
+              <option value="">📍 No neighborhood</option>
               {ISTANBUL_NEIGHBORHOODS.map(n => <option key={n} value={n}>{n}</option>)}
             </select>
             {myClubs.length > 0 && (

@@ -673,6 +673,25 @@ export default async function NeighborhoodSections({
       {/* Board conversations — plans and questions tagged here. Above the
           marketplace: a person asking "anyone around?" is the stronger
           social signal than a desk for sale. */}
+      {boardPosts.length === 0 && myId ? (
+        /* No conversations here yet. The section used to disappear
+           entirely, which hid the Board from every neighborhood page —
+           precisely when it most needed an entry point. Members only:
+           guests can't post, so an invitation would dead-end. */
+        <div className="bg-gray-50 border border-dashed border-gray-200 rounded-2xl p-6 flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <p className="font-bold text-gray-900">Nobody&apos;s talking about {name} yet.</p>
+            <p className="text-sm text-gray-600 mt-0.5">
+              Ask something, or share a place worth knowing about.
+            </p>
+          </div>
+          <Link href={`/board?compose=1&neighborhood=${encodeURIComponent(name)}`}
+            className="shrink-0 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
+            Start the conversation
+          </Link>
+        </div>
+      ) : null}
+
       {boardPosts.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-5">
