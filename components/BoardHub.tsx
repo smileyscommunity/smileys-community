@@ -120,7 +120,7 @@ async function copyShare(id: string): Promise<boolean> {
   }
 }
 
-function ListingModal({ listing, currentUserId, isLoggedIn, isSaved, onToggleSave, onClose, onDelete, onMarkFilled, onRenew }: {
+function ListingModal({ listing, currentUserId, isLoggedIn, isSaved, onToggleSave, onClose, onDelete, onMarkFilled, onRenew, onEdit }: {
   listing: Listing
   // null = not signed in. Previous shape used '' and 'guest' as
   // sentinels; consumers now pass `isLoggedIn ? user.id : null`.
@@ -132,6 +132,7 @@ function ListingModal({ listing, currentUserId, isLoggedIn, isSaved, onToggleSav
   onDelete: (id: string) => void
   onMarkFilled: (id: string) => void
   onRenew: (id: string) => void
+  onEdit: (id: string, patch: { title: string; description: string; price: string; neighborhood: string; contact: string; contactEmail: string }) => Promise<boolean>
 }) {
   const [copied, setCopied] = useState(false)
   // Gallery: cover + up to 4 more. activePhoto swaps the hero; guests get
@@ -150,6 +151,12 @@ function ListingModal({ listing, currentUserId, isLoggedIn, isSaved, onToggleSav
   // "Sure? Yes / Cancel", second click fires onDelete. Replaces a
   // native window.confirm which broke the styled-modal rhythm.
   const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+  const [editSaving, setEditSaving] = useState(false)
+  const [editForm, setEditForm] = useState({
+    title: listing.title, description: listing.description, price: listing.price ?? '',
+    neighborhood: listing.neighborhood ?? '', contact: listing.contact ?? '', contactEmail: listing.contactEmail ?? '',
+  })
   const isOwner  = listing.user.id === currentUserId
   const isGuest  = !currentUserId
   const photo    = resolveImageUrl(allPhotos[activePhoto] ?? listing.photo)
@@ -378,8 +385,69 @@ function ListingModal({ listing, currentUserId, isLoggedIn, isSaved, onToggleSav
               Contact by Email
             </a>
           )}
-          {isOwner && (
+          {isOwner && editOpen && (
+            <div className="space-y-2 border border-gray-200 rounded-xl p-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Title</label>
+                <input value={editForm.title} maxLength={120} onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Description</label>
+                <textarea value={editForm.description} maxLength={2000} rows={3} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400" />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Price</label>
+                  <input value={editForm.price} onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Neighborhood</label>
+                  <select value={editForm.neighborhood} onChange={e => setEditForm(f => ({ ...f, neighborhood: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400">
+                    <option value="">— None —</option>
+                    {ISTANBUL_NEIGHBORHOODS.map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">WhatsApp contact</label>
+                <input value={editForm.contact} maxLength={200} placeholder="Phone number or wa.me link" onChange={e => setEditForm(f => ({ ...f, contact: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Email contact</label>
+                <input type="email" value={editForm.contactEmail} maxLength={200} placeholder="you@example.com" onChange={e => setEditForm(f => ({ ...f, contactEmail: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button onClick={() => setEditOpen(false)} disabled={editSaving}
+                  className="px-3 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50">
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    setEditSaving(true)
+                    try {
+                      const ok = await onEdit(listing.id, editForm)
+                      if (ok) setEditOpen(false)
+                    } finally { setEditSaving(false) }
+                  }}
+                  disabled={editSaving || !editForm.title.trim() || !editForm.description.trim()}
+                  className="flex-1 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors">
+                  {editSaving ? 'Saving…' : 'Save changes'}
+                </button>
+              </div>
+            </div>
+          )}
+          {isOwner && !editOpen && (
             <div className="flex gap-2">
+              <button onClick={() => setEditOpen(true)}
+                className="text-sm font-semibold text-gray-600 hover:bg-gray-100 px-4 py-2.5 rounded-xl transition-colors">
+                Edit
+              </button>
               {daysLeft <= 7
                 ? <button onClick={() => { onRenew(listing.id); onClose() }} className="flex-1 text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-white py-2.5 rounded-xl transition-colors">Renew listing</button>
                 : <button onClick={() => { posthog.capture('listing_resolved', { category: listing.category }); onMarkFilled(listing.id); onClose() }} className="flex-1 text-sm font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-xl transition-colors">{RESOLVE_LABEL[listing.category] ?? 'Mark as done'}</button>
@@ -811,6 +879,25 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
     }
   }
 
+  async function handleEditListing(id: string, patch: { title: string; description: string; price: string; neighborhood: string; contact: string; contactEmail: string }) {
+    const res = await fetch(`/app/api/listings/${id}`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      toast.error(data.error ?? 'Could not save changes')
+      return false
+    }
+    const updated = await res.json()
+    setListings(prev => prev.map(l => l.id === id ? { ...l, ...updated } : l))
+    setSelected(prev => prev && prev.id === id ? { ...prev, ...updated } : prev)
+    toast.success('Listing updated')
+    return true
+  }
+
   const activeCat = CATEGORIES.find(c => c.id === category)
 
   return (
@@ -826,6 +913,7 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
           onDelete={id => { handleDelete(id); setSelected(null) }}
           onMarkFilled={id => { handleMarkFilled(id); setSelected(null) }}
           onRenew={handleRenew}
+          onEdit={handleEditListing}
         />
       )}
 

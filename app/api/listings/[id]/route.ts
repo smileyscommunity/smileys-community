@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin } from '@/lib/access'
 import { redactListingForGuest } from '@/lib/listingsPublic'
+import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   // Public read — paired with the public /listings browse page so Google can
@@ -41,12 +42,52 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'This listing was removed and can no longer be changed' }, { status: 403 })
   }
 
-  const { status, renew } = await req.json()
+  const body = await req.json()
+  const { status, renew, title, description, price, neighborhood, contact, contactEmail } = body
 
   if (renew) {
     const expiresAt = new Date()
     expiresAt.setDate(expiresAt.getDate() + 30)
     const updated = await prisma.listing.update({ where: { id }, data: { expiresAt, status: 'active' } })
+    return NextResponse.json(updated)
+  }
+
+  // Edit — there was previously no way to fix a typo or add contact info
+  // after posting; owner (or admin) can update the same fields the create
+  // form captures, minus category/photo, using the same validation as POST.
+  const EDIT_KEYS = ['title', 'description', 'price', 'neighborhood', 'contact', 'contactEmail']
+  if (EDIT_KEYS.some(k => k in body)) {
+    const data: Record<string, unknown> = {}
+
+    if (title !== undefined) {
+      if (typeof title !== 'string' || !title.trim() || title.length > 120) {
+        return NextResponse.json({ error: 'Title is required and must be under 120 characters' }, { status: 400 })
+      }
+      data.title = title.trim()
+    }
+    if (description !== undefined) {
+      if (typeof description !== 'string' || !description.trim() || description.length > 2000) {
+        return NextResponse.json({ error: 'Description is required and must be under 2000 characters' }, { status: 400 })
+      }
+      data.description = description.trim()
+    }
+    if (price !== undefined) {
+      data.price = typeof price === 'string' && price.trim() ? price.trim() : null
+    }
+    if (neighborhood !== undefined) {
+      data.neighborhood = typeof neighborhood === 'string'
+        && (ISTANBUL_NEIGHBORHOODS as readonly string[]).includes(neighborhood) ? neighborhood : null
+    }
+    if (contact !== undefined) {
+      data.contact = typeof contact === 'string' && contact.trim() && contact.length <= 200 ? contact.trim() : null
+    }
+    if (contactEmail !== undefined) {
+      const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      data.contactEmail = typeof contactEmail === 'string' && contactEmail.trim().length <= 200 && EMAIL_RE.test(contactEmail.trim())
+        ? contactEmail.trim().toLowerCase() : null
+    }
+
+    const updated = await prisma.listing.update({ where: { id }, data })
     return NextResponse.json(updated)
   }
 
