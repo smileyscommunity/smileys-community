@@ -120,12 +120,17 @@ async function copyShare(id: string): Promise<boolean> {
   }
 }
 
-function ListingModal({ listing, currentUserId, isLoggedIn, isSaved, onToggleSave, onClose, onDelete, onMarkFilled, onRenew, onEdit }: {
+function ListingModal({ listing, currentUserId, isLoggedIn, isStaff, isSaved, onToggleSave, onClose, onDelete, onMarkFilled, onRenew, onEdit }: {
   listing: Listing
   // null = not signed in. Previous shape used '' and 'guest' as
   // sentinels; consumers now pass `isLoggedIn ? user.id : null`.
   currentUserId: string | null
   isLoggedIn: boolean
+  // Admin/moderator — can edit any listing (e.g. adding contact info a
+  // member forgot), same reasoning as the admin phone-number edit on
+  // /admin/users/[id]. Scoped to Edit only; renew/delete/mark-filled stay
+  // owner-only lifecycle actions.
+  isStaff: boolean
   isSaved: boolean
   onToggleSave: (id: string) => void
   onClose: () => void
@@ -158,6 +163,7 @@ function ListingModal({ listing, currentUserId, isLoggedIn, isSaved, onToggleSav
     neighborhood: listing.neighborhood ?? '', contact: listing.contact ?? '', contactEmail: listing.contactEmail ?? '',
   })
   const isOwner  = listing.user.id === currentUserId
+  const canEdit  = isOwner || isStaff
   const isGuest  = !currentUserId
   const photo    = resolveImageUrl(allPhotos[activePhoto] ?? listing.photo)
   // #7 perf: 64-wide thumb for the small author avatar (w-9 css = 36px).
@@ -385,8 +391,11 @@ function ListingModal({ listing, currentUserId, isLoggedIn, isSaved, onToggleSav
               Contact by Email
             </a>
           )}
-          {isOwner && editOpen && (
+          {canEdit && editOpen && (
             <div className="space-y-2 border border-gray-200 rounded-xl p-3">
+              {isStaff && !isOwner && (
+                <p className="text-[11px] font-semibold text-amber-600">Editing as staff — {listing.user.name.split(' ')[0]} isn't notified.</p>
+              )}
               <div>
                 <label className="block text-xs font-semibold text-gray-500 mb-1">Title</label>
                 <input value={editForm.title} maxLength={120} onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))}
@@ -441,6 +450,12 @@ function ListingModal({ listing, currentUserId, isLoggedIn, isSaved, onToggleSav
                 </button>
               </div>
             </div>
+          )}
+          {!isOwner && isStaff && !editOpen && (
+            <button onClick={() => setEditOpen(true)}
+              className="w-full text-sm font-semibold text-gray-600 hover:bg-gray-100 border border-gray-200 px-4 py-2.5 rounded-xl transition-colors">
+              Edit (staff)
+            </button>
           )}
           {isOwner && !editOpen && (
             <div className="flex gap-2">
@@ -640,6 +655,7 @@ function ListingCard({ listing, onClick, isLoggedIn, isSaved, onToggleSave }: {
 function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
   const { user, isLoggedIn } = useAuth()
   const currentUserId = isLoggedIn ? user.id : null
+  const isStaff = isLoggedIn && (user.role === 'admin' || user.role === 'moderator')
   const searchParams = useSearchParams()
   const router       = useRouter()
   const pathname     = usePathname()
@@ -907,6 +923,7 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
           listing={selected}
           currentUserId={currentUserId}
           isLoggedIn={isLoggedIn}
+          isStaff={isStaff}
           isSaved={savedSet.has(selected.id)}
           onToggleSave={toggleSave}
           onClose={() => setSelected(null)}
