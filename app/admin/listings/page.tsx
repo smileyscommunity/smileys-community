@@ -64,6 +64,7 @@ interface Listing {
   description: string
   price: string | null
   contact: string | null
+  contactEmail: string | null
   status: string
   expiresAt: string
   createdAt: string
@@ -108,7 +109,7 @@ export default function AdminListingsPage() {
   const [settings, setSettings]   = useState<ListingSettings>(DEFAULT_LISTING_SETTINGS)
   const [settingsSaving, setSettingsSaving] = useState(false)
   const [editing, setEditing] = useState<Listing | null>(null)
-  const [editForm, setEditForm] = useState({ title: '', description: '', price: '' })
+  const [editForm, setEditForm] = useState({ title: '', description: '', price: '', contact: '', contactEmail: '' })
 
   useEffect(() => {
     fetch('/app/api/admin/settings', { credentials: 'include' })
@@ -225,26 +226,31 @@ export default function AdminListingsPage() {
 
   function openEdit(l: Listing) {
     setEditing(l)
-    setEditForm({ title: l.title, description: l.description, price: l.price ?? '' })
+    setEditForm({ title: l.title, description: l.description, price: l.price ?? '', contact: l.contact ?? '', contactEmail: l.contactEmail ?? '' })
   }
 
   async function handleSaveEdit() {
     if (!editing) return
     const title       = editForm.title.trim()
     const description = editForm.description.trim()
-    const price       = editForm.price.trim() || null
+    const price        = editForm.price.trim() || null
+    const contact      = editForm.contact.trim() || null
+    const contactEmail = editForm.contactEmail.trim() || null
     if (!title) { toast.error('Title required'); return }
+    if (contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
+      toast.error('Enter a valid email address'); return
+    }
     const res = await fetch(`/app/api/admin/listings/${editing.id}`, {
       method: 'PATCH', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, description, price }),
+      body: JSON.stringify({ title, description, price, contact, contactEmail }),
     })
     if (!res.ok) {
       const d = await res.json().catch(() => ({}))
       toast.error(d.error ?? 'Failed to save')
       return
     }
-    setListings(prev => prev.map(l => l.id === editing.id ? { ...l, title, description, price } : l))
+    setListings(prev => prev.map(l => l.id === editing.id ? { ...l, title, description, price, contact, contactEmail } : l))
     setEditing(null)
     toast.success('Saved')
   }
@@ -271,6 +277,18 @@ export default function AdminListingsPage() {
               <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Description</label>
               <textarea rows={5} value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
                 className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-zinc-400 mb-1.5">WhatsApp contact</label>
+              <input value={editForm.contact} maxLength={200} onChange={e => setEditForm(f => ({ ...f, contact: e.target.value }))}
+                placeholder="Phone number or wa.me link"
+                className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Email contact</label>
+              <input type="email" value={editForm.contactEmail} maxLength={200} onChange={e => setEditForm(f => ({ ...f, contactEmail: e.target.value }))}
+                placeholder="seller@example.com"
+                className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
             </div>
             <div className="flex gap-3 justify-end pt-2">
               <button onClick={() => setEditing(null)} className="px-4 py-2 text-sm text-zinc-400 hover:text-white transition-colors">Cancel</button>

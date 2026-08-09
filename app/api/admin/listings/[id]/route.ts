@@ -80,6 +80,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if ('contact' in body) {
     data.contact = body.contact ? String(body.contact).slice(0, 200) : null
   }
+  if ('contactEmail' in body) {
+    const raw = body.contactEmail ? String(body.contactEmail).trim().toLowerCase() : ''
+    data.contactEmail = raw && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw) && raw.length <= 200 ? raw : null
+  }
   if ('neighborhood' in body) {
     data.neighborhood = body.neighborhood ? String(body.neighborhood).slice(0, 100) : null
   }
