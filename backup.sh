@@ -9,7 +9,10 @@ FILENAME="smileys_backup_${TIMESTAMP}.sql"
 mkdir -p "$BACKUP_DIR"
 
 echo "→ Dumping production database..."
-ssh "$SERVER" "PGPASSWORD=smileys123 pg_dump -U smileys -h localhost smileys_db" > "$BACKUP_DIR/$FILENAME"
+# The password is read from the server's .env inside the ssh session, so it
+# never lives in this file (or in any clone of the repo) and a rotation needs
+# no code change here.
+ssh "$SERVER" 'PGPASSWORD=$(sed -n "s|.*://smileys:\([^@]*\)@.*|\1|p" /root/smileys-community/.env | head -1); [ -n "$PGPASSWORD" ] || { echo "could not read DB password from server .env" >&2; exit 1; }; export PGPASSWORD; pg_dump -U smileys -h localhost smileys_db' > "$BACKUP_DIR/$FILENAME"
 
 # Sanity check — an empty or tiny file means pg_dump silently failed.
 SIZE=$(wc -c < "$BACKUP_DIR/$FILENAME")

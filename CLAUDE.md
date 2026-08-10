@@ -41,7 +41,7 @@ Always `npx tsc --noEmit` (and `npm test` when logic changed) before considering
 
 ## Server scripts / DB
 - Run one-offs on the server with **both** env files: `npx tsx --env-file=.env --env-file=.env.local scripts/<name>.ts` (`.env` has `DATABASE_URL`; `.env.local` has `JWT_SECRET`, `RESEND_API_KEY`, `EMAIL_FROM`). `scp` the script to `/root/smileys-community/scripts/` to run without a full deploy.
-- Prod DB (read/query for data fixes): `ssh root@178.105.37.133` then `psql "postgresql://smileys:smileys123@localhost:5432/smileys_db"`. Guard data mutations with `WHERE id=… AND <current value>` (idempotent) and prefer a `DRY_RUN` path.
+- Prod DB (read/query for data fixes): `ssh root@178.105.37.133` then `psql "$(grep -m1 '^DATABASE_URL' /root/smileys-community/.env | cut -d= -f2- | tr -d '"')"`. The password lives only in the server's `.env` — never paste it into a file, a script, or the crontab (it was committed here until 2026-08-10 and had to be rotated). Guard data mutations with `WHERE id=… AND <current value>` (idempotent) and prefer a `DRY_RUN` path.
 
 ## Outward-facing actions
 Sending email/WhatsApp, deploying, or mutating production data are hard to reverse — **confirm the exact scope with the user first** (count + mechanism). Approval for one action is not standing authorization for the next.

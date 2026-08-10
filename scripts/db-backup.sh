@@ -14,7 +14,18 @@ mkdir -p "$BACKUP_DIR"
 TS=$(date -u +%Y-%m-%d_%H-%M-%S)
 FILE="$BACKUP_DIR/smileys_${TS}.sql.gz"
 
-PGPASSWORD=smileys123 pg_dump -U smileys -h localhost smileys_db | gzip > "$FILE"
+# Password comes from the server's .env, never from this file — a credential
+# committed to the repo is one that can't be rotated without a deploy (and it
+# rode along in every clone until 2026-08-10).
+ENV_FILE="${SMILEYS_ENV_FILE:-/root/smileys-community/.env}"
+PGPASSWORD=$(sed -n 's|.*://smileys:\([^@]*\)@.*|\1|p' "$ENV_FILE" | head -1)
+if [ -z "$PGPASSWORD" ]; then
+  echo "✗ Could not read the DB password from $ENV_FILE — aborting rather than writing an empty backup" >&2
+  exit 1
+fi
+export PGPASSWORD
+
+pg_dump -U smileys -h localhost smileys_db | gzip > "$FILE"
 
 # Sanity: a real dump gzips to well over 100KB; anything tiny = pg_dump
 # silently failed (bad creds, server down), so don't let it evict a good one.
