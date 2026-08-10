@@ -1,8 +1,6 @@
 'use client'
 
-import { useState } from 'react'
 import Link from 'next/link'
-import { toast } from 'sonner'
 import { getInitials } from '@/lib/data'
 
 interface VisitorUser {
@@ -34,52 +32,21 @@ function formatRange(startsOn: string, endsOn: string) {
   return sameMonth ? `${fmt(s, false)}–${fmt(e, true)}` : `${fmt(s, true)} – ${fmt(e, true)}`
 }
 
-function WaveButton({ targetUserId, targetName }: { targetUserId: string; targetName: string }) {
-  const [sending, setSending] = useState(false)
-  const [sent,    setSent]    = useState(false)
-
-  async function handleWave() {
-    if (sending || sent) return
-    setSending(true)
-    try {
-      const res = await fetch('/app/api/visiting/wave', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ targetUserId }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        toast.error(data.error ?? 'Couldn\'t send wave')
-        return
-      }
-      setSent(true)
-      if (!data.alreadySent) {
-        toast.success(`👋 Wave sent to ${targetName.split(' ')[0]}!`)
-      }
-    } finally {
-      setSending(false)
-    }
-  }
-
-  if (sent) {
-    return (
-      <Link href={`/messages/${targetUserId}`}
-        className="shrink-0 text-[11px] font-bold text-green-700 bg-green-100 px-2.5 py-1 rounded-full whitespace-nowrap hover:bg-green-200 transition-colors">
-        ✓ Open chat
-      </Link>
-    )
-  }
-
+// Deliberately a link, not a send button. This strip sits on the dashboard,
+// the highest-traffic surface on the site, and it used to fire a templated
+// DM on one tap from here — which is how visitors ended up collecting the
+// same canned hello from a dozen strangers. Reaching a visitor now means
+// opening their profile and sending a connection request they can decline.
+function ViewProfileLink({ targetUserId }: { targetUserId: string }) {
   return (
-    <button onClick={handleWave} disabled={sending}
-      className="shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-full transition-colors bg-amber-500 hover:bg-amber-600 text-white disabled:opacity-60 disabled:cursor-default whitespace-nowrap">
-      {sending ? '…' : '👋 Wave'}
-    </button>
+    <Link href={`/members/${targetUserId}`}
+      className="shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-full transition-colors bg-amber-500 hover:bg-amber-600 text-white whitespace-nowrap">
+      View profile
+    </Link>
   )
 }
 
-// Visitors this week — surfaces /visiting on the dashboard so the
-// wave feature lives on the highest-traffic surface. Renders nothing
+// Visitors this week — surfaces /visiting on the dashboard. Renders nothing
 // when there are no upcoming visitors so empty days don't get a
 // hollow widget; the strip earns its real estate by content alone.
 export default function DashboardVisitorsStrip({ visitors }: Props) {
@@ -119,9 +86,7 @@ export default function DashboardVisitorsStrip({ visitors }: Props) {
               )}
               <p className="text-xs text-amber-700 font-semibold">{formatRange(v.startsOn, v.endsOn)}</p>
             </div>
-            {v.user && (
-              <WaveButton targetUserId={v.user.id} targetName={v.user.name} />
-            )}
+            {v.user && <ViewProfileLink targetUserId={v.user.id} />}
           </div>
         ))}
       </div>
