@@ -141,7 +141,43 @@ echo "→ Restarting server (graceful)..."
 # Restart instead of stop+start so the gap between old and new
 # processes is just pm2's drain window. Falls back to start if
 # smileys isn't registered yet (first-time deploy on a new host).
-ssh "$SERVER" "cd $REMOTE && npm install --legacy-peer-deps && npx prisma generate --schema=./prisma/schema.prisma && npx prisma db push --schema=./prisma/schema.prisma && (pm2 restart smileys --update-env || pm2 start smileys --max-memory-restart 512M) && pm2 save"
+#
+# `prisma db push` is deliberately NOT chained into the restart with &&.
+# It refuses destructive changes (dropping a column that still holds data)
+# and exits 1 — and chained, that exit skipped the restart entirely, leaving
+# the old process serving against a .next the rsync had already replaced.
+# SSR routes still answer 200 in that state, so nothing looks wrong, while
+# returning visitors request chunk hashes that no longer exist on disk
+# (2026-08-10: the site sat like that until the restart was run by hand).
+# The restart is the step that must not be skipped, so the push runs on its
+# own and only records its status; we report the failure loudly below and
+# still exit non-zero, but the site ends up on the code we just shipped.
+# Exit 90 is the agreed marker for "schema push failed, everything else ok".
+SCHEMA_PUSH_FAILED=0
+RESTART_RC=0
+ssh "$SERVER" bash -s <<REMOTE_RESTART || RESTART_RC=$?
+set -e
+cd $REMOTE
+npm install --legacy-peer-deps
+npx prisma generate --schema=./prisma/schema.prisma
+DB_PUSH_RC=0
+npx prisma db push --schema=./prisma/schema.prisma || DB_PUSH_RC=90
+pm2 restart smileys --update-env || pm2 start smileys --max-memory-restart 512M
+pm2 save
+exit \$DB_PUSH_RC
+REMOTE_RESTART
+
+if [ "$RESTART_RC" = "90" ]; then
+  SCHEMA_PUSH_FAILED=1
+  echo "⚠ prisma db push FAILED — the app restarted on the new code, but the"
+  echo "  database schema was NOT updated. If the push was refused over data"
+  echo "  loss, decide whether to keep the column (add it back to schema.prisma)"
+  echo "  or drop it (npx prisma db push --accept-data-loss on the server)."
+  echo "  Until it's resolved, every deploy will report this same failure."
+elif [ "$RESTART_RC" != "0" ]; then
+  echo "✗ Restart step failed (exit $RESTART_RC) — the server may still be on the old build."
+  exit "$RESTART_RC"
+fi
 
 # All sweeper crontabs registered in ONE ssh session instead of 14 separate
 # connections (each paying its own SSH handshake — a real chunk of deploy
@@ -295,5 +331,10 @@ EOF
 # Best-effort: never fail the deploy over a warmup.
 echo "→ Warming OG image route..."
 ssh "$SERVER" "curl -s -o /dev/null -m 60 -w '  og warm: HTTP %{http_code} in %{time_total}s\n' 'http://localhost:3000/app/api/og?title=warmup' || echo '  (og warmup skipped)'"
+
+if [ "$SCHEMA_PUSH_FAILED" = "1" ]; then
+  echo "✗ Deployed (release: $APP_RELEASE) but the DB schema is out of sync — see the prisma db push warning above."
+  exit 1
+fi
 
 echo "✓ Done (release: $APP_RELEASE)"
