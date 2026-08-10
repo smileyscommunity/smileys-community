@@ -106,13 +106,13 @@ const HOLDOUT_SALT = 'first-rsvp-nudge-v1'
 // hash says, so arm-splitting them would file half the treated group as
 // controls. Experiment stats count only members stamped from here on.
 //
-// Set deliberately AFTER the first scheduled run following this change (Wed
-// 2026-08-12 09:00 UTC), because the deploy that ships it may land on either
-// side of that run. Excluding one cohort costs a week of data; including a
-// cohort that ran without holdout logic would misfile half of it as controls
-// and quietly corrupt the result. Move this forward if the deploy slips past
-// 2026-08-19.
-export const HOLDOUT_START = new Date('2026-08-13T00:00:00Z')
+// Must sit after the deploy that shipped the holdout, never before: a cohort
+// stamped by the old code was emailed in full, so splitting it by hash would
+// misfile half the treated group as controls. The holdout went live 2026-08-10
+// 13:27 UTC, ahead of the Wed 2026-08-12 09:00 run, so that run is the first
+// properly randomised cohort and counts. (This constant is read at report time,
+// so it stays correct whenever it ships.)
+export const HOLDOUT_START = new Date('2026-08-11T00:00:00Z')
 
 export function isNudgeHoldout(memberId: string): boolean {
   const h = createHash('md5').update(HOLDOUT_SALT + memberId).digest('hex')
