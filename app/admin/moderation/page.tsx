@@ -19,6 +19,9 @@ interface Report {
   escalatedNote?: string | null
   reporter: { id: string; name: string; email: string; color: string }
   reported: { id: string; name: string; email: string; color: string; status: string; role: string }
+  // Members who have blocked the reported user. A silent corroborating
+  // signal — people block far more readily than they report.
+  reportedBlockCount?: number
   event?: { id: string; title: string } | null
   boardPost?: { id: string; title: string; body: string; status: string } | null
   listing?: { id: string; title: string; category: string; status: string } | null
@@ -544,6 +547,19 @@ function ModerationPageInner() {
                       <span className="text-sm font-semibold text-white">{r.reported.name}</span>
                       {r.reported.status === 'banned' && (
                         <span className="text-xs bg-red-500/10 text-red-400 font-semibold px-1.5 py-0.5 rounded-full">Banned</span>
+                      )}
+                      {/* Corroboration at a glance: one report against someone
+                          several people have already blocked is a different
+                          case from a first-time complaint. */}
+                      {!!r.reportedBlockCount && (
+                        <span
+                          title={`${r.reportedBlockCount} member${r.reportedBlockCount === 1 ? ' has' : 's have'} blocked this person`}
+                          className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${
+                            r.reportedBlockCount >= 2
+                              ? 'bg-red-500/10 text-red-400'
+                              : 'bg-zinc-700/50 text-zinc-300'}`}>
+                          🚫 {r.reportedBlockCount}
+                        </span>
                       )}
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[r.status] ?? STATUS_COLORS.pending}`}>
                         {r.status}

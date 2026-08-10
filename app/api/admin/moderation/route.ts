@@ -63,8 +63,24 @@ export async function GET() {
       : []
     const neighborhoodPostMap = new Map(neighborhoodPosts.map(p => [p.id, { ...p, slug: neighborhoodToSlug(p.neighborhood) }]))
 
+    // How many members have blocked the reported user. Blocking is the
+    // quietest safety signal we collect — nobody has to write anything or
+    // wait for a moderator — and until now it was recorded and never shown,
+    // so a report against someone three people had already blocked looked
+    // identical to a first-time complaint. One number changes the triage.
+    const reportedIds = [...new Set(reports.map(r => r.reportedId))]
+    const blockCounts = reportedIds.length
+      ? await prisma.memberBlock.groupBy({
+          by:    ['blockedId'],
+          where: { blockedId: { in: reportedIds } },
+          _count: { blockedId: true },
+        })
+      : []
+    const blockMap = new Map(blockCounts.map(b => [b.blockedId, b._count.blockedId]))
+
     return NextResponse.json(reports.map(r => ({
       ...r,
+      reportedBlockCount: blockMap.get(r.reportedId) ?? 0,
       event:            r.eventId            ? (eventMap.get(r.eventId)                      ?? null) : null,
       boardPost:        r.boardPostId        ? (boardPostMap.get(r.boardPostId)              ?? null) : null,
       listing:          r.listingId          ? (listingMap.get(r.listingId)                  ?? null) : null,
