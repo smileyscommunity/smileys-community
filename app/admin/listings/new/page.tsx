@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
+import { isValidContactEmail } from '@/lib/contactEmail'
 
 const CATEGORIES = [
   { id: 'ROOMS',       label: '🏠 Room / Flat'          },
@@ -28,7 +29,7 @@ export default function AdminNewListingPage() {
 
   const [form, setForm] = useState({
     category: 'ROOMS', title: '', description: '',
-    price: '', contact: '', neighborhood: '', expiryDays: '30',
+    price: '', contact: '', contactEmail: '', neighborhood: '', expiryDays: '30',
   })
   const [photo,         setPhoto]         = useState('')
   const [photoPosition, setPhotoPosition] = useState(50)
@@ -63,6 +64,9 @@ export default function AdminNewListingPage() {
     if (!selectedMember) { toast.error('Pick a member'); return }
     if (!form.title.trim()) { toast.error('Add a title'); return }
     if (!form.description.trim()) { toast.error('Add a description'); return }
+    if (form.contactEmail.trim() && !isValidContactEmail(form.contactEmail)) {
+      toast.error('Enter a valid email address'); return
+    }
 
     setSubmitting(true)
     const res = await fetch('/app/api/admin/listings', {
@@ -77,6 +81,7 @@ export default function AdminNewListingPage() {
         photo:        photo || null,
         photoPosition,
         contact:      form.contact || null,
+        contactEmail: form.contactEmail || null,
         neighborhood: form.neighborhood || null,
         expiryDays:   parseInt(form.expiryDays) || 30,
       }),
@@ -238,6 +243,18 @@ export default function AdminNewListingPage() {
             onChange={e => setForm(f => ({ ...f, contact: e.target.value }))}
             maxLength={200}
             placeholder="Phone number or wa.me link"
+            className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Email contact <span className="text-zinc-600 font-normal">(optional)</span></label>
+          <input
+            type="email"
+            value={form.contactEmail}
+            onChange={e => setForm(f => ({ ...f, contactEmail: e.target.value }))}
+            maxLength={200}
+            placeholder="seller@example.com"
             className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
           />
         </div>

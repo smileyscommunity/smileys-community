@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin, isAdminOrModerator } from '@/lib/access'
+import { normalizeContactEmail } from '@/lib/contactEmail'
 
 const VALID_CATEGORIES = ['ROOMS','JOBS','SERVICES','BUY_SELL','FREE','LOST_FOUND','RECO','EXPERIENCES','PETS']
 
@@ -51,7 +52,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json()
-  const { userId, category, title, description, price, photo, photoPosition, contact, neighborhood, expiryDays } = body
+  const { userId, category, title, description, price, photo, photoPosition, contact, contactEmail, neighborhood, expiryDays } = body
 
   if (!userId || typeof userId !== 'string') return NextResponse.json({ error: 'userId required' }, { status: 400 })
   if (!category || !VALID_CATEGORIES.includes(category)) return NextResponse.json({ error: 'Invalid category' }, { status: 400 })
@@ -74,6 +75,7 @@ export async function POST(req: NextRequest) {
       photo:         photo ? String(photo).slice(0, 500) : null,
       photoPosition: typeof photoPosition === 'number' && photoPosition >= 0 && photoPosition <= 100 ? Math.round(photoPosition) : 50,
       contact:      contact ? String(contact).slice(0, 200) : null,
+      contactEmail: normalizeContactEmail(contactEmail),
       neighborhood: neighborhood || null,
       status:       'active',
       expiresAt,

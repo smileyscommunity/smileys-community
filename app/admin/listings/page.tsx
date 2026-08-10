@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { confirmToast } from '@/lib/confirmToast'
+import { isValidContactEmail } from '@/lib/contactEmail'
 import Link from 'next/link'
 import { toast } from 'sonner'
 
@@ -237,7 +238,7 @@ export default function AdminListingsPage() {
     const contact      = editForm.contact.trim() || null
     const contactEmail = editForm.contactEmail.trim() || null
     if (!title) { toast.error('Title required'); return }
-    if (contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
+    if (contactEmail && !isValidContactEmail(contactEmail)) {
       toast.error('Enter a valid email address'); return
     }
     const res = await fetch(`/app/api/admin/listings/${editing.id}`, {

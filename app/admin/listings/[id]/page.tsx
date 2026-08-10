@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { toast } from 'sonner'
 import { resolveImageUrl } from '@/lib/data'
 import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
+import { isValidContactEmail } from '@/lib/contactEmail'
 import ImageUpload from '@/components/ImageUpload'
 
 const CATEGORY_OPTIONS = [
@@ -49,6 +50,7 @@ interface Listing {
   photo: string | null
   photoPosition: number
   contact: string | null
+  contactEmail: string | null
   neighborhood: string | null
   status: string
   expiresAt: string
@@ -75,7 +77,7 @@ export default function AdminListingDetailPage() {
   const [saving, setSaving]   = useState(false)
 
   const [form, setForm] = useState({
-    title: '', description: '', price: '', contact: '', neighborhood: '', category: '',
+    title: '', description: '', price: '', contact: '', contactEmail: '', neighborhood: '', category: '',
   })
   const [photo,         setPhoto]         = useState('')
   const [photoPosition, setPhotoPosition] = useState(50)
@@ -90,6 +92,7 @@ export default function AdminListingDetailPage() {
           description:  data.description,
           price:        data.price ?? '',
           contact:      data.contact ?? '',
+          contactEmail: data.contactEmail ?? '',
           neighborhood: data.neighborhood ?? '',
           category:     data.category,
         })
@@ -102,6 +105,9 @@ export default function AdminListingDetailPage() {
 
   async function handleSave() {
     if (!form.title.trim()) { toast.error('Title required'); return }
+    if (form.contactEmail.trim() && !isValidContactEmail(form.contactEmail)) {
+      toast.error('Enter a valid email address'); return
+    }
     setSaving(true)
     const res = await fetch(`/app/api/admin/listings/${id}`, {
       method: 'PATCH', credentials: 'include',
@@ -111,6 +117,7 @@ export default function AdminListingDetailPage() {
         description:   form.description.trim(),
         price:         form.price.trim() || null,
         contact:       form.contact.trim() || null,
+        contactEmail:  form.contactEmail.trim() || null,
         neighborhood:  form.neighborhood || null,
         category:      form.category,
         photo:         photo || null,
@@ -282,6 +289,18 @@ export default function AdminListingDetailPage() {
             onChange={e => setForm(f => ({ ...f, contact: e.target.value }))}
             maxLength={200}
             placeholder="Phone number or wa.me link"
+            className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Email contact</label>
+          <input
+            type="email"
+            value={form.contactEmail}
+            onChange={e => setForm(f => ({ ...f, contactEmail: e.target.value }))}
+            maxLength={200}
+            placeholder="seller@example.com"
             className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
           />
         </div>
