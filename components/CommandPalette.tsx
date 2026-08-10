@@ -15,6 +15,9 @@ interface SearchResults {
   members:  { id: string; name: string; color: string; profilePhoto: string | null; neighborhood: string | null; restricted?: boolean }[]
   clubs:    { id: string; name: string; emoji: string; slug: string; memberCount: number }[]
   listings: { id: string; title: string; category: string; price: string | null; neighborhood: string | null }[]
+  // Optional so a client bundle deployed ahead of (or behind) the API can't
+  // crash on a payload without the field.
+  handbook?: { slug: string; title: string; excerpt: string | null; category: string; emoji: string }[]
 }
 
 const LISTING_CAT_EMOJI: Record<string, string> = {
@@ -135,7 +138,7 @@ export default function CommandPalette() {
     : []
 
   const hasResults = matchedStatic.length > 0 ||
-    (results != null && (results.events.length + results.members.length + results.clubs.length + results.listings.length) > 0)
+    (results != null && (results.events.length + results.members.length + results.clubs.length + results.listings.length + (results.handbook?.length ?? 0)) > 0)
 
   if (!open) return null
 
@@ -158,7 +161,7 @@ export default function CommandPalette() {
               autoFocus
               value={query}
               onValueChange={setQuery}
-              placeholder="Search events, members, clubs, board…"
+              placeholder="Search events, members, clubs, handbook…"
               className="flex-1 text-sm text-gray-900 placeholder-gray-400 outline-none bg-transparent"
             />
             {searching && (
@@ -271,6 +274,28 @@ export default function CommandPalette() {
                         <div className="flex-1 min-w-0">
                           <p className="font-medium text-gray-900 truncate">{c.name}</p>
                           <p className="text-xs text-gray-400">{c.memberCount} members</p>
+                        </div>
+                      </Command.Item>
+                    ))}
+                  </Command.Group>
+                )}
+
+                {(results.handbook?.length ?? 0) > 0 && (
+                  <Command.Group className="px-2">
+                    <div className="px-2 pt-3 pb-1">
+                      <span className="text-xs font-semibold text-gray-600 uppercase tracking-widest">Handbook</span>
+                    </div>
+                    {results.handbook!.map(h => (
+                      <Command.Item
+                        key={h.slug}
+                        value={`handbook-${h.slug}`}
+                        onSelect={() => go(`/handbook/${h.slug}`)}
+                        className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer text-sm data-[selected=true]:bg-amber-50 data-[selected=true]:text-amber-700 transition-colors mb-0.5"
+                      >
+                        <span className="w-7 h-7 flex items-center justify-center bg-amber-50 rounded-lg text-base shrink-0">{h.emoji}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-gray-900 truncate">{h.title}</p>
+                          <p className="text-xs text-gray-400 truncate">{h.category}{h.excerpt ? ` · ${h.excerpt}` : ''}</p>
                         </div>
                       </Command.Item>
                     ))}
