@@ -13,6 +13,11 @@ export default defineConfig({
     // lib/prisma.ts throws if DATABASE_URL is unset. A dummy URL lets the
     // import succeed — the pure role helpers under test never open a
     // connection.
-    env: { DATABASE_URL: 'postgresql://test:test@localhost:5432/test' },
+    // Likewise lib/unsubscribe.ts (pulled in via lib/email.ts) throws at module
+    // load without JWT_SECRET; nothing under test signs or verifies a token.
+    env: {
+      DATABASE_URL: 'postgresql://test:test@localhost:5432/test',
+      JWT_SECRET:   'test-secret-not-used-for-signing',
+    },
   },
 })

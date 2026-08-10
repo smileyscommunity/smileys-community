@@ -768,9 +768,22 @@ export async function sendFirstEventNudgeEmail(
 // loop reports its own results (send volume + running RSVP conversion).
 export async function sendNudgeReportEmail(
   to: string,
-  r: { emailed: number; matched: number; segment: number; interestMatched: number; sameHood: number; priorNudged: number; priorConverted: number },
+  r: { emailed: number; matched: number; segment: number; interestMatched: number; sameHood: number; priorNudged: number; priorConverted: number
+       heldOut?: number; expTreated?: number; expTreatedConverted?: number; expControl?: number; expControlConverted?: number },
 ) {
   const rate = r.priorNudged > 0 ? Math.round(100 * r.priorConverted / r.priorNudged) : 0
+  const pct  = (n: number, d: number) => (d > 0 ? `${Math.round(1000 * n / d) / 10}%` : '—')
+  // The blended "conversion so far" number above can't tell the nudge apart
+  // from members who would have RSVP'd anyway. The arm split is the read.
+  const arms = (r.expTreated ?? 0) + (r.expControl ?? 0) > 0
+    ? `
+        <p style="color:#374151;font-size:14px;line-height:1.7;margin:14px 0 0;padding:12px;background:#f9fafb;border-radius:8px">
+          <strong>Holdout experiment</strong> (members assigned since the holdout shipped):<br>
+          Emailed: <strong>${r.expTreatedConverted ?? 0}/${r.expTreated ?? 0}</strong> RSVP'd (${pct(r.expTreatedConverted ?? 0, r.expTreated ?? 0)})<br>
+          Held back: <strong>${r.expControlConverted ?? 0}/${r.expControl ?? 0}</strong> RSVP'd (${pct(r.expControlConverted ?? 0, r.expControl ?? 0)})<br>
+          <span style="color:#6b7280;font-size:12px">Both arms were matched to a real event; only the first was emailed.</span>
+        </p>`
+    : ''
   await getResend().emails.send({
     from: FROM, to,
     subject: `First-RSVP nudge: ${r.emailed} sent · ${rate}% converting`,
@@ -778,12 +791,13 @@ export async function sendNudgeReportEmail(
       <div style="font-family:system-ui,sans-serif;max-width:520px;margin:0 auto;padding:24px">
         <h2 style="font-size:18px;margin:0 0 12px;color:#111827">First-RSVP nudge — weekly run</h2>
         <p style="color:#374151;font-size:14px;line-height:1.7;margin:0">
-          <strong>${r.emailed}</strong> members emailed this week (of ${r.matched} matched / ${r.segment} in segment).<br>
+          <strong>${r.emailed}</strong> members emailed this week (of ${r.matched} matched / ${r.segment} in segment)${r.heldOut ? `, <strong>${r.heldOut}</strong> held back as controls` : ''}.<br>
           ${r.interestMatched} matched on a stated interest · ${r.sameHood} in their own neighbourhood.
         </p>
         <p style="color:#374151;font-size:14px;line-height:1.7;margin:14px 0 0">
           <strong>Conversion so far:</strong> ${r.priorConverted} of ${r.priorNudged} members nudged 3+ days ago have since RSVP'd (<strong>${rate}%</strong>).
         </p>
+        ${arms}
         <p style="color:#9ca3af;font-size:12px;margin-top:16px">Automated — Smileys first-RSVP nudge cron.</p>
       </div>`,
   })

@@ -1,3 +1,4 @@
+import { createHash } from 'crypto'
 import { prisma } from './prisma'
 import { sendFirstEventNudgeEmail } from './email'
 
@@ -82,10 +83,51 @@ function istanbulDateStr(offsetDays = 0): string {
   return ist.toISOString().slice(0, 10)
 }
 
+// ── Randomised holdout ────────────────────────────────────────────────────
+// Half of every matched batch is stamped but NOT emailed, so the control arm
+// is drawn from the same pool the nudge actually selects — members who had a
+// well-matched event waiting for them. The first measurement (2026-08-10)
+// compared nudged members against every never-nudged member instead, which
+// silently compared "had a good local option" against "may have had nothing
+// to suggest", and produced a +33% relative lift that was indistinguishable
+// from noise (z=0.63, p=0.53).
+//
+// Assignment is a hash of the member id, not a coin flip, so a member keeps
+// the same arm across runs and the arm can be recomputed at analysis time
+// from the id alone — no schema column, no join table. The equivalent in SQL:
+//
+//   (('x' || substr(md5('first-rsvp-nudge-v1' || id), 1, 6))::bit(24)::int) % 2 = 1
+//
+// Changing the salt re-randomises everyone, which invalidates comparisons
+// across the change — bump it only to start a genuinely new experiment.
+const HOLDOUT_SALT = 'first-rsvp-nudge-v1'
+
+// Members stamped before the holdout shipped were ALL emailed, whatever their
+// hash says, so arm-splitting them would file half the treated group as
+// controls. Experiment stats count only members stamped from here on.
+//
+// Set deliberately AFTER the first scheduled run following this change (Wed
+// 2026-08-12 09:00 UTC), because the deploy that ships it may land on either
+// side of that run. Excluding one cohort costs a week of data; including a
+// cohort that ran without holdout logic would misfile half of it as controls
+// and quietly corrupt the result. Move this forward if the deploy slips past
+// 2026-08-19.
+export const HOLDOUT_START = new Date('2026-08-13T00:00:00Z')
+
+export function isNudgeHoldout(memberId: string): boolean {
+  const h = createHash('md5').update(HOLDOUT_SALT + memberId).digest('hex')
+  return parseInt(h.slice(0, 6), 16) % 2 === 1
+}
+
 export interface NudgeResult {
   segment: number; candidates: number; matched: number; emailed: number; failed: number
+  heldOut: number                                // matched, stamped, deliberately not emailed
   sameHood: number; firstTimerFriendly: number; interestMatched: number
   priorNudged: number; priorConverted: number   // members nudged ≥3d ago, and how many have since RSVP'd
+  // Same measure split by arm, counting only members assigned since
+  // HOLDOUT_START. This is the comparison that can actually be read.
+  expTreated: number; expTreatedConverted: number
+  expControl: number; expControlConverted: number
 }
 
 // Run the matcher and (unless dryRun) email each matched member once, stamping
@@ -150,23 +192,49 @@ export async function runFirstRsvpNudge(opts: { dryRun?: boolean; limit?: number
   // Running attribution: members nudged ≥3 days ago (had a chance to act) who
   // now have any RSVP. They had zero RSVPs when nudged, so this is clean.
   const threeDaysAgo = new Date(Date.now() - 3 * 86_400_000)
-  const [priorNudged, priorConverted] = await Promise.all([
+  const [priorNudged, priorConverted, assigned] = await Promise.all([
     prisma.user.count({ where: { firstRsvpNudgedAt: { not: null, lt: threeDaysAgo } } }),
     prisma.user.count({ where: { firstRsvpNudgedAt: { not: null, lt: threeDaysAgo }, joinedEvents: { some: {} } } }),
+    // Arm-split conversion. Fetched as rows rather than counted in SQL because
+    // the arm lives in a hash of the id, not in a column.
+    prisma.user.findMany({
+      where:  { firstRsvpNudgedAt: { gte: HOLDOUT_START, lt: threeDaysAgo } },
+      select: { id: true, _count: { select: { joinedEvents: true } } },
+    }),
   ])
+
+  let expTreated = 0, expTreatedConverted = 0, expControl = 0, expControlConverted = 0
+  for (const u of assigned) {
+    const converted = u._count.joinedEvents > 0
+    if (isNudgeHoldout(u.id)) { expControl++; if (converted) expControlConverted++ }
+    else                      { expTreated++; if (converted) expTreatedConverted++ }
+  }
 
   const result: NudgeResult = {
     segment: members.length, candidates: candidates.length, matched: matches.length,
-    emailed: 0, failed: 0,
+    emailed: 0, failed: 0, heldOut: 0,
     sameHood: matches.filter(x => x.sameHood).length,
     firstTimerFriendly: matches.filter(x => x.ev.isFirstTimerFriendly).length,
     interestMatched: matches.filter(x => interestBoost(x.member.interests, x.ev.title) > 0).length,
     priorNudged, priorConverted,
+    expTreated, expTreatedConverted, expControl, expControlConverted,
   }
   if (dryRun) return result
 
   const toSend = Number.isFinite(limit) ? matches.slice(0, limit) : matches
   for (const x of toSend) {
+    // Control arm: stamp so the 30-day exclusion applies exactly as it does to
+    // the treated half — otherwise the control would stay eligible, drift back
+    // into later batches, and stop being a clean comparison.
+    if (isNudgeHoldout(x.member.id)) {
+      try {
+        await prisma.user.update({ where: { id: x.member.id }, data: { firstRsvpNudgedAt: new Date() } })
+        result.heldOut++
+      } catch {
+        result.failed++
+      }
+      continue
+    }
     try {
       await sendFirstEventNudgeEmail(x.member.id, x.member.email!, x.member.name, {
         id: x.ev.id, title: x.ev.title, date: x.ev.date, time: x.ev.time, neighborhood: x.ev.neighborhood,
