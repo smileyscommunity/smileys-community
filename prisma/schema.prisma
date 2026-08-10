@@ -1270,11 +1270,32 @@ model Post {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   kind        String    @default("community")
+
+  // ── Handbook review lifecycle (kind='handbook'; null on community posts) ──
+  // Set ONLY when a human re-checks the article against its sources.
+  // Deliberately NOT derived from updatedAt: a typo fix or a bulk content
+  // migration must never claim the facts were verified. Null renders as
+  // "not yet reviewed", never as a date.
+  lastReviewedAt     DateTime?
+  // Per-article review cadence in days. Visa fees, transport fares and bank
+  // requirements go stale far faster than dining etiquette does, so there is
+  // no universal period. Null = fall back to the category's volatility tier.
+  reviewIntervalDays Int?
+  // Extra search keywords beyond title/excerpt — the Turkish term a member
+  // would actually type ("ikamet", "vergi numarası", "e-devlet").
+  tags               String[]  @default([])
+  // Official government / municipal / provider links, as [{ label, url }].
+  // High-stakes articles must cite where the reader can verify the facts
+  // themselves rather than trusting member-written text.
+  officialSources    Json?
+
   author      User      @relation(fields: [authorId], references: [id])
   likes       PostLike[]
 
   @@index([status, publishedAt])
   @@index([kind, status, publishedAt])
+  // Drives the review queue ("what is overdue?") and the freshness sort.
+  @@index([kind, status, lastReviewedAt])
   @@map("posts")
 }
 

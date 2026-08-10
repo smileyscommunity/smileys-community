@@ -9,22 +9,36 @@
 // anchors now resolve on /handbook itself. The anchor matches the
 // slugified label TransitLinks generates (see
 // components/TransitLinks.tsx#categoryId).
+// Keys are CANONICAL handbook categories (see lib/handbook-categories) — call
+// canonicalCategory() on a stored value before looking up here. Categories
+// with no matching quick-reference section are deliberately absent rather than
+// pointed at a loosely-related anchor: the previous table sent 'Family' to the
+// Healthcare links, which is not where a reader asking about schools expects
+// to land. A missing entry renders no callout, which is the honest outcome.
 export const HANDBOOK_TO_GUIDE: Record<string, { anchor: string; label: string }> = {
-  'Bureaucracy':    { anchor: 'visa-residence',   label: 'Visa & Residence apps and links' },
-  'Money':          { anchor: 'banking-money',    label: 'Banking & Money apps and links' },
-  'Daily Life':     { anchor: 'housing',          label: 'Housing, utilities, and daily essentials' },
-  'Family':         { anchor: 'healthcare',       label: 'Healthcare quick links' },
-  'Getting Around': { anchor: 'getting-around',   label: 'Getting Around apps and links' },
+  'Residence & Legal':  { anchor: 'visa-residence',   label: 'Visa & Residence apps and links' },
+  'Money & Banking':    { anchor: 'banking-money',    label: 'Banking & Money apps and links' },
+  'Living in Istanbul': { anchor: 'housing',          label: 'Housing, utilities, and daily essentials' },
+  'Healthcare':         { anchor: 'healthcare',       label: 'Healthcare quick links' },
+  'Getting Around':     { anchor: 'getting-around',   label: 'Getting Around apps and links' },
+  'Mobile & Digital':   { anchor: 'mobile-internet',  label: 'Mobile & Internet apps and links' },
+  'Getting Started':    { anchor: 'essential-apps',   label: 'The apps to install first' },
+  'Everyday Life':      { anchor: 'practical-info',   label: 'Practical everyday links' },
 }
 
 // City Guide section label → Handbook category. Inverse mapping used
 // when rendering "Read the deep dive →" on /guide sections that have
 // a matching long-form article category.
+// NOTE: currently has no consumers — the "Read the deep dive →" affordance it
+// was written for was never wired up. Kept (and kept correct) as the declared
+// inverse of HANDBOOK_TO_GUIDE so the two can't silently disagree if it is.
 export const GUIDE_TO_HANDBOOK: Record<string, string> = {
-  'Visa & Residence':   'Bureaucracy',
-  'Banking & Money':    'Money',
-  'Housing':            'Daily Life',
-  'Healthcare':         'Daily Life',
-  'Mobile & Internet':  'Daily Life',
+  'Visa & Residence':   'Residence & Legal',
+  'Banking & Money':    'Money & Banking',
+  'Housing':            'Living in Istanbul',
+  'Healthcare':         'Healthcare',
+  'Mobile & Internet':  'Mobile & Digital',
   'Getting Around':     'Getting Around',
+  'Essential Apps':     'Getting Started',
+  'Practical Info':     'Everyday Life',
 }

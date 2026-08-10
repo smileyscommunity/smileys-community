@@ -26,6 +26,7 @@ import PartnersBanner from '@/components/PartnersBanner'
 import GetStartedChecklist from '@/components/GetStartedChecklist'
 import FirstEventBlock from '@/components/FirstEventBlock'
 import Image from 'next/image'
+import { categoryMeta } from '@/lib/handbook-categories'
 
 export const dynamic = 'force-dynamic'
 
@@ -1078,8 +1079,12 @@ export default async function DashboardPage() {
                   {latestHandbook.map((post) => (
                     <Link key={post.id} href={`/handbook/${post.slug}`}
                       className="flex items-start gap-2 group">
+                      {/* Emoji comes from the shared category table (which
+                          resolves legacy keys) rather than a local copy — the
+                          inline map here silently fell back to 📖 for every
+                          category added after it was written. */}
                       <span className="text-sm shrink-0 mt-0.5">
-                        {({ Bureaucracy: '📋', Money: '💳', 'Daily Life': '🏠', Family: '👨‍👩‍👧', 'Getting Around': '🚇' } as Record<string,string>)[post.category] ?? '📖'}
+                        {categoryMeta(post.category)?.emoji ?? '📖'}
                       </span>
                       <p className="text-xs text-gray-700 group-hover:text-amber-600 transition-colors leading-snug line-clamp-2">{post.title}</p>
                     </Link>

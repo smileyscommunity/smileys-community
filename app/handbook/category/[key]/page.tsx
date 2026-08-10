@@ -2,14 +2,17 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
-import { HANDBOOK_CATEGORIES as CATEGORIES, categoryHero } from '@/lib/handbook-categories'
+import { canonicalCategory, categoryMeta, storedKeysFor, categoryHero } from '@/lib/handbook-categories'
 import { resolveImageUrl } from '@/lib/data'
 
+// Queried by every stored key that maps to this canonical category, so legacy
+// rows still filed under the old vocabulary appear here rather than vanishing
+// from the IA until someone re-saves them.
 const getHandbookCategory = unstable_cache(
-  async (category: string) => prisma.post.findMany({
-    where:   { kind: 'handbook', status: 'published', category },
+  async (storedKeys: string[]) => prisma.post.findMany({
+    where:   { kind: 'handbook', status: 'published', category: { in: storedKeys } },
     orderBy: { publishedAt: 'desc' },
-    select:  { id: true, slug: true, title: true, excerpt: true, coverImage: true, body: true, publishedAt: true, author: { select: { name: true } } },
+    select:  { id: true, slug: true, title: true, excerpt: true, coverImage: true, body: true, category: true, publishedAt: true, author: { select: { name: true } } },
   }),
   ['handbook-category'],
   { revalidate: 300, tags: ['handbook'] },
@@ -24,7 +27,7 @@ type Params = { params: Promise<{ key: string }> }
 
 export async function generateMetadata({ params }: Params) {
   const { key } = await params
-  const cat = CATEGORIES[decodeURIComponent(key) as keyof typeof CATEGORIES]
+  const cat = categoryMeta(decodeURIComponent(key))
   if (!cat) return { title: 'Handbook — Smileys Community' }
   return {
     title:       `${cat.label} — Istanbul Handbook | Smileys Community`,
@@ -35,10 +38,13 @@ export async function generateMetadata({ params }: Params) {
 export default async function HandbookCategoryPage({ params }: Params) {
   const { key } = await params
   const decoded = decodeURIComponent(key)
-  const cat = CATEGORIES[decoded as keyof typeof CATEGORIES]
-  if (!cat) notFound()
+  // Legacy /handbook/category/Bureaucracy URLs are indexed, so they resolve to
+  // the canonical category rather than 404ing.
+  const canonical = canonicalCategory(decoded)
+  const cat = canonical ? categoryMeta(canonical) : null
+  if (!canonical || !cat) notFound()
 
-  const articles = await getHandbookCategory(decoded)
+  const articles = await getHandbookCategory(storedKeysFor(canonical))
 
   return (
     <main className="bg-gray-50 min-h-screen">
@@ -67,7 +73,7 @@ export default async function HandbookCategoryPage({ params }: Params) {
             const cover =
               a.coverImage ? resolveImageUrl(a.coverImage)
               : inline     ? resolveImageUrl(inline)
-              :              (categoryHero(decoded)?.src ?? null)
+              :              (categoryHero(canonical)?.src ?? null)
             return (
               <Link key={a.id} href={`/handbook/${a.slug}`}
                 className="block bg-white rounded-2xl border border-gray-200 overflow-hidden hover:border-amber-300 hover:shadow-sm hover:-translate-y-0.5 transition-all group">

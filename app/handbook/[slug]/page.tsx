@@ -10,6 +10,8 @@ import { resolveImageUrl } from '@/lib/data'
 import { firstBodyImage } from '@/lib/articleCover'
 import { SITE_URL, APP_URL } from '@/lib/env'
 import { HANDBOOK_TO_GUIDE } from '@/lib/handbook-links'
+import { canonicalCategory, categoryMeta, storedKeysFor } from '@/lib/handbook-categories'
+import { reviewLabel, readingTime, parseOfficialSources } from '@/lib/handbook-review'
 import SocialShare from '@/components/SocialShare'
 import ArticleLike from '@/components/ArticleLike'
 import HandbookArticleTracker from '@/components/HandbookArticleTracker'
@@ -43,9 +45,13 @@ const getHandbookArticle = unstable_cache(
   { revalidate: 300, tags: ['handbook'] },
 )
 
+// Related articles are matched on the CANONICAL category, so an article still
+// stored under a legacy key ('Daily Life') and one stored under the new key
+// ('Living in Istanbul') recommend each other instead of sitting in separate
+// silos during the transition.
 const getHandbookRelated = unstable_cache(
-  async (category: string, excludeId: string) => prisma.post.findMany({
-    where:   { kind: 'handbook', status: 'published', category, NOT: { id: excludeId } },
+  async (storedKeys: string[], excludeId: string) => prisma.post.findMany({
+    where:   { kind: 'handbook', status: 'published', category: { in: storedKeys }, NOT: { id: excludeId } },
     orderBy: { publishedAt: 'desc' },
     take:    3,
     select:  { id: true, slug: true, title: true, excerpt: true },
@@ -55,11 +61,16 @@ const getHandbookRelated = unstable_cache(
 )
 
 const CATEGORY_STYLES: Record<string, string> = {
-  'Bureaucracy':    'bg-blue-100 text-blue-700',
-  'Money':          'bg-green-100 text-green-700',
-  'Daily Life':     'bg-amber-100 text-amber-700',
-  'Family':         'bg-rose-100 text-rose-700',
-  'Getting Around': 'bg-violet-100 text-violet-700',
+  'Getting Started':      'bg-sky-100 text-sky-700',
+  'Getting Around':       'bg-violet-100 text-violet-700',
+  'Living in Istanbul':   'bg-amber-100 text-amber-700',
+  'Money & Banking':      'bg-green-100 text-green-700',
+  'Mobile & Digital':     'bg-cyan-100 text-cyan-700',
+  'Healthcare':           'bg-teal-100 text-teal-700',
+  'Residence & Legal':    'bg-blue-100 text-blue-700',
+  'Everyday Life':        'bg-rose-100 text-rose-700',
+  'Safety & Emergencies': 'bg-orange-100 text-orange-700',
+  'Language & Culture':   'bg-fuchsia-100 text-fuchsia-700',
 }
 
 type Params = { params: Promise<{ slug: string }> }
@@ -114,7 +125,28 @@ export default async function HandbookArticlePage({ params }: Params) {
   const post = await getHandbookArticle(slug)
   if (!post || post.kind !== 'handbook' || post.status !== 'published') notFound()
 
-  const related = await getHandbookRelated(post.category, post.id)
+  // Resolve the stored category to the canonical 10-category IA. A row whose
+  // category matches nothing (an admin-form typo) still renders — it just
+  // falls back to its raw label and gets no category-specific treatment.
+  const canonical = canonicalCategory(post.category)
+  const meta      = canonical ? categoryMeta(post.category) : null
+  const catLabel  = meta?.label ?? post.category
+  const catKey    = canonical ?? post.category
+
+  const related = await getHandbookRelated(
+    canonical ? storedKeysFor(canonical) : [post.category],
+    post.id,
+  )
+
+  // Freshness + sources are computed server-side so the client component gets
+  // settled strings (see EditableArticle's props comment).
+  const review   = reviewLabel({
+    category:           catKey,
+    lastReviewedAt:     post.lastReviewedAt,
+    reviewIntervalDays: post.reviewIntervalDays,
+  })
+  const minutes  = readingTime(post.body)
+  const sources  = parseOfficialSources(post.officialSources)
 
   // Likes are read OUTSIDE getHandbookArticle's unstable_cache: the count
   // would go stale for 5 minutes, and "did you like this" is per-viewer so
@@ -128,7 +160,7 @@ export default async function HandbookArticlePage({ params }: Params) {
       })) !== null
     : false
 
-  const catCls  = CATEGORY_STYLES[post.category] ?? 'bg-gray-100 text-gray-700'
+  const catCls  = CATEGORY_STYLES[catKey] ?? 'bg-gray-100 text-gray-700'
   const pageUrl = `${APP_URL}/handbook/${post.slug}`
 
   // Read the per-request CSP nonce set by middleware so the JSON-LD <script>
@@ -146,7 +178,11 @@ export default async function HandbookArticlePage({ params }: Params) {
     author:            { '@type': 'Person', name: post.author.name },
     publisher:         { '@type': 'Organization', name: 'Smileys Community', url: SITE_URL },
     mainEntityOfPage:  pageUrl,
-    articleSection:    post.category,
+    articleSection:    catLabel,
+    // dateModified stays mapped to updatedAt — that is genuinely "when the
+    // content changed". The editorial review date is a stricter, separate
+    // claim and is surfaced in the UI, not smuggled into the SEO payload.
+    ...(sources.length > 0 ? { citation: sources.map(s => s.url) } : {}),
   }
 
   return (
@@ -168,7 +204,7 @@ export default async function HandbookArticlePage({ params }: Params) {
         <nav className="flex items-center gap-2 text-xs text-gray-600 flex-wrap mb-6">
           <Link href="/handbook" className="hover:text-amber-600 font-semibold">📖 Handbook</Link>
           <span>›</span>
-          <Link href={`/handbook/category/${encodeURIComponent(post.category)}`} className="hover:text-amber-600 font-semibold">{post.category}</Link>
+          <Link href={`/handbook/category/${encodeURIComponent(catKey)}`} className="hover:text-amber-600 font-semibold">{catLabel}</Link>
         </nav>
 
         {/* Header + quick summary + body live in a client component so staff can
@@ -181,16 +217,54 @@ export default async function HandbookArticlePage({ params }: Params) {
           sanitizedBody={sanitize(post.body)}
           rawBody={post.body}
           category={post.category}
+          categoryLabel={catLabel}
           catCls={catCls}
           coverImage={post.coverImage}
           status={post.status}
           authorName={post.author.name}
           authorColor={post.author.color}
           publishedAt={post.publishedAt ? new Date(post.publishedAt).toISOString() : null}
-          updatedAt={post.updatedAt ? new Date(post.updatedAt).toISOString() : null}
           views={post.views}
+          reviewText={review?.text ?? null}
+          reviewStale={review?.stale ?? false}
+          readingMinutes={minutes}
+          highStakes={meta?.highStakes ?? false}
+          hasSources={sources.length > 0}
         />
         <ArticleViewBeacon slug={post.slug} />
+
+        {/* Official sources — the answer to "where can I verify this?". These
+            sit immediately after the body, before the social/like row, because
+            verifying is the natural next step for a reader who has just been
+            told what to do. Rendered only when the article actually cites
+            something: an empty "Official Sources" heading would imply a rigour
+            the article hasn't earned.
+
+            External links get rel=noopener noreferrer and open in a new tab so
+            a member mid-application doesn't lose their place. */}
+        {sources.length > 0 && (
+          <section className="mt-10 pt-8 border-t border-gray-100">
+            <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-1">Official sources</h2>
+            <p className="text-xs text-gray-500 mb-4">
+              Verify the current rules yourself — these are the authorities that set them.
+            </p>
+            <ul className="space-y-2">
+              {sources.map(s => (
+                <li key={s.url}>
+                  <a href={s.url} target="_blank" rel="noopener noreferrer"
+                    className="group flex items-start gap-2.5 rounded-xl border border-gray-200 bg-white px-4 py-3 hover:border-amber-300 hover:bg-amber-50/40 transition-colors">
+                    <span aria-hidden="true" className="text-sm mt-0.5">🔗</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-bold text-gray-900 group-hover:text-amber-700 transition-colors">{s.label}</span>
+                      <span className="block text-xs text-gray-500 truncate">{new URL(s.url).hostname.replace(/^www\./, '')}</span>
+                    </span>
+                    <span aria-hidden="true" className="text-xs text-gray-400 shrink-0 mt-1 group-hover:translate-x-0.5 transition-transform">↗</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         {/* Share — the handbook is public, so members can send an article
             to a friend who isn't in the community yet. cacheKey busts stale
@@ -219,15 +293,15 @@ export default async function HandbookArticlePage({ params }: Params) {
             to bookmark*. Showing both right at the end of the article
             answers the natural next question ("OK, now what app do I
             use?") without sending members away to search. */}
-        {HANDBOOK_TO_GUIDE[post.category] && (
+        {HANDBOOK_TO_GUIDE[catKey] && (
           <section className="mt-12 pt-8 border-t border-gray-100">
-            <Link href={`/handbook#${HANDBOOK_TO_GUIDE[post.category].anchor}`}
+            <Link href={`/handbook#${HANDBOOK_TO_GUIDE[catKey].anchor}`}
               className="block bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-2xl px-5 py-4 transition-colors group">
               <div className="flex items-center gap-4">
                 <div className="text-2xl shrink-0">🗺️</div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-amber-900">Quick links for this topic</p>
-                  <p className="text-xs text-amber-700 mt-0.5">{HANDBOOK_TO_GUIDE[post.category].label} — curated by the Smileys team.</p>
+                  <p className="text-xs text-amber-700 mt-0.5">{HANDBOOK_TO_GUIDE[catKey].label} — curated by the Smileys team.</p>
                 </div>
                 <span className="text-sm font-bold text-amber-600 shrink-0 group-hover:translate-x-0.5 transition-transform">→</span>
               </div>
@@ -251,7 +325,7 @@ export default async function HandbookArticlePage({ params }: Params) {
 
         {related.length > 0 && (
           <section className="mt-12 pt-8 border-t border-gray-100">
-            <p className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-4">More in {post.category}</p>
+            <p className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-4">More in {catLabel}</p>
             <div className="space-y-3">
               {related.map(r => (
                 <Link key={r.id} href={`/handbook/${r.slug}`}

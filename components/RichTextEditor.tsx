@@ -55,7 +55,11 @@ export default function RichTextEditor({ value, onChange, placeholder, className
 
   const editor = useEditor({
     extensions: [
-      StarterKit,
+      // Headings are capped at h2/h3. StarterKit defaults to levels 1–6, and
+      // its markdown input rule means typing "# " would mint an <h1> that
+      // competes with the article title for the page's single top-level
+      // heading — and "#####" levels the template doesn't style.
+      StarterKit.configure({ heading: { levels: [2, 3] } }),
       Underline,
       TextStyle,
       Color,
@@ -127,6 +131,24 @@ export default function RichTextEditor({ value, onChange, placeholder, className
     <div className={`rounded-xl border border-zinc-700 bg-zinc-800 focus-within:ring-2 focus-within:ring-amber-500 overflow-hidden ${className ?? ''}`}>
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-0.5 px-2 py-1.5 border-b border-zinc-700 bg-zinc-900">
+        {/* Headings come FIRST — before bold — because their absence is what
+            produced the Handbook's structural problem: with no heading control
+            in the toolbar, every author reached for bold instead, and the whole
+            corpus ended up with zero real <h2>. A bolded paragraph looks like a
+            heading but gives screen readers no outline to navigate and search
+            engines no structure. Level 2 and 3 only: the article template
+            renders the title as the page's single <h1>. */}
+        <ToolbarBtn active={editor.isActive('heading', { level: 2 })}
+          onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} title="Section heading">
+          H2
+        </ToolbarBtn>
+        <ToolbarBtn active={editor.isActive('heading', { level: 3 })}
+          onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} title="Sub-heading">
+          H3
+        </ToolbarBtn>
+
+        <div className="w-px h-4 bg-zinc-700 mx-1" />
+
         <ToolbarBtn active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()} title="Bold">
           <strong>B</strong>
         </ToolbarBtn>

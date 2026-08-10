@@ -4,7 +4,7 @@ import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import RichTextEditor from '@/components/RichTextEditor'
-import { CATEGORIES, HANDBOOK_CATEGORIES, TITLE_MAX, EXCERPT_MAX, BODY_MAX } from './constants'
+import { CATEGORIES, HANDBOOK_CATEGORIES, normalizeHandbookCategory, TITLE_MAX, EXCERPT_MAX, BODY_MAX } from './constants'
 import { downscaleImage } from '@/lib/image-resize'
 
 interface PostFormProps {
@@ -30,7 +30,14 @@ export default function PostForm({ initial = {} }: PostFormProps) {
   const [coverImage,  setCoverImage]  = useState(initial.coverImage  ?? '')
   const [status,      setStatus]      = useState(initial.status      ?? 'draft')
   const [kind,        setKind]        = useState(initial.kind        ?? 'community')
-  const [category,    setCategory]    = useState(initial.category    ?? 'Community')
+  // A handbook article still stored under a legacy category key is shown
+  // pre-selected on its canonical successor — otherwise the select renders with
+  // nothing highlighted and an unwary save would land on the default category.
+  const [category,    setCategory]    = useState(
+    initial.kind === 'handbook'
+      ? normalizeHandbookCategory(initial.category)
+      : (initial.category ?? 'Community'),
+  )
   const [saving,      setSaving]      = useState(false)
   const [uploading,   setUploading]   = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)

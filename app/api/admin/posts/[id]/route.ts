@@ -5,7 +5,7 @@ import { getSession } from '@/lib/session'
 import { canManagePosts } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
 import { notifyNewArticle } from '@/lib/notify'
-import { CATEGORIES, HANDBOOK_CATEGORIES, isKind, isValidCategory, TITLE_MAX, EXCERPT_MAX, BODY_MAX } from '@/app/admin/posts/constants'
+import { CATEGORIES, HANDBOOK_CATEGORIES, isKind, isValidCategory, normalizeHandbookCategory, TITLE_MAX, EXCERPT_MAX, BODY_MAX } from '@/app/admin/posts/constants'
 
 // Match POST. External cover URLs would leak visitor IPs on render.
 const COVER_PATH_RE = /^\/app\/api\/files\/[a-zA-Z0-9\-_/]+\.(jpg|jpeg|png|webp|gif)$/i
@@ -46,7 +46,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   // touch the slug — keeping URLs stable across edits is a deliberate
   // SEO + bookmark preservation choice.
   const defaultCat    = postKind === 'handbook' ? HANDBOOK_CATEGORIES[0] : CATEGORIES[0]
-  const cleanCategory = isValidCategory(postKind, category) ? String(category) : defaultCat
+  // See POST: handbook categories normalise onto the canonical IA key.
+  const cleanCategory = !isValidCategory(postKind, category) ? defaultCat
+    : postKind === 'handbook' ? normalizeHandbookCategory(category)
+    : String(category)
   const cleanCover = coverImage ? String(coverImage).trim() : ''
   if (cleanCover && !COVER_PATH_RE.test(cleanCover)) {
     return NextResponse.json({ error: 'Cover image must be uploaded via the form — external URLs are not allowed' }, { status: 400 })

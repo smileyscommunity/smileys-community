@@ -27,15 +27,31 @@ interface Props {
   excerpt:       string | null
   sanitizedBody: string   // server-sanitized HTML for the read view
   rawBody:       string   // raw HTML for the editor
+  // The raw stored value, round-tripped verbatim through the save PUT so an
+  // inline edit never silently rewrites a legacy category key.
   category:      string
+  // The canonical display label for that category (may differ from `category`
+  // while legacy rows are still stored under their old keys).
+  categoryLabel: string
   catCls:        string
   coverImage:    string | null
   status:        string
   authorName:    string
   authorColor:   string | null
   publishedAt:   string | null   // ISO
-  updatedAt:     string | null   // ISO
   views:         number
+  // Freshness is computed on the server (see lib/handbook-review) and passed
+  // down as plain strings. Deriving it here from `new Date()` would risk a
+  // hydration mismatch when a render straddles a review boundary — and the
+  // rule is that this line is either honest or absent, never approximate.
+  reviewText:    string | null   // null = never reviewed; show no date at all
+  reviewStale:   boolean         // past its review interval — editorial signal
+  readingMinutes: number
+  highStakes:    boolean         // render the "verify before you act" warning
+  // Whether the article actually cites sources. The warning must not point at
+  // an "official sources" section that isn't on the page — no article has been
+  // given sources yet, so this is the common case, not the edge case.
+  hasSources:    boolean
 }
 
 function formatDate(d: string | null) {
@@ -162,31 +178,70 @@ export default function EditableArticle(props: Props) {
         <img src={props.coverImage} alt={props.title} className="w-full h-56 sm:h-72 object-cover rounded-2xl mb-8" />
       )}
 
-      <span className={`inline-block px-2 py-1 rounded-full text-[11px] font-bold ${props.catCls}`}>{props.category}</span>
+      <span className={`inline-block px-2 py-1 rounded-full text-[11px] font-bold ${props.catCls}`}>{props.categoryLabel}</span>
       <h1 className="text-3xl sm:text-5xl font-extrabold text-gray-900 mt-4 mb-5 leading-[1.1] tracking-tight">
         {props.title}
       </h1>
 
-      <div className="flex items-center gap-3 text-xs text-gray-600 mb-8 pb-8 border-b border-gray-100">
-        <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0"
-          style={{ backgroundColor: props.authorColor ?? '#f59e0b' }}>
-          {props.authorName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+      {/* Byline + freshness share one block above the rule. The review status
+          is the Handbook's trust signal, so it sits on its own line at full
+          weight rather than being buried in the grey meta text — but it stays
+          inside the header group, because "who wrote this and when was it last
+          checked" is one question, not two. */}
+      <div className="mb-8 pb-8 border-b border-gray-100">
+        <div className="flex items-center gap-3 text-xs text-gray-600">
+          <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0"
+            style={{ backgroundColor: props.authorColor ?? '#f59e0b' }}>
+            {props.authorName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-gray-700">by {props.authorName}</p>
+            <p className="text-xs text-gray-400">
+              {props.publishedAt && `Published ${formatDate(props.publishedAt)}`}
+              {` · ${props.readingMinutes} min read`}
+              {props.views > 0 && ` · 👁 ${props.views.toLocaleString()} view${props.views === 1 ? '' : 's'}`}
+            </p>
+          </div>
         </div>
-        <div>
-          <p className="text-sm font-semibold text-gray-700">by {props.authorName}</p>
-          <p className="text-xs text-gray-400">
-            {props.publishedAt && `Published ${formatDate(props.publishedAt)}`}
-            {props.updatedAt && props.publishedAt && new Date(props.updatedAt).getTime() !== new Date(props.publishedAt).getTime() &&
-              ` · Last reviewed ${formatDate(props.updatedAt)}`}
-            {props.views > 0 && ` · 👁 ${props.views.toLocaleString()} view${props.views === 1 ? '' : 's'}`}
-          </p>
+
+        {/* An article nobody has reviewed says so plainly; it never borrows
+            `updatedAt` to look fresher than it is. */}
+        <div className="mt-4">
+          {props.reviewText === null ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1 text-[11px] font-bold text-gray-500">
+              <span aria-hidden="true">○</span> Not yet reviewed
+            </span>
+          ) : (
+            <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold ${
+              props.reviewStale ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+            }`}>
+              <span aria-hidden="true">{props.reviewStale ? '⏳' : '✓'}</span> {props.reviewText}
+            </span>
+          )}
         </div>
       </div>
 
       {props.excerpt && (
-        <div className="bg-amber-50 border-l-4 border-amber-400 rounded-r-xl p-5 mb-10">
+        <div className={`bg-amber-50 border-l-4 border-amber-400 rounded-r-xl p-5 ${props.highStakes ? 'mb-6' : 'mb-10'}`}>
           <p className="text-[10px] font-extrabold text-amber-700 uppercase tracking-widest mb-2">Quick summary</p>
           <p className="text-sm sm:text-base text-amber-950 leading-relaxed whitespace-pre-line">{props.excerpt}</p>
+        </div>
+      )}
+
+      {/* High-stakes topics (residence, banking, healthcare) — acting on a
+          stale step here costs a rejected application or a wasted trip, so the
+          reader is pointed at the official source BEFORE the instructions,
+          not after them. Deliberately calm and factual: this is a Handbook,
+          not a hazard sign. */}
+      {props.highStakes && (
+        <div className="flex gap-3 rounded-xl border border-gray-200 bg-gray-50 p-4 mb-10">
+          <span aria-hidden="true" className="text-base leading-none mt-0.5">⚠️</span>
+          <p className="text-xs text-gray-700 leading-relaxed">
+            <span className="font-bold text-gray-900">Rules and requirements change.</span>{' '}
+            This article explains how the process works in practice — always confirm the
+            current requirements with the official source
+            {props.hasSources ? ' listed at the end of this article' : ''} before you act on it.
+          </p>
         </div>
       )}
 

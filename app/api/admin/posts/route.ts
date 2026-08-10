@@ -5,7 +5,7 @@ import { canManagePosts } from '@/lib/access'
 import { slugify } from '@/lib/slug'
 import { writeAudit } from '@/lib/audit'
 import { notifyNewArticle } from '@/lib/notify'
-import { CATEGORIES, HANDBOOK_CATEGORIES, isKind, isValidCategory, TITLE_MAX, EXCERPT_MAX, BODY_MAX } from '@/app/admin/posts/constants'
+import { CATEGORIES, HANDBOOK_CATEGORIES, isKind, isValidCategory, normalizeHandbookCategory, TITLE_MAX, EXCERPT_MAX, BODY_MAX } from '@/app/admin/posts/constants'
 
 // Cover image must be a local upload path (the shape /api/upload
 // returns). External URLs in cover-image fields render as <img src>
@@ -40,7 +40,12 @@ export async function POST(req: NextRequest) {
 
   const cleanKind     = isKind(kind) ? kind : 'community'
   const defaultCat    = cleanKind === 'handbook' ? HANDBOOK_CATEGORIES[0] : CATEGORIES[0]
-  const cleanCategory = isValidCategory(cleanKind, category) ? String(category) : defaultCat
+  // Handbook categories normalise to the canonical IA key, so editing an
+  // article still stored under a legacy key migrates it instead of preserving
+  // the old vocabulary forever.
+  const cleanCategory = !isValidCategory(cleanKind, category) ? defaultCat
+    : cleanKind === 'handbook' ? normalizeHandbookCategory(category)
+    : String(category)
 
   // Reject external cover image URLs — they would render as <img src>
   // on the public posts page, leaking visitor IPs / referers to a
