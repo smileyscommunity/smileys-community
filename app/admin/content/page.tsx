@@ -67,8 +67,13 @@ const DEFAULT_CONTENT: Content = {
   neighborhoods: { headline: '', subtitle: '', badge: '' },
 }
 
+interface LiveStats { members: number; events: number; clubs: number }
+
 export default function ContentPage() {
   const [content,   setContent]   = useState<Content | null>(null)
+  // What the database actually says, for comparison against the editorial
+  // figures below. Never saved back — it's a reference reading, not content.
+  const [live,      setLive]      = useState<LiveStats | null>(null)
   const [tab,       setTab]       = useState<Tab>('stats')
   const [saving,    setSaving]    = useState(false)
   const [loading,   setLoading]   = useState(true)
@@ -104,7 +109,9 @@ export default function ContentPage() {
           // / members / neighborhoods) gets an empty object to render
           // against. Without this, clicking those tabs crashes on
           // `content.members.badge` where content.members is undefined.
-          setContent({ ...DEFAULT_CONTENT, ...(d as Content) })
+          const { live: liveStats, ...stored } = d as Content & { live?: LiveStats }
+          if (liveStats) setLive(liveStats)
+          setContent({ ...DEFAULT_CONTENT, ...(stored as Content) })
         }
       })
       .catch(() => {
@@ -177,7 +184,21 @@ export default function ContentPage() {
       {/* ── Stats ── */}
       {tab === 'stats' && (
         <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5 space-y-4">
-          <p className="text-xs text-zinc-500">These numbers appear on the Home, About, Why Smileys, and Get Involved pages.</p>
+          <p className="text-xs text-zinc-500">These numbers appear on the footer and the About, Why Smileys, Advertise and Get Involved pages. They override what the site would otherwise measure for itself.</p>
+          {live && (
+            <div className="rounded-xl bg-zinc-950 border border-zinc-800 p-4">
+              <p className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider mb-2">Live, from the database</p>
+              <div className="grid grid-cols-3 gap-3 text-sm">
+                <div><span className="text-white font-bold tabular-nums">{live.members.toLocaleString('en-US')}</span> <span className="text-zinc-500">approved members</span></div>
+                <div><span className="text-white font-bold tabular-nums">{live.events.toLocaleString('en-US')}</span> <span className="text-zinc-500">events hosted</span></div>
+                <div><span className="text-white font-bold tabular-nums">{live.clubs.toLocaleString('en-US')}</span> <span className="text-zinc-500">active clubs</span></div>
+              </div>
+              <p className="text-[11px] text-zinc-600 mt-3">
+                Clear a value to fall back to the measured figure. Keep one deliberately if it counts people the platform doesn't
+                — just make sure the label says so, since the city cards on the homepage show platform numbers.
+              </p>
+            </div>
+          )}
           {content.stats.map((s, i) => (
             <div key={i} className="grid grid-cols-2 gap-3">
               <div>

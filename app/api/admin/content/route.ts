@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
+import { getCommunityStats } from '@/lib/communityStats'
 import { isAdminOrModerator } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
 import fs from 'fs'
@@ -152,7 +153,11 @@ function read(): ContentValue {
 export async function GET() {
   const session = await getSession()
   if (!session || !isAdminOrModerator(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  return NextResponse.json(read())
+  // `live` is what the database actually says right now. The editor renders it
+  // next to each stat field so an editorial number is a deliberate choice
+  // rather than a figure nobody has rechecked in a year.
+  const live = await getCommunityStats()
+  return NextResponse.json({ ...read(), live })
 }
 
 export async function POST(req: NextRequest) {

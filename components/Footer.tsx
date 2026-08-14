@@ -8,11 +8,10 @@ interface FooterProps {
   stats?: { value: string; label: string }[]
 }
 
-const DEFAULT_STATS = [
-  { value: '4,000+', label: 'members'      },
-  { value: '500+',   label: 'events hosted' },
-  { value: '120+',   label: 'active clubs'  },
-]
+// Only reached if the layout passes nothing (it passes measured numbers when
+// there's no admin override — see lib/communityStats). Kept minimal rather
+// than a second set of figures to drift out of date.
+const DEFAULT_STATS: { value: string; label: string }[] = []
 
 export default function Footer({ stats }: FooterProps) {
   const { isLoggedIn } = useAuth()
