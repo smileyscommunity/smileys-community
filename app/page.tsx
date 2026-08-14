@@ -6,9 +6,9 @@ import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { getEvents } from '@/lib/db'
 import { getSession } from '@/lib/session'
-import EventCard from '@/components/EventCard'
+import EventTabs from '@/components/EventTabs'
 import CityCard from '@/components/CityCard'
-import { resolveImageUrl } from '@/lib/data'
+import { resolveImageUrl, istanbulEventWindow } from '@/lib/data'
 import { getPublicCities, getDefaultCityId, CITY_STATUS } from '@/lib/cities'
 import { APP_URL } from '@/lib/env'
 
@@ -40,13 +40,24 @@ const getLandingData = unstable_cache(
     // filter rather than a different query — the shape already supports it.
     const cityId = await getDefaultCityId()
 
-    const [{ events }, testimonials, memberCount] = await Promise.all([
-      getEvents({ limit: 6, upcoming: true, cityId }),
+    const [{ events }, testimonials, memberCount, stories] = await Promise.all([
+      // Wide enough for the tabs to filter across a month; the page is
+      // cached for 60s, so one fetch beats a request per tab.
+      getEvents({ limit: 24, upcoming: true, cityId }),
       prisma.testimonial.findMany({ where: { active: true }, orderBy: [{ order: 'asc' }], take: 3 }),
       prisma.user.count({ where: { status: 'approved' } }),
+      // Community write-ups — member and host stories, already public at
+      // /posts/<slug>. Handbook articles are excluded: they're practical
+      // reference ("how to get a residence permit"), not community life.
+      prisma.post.findMany({
+        where:   { status: 'published', kind: 'community' },
+        orderBy: { publishedAt: 'desc' },
+        take:    3,
+        select:  { id: true, slug: true, title: true, excerpt: true, coverImage: true, publishedAt: true },
+      }),
     ])
 
-    return { events, testimonials, memberCount }
+    return { events, testimonials, memberCount, stories }
   },
   ['global-landing-data'],
   { revalidate: 60, tags: ['home'] },
@@ -68,7 +79,7 @@ export default async function HomePage() {
     else redirect('/dashboard')
   }
 
-  const [cities, { events, testimonials, memberCount }] = await Promise.all([
+  const [cities, { events, testimonials, memberCount, stories }] = await Promise.all([
     getPublicCities(),
     getLandingData(),
   ])
@@ -77,12 +88,16 @@ export default async function HomePage() {
   const otherCities = cities.filter(c => c.status !== CITY_STATUS.Live)
   const flagship    = liveCities[0] ?? null
 
-  const liveEvents = events.filter(e => e.status !== 'cancelled')
+  // Cancelled events break trust in a showcase slot; sold-out ones sink to the
+  // bottom so joinable ones get the space. Order is preserved within each group,
+  // and the tabs filter over the result.
   const soldOut = (e: (typeof events)[number]) => e.limitedSpots && e.spotsLeft <= 0
-  const featuredEvents = [
+  const liveEvents = events.filter(e => e.status !== 'cancelled')
+  const tabEvents = [
     ...liveEvents.filter(e => !soldOut(e)),
     ...liveEvents.filter(soldOut),
-  ].slice(0, 3)
+  ]
+  const eventWindow = istanbulEventWindow()
 
   // Primary CTA names the flagship city when there is exactly one live city
   // ("Explore Istanbul"), and becomes "Find your city" once there are more.
@@ -210,24 +225,17 @@ export default async function HomePage() {
       </section>
 
       {/* ── What's happening ───────────────────────────────────────────── */}
-      {featuredEvents.length > 0 && (
-        <section className="py-14 sm:py-20 bg-white">
+      {tabEvents.length > 0 && (
+        <section className="py-14 sm:py-20 bg-gray-50 border-t border-gray-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-end justify-between mb-8">
-              <div>
-                <h2 className="section-title">What's happening</h2>
-                <p className="section-subtitle">
-                  {singleCity ? `This week in ${flagship.name}.` : 'This week across the network.'}
-                </p>
-              </div>
-              <Link href="/events" className="hidden md:flex btn-ghost text-sm items-center gap-1">View all events →</Link>
+            <div className="mb-6">
+              <h2 className="section-title">What's happening</h2>
+              <p className="section-subtitle">
+                {singleCity ? `Coming up in ${flagship.name}.` : 'Coming up across the network.'}
+              </p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {featuredEvents.map(event => <EventCard key={event.id} event={event} linkPrefix="/events" />)}
-            </div>
-            <div className="text-center mt-10 md:hidden">
-              <Link href="/events" className="btn-secondary">View all events</Link>
-            </div>
+            {/* A city filter joins these tabs once a second city is live. */}
+            <EventTabs events={tabEvents} window={eventWindow} />
           </div>
         </section>
       )}
@@ -291,13 +299,33 @@ export default async function HomePage() {
       </section>
 
       {/* ── Community stories ──────────────────────────────────────────── */}
-      {testimonials.length > 0 && (
+      {(testimonials.length > 0 || stories.length > 0) && (
         <section className="py-14 sm:py-20 bg-gray-50 border-t border-gray-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="mb-8">
               <h2 className="section-title">Life happens offline</h2>
               <p className="section-subtitle">Real stories from real members.</p>
             </div>
+
+            {/* Written pieces first — a member or host telling their own story
+                carries further than a pull-quote. */}
+            {stories.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-5">
+                {stories.map(p => (
+                  <Link key={p.id} href={`/posts/${p.slug}`} className="group card overflow-hidden hover:-translate-y-1 transition-transform duration-300">
+                    {p.coverImage && (
+                      <div className="relative aspect-[16/9]">
+                        <Image src={resolveImageUrl(p.coverImage)} alt="" fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover" />
+                      </div>
+                    )}
+                    <div className="p-5">
+                      <h3 className="font-bold text-gray-900 mb-1.5 group-hover:text-amber-600 transition-colors line-clamp-2">{p.title}</h3>
+                      {p.excerpt && <p className="text-sm text-gray-600 leading-relaxed line-clamp-3">{p.excerpt}</p>}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               {testimonials.map(t => (
                 <div key={t.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
@@ -318,6 +346,12 @@ export default async function HomePage() {
                 </div>
               ))}
             </div>
+
+            {stories.length > 0 && (
+              <div className="mt-8">
+                <Link href="/posts" className="btn-ghost text-sm">Read more from the community →</Link>
+              </div>
+            )}
           </div>
         </section>
       )}

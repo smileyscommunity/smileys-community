@@ -5,10 +5,10 @@ import { notFound } from 'next/navigation'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { getEvents, getClubs } from '@/lib/db'
-import EventCard from '@/components/EventCard'
+import EventTabs from '@/components/EventTabs'
 import ClubCard from '@/components/ClubCard'
 import { neighborhoodToSlug, getNeighborhoodMeta } from '@/lib/neighborhoods'
-import { resolveImageUrl } from '@/lib/data'
+import { resolveImageUrl, istanbulEventWindow } from '@/lib/data'
 import { getPublicCity } from '@/lib/cities'
 import { CITY_STATUS } from '@/lib/cityStatus'
 import { APP_URL } from '@/lib/env'
@@ -49,7 +49,7 @@ const getCityPageData = unstable_cache(
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
 
     const [{ events }, clubs, neighborhoodCounts, testimonials, recentMembers] = await Promise.all([
-      getEvents({ limit: 6, upcoming: true, cityId }),
+      getEvents({ limit: 24, upcoming: true, cityId }),
       getClubs(cityId),
       prisma.event.groupBy({
         by: ['neighborhood'],
@@ -111,13 +111,14 @@ export default async function CityPage({ params }: Params) {
   }))
 
   // Prospect-facing surface: cancelled events break trust in a showcase slot,
-  // and sold-out ones only backfill so the joinable ones get the space.
+  // and sold-out ones sink below the joinable ones.
   const liveEvents = events.filter(e => e.status !== 'cancelled')
   const soldOut = (e: (typeof events)[number]) => e.limitedSpots && e.spotsLeft <= 0
-  const featuredEvents = [
+  const tabEvents = [
     ...liveEvents.filter(e => !soldOut(e)),
     ...liveEvents.filter(soldOut),
-  ].slice(0, 3)
+  ]
+  const eventWindow = istanbulEventWindow()
 
   // Clubs with something scheduled first — alphabetical order would fill the
   // page with dormant clubs.
@@ -191,22 +192,14 @@ export default async function CityPage({ params }: Params) {
       </section>
 
       {/* Events */}
-      {featuredEvents.length > 0 && (
+      {tabEvents.length > 0 && (
         <section className="py-12 sm:py-16 bg-gray-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-end justify-between mb-8">
-              <div>
-                <h2 className="section-title">What's happening in {city.name}</h2>
-                <p className="section-subtitle">Hand-picked experiences for this week.</p>
-              </div>
-              <Link href="/events" className="hidden md:flex btn-ghost text-sm items-center gap-1">View all →</Link>
+            <div className="mb-6">
+              <h2 className="section-title">What's happening in {city.name}</h2>
+              <p className="section-subtitle">Pick a day and see what's on.</p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {featuredEvents.map(event => <EventCard key={event.id} event={event} linkPrefix="/events" />)}
-            </div>
-            <div className="text-center mt-10 md:hidden">
-              <Link href="/events" className="btn-secondary">View all events</Link>
-            </div>
+            <EventTabs events={tabEvents} window={eventWindow} />
           </div>
         </section>
       )}

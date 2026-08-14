@@ -235,6 +235,44 @@ export function todayIstanbul(offsetDays = 0): string {
   return d.toLocaleDateString('en-CA', { timeZone: 'Europe/Istanbul' })
 }
 
+// Date boundaries for the homepage event tabs, in Istanbul terms.
+//
+// Computed server-side on purpose and handed to the client component as plain
+// strings: Event.date is a bare 'YYYY-MM-DD' meaning an Istanbul calendar day,
+// so letting the visitor's browser decide what "today" is would show a member
+// in Los Angeles a different Tuesday than the community means. Same principle
+// as hourCycle:'h23' elsewhere — the viewer's clock never defines the day.
+export interface EventWindow {
+  today:        string
+  weekEnd:      string
+  weekendStart: string
+  weekendEnd:   string
+}
+
+// `date` is already an Istanbul calendar date, so parsing it as UTC midnight
+// gives exact day-of-week arithmetic with no timezone drift.
+function addDays(date: string, n: number): string {
+  const d = new Date(`${date}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + n)
+  return d.toISOString().split('T')[0]
+}
+
+export function istanbulEventWindow(): EventWindow {
+  const today = todayIstanbul()
+  const dow   = new Date(`${today}T00:00:00Z`).getUTCDay()   // 0 Sun … 6 Sat
+
+  // The week runs to Sunday inclusive; on a Sunday that's today.
+  const weekEnd = addDays(today, (7 - dow) % 7)
+
+  // On a Saturday or Sunday, "weekend" means the one in progress — a visitor
+  // browsing on Saturday wants tonight, not next week. Otherwise it's the
+  // Saturday and Sunday ahead.
+  const weekendStart = dow === 0 ? today : addDays(today, (6 - dow + 7) % 7)
+  const weekendEnd   = dow === 0 ? today : addDays(weekendStart, 1)
+
+  return { today, weekEnd, weekendStart, weekendEnd }
+}
+
 // One rendering for money everywhere: symbol-prefixed for known currencies
 // ("\u20ba100", "$100"), code-suffixed otherwise ("100 CHF"). Cards used to
 // hardcode \u20ba while the detail page wrote "100 TRY" for the same event.
