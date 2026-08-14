@@ -153,7 +153,7 @@ export default function AdminCitiesPage() {
           </div>
           <div>
             <label className={label}>Country</label>
-            <input className={input} value={country} onChange={e => setCountry(e.target.value)} placeholder="Portugal" />
+            <input className={input} value={country} onChange={e => setCountry(e.target.value.toUpperCase())} maxLength={2} placeholder="PT (ISO code)" />
           </div>
           <div>
             <label className={label}>Timezone</label>

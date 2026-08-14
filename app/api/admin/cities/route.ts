@@ -4,6 +4,7 @@ import { CITY_STATUS } from '@/lib/cityStatus'
 import { getSession } from '@/lib/session'
 import { isAdmin, isAdminOrModerator } from '@/lib/access'
 import { slugify } from '@/lib/slug'
+import { toCountryCode } from '@/lib/country'
 
 // GET /api/admin/cities — list every city with its club count + hosts, so the
 // admin Cities page can show launch status at a glance.
@@ -45,13 +46,15 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json()
   const name     = typeof body.name === 'string' ? body.name.trim() : ''
-  const country  = typeof body.country === 'string' ? body.country.trim() : ''
+  const country  = toCountryCode(body.country)
   const timezone = typeof body.timezone === 'string' ? body.timezone.trim() : ''
   const currency = typeof body.currency === 'string' && body.currency.trim() ? body.currency.trim().toUpperCase() : 'EUR'
   const defaultLang = typeof body.defaultLang === 'string' && body.defaultLang.trim() ? body.defaultLang.trim() : 'en'
 
   if (!name)     return NextResponse.json({ error: 'Name is required' }, { status: 400 })
-  if (!country)  return NextResponse.json({ error: 'Country is required' }, { status: 400 })
+  // Stored as an ISO 3166-1 alpha-2 code so two admins can't spell one
+  // country two ways ('TR' and 'TURKEY' both existed before this).
+  if (!country)  return NextResponse.json({ error: 'Country must be a 2-letter ISO code (TR, PT, GR)' }, { status: 400 })
   if (!timezone) return NextResponse.json({ error: 'Timezone is required (e.g. Europe/Lisbon)' }, { status: 400 })
 
   const slug = slugify(name)

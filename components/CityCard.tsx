@@ -2,6 +2,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { CITY_STATUS, CITY_STATUS_META, type PublicCity } from '@/lib/cityStatus'
 import { resolveImageUrl } from '@/lib/data'
+import { countryName } from '@/lib/country'
 
 // One card, every city, every stage. A city moves coming_soon → preparing →
 // live by an admin changing a dropdown; this component is what makes that flip
@@ -67,7 +68,7 @@ export default function CityCard({ city, featured = false }: { city: PublicCity;
       <div className="p-5">
         <div className="flex items-baseline gap-2 mb-1">
           <h3 className={`font-extrabold text-gray-900 ${featured ? 'text-2xl' : 'text-lg'}`}>{city.name}</h3>
-          <span className="text-xs text-gray-500 uppercase tracking-wide">{city.country}</span>
+          <span className="text-xs text-gray-500 tracking-wide">{countryName(city.country)}</span>
         </div>
 
         <p className="text-sm text-gray-600 leading-relaxed">{tagline}</p>
