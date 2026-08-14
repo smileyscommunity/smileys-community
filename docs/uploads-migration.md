@@ -1,86 +1,62 @@
-# Uploads migration — remaining steps
+# Uploads migration — done, one cleanup step left
 
-Commit `605fed3` moved uploads out of `public/` (see `lib/uploadRoot.ts` and
-SECURITY.md invariant 15). The code is committed but **not yet deployed**, and
-the server is mid-migration. This file lists what's left. Delete it once the
-last step is done.
+Commits `605fed3` (uploads out of `public/`) and `e757b2f` (multi-city phase 1)
+shipped together on 2026-08-14 as release `e757b2f`. This file records what was
+done and the single step still outstanding. Delete it once that step is done.
 
-## State as of 2026-08-14
+## Outstanding
 
-Already done on the server (safe under the currently deployed code, which still
-reads `public/uploads` and ignores `UPLOAD_DIR`):
-
-- `/root/smileys-uploads` created and populated — 4,049 files, 566 MB, copied
-  (not moved) from `/root/smileys-community/public/uploads`.
-- `UPLOAD_DIR=/root/smileys-uploads` appended to `/root/smileys-community/.env`.
-  Backup of the previous `.env` at `/root/env-backup-20260814`. Nothing in
-  `.env.local` overrides it.
-- nginx returns 404 for `/app/uploads/` (commit `990ae13`). That is what's
-  actually holding the hole closed right now — the code move is the durable
-  version of the same guarantee, not an urgent patch.
-
-Deferred deliberately: the working tree also held an unfinished multi-city
-migration, so the uploads deploy waits and ships alongside it.
-
-## The one thing that goes stale
-
-`/root/smileys-uploads` is a **copy taken on 2026-08-14**. Every upload after
-that lands in `public/uploads` until the new code ships. So:
-
-**Immediately before the deploy, re-sync stragglers:**
-
-```bash
-ssh root@178.105.37.133 \
-  'rsync -av /root/smileys-community/public/uploads/ /root/smileys-uploads/'
-```
-
-Run it again right after the pm2 restart too — it catches anything uploaded
-during the deploy window. It's additive; it never deletes.
-
-## Deploy
-
-Normal `./deploy.sh`, plus the usual rules: fresh DB backup first, explicit
-confirmation, never two deploys in parallel. The new preflight (`→ Checking
-upload store...`) fails the deploy if `UPLOAD_DIR` is unset, points inside the
-deploy root, or doesn't exist.
-
-**Multi-city phase 1 ships in the same deploy and has its own pre-step.**
-`scripts/backfill-city-ids.sql` must run on prod BEFORE the deploy — nine tables
-gain a NOT NULL `cityId` that `prisma db push` cannot add to a non-empty table,
-so skipping it means a failed schema push (exit 90) and prod on new code against
-the old schema. Full instructions in that file's header. Order for the whole
-deploy:
-
-1. `psql … -f scripts/backfill-city-ids.sql` (city columns)
-2. `rsync … public/uploads/ /root/smileys-uploads/` (upload stragglers)
-3. fresh DB backup
-4. `./deploy.sh`
-5. `rsync …` again (uploads written during the deploy window)
-
-## Verify after deploy
-
-```bash
-# An avatar and an event image must still load through the gated route.
-curl -s -o /dev/null -w '%{http_code} %{size_download}\n' \
-  "https://smileyscommunity.com/app/api/files/users/<file>"
-
-# An applicant photo must be 403 on the route and 404 on the static path.
-curl -s -o /dev/null -w '%{http_code}\n' \
-  "https://smileyscommunity.com/app/api/files/applications/<file>"
-curl -s -o /dev/null -w '%{http_code}\n' \
-  "https://smileyscommunity.com/app/uploads/applications/<file>"
-```
-
-Also upload a photo through the app (profile photo is the quickest) and confirm
-the new file appears under `/root/smileys-uploads/users/` and **not** under
-`public/uploads/`.
-
-## Then, and only then
+`/root/smileys-community/public/uploads` still exists — 566 MB, frozen since the
+deploy. It is the rollback copy, kept deliberately, not an oversight. Nothing
+reads or writes it any more:
 
 ```bash
 ssh root@178.105.37.133 'rm -rf /root/smileys-community/public/uploads'
 ```
 
-Keep it until the verification above passes — it is the rollback copy. Leave
-the nginx 404 block in place regardless; it costs nothing and covers a future
-contributor reintroducing a `public/` write path.
+Safe whenever you're ready. Everything in it is also in `/root/smileys-uploads`
+(verified equal at 4,051 files), it is unreachable over HTTP (nginx 404s
+`/app/uploads/`, and the app no longer resolves paths there), and `deploy.sh`
+excludes it so it neither ships nor gets wiped.
+
+## What shipped
+
+**Uploads** now resolve through `lib/uploadRoot.ts` / `UPLOAD_DIR`
+(`/root/smileys-uploads`), outside `public/` and outside the deploy root. The
+gated `app/api/files` route is the only way to read one. Verified on prod after
+the deploy:
+
+- A canary file placed only in `/root/smileys-uploads` served 200 through the
+  gated route, and the `<cwd>/uploads` fallback path does not exist — so
+  `UPLOAD_DIR` is genuinely in effect.
+- A live upload through `/api/apply/upload` landed in `/root/smileys-uploads`
+  and **not** in `public/uploads`. (Test file deleted.)
+- Applicant photo: 403 on the gated route, 404 on the static path.
+- A member avatar and the public pages render normally.
+
+Two straggler syncs ran as planned — one file appeared between the first copy
+and the deploy, one more during the deploy window. Both caught.
+
+**Multi-city phase 1**: `scripts/backfill-city-ids.sql` ran on prod before the
+deploy, then `prisma db push` dropped the temporary defaults and added the FKs
+and indexes. Confirmed after: nine tables `NOT NULL` with no default, `posts`
+nullable, 14 `cityId` foreign keys, zero nulls.
+
+## If you rebuild the server
+
+Two things live only on the server and `deploy.sh` restores neither:
+
+- `UPLOAD_DIR=/root/smileys-uploads` in `/root/smileys-community/.env`
+  (deploy.sh's preflight refuses to deploy without it, so this fails loud).
+- The `location ^~ /app/uploads/ { return 404; }` block in
+  `/etc/nginx/sites-available/smileys` — belt-and-braces, and it fails *silent*.
+  See SECURITY.md invariant 15.
+
+## Local dev
+
+The local Postgres drifted during this work and made `npm run build` log a
+`P2022 column does not exist` mid-build. Fixed by running the same SQL script
+against the local DB, then `prisma db push --accept-data-loss` (which also
+dropped a stale `visitor_announcements.inboundCount` that prod never had). If a
+future build logs P2022, that's the same drift: `deploy.sh` only pushes schema
+to the remote DB.
