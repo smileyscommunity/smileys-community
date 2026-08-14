@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
-import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
+import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -18,7 +18,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { id } = await params
-  const sale = await prisma.movingSale.findUnique({ where: { id }, select: { userId: true } })
+  const sale = await prisma.movingSale.findUnique({ where: { id }, select: { userId: true, cityId: true } })
   if (!sale) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (sale.userId !== session.id && !isAdminOrModerator(session)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -48,8 +48,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       data.leavingOn = leavingOn
     }
     if (neighborhood !== undefined) {
-      data.neighborhood = typeof neighborhood === 'string'
-        && (ISTANBUL_NEIGHBORHOODS as readonly string[]).includes(neighborhood) ? neighborhood : null
+      data.neighborhood = await safeNeighborhoodFor(sale.cityId, neighborhood)
     }
     if (note !== undefined) {
       data.note = typeof note === 'string' ? note.trim().slice(0, 500) || null : null

@@ -5,7 +5,7 @@ import { resolveCityId } from '@/lib/city'
 import { isAdminOrModerator } from '@/lib/access'
 import { sendListingAlertEmail } from '@/lib/email'
 import { createNotification } from '@/lib/notify'
-import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
+import { getNeighborhoodsForCity } from '@/lib/neighborhoodsDb'
 
 const VALID_CATEGORIES = ['ROOMS', 'JOBS', 'BUY_SELL', 'SERVICES', 'FREE', 'RECO']
 const CAT_LABELS: Record<string, string> = {
@@ -34,10 +34,6 @@ export async function POST(req: NextRequest) {
   if (items.length > 50) {
     return NextResponse.json({ error: 'Too many items (max 50 per batch)' }, { status: 400 })
   }
-  const safeDefaultNeighborhood = typeof defaultNeighborhood === 'string'
-    && (ISTANBUL_NEIGHBORHOODS as readonly string[]).includes(defaultNeighborhood)
-    ? defaultNeighborhood : null
-
   // Resolve attribution: default to acting admin if no userId provided, else verify
   // the target user exists and is approved (don't let admin post under banned/pending).
   const userId = (attributedUserId as string | undefined)?.trim() || session.id
@@ -56,6 +52,14 @@ export async function POST(req: NextRequest) {
     listingCityId = await resolveCityId(session)
   }
 
+  // Neighborhood names validate against the ATTRIBUTED member's city. The
+  // set is prefetched because the per-item validation below runs in a sync
+  // map (60s-cached in lib/neighborhoodsDb, so this is one cheap lookup).
+  const validNeighborhoods = new Set((await getNeighborhoodsForCity(listingCityId)).map(n => n.name))
+  const safeDefaultNeighborhood = typeof defaultNeighborhood === 'string'
+    && validNeighborhoods.has(defaultNeighborhood)
+    ? defaultNeighborhood : null
+
   // Validate each item before writing anything — atomic-ish (we don't wrap in a tx
   // because alerts fire per-create; if one fails it fails the batch).
   const photoRegex = /^\/app\/api\/files\/[a-zA-Z0-9\-]+\/[a-zA-Z0-9\-]+\.(jpg|jpeg|png|webp|gif)$/
@@ -72,7 +76,7 @@ export async function POST(req: NextRequest) {
     // Per-item override (parsed from "Neighborhood:" line) wins over the batch default;
     // unknown names silently fall back to the default rather than failing the whole batch.
     const itemNbhd = typeof raw.neighborhood === 'string'
-      && (ISTANBUL_NEIGHBORHOODS as readonly string[]).includes(raw.neighborhood)
+      && validNeighborhoods.has(raw.neighborhood)
       ? raw.neighborhood : null
     const neighborhood = itemNbhd ?? safeDefaultNeighborhood
     return { title, description, price, contact, photo, neighborhood }

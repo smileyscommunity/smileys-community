@@ -10,11 +10,13 @@ import { toast } from 'sonner'
 import { confirmToast } from '@/lib/confirmToast'
 import { useAdminLoad } from '@/lib/admin/useAdminLoad'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
+import { CITY_STATUS, CITY_STATUS_META, CITY_STATUS_VALUES } from '@/lib/cityStatus'
 
 interface CityHost { cityHostId: string; id: string; name: string; email: string }
 interface City {
   id: string; name: string; slug: string; country: string; timezone: string
   currency: string; defaultLang: string; status: string; clubCount: number; hosts: CityHost[]
+  tagline: string | null; description: string | null; heroImage: string | null
 }
 
 const card  = 'bg-zinc-900 border border-zinc-800 rounded-2xl p-5'
@@ -39,6 +41,42 @@ export default function AdminCitiesPage() {
   // Per-city transient state
   const [launching, setLaunching] = useState<string | null>(null)
   const [hostEmail, setHostEmail] = useState<Record<string, string>>({})
+  const [saving, setSaving]       = useState<string | null>(null)
+  // Shopfront copy is edited inline per city; drafts live here until saved so
+  // typing doesn't refetch the list on every keystroke.
+  const [draft, setDraft] = useState<Record<string, { tagline: string; description: string }>>({})
+
+  function draftFor(city: City) {
+    return draft[city.id] ?? { tagline: city.tagline ?? '', description: city.description ?? '' }
+  }
+
+  // One PATCH for every city edit — status changes and copy alike. The server
+  // refuses to take a city live without clubs and hosts, so the error path
+  // matters as much as the success one here.
+  async function patchCity(city: City, body: Record<string, unknown>, successMsg: string) {
+    if (saving) return
+    setSaving(city.id)
+    try {
+      const res = await fetch(`/app/api/admin/cities/${city.id}`, {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const d = await res.json()
+      if (!res.ok) { toast.error(d.error ?? 'Could not update city'); return }
+      toast.success(successMsg)
+      setData(prev => (prev ?? []).map(c => c.id === city.id ? { ...c, ...d.city } : c))
+    } finally { setSaving(null) }
+  }
+
+  async function setStatus(city: City, status: string) {
+    if (status === city.status) return
+    if (status === CITY_STATUS.Live) {
+      const ok = await confirmToast(`Take ${city.name} live? It appears on the homepage, in the city menu and at /${city.slug} immediately.`)
+      if (!ok) return
+    }
+    await patchCity(city, { status }, `${city.name} → ${CITY_STATUS_META[status as keyof typeof CITY_STATUS_META]?.label ?? status}`)
+  }
 
   async function createCity() {
     if (!name.trim() || !country.trim() || !timezone.trim() || creating) return
@@ -154,7 +192,55 @@ export default function AdminCitiesPage() {
                     {city.country} · {city.timezone} · {city.currency} · {city.defaultLang}
                   </p>
                 </div>
-                <span className="text-[11px] font-semibold uppercase tracking-wider px-2 py-1 rounded-full bg-zinc-800 text-zinc-300">{city.status}</span>
+                <div className="flex flex-col items-end gap-1.5 shrink-0">
+                  <select
+                    value={city.status}
+                    onChange={e => setStatus(city, e.target.value)}
+                    disabled={saving === city.id}
+                    aria-label={`Status for ${city.name}`}
+                    className="text-[11px] font-semibold uppercase tracking-wider px-2 py-1 rounded-full bg-zinc-800 text-zinc-200 border border-zinc-700 focus:outline-none focus:ring-2 focus:ring-amber-500 disabled:opacity-40"
+                  >
+                    {CITY_STATUS_VALUES.map(v => (
+                      <option key={v} value={v}>{CITY_STATUS_META[v].label}</option>
+                    ))}
+                  </select>
+                  {city.status === CITY_STATUS.Live && (
+                    <a href={`/app/${city.slug}`} target="_blank" rel="noreferrer"
+                       className="text-[11px] text-amber-400 hover:underline">View public page ↗</a>
+                  )}
+                </div>
+              </div>
+
+              {/* Public shopfront copy — what the city card and /<slug> page show. */}
+              <div className="mt-4 pt-4 border-t border-zinc-800 space-y-3">
+                <div>
+                  <label className={label} htmlFor={`tagline-${city.id}`}>Card tagline</label>
+                  <input
+                    id={`tagline-${city.id}`}
+                    className={input}
+                    maxLength={160}
+                    placeholder={`Your international social life in ${city.name}.`}
+                    value={draftFor(city).tagline}
+                    onChange={e => setDraft(prev => ({ ...prev, [city.id]: { ...draftFor(city), tagline: e.target.value } }))}
+                  />
+                </div>
+                <div>
+                  <label className={label} htmlFor={`desc-${city.id}`}>Page description</label>
+                  <textarea
+                    id={`desc-${city.id}`}
+                    className={`${input} min-h-[72px]`}
+                    maxLength={1000}
+                    placeholder="Shown on the city page hero and in search results."
+                    value={draftFor(city).description}
+                    onChange={e => setDraft(prev => ({ ...prev, [city.id]: { ...draftFor(city), description: e.target.value } }))}
+                  />
+                </div>
+                <button
+                  onClick={() => patchCity(city, draftFor(city), `Saved ${city.name}`)}
+                  disabled={saving === city.id}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition-colors disabled:opacity-40">
+                  {saving === city.id ? 'Saving…' : 'Save copy'}
+                </button>
               </div>
 
               <div className="flex items-center gap-3 mt-4">

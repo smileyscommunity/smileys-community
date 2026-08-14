@@ -65,8 +65,8 @@ export const AttendeeStatus = {
 } as const
 export type AttendeeStatus = typeof AttendeeStatus[keyof typeof AttendeeStatus]
 
-export const CityStatus = {
-  Active: 'active',
-  Paused: 'paused',
-} as const
-export type CityStatus = typeof CityStatus[keyof typeof CityStatus]
+// City status lives in lib/cities.ts (CITY_STATUS), next to the query helpers
+// that enforce which statuses are public and which get statistics. The version
+// that used to live here said 'active' | 'paused' — neither value the database
+// has ever stored — so anything importing it was silently comparing against
+// strings that never match.

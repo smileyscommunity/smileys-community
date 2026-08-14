@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import NotificationBell from '@/components/NotificationBell'
+import CitiesMenu from '@/components/CitiesMenu'
 import AccountMenu from '@/components/AccountMenu'
 import { resolveImageUrl } from '@/lib/data'
 import { usePendingConnections } from '@/hooks/usePendingConnections'
@@ -265,6 +266,7 @@ export default function Navbar() {
 
             {!isLoggedIn ? (
               <div className="flex items-center gap-2">
+                <CitiesMenu />
                 <Link href="/why" className={`px-4 py-2 rounded-lg text-sm transition-colors ${isActive('/why') ? activeClass : inactiveClass}`}>
                   Why Smileys?
                 </Link>

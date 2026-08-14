@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { resolveCityId } from '@/lib/city'
 import { rateLimit } from '@/lib/rateLimit'
-import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
+import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
 import { BOARD_POST_TYPES, QUESTION_TAGS } from '@/lib/board'
 
 // Istanbul Board conversation feed. Publicly readable (the Board is a
@@ -159,9 +159,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'One link per post, please' }, { status: 400 })
   }
 
-  const neighborhood = typeof body.neighborhood === 'string'
-    && (ISTANBUL_NEIGHBORHOODS as readonly string[]).includes(body.neighborhood)
-    ? body.neighborhood : null
+  const neighborhood = await safeNeighborhoodFor(await resolveCityId(session), body.neighborhood)
 
   const tag = typeof body.tag === 'string' && TAG_VALUES.has(body.tag) ? body.tag : null
 

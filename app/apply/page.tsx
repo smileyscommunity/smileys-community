@@ -84,6 +84,9 @@ export default function ApplyPage() {
 function ApplyForm() {
   const searchParams = useSearchParams()
   const refCode = searchParams.get('ref') ?? ''
+  // Homepage city cards link here as /apply?city=<slug> — both the "Explore"
+  // path and the "Get notified" path for a city that hasn't launched.
+  const cityParam = searchParams.get('city') ?? ''
 
   const [honeypot,       setHoneypot]       = useState('')
   const [turnstileToken, setTurnstileToken] = useState('')
@@ -130,9 +133,17 @@ function ApplyForm() {
   useEffect(() => {
     fetch('/app/api/cities')
       .then(r => r.ok ? r.json() : null)
-      .then(d => { if (Array.isArray(d) && d.length > 0) setCities(d) })
+      .then(d => {
+        if (!Array.isArray(d) || d.length === 0) return
+        setCities(d)
+        // Honour ?city= only once the list is known, so a stale or made-up
+        // slug can't route an application at a city that doesn't exist.
+        if (cityParam && d.some((c: { slug: string }) => c.slug === cityParam)) {
+          setTargetCitySlug(cityParam)
+        }
+      })
       .catch(() => {})
-  }, [])
+  }, [cityParam])
 
   // Track whether the draft restore has run so the save-on-change effect
   // doesn't fire before we've loaded (which would overwrite the saved draft).
@@ -422,7 +433,7 @@ function ApplyForm() {
             >
               {cities.map(c => (
                 <option key={c.slug} value={c.slug}>
-                  {c.name}{c.status === 'launching' ? ' ✦ Launching' : ''}
+                  {c.name}{c.status !== 'live' ? (c.status === 'preparing' ? ' ✦ Preparing' : ' ✦ Coming soon') : ''}
                 </option>
               ))}
             </select>

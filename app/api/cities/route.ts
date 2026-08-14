@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { CITY_STATUS } from '@/lib/cityStatus'
 import { getCached, setCached } from '@/lib/analyticsCache'
 
 const CACHE_KEY = 'cities:live'
@@ -16,7 +17,11 @@ export async function GET() {
   }
 
   const cities = await prisma.city.findMany({
-    where:   { status: { in: ['live', 'launching'] } },
+    // Every publicly-visible city, including `coming_soon`: registering
+    // interest in a city that hasn't launched IS the "Get notified" path from
+    // the homepage city cards, so it has to be selectable on the apply form.
+    // Only `paused` is withheld.
+    where:   { status: { in: [CITY_STATUS.Live, CITY_STATUS.Preparing, CITY_STATUS.ComingSoon] } },
     orderBy: [{ status: 'asc' }, { name: 'asc' }],
     select:  { slug: true, name: true, country: true, status: true },
   })

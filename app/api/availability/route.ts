@@ -4,7 +4,7 @@ import { getSession } from '@/lib/session'
 import { resolveCityId } from '@/lib/city'
 import { rateLimit } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
-import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
+import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
 
 // Lightweight "I'm around" pulses — the bridge between "I want to meet
 // someone" and "I committed to a venue at a time." Surfaces in the
@@ -84,9 +84,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Note too long' }, { status: 400 })
     }
 
-    const safeNeighborhood = typeof neighborhood === 'string'
-      && (ISTANBUL_NEIGHBORHOODS as readonly string[]).includes(neighborhood)
-      ? neighborhood : null
+    const safeNeighborhood = await safeNeighborhoodFor(await resolveCityId(session), neighborhood)
 
     const until = new Date(Date.now() + mins * 60_000)
 

@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
-import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
+import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
 
 // Edit a hangout. Host or staff only, active hangouts only.
 //
@@ -50,9 +50,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     data.location = location.trim().slice(0, 200)
   }
   if (neighborhood !== undefined) {
-    data.neighborhood = typeof neighborhood === 'string'
-      && (ISTANBUL_NEIGHBORHOODS as readonly string[]).includes(neighborhood)
-      ? neighborhood : null
+    // Validated against the HANGOUT's city — an edit never re-scopes the
+    // record to the editor's city.
+    data.neighborhood = await safeNeighborhoodFor(hangout.cityId, neighborhood)
   }
 
   if (startsAt !== undefined || endsAt !== undefined) {

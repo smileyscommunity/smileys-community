@@ -14,9 +14,7 @@ import {
   queryDirectory,
   type DirectorySort,
 } from '@/lib/directory'
-import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
-
-const NEIGHBORHOOD_SET: ReadonlySet<string> = new Set(ISTANBUL_NEIGHBORHOODS)
+import { isValidNeighborhoodFor } from '@/lib/neighborhoodsDb'
 
 function str(v: unknown, max: number): string | null {
   if (typeof v !== 'string') return null
@@ -44,7 +42,7 @@ export async function GET(req: NextRequest) {
     if (category && category !== 'all' && !BUSINESS_CATEGORY_SET.has(category)) {
       return NextResponse.json({ error: 'Invalid category' }, { status: 400 })
     }
-    if (neighborhood && !NEIGHBORHOOD_SET.has(neighborhood)) {
+    if (neighborhood && !await isValidNeighborhoodFor(await resolveCityId(session), neighborhood)) {
       return NextResponse.json({ error: 'Invalid neighborhood' }, { status: 400 })
     }
 

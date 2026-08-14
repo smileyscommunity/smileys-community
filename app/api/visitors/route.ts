@@ -6,7 +6,8 @@ import { resolveCityId } from '@/lib/city'
 import { rateLimit, getIp } from '@/lib/rateLimit'
 import { verifyTurnstile } from '@/lib/turnstile'
 import { createNotification } from '@/lib/notify'
-import { ISTANBUL_NEIGHBORHOODS, VISITOR_TRAVELER_TYPES, VISITOR_LOOKING_FOR } from '@/lib/data'
+import { VISITOR_TRAVELER_TYPES, VISITOR_LOOKING_FOR } from '@/lib/data'
+import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
 
 // "I'm visiting Istanbul" announcements. Anonymous posting allowed to capture
 // visitors before they sign up (the whole growth lever); Turnstile + 3/day/IP
@@ -84,9 +85,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Trip ends in the past' }, { status: 400 })
     }
 
-    const safeNeighborhood = typeof neighborhood === 'string'
-      && (ISTANBUL_NEIGHBORHOODS as readonly string[]).includes(neighborhood)
-      ? neighborhood : null
+    const safeNeighborhood = await safeNeighborhoodFor(await resolveCityId(session), neighborhood)
 
     const safeTravelerType = typeof travelerType === 'string'
       && (VISITOR_TRAVELER_TYPES as readonly { value: string }[]).some(t => t.value === travelerType)

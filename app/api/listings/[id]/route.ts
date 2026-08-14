@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin } from '@/lib/access'
 import { redactListingForGuest } from '@/lib/listingsPublic'
-import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
+import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   // Public read — paired with the public /listings browse page so Google can
@@ -75,8 +75,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       data.price = typeof price === 'string' && price.trim() ? price.trim() : null
     }
     if (neighborhood !== undefined) {
-      data.neighborhood = typeof neighborhood === 'string'
-        && (ISTANBUL_NEIGHBORHOODS as readonly string[]).includes(neighborhood) ? neighborhood : null
+      data.neighborhood = await safeNeighborhoodFor(listing.cityId, neighborhood)
     }
     if (contact !== undefined) {
       data.contact = typeof contact === 'string' && contact.trim() && contact.length <= 200 ? contact.trim() : null

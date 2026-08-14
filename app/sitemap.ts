@@ -2,7 +2,7 @@ import { MetadataRoute } from 'next'
 import { statSync } from 'fs'
 import { join } from 'path'
 import { prisma } from '@/lib/prisma'
-import { getDefaultCityId } from '@/lib/city'
+import { getDefaultCityId, getPublicCities, CITY_STATUS } from '@/lib/cities'
 import { NEIGHBORHOOD_META, neighborhoodToSlug } from '@/lib/neighborhoods'
 
 export const dynamic = 'force-dynamic'
@@ -24,6 +24,8 @@ function newest(dates: Array<Date | null | undefined>): Date | undefined {
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Public SEO surface = the default city until per-city pages ship.
   const cityId = await getDefaultCityId()
+  const cities = await getPublicCities()
+
   const [events, clubs, posts, listings, businesses, movingSales] = await Promise.all([
     prisma.event.findMany({
       where: { status: 'published', cityId },
@@ -91,6 +93,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   // Pages with no honest signal (pure code-driven marketing copy) deliberately
   // omit lastModified — an invented date is worse than none.
+  // One entry per public city page. Live cities rank just under the global
+  // landing page; pre-launch ones are real pages (a holding page with a
+  // sign-up) but carry a lower priority and no lastModified, since nothing on
+  // them changes until they launch.
+  const cityRoutes: MetadataRoute.Sitemap = cities.map(c => (
+    c.status === CITY_STATUS.Live
+      ? { url: `${BASE}/${c.slug}`, priority: 0.95, changeFrequency: 'daily' as const, lastModified: newest([newestEvent, newestClub]) }
+      : { url: `${BASE}/${c.slug}`, priority: 0.4,  changeFrequency: 'monthly' as const }
+  ))
+
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: BASE,                    priority: 1.0, changeFrequency: 'daily',   lastModified: newest([newestEvent, newestPost, newestClub]) },
     { url: `${BASE}/events`,        priority: 0.9, changeFrequency: 'daily',   lastModified: newestEvent },
@@ -170,6 +182,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   return [
     ...staticRoutes,
+    ...cityRoutes,
     ...neighborhoodRoutes,
     ...eventRoutes,
     ...clubRoutes,

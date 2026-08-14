@@ -313,7 +313,15 @@ model City {
   timezone     String
   currency     String              @default("TRY")
   defaultLang  String              @default("en")
-  status       String              @default("launching")
+  // See lib/cities.ts for the vocabulary: coming_soon | preparing | live | paused.
+  // Only `live` cities get community statistics on the public site.
+  status       String              @default("coming_soon")
+  // Public shopfront copy, editable per city in the admin. Nullable because a
+  // city is created before anyone has written its pitch — the city card falls
+  // back to generated copy rather than blocking creation on marketing text.
+  tagline      String?
+  description  String?
+  heroImage    String?
   createdAt    DateTime            @default(now())
   consulUserId String?
   cityHosts    CityHost[]
@@ -334,8 +342,48 @@ model City {
   neighborhoodPosts    NeighborhoodPost[]
   availabilityPulses   AvailabilityPulse[]
   posts                Post[]
+  neighborhoods        Neighborhood[]
 
   @@map("cities")
+}
+
+// ── Neighborhoods: per-city registry (multi-city phase 1, step 2) ───────────
+// Replaces the hardcoded Istanbul-only NEIGHBORHOOD_META constant as the
+// source of truth for which neighborhoods a city HAS — so launching Izmir's
+// neighborhoods is admin data entry, not a deploy. The `neighborhood` string
+// columns on content models stay (they're unambiguous now that every row
+// also carries cityId); what this table owns is the per-city list, the
+// validation set, and the card metadata. Istanbul's 104 rows are seeded from
+// the legacy constant by scripts/seed-neighborhoods-istanbul.ts.
+model Neighborhood {
+  id        String   @id @default(cuid())
+  cityId    String
+  name      String
+  // URL slug within the city (ASCII, Turkish chars transliterated at seed
+  // time by neighborhoodToSlug). Unique per city, not globally — Athens and
+  // Izmir may both have an 'alsancak'-like collision someday.
+  slug      String
+  emoji     String   @default("📍")
+  vibe      String?
+  // Free-form area grouping, per city: Istanbul uses European/Asian/Central/
+  // Coastal/Emerging/Islands; other cities define their own vocabulary.
+  area      String?
+  // 1–3 relative cost tier, same scale the Istanbul cards already render.
+  cost      Int      @default(2)
+  lat       Float?
+  lng       Float?
+  // Soft-hide: an inactive neighborhood disappears from pickers and index
+  // pages but existing content tagged with its name stays readable.
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  city      City     @relation(fields: [cityId], references: [id])
+
+  @@unique([cityId, slug])
+  @@unique([cityId, name])
+  @@index([cityId, active, sortOrder])
+  @@map("neighborhoods")
 }
 
 model CityHost {

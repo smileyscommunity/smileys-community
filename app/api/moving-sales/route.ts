@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { resolveCityId } from '@/lib/city'
 import { rateLimit } from '@/lib/rateLimit'
-import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
+import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
 import { sendListingAlertEmail, recordEmailFailure } from '@/lib/email'
 import { createNotification } from '@/lib/notify'
 
@@ -43,8 +43,7 @@ export async function POST(req: NextRequest) {
   if (leavingOn < new Date().toISOString().slice(0, 10)) {
     return NextResponse.json({ error: 'Leaving date is in the past' }, { status: 400 })
   }
-  const safeNeighborhood = typeof neighborhood === 'string'
-    && (ISTANBUL_NEIGHBORHOODS as readonly string[]).includes(neighborhood) ? neighborhood : null
+  const safeNeighborhood = await safeNeighborhoodFor(await resolveCityId(session), neighborhood)
   const safeNote = typeof note === 'string' ? note.trim().slice(0, 500) || null : null
   // Matches the Listing route's PHOTO_RE — only accept a URL our own
   // upload route produced, never an arbitrary external string.

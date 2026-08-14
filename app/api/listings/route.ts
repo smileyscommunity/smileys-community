@@ -5,7 +5,7 @@ import { resolveCityId } from '@/lib/city'
 import { sendListingAlertEmail, recordEmailFailure } from '@/lib/email'
 import { createNotification } from '@/lib/notify'
 import { rateLimit } from '@/lib/rateLimit'
-import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
+import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
 import { redactListingForGuest } from '@/lib/listingsPublic'
 
 const PAGE_SIZE = 20
@@ -160,9 +160,7 @@ export async function POST(req: NextRequest) {
     ? contactEmail.trim().toLowerCase() : null
   // Validate against the canonical neighborhood list so we don't store typos that
   // would never match the filter dropdown on the browse page.
-  const safeNeighborhood = typeof neighborhood === 'string'
-    && (ISTANBUL_NEIGHBORHOODS as readonly string[]).includes(neighborhood)
-    ? neighborhood : null
+  const safeNeighborhood = await safeNeighborhoodFor(await resolveCityId(session), neighborhood)
 
   const expiresAt = new Date()
   expiresAt.setDate(expiresAt.getDate() + 30)

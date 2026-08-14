@@ -1,3 +1,7 @@
+// Pure, client-safe helpers only. The DB-backed per-city registry lives in
+// lib/neighborhoodsDb.ts — importing prisma here breaks the client bundle
+// (EventCard and BottomNav both import this module). See that file's header.
+
 export function neighborhoodToSlug(name: string): string {
   return name
     .toLowerCase()

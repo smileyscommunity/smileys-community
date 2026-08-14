@@ -1,0 +1,98 @@
+'use client'
+
+import { useState, useRef, useEffect } from 'react'
+import Link from 'next/link'
+
+// The nav's Cities entry. Populated from /api/cities at runtime — never a
+// hard-coded list — so a city an admin takes live appears here without a
+// deploy. Live cities link to their page; everything else is listed but not
+// linked anywhere it can disappoint, matching the homepage cards.
+
+interface City { slug: string; name: string; country: string; status: string }
+
+export default function CitiesMenu({ className = '' }: { className?: string }) {
+  const [cities, setCities] = useState<City[]>([])
+  const [open, setOpen]     = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    fetch('/app/api/cities')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (Array.isArray(d)) setCities(d) })
+      .catch(() => {})   // nav degrades to no menu rather than throwing
+  }, [])
+
+  useEffect(() => {
+    if (!open) return
+    function onDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  // Nothing worth a dropdown until there's more than one city.
+  if (cities.length === 0) return null
+
+  const live  = cities.filter(c => c.status === 'live')
+  const soon  = cities.filter(c => c.status !== 'live')
+
+  return (
+    <div ref={ref} className={`relative ${className}`}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        aria-expanded={open}
+        aria-haspopup="true"
+        className="px-4 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100 transition-colors inline-flex items-center gap-1"
+      >
+        Cities
+        <svg className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute right-0 mt-2 w-60 bg-white rounded-2xl shadow-lg border border-gray-100 py-2 z-50">
+          {live.map(c => (
+            <Link
+              key={c.slug}
+              href={`/${c.slug}`}
+              onClick={() => setOpen(false)}
+              className="flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <span className="font-semibold">{c.name}</span>
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-emerald-600">
+                <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                Live
+              </span>
+            </Link>
+          ))}
+
+          {soon.length > 0 && (
+            <>
+              <div className="mt-1 pt-2 border-t border-gray-100">
+                <p className="px-4 pb-1 text-[11px] font-bold uppercase tracking-wider text-gray-400">Coming soon</p>
+              </div>
+              {soon.map(c => (
+                <Link
+                  key={c.slug}
+                  href={`/apply?city=${c.slug}`}
+                  onClick={() => setOpen(false)}
+                  className="flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-500 hover:bg-gray-50 transition-colors"
+                >
+                  <span>{c.name}</span>
+                  <span className="text-[11px] font-semibold text-amber-600">Get notified</span>
+                </Link>
+              ))}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}

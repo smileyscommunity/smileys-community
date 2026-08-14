@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { CITY_STATUS } from '@/lib/cityStatus'
 import { getSession } from '@/lib/session'
 import { isAdmin, isAdminOrModerator } from '@/lib/access'
 import { slugify } from '@/lib/slug'
@@ -26,12 +27,13 @@ export async function GET() {
   return NextResponse.json(cities.map(c => ({
     id: c.id, name: c.name, slug: c.slug, country: c.country, timezone: c.timezone,
     currency: c.currency, defaultLang: c.defaultLang, status: c.status,
+    tagline: c.tagline, description: c.description, heroImage: c.heroImage,
     clubCount: c._count.clubs,
     hosts: c.cityHosts.map(h => ({ cityHostId: h.id, id: h.user.id, name: h.user.name, email: h.user.email })),
   })))
 }
 
-// POST /api/admin/cities — create a new city (in "launching" status). Clubs are
+// POST /api/admin/cities — create a new city (in "coming soon" status). Clubs are
 // seeded separately via /[id]/launch-clubs once the city exists.
 // Admin-only: standing up a new city is a platform-level action (a moderator is
 // scoped to an existing city and has nothing to scope a brand-new one against).
@@ -59,7 +61,7 @@ export async function POST(req: NextRequest) {
   if (existing) return NextResponse.json({ error: `A city with slug "${slug}" already exists` }, { status: 409 })
 
   const city = await prisma.city.create({
-    data: { name, slug, country, timezone, currency, defaultLang, status: 'launching' },
+    data: { name, slug, country, timezone, currency, defaultLang, status: CITY_STATUS.ComingSoon },
     select: { id: true, name: true, slug: true },
   })
 

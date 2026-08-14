@@ -4,98 +4,61 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
-import { getEvents, getClubs } from '@/lib/db'
+import { getEvents } from '@/lib/db'
 import { getSession } from '@/lib/session'
 import EventCard from '@/components/EventCard'
-import ClubCard from '@/components/ClubCard'
-import { neighborhoodToSlug, getNeighborhoodMeta } from '@/lib/neighborhoods'
-import { resolveImageUrl, todayIstanbul } from '@/lib/data'
-import { loadContent } from '@/lib/content'
-import { getDefaultCityId } from '@/lib/city'
-import ActivityTicker from '@/components/ActivityTicker'
+import CityCard from '@/components/CityCard'
+import { resolveImageUrl } from '@/lib/data'
+import { getPublicCities, getDefaultCityId, CITY_STATUS } from '@/lib/cities'
 import { APP_URL } from '@/lib/env'
 
-// The homepage had no metadata export of its own, so it silently inherited
-// the root layout's — which has no canonical. / already 301s to /app (no
-// direct duplicate-content risk there), but /app itself served with no
-// <link rel="canonical"> at all. Root layout already sets openGraph.url
-// correctly (= APP_URL), so this only needs to add the canonical.
+// ── The global landing page ─────────────────────────────────────────────────
+// Smileys is not a website about Istanbul; Istanbul is the first Smileys city.
+// That distinction drives this whole file: nothing below hard-codes a city
+// name, a city count, or a city list. Everything comes from getPublicCities(),
+// so activating Athens in the admin makes Athens appear here — card, nav entry,
+// expansion list — with no code change.
+//
+// The two failure modes this page is deliberately steering between:
+//   · Looking like an Istanbul-only site (which is what we're replacing)
+//   · Looking like we already operate in ten cities (which would be a lie)
+// Hence: real statistics for live cities only, no invented launch dates, and
+// copy that says "growing city by city" rather than implying a network that
+// doesn't exist yet.
+
 export const metadata: Metadata = {
+  title: 'Smileys — the social infrastructure for modern international life',
+  description:
+    'Meet people, join clubs and discover experiences wherever your international life takes you. Smileys is a network of local communities, growing city by city.',
   alternates: { canonical: APP_URL },
 }
 
-// The landing-page data is identical for every anonymous visitor (logged-in
-// users are redirected away before it's read), so cache it for 60s instead
-// of re-running ~6 queries on every hit to the highest-traffic page.
-const getHomeData = unstable_cache(
+const getLandingData = unstable_cache(
   async () => {
-    const today = new Date().toISOString().split('T')[0]
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-
-    const weekAhead = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-
-    // Guest homepage = the default city's shopfront (a constant, so it
-    // doesn't need to be part of the cache key). The global multi-city
-    // homepage replaces this page in phase-1 step 5.
+    // Events on the global page come from the default city today, because it's
+    // the only live one. When a second city goes live this becomes a city
+    // filter rather than a different query — the shape already supports it.
     const cityId = await getDefaultCityId()
 
-    const [{ events }, clubs, neighborhoodCounts, testimonials, recentMembers, openSpotsAgg] = await Promise.all([
-      // Fetch extra so sold-out events don't hog the 3 homepage slots —
-      // joinable events are preferred below, sold-out ones only backfill.
+    const [{ events }, testimonials, memberCount] = await Promise.all([
       getEvents({ limit: 6, upcoming: true, cityId }),
-      getClubs(cityId),
-      prisma.event.groupBy({
-        by: ['neighborhood'],
-        where: { date: { gte: today }, cityId },
-        _count: { _all: true },
-        orderBy: { _count: { neighborhood: 'desc' } },
-        take: 6,
-      }),
       prisma.testimonial.findMany({ where: { active: true }, orderBy: [{ order: 'asc' }], take: 3 }),
-      prisma.user.findMany({
-        where: { status: 'approved', role: 'member', joinedAt: { gte: sevenDaysAgo }, cityId },
-        select: { name: true, nationality: true },
-        orderBy: { joinedAt: 'desc' },
-        take: 6,
-      }),
-      // Aggregate open capacity across this week's public events — feeds
-      // the ticker's scarcity line. Aggregate so it's never wrong at the
-      // per-event level the way "Only 0 left" was.
-      prisma.event.aggregate({
-        _sum: { spotsLeft: true },
-        where: {
-          status: 'published', limitedSpots: true, membersOnly: false,
-          spotsLeft: { gt: 0 }, date: { gte: today, lte: weekAhead }, cityId,
-        },
-      }),
+      prisma.user.count({ where: { status: 'approved' } }),
     ])
 
-    const openSpotsThisWeek = openSpotsAgg._sum.spotsLeft ?? 0
-    return { events, clubs, neighborhoodCounts, testimonials, recentMembers, openSpotsThisWeek }
+    return { events, testimonials, memberCount }
   },
-  ['home-page-data'],
+  ['global-landing-data'],
   { revalidate: 60, tags: ['home'] },
 )
 
-const steps = [
-  {
-    step: '01',
-    title: 'Discover',
-    description: "Browse upcoming events and clubs curated for Istanbul's social scene.",
-    emoji: '🔍',
-  },
-  {
-    step: '02',
-    title: 'Join',
-    description: 'Reserve your spot in seconds. No complicated sign-ups or waiting lists.',
-    emoji: '✅',
-  },
-  {
-    step: '03',
-    title: 'Connect',
-    description: 'Show up, meet people, and build genuine friendships that last.',
-    emoji: '🤝',
-  },
+const WHY = [
+  { emoji: '👋', title: 'Meet people',      body: 'Discover people who share your interests, your stage of life and your sense of humour.' },
+  { emoji: '🎭', title: 'Join clubs',       body: 'Communities built around activities and passions — sailing, theatre, hiking, food, film, language.' },
+  { emoji: '📅', title: 'Discover events',  body: 'From dinners and nightlife to sailing, theatre, sports and workshops. Something on every week.' },
+  { emoji: '📍', title: 'Explore your neighborhood', body: 'Find people and plans near where you actually live, not across town.' },
+  { emoji: '✨', title: 'Discover experiences', body: 'Go beyond group chats and see the city together — the whole point is offline.' },
+  { emoji: '🌍', title: 'Stay connected across cities', body: 'Your Smileys profile travels with you when you visit another Smileys city.' },
 ]
 
 export default async function HomePage() {
@@ -105,290 +68,235 @@ export default async function HomePage() {
     else redirect('/dashboard')
   }
 
-  const { events, clubs, neighborhoodCounts, testimonials, recentMembers, openSpotsThisWeek } = await getHomeData()
+  const [cities, { events, testimonials, memberCount }] = await Promise.all([
+    getPublicCities(),
+    getLandingData(),
+  ])
 
-  const topNeighborhoods = neighborhoodCounts.map(c => ({
-    name:       c.neighborhood,
-    slug:       neighborhoodToSlug(c.neighborhood),
-    eventCount: c._count._all,
-    meta:       getNeighborhoodMeta(c.neighborhood),
-  }))
+  const liveCities  = cities.filter(c => c.status === CITY_STATUS.Live)
+  const otherCities = cities.filter(c => c.status !== CITY_STATUS.Live)
+  const flagship    = liveCities[0] ?? null
 
-  // getEvents includes cancelled events on purpose (members need to see
-  // why something left their feed) — but the marketing homepage is for
-  // prospects, and a big CANCELLED card in a showcase slot kills trust.
-  // Drop those entirely, then prefer joinable events; sold-out ones only
-  // backfill if fewer than 3 joinable exist. Order within each group is
-  // preserved.
   const liveEvents = events.filter(e => e.status !== 'cancelled')
   const soldOut = (e: (typeof events)[number]) => e.limitedSpots && e.spotsLeft <= 0
   const featuredEvents = [
     ...liveEvents.filter(e => !soldOut(e)),
     ...liveEvents.filter(soldOut),
   ].slice(0, 3)
-  // getClubs sorts alphabetically — slicing that head is an alphabet
-  // lottery that can fill the homepage with dormant clubs. Show clubs
-  // with an upcoming event first (soonest first); backfill with the
-  // biggest clubs only if fewer than 4 have something scheduled.
-  const featuredClubs = [
-    ...clubs.filter(c => c.nextEvent).sort((a, b) => a.nextEvent!.date.localeCompare(b.nextEvent!.date)),
-    ...clubs.filter(c => !c.nextEvent).sort((a, b) => b.memberCount - a.memberCount),
-  ].slice(0, 4)
 
-  const tickerItems: { emoji: string; text: string }[] = [
-    ...recentMembers.map(m => ({
-      emoji: '🌱',
-      text: `${m.name.split(' ')[0]} just joined`,
-    })),
-    // Scarcity reads as urgency only while the number is small — a huge
-    // count would signal emptiness, so the line simply drops out then.
-    ...(openSpotsThisWeek > 0 && openSpotsThisWeek <= 25
-      ? [{ emoji: '🔥', text: `Only ${openSpotsThisWeek} open spot${openSpotsThisWeek !== 1 ? 's' : ''} across this week's events` }]
-      : []),
-    { emoji: '✦', text: 'Applications reviewed by hand' },
-    { emoji: '📍', text: 'Based in Istanbul' },
-    { emoji: '🤝', text: 'Real friendships, not followers' },
-    { emoji: '🔒', text: 'Members only community' },
-  ]
-
-  const c     = loadContent()
-  const home  = c.home ?? {}
-  const stats = c.stats ?? [
-    { value: '4,000+', label: 'Community members'  },
-    { value: '500+',   label: 'Experiences hosted' },
-    { value: '120+',   label: 'Active clubs'         },
-    { value: 'Weekly', label: 'Curated events'      },
-  ]
+  // Primary CTA names the flagship city when there is exactly one live city
+  // ("Explore Istanbul"), and becomes "Find your city" once there are more.
+  // No copy change needed at launch — the page grows into it.
+  const singleCity = liveCities.length === 1 && flagship
 
   return (
     <>
-      {/* Hero */}
+      {/* ── Hero ───────────────────────────────────────────────────────── */}
       <section className="relative bg-gradient-to-b from-amber-50 via-white to-white overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,rgba(251,191,36,0.15),transparent)]" />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-24 relative">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-20 relative">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-
-            {/* Text column */}
             <div>
               <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase mb-8">
-                Curated Social Community
+                <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                {singleCity ? `Live in ${flagship.name}` : `Live in ${liveCities.length} cities`}
               </div>
 
-              <h1 className="text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight text-gray-900 leading-[1.08] mb-6">
-                {home.headline ?? 'Find your people in Istanbul.'}
+              <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight text-gray-900 leading-[1.08] mb-6">
+                The social infrastructure for modern international life.
               </h1>
 
-              <p className="text-xl md:text-2xl text-gray-600 max-w-2xl leading-relaxed mb-10">
-                {home.subtitle ?? 'From social dinners to sailing trips and neighborhood clubs, Smileys brings people together through curated experiences and lasting friendships.'}
+              <p className="text-lg md:text-xl text-gray-600 max-w-2xl leading-relaxed mb-10">
+                Meet people. Join communities. Discover experiences. Build your social life wherever you are.
               </p>
 
-              {/* Mobile/tablet hero image — sits between the pitch and the
-                  ask, so the visual proof lands before the CTAs. Desktop
-                  sees the side image instead, so hide at lg+. This is the
-                  LCP element on mobile viewports — without `priority` it
-                  defaulted to loading="lazy", delaying the fetch of exactly
-                  the image LCP is measuring. fetchPriority is explicit on
-                  top of `priority` since the browser hint isn't otherwise
-                  guaranteed to land on the rendered <img>. */}
-              {/* sizes accounts for the section's horizontal padding (px-4
-                  below sm, sm:px-6 above) — actual rendered width is
-                  viewport minus that padding, not the full 100vw the old
-                  value assumed. */}
               <div className="lg:hidden relative aspect-[3/2] rounded-2xl overflow-hidden shadow-xl mb-10">
                 <Image
                   src="/app/images/hero-istanbul.jpg"
-                  alt="Friends gathered on an Istanbul rooftop at sunset"
-                  fill
-                  priority
-                  fetchPriority="high"
+                  alt="Smileys members together at a community dinner"
+                  fill priority fetchPriority="high"
                   sizes="(max-width: 639px) calc(100vw - 32px), calc(100vw - 48px)"
                   className="object-cover"
                 />
               </div>
 
               <div className="flex flex-col sm:flex-row gap-4 mb-3">
-                <Link href="/apply" className="btn-primary text-base px-8 py-4">
-                  Apply to join
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                  </svg>
-                </Link>
-                <Link href="/clubs" className="btn-secondary text-base px-8 py-4">
-                  Browse clubs
-                </Link>
+                {singleCity ? (
+                  <Link href={`/${flagship.slug}`} className="btn-primary text-base px-8 py-4">
+                    Explore {flagship.name}
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                    </svg>
+                  </Link>
+                ) : (
+                  <Link href="#cities" className="btn-primary text-base px-8 py-4">Find your city</Link>
+                )}
+                <Link href="/apply" className="btn-secondary text-base px-8 py-4">Join Smileys</Link>
               </div>
-              {/* Commitment info at the moment of decision — cost, wait time,
-                  and what approval means, so "Apply" isn't a leap of faith.
-                  Promoted from text-xs/gray-500 (read as fine print) — this
-                  is the page's strongest reassurance line and was
-                  undersized relative to what it's doing. */}
-              <p className="text-sm font-medium text-gray-700 mb-16">
+              <p className="text-sm font-medium text-gray-700">
                 Free to join · Applications reviewed by hand within 24 hours · Pay only for events you attend
               </p>
-
-              {/* One row of 4 from sm up; 2×2 only on narrow phones where
-                  four abreast would crush the labels. */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-8">
-                {stats.map((stat: { value: string; label: string }) => (
-                  <div key={stat.label}>
-                    <div className="text-2xl md:text-3xl font-extrabold text-gray-900 tracking-tight">{stat.value}</div>
-                    <div className="text-xs text-gray-600 mt-1 uppercase tracking-wider font-medium">{stat.label}</div>
-                  </div>
-                ))}
-              </div>
             </div>
 
-            {/* -top-10 lifts the image ~40px above its centered position so
-                its top edge sits closer to the headline instead of hanging
-                low against the taller text column (stats push the center down). */}
-            {/* sizes was a flat 50vw, which ignores the max-w-7xl (1280px)
-                cap on the grid this column lives in — past ~1344px viewport
-                width the column stops scaling and holds at a fixed ~576px
-                ((1280 - px-8*2 - gap-16) / 2), so 50vw on a 4K monitor was
-                requesting ~2x the resolution ever actually rendered. */}
-            <div className="hidden lg:block relative -top-10 h-[520px] rounded-2xl overflow-hidden shadow-xl">
+            <div className="hidden lg:block relative h-[500px] rounded-2xl overflow-hidden shadow-xl">
               <Image
                 src="/app/images/hero-istanbul.jpg"
-                alt="Friends gathered on an Istanbul rooftop at sunset"
-                fill
-                priority
-                fetchPriority="high"
+                alt="Smileys members together at a community dinner"
+                fill priority fetchPriority="high"
                 sizes="(max-width: 1024px) 0px, (max-width: 1344px) calc(50vw - 64px), 576px"
                 className="object-cover"
               />
             </div>
-
           </div>
         </div>
       </section>
 
-      {/* Live activity ticker */}
-      <ActivityTicker items={tickerItems} />
-
-      {/* How it works */}
-      <section className="py-12 sm:py-16 bg-white">
+      {/* ── Choose your city ───────────────────────────────────────────── */}
+      <section id="cities" className="py-14 sm:py-20 bg-white scroll-mt-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="mb-10">
-            <h2 className="section-title">How Smileys works</h2>
-            <p className="section-subtitle max-w-xl">Three simple steps to transform your social life in Istanbul.</p>
+            <h2 className="section-title">Find your Smileys city</h2>
+            <p className="section-subtitle max-w-2xl">
+              Every Smileys city is its own local community — its own members, clubs, events and hosts.
+              One account gets you into all of them.
+            </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {steps.map((s) => (
-              <div key={s.step} className="text-center p-8 rounded-2xl bg-slate-50 hover:bg-slate-100 transition-colors duration-300 group">
-                <div className="w-16 h-16 rounded-2xl bg-white shadow-card flex items-center justify-center mx-auto mb-5 text-3xl group-hover:scale-110 transition-transform duration-300">
-                  {s.emoji}
-                </div>
-                <span className="step-label">{s.step}</span>
-                <h3 className="text-xl font-bold text-gray-900 mt-2 mb-3">{s.title}</h3>
-                <p className="text-gray-600 leading-relaxed text-sm">{s.description}</p>
+
+          {/* Live cities lead, at full size. One live city gets a wide card
+              rather than a lonely third of a row. */}
+          <div className={`grid gap-6 ${liveCities.length === 1 ? 'lg:grid-cols-2' : 'md:grid-cols-2 lg:grid-cols-3'}`}>
+            {liveCities.map((c, i) => (
+              <CityCard key={c.id} city={c} featured={liveCities.length === 1 && i === 0} />
+            ))}
+          </div>
+
+          {otherCities.length > 0 && (
+            <div className="mt-12 pt-10 border-t border-gray-100">
+              <h3 className="text-sm font-bold uppercase tracking-widest text-gray-500 mb-6">On the way</h3>
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                {otherCities.map(c => <CityCard key={c.id} city={c} />)}
+              </div>
+            </div>
+          )}
+
+          {/* Deliberately vague: no dates, no city names we haven't committed
+              to. An invented launch date is a promise someone has to keep. */}
+          <p className="mt-10 text-sm text-gray-500">
+            More cities are coming. Somewhere you'd like to see Smileys?{' '}
+            <Link href="/contact" className="font-semibold text-amber-600 hover:underline">Tell us where.</Link>
+          </p>
+        </div>
+      </section>
+
+      {/* ── Why Smileys ────────────────────────────────────────────────── */}
+      <section className="py-14 sm:py-20 bg-gray-50 border-t border-gray-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mb-10">
+            <h2 className="section-title">More than a community. Your social infrastructure.</h2>
+            <p className="section-subtitle max-w-2xl">
+              Moving somewhere new shouldn't mean starting your social life from zero every time.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {WHY.map(w => (
+              <div key={w.title} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
+                <div className="text-3xl mb-4">{w.emoji}</div>
+                <h3 className="font-bold text-gray-900 mb-2">{w.title}</h3>
+                <p className="text-sm text-gray-600 leading-relaxed">{w.body}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Featured Events */}
-      <section className="py-12 sm:py-16 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-end justify-between mb-8">
-            <div>
-              <h2 className="section-title">Upcoming events</h2>
-              <p className="section-subtitle">Hand-picked experiences for this week.</p>
-            </div>
-            <Link href="/events" className="hidden md:flex btn-ghost text-sm items-center gap-1">
-              View all
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-              </svg>
-            </Link>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {featuredEvents.map((event) => (
-              <EventCard key={event.id} event={event} linkPrefix="/events" />
-            ))}
-          </div>
-          <div className="text-center mt-10 md:hidden">
-            <Link href="/events" className="btn-secondary">View all events</Link>
-          </div>
-        </div>
-      </section>
-
-      {/* Featured Clubs */}
-      <section className="py-12 sm:py-16 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-end justify-between mb-8">
-            <div>
-              <h2 className="section-title">Our clubs</h2>
-              <p className="section-subtitle">Find your community. Every interest covered.</p>
-            </div>
-            <Link href="/clubs" className="hidden md:flex btn-ghost text-sm items-center gap-1">
-              All clubs
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-              </svg>
-            </Link>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {featuredClubs.map((club) => (
-              <ClubCard key={club.id} club={club} hideEmptyNextEvent />
-            ))}
-          </div>
-          <div className="text-center mt-10 md:hidden">
-            <Link href="/clubs" className="btn-secondary">All clubs</Link>
-          </div>
-        </div>
-      </section>
-
-      {/* Neighborhoods */}
-      {topNeighborhoods.length > 0 && (
-        <section className="py-12 sm:py-16 bg-gray-50 border-t border-gray-100">
+      {/* ── What's happening ───────────────────────────────────────────── */}
+      {featuredEvents.length > 0 && (
+        <section className="py-14 sm:py-20 bg-white">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-end justify-between mb-8">
               <div>
-                <h2 className="section-title">Explore by neighborhood</h2>
-                <p className="section-subtitle">Events happening all across Istanbul, every week.</p>
+                <h2 className="section-title">What's happening</h2>
+                <p className="section-subtitle">
+                  {singleCity ? `This week in ${flagship.name}.` : 'This week across the network.'}
+                </p>
               </div>
-              <Link href="/neighborhoods" className="hidden md:flex btn-ghost text-sm items-center gap-1">
-                All neighborhoods
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                </svg>
-              </Link>
+              <Link href="/events" className="hidden md:flex btn-ghost text-sm items-center gap-1">View all events →</Link>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-              {topNeighborhoods.map(n => (
-                <Link key={n.slug} href={`/neighborhoods/${n.slug}`}
-                  className="group flex flex-col items-center text-center gap-2 bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-amber-200 hover:-translate-y-0.5 transition-all duration-200">
-                  <span className="text-3xl">{n.meta.emoji}</span>
-                  <span className="font-semibold text-sm text-gray-900 group-hover:text-amber-600 transition-colors leading-tight">{n.name}</span>
-                  <span className="text-xs text-amber-600 font-semibold">{n.eventCount} event{n.eventCount !== 1 ? 's' : ''}</span>
-                </Link>
-              ))}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {featuredEvents.map(event => <EventCard key={event.id} event={event} linkPrefix="/events" />)}
             </div>
-            <div className="mt-6 text-center md:hidden">
-              <Link href="/neighborhoods" className="inline-flex items-center min-h-[44px] px-2 text-sm text-amber-600 font-semibold hover:underline">
-                View all neighborhoods →
-              </Link>
+            <div className="text-center mt-10 md:hidden">
+              <Link href="/events" className="btn-secondary">View all events</Link>
             </div>
           </div>
         </section>
       )}
 
-      {/* Testimonial strip */}
-      {testimonials.length > 0 && (
-        <section className="py-12 sm:py-16 bg-white border-t border-gray-100">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-end justify-between mb-8">
-              <div>
-                <h2 className="section-title">What members say</h2>
-                <p className="section-subtitle">Real stories from real people</p>
-              </div>
-              <Link href="/why" className="hidden md:flex btn-ghost text-sm items-center gap-1">
-                Read all stories
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                </svg>
+      {/* ── Visiting ───────────────────────────────────────────────────── */}
+      <section className="py-14 sm:py-20 bg-gray-900 text-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
+            <div>
+              <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight mb-4">Visiting another city?</h2>
+              <p className="text-lg text-gray-300 leading-relaxed mb-6">
+                Your Smileys community travels with you. Tell us you're coming and you'll see local
+                members, events, clubs and places before you land — so you arrive with plans, not a map.
+              </p>
+              <Link href="/visiting" className="btn-primary text-base px-8 py-4">I'm visiting</Link>
+            </div>
+            <div className="rounded-2xl bg-white/5 border border-white/10 p-6 sm:p-8">
+              <p className="text-sm uppercase tracking-widest text-amber-400 font-bold mb-4">How it works</p>
+              <ol className="space-y-4 text-sm text-gray-300">
+                <li className="flex gap-3"><span className="font-bold text-white shrink-0">1.</span> Post your dates and where you're headed.</li>
+                <li className="flex gap-3"><span className="font-bold text-white shrink-0">2.</span> Local members see you're coming and reach out.</li>
+                <li className="flex gap-3"><span className="font-bold text-white shrink-0">3.</span> Join events and club nights while you're there.</li>
+              </ol>
+              <p className="text-xs text-gray-500 mt-6">
+                Gets better with every city we launch — one account, every community.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Guides ─────────────────────────────────────────────────────── */}
+      <section className="py-14 sm:py-20 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mb-8">
+            <h2 className="section-title">Get to know your city</h2>
+            <p className="section-subtitle max-w-2xl">
+              Neighborhoods, where to go, things to do, coworking, nightlife, day trips and the
+              local knowledge that normally takes a year to pick up.
+            </p>
+          </div>
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {liveCities.map(c => (
+              <Link key={c.id} href="/guide" className="group card p-6 hover:-translate-y-1 transition-transform duration-300">
+                <div className="text-2xl mb-3">📖</div>
+                <h3 className="font-bold text-gray-900 mb-1 group-hover:text-amber-600 transition-colors">
+                  The {c.name} guide
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Neighborhoods, food, nightlife, coworking and practical life admin.
+                </p>
               </Link>
+            ))}
+            <Link href="/handbook" className="group card p-6 hover:-translate-y-1 transition-transform duration-300">
+              <div className="text-2xl mb-3">🧭</div>
+              <h3 className="font-bold text-gray-900 mb-1 group-hover:text-amber-600 transition-colors">The handbook</h3>
+              <p className="text-sm text-gray-600">Residence permits, banking, healthcare and the rest of moving-country admin.</p>
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Community stories ──────────────────────────────────────────── */}
+      {testimonials.length > 0 && (
+        <section className="py-14 sm:py-20 bg-gray-50 border-t border-gray-100">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="mb-8">
+              <h2 className="section-title">Life happens offline</h2>
+              <p className="section-subtitle">Real stories from real members.</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               {testimonials.map(t => (
@@ -396,8 +304,7 @@ export default async function HomePage() {
                   <p className="text-sm text-gray-600 leading-relaxed mb-4 italic">"{t.quote}"</p>
                   <div className="flex items-center gap-3">
                     {t.photo ? (
-                      <img src={resolveImageUrl(t.photo)} alt={t.memberName}
-                        className="w-11 h-11 rounded-full object-cover shrink-0" />
+                      <img src={resolveImageUrl(t.photo)} alt={t.memberName} className="w-11 h-11 rounded-full object-cover shrink-0" />
                     ) : (
                       <div className="w-11 h-11 rounded-full shrink-0 bg-amber-500 flex items-center justify-center text-white text-sm font-bold">
                         {t.memberName[0]}
@@ -411,13 +318,61 @@ export default async function HomePage() {
                 </div>
               ))}
             </div>
-            <div className="text-center mt-10 md:hidden">
-              <Link href="/why" className="btn-secondary">Read all stories</Link>
-            </div>
           </div>
         </section>
       )}
 
+      {/* ── One community, growing city by city ────────────────────────── */}
+      <section className="py-14 sm:py-20 bg-white border-t border-gray-100">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
+          <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight text-gray-900 mb-4">
+            One community. Growing city by city.
+          </h2>
+          <p className="text-lg text-gray-600 leading-relaxed mb-10">
+            Smileys started in Istanbul. We're building a global network of local communities where
+            international people can meet, connect and build a social life together.
+          </p>
+
+          {/* The network as it actually is — live cities marked, everything
+              else honestly labelled. */}
+          <div className="flex flex-wrap justify-center gap-x-8 gap-y-3 text-sm">
+            {cities.map(c => (
+              <span key={c.id} className="inline-flex items-center gap-2">
+                <span aria-hidden="true" className={`w-2 h-2 rounded-full ${c.status === CITY_STATUS.Live ? 'bg-emerald-500' : 'bg-gray-300'}`} />
+                <span className={c.status === CITY_STATUS.Live ? 'font-bold text-gray-900' : 'text-gray-500'}>{c.name}</span>
+                {c.status !== CITY_STATUS.Live && (
+                  <span className="text-xs text-gray-400 uppercase tracking-wide">soon</span>
+                )}
+              </span>
+            ))}
+          </div>
+          <p className="mt-6 text-sm text-gray-500">
+            {memberCount.toLocaleString('en-US')} members and counting.
+          </p>
+        </div>
+      </section>
+
+      {/* ── Final CTA ──────────────────────────────────────────────────── */}
+      <section className="py-16 sm:py-24 bg-gradient-to-b from-white to-amber-50 border-t border-gray-100">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
+          <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight text-gray-900 mb-4">
+            Ready to find your people?
+          </h2>
+          <p className="text-lg text-gray-600 mb-8">
+            {singleCity
+              ? `Join Smileys and start building your social life in ${flagship.name}.`
+              : 'Join Smileys and start building your social life wherever you are.'}
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link href="/apply" className="btn-primary text-base px-8 py-4">Join Smileys</Link>
+            {singleCity && (
+              <Link href={`/${flagship.slug}`} className="btn-secondary text-base px-8 py-4">
+                Explore {flagship.name}
+              </Link>
+            )}
+          </div>
+        </div>
+      </section>
     </>
   )
 }

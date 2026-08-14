@@ -5,7 +5,7 @@ import { resolveCityId } from '@/lib/city'
 import { rateLimit } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
 import { HANGOUT_ACTIVITIES } from '@/lib/hangoutActivities'
-import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
+import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
 
 // Members-only — hangouts are real-time, contact-required, and we don't want
 // random scrapers seeing "someone alone at this cafe in 30 min."
@@ -155,9 +155,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'End is in the past' }, { status: 400 })
     }
 
-    const safeNeighborhood = typeof neighborhood === 'string'
-      && (ISTANBUL_NEIGHBORHOODS as readonly string[]).includes(neighborhood)
-      ? neighborhood : null
+    const safeNeighborhood = await safeNeighborhoodFor(await resolveCityId(session), neighborhood)
 
     // meetMode: tighten to the two allowed values. Anything else falls back
     // to 'group' so a misbehaving client can't poison the DB with arbitrary
