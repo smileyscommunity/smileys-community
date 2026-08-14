@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { getClubs } from '@/lib/db'
+import { getSession } from '@/lib/session'
+import { resolveCityId } from '@/lib/city'
 import { classifyClubs } from '@/lib/clubHealth'
 
 // Discovery payload (Clubs brief phase 3): the base club list enriched
@@ -10,8 +12,10 @@ import { classifyClubs } from '@/lib/clubHealth'
 // state comes from /api/clubs/memberships — so the whole payload caches
 // as one shared entry.
 const getDiscoveryClubs = unstable_cache(
-  async (today: string, weekOut: string) => {
-    const clubs = await getClubs()
+  // cityId is part of the cache key (unstable_cache keys on its args) —
+  // without it one city's cached grid would serve every city for 120s.
+  async (today: string, weekOut: string, cityId: string) => {
+    const clubs = await getClubs(cityId)
     const ids = clubs.map(c => c.id)
     const weekCutoff = new Date(Date.now() - 7 * 86_400_000)
 
@@ -78,6 +82,7 @@ const getDiscoveryClubs = unstable_cache(
 export async function GET() {
   const today = new Date().toISOString().split('T')[0]
   const weekOut = new Date(Date.now() + 7 * 86_400_000).toISOString().split('T')[0]
-  const clubs = await getDiscoveryClubs(today, weekOut)
+  const session = await getSession()
+  const clubs = await getDiscoveryClubs(today, weekOut, await resolveCityId(session))
   return NextResponse.json(clubs)
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { resolveCityId } from '@/lib/city'
 
 export async function GET() {
   try {
@@ -8,7 +9,7 @@ export async function GET() {
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const partners = await prisma.partner.findMany({
-      where: { isActive: true },
+      where: { isActive: true, cityId: await resolveCityId(session) },
       orderBy: { createdAt: 'desc' }
     })
 

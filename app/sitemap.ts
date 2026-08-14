@@ -2,6 +2,7 @@ import { MetadataRoute } from 'next'
 import { statSync } from 'fs'
 import { join } from 'path'
 import { prisma } from '@/lib/prisma'
+import { getDefaultCityId } from '@/lib/city'
 import { NEIGHBORHOOD_META, neighborhoodToSlug } from '@/lib/neighborhoods'
 
 export const dynamic = 'force-dynamic'
@@ -21,15 +22,17 @@ function newest(dates: Array<Date | null | undefined>): Date | undefined {
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  // Public SEO surface = the default city until per-city pages ship.
+  const cityId = await getDefaultCityId()
   const [events, clubs, posts, listings, businesses, movingSales] = await Promise.all([
     prisma.event.findMany({
-      where: { status: 'published' },
+      where: { status: 'published', cityId },
       select: { id: true, updatedAt: true },
       orderBy: { date: 'desc' },
       take: 200,
     }),
     prisma.club.findMany({
-      where: { isActive: true },
+      where: { isActive: true, cityId },
       select: { slug: true, createdAt: true },
     }),
     prisma.post.findMany({
@@ -40,7 +43,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // Marketplace listings are public — let Google crawl them so search hits
     // like "flats in Moda" can land on the listing.
     prisma.listing.findMany({
-      where:   { status: 'active' },
+      where:   { status: 'active', cityId },
       select:  { id: true, updatedAt: true },
       orderBy: { createdAt: 'desc' },
       take:    500,
@@ -51,7 +54,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // "expat-owned Indian restaurant Kadıköy" land on the right
     // dedicated page.
     prisma.business.findMany({
-      where:   { isApproved: true, isActive: true },
+      where:   { isApproved: true, isActive: true, cityId },
       select:  { id: true, updatedAt: true },
       orderBy: { updatedAt: 'desc' },
       take:    500,
@@ -60,7 +63,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // detail page at /moving-sales/[id] so a link sent off-platform still
     // lands somewhere real instead of a 404.
     prisma.movingSale.findMany({
-      where:   { status: 'active' },
+      where:   { status: 'active', cityId },
       select:  { id: true, createdAt: true },
       orderBy: { createdAt: 'desc' },
       take:    200,

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { resolveCityId } from '@/lib/city'
 import { rateLimit } from '@/lib/rateLimit'
 import { todayIstanbul } from '@/lib/data'
 import { restrictedSetFor } from '@/lib/memberPrivacy'
@@ -34,6 +35,10 @@ export async function GET(req: NextRequest) {
   // The pattern is passed as a bound parameter (Prisma.sql), never
   // interpolated, so `q` can't inject; %/_ in the query are treated as
   // wildcards, which for search is behaviour, not a bug.
+  // Search is scoped to the viewer's city. Handbook articles with a null
+  // cityId are global (apply everywhere) and always match.
+  const cityId = await resolveCityId(session)
+
   const pattern = `%${q}%`
   const handbookQuery = prisma.$queryRaw<
     { id: string; slug: string; title: string; excerpt: string | null; category: string }[]
@@ -41,6 +46,7 @@ export async function GET(req: NextRequest) {
     SELECT id, slug, title, excerpt, category
     FROM posts
     WHERE kind = 'handbook' AND status = 'published'
+      AND ("cityId" IS NULL OR "cityId" = ${cityId})
       AND (title ILIKE ${pattern} OR excerpt ILIKE ${pattern}
            OR array_to_string(tags, ' ') ILIKE ${pattern})
     ORDER BY views DESC
@@ -51,6 +57,7 @@ export async function GET(req: NextRequest) {
     prisma.event.findMany({
       where: {
         status: 'published',
+        cityId,
         date: { gte: today },
         title: { contains: q, mode: 'insensitive' },
       },
@@ -61,6 +68,7 @@ export async function GET(req: NextRequest) {
     prisma.user.findMany({
       where: {
         status: 'approved',
+        cityId,
         id: { notIn: blockedIds },
         OR: [
           { name:         { contains: q, mode: 'insensitive' } },
@@ -73,6 +81,7 @@ export async function GET(req: NextRequest) {
     prisma.club.findMany({
       where: {
         isActive: true,
+        cityId,
         name: { contains: q, mode: 'insensitive' },
       },
       select: { id: true, name: true, emoji: true, slug: true, memberCount: true },
@@ -81,6 +90,7 @@ export async function GET(req: NextRequest) {
     prisma.listing.findMany({
       where: {
         status: 'active',
+        cityId,
         OR: [
           { title:       { contains: q, mode: 'insensitive' } },
           { description: { contains: q, mode: 'insensitive' } },

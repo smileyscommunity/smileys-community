@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
 import { isAdminOrModerator, isClubHost } from '@/lib/access'
+import { resolveCityId } from '@/lib/city'
 
 const PAGE_SIZE = 100
 
@@ -84,6 +85,9 @@ export async function GET(req: NextRequest) {
   // OR/NOT with dynamic conditions at the same level.
   const where: Prisma.UserWhereInput = {
     AND: [
+      // Browse discovery lists the viewer's own city. Saved members stay
+      // cross-city — a save is a personal bookmark, not discovery.
+      ...(savedOnly ? [] : [{ cityId: await resolveCityId(session) }]),
       // Everyone is listed regardless of privacy setting — 'connections
       // only' members appear as redacted cards (see result mapping), not
       // hidden. Discovery for all; details gated per-card.

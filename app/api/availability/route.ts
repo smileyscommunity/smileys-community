@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
   const pulses = await prisma.availabilityPulse.findMany({
     where: {
       until: { gte: now },
+      cityId: await resolveCityId(session),
       ...(neighborhood ? { neighborhood } : {}),
     },
     orderBy: { createdAt: 'desc' },

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { resolveCityId } from '@/lib/city'
 
 // Expired hangouts from the last 48 hours — used for the "Just happened"
 // social proof section on the hangouts page. Shows newcomers that the
@@ -16,6 +17,7 @@ export async function GET() {
     const hangouts = await prisma.hangout.findMany({
       where: {
         status:  'expired',
+        cityId:  await resolveCityId(session),
         endsAt:  { gte: cutoff },
       },
       orderBy: { endsAt: 'desc' },

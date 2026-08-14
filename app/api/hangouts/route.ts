@@ -21,6 +21,7 @@ export async function GET(req: NextRequest) {
   const hangouts = await prisma.hangout.findMany({
     where: {
       status: 'active',
+      cityId: await resolveCityId(session),
       endsAt: { gte: now },
       ...(neighborhood ? { neighborhood } : {}),
     },

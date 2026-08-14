@@ -67,11 +67,16 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 // Related clubs (Clubs brief §25) — same interest group, health-aware
 // ordering, never self, max 4. Server-rendered at the page bottom.
-async function relatedClubsFor(club: { id: string; category: string }) {
+async function relatedClubsFor(club: { id: string; category: string; cityId?: string }) {
   const group = CLUB_FILTER_GROUPS.find(g => g.categories.includes(club.category))
   const candidates = await prisma.club.findMany({
     where: {
       isActive: true,
+      // Same city as the club being viewed — "related" never crosses
+      // cities (an Izmir clone of this club isn't a suggestion, it's
+      // noise). cityId is always set on DB rows; the fallback only
+      // covers the Club interface's legacy-fixture optionality.
+      ...(club.cityId ? { cityId: club.cityId } : {}),
       id: { not: club.id },
       category: { in: group ? group.categories : [club.category] },
     },

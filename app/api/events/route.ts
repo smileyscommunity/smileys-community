@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getEvents, redactEventForGuest } from '@/lib/db'
 import { getSession } from '@/lib/session'
+import { resolveCityId } from '@/lib/city'
 import { rateLimit } from '@/lib/rateLimit'
 
 export async function GET(req: NextRequest) {
@@ -34,9 +35,13 @@ export async function GET(req: NextRequest) {
     if (slug) {
       const { prisma } = await import('@/lib/prisma')
       const c = await prisma.city.findUnique({ where: { slug }, select: { id: true } })
-      cityId = c?.id
+      // Unknown slug fails CLOSED (empty list), not open to all cities —
+      // '?city=' is the one client-supplied city input in the app.
+      cityId = c?.id ?? '__no_such_city__'
     } else {
-      cityId = session?.cityId
+      // Guests land on the default city, same as every other feed —
+      // only the explicit `?all=1` traveller view crosses cities.
+      cityId = await resolveCityId(session)
     }
   }
 

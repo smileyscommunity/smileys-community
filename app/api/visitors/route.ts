@@ -21,6 +21,7 @@ export async function GET(req: NextRequest) {
   const announcements = await prisma.visitorAnnouncement.findMany({
     where: {
       status: 'active',
+      cityId: await resolveCityId(session),
       endsOn: { gte: today },
       // Visibility is enforced here as well as on the page — otherwise a
       // guest could read members-only visits straight off the API while

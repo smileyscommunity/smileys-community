@@ -60,10 +60,12 @@ export type DirectoryPage = {
   total:      number
 }
 
-export async function queryDirectory(filters: DirectoryFilters): Promise<DirectoryPage> {
+export async function queryDirectory(filters: DirectoryFilters & { cityId: string }): Promise<DirectoryPage> {
   const { category, neighborhood, type, sort = 'recent', cursor, callerId } = filters
 
-  const where: Record<string, unknown> = { isApproved: true, isActive: true }
+  // cityId also lands in the JSON.stringify'd count cache key below, so
+  // per-city totals never bleed across cities.
+  const where: Record<string, unknown> = { isApproved: true, isActive: true, cityId: filters.cityId }
   if (category && category !== 'all') where.category     = category
   if (neighborhood)                   where.neighborhood = neighborhood
   if (type === 'expat-owned')         where.isExpatOwned    = true

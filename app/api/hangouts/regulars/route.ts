@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { resolveCityId } from '@/lib/city'
 
 // Top hosts by hangouts completed in the last 30 days. Used on the
 // hangouts page as a "Regulars" strip — social reward for consistent
@@ -15,7 +16,7 @@ export async function GET() {
 
     const counts = await prisma.hangout.groupBy({
       by:      ['userId'],
-      where:   { status: 'expired', endsAt: { gte: since } },
+      where:   { status: 'expired', endsAt: { gte: since }, cityId: await resolveCityId(session) },
       _count:  { _all: true },
       orderBy: { _count: { userId: 'desc' } },
       take:    5,

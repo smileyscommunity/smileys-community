@@ -49,6 +49,9 @@ export async function GET(req: NextRequest) {
 
     const where = {
       ...statusFilter,
+      // "My listings" stays cross-city — you can manage what you posted
+      // from a previous city; the browse feed is scoped to one city.
+      ...(mine && session ? {} : { cityId: await resolveCityId(session) }),
       ...(category ? { category } : {}),
       ...(neighborhood ? { neighborhood } : {}),
       ...savedFilter,

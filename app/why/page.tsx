@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { APP_URL } from '@/lib/env'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
+import { getDefaultCityId } from '@/lib/city'
 import { resolveImageUrl } from '@/lib/data'
 import AnimatedCounter from '@/components/AnimatedCounter'
 import { loadContent } from '@/lib/content'
@@ -10,7 +11,7 @@ const getWhyPageData = unstable_cache(
   async () => Promise.all([
     prisma.testimonial.findMany({ where: { active: true }, orderBy: [{ order: 'asc' }, { createdAt: 'desc' }] }),
     prisma.storyPhoto.findMany({ where: { active: true }, orderBy: [{ order: 'asc' }, { createdAt: 'desc' }], take: 12 }),
-    prisma.club.findMany({ where: { isActive: true }, orderBy: { memberCount: 'desc' }, take: 8, select: { id: true, name: true, emoji: true, bgColor: true, color: true, description: true, memberCount: true, slug: true } }),
+    prisma.club.findMany({ where: { isActive: true, cityId: await getDefaultCityId() }, orderBy: { memberCount: 'desc' }, take: 8, select: { id: true, name: true, emoji: true, bgColor: true, color: true, description: true, memberCount: true, slug: true } }),
   ]),
   ['why-page'],
   { revalidate: 300, tags: ['why-page'] },

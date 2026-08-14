@@ -78,6 +78,9 @@ export async function GET(req: NextRequest) {
           ? { club: { slug: clubSlug } }
           : { OR: [{ clubId: null }, { club: { isPrivate: false } }] },
         ...(eventId ? [{ eventId }] : []),
+        // General feed is city-scoped; club and event feeds inherit their
+        // club's/event's city implicitly and stay reachable cross-city.
+        ...(clubSlug || eventId ? [] : [{ cityId: await resolveCityId(session) }]),
       ],
       ...(type && TYPE_VALUES.has(type as never) ? { type } : {}),
       ...(neighborhood ? { neighborhood } : {}),
@@ -91,10 +94,21 @@ export async function GET(req: NextRequest) {
   // Deep-linked post (?post=<id>, from reply notifications and the
   // neighborhood pages): prepend it when the first page doesn't already
   // contain it — this is what keeps expired plans "reachable at their own
-  // URL" per the comment above (only the status gate applies here).
+  // URL" per the comment above. Only the EXPIRY and CITY gates are waived:
+  // the banned-author and private-club gates must hold here too, or a
+  // shared/forwarded link would read a private club's conversation (or a
+  // banned member's post) straight off this public endpoint.
   if (postId && !posts.some(p => p.id === postId)) {
     const single = await prisma.boardPost.findFirst({
-      where: { id: postId, status: 'active' },
+      where: {
+        id: postId, status: 'active',
+        user: { status: 'approved' },
+        OR: [
+          { clubId: null },
+          { club: { isPrivate: false } },
+          ...(session ? [{ club: { memberships: { some: { userId: session.id, status: 'approved' } } } }] : []),
+        ],
+      },
       select,
     })
     if (single) posts = [single, ...posts]
@@ -155,8 +169,11 @@ export async function POST(req: NextRequest) {
   // requires approved membership of that club, private or not; the post
   // stays canonical on the Board and also surfaces in the club.
   let clubId: string | null = null
+  // A club post lives in the CLUB's city (matches the GET, which lets club
+  // feeds cross city lines); a plain post lives in the author's.
+  let postCityId: string | null = null
   if (typeof body.club === 'string' && body.club) {
-    const club = await prisma.club.findUnique({ where: { slug: body.club }, select: { id: true, isActive: true } })
+    const club = await prisma.club.findUnique({ where: { slug: body.club }, select: { id: true, isActive: true, cityId: true } })
     if (!club || !club.isActive) return NextResponse.json({ error: 'Club not found' }, { status: 404 })
     const member = await prisma.clubMembership.findUnique({
       where: { userId_clubId: { userId: session.id, clubId: club.id } },
@@ -166,6 +183,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Join the club to post in it' }, { status: 403 })
     }
     clubId = club.id
+    postCityId = club.cityId
   }
 
   // Optional event tie (§31) — the post stays canonical on the Board and
@@ -177,7 +195,7 @@ export async function POST(req: NextRequest) {
   }
 
   const created = await prisma.boardPost.create({
-    data: { userId: session.id, cityId: await resolveCityId(session), type, title, body: text, neighborhood, tag, clubId, eventId: eventTie },
+    data: { userId: session.id, cityId: postCityId ?? await resolveCityId(session), type, title, body: text, neighborhood, tag, clubId, eventId: eventTie },
     select: { id: true },
   })
 

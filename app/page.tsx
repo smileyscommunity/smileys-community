@@ -11,6 +11,7 @@ import ClubCard from '@/components/ClubCard'
 import { neighborhoodToSlug, getNeighborhoodMeta } from '@/lib/neighborhoods'
 import { resolveImageUrl, todayIstanbul } from '@/lib/data'
 import { loadContent } from '@/lib/content'
+import { getDefaultCityId } from '@/lib/city'
 import ActivityTicker from '@/components/ActivityTicker'
 import { APP_URL } from '@/lib/env'
 
@@ -33,21 +34,26 @@ const getHomeData = unstable_cache(
 
     const weekAhead = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
+    // Guest homepage = the default city's shopfront (a constant, so it
+    // doesn't need to be part of the cache key). The global multi-city
+    // homepage replaces this page in phase-1 step 5.
+    const cityId = await getDefaultCityId()
+
     const [{ events }, clubs, neighborhoodCounts, testimonials, recentMembers, openSpotsAgg] = await Promise.all([
       // Fetch extra so sold-out events don't hog the 3 homepage slots —
       // joinable events are preferred below, sold-out ones only backfill.
-      getEvents({ limit: 6, upcoming: true }),
-      getClubs(),
+      getEvents({ limit: 6, upcoming: true, cityId }),
+      getClubs(cityId),
       prisma.event.groupBy({
         by: ['neighborhood'],
-        where: { date: { gte: today } },
+        where: { date: { gte: today }, cityId },
         _count: { _all: true },
         orderBy: { _count: { neighborhood: 'desc' } },
         take: 6,
       }),
       prisma.testimonial.findMany({ where: { active: true }, orderBy: [{ order: 'asc' }], take: 3 }),
       prisma.user.findMany({
-        where: { status: 'approved', role: 'member', joinedAt: { gte: sevenDaysAgo } },
+        where: { status: 'approved', role: 'member', joinedAt: { gte: sevenDaysAgo }, cityId },
         select: { name: true, nationality: true },
         orderBy: { joinedAt: 'desc' },
         take: 6,
@@ -59,7 +65,7 @@ const getHomeData = unstable_cache(
         _sum: { spotsLeft: true },
         where: {
           status: 'published', limitedSpots: true, membersOnly: false,
-          spotsLeft: { gt: 0 }, date: { gte: today, lte: weekAhead },
+          spotsLeft: { gt: 0 }, date: { gte: today, lte: weekAhead }, cityId,
         },
       }),
     ])

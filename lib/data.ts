@@ -83,6 +83,9 @@ export interface Club {
   name: string
   description: string
   category: string
+  // Which city the club belongs to (multi-city phase 1) — present on every
+  // DB row; optional here only for legacy fixtures that predate the column.
+  cityId?: string
   memberCount: number
   emoji: string
   color: string

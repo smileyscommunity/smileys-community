@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { resolveCityId } from '@/lib/city'
 import { groupBySeries, seriesCadenceLabel } from '@/lib/eventSeries'
 
 // Events discovery (Events brief §6–7, §14–18): the personalized
@@ -48,12 +49,16 @@ export async function GET() {
     status: 'published' as const,
     date: { gte: today },
   }
+  // Feed sections are scoped to the viewer's city (guests → default city).
+  // The viewer's OWN RSVPs below stay unscoped on purpose: an event you've
+  // joined in another city still belongs in "Going", wherever you are.
+  const cityScoped = { ...publishedUpcoming, cityId: await resolveCityId(session) }
 
   // Logged-out (§56): weekend + soon only, no personalization.
   if (!session) {
     const [soon, weekend] = await Promise.all([
-      prisma.event.findMany({ where: publishedUpcoming, select: CARD_SELECT, orderBy: [{ date: 'asc' }, { time: 'asc' }], take: 24 }),
-      prisma.event.findMany({ where: { ...publishedUpcoming, date: { in: [sat, sun] } }, select: CARD_SELECT, orderBy: [{ date: 'asc' }, { time: 'asc' }], take: 12 }),
+      prisma.event.findMany({ where: cityScoped, select: CARD_SELECT, orderBy: [{ date: 'asc' }, { time: 'asc' }], take: 24 }),
+      prisma.event.findMany({ where: { ...cityScoped, date: { in: [sat, sun] } }, select: CARD_SELECT, orderBy: [{ date: 'asc' }, { time: 'asc' }], take: 12 }),
     ])
     return NextResponse.json({
       going: [], comingUp: [], fromClubs: [], nearYou: [], trySomethingNew: [],
@@ -76,17 +81,17 @@ export async function GET() {
   const rsvpIds = new Set(rsvpEvents.map(e => e.id))
 
   const [soon, weekend, fromClubs, nearYou, newToYou] = await Promise.all([
-    prisma.event.findMany({ where: publishedUpcoming, select: CARD_SELECT, orderBy: [{ date: 'asc' }, { time: 'asc' }], take: 40 }),
-    prisma.event.findMany({ where: { ...publishedUpcoming, date: { in: [sat, sun] } }, select: CARD_SELECT, orderBy: [{ date: 'asc' }, { time: 'asc' }], take: 12 }),
+    prisma.event.findMany({ where: cityScoped, select: CARD_SELECT, orderBy: [{ date: 'asc' }, { time: 'asc' }], take: 40 }),
+    prisma.event.findMany({ where: { ...cityScoped, date: { in: [sat, sun] } }, select: CARD_SELECT, orderBy: [{ date: 'asc' }, { time: 'asc' }], take: 12 }),
     clubIds.length > 0
       ? prisma.event.findMany({
-          where:   { ...publishedUpcoming, clubId: { in: clubIds }, id: { notIn: [...rsvpIds] } },
+          where:   { ...cityScoped, clubId: { in: clubIds }, id: { notIn: [...rsvpIds] } },
           select:  CARD_SELECT, orderBy: [{ date: 'asc' }, { time: 'asc' }], take: 12,
         })
       : Promise.resolve([]),
     me?.neighborhood
       ? prisma.event.findMany({
-          where:   { ...publishedUpcoming, neighborhood: me.neighborhood, id: { notIn: [...rsvpIds] } },
+          where:   { ...cityScoped, neighborhood: me.neighborhood, id: { notIn: [...rsvpIds] } },
           select:  CARD_SELECT, orderBy: [{ date: 'asc' }, { time: 'asc' }], take: 8,
         })
       : Promise.resolve([]),
@@ -94,7 +99,7 @@ export async function GET() {
     // doesn't become a filter bubble.
     prisma.event.findMany({
       where: {
-        ...publishedUpcoming,
+        ...cityScoped,
         id: { notIn: [...rsvpIds] },
         ...(clubIds.length > 0 ? { OR: [{ clubId: null }, { clubId: { notIn: clubIds } }] } : {}),
         date: { gte: today, lte: weekOut },

@@ -1,6 +1,7 @@
 import { headers } from 'next/headers'
 import { APP_URL, SITE_URL } from '@/lib/env'
 import { prisma } from '@/lib/prisma'
+import { getDefaultCityId } from '@/lib/city'
 import { resolveImageUrl } from '@/lib/data'
 
 // See app/about/page.tsx — a page-level `openGraph` block loses the root
@@ -51,12 +52,17 @@ export default async function ClubsLayout({ children }: { children: React.ReactN
   // here in the sibling server layout instead. isActive:true matches
   // getClubs()'s public-surface gate; private clubs are still included
   // since they're still visible in the grid (just gated on Join → Request).
+  // headers() first: it opts the layout out of build-time prerender, so
+  // getDefaultCityId() below can never run against a build DB missing the
+  // istanbul row (fresh clone / CI) and fail the build.
+  const nonce = (await headers()).get('x-nonce') ?? undefined
   const clubs = await prisma.club.findMany({
-    where: { isActive: true },
+    // Default city: this layout renders the public (guest-facing) grid,
+    // whose SEO surface stays the flagship city until per-city pages ship.
+    where: { isActive: true, cityId: await getDefaultCityId() },
     orderBy: { name: 'asc' },
     select: { name: true, slug: true, description: true, coverImage: true },
   })
-  const nonce = (await headers()).get('x-nonce') ?? undefined
   const clubsJsonLd = {
     '@context': 'https://schema.org',
     '@type':    'ItemList',

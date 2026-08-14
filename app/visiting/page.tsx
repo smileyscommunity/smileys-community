@@ -5,6 +5,7 @@ import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import type { Metadata } from 'next'
 import { getSession } from '@/lib/session'
+import { getDefaultCityId } from '@/lib/city'
 import { NEIGHBORHOOD_META, neighborhoodToSlug } from '@/lib/neighborhoods'
 import { loadExperiences } from '@/lib/guideContent'
 import VisitingClient from './VisitingClient'
@@ -22,6 +23,10 @@ const getAnnouncements = unstable_cache(
   async (today: string, forMembers: boolean) => prisma.visitorAnnouncement.findMany({
     where: {
       status: 'active',
+      // This page is the default city's visiting surface until the
+      // multi-city Visiting UI ships. Constant per deployment, so it's
+      // safe inside the shared cache entry without a key change.
+      cityId: await getDefaultCityId(),
       endsOn: { gte: today },
       ...(forMembers ? {} : { visibility: 'public' }),
     },
@@ -105,7 +110,7 @@ export default async function VisitingPage() {
         })
       : null,
     prisma.event.findMany({
-      where:   { status: 'published', date: { gte: today, lte: sixtyDaysOut } },
+      where:   { status: 'published', date: { gte: today, lte: sixtyDaysOut }, cityId: await getDefaultCityId() },
       select:  {
         id: true, title: true, emoji: true, date: true, location: true, neighborhood: true,
         // Attendee count is filtered to approved RSVPs so the "N going"
@@ -116,14 +121,14 @@ export default async function VisitingPage() {
       take:    60,
     }),
     prisma.user.findMany({
-      where:   { status: 'approved' },
+      where:   { status: 'approved', cityId: await getDefaultCityId() },
       select:  { id: true, name: true, color: true, profilePhoto: true, neighborhood: true },
       orderBy: { goodHangouts: 'desc' },
       take:    5,
     }),
     prisma.user.groupBy({
       by:      ['neighborhood'],
-      where:   { neighborhood: { not: null }, status: 'approved' },
+      where:   { neighborhood: { not: null }, status: 'approved', cityId: await getDefaultCityId() },
       _count:  { _all: true },
     }),
   ])
@@ -167,6 +172,7 @@ export default async function VisitingPage() {
   const hangoutsDuringVisit = session ? await prisma.hangout.findMany({
     where: {
       status: 'active',
+      cityId: await getDefaultCityId(),
       endsAt: { gte: new Date() },
       ...(viewerVisit ? { startsAt: { lte: new Date(viewerVisit.endsOn + 'T23:59:59+03:00') } } : {}),
     },

@@ -4,6 +4,7 @@ import { articleCover } from '@/lib/articleCover'
 import { neighborhoodToSlug } from '@/lib/neighborhoods'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { resolveCityId } from '@/lib/city'
 import { redirect } from 'next/navigation'
 import { readFileSync } from 'fs'
 import { join } from 'path'
@@ -61,6 +62,11 @@ export default async function DashboardPage() {
   const session = await getSession()
   if (!session) redirect('/login')
 
+  // Every discovery strip below is scoped to the viewer's city — the
+  // dashboard was the biggest cross-city leak (Izmir's seeded clubs were
+  // topping every Istanbul member's "new clubs" strip).
+  const cityId = await resolveCityId(session)
+
   const today      = todayIstanbul()
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
   const weekAgo    = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
@@ -106,7 +112,7 @@ export default async function DashboardPage() {
       where: { viewedId: session.id, createdAt: { gte: weekAgo } },
     }),
     prisma.listing.findMany({
-      where: { status: 'active', userId: { not: session.id } },
+      where: { status: 'active', cityId, userId: { not: session.id } },
       orderBy: { createdAt: 'desc' },
       take: 4,
       select: { id: true, title: true, category: true, photo: true, photoPosition: true, price: true, createdAt: true, user: { select: { name: true, color: true, profilePhoto: true } } },
@@ -114,7 +120,7 @@ export default async function DashboardPage() {
     // Moving Sales — separate table from Listing, so it needs its own
     // query; was previously missing from the dashboard entirely.
     prisma.movingSale.findMany({
-      where: { status: 'active', userId: { not: session.id } },
+      where: { status: 'active', cityId, userId: { not: session.id } },
       orderBy: { createdAt: 'desc' },
       take: 3,
       select: {
@@ -255,12 +261,12 @@ export default async function DashboardPage() {
         })
       : userProfile?.neighborhood
         ? prisma.event.findMany({
-            where: { neighborhood: userProfile.neighborhood, date: { gte: today }, status: 'published', id: { notIn: joinedEventIds } },
+            where: { neighborhood: userProfile.neighborhood, cityId, date: { gte: today }, status: 'published', id: { notIn: joinedEventIds } },
             orderBy: { date: 'asc' }, take: 4,
             select: { id: true, title: true, date: true, time: true, emoji: true, neighborhood: true, price: true, totalSpots: true, limitedSpots: true, coverImage: true, _count: { select: { attendees: { where: { status: 'approved' } } } } },
           })
         : prisma.event.findMany({
-            where: { date: { gte: today }, status: 'published', id: { notIn: joinedEventIds } },
+            where: { cityId, date: { gte: today }, status: 'published', id: { notIn: joinedEventIds } },
             orderBy: { date: 'asc' }, take: 4,
             select: { id: true, title: true, date: true, time: true, emoji: true, neighborhood: true, price: true, totalSpots: true, limitedSpots: true, coverImage: true, _count: { select: { attendees: { where: { status: 'approved' } } } } },
           }),
@@ -452,7 +458,7 @@ export default async function DashboardPage() {
     // post-fetch JS dedupe so this query no longer waits on featuredEvents.
     // Over-fetch by the featured `take: 3` to absorb the dedupe loss.
     prisma.event.findMany({
-      where: { date: { gte: today }, status: 'published', id: { notIn: joinedEventIds } },
+      where: { cityId, date: { gte: today }, status: 'published', id: { notIn: joinedEventIds } },
       orderBy: { attendees: { _count: 'desc' } },
       take: 7,
       select: { id: true, title: true, date: true, emoji: true, neighborhood: true, price: true, totalSpots: true, spotsLeft: true, limitedSpots: true, _count: { select: { attendees: { where: { status: 'approved' } } } } },
@@ -460,7 +466,7 @@ export default async function DashboardPage() {
     // Members near you: same neighborhood, excluding self
     userProfile?.neighborhood
       ? prisma.user.findMany({
-          where: { neighborhood: userProfile.neighborhood, status: 'approved', id: { not: session.id } },
+          where: { neighborhood: userProfile.neighborhood, status: 'approved', cityId, id: { not: session.id } },
           select: { id: true, name: true, color: true, profilePhoto: true, bio: true },
           orderBy: { joinedAt: 'desc' },
           take: 6,
@@ -468,7 +474,7 @@ export default async function DashboardPage() {
       : Promise.resolve([]),
     // New clubs the user hasn't joined, ordered by member count
     prisma.club.findMany({
-      where: { isActive: true, id: { notIn: clubIds } },
+      where: { isActive: true, cityId, id: { notIn: clubIds } },
       orderBy: { memberCount: 'desc' },
       take: 4,
       select: { id: true, name: true, slug: true, emoji: true, bgColor: true, memberCount: true, description: true },
@@ -484,7 +490,7 @@ export default async function DashboardPage() {
     }),
     // Active hangouts happening now
     prisma.hangout.findMany({
-      where: { status: 'active', endsAt: { gt: new Date() } },
+      where: { status: 'active', cityId, endsAt: { gt: new Date() } },
       select: { id: true, neighborhood: true },
       orderBy: { startsAt: 'asc' },
       take: 10,
@@ -492,7 +498,7 @@ export default async function DashboardPage() {
     // Recent hangouts posted — feeds ClubActivityTimeline so the dashboard
     // cross-promotes spontaneous meetups alongside club activity.
     prisma.hangout.findMany({
-      where: { status: 'active', endsAt: { gt: new Date() }, createdAt: { gte: weekAgo }, userId: { not: session.id } },
+      where: { status: 'active', cityId, endsAt: { gt: new Date() }, createdAt: { gte: weekAgo }, userId: { not: session.id } },
       orderBy: { createdAt: 'desc' },
       take: 5,
       select: {
@@ -505,7 +511,7 @@ export default async function DashboardPage() {
     // now" strip (id/photo for avatars) + ClubActivityTimeline. Excludes
     // the viewer's own, last 7 days.
     prisma.availabilityPulse.findMany({
-      where: { until: { gte: new Date() }, createdAt: { gte: weekAgo }, userId: { not: session.id } },
+      where: { until: { gte: new Date() }, cityId, createdAt: { gte: weekAgo }, userId: { not: session.id } },
       orderBy: { createdAt: 'desc' },
       take: 5,
       select: {
@@ -565,7 +571,7 @@ export default async function DashboardPage() {
     // Clubs created in the last 14 days — feeds ClubActivityTimeline so a
     // brand-new club gets dashboard visibility while it has zero members.
     prisma.club.findMany({
-      where:   { isActive: true, createdAt: { gte: twoWeeksAgo } },
+      where:   { isActive: true, cityId, createdAt: { gte: twoWeeksAgo } },
       orderBy: { createdAt: 'desc' },
       take: 3,
       select: { id: true, name: true, slug: true, emoji: true, createdAt: true },
@@ -573,7 +579,7 @@ export default async function DashboardPage() {
     // Newly approved directory places — only after moderation so
     // unreviewed submissions never surface on the dashboard.
     prisma.business.findMany({
-      where:   { isApproved: true, isActive: true, createdAt: { gte: twoWeeksAgo } },
+      where:   { isApproved: true, isActive: true, cityId, createdAt: { gte: twoWeeksAgo } },
       orderBy: { createdAt: 'desc' },
       take: 3,
       select: { id: true, name: true, category: true, createdAt: true },

@@ -13,8 +13,9 @@ import { createNotification } from '@/lib/notify'
 // out of the list automatically.
 export async function GET() {
   const today = new Date().toISOString().slice(0, 10)
+  const session = await getSession()
   const sales = await prisma.movingSale.findMany({
-    where:   { status: 'active', leavingOn: { gte: today } },
+    where:   { status: 'active', leavingOn: { gte: today }, cityId: await resolveCityId(session) },
     orderBy: { leavingOn: 'asc' },
     take:    30,
     select: {

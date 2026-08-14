@@ -1,4 +1,5 @@
 import { prisma } from './prisma'
+import { getDefaultCityId } from './city'
 import { APP_URL, SITE_URL } from './env'
 import { todayIstanbul, resolveImageUrl, formatTime } from './data'
 
@@ -23,38 +24,44 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
   const today = todayIstanbul()
   const end   = todayIstanbul(7)
 
+  // One digest, scoped to the default city. When a second city has real
+  // activity this needs to become buildWeeklyDigest(cityId) with per-city
+  // sends — until then, scoping keeps another city's rows from leaking
+  // into everyone's email rather than changing who receives it.
+  const cityId = await getDefaultCityId()
+
   const weekAgoStr = todayIstanbul(-7)
   const weekAgoDate = new Date(Date.now() - 7 * 86_400_000)
 
   const [events, clubs, newMembers, photos, eventsHeld, checkins, newConnections, listings, articles] = await Promise.all([
     prisma.event.findMany({
-      where:   { status: 'published', date: { gte: today, lte: end } },
+      where:   { status: 'published', cityId, date: { gte: today, lte: end } },
       orderBy: [{ date: 'asc' }, { time: 'asc' }],
       select:  { id: true, title: true, date: true, time: true, neighborhood: true, emoji: true, spotsLeft: true, totalSpots: true },
     }),
     prisma.club.findMany({
-      where:  { isPrivate: false, isActive: true },
+      where:  { isPrivate: false, isActive: true, cityId },
       select: { slug: true, name: true, emoji: true, category: true, memberCount: true },
     }),
     prisma.user.findMany({
-      where:   { status: 'approved', hiddenFromMembers: false, joinedAt: { gte: new Date(Date.now() - 7 * 86_400_000) } },
+      where:   { status: 'approved', hiddenFromMembers: false, cityId, joinedAt: { gte: new Date(Date.now() - 7 * 86_400_000) } },
       orderBy: { joinedAt: 'desc' },
       select:  { name: true },
     }),
     // Photo of the week candidates — last 7 days of uploads, event attached.
     prisma.eventPhoto.findMany({
-      where:   { createdAt: { gte: weekAgoDate } },
+      where:   { createdAt: { gte: weekAgoDate }, event: { cityId } },
       orderBy: { createdAt: 'desc' },
       take:    30,
       select:  { url: true, event: { select: { id: true, title: true, emoji: true, _count: { select: { attendees: true } } } } },
     }),
     // Week-in-review counters.
-    prisma.event.count({ where: { status: 'published', date: { gte: weekAgoStr, lt: today } } }),
-    prisma.eventAttendee.count({ where: { checkedIn: true, event: { date: { gte: weekAgoStr, lt: today } } } }),
-    prisma.memberConnection.count({ where: { status: 'accepted', updatedAt: { gte: weekAgoDate } } }),
+    prisma.event.count({ where: { status: 'published', cityId, date: { gte: weekAgoStr, lt: today } } }),
+    prisma.eventAttendee.count({ where: { checkedIn: true, event: { cityId, date: { gte: weekAgoStr, lt: today } } } }),
+    prisma.memberConnection.count({ where: { status: 'accepted', updatedAt: { gte: weekAgoDate }, requester: { cityId } } }),
     // Fresh community-board listings — newest 3 that are still live.
     prisma.listing.findMany({
-      where:   { status: 'active', expiresAt: { gt: new Date() } },
+      where:   { status: 'active', cityId, expiresAt: { gt: new Date() } },
       orderBy: { createdAt: 'desc' },
       take:    3,
       select:  { id: true, title: true, category: true, price: true, neighborhood: true },

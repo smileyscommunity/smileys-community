@@ -4,14 +4,17 @@ import { todayIstanbul } from './data'
 
 // ── Clubs ─────────────────────────────────────────────────────────────────
 
-export async function getClubs(): Promise<Club[]> {
+// cityId is required, not defaulted — every caller must decide whose city
+// it's listing (viewer's, or the default city on public surfaces), so a
+// second city's clubs can never leak into another grid by omission.
+export async function getClubs(cityId: string): Promise<Club[]> {
   const today = todayIstanbul()
   // isActive:true is the public-surface gate. Admins deactivate
   // clubs via /admin/clubs (sets isActive=false on the row); those
   // are hidden everywhere a member could discover them — listing,
   // detail page, search, sitemap, dashboard recommendations.
   const rows = await prisma.club.findMany({
-    where: { isActive: true },
+    where: { isActive: true, cityId },
     orderBy: { name: 'asc' },
     include: {
       _count: { select: { memberships: { where: { status: 'approved' } } } },

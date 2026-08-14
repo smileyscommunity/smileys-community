@@ -49,6 +49,7 @@ export async function GET(req: NextRequest) {
     }
 
     const { items, nextCursor, total } = await queryDirectory({
+      cityId:       await resolveCityId(session),
       category:     category || undefined,
       neighborhood: neighborhood || undefined,
       type:         type || undefined,
