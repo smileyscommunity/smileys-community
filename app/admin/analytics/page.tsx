@@ -32,7 +32,12 @@ interface Analytics {
     topHostsOfPeriod:  { id: string; name: string; color: string; profilePhoto: string | null; count: number }[]
   }
   funnel:  { applications: number; approved: number; firstEvent: number; repeat: number }
-  firstEventMatcher: { shown: number; clicked: number; rsvped: number; attended: number; clickRate: number; rsvpRate: number; baselineRsvpRate: number }
+  firstEventMatcher: {
+    shown: number; clicked: number; rsvped: number; rsvpedAny: number; attended: number
+    clickRate: number; rsvpRate: number; rsvpAnyRate: number
+    matured: number; maturedRsvp: number; maturedRate: number
+    trend: { label: string; joined: number; converted: number; pct: number }[]
+  }
   cohorts: { cohort: string; size: number; within30Pct: number; within90Pct: number; everPct: number }[]
   hostPipeline: {
     pending:          number
@@ -580,35 +585,35 @@ function AnalyticsInner() {
           )}
 
           {/* ── "Your First Event" matcher ──────────────────────────────────
-              Attribution funnel for the newcomer recommendation block. The
-              headline is rec→RSVP rate vs. the signed-in→RSVP baseline: green
-              means seeing a rec beats the baseline. Hidden until it's shown to
-              anyone. Attended is host-recorded check-ins → treat as a floor. */}
+              Attribution funnel for the newcomer recommendation block. Headline
+              is the time-normalised rate: of members whose first rec is ≥14 days
+              old, how many RSVP'd within their own 14 days. Deliberately NO
+              green/red verdict — there is no control group (every zero-RSVP
+              member sees the block), so the honest comparison is the monthly
+              trend across the Jul 5 launch, shown below with its own caveat.
+              Hidden until it's shown to anyone. Attended = check-ins, a floor. */}
           {data.firstEventMatcher.shown > 0 && (
             <section>
               <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3">First-event matcher</h2>
               <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5 space-y-4">
                 {(() => {
                   const m = data.firstEventMatcher
-                  const beatsBaseline = m.rsvpRate >= m.baselineRsvpRate
                   const stages = [
-                    { label: 'Shown a rec', value: m.shown,    color: '#a78bfa', prev: m.shown },
-                    { label: 'Clicked',     value: m.clicked,  color: '#60a5fa', prev: m.shown },
-                    { label: 'RSVP’d',      value: m.rsvped,   color: '#f59e0b', prev: m.shown },
-                    { label: 'Attended',    value: m.attended, color: '#34d399', prev: m.rsvped },
+                    { label: 'Shown a rec',        value: m.shown,     color: '#a78bfa', prev: m.shown, note: '' },
+                    { label: 'Clicked',            value: m.clicked,   color: '#60a5fa', prev: m.shown, note: '' },
+                    { label: 'RSVP’d to anything', value: m.rsvpedAny, color: '#f59e0b', prev: m.shown, note: 'after being shown' },
+                    { label: 'RSVP’d via the block', value: m.rsvped,  color: '#fbbf24', prev: m.shown, note: 'attributed' },
+                    { label: 'Attended',           value: m.attended,  color: '#34d399', prev: m.rsvped, note: 'check-ins' },
                   ]
                   const top = stages[0].value || 1
                   return (
                     <>
-                      {/* Headline: rec→RSVP vs baseline */}
+                      {/* Headline: time-normalised conversion, no verdict */}
                       <div className="flex items-baseline justify-between">
-                        <span className="text-xs font-semibold text-zinc-300">Rec → RSVP rate</span>
+                        <span className="text-xs font-semibold text-zinc-300">RSVP’d within 14 days of first rec</span>
                         <div className="flex items-baseline gap-2">
-                          <span className={`text-lg font-extrabold ${beatsBaseline ? 'text-green-400' : 'text-amber-400'}`}>{m.rsvpRate}%</span>
-                          <span className="text-xs text-zinc-500">vs {m.baselineRsvpRate}% baseline</span>
-                          <span className={`text-xs font-bold ${beatsBaseline ? 'text-green-400' : 'text-red-400'}`}>
-                            {beatsBaseline ? '▲' : '▼'} {Math.abs(Math.round((m.rsvpRate - m.baselineRsvpRate) * 10) / 10)}pt
-                          </span>
+                          <span className="text-lg font-extrabold text-amber-400">{m.maturedRate}%</span>
+                          <span className="text-xs text-zinc-500">{m.maturedRsvp.toLocaleString()} of {m.matured.toLocaleString()} matured</span>
                         </div>
                       </div>
                       {stages.map((s, i) => {
@@ -617,7 +622,10 @@ function AnalyticsInner() {
                         return (
                           <div key={s.label}>
                             <div className="flex items-baseline justify-between mb-1">
-                              <span className="text-xs font-semibold text-zinc-300">{s.label}</span>
+                              <span className="text-xs font-semibold text-zinc-300">
+                                {s.label}
+                                {s.note && <span className="text-[10px] font-normal text-zinc-500 ml-1.5">{s.note}</span>}
+                              </span>
                               <div className="flex items-baseline gap-2">
                                 <span className="text-sm font-bold text-white">{s.value.toLocaleString()}</span>
                                 {i > 0 && <span className="text-xs font-bold text-zinc-400">({convPct}%)</span>}
@@ -629,7 +637,42 @@ function AnalyticsInner() {
                           </div>
                         )
                       })}
-                      <p className="text-[11px] text-zinc-500 pt-1">Since launch · distinct members · attended = host check-ins (a floor)</p>
+                      <p className="text-[11px] text-zinc-500 pt-1">
+                        Since launch · distinct members · the block only shows to members with zero RSVPs.
+                        “Via the block” is the narrower attributed count — the fair conversion line is “to anything”.
+                      </p>
+
+                      {/* Before/after: new joiners converting within 14 days, by month */}
+                      {m.trend.length > 1 && (
+                        <div className="pt-3 border-t border-zinc-800">
+                          <div className="flex items-baseline justify-between mb-2">
+                            <span className="text-xs font-semibold text-zinc-300">New joiners RSVP’ing within 14 days</span>
+                            <span className="text-[10px] text-zinc-500">matcher shipped 5 Jul</span>
+                          </div>
+                          <div className="space-y-1.5">
+                            {m.trend.map(t => {
+                              const maxPct = Math.max(...m.trend.map(x => x.pct), 1)
+                              return (
+                                <div key={t.label} className="grid grid-cols-[52px_1fr_auto] gap-2 items-center">
+                                  <span className="text-[11px] text-zinc-500">{t.label}</span>
+                                  <div className="h-2.5 bg-zinc-800 rounded-full overflow-hidden">
+                                    <div className="h-full rounded-full bg-zinc-600" style={{ width: `${Math.max(Math.round((t.pct / maxPct) * 100), 2)}%` }} />
+                                  </div>
+                                  <span className="text-[11px] font-bold text-zinc-300 tabular-nums">
+                                    {t.pct}% <span className="font-normal text-zinc-500">({t.converted}/{t.joined})</span>
+                                  </span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                          <p className="text-[11px] text-zinc-500 pt-2">
+                            No control group exists — every zero-RSVP member sees the block, so this is a
+                            before/after, not an experiment. At ~330 joiners a month a swing under ~8pt is
+                            inside the noise; read direction, not verdict. Latest month counts only members
+                            who joined ≥14 days ago.
+                          </p>
+                        </div>
+                      )}
                     </>
                   )
                 })()}

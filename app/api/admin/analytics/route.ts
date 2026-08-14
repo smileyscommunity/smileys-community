@@ -445,12 +445,18 @@ export async function GET(req: NextRequest) {
     }
 
     // ── "Your First Event" matcher funnel ─────────────────────────────────────
-    // Attribution for the newcomer recommendation block. Distinct members
-    // shown a rec → clicked → RSVP'd (all-time since launch). rsvpRate is the
-    // headline: does seeing a rec convert to RSVP above the signed-in→RSVP
-    // baseline (~45%)? attended joins host-recorded check-ins, so treat it as
-    // a floor, not an exact count. Separate queries — the main Promise.all is
-    // already at TS's inference ceiling.
+    // Attribution for the newcomer recommendation block: distinct members
+    // shown a rec → clicked → RSVP'd. Two different RSVP numbers, and the
+    // difference matters:
+    //   rsvped    — *attributed* only (clicked a rec, then RSVP'd to it)
+    //   rsvpedAny — shown a rec, then RSVP'd to ANY event afterwards
+    // The block is shown only to members with zero RSVPs, so rsvpedAny is the
+    // fair "did the newcomer commit?" number; rsvped is the narrower "did this
+    // surface get the credit?". Do NOT compare rsvped against a
+    // members-RSVP'd-by-any-route baseline — that was the old headline here and
+    // it understated the matcher by ~20pt (83 attributed vs 203 who converted).
+    // attended joins host-recorded check-ins → a floor, not an exact count.
+    // Separate queries — the main Promise.all is already at TS's inference ceiling.
     const [femShown, femClicked, femRsvped] = await Promise.all([
       prisma.eventRecommendation.findMany({ distinct: ['userId'], select: { userId: true } }),
       prisma.eventRecommendation.findMany({ where: { clickedAt: { not: null } }, distinct: ['userId'], select: { userId: true } }),
@@ -461,15 +467,81 @@ export async function GET(req: NextRequest) {
       FROM event_recommendations r
       JOIN event_attendees a
         ON a."userId" = r."userId" AND a."eventId" = r."eventId" AND a."checkedIn" = true`
+
+    // Fair conversion + a time-normalised cut. Members shown the block last week
+    // haven't had the same chance to convert as ones shown in July, so `matured`
+    // restricts to members whose first rec is ≥14 days old and asks whether they
+    // RSVP'd inside their own 14-day window — the only rate comparable over time.
+    const femConvRows = await prisma.$queryRaw<{
+      rsvp_any: bigint; matured: bigint; matured_rsvp: bigint
+    }[]>`
+      WITH shown AS (
+        SELECT "userId", MIN("createdAt") AS t0 FROM event_recommendations GROUP BY 1
+      ), flags AS (
+        SELECT
+          s.t0 <= now() - interval '14 days' AS matured,
+          EXISTS (
+            SELECT 1 FROM event_attendees a
+            WHERE a."userId" = s."userId" AND a."joinedAt" >= s.t0
+          ) AS rsvp_any,
+          EXISTS (
+            SELECT 1 FROM event_attendees a
+            WHERE a."userId" = s."userId"
+              AND a."joinedAt" >= s.t0 AND a."joinedAt" < s.t0 + interval '14 days'
+          ) AS rsvp_14d
+        FROM shown s
+      )
+      SELECT
+        count(*) FILTER (WHERE rsvp_any)              AS rsvp_any,
+        count(*) FILTER (WHERE matured)               AS matured,
+        count(*) FILTER (WHERE matured AND rsvp_14d)  AS matured_rsvp
+      FROM flags`
+
+    // Interrupted time series across the launch (matcher shipped 2026-07-05):
+    // new joiners who RSVP'd within 14 days of joining, by join month. This is
+    // the closest thing to a before/after we have — there is no contemporaneous
+    // control, because every zero-RSVP member sees the block. The most recent
+    // month only counts members who joined ≥14 days ago, so it is partial by
+    // construction, not a drop.
+    const femTrendRows = await prisma.$queryRaw<{ m: Date; joined: bigint; converted: bigint }[]>`
+      SELECT
+        date_trunc('month', u."joinedAt") AS m,
+        count(*) AS joined,
+        count(*) FILTER (WHERE EXISTS (
+          SELECT 1 FROM event_attendees a
+          WHERE a."userId" = u.id
+            AND a."joinedAt" >= u."joinedAt"
+            AND a."joinedAt" <  u."joinedAt" + interval '14 days'
+        )) AS converted
+      FROM users u
+      WHERE u.status = 'approved'
+        AND u."joinedAt" >= date_trunc('month', now()) - interval '5 months'
+        AND u."joinedAt" <= now() - interval '14 days'
+      GROUP BY 1 ORDER BY 1`
+
     const femShownCount = femShown.length
+    const femConv       = femConvRows[0]
+    const femMatured    = Number(femConv?.matured ?? 0)
+    const femRsvpedAny  = Number(femConv?.rsvp_any ?? 0)
+    const pct = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 1000) / 10 : 0)
     const firstEventMatcher = {
-      shown:            femShownCount,
-      clicked:          femClicked.length,
-      rsvped:           femRsvped.length,
-      attended:         Number(femAttendedRows[0]?.n ?? 0),
-      clickRate:        femShownCount ? Math.round((femClicked.length / femShownCount) * 1000) / 10 : 0,
-      rsvpRate:         femShownCount ? Math.round((femRsvped.length  / femShownCount) * 1000) / 10 : 0,
-      baselineRsvpRate: 45.1,
+      shown:        femShownCount,
+      clicked:      femClicked.length,
+      rsvped:       femRsvped.length,
+      rsvpedAny:    femRsvpedAny,
+      attended:     Number(femAttendedRows[0]?.n ?? 0),
+      clickRate:    pct(femClicked.length, femShownCount),
+      rsvpRate:     pct(femRsvped.length,  femShownCount),
+      rsvpAnyRate:  pct(femRsvpedAny,      femShownCount),
+      matured:      femMatured,
+      maturedRsvp:  Number(femConv?.matured_rsvp ?? 0),
+      maturedRate:  pct(Number(femConv?.matured_rsvp ?? 0), femMatured),
+      trend: femTrendRows.map(r => ({
+        label:     new Date(r.m).toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }),
+        joined:    Number(r.joined),
+        converted: Number(r.converted),
+        pct:       pct(Number(r.converted), Number(r.joined)),
+      })),
     }
 
     // ── Cohort retention ─────────────────────────────────────────────────────
