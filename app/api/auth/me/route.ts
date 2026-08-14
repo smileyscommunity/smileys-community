@@ -148,12 +148,16 @@ export async function PATCH(req: NextRequest) {
       data.nationality = v.trim()
     }
 
-    // profilePhoto must be a local upload path or empty
+    // profilePhoto must be a users/ upload path or empty. The folder is pinned
+    // to `users` (not a wildcard): a member's own avatar can only ever live
+    // there — the upload route already restricts non-privileged uploads to
+    // users/ — and allowing any folder let a member point their profilePhoto
+    // at a gated applications/ file, which the file route then had to serve.
     if ('profilePhoto' in body) {
       const photo = body.profilePhoto
       if (photo === null || photo === '') {
         data.profilePhoto = null
-      } else if (typeof photo === 'string' && /^\/app\/api\/files\/[a-zA-Z0-9\-]+\/[a-zA-Z0-9\-]+\.(jpg|jpeg|png|webp|gif)$/.test(photo)) {
+      } else if (typeof photo === 'string' && /^\/app\/api\/files\/users\/[a-zA-Z0-9\-]+\.(jpg|jpeg|png|webp|gif)$/.test(photo)) {
         data.profilePhoto = photo
       } else {
         return NextResponse.json({ error: 'Invalid photo URL' }, { status: 400 })

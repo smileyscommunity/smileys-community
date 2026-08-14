@@ -8,6 +8,7 @@ import { createNotification } from '@/lib/notify'
 import { writeAudit } from '@/lib/audit'
 import { randomBytes } from 'crypto'
 import { hashToken } from '@/lib/tokenHash'
+import { promoteApplicationPhoto } from '@/lib/promotePhoto'
 
 function normalizeName(name: string): string {
   if (!name) return name
@@ -99,6 +100,12 @@ export async function PATCH(req: NextRequest) {
           if (!existing) {
             const COLORS = ['#f472b6','#60a5fa','#fbbf24','#f87171','#fb923c','#e879f9','#34d399','#a78bfa']
             const color  = COLORS[Math.floor(Math.random() * COLORS.length)]
+            // Move the applicant photo out of the gated applications/ folder
+            // into users/ before it becomes a member avatar — otherwise the
+            // member's public avatar points into applications/, and the file
+            // route can only serve it by trusting the user-writable
+            // profilePhoto column (a bypassable gate). See lib/promotePhoto.
+            const memberPhoto = await promoteApplicationPhoto(application.profilePhoto)
             let user
             try {
               user = await prisma.user.create({
@@ -116,7 +123,7 @@ export async function PATCH(req: NextRequest) {
                   interests:    application.interests    ?? [],
                   socialStyles: application.socialStyles ?? [],
                   languages:    [],
-                  profilePhoto: application.profilePhoto ?? null,
+                  profilePhoto: memberPhoto ?? null,
                   bio:          application.bio          ?? null,
                   instagram:    application.instagram    ?? null,
                   neighborhood: application.neighborhood ?? null,
@@ -154,7 +161,7 @@ export async function PATCH(req: NextRequest) {
             if (!existing.phone        && application.phone)        updates.phone        = application.phone
             if (!existing.nationality  && application.country)      updates.nationality  = application.country
             if (!existing.instagram    && application.instagram)    updates.instagram    = application.instagram
-            if (!existing.profilePhoto && application.profilePhoto) updates.profilePhoto = application.profilePhoto
+            if (!existing.profilePhoto && application.profilePhoto) updates.profilePhoto = await promoteApplicationPhoto(application.profilePhoto)
             if (!existing.neighborhood && application.neighborhood) updates.neighborhood = application.neighborhood
             if ((!existing.bio)        && application.bio)          updates.bio          = application.bio
             if (existing.interests?.length === 0 && application.interests?.length) updates.interests = application.interests

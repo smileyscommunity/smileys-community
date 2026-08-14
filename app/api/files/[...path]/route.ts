@@ -3,7 +3,6 @@ import { readFile, access } from 'fs/promises'
 import { join, extname, normalize } from 'path'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
-import { prisma } from '@/lib/prisma'
 import sharp from 'sharp'
 
 export const runtime = 'nodejs'
@@ -30,28 +29,6 @@ const UPLOAD_ROOT = join(process.cwd(), 'public', 'uploads')
 const VALID_FOLDERS = ['events', 'clubs', 'users', 'general', 'applications', 'posts', 'neighborhoods', 'directory', 'listings', 'hangouts']
 const VALID_FILE = /^[\w\-]+\.(jpg|jpeg|png|webp|gif)$/i
 
-// Tiny in-process cache: filename → boolean (is an approved
-// member's active profile photo). Was firing a Prisma count() on
-// every applications/* request — the cup leaderboard renders 10
-// avatars at once, so cold cache = 10 sequential DB roundtrips
-// behind 10 image fetches. Cache cuts those to one query per file
-// per process per TTL. Memory cost is bounded by member count;
-// each entry is a string key + bool. Reset on cold-start / deploy.
-const APPROVED_PHOTO_CACHE = new Map<string, { ok: boolean; expires: number }>()
-const APPROVED_TTL_MS = 5 * 60 * 1000
-
-async function isApprovedProfilePhoto(filename: string): Promise<boolean> {
-  const now    = Date.now()
-  const cached = APPROVED_PHOTO_CACHE.get(filename)
-  if (cached && cached.expires > now) return cached.ok
-  const count = await prisma.user.count({
-    where: { profilePhoto: { endsWith: `applications/${filename}` }, status: 'approved' },
-  })
-  const ok = count > 0
-  APPROVED_PHOTO_CACHE.set(filename, { ok, expires: now + APPROVED_TTL_MS })
-  return ok
-}
-
 export async function GET(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
   const { path } = await params
   if (path.length !== 2) return new NextResponse('Not found', { status: 404 })
@@ -60,19 +37,19 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
     return new NextResponse('Forbidden', { status: 403 })
   }
 
-  // Applications folder: gate enumeration of rejected/pending
-  // applicant photos. Approved-member photos are semi-public
-  // (rendered on member directory, events, cup leaderboard, etc.)
-  // so the check is the same for unauth and logged-in non-admins —
-  // both branches collapse to one cached lookup.
+  // Applications folder holds raw applicant photos — including REJECTED and
+  // PENDING applicants who never consented to a public avatar. It is strictly
+  // admin/moderator-only. Approved members never serve their avatar from here:
+  // approval promotes the photo into users/ (see lib/promotePhoto), so there is
+  // no "approved member" exception to make. The previous version derived that
+  // exception from the user-writable profilePhoto column, which let any
+  // approved member unlock an arbitrary applicant photo by pointing their own
+  // profilePhoto at it.
   if (folder === 'applications') {
     const session = await getSession()
     if (!session || !isAdminOrModerator(session)) {
-      if (!(await isApprovedProfilePhoto(file))) {
-        return new NextResponse('Forbidden', { status: 403 })
-      }
+      return new NextResponse('Forbidden', { status: 403 })
     }
-    // Admins/moderators: unrestricted
   }
 
   const filePath = normalize(join(UPLOAD_ROOT, folder, file))
