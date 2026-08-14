@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { resolveCityId } from '@/lib/city'
 import { rateLimit } from '@/lib/rateLimit'
 import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
 import { BOARD_POST_TYPES, QUESTION_TAGS } from '@/lib/board'
@@ -176,7 +177,7 @@ export async function POST(req: NextRequest) {
   }
 
   const created = await prisma.boardPost.create({
-    data: { userId: session.id, type, title, body: text, neighborhood, tag, clubId, eventId: eventTie },
+    data: { userId: session.id, cityId: await resolveCityId(session), type, title, body: text, neighborhood, tag, clubId, eventId: eventTie },
     select: { id: true },
   })
 

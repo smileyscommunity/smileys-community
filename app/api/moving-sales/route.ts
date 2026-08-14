@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { resolveCityId } from '@/lib/city'
 import { rateLimit } from '@/lib/rateLimit'
 import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
 import { sendListingAlertEmail, recordEmailFailure } from '@/lib/email'
@@ -64,7 +65,7 @@ export async function POST(req: NextRequest) {
 
   const sale = await prisma.movingSale.create({
     data: {
-      userId: session.id, leavingOn, neighborhood: safeNeighborhood, note: safeNote, photo: safePhoto,
+      userId: session.id, cityId: await resolveCityId(session), leavingOn, neighborhood: safeNeighborhood, note: safeNote, photo: safePhoto,
       items: { create: safeItems },
     },
     select: { id: true },

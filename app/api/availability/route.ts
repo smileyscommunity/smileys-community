@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { resolveCityId } from '@/lib/city'
 import { rateLimit } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
 import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
@@ -98,6 +99,7 @@ export async function POST(req: NextRequest) {
     const created = await prisma.availabilityPulse.create({
       data: {
         userId:       session.id,
+        cityId:       await resolveCityId(session),
         neighborhood: safeNeighborhood,
         note:         typeof note === 'string' ? note.trim().slice(0, 200) || null : null,
         until,

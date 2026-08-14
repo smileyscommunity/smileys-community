@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
   if (!title?.trim()) return NextResponse.json({ error: 'Title required' }, { status: 400 })
   if (!description?.trim()) return NextResponse.json({ error: 'Description required' }, { status: 400 })
 
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } })
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, cityId: true } })
   if (!user) return NextResponse.json({ error: 'Member not found' }, { status: 404 })
 
   const days = Math.min(Math.max(parseInt(expiryDays) || 30, 1), 365)
@@ -68,6 +68,8 @@ export async function POST(req: NextRequest) {
   const listing = await prisma.listing.create({
     data: {
       userId,
+      // Admin posts on the member's behalf — scope to the MEMBER's city.
+      cityId: user.cityId,
       category,
       title:        title.trim().slice(0, 120),
       description:  description.trim().slice(0, 2000),

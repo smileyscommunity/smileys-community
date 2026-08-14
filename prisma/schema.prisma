@@ -219,8 +219,11 @@ model Partner {
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @default(now()) @updatedAt
+  cityId       String
+  city         City     @relation(fields: [cityId], references: [id])
   users        User[]
 
+  @@index([cityId, isActive])
   @@map("partners")
 }
 
@@ -318,6 +321,19 @@ model City {
   events       Event[]
   applications MemberApplication[]
   users        User[]
+  // City-scoping sweep (multi-city phase 1): every model with a location
+  // dimension carries a required cityId so a second city's content can
+  // never leak into another city's feeds. Backfilled to Istanbul.
+  partners             Partner[]
+  businesses           Business[]
+  listings             Listing[]
+  boardPosts           BoardPost[]
+  movingSales          MovingSale[]
+  hangouts             Hangout[]
+  visitorAnnouncements VisitorAnnouncement[]
+  neighborhoodPosts    NeighborhoodPost[]
+  availabilityPulses   AvailabilityPulse[]
+  posts                Post[]
 
   @@map("cities")
 }
@@ -1288,6 +1304,12 @@ model Post {
   // High-stakes articles must cite where the reader can verify the facts
   // themselves rather than trusting member-written text.
   officialSources    Json?
+  // Nullable ON PURPOSE, unlike the rest of the city sweep: null = global
+  // content (applies everywhere — most community posts, national handbook
+  // articles like residence permits). Set only on genuinely city-local
+  // articles. Read paths treat null as "show in every city".
+  cityId             String?
+  city               City?     @relation(fields: [cityId], references: [id])
 
   author      User      @relation(fields: [authorId], references: [id])
   likes       PostLike[]
@@ -1296,6 +1318,7 @@ model Post {
   @@index([kind, status, publishedAt])
   // Drives the review queue ("what is overdue?") and the freshness sort.
   @@index([kind, status, lastReviewedAt])
+  @@index([cityId])
   @@map("posts")
 }
 
@@ -1409,11 +1432,14 @@ model NeighborhoodPost {
   pinnedAt     DateTime?
   createdAt    DateTime                @default(now())
   updatedAt    DateTime                @updatedAt
+  cityId       String
+  city         City                    @relation(fields: [cityId], references: [id])
   likes        NeighborhoodPostLike[]
   replies      NeighborhoodPostReply[]
   user         User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([neighborhood, isPinned(sort: Desc), createdAt(sort: Desc)])
+  @@index([cityId])
   @@map("neighborhood_posts")
 }
 
@@ -1465,12 +1491,15 @@ model Listing {
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   neighborhood  String?
+  cityId        String
+  city          City           @relation(fields: [cityId], references: [id])
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   savedBy       SavedListing[]
 
   @@index([category, status, createdAt])
   @@index([neighborhood, status])
   @@index([userId])
+  @@index([cityId, status, createdAt])
   @@map("listings")
 }
 
@@ -1506,11 +1535,14 @@ model Hangout {
   // event page merely surfaces it.
   eventId   String?
   event     Event?   @relation("EventHangouts", fields: [eventId], references: [id])
+  cityId             String
+  city               City               @relation(fields: [cityId], references: [id])
   user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([status, endsAt])
   @@index([status, startsAt])
   @@index([neighborhood, status])
+  @@index([cityId, status, startsAt])
   @@map("hangouts")
 }
 
@@ -1566,12 +1598,15 @@ model AvailabilityPulse {
   note         String?
   until        DateTime
   createdAt    DateTime    @default(now())
+  cityId       String
+  city         City        @relation(fields: [cityId], references: [id])
   user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   waves        PulseWave[]
 
   @@index([until])
   @@index([neighborhood, until])
   @@index([userId])
+  @@index([cityId, until])
   @@map("availability_pulses")
 }
 
@@ -1614,10 +1649,15 @@ model VisitorAnnouncement {
   // 'public' lists it for guests too, with contact/email redacted the same
   // way they already are. See VISITOR_VISIBILITY in lib/data.ts.
   visibility   String   @default("members")
+  // The DESTINATION city (what "visiting" means) — not where the visitor
+  // lives; that's the free-text fromCity above.
+  cityId       String
+  city         City     @relation(fields: [cityId], references: [id])
   user         User?    @relation(fields: [userId], references: [id])
 
   @@index([status, endsOn])
   @@index([neighborhood, status])
+  @@index([cityId, status, endsOn])
   @@map("visitor_announcements")
 }
 
@@ -1670,6 +1710,8 @@ model Business {
   hours           Json?
   memberDiscount  String?
   tags            String[]         @default([])
+  cityId          String
+  city            City             @relation(fields: [cityId], references: [id])
   claims          BusinessClaim[]
   reports         BusinessReport[]
   reviews         BusinessReview[]
@@ -1681,6 +1723,7 @@ model Business {
   @@index([isApproved, isActive])
   @@index([category])
   @@index([neighborhood])
+  @@index([cityId, isApproved, isActive])
   @@map("businesses")
 }
 
@@ -1872,6 +1915,8 @@ model BoardPost {
   pinned       Boolean         @default(false)
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
+  cityId       String
+  city         City            @relation(fields: [cityId], references: [id])
   club         Club?           @relation("ClubBoardPosts", fields: [clubId], references: [id])
   event        Event?          @relation("EventBoardPosts", fields: [eventId], references: [id])
   user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -1885,6 +1930,7 @@ model BoardPost {
   @@index([userId])
   @@index([clubId, createdAt(sort: Desc)])
   @@index([eventId, createdAt(sort: Desc)])
+  @@index([cityId, status, createdAt(sort: Desc)])
   @@map("board_posts")
 }
 
@@ -1944,10 +1990,13 @@ model MovingSale {
   photo        String?
   status       String           @default("active") // 'active' | 'done' | 'removed'
   createdAt    DateTime         @default(now())
+  cityId       String
+  city         City             @relation(fields: [cityId], references: [id])
   user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   items        MovingSaleItem[]
 
   @@index([status, leavingOn])
+  @@index([cityId, status, leavingOn])
   @@map("moving_sales")
 }
 

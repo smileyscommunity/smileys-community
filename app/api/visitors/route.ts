@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { resolveCityId } from '@/lib/city'
 import { rateLimit, getIp } from '@/lib/rateLimit'
 import { verifyTurnstile } from '@/lib/turnstile'
 import { createNotification } from '@/lib/notify'
@@ -109,6 +110,9 @@ export async function POST(req: NextRequest) {
     const created = await prisma.visitorAnnouncement.create({
       data: {
         userId:       session?.id ?? null,
+        // Destination city. Guests (userId null) land on the default city;
+        // a real destination picker arrives with the multi-city Visiting UI.
+        cityId:       await resolveCityId(session),
         name:         name.trim().slice(0, 80),
         email:        typeof email === 'string' ? email.trim().slice(0, 200) || null : null,
         fromCity:     typeof fromCity === 'string' ? fromCity.trim().slice(0, 80) || null : null,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { resolveCityId } from '@/lib/city'
 import { isAdminOrModerator } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
 import { writeAudit } from '@/lib/audit'
@@ -116,6 +117,9 @@ export async function POST(req: NextRequest) {
           index: i,
           data: {
             ...(result.data as Record<string, unknown>),
+            // The `as never` casts below bypass tsc, so a missing cityId
+            // here would surface as a runtime NOT NULL violation — keep it.
+            cityId:        await resolveCityId(session),
             submittedById: session.id,
             reviewedById:  session.id,
             reviewedAt:    new Date(),
@@ -180,6 +184,7 @@ export async function POST(req: NextRequest) {
     const created = await prisma.business.create({
       data: {
         ...(result.data as Record<string, unknown>),
+        cityId:        await resolveCityId(session),
         submittedById: session.id,
         reviewedById:  session.id,
         reviewedAt:    new Date(),

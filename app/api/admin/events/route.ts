@@ -306,6 +306,7 @@ export async function POST(req: NextRequest) {
     // Fire-and-forget — never blocks event creation.
     ensurePendingVenueBusiness({
       location:      event.location,
+      cityId:        event.cityId,
       neighborhood:  event.neighborhood,
       address:       event.address,
       latitude:      event.lat,

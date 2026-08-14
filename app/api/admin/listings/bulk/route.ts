@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { resolveCityId } from '@/lib/city'
 import { isAdminOrModerator } from '@/lib/access'
 import { sendListingAlertEmail } from '@/lib/email'
 import { createNotification } from '@/lib/notify'
@@ -40,14 +41,19 @@ export async function POST(req: NextRequest) {
   // Resolve attribution: default to acting admin if no userId provided, else verify
   // the target user exists and is approved (don't let admin post under banned/pending).
   const userId = (attributedUserId as string | undefined)?.trim() || session.id
+  // Listings are scoped to the ATTRIBUTED member's city, not the admin's.
+  let listingCityId: string
   if (userId !== session.id) {
     const target = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, status: true },
+      select: { id: true, status: true, cityId: true },
     })
     if (!target || target.status !== 'approved') {
       return NextResponse.json({ error: 'Attribution user not found or not approved' }, { status: 400 })
     }
+    listingCityId = target.cityId
+  } else {
+    listingCityId = await resolveCityId(session)
   }
 
   // Validate each item before writing anything — atomic-ish (we don't wrap in a tx
@@ -79,7 +85,7 @@ export async function POST(req: NextRequest) {
     // Single INSERT instead of N transactional creates — for 20+ items this drops
     // the response time from "user thinks it hung" to <100ms.
     const result = await prisma.listing.createMany({
-      data: cleaned.map(c => ({ userId, category, ...c, expiresAt })),
+      data: cleaned.map(c => ({ userId, cityId: listingCityId, category, ...c, expiresAt })),
     })
 
     // Fire alerts once for the whole batch — one email/push per subscriber listing

@@ -29,6 +29,8 @@ function inferCategory(name: string): string {
 
 export async function ensurePendingVenueBusiness(opts: {
   location?: string | null
+  // The event's city — a venue stub always lives where its event does.
+  cityId: string
   neighborhood?: string | null
   address?: string | null
   latitude?: number | null
@@ -52,6 +54,7 @@ export async function ensurePendingVenueBusiness(opts: {
     await prisma.business.create({
       data: {
         name,
+        cityId:        opts.cityId,
         category:      inferCategory(name),
         description:   'Community venue — added from a Smileys event. Pending review.',
         neighborhood:  opts.neighborhood?.trim() || null,

@@ -12,6 +12,12 @@ vi.mock('@/lib/prisma', () => ({ prisma: {
     findUnique: vi.fn(),
     update:     vi.fn(),
   },
+  // POST resolves a cityId for every hangout, and falls back to the default
+  // city when the session carries none (lib/city.ts). Without this the whole
+  // create path throws before it ever reaches prisma.hangout.create.
+  city: {
+    findUnique: vi.fn(),
+  },
 } }))
 vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn(() => true) }))
 vi.mock('@/lib/notify', () => ({ createNotification: vi.fn() }))
@@ -22,6 +28,7 @@ const req = (body: any) => ({ json: async () => body }) as any
 beforeEach(() => {
   vi.clearAllMocks()
   ;(getSession as any).mockResolvedValue({ id: 'u1', name: 'User 1' })
+  ;(prisma.city.findUnique as any).mockResolvedValue({ id: 'city-istanbul' })
 })
 
 describe('Hangouts POST — Max duration 24h', () => {
@@ -57,6 +64,37 @@ describe('Hangouts POST — Max duration 24h', () => {
     }))
     
     expect(res.status).toBe(201)
+  })
+})
+
+describe('Hangouts POST — city scoping', () => {
+  const body = () => {
+    const now = new Date()
+    return {
+      title: 'Coffee',
+      location: 'Istanbul',
+      startsAt: now.toISOString(),
+      endsAt:   new Date(now.getTime() + 60 * 60 * 1000).toISOString(),
+    }
+  }
+
+  it('stamps the default city when the session carries none', async () => {
+    ;(prisma.hangout.create as any).mockResolvedValue({ id: 'h1' })
+
+    await POST(req(body()))
+    expect(prisma.hangout.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ cityId: 'city-istanbul' }),
+    }))
+  })
+
+  it("uses the member's own city over the default", async () => {
+    ;(getSession as any).mockResolvedValue({ id: 'u1', name: 'User 1', cityId: 'city-berlin' })
+    ;(prisma.hangout.create as any).mockResolvedValue({ id: 'h1' })
+
+    await POST(req(body()))
+    expect(prisma.hangout.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ cityId: 'city-berlin' }),
+    }))
   })
 })
 

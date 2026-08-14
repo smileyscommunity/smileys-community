@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { resolveCityId } from '@/lib/city'
 import { sendListingAlertEmail, recordEmailFailure } from '@/lib/email'
 import { createNotification } from '@/lib/notify'
 import { rateLimit } from '@/lib/rateLimit'
@@ -166,6 +167,7 @@ export async function POST(req: NextRequest) {
   const listing = await prisma.listing.create({
     data: {
       userId: session.id,
+      cityId: await resolveCityId(session),
       category,
       title: title.trim(),
       description: description.trim(),

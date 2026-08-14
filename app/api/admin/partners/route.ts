@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { resolveCityId } from '@/lib/city'
 import { canManagePartners, isAdmin } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
 
@@ -34,6 +35,7 @@ export async function POST(req: NextRequest) {
   const partner = await prisma.partner.create({
     data: {
       name,
+      cityId: await resolveCityId(session),
       category,
       discount,
       address,

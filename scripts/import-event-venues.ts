@@ -90,7 +90,7 @@ async function main() {
 
   const events = await prisma.event.findMany({
     where: { cancelledAt: null, NOT: { location: '' } },
-    select: { location: true, neighborhood: true, address: true, lat: true, lng: true, date: true },
+    select: { location: true, neighborhood: true, address: true, lat: true, lng: true, date: true, cityId: true },
   })
 
   // Group by normalized venue name.
@@ -148,6 +148,10 @@ async function main() {
       await prisma.business.create({
         data: {
           name, category, description,
+          // A venue stub lives where its events do — same rule as
+          // ensurePendingVenueBusiness. Grouping is by venue name, so every
+          // event in the group is at the same address, hence the same city.
+          cityId: evs[0].cityId,
           neighborhood, address,
           latitude: lat, longitude: lng,
           isExpatFriendly: true,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { resolveCityId } from '@/lib/city'
 import { isAdminOrModerator } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
 import { sendAdminNewDirectorySubmissionEmail } from '@/lib/email'
@@ -145,6 +146,7 @@ export async function POST(req: NextRequest) {
     const business = await prisma.business.create({
       data: {
         name,
+        cityId: await resolveCityId(session),
         category,
         description,
         neighborhood,

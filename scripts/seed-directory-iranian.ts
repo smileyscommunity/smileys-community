@@ -14,6 +14,7 @@
 //     npx tsx scripts/seed-directory-iranian.ts'
 
 import { prisma } from '@/lib/prisma'
+import { getDefaultCityId } from '@/lib/city'
 
 const ADMIN_EMAIL = ''
 
@@ -80,6 +81,10 @@ async function main() {
   }
   console.log(`→ Seeding as ${admin.name} <${admin.email}>`)
 
+  // Every business carries a city (multi-city phase 1). These seeds are all
+  // Istanbul venues, so the default city is the right one.
+  const cityId = await getDefaultCityId()
+
   let created = 0
   let skipped = 0
   for (const e of ENTRIES) {
@@ -91,6 +96,7 @@ async function main() {
     }
     await prisma.business.create({
       data: {
+        cityId,
         name:            e.name,
         category:        'Restaurant',
         description:     e.description,

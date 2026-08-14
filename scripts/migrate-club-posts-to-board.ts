@@ -33,7 +33,7 @@ function splitTitle(content: string): { title: string; body: string } {
 
 async function main() {
   const posts = await prisma.clubPost.findMany({
-    include: { replies: true, club: { select: { name: true, slug: true } } },
+    include: { replies: true, club: { select: { name: true, slug: true, cityId: true } } },
     orderBy: { createdAt: 'asc' },
   })
 
@@ -49,6 +49,8 @@ async function main() {
           data: {
             id: boardId,
             userId: p.userId,
+            // Clubs are per-city, so the board post inherits the club's city.
+            cityId: p.club.cityId,
             type: 'share',
             title,
             body,

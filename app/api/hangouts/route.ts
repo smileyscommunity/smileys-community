@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { resolveCityId } from '@/lib/city'
 import { rateLimit } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
 import { HANGOUT_ACTIVITIES } from '@/lib/hangoutActivities'
@@ -194,6 +195,7 @@ export async function POST(req: NextRequest) {
     const created = await prisma.hangout.create({
       data: {
         userId:       session.id,
+        cityId:       await resolveCityId(session),
         clubId:       safeClubId,
         title:        title.trim().slice(0, 120),
         description:  typeof description === 'string' ? description.trim().slice(0, 500) || null : null,

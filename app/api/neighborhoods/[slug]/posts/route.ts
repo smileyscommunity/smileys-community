@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { resolveCityId } from '@/lib/city'
 import { rateLimit } from '@/lib/rateLimit'
 import { slugToNeighborhood } from '@/lib/neighborhoods'
 import { buildReactions, buildAuthor } from '@/lib/posts'
@@ -88,7 +89,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   const post = await prisma.neighborhoodPost.create({
-    data: { neighborhood, userId: session.id, content: trimmed, imageUrl: imageUrl ?? null },
+    data: { neighborhood, userId: session.id, cityId: await resolveCityId(session), content: trimmed, imageUrl: imageUrl ?? null },
     include: { user: { select: { id: true, name: true, color: true, profilePhoto: true, role: true } } },
   })
 

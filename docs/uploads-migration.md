@@ -44,6 +44,19 @@ confirmation, never two deploys in parallel. The new preflight (`→ Checking
 upload store...`) fails the deploy if `UPLOAD_DIR` is unset, points inside the
 deploy root, or doesn't exist.
 
+**Multi-city phase 1 ships in the same deploy and has its own pre-step.**
+`scripts/backfill-city-ids.sql` must run on prod BEFORE the deploy — nine tables
+gain a NOT NULL `cityId` that `prisma db push` cannot add to a non-empty table,
+so skipping it means a failed schema push (exit 90) and prod on new code against
+the old schema. Full instructions in that file's header. Order for the whole
+deploy:
+
+1. `psql … -f scripts/backfill-city-ids.sql` (city columns)
+2. `rsync … public/uploads/ /root/smileys-uploads/` (upload stragglers)
+3. fresh DB backup
+4. `./deploy.sh`
+5. `rsync …` again (uploads written during the deploy window)
+
 ## Verify after deploy
 
 ```bash
