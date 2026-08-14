@@ -14,6 +14,7 @@
 import { prisma } from '@/lib/prisma'
 import { existsSync } from 'fs'
 import { join } from 'path'
+import { uploadRoot } from '../lib/uploadRoot'
 
 async function main() {
   const query = process.argv[2]
@@ -49,12 +50,12 @@ async function main() {
     console.log(`   canonical URL? ${canonical ? 'yes' : 'NO — legacy/malformed'}`)
 
     // Strip the leading /app/api/files/ or /api/files/ or /uploads/
-    // and look for the file at public/uploads/<rest>
+    // and look for the file under the upload root (see lib/uploadRoot)
     const rel = u.profilePhoto
       .replace(/^\/app\/api\/files\//, '')
       .replace(/^\/api\/files\//,      '')
       .replace(/^\/uploads\//,         '')
-    const onDisk = join(process.cwd(), 'public', 'uploads', rel)
+    const onDisk = join(uploadRoot(), rel)
     const exists = existsSync(onDisk)
     console.log(`   on disk:  ${onDisk}`)
     console.log(`   exists?   ${exists ? 'yes' : 'NO — file missing'}`)

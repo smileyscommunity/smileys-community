@@ -32,8 +32,11 @@ next-env.d.ts
 /lib/generated/prisma
 
 # uploaded files
-/public/uploads/*
-!/public/uploads/.gitkeep
+# Uploads live outside public/ so Next can't serve them statically around
+# the gated /api/files route — see lib/uploadRoot and SECURITY.md invariant 15.
+# public/uploads is deliberately gone, not just ignored: an empty dir there
+# invites the next contributor to write into it again.
+/uploads/
 .env.local
 
 # Claude Code project-local state (settings, agent-installed skills)

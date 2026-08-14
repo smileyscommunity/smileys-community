@@ -26,7 +26,7 @@ interface Props {
   onChange: (html: string) => void
   placeholder?: string
   className?: string
-  // Which /public/uploads subfolder inserted images land in. Any valid
+  // Which upload subfolder inserted images land in. Any valid
   // upload folder works (all serve via /api/files/<folder>/…); defaults
   // to 'posts' since articles are the main image-in-body surface.
   uploadFolder?: string

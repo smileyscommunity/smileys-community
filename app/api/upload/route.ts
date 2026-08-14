@@ -7,6 +7,7 @@ import sharp from 'sharp'
 import { rateLimit, getIp } from '@/lib/rateLimit'
 import { prisma } from '@/lib/prisma'
 import { detectImageFormat } from '@/lib/imageMagic'
+import { uploadRoot } from '@/lib/uploadRoot'
 
 export const runtime = 'nodejs'
 
@@ -64,7 +65,7 @@ export async function POST(req: NextRequest) {
     const validFolders = ['events', 'clubs', 'users', 'general', 'posts', 'hangouts', 'directory', 'listings']
     const subfolder  = validFolders.includes(folder ?? '') ? folder! : 'general'
     const filename   = `${Date.now()}-${randomBytes(6).toString('hex')}.jpg`
-    const uploadDir  = join(process.cwd(), 'public', 'uploads', subfolder)
+    const uploadDir  = join(uploadRoot(), subfolder)
     mkdirSync(uploadDir, { recursive: true })
 
     const raw = Buffer.from(await file.arrayBuffer())

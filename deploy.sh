@@ -22,6 +22,27 @@ if [ "${FILE_COUNT:-0}" -lt 50 ]; then
   exit 1
 fi
 
+# Uploads live outside the deploy root (see lib/uploadRoot). If UPLOAD_DIR is
+# missing from the server's .env, the app silently falls back to
+# <repo>/uploads: every image 404s, and new uploads land inside the rsync
+# --delete path where the NEXT deploy erases them. Neither failure is visible
+# until someone reports a broken avatar, so check before we ship anything.
+echo "→ Checking upload store..."
+ssh "$SERVER" bash -s <<'CHECK_UPLOADS' || { echo "✗ Refusing to deploy — fix UPLOAD_DIR on the server first."; exit 1; }
+set -e
+cd /root/smileys-community
+DIR=$(grep -m1 '^UPLOAD_DIR=' .env 2>/dev/null | cut -d= -f2- | tr -d '"' | xargs || true)
+if [ -z "$DIR" ]; then
+  echo "  ✗ UPLOAD_DIR is not set in /root/smileys-community/.env"
+  exit 1
+fi
+case "$DIR" in
+  /root/smileys-community/*) echo "  ✗ UPLOAD_DIR ($DIR) is inside the deploy root — rsync --delete will wipe it"; exit 1 ;;
+esac
+[ -d "$DIR" ] || { echo "  ✗ UPLOAD_DIR ($DIR) does not exist on the server"; exit 1; }
+echo "  ✓ $DIR ($(find "$DIR" -type f | wc -l | tr -d ' ') files)"
+CHECK_UPLOADS
+
 echo "→ Checking for vulnerabilities..."
 # Audit gate: block on any high/critical ADVISORY except documented, verified-
 # non-applicable exceptions listed in AUDIT_ALLOW (moderate/low never gate).
@@ -115,6 +136,7 @@ rsync -av --delete \
   --exclude='.git' \
   --exclude='.claude/' \
   --exclude='public/uploads' \
+  --exclude='uploads/' \
   --exclude='data/announcement.json' \
   --exclude='data/member-spotlight.json' \
   --exclude='data/settings.json' \

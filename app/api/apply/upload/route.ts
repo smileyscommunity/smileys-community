@@ -5,6 +5,7 @@ import { randomBytes } from 'crypto'
 import sharp from 'sharp'
 import { rateLimit, getIp } from '@/lib/rateLimit'
 import { detectImageFormat } from '@/lib/imageMagic'
+import { uploadRoot } from '@/lib/uploadRoot'
 
 export const runtime = 'nodejs'
 
@@ -46,7 +47,7 @@ export async function POST(req: NextRequest) {
     if (!ALLOWED.includes(ext)) return NextResponse.json({ error: 'JPG or PNG only' }, { status: 400 })
 
     const filename  = `${Date.now()}-${randomBytes(6).toString('hex')}.jpg`
-    const uploadDir = join(process.cwd(), 'public', 'uploads', 'applications')
+    const uploadDir = join(uploadRoot(), 'applications')
     mkdirSync(uploadDir, { recursive: true })
     const raw = Buffer.from(await file.arrayBuffer())
 

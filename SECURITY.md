@@ -183,8 +183,8 @@ gaps below).
     random name (`lib/promotePhoto.ts`), so no member's avatar ever
     points into `applications/`, and `auth/me` PATCH only accepts a
     `users/` path for `profilePhoto`.
-  - The files live under `public/uploads`, which Next also serves
-    statically — see invariant 15 for the nginx block that closes it.
+  - The files live OUTSIDE `public/` (`lib/uploadRoot.ts`, `UPLOAD_DIR`),
+    so the route is the only way to read one — see invariant 15.
 - **Prisma**: no `$queryRawUnsafe` / `$executeRawUnsafe` in the
   codebase. The few `$queryRaw` call sites use tagged-template
   parameterization (rate limit, health check, cron secret check, event
@@ -328,20 +328,34 @@ These look like they could be simplified. They cannot.
     browsers don't reliably send Origin on report POSTs and there's
     no session-bound state to forge.
 
-15. **nginx returns 404 for `/app/uploads/` — and that block is not in
-    this repo.** Uploads are stored in `public/uploads`, so Next serves
-    every one of them as a static asset at `/app/uploads/<folder>/<file>`
-    *in addition to* the gated `/app/api/files/<folder>/<file>` route.
-    That static path takes no session — until 2026-08-14 it handed out
-    any of ~1,600 applicant photos, including rejected ones, to a
-    logged-out request, bypassing the route gate entirely. The fix is a
-    `location ^~ /app/uploads/ { return 404; }` block in
-    `/etc/nginx/sites-available/smileys`, above `location /app`. It
-    lives only on the server — `deploy.sh` never touches nginx — so a
-    server rebuild or a hand-edited config silently reopens the hole.
+15. **Uploads resolve OUTSIDE `public/`, via `lib/uploadRoot.ts`.** Never
+    move them back, and never add a second code path that writes into
+    `public/`. Uploads used to live in `public/uploads`, which meant Next
+    served every one of them as a static asset at
+    `/app/uploads/<folder>/<file>` *in addition to* the gated
+    `/app/api/files/<folder>/<file>` route. The static path takes no
+    session: on 2026-08-14 a logged-out `GET` returned a real applicant
+    photo in full (403 on the route, 200 and 262 KB on the static twin),
+    which made the admin-only gate on `applications/` decorative for all
+    ~1,600 files, rejected applicants included.
+
+    What holds it closed now:
+    - `UPLOAD_DIR` on the server points at `/root/smileys-uploads` —
+      outside the deploy root, for the same reason `/root/db-backups` is
+      (deploy.sh rsyncs with `--delete`).
+    - `deploy.sh` refuses to deploy if `UPLOAD_DIR` is unset, points
+      inside the deploy root, or doesn't exist. Without that check an
+      unset var falls back to `<cwd>/uploads`, which 404s every image and
+      writes new uploads where the next deploy erases them.
+    - `tests/uploadRoot.test.ts` pins the fallback outside `public/`.
+    - nginx still returns 404 for `/app/uploads/` (in
+      `/etc/nginx/sites-available/smileys`, above `location /app`) as
+      belt-and-braces. That block is NOT in this repo and deploy.sh never
+      touches nginx, so a server rebuild drops it — it is the second
+      layer, not the fix.
+
     Nothing links to `/app/uploads/`: `lib/data.ts` rewrites legacy
-    `/uploads/` URLs to the API route. The real fix is to move the
-    upload dir out of `public/` (see Open gaps).
+    `/uploads/` URLs to the API route.
 
 ---
 
@@ -396,13 +410,9 @@ Known, not yet addressed:
   rotation policy.
 - **Dependabot / renovate** — `npm audit` is clean today, won't be
   next month. No automation in CI.
-- **Uploads still live in `public/uploads`** — so the gated file route
-  has a static twin at `/app/uploads/...` that only an off-repo nginx
-  block closes (invariant 15). The durable fix is to move the directory
-  outside `public/` and repoint `UPLOAD_ROOT` in
-  `app/api/files/[...path]/route.ts`, both upload routes, and
-  `lib/promotePhoto.ts`. Needs a coordinated move of ~1,600 files on the
-  server, so it hasn't been done yet.
+- ~~**Uploads live in `public/uploads`.**~~ *Closed 2026-08-14.* Moved
+  outside `public/` behind `lib/uploadRoot.ts` / `UPLOAD_DIR`, so the
+  gated route no longer has a static twin. See invariant 15.
 
 ---
 

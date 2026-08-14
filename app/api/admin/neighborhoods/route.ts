@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
 import { NEIGHBORHOOD_META, neighborhoodToSlug } from '@/lib/neighborhoods'
+import { uploadRoot } from '@/lib/uploadRoot'
 import { existsSync } from 'fs'
 import { join } from 'path'
 
@@ -14,7 +15,7 @@ export async function GET() {
   const neighborhoods = Object.entries(NEIGHBORHOOD_META).map(([name, meta]) => {
     const slug = neighborhoodToSlug(name)
     const hasGuide = existsSync(join(process.cwd(), 'data', 'neighborhoods', `${slug}.json`))
-    const hasImage = existsSync(join(process.cwd(), 'public', 'uploads', 'neighborhoods', `${slug}.jpg`))
+    const hasImage = existsSync(join(uploadRoot(), 'neighborhoods', `${slug}.jpg`))
     return { name, slug, meta, hasGuide, hasImage }
   })
 

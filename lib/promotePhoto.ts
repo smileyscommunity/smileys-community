@@ -17,8 +17,7 @@
 import { copyFile, access } from 'fs/promises'
 import { join, extname } from 'path'
 import { randomBytes } from 'crypto'
-
-const UPLOAD_ROOT = join(process.cwd(), 'public', 'uploads')
+import { uploadRoot } from './uploadRoot'
 
 // Stored profilePhoto values carry the /app basePath, e.g.
 // `/app/api/files/applications/<name>.jpg`. Capture the filename only.
@@ -39,10 +38,11 @@ export async function promoteApplicationPhoto(url: string | null | undefined): P
   if (!m) return url
 
   const srcName = m[1]
-  const src     = join(UPLOAD_ROOT, 'applications', srcName)
+  const root    = uploadRoot()
+  const src     = join(root, 'applications', srcName)
   const ext     = extname(srcName).toLowerCase()
   const newName = `${Date.now()}-${randomBytes(6).toString('hex')}${ext}`
-  const dst     = join(UPLOAD_ROOT, 'users', newName)
+  const dst     = join(root, 'users', newName)
 
   try {
     await access(src)

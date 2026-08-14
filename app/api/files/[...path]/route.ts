@@ -3,6 +3,7 @@ import { readFile, access } from 'fs/promises'
 import { join, extname, normalize } from 'path'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
+import { uploadRoot } from '@/lib/uploadRoot'
 import sharp from 'sharp'
 
 export const runtime = 'nodejs'
@@ -25,7 +26,10 @@ const MIME: Record<string, string> = {
   '.gif':  'image/gif',
 }
 
-const UPLOAD_ROOT = join(process.cwd(), 'public', 'uploads')
+// This route is the ONLY way to read an upload: the files sit outside public/
+// precisely so Next can't serve them statically around this gate. See
+// lib/uploadRoot.
+const UPLOAD_ROOT = uploadRoot()
 const VALID_FOLDERS = ['events', 'clubs', 'users', 'general', 'applications', 'posts', 'neighborhoods', 'directory', 'listings', 'hangouts']
 const VALID_FILE = /^[\w\-]+\.(jpg|jpeg|png|webp|gif)$/i
 

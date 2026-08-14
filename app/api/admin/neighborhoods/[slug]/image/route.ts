@@ -5,6 +5,7 @@ import { slugToNeighborhood } from '@/lib/neighborhoods'
 import { writeFileSync, mkdirSync, unlinkSync, readdirSync } from 'fs'
 import { join } from 'path'
 import sharp from 'sharp'
+import { uploadRoot } from '@/lib/uploadRoot'
 
 export const runtime = 'nodejs'
 
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
     return NextResponse.json({ error: 'Could not process image' }, { status: 400 })
   }
 
-  const dir      = join(process.cwd(), 'public', 'uploads', 'neighborhoods')
+  const dir      = join(uploadRoot(), 'neighborhoods')
   mkdirSync(dir, { recursive: true })
 
   // Delete old files for this slug to avoid stale cache and accumulation

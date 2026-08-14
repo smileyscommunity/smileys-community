@@ -9,6 +9,7 @@ import { sendReviewRequestEmail, sendListingExpiryEmail, recordEmailFailure } fr
 import { sendPushToUser } from '@/lib/push'
 import { getSession } from '@/lib/session'
 import { todayIstanbul } from '@/lib/data'
+import { uploadRoot } from '@/lib/uploadRoot'
 
 export async function GET(req: NextRequest) {
   const cronSecret = process.env.CRON_SECRET
@@ -216,7 +217,7 @@ export async function GET(req: NextRequest) {
   // file >30 days old that no MemberApplication still references.
   let purgedPhotos = 0
   try {
-    const dir = join(process.cwd(), 'public', 'uploads', 'applications')
+    const dir = join(uploadRoot(), 'applications')
     const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000
     const files = readdirSync(dir)
     const referenced = new Set(
