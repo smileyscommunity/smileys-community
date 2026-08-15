@@ -83,6 +83,7 @@ const discoverLinks = [
   { label: 'Community Board', href: '/board',       emoji: '💬', public: true  },
   { label: 'Marketplace',     href: '/marketplace', emoji: '🛍️', public: true  },
   { label: 'Directory',     href: '/directory',     emoji: '🏢', public: true  },
+  { label: 'Hosts',         href: '/hosts',         emoji: '🎤', public: true  },
   { label: 'Visiting?',     href: '/visiting',      emoji: '👋', public: true  },
 ]
 
