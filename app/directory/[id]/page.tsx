@@ -3,6 +3,8 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
+import { formatShortDate } from '@/lib/data'
 import { resolveImageUrl, avatarUrl } from '@/lib/data'
 import { APP_URL, SITE_URL } from '@/lib/env'
 import { attributionDisplay } from '@/lib/directory'
@@ -75,6 +77,29 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
 
   const business = await loadBusiness(id)
   if (!business) notFound()
+
+  // ── Smileys history at this venue (phase 2.2) ─────────────────────────
+  // The reverse of the event page's "View in directory" link, same
+  // case-insensitive name match, same-city only. This is the layer that
+  // makes the directory more than another maps site: not "4.5 stars from
+  // strangers" but "the community has actually been here, N times, and
+  // is going again Thursday."
+  const today = todayInTz(DEFAULT_TZ)
+  const venueEvents = await prisma.event.findMany({
+    where: {
+      location: { equals: business.name.replace(/\s+/g, ' ').trim(), mode: 'insensitive' },
+      cityId:   business.cityId,
+      status:   { in: ['published', 'archived'] },
+    },
+    select:  { id: true, title: true, emoji: true, date: true, time: true, status: true },
+    orderBy: { date: 'desc' },
+    take:    200,
+  })
+  const upcomingHere = venueEvents
+    .filter(e => e.status === 'published' && e.date >= today)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(0, 3)
+  const pastHereCount = venueEvents.filter(e => e.date < today).length
 
   // Aggregates + per-caller state, all in parallel.
   const [reviewsRaw, saveCount, mySave, myReview, myClaim] = await Promise.all([
@@ -447,6 +472,37 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
               })}
             </dl>
           </div>
+        )}
+
+        {/* Smileys history — the "why members like this place" proof.
+            Renders only when the community has actually been here; a venue
+            with no history simply doesn't get the section, rather than an
+            empty box implying a dead relationship. */}
+        {(upcomingHere.length > 0 || pastHereCount > 0) && (
+          <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 sm:p-6 mt-6">
+            <h2 className="text-lg font-bold text-gray-900 mb-1">Smileys has been here</h2>
+            <p className="text-sm text-gray-600 mb-4">
+              {pastHereCount > 0
+                ? `${pastHereCount} Smileys event${pastHereCount === 1 ? '' : 's'} held at ${business.name}.`
+                : `The community is heading to ${business.name}.`}
+            </p>
+            {upcomingHere.length > 0 && (
+              <div className="space-y-2">
+                {upcomingHere.map(e => (
+                  <Link key={e.id} href={`/events/${e.id}`}
+                    className="flex items-center justify-between gap-3 border border-gray-100 hover:border-amber-200 hover:bg-amber-50/40 rounded-xl px-4 py-3 transition-colors">
+                    <span className="flex items-center gap-2.5 min-w-0">
+                      <span aria-hidden="true" className="text-xl">{e.emoji}</span>
+                      <span className="font-semibold text-gray-900 truncate">{e.title}</span>
+                    </span>
+                    <span className="text-xs font-semibold text-amber-600 whitespace-nowrap">
+                      {formatShortDate(e.date)} · {e.time}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </section>
         )}
 
         {/* Reviews — server-rendered list for SEO. The ReviewCta in the
