@@ -10,7 +10,17 @@ import Link from 'next/link'
 
 interface City { slug: string; name: string; country: string; status: string }
 
-export default function CitiesMenu({ className = '' }: { className?: string }) {
+export default function CitiesMenu({
+  className = '',
+  variant = 'dropdown',
+  onNavigate,
+}: {
+  className?: string
+  // 'inline' renders the list flat, for the mobile menu panel — a dropdown
+  // inside an already-open drawer is a second thing to tap for no reason.
+  variant?: 'dropdown' | 'inline'
+  onNavigate?: () => void
+}) {
   const [cities, setCities] = useState<City[]>([])
   const [open, setOpen]     = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -36,11 +46,51 @@ export default function CitiesMenu({ className = '' }: { className?: string }) {
     }
   }, [open])
 
-  // Nothing worth a dropdown until there's more than one city.
+  // Nothing to show until the list loads.
   if (cities.length === 0) return null
 
   const live  = cities.filter(c => c.status === 'live')
   const soon  = cities.filter(c => c.status !== 'live')
+
+  const rows = (
+    <>
+      {live.map(c => (
+        <Link
+          key={c.slug}
+          href={`/${c.slug}`}
+          onClick={() => { setOpen(false); onNavigate?.() }}
+          className="flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-xl transition-colors"
+        >
+          <span className="font-semibold">{c.name}</span>
+          <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-emerald-600">
+            <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            Live
+          </span>
+        </Link>
+      ))}
+
+      {soon.length > 0 && (
+        <>
+          <div className="mt-1 pt-2 border-t border-gray-100">
+            <p className="px-4 pb-1 text-[11px] font-bold uppercase tracking-wider text-gray-400">Coming soon</p>
+          </div>
+          {soon.map(c => (
+            <Link
+              key={c.slug}
+              href={`/apply?city=${c.slug}`}
+              onClick={() => { setOpen(false); onNavigate?.() }}
+              className="flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-500 hover:bg-gray-50 rounded-xl transition-colors"
+            >
+              <span>{c.name}</span>
+              <span className="text-[11px] font-semibold text-amber-600">Get notified</span>
+            </Link>
+          ))}
+        </>
+      )}
+    </>
+  )
+
+  if (variant === 'inline') return <div className={className}>{rows}</div>
 
   return (
     <div ref={ref} className={`relative ${className}`}>
@@ -58,39 +108,7 @@ export default function CitiesMenu({ className = '' }: { className?: string }) {
 
       {open && (
         <div className="absolute right-0 mt-2 w-60 bg-white rounded-2xl shadow-lg border border-gray-100 py-2 z-50">
-          {live.map(c => (
-            <Link
-              key={c.slug}
-              href={`/${c.slug}`}
-              onClick={() => setOpen(false)}
-              className="flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              <span className="font-semibold">{c.name}</span>
-              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-emerald-600">
-                <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                Live
-              </span>
-            </Link>
-          ))}
-
-          {soon.length > 0 && (
-            <>
-              <div className="mt-1 pt-2 border-t border-gray-100">
-                <p className="px-4 pb-1 text-[11px] font-bold uppercase tracking-wider text-gray-400">Coming soon</p>
-              </div>
-              {soon.map(c => (
-                <Link
-                  key={c.slug}
-                  href={`/apply?city=${c.slug}`}
-                  onClick={() => setOpen(false)}
-                  className="flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-500 hover:bg-gray-50 transition-colors"
-                >
-                  <span>{c.name}</span>
-                  <span className="text-[11px] font-semibold text-amber-600">Get notified</span>
-                </Link>
-              ))}
-            </>
-          )}
+          {rows}
         </div>
       )}
     </div>
