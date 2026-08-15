@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { toast } from 'sonner'
 import { resolveImageUrl } from '@/lib/data'
 
@@ -100,12 +101,12 @@ export default function PartnerDashboard() {
 
       {/* Quick actions */}
       <div className="grid grid-cols-2 gap-3">
-        <a href="/partner/settings"
+        <Link href="/partner/settings"
           className="bg-zinc-900 border border-zinc-800 hover:border-amber-500/50 rounded-2xl p-4 transition-colors group">
           <div className="text-xl mb-2">✏️</div>
           <p className="text-sm font-bold text-white group-hover:text-amber-400 transition-colors">Edit Profile</p>
           <p className="text-xs text-zinc-500 mt-0.5">Update info, discount, links</p>
-        </a>
+        </Link>
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
           <div className="text-xl mb-2">📊</div>
           <p className="text-sm font-bold text-white">Stats</p>
@@ -123,9 +124,9 @@ export default function PartnerDashboard() {
             {!partner.instagram  && <li className="text-xs text-zinc-400">• Add your Instagram so members can follow you</li>}
             {!partner.website    && <li className="text-xs text-zinc-400">• Add your website for more info</li>}
           </ul>
-          <a href="/partner/settings" className="inline-block mt-3 text-xs font-bold text-amber-400 hover:text-amber-300">
+          <Link href="/partner/settings" className="inline-block mt-3 text-xs font-bold text-amber-400 hover:text-amber-300">
             Go to Settings →
-          </a>
+          </Link>
         </div>
       )}
     </div>

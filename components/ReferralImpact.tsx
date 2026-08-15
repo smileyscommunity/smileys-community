@@ -1,6 +1,7 @@
 'use client'
 
 import { motion } from 'framer-motion'
+import Link from 'next/link'
 
 interface Props {
   friendCount: number
@@ -15,9 +16,9 @@ export default function ReferralImpact({ friendCount, eventCount }: Props) {
         <p className="text-xs text-gray-600 leading-relaxed mb-3">
           Invite friends to join Smileys and track how much life you bring to the community!
         </p>
-        <a href="/invite" className="inline-block px-4 py-2 bg-amber-50 text-amber-700 text-xs font-bold rounded-lg hover:bg-amber-100 transition-colors">
+        <Link href="/invite" className="inline-block px-4 py-2 bg-amber-50 text-amber-700 text-xs font-bold rounded-lg hover:bg-amber-100 transition-colors">
           Get your invite code →
-        </a>
+        </Link>
       </div>
     </div>
   )

@@ -35,3 +35,23 @@ describe('toCountryCode', () => {
     expect(toCountryCode('12')).toBeNull()
   })
 })
+
+// approx() lives next door in lib/communityStats and guards the same property:
+// a published number must never overstate what the database says.
+import { approx } from '@/lib/communityStats'
+
+describe('approx', () => {
+  it('never rounds up', () => {
+    expect(approx(147)).toBe('140+')     // not 150+
+    expect(approx(216)).toBe('200+')
+    expect(approx(1442)).toBe('1,400+')
+  })
+  it('keeps small numbers exact rather than flattering them', () => {
+    expect(approx(0)).toBe('0')
+    expect(approx(42)).toBe('42')
+    expect(approx(99)).toBe('99')
+  })
+  it('rounds 147 to 140+, not the 100+ a flat step would give', () => {
+    expect(approx(147)).not.toBe('100+')
+  })
+})

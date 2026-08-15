@@ -41,10 +41,12 @@ export async function getCommunityStats(): Promise<CommunityStats> {
 
 // Rounded down to a "+" figure the way marketing copy reads: 1,442 → "1,400+".
 // Never rounds up — an inflated number is exactly the failure mode this module
-// exists to prevent.
+// exists to prevent. The step tightens for small numbers so rounding doesn't
+// cost more than it tidies: at a flat step of 50, 147 clubs would advertise as
+// "100+", which is a worse claim than the true one.
 export function approx(n: number): string {
   if (n < 100) return String(n)
-  const step = n < 1000 ? 50 : 100
+  const step = n < 200 ? 10 : n < 1000 ? 50 : 100
   return `${(Math.floor(n / step) * step).toLocaleString('en-US')}+`
 }
 
