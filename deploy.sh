@@ -116,7 +116,7 @@ if [ -z "$SKIP_BUILD" ]; then
   # message says "out of memory", so this reads as random flakiness and gets
   # retried instead of fixed (it cost several deploy attempts on 2026-08-15).
   # Respects an existing NODE_OPTIONS rather than clobbering it.
-  NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--max-old-space-size=4096" \
+  NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--max-old-space-size=6144" \
     APP_RELEASE="$APP_RELEASE" npm run build
 else
   echo "→ Skipping build (SKIP_BUILD set, using existing .next)..."
