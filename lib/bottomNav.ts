@@ -5,6 +5,9 @@ export const BOTTOM_NAV_ROUTES = [
   '/events', '/clubs', '/members', '/perks', '/dashboard', '/profile', '/my-events',
   '/notifications', '/pending', '/reviews', '/board', '/messages', '/neighborhoods',
   '/invite', '/guide', '/hangouts', '/visiting', '/directory', '/marketplace',
+  // The city index and each city's page — a Cities tab that vanishes on the
+  // page it navigates to would strand members there.
+  '/cities',
 ]
 
 export function isBottomNavRoute(pathname: string): boolean {

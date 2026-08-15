@@ -98,6 +98,17 @@ export default function CitiesMenu({
           ))}
         </>
       )}
+
+      {/* A way to see the whole network, now that there's a page for it. */}
+      <div className="mt-1 pt-1 border-t border-gray-100">
+        <Link
+          href="/cities"
+          onClick={() => { setOpen(false); onNavigate?.() }}
+          className="block px-4 py-2.5 text-sm font-semibold text-amber-600 hover:bg-gray-50 rounded-xl transition-colors"
+        >
+          Explore all cities →
+        </Link>
+      </div>
     </>
   )
 
