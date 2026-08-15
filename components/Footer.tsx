@@ -141,6 +141,8 @@ export default function Footer({ stats }: FooterProps) {
                 { href: '/clubs',    label: 'Clubs 🏠'       },
                 { href: '/members',  label: 'Members 👥'     },
                 { href: '/hangouts', label: 'Hangouts ☕'    },
+                { href: '/experiences', label: 'Experiences ✨' },
+                { href: '/hosts',    label: 'Meet the hosts 🎤' },
                 { href: '/visiting', label: 'Visiting? 👋'   },
                 { href: '/cup',      label: 'Smileys Cup ⚽' },
               ].map(l => (
