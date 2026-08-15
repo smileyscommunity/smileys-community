@@ -15,7 +15,11 @@ import { CITY_STATUS, CITY_STATUS_VALUES, isCityStatus } from '@/lib/cityStatus'
 
 interface Params { params: Promise<{ id: string }> }
 
-const PHOTO_RE = /^\/app\/api\/files\/[a-zA-Z0-9-]+\/[a-zA-Z0-9-]+\.(jpg|jpeg|png|webp|gif)$/
+// A hero is public, so it must not point into `applications/` — that folder is
+// admin-only at the file route (raw photos of pending and rejected applicants),
+// so such a hero would 403 for every visitor, and it has no business being a
+// marketing image in the first place. The uploader writes to `general/`.
+const PHOTO_RE = /^\/app\/api\/files\/(?!applications\/)[a-zA-Z0-9-]+\/[a-zA-Z0-9-]+\.(jpg|jpeg|png|webp|gif)$/
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   const session = await getSession()

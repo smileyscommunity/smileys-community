@@ -8,6 +8,8 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { confirmToast } from '@/lib/confirmToast'
+import { downscaleImage } from '@/lib/image-resize'
+import { resolveImageUrl } from '@/lib/data'
 import { useAdminLoad } from '@/lib/admin/useAdminLoad'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import { CITY_STATUS, CITY_STATUS_META, CITY_STATUS_VALUES } from '@/lib/cityStatus'
@@ -42,6 +44,7 @@ export default function AdminCitiesPage() {
   const [launching, setLaunching] = useState<string | null>(null)
   const [hostEmail, setHostEmail] = useState<Record<string, string>>({})
   const [saving, setSaving]       = useState<string | null>(null)
+  const [uploading, setUploading] = useState<string | null>(null)
   // Shopfront copy is edited inline per city; drafts live here until saved so
   // typing doesn't refetch the list on every keystroke.
   const [draft, setDraft] = useState<Record<string, { tagline: string; description: string }>>({})
@@ -67,6 +70,27 @@ export default function AdminCitiesPage() {
       toast.success(successMsg)
       setData(prev => (prev ?? []).map(c => c.id === city.id ? { ...c, ...d.city } : c))
     } finally { setSaving(null) }
+  }
+
+  // Hero images go to the shared uploads store via /api/upload (folder 'general',
+  // which admins may write). Downscaled client-side first — a phone photo is
+  // several MB and this one renders as a wide banner, not at original size.
+  // The PATCH validates the returned path, so a hand-edited URL can't point the
+  // hero at an arbitrary file.
+  async function uploadHero(city: City, file: File) {
+    if (uploading) return
+    setUploading(city.id)
+    try {
+      const fd = new FormData()
+      fd.append('file', await downscaleImage(file))
+      fd.append('folder', 'general')
+      const res = await fetch('/app/api/upload', { method: 'POST', credentials: 'include', body: fd })
+      const d   = await res.json()
+      if (!res.ok || !d.url) { toast.error(d.error ?? 'Upload failed'); return }
+      await patchCity(city, { heroImage: d.url }, `Hero image set for ${city.name}`)
+    } catch {
+      toast.error('Upload failed')
+    } finally { setUploading(null) }
   }
 
   async function setStatus(city: City, status: string) {
@@ -241,6 +265,58 @@ export default function AdminCitiesPage() {
                   className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition-colors disabled:opacity-40">
                   {saving === city.id ? 'Saving…' : 'Save copy'}
                 </button>
+
+                {/* Hero image — the photo behind the city card on the homepage
+                    and at the top of /<slug>. Without one both fall back to a
+                    shared image, which is fine for one city and increasingly
+                    odd as cities are added. */}
+                <div className="pt-3 border-t border-zinc-800">
+                  <p className={label}>Hero image</p>
+                  <div className="flex items-start gap-4">
+                    <div className="w-40 shrink-0 aspect-[3/2] rounded-xl overflow-hidden bg-zinc-950 border border-zinc-800 flex items-center justify-center">
+                      {city.heroImage ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={resolveImageUrl(city.heroImage)} alt={`${city.name} hero`} className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-[11px] text-zinc-600 text-center px-2">No image — falls back to the shared photo</span>
+                      )}
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      <label className={`inline-block text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${uploading === city.id ? 'bg-zinc-800 text-zinc-500' : 'bg-zinc-800 hover:bg-zinc-700 text-amber-400 cursor-pointer'}`}>
+                        {uploading === city.id ? 'Uploading…' : city.heroImage ? 'Replace image' : 'Upload image'}
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          className="hidden"
+                          disabled={uploading === city.id}
+                          onChange={e => {
+                            const f = e.target.files?.[0]
+                            // Reset the input so picking the same file twice
+                            // still fires a change event.
+                            e.target.value = ''
+                            if (f) uploadHero(city, f)
+                          }}
+                        />
+                      </label>
+                      {city.heroImage && (
+                        <button
+                          onClick={async () => {
+                            if (await confirmToast(`Remove ${city.name}'s hero image?`)) {
+                              patchCity(city, { heroImage: null }, `Hero image removed for ${city.name}`)
+                            }
+                          }}
+                          disabled={saving === city.id}
+                          className="block text-xs text-zinc-500 hover:text-red-400 transition-colors disabled:opacity-40">
+                          Remove
+                        </button>
+                      )}
+                      <p className="text-[11px] text-zinc-600 leading-relaxed">
+                        Landscape works best — it renders wide on the city card and full-bleed on the city page.
+                        Large photos are downscaled before upload.
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className="flex items-center gap-3 mt-4">
