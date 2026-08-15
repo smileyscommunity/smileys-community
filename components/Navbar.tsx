@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import NotificationBell from '@/components/NotificationBell'
 import CitiesMenu from '@/components/CitiesMenu'
 import CitySwitcher from '@/components/CitySwitcher'
+import { DISCOVER_LINKS as discoverLinks, ABOUT_LINKS as aboutLinks } from '@/lib/navLinks'
 import AccountMenu from '@/components/AccountMenu'
 import { resolveImageUrl } from '@/lib/data'
 import { usePendingConnections } from '@/hooks/usePendingConnections'
@@ -86,35 +87,6 @@ const memberPrimary = [
 // Everything else lives under the "Discover ▾" dropdown so the bar stays calm.
 // Adding new content sections in the future drops in here instead of bloating
 // the top row.
-// Everything that isn't a primary action. Ordered by what a visitor deciding
-// whether to join actually wants: the people and the places first, the
-// reference material after. `guestOnly` items are the ones that live in a
-// member's primary bar instead, so nobody sees the same link twice.
-//
-// Smileys Cup 2026 nav entry removed post-tournament (recap published as its
-// own Community post); /cup page + data stay live for anyone linking in from
-// there or a bookmark, just no longer in nav.
-const discoverLinks = [
-  { label: 'People',          href: '/members',       emoji: '👋', public: true,  guestOnly: true },
-  { label: 'Experiences',     href: '/experiences',   emoji: '✨', public: true  },
-  { label: 'Directory',       href: '/directory',     emoji: '📍', public: true  },
-  { label: 'Neighborhoods',   href: '/neighborhoods', emoji: '🏘️', public: true  },
-  { label: 'City guide',      href: '/guide',         emoji: '🗺️', public: true  },
-  { label: 'Handbook',        href: '/handbook',      emoji: '📖', public: true  },
-  { label: 'Hosts',           href: '/hosts',         emoji: '🎤', public: true  },
-  { label: 'Stories',         href: '/posts',         emoji: '📰', public: true  },
-  { label: 'Community Board', href: '/board',         emoji: '💬', public: true  },
-  { label: 'Marketplace',     href: '/marketplace',   emoji: '🛍️', public: true  },
-  { label: 'Hangouts',        href: '/hangouts',      emoji: '☕', public: false },
-]
-
-// Kept out of the bar to hold it at five, but not orphaned — a guest weighing
-// up whether this is for them still needs a way to reach them.
-const aboutLinks = [
-  { label: 'Why Smileys?', href: '/why',   emoji: '💡' },
-  { label: 'About',        href: '/about', emoji: '😊' },
-]
-
 const pageTitles: [string, string][] = [
   ['/admin',         'Admin'],
   ['/host',          'Host Panel'],
