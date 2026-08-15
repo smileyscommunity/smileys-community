@@ -3,7 +3,7 @@ import { resolveStats } from '@/lib/communityStats'
 
 export const metadata = {
   title: 'Get Involved — Smileys Community',
-  description: 'Host events, start clubs, and help build Istanbul\'s most vibrant social community.',
+  description: 'Host events, start clubs, and help build the most vibrant social community in your city.',
 }
 
 const WAYS = [

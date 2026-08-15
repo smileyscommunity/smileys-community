@@ -54,11 +54,11 @@ const SECTIONS: Section[] = [
     faqs: [
       {
         q: 'What is Smileys Community?',
-        a: 'Smileys is an application-based social community in Istanbul. We bring together expats, locals, and globally-minded people through curated events, interest-based clubs, and genuine connections — across neighborhoods on both sides of the city.',
+        a: 'Smileys is an application-based social community. We bring together expats, locals, and globally-minded people through curated events, interest-based clubs, and genuine connections. Istanbul is our largest and longest-running city; more are opening.',
       },
       {
         q: 'Who can join?',
-        a: 'Anyone living in or frequently visiting Istanbul who is open-minded, social, and looking to build real connections. We welcome all nationalities, backgrounds, and lifestyles. The one requirement is that you apply and are approved by our team.',
+        a: 'Anyone living in or frequently visiting a Smileys city who is open-minded, social, and looking to build real connections. We welcome all nationalities, backgrounds, and lifestyles. The one requirement is that you apply and are approved by our team. If your city hasn\'t opened yet, you can still apply and we\'ll let you know when it does.',
       },
       {
         q: 'Is Smileys free to join?',
@@ -75,7 +75,7 @@ const SECTIONS: Section[] = [
     faqs: [
       {
         q: 'How do I apply?',
-        a: <span>Fill in the application form at <Link href="/apply" className="text-amber-600 font-medium hover:underline">smileyscommunity.com/apply</Link>. It takes about 5 minutes. Tell us about yourself, why you are in Istanbul, and what you are looking for in a community.</span>,
+        a: <span>Fill in the application form at <Link href="/apply" className="text-amber-600 font-medium hover:underline">smileyscommunity.com/apply</Link>. It takes about 5 minutes. Tell us about yourself, why you are in your city, and what you are looking for in a community.</span>,
       },
       {
         q: 'What happens after I apply?',

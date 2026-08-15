@@ -136,6 +136,7 @@ export default function Footer({ stats }: FooterProps) {
             <h3 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-4">Connect</h3>
             <ul className="space-y-3">
               {[
+                { href: '/cities',   label: 'Cities 🌍'      },
                 { href: '/events',   label: 'Events 🎉'      },
                 { href: '/clubs',    label: 'Clubs 🏠'       },
                 { href: '/members',  label: 'Members 👥'     },
@@ -157,7 +158,7 @@ export default function Footer({ stats }: FooterProps) {
             <h3 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-4">Resources</h3>
             <ul className="space-y-3">
               {[
-                { href: '/guide',         label: 'Istanbul Guide 🗺️'     },
+                { href: '/guide',         label: 'City guide 🗺️'         },
                 { href: '/handbook',      label: 'The Handbook 📖'       },
                 { href: '/neighborhoods', label: 'Neighborhoods 🏘️'      },
                 { href: '/board',       label: 'Community Board 💬'    },
