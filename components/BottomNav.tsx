@@ -8,8 +8,6 @@ import { isBottomNavRoute } from '@/lib/bottomNav'
 import { usePendingConnections } from '@/hooks/usePendingConnections'
 import { useState, useEffect, useCallback } from 'react'
 import AccountMenu from '@/components/AccountMenu'
-import CitiesMenu from '@/components/CitiesMenu'
-import { DISCOVER_LINKS } from '@/lib/navLinks'
 
 function useUnreadMessages(isLoggedIn: boolean) {
   const [unread, setUnread] = useState(0)
@@ -254,34 +252,7 @@ export default function BottomNav() {
           <div className="w-10 h-1 rounded-full bg-gray-300" />
         </div>
 
-        {/* Discovery lives here on mobile. The bar holds five tabs and shouldn't
-            grow, but everything the desktop Discover dropdown offers was
-            otherwise unreachable on a phone — Experiences, Cities, the Guide,
-            the Directory, the Board. Same list as the desktop menu
-            (lib/navLinks) so the two can't drift apart. */}
-        <div className="px-4 pt-2">
-          <p className="px-1 pb-1 text-[11px] font-bold uppercase tracking-widest text-gray-400">Discover</p>
-          <div className="grid grid-cols-2 gap-1">
-            {DISCOVER_LINKS.filter(l => !l.guestOnly).map(link => (
-              <Link
-                key={link.href}
-                href={link.href}
-                onClick={() => setSheetOpen(false)}
-                className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-              >
-                <span aria-hidden="true" className="text-base">{link.emoji}</span>
-                <span className="truncate">{link.label}</span>
-              </Link>
-            ))}
-          </div>
-
-          <p className="px-1 pt-3 pb-1 text-[11px] font-bold uppercase tracking-widest text-gray-400">Cities</p>
-          <CitiesMenu variant="inline" onNavigate={() => setSheetOpen(false)} />
-        </div>
-
-        <div className="mt-2 pt-2 border-t border-gray-100">
-          <AccountMenu onItemClick={() => setSheetOpen(false)} />
-        </div>
+        <AccountMenu onItemClick={() => setSheetOpen(false)} />
       </div>
     </>
   )
