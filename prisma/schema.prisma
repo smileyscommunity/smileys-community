@@ -343,8 +343,58 @@ model City {
   availabilityPulses   AvailabilityPulse[]
   posts                Post[]
   neighborhoods        Neighborhood[]
+  guideEntries         GuideEntry[]
 
   @@map("cities")
+}
+
+// ── Guide entries: per-city editorial content (multi-city phase 2.3) ────────
+// Replaces the repo-shipped data/guide-*.json as the source of truth so a
+// city's guide is written by its consul in the admin, not by deploys. One
+// table for both kinds — experiences and routes share identity, card copy
+// and placement; what differs lives in `content` (same consolidation call
+// Listing.attrs made): experiences carry { why, take, sections, handbook?,
+// directory?, clubs? }, routes carry { intro, stops }.
+//
+// Slugs are unique per (city, kind); Istanbul's existing slugs migrate
+// verbatim so GuideSave/GuideTip rows (keyed by slug, no FK) keep matching
+// and /guide/<slug> URLs never break. The photo pipeline stays filesystem-
+// keyed on slug (public/images/guide/<slug>.jpg) — a new city must mind
+// slug collisions there until photos move to a column.
+//
+// Review lifecycle mirrors the Handbook's honesty rule: lastReviewedAt is
+// set ONLY when a human re-checks the content against reality — never
+// derived from updatedAt.
+model GuideEntry {
+  id            String    @id @default(cuid())
+  cityId        String
+  kind          String    // 'experience' | 'route'
+  slug          String
+  title         String
+  emoji         String    @default("✨")
+  tagline       String
+  // Explorer taxonomy (experiences; routes leave them empty). Values live
+  // in lib/guide.ts's mood/collection lists — per-city taxonomies are a
+  // follow-up, today every city shares the vocabulary.
+  collection    String?
+  moods         String[]  @default([])
+  cost          String?
+  time          String?
+  when          String?
+  neighborhoods String[]  @default([])
+  firstTime     Boolean   @default(false)
+  content       Json
+  status        String    @default("published") // 'published' | 'draft'
+  sortOrder     Int       @default(0)
+  lastReviewedAt     DateTime?
+  reviewIntervalDays Int?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @default(now()) @updatedAt
+  city          City      @relation(fields: [cityId], references: [id])
+
+  @@unique([cityId, kind, slug])
+  @@index([cityId, kind, status, sortOrder])
+  @@map("guide_entries")
 }
 
 // ── Neighborhoods: per-city registry (multi-city phase 1, step 2) ───────────

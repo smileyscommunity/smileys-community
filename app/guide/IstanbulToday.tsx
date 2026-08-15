@@ -76,7 +76,7 @@ export function computeTodayPicks(exclude: string[] = []): { bucket: Bucket; slu
 
 export default async function IstanbulToday({ exclude = [] }: { exclude?: string[] }) {
   const { bucket, slugs } = computeTodayPicks(exclude)
-  const bySlug = new Map(loadExperiences().map(e => [e.slug, e]))
+  const bySlug = new Map((await loadExperiences()).map(e => [e.slug, e]))
   const picks = slugs.map(s => bySlug.get(s)).filter((e): e is Experience => !!e)
 
   // §5's "connect" line — today's organized events (public data). Counted

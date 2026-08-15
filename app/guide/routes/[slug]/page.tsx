@@ -6,18 +6,18 @@ export const revalidate = 300
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { loadRoutes, getRoute, getExperience } from '@/lib/guideContent'
+import { loadRoutes, getRoute, loadExperiences } from '@/lib/guideContent'
 import { NEIGHBORHOOD_META, neighborhoodToSlug } from '@/lib/neighborhoods'
 import { APP_URL } from '@/lib/env'
 import TrackedLink from '@/components/TrackedLink'
 
-export function generateStaticParams() {
-  return loadRoutes().map(r => ({ slug: r.slug }))
+export async function generateStaticParams() {
+  return (await loadRoutes()).map(r => ({ slug: r.slug }))
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
-  const route = getRoute(slug)
+  const route = await getRoute(slug)
   if (!route) return {}
   const og = `${APP_URL}/api/og?${new URLSearchParams({ title: route.title, eyebrow: 'Istanbul Guide · Route' })}`
   return {
@@ -35,8 +35,9 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function RoutePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
-  const route = getRoute(slug)
+  const route = await getRoute(slug)
   if (!route) notFound()
+  const expBySlug = new Map((await loadExperiences()).map(e => [e.slug, e]))
 
   const nearby = route.neighborhoods.filter(n => NEIGHBORHOOD_META[n])
 
@@ -56,6 +57,7 @@ export default async function RoutePage({ params }: { params: Promise<{ slug: st
         </div>
       </div>
 
+      {/* hoisted: stop→experience lookups can't await inside the render map */}
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10">
         <p className="text-gray-700 leading-relaxed">{route.intro}</p>
 
@@ -63,7 +65,7 @@ export default async function RoutePage({ params }: { params: Promise<{ slug: st
           <h2 className="text-xl font-extrabold tracking-tight text-gray-900 mb-4">The route</h2>
           <ol className="space-y-4">
             {route.stops.map((stop, i) => {
-              const exp = stop.experience ? getExperience(stop.experience) : undefined
+              const exp = stop.experience ? expBySlug.get(stop.experience) : undefined
               return (
                 <li key={i} className="flex items-start gap-4 bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
                   <span aria-hidden="true" className="shrink-0 w-8 h-8 rounded-full bg-amber-100 text-amber-700 font-extrabold flex items-center justify-center text-sm">

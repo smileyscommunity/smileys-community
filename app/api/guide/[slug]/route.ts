@@ -11,7 +11,7 @@ type Params = { params: Promise<{ slug: string }> }
 // from this endpoint via a client island (same pattern as GuideCTA).
 export async function GET(_req: NextRequest, { params }: Params) {
   const { slug } = await params
-  if (!getExperience(slug)) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!await getExperience(slug)) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const session = await getSession()
   const [recommendCount, mine] = await Promise.all([
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   const { slug } = await params
-  if (!getExperience(slug)) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!await getExperience(slug)) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const body = await req.json().catch(() => ({}))
   const kind = body.kind === 'recommend' ? 'recommended'

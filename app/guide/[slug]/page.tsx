@@ -19,13 +19,13 @@ import EventMatches from './EventMatches'
 import TrackedLink from '@/components/TrackedLink'
 import TipsBlock from './TipsBlock'
 
-export function generateStaticParams() {
-  return loadExperiences().map(e => ({ slug: e.slug }))
+export async function generateStaticParams() {
+  return (await loadExperiences()).map(e => ({ slug: e.slug }))
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
-  const exp = getExperience(slug)
+  const exp = await getExperience(slug)
   if (!exp) return {}
   const og = `${APP_URL}/api/og?${new URLSearchParams({ title: exp.title, eyebrow: 'Istanbul Guide' })}`
   return {
@@ -44,7 +44,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function ExperiencePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
-  const exp = getExperience(slug)
+  const exp = await getExperience(slug)
   if (!exp) notFound()
 
   const collection = GUIDE_COLLECTIONS.find(c => c.value === exp.collection)
@@ -66,7 +66,7 @@ export default async function ExperiencePage({ params }: { params: Promise<{ slu
     select: { slug: true, name: true, emoji: true, memberCount: true },
   }) : []
 
-  const related = loadExperiences()
+  const related = (await loadExperiences())
     .filter(e => e.slug !== exp.slug && (e.collection === exp.collection || e.moods.some(m => exp.moods.includes(m))))
     .slice(0, 3)
 

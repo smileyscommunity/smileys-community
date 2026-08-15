@@ -73,7 +73,8 @@ export default async function GuidePage() {
 
   const banner = loadBanner()
 
-  const experiences = loadExperiences()
+  const experiences = await loadExperiences()
+  const routes = await loadRoutes()
   // De-duplication across homepage sections (reviewer feedback): the
   // explorer's default six lead; Istanbul Today picks around them; the
   // editorial Popular list picks around both. Collections stay the one
@@ -238,7 +239,6 @@ export default async function GuidePage() {
 
           {/* §29 — routes: sequenced days built from the experiences. */}
           {(() => {
-            const routes = loadRoutes()
             if (routes.length === 0) return null
             return (
               <div className="mt-12">

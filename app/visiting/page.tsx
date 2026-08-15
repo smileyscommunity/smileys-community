@@ -84,7 +84,8 @@ export default async function VisitingPage() {
   // audience, and the same experiences were already reachable there via the
   // mood explorer and collections, so the strip was pure duplication on the
   // reference page.
-  const firstTimers = loadExperiences().filter(e => e.firstTime)
+  const allExperiences = await loadExperiences()
+  const firstTimers = allExperiences.filter(e => e.firstTime)
 
   // §22 of the Guide IA brief — "Perfect for your stay": guide experiences
   // matched to the season of the viewer's own visit dates (not today's).
@@ -477,7 +478,7 @@ export default async function VisitingPage() {
       {/* ── Perfect for your stay — Guide experiences matched to the
           season of the viewer's posted dates. Members with dates only. */}
       {viewerVisit && (() => {
-        const bySlug = new Map(loadExperiences().map(e => [e.slug, e]))
+        const bySlug = new Map(allExperiences.map(e => [e.slug, e]))
         const picks = seasonalPicks(viewerVisit.startsOn)
           .map(sl => bySlug.get(sl))
           .filter((e): e is NonNullable<typeof e> => !!e)

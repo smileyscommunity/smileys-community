@@ -12,7 +12,7 @@ type Params = { params: Promise<{ slug: string }> }
 // listing cards already show), member-only writes.
 export async function GET(_req: NextRequest, { params }: Params) {
   const { slug } = await params
-  if (!getExperience(slug)) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!await getExperience(slug)) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const session = await getSession()
   const tips = await prisma.guideTip.findMany({
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   const { slug } = await params
-  if (!getExperience(slug)) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!await getExperience(slug)) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const raw = await req.json().catch(() => ({}))
   // Plain text, short, and link-free — tips are advice, not ads.
