@@ -6,6 +6,10 @@ import { useAuth } from '@/contexts/AuthContext'
 
 interface FooterProps {
   stats?: { value: string; label: string }[]
+  /** The city whose content the first column links to — the viewer's, or the
+      default city for guests. Defaults defensively so the footer never renders
+      a blank heading if a caller forgets it. */
+  cityName?: string
 }
 
 // Only reached if the layout passes nothing (it passes measured numbers when
@@ -13,7 +17,7 @@ interface FooterProps {
 // than a second set of figures to drift out of date.
 const DEFAULT_STATS: { value: string; label: string }[] = []
 
-export default function Footer({ stats }: FooterProps) {
+export default function Footer({ stats, cityName = 'Istanbul' }: FooterProps) {
   const { isLoggedIn } = useAuth()
   const footerStats = stats?.slice(0, 3) ?? DEFAULT_STATS
 
@@ -131,20 +135,29 @@ export default function Footer({ stats }: FooterProps) {
             </div>
           </div>
 
-          {/* Connect — action-y: events, people, real-time */}
+          {/* Split by SCOPE, not by flavour. Everything in the first column
+              shows ONE city's content; everything in the second is the same
+              wherever you are. Naming the column after the city is what lets
+              "Guide" drop its qualifier — the heading already says which city,
+              so nothing has to smuggle "Istanbul" into a label and then go
+              stale when a second city opens. The heading follows the viewer's
+              city, so it reads IN IZMIR for someone viewing Izmir. */}
           <div>
-            <h3 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-4">Connect</h3>
+            <h3 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-4">
+              In {cityName}
+            </h3>
             <ul className="space-y-3">
               {[
-                { href: '/cities',   label: 'Cities 🌍'      },
-                { href: '/events',   label: 'Events 🎉'      },
-                { href: '/clubs',    label: 'Clubs 🏠'       },
-                { href: '/members',  label: 'Members 👥'     },
-                { href: '/hangouts', label: 'Hangouts ☕'    },
-                { href: '/experiences', label: 'Experiences ✨' },
-                { href: '/hosts',    label: 'Meet the hosts 🎤' },
-                { href: '/visiting', label: 'Visiting? 👋'   },
-                { href: '/cup',      label: 'Smileys Cup ⚽' },
+                { href: '/events',        label: 'Events 🎉'          },
+                { href: '/clubs',         label: 'Clubs 🏠'           },
+                { href: '/experiences',   label: 'Experiences ✨'     },
+                { href: '/guide',         label: 'Guide 🗺️'           },
+                { href: '/neighborhoods', label: 'Neighborhoods 🏘️'   },
+                { href: '/directory',     label: 'Directory 🏢'       },
+                { href: '/hosts',         label: 'Meet the hosts 🎤'  },
+                { href: '/hangouts',      label: 'Hangouts ☕'        },
+                { href: '/board',         label: 'Community Board 💬' },
+                { href: '/marketplace',   label: 'Marketplace 🛍️'     },
               ].map(l => (
                 <li key={l.href}>
                   <Link href={l.href} className="text-sm text-gray-600 hover:text-amber-600 transition-colors">
@@ -155,18 +168,17 @@ export default function Footer({ stats }: FooterProps) {
             </ul>
           </div>
 
-          {/* Resources — content / browse */}
+          {/* Across Smileys — the same for everyone, wherever they are. */}
           <div>
-            <h3 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-4">Resources</h3>
+            <h3 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-4">Across Smileys</h3>
             <ul className="space-y-3">
               {[
-                { href: '/guide',         label: 'City guide 🗺️'         },
-                { href: '/handbook',      label: 'The Handbook 📖'       },
-                { href: '/neighborhoods', label: 'Neighborhoods 🏘️'      },
-                { href: '/board',       label: 'Community Board 💬'    },
-                { href: '/marketplace', label: 'Marketplace 🛍️'       },
-                { href: '/directory',     label: 'Business Directory 🏢'  },
-                { href: '/posts',         label: 'Articles 📰'           },
+                { href: '/cities',   label: 'All cities 🌍'   },
+                { href: '/visiting', label: 'Visiting? 👋'    },
+                { href: '/members',  label: 'Members 👥'      },
+                { href: '/handbook', label: 'The Handbook 📖' },
+                { href: '/posts',    label: 'Articles 📰'     },
+                { href: '/cup',      label: 'Smileys Cup ⚽'  },
               ].map(l => (
                 <li key={l.href}>
                   <Link href={l.href} className="text-sm text-gray-600 hover:text-amber-600 transition-colors">
