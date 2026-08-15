@@ -47,7 +47,11 @@ export default function CityCard({ city, featured = false }: { city: PublicCity;
             alt={`${city.name} — Smileys community`}
             fill
             sizes={featured ? '(max-width: 1024px) 100vw, 66vw' : '(max-width: 768px) 100vw, 33vw'}
-            className={`object-cover ${isLive ? '' : 'grayscale opacity-60'}`}
+            // Not greyscaled: the photo is what sells a city we haven't opened
+            // yet, and a desaturated image reads as "missing image" rather than
+            // "not live". The badge and the absent statistics carry that signal
+            // already.
+            className="object-cover"
             priority={featured}
           />
         ) : (

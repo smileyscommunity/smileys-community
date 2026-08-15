@@ -93,7 +93,21 @@ export default async function CityPage({ params }: Params) {
   // same rule the city cards follow.
   if (city.status !== CITY_STATUS.Live) {
     return (
-      <section className="max-w-3xl mx-auto px-4 sm:px-6 py-24 text-center">
+      <section className="max-w-3xl mx-auto px-4 sm:px-6 py-16 text-center">
+        {/* The city's own photo, if one is set. A pre-launch page is a pitch —
+            "this is where we're going next" lands far better with the place in
+            front of you than with a paragraph of text. */}
+        {city.heroImage && (
+          <div className="relative aspect-[16/9] rounded-2xl overflow-hidden shadow-xl mb-10">
+            <Image
+              src={resolveImageUrl(city.heroImage)}
+              alt={city.name}
+              fill priority
+              sizes="(max-width: 768px) calc(100vw - 32px), 768px"
+              className="object-cover"
+            />
+          </div>
+        )}
         <span className="inline-block px-3 py-1 rounded-full bg-amber-100 text-amber-700 text-xs font-bold uppercase tracking-widest mb-6">
           {city.status === CITY_STATUS.Preparing ? 'Preparing' : 'Coming soon'}
         </span>
