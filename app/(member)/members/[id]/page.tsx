@@ -1,18 +1,11 @@
 import type { Metadata } from 'next'
 import { prisma } from '@/lib/prisma'
-import { APP_URL, SITE_URL } from '@/lib/env'
+import { APP_URL } from '@/lib/env'
+import { absoluteOgImage } from '@/lib/og'
 import { resolveImageUrl } from '@/lib/data'
 import { getSession } from '@/lib/session'
 import MemberProfileClient from './MemberProfileClient'
 
-function absolutePhoto(photo: string | null | undefined): string | undefined {
-  if (!photo) return undefined
-  const resolved = resolveImageUrl(photo)
-  // ?w=1200 hits the file route's PREVIEW resize: aspect-preserved
-  // JPEG q75 keeps the OG image under WhatsApp / iMessage / X's
-  // ~600 KB cap. Member upload originals are 1200×1200 PNG, ~1-3 MB.
-  return resolved.startsWith('http') ? resolved : `${SITE_URL}${resolved}?w=1200`
-}
 
 export async function generateMetadata(
   { params }: { params: Promise<{ id: string }> },
@@ -43,7 +36,7 @@ export async function generateMetadata(
     : member.neighborhood
     ? `${member.name} is a Smileys member in ${member.neighborhood}, Istanbul.`
     : `${member.name} is a member of Smileys Community Istanbul.`
-  const imageUrl = absolutePhoto(member.profilePhoto) ?? `${APP_URL}/api/og`
+  const imageUrl = absoluteOgImage(member.profilePhoto) ?? `${APP_URL}/api/og`
   const pageUrl  = `${APP_URL}/members/${id}`
 
   return {

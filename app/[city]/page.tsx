@@ -15,6 +15,7 @@ import { resolveImageUrl, istanbulEventWindow } from '@/lib/data'
 import { getPublicCity } from '@/lib/cities'
 import { CITY_STATUS } from '@/lib/cityStatus'
 import { APP_URL } from '@/lib/env'
+import { absoluteOgImage } from '@/lib/og'
 
 // The per-city shopfront: /app/istanbul today, /app/athens the moment an admin
 // flips Athens to live. Nothing here names a city — everything comes from the
@@ -33,6 +34,8 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const city = await getPublicCity(slug)
   if (!city) return {}
 
+  const ogImage = absoluteOgImage(city.heroImage)
+
   // A pre-launch page must not promise joinable clubs and events in the
   // search snippet — say what it actually is.
   const title = city.status === CITY_STATUS.Live
@@ -46,7 +49,14 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
     title,
     description,
     alternates: { canonical: `${APP_URL}/${city.slug}` },
-    openGraph: { title, description, url: `${APP_URL}/${city.slug}` },
+    // The city's own photo is the share image. A link to /athens that previews
+    // the generic Smileys card tells nobody which city it is.
+    openGraph: {
+      title, description,
+      url: `${APP_URL}/${city.slug}`,
+      ...(ogImage ? { images: [{ url: ogImage, width: 1200, height: 630, alt: city.name }] } : {}),
+    },
+    ...(ogImage ? { twitter: { card: 'summary_large_image' as const, images: [ogImage] } } : {}),
   }
 }
 

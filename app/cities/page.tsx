@@ -3,6 +3,7 @@ import Link from 'next/link'
 import CityCard from '@/components/CityCard'
 import { getPublicCities, CITY_STATUS } from '@/lib/cities'
 import { APP_URL } from '@/lib/env'
+import { absoluteOgImage } from '@/lib/og'
 
 // The city index — the one page that shows the whole network at once.
 //
@@ -12,11 +13,26 @@ import { APP_URL } from '@/lib/env'
 // had nowhere to see it. This is also what the bottom-nav Cities tab needs: a
 // destination, not a menu.
 
-export const metadata: Metadata = {
-  title: 'Smileys cities — where we are, and where we\'re going next',
-  description:
-    'Every Smileys city: the communities that are live today and the ones opening next. One account works across all of them.',
-  alternates: { canonical: `${APP_URL}/cities` },
+// Built per request rather than as a static constant so the share image is a
+// real city photo — a link to the city index that previews the generic card
+// says nothing about what's behind it.
+export async function generateMetadata(): Promise<Metadata> {
+  const cities  = await getPublicCities()
+  const ogImage = absoluteOgImage(cities.find(c => c.status === CITY_STATUS.Live)?.heroImage ?? cities[0]?.heroImage)
+  const title   = 'Smileys cities — where we are, and where we\'re going next'
+  const description =
+    'Every Smileys city: the communities that are live today and the ones opening next. One account works across all of them.'
+
+  return {
+    title,
+    description,
+    alternates: { canonical: `${APP_URL}/cities` },
+    openGraph: {
+      title, description, url: `${APP_URL}/cities`,
+      ...(ogImage ? { images: [{ url: ogImage, width: 1200, height: 630, alt: 'Smileys cities' }] } : {}),
+    },
+    ...(ogImage ? { twitter: { card: 'summary_large_image' as const, images: [ogImage] } } : {}),
+  }
 }
 
 export const revalidate = 60
