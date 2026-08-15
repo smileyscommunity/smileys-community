@@ -66,6 +66,9 @@ interface ContentValue {
 // Normalize a single section into a known-good shape. Returns `skip`
 // when the incoming key isn't allowlisted; per-field validation caps
 // every string and bounds every array.
+const PHOTO_MAX = 300
+const HOME_PHOTO_RE = /^\/app\/api\/files\/(?!applications\/)[a-zA-Z0-9-]+\/[a-zA-Z0-9-]+\.(jpg|jpeg|png|webp|gif)$/
+
 function normalizeSection(key: string, raw: unknown):
   | { ok: true; value: unknown }
   | { ok: false; error: string }
@@ -79,7 +82,16 @@ function normalizeSection(key: string, raw: unknown):
     if (raw.length > STATS_MAX) return { ok: false, error: `stats max ${STATS_MAX}` }
     return { ok: true, value: raw.map((s: unknown) => {
       const o = (s ?? {}) as Record<string, unknown>
-      return { value: str(o.value, STAT_FIELD_MAX), label: str(o.label, STAT_FIELD_MAX) }
+      // `metric` must survive the round-trip: it's what makes a stat track the
+      // database instead of a typed number. Dropping it here would silently
+      // revert a live figure to whatever literal sat beside it, the next time
+      // an admin saved this tab for an unrelated reason.
+      const metric = o.metric === 'members' || o.metric === 'events' || o.metric === 'clubs' ? o.metric : undefined
+      return {
+        value: str(o.value, STAT_FIELD_MAX),
+        label: str(o.label, STAT_FIELD_MAX),
+        ...(metric ? { metric } : {}),
+      }
     }) }
   }
 
@@ -138,7 +150,26 @@ function normalizeSection(key: string, raw: unknown):
       closing:  str(r.closing,  CLOSING_MAX),
     } }
   }
-  // home, get_involved, advertise, events, clubs, members, neighborhoods
+  // `home` additionally carries the landing page's hero image. It needs its own
+  // branch: the generic one below rebuilds the object from a fixed field list,
+  // which silently dropped heroImage on every save — the upload worked, the
+  // save discarded it, and the page kept showing the shipped photo.
+  if (key === 'home') {
+    const hero = str(r.heroImage, PHOTO_MAX)
+    // Same rule as city heroes: a public image must not point into the
+    // admin-only applications/ folder, which would 403 for every visitor.
+    if (hero && !HOME_PHOTO_RE.test(hero)) {
+      return { ok: false, error: 'Invalid hero image URL' }
+    }
+    return { ok: true, value: {
+      headline:  str(r.headline, HEADLINE_MAX),
+      subtitle:  str(r.subtitle, SUBTITLE_MAX),
+      badge:     str(r.badge,    BADGE_MAX),
+      heroImage: hero,
+    } }
+  }
+
+  // get_involved, advertise, events, clubs, members, neighborhoods
   return { ok: true, value: {
     headline: str(r.headline, HEADLINE_MAX),
     subtitle: str(r.subtitle, SUBTITLE_MAX),
