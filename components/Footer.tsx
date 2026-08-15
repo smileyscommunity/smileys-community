@@ -85,10 +85,13 @@ export default function Footer({ stats, cityName = 'Istanbul' }: FooterProps) {
         {/* 4 cols at lg (small laptops) so the 6-col layout doesn't crush each
             column to ~140px; 6 cols at xl+ where there's room to fit everything
             on one row. */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-10">
+        {/* Brand takes its own row, then five link columns. The old
+            xl:grid-cols-6 wrapped ragged on a laptop and left the city column —
+            now ten items — towering over four short ones. */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-x-8 gap-y-10">
 
           {/* Brand — wider until xl so the social row breathes */}
-          <div className="col-span-2 xl:col-span-1">
+          <div className="col-span-2 sm:col-span-3 lg:col-span-5">
             <Link href="/" className="flex items-center gap-2 mb-4 group">
               <span className="text-2xl">😊</span>
               <span className="font-extrabold text-gray-900 group-hover:text-amber-600 transition-colors text-lg">
@@ -142,17 +145,25 @@ export default function Footer({ stats, cityName = 'Istanbul' }: FooterProps) {
               so nothing has to smuggle "Istanbul" into a label and then go
               stale when a second city opens. The heading follows the viewer's
               city, so it reads IN IZMIR for someone viewing Izmir. */}
-          <div>
+          <div className="col-span-2 sm:col-span-3 lg:col-span-2">
             <h3 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-4">
               In {cityName}
             </h3>
-            <ul className="space-y-3">
+            {/* Two sub-columns: ten links in one stack made this column twice
+                the height of its neighbours. */}
+            <ul className="grid grid-cols-2 gap-x-6 gap-y-3">
               {[
                 { href: '/events',        label: 'Events 🎉'          },
                 { href: '/clubs',         label: 'Clubs 🏠'           },
                 { href: '/experiences',   label: 'Experiences ✨'     },
                 { href: '/guide',         label: 'Guide 🗺️'           },
                 { href: '/neighborhoods', label: 'Neighborhoods 🏘️'   },
+                // Country-level really, not city-level: 7 of 9 articles are
+                // Istanbul-specific and the rest are Türkiye-wide. It sits here
+                // because every Smileys city is currently in Türkiye, so one
+                // handbook serves all of them. A non-Turkish city is what
+                // forces real country scoping.
+                { href: '/handbook',      label: 'The Handbook 📖'    },
                 { href: '/directory',     label: 'Directory 🏢'       },
                 { href: '/hosts',         label: 'Meet the hosts 🎤'  },
                 { href: '/hangouts',      label: 'Hangouts ☕'        },
@@ -176,7 +187,6 @@ export default function Footer({ stats, cityName = 'Istanbul' }: FooterProps) {
                 { href: '/cities',   label: 'All cities 🌍'   },
                 { href: '/visiting', label: 'Visiting? 👋'    },
                 { href: '/members',  label: 'Members 👥'      },
-                { href: '/handbook', label: 'The Handbook 📖' },
                 { href: '/posts',    label: 'Articles 📰'     },
                 { href: '/cup',      label: 'Smileys Cup ⚽'  },
               ].map(l => (
@@ -220,8 +230,8 @@ export default function Footer({ stats, cityName = 'Istanbul' }: FooterProps) {
             </ul>
           </div>
 
-          {/* Company */}
           <div>
+          {/* Company */}
             <h3 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-4">Company</h3>
             <ul className="space-y-3">
               {[
@@ -237,10 +247,9 @@ export default function Footer({ stats, cityName = 'Istanbul' }: FooterProps) {
                 </li>
               ))}
             </ul>
-          </div>
-
-          {/* Legal */}
-          <div>
+          {/* Legal — stacked under Company rather than taking a column of its
+              own: four short links each, and it keeps the row at five. */}
+            <div className="mt-8">
             <h3 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-4">Legal</h3>
             <ul className="space-y-3">
               {[
@@ -257,6 +266,7 @@ export default function Footer({ stats, cityName = 'Istanbul' }: FooterProps) {
               ))}
             </ul>
           </div>
+        </div>
 
         </div>
       </div>
