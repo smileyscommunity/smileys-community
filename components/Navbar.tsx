@@ -62,30 +62,56 @@ const roleBadge: Record<string, string> = {
   member:    'bg-gray-100 text-gray-700',
 }
 
-// Primary nav — the three things people do most. Stay flat in the bar.
-const primaryLinks = [
-  { label: 'Events',  href: '/events',  public: true },
-  { label: 'Clubs',   href: '/clubs',   public: true },
-  { label: 'Members', href: '/members', public: true },
+// The bar holds five items at most, and two of them are dropdowns (Discover,
+// Cities). That's the whole scaling strategy: new content sections drop into
+// Discover, new cities drop into Cities, and the header never grows.
+//
+// Guests and members get different bars because they're doing different things.
+// A guest is deciding whether to join, so Visiting — the thing no other local
+// community offers — is worth a slot. A member is already in, and Members
+// (their connections, with a pending-request badge) earns it instead.
+const guestPrimary = [
+  { label: 'Events',   href: '/events'   },
+  { label: 'Clubs',    href: '/clubs'    },
+  { label: 'Visiting', href: '/visiting' },
+]
+
+const memberPrimary = [
+  { label: 'Events',  href: '/events'  },
+  { label: 'Clubs',   href: '/clubs'   },
+  { label: 'Members', href: '/members' },
 ]
 
 // Everything else lives under a "Discover ▾" dropdown so the bar stays calm.
 // Adding new content sections in the future drops in here instead of bloating
 // the top row.
+// Everything that isn't a primary action. Ordered by what a visitor deciding
+// whether to join actually wants: the people and the places first, the
+// reference material after. `guestOnly` items are the ones that live in a
+// member's primary bar instead, so nobody sees the same link twice.
+//
+// Smileys Cup 2026 nav entry removed post-tournament (recap published as its
+// own Community post); /cup page + data stay live for anyone linking in from
+// there or a bookmark, just no longer in nav.
 const discoverLinks = [
-  // Smileys Cup 2026 nav entry removed post-tournament (recap published as
-  // its own Community post); /cup page + data stay live for anyone linking
-  // in from there or a bookmark, just no longer in primary nav.
-  { label: 'Hangouts',      href: '/hangouts',      emoji: '☕', public: false },
-  { label: 'Experiences',   href: '/experiences',   emoji: '✨', public: true  },
-  { label: 'Guide',         href: '/guide',         emoji: '🗺️', public: true  },
-  { label: 'Handbook',      href: '/handbook',      emoji: '📖', public: true  },
-  { label: 'Neighborhoods', href: '/neighborhoods', emoji: '🏘️', public: true  },
-  { label: 'Community Board', href: '/board',       emoji: '💬', public: true  },
-  { label: 'Marketplace',     href: '/marketplace', emoji: '🛍️', public: true  },
-  { label: 'Directory',     href: '/directory',     emoji: '🏢', public: true  },
-  { label: 'Hosts',         href: '/hosts',         emoji: '🎤', public: true  },
-  { label: 'Visiting?',     href: '/visiting',      emoji: '👋', public: true  },
+  { label: 'People',          href: '/members',       emoji: '👋', public: true,  guestOnly: true },
+  { label: 'Experiences',     href: '/experiences',   emoji: '✨', public: true  },
+  { label: 'Places',          href: '/directory',     emoji: '📍', public: true  },
+  { label: 'Neighborhoods',   href: '/neighborhoods', emoji: '🏘️', public: true  },
+  { label: 'City guide',      href: '/guide',         emoji: '🗺️', public: true  },
+  { label: 'Handbook',        href: '/handbook',      emoji: '📖', public: true  },
+  { label: 'Hosts',           href: '/hosts',         emoji: '🎤', public: true  },
+  { label: 'Stories',         href: '/posts',         emoji: '📰', public: true  },
+  { label: 'Community Board', href: '/board',         emoji: '💬', public: true  },
+  { label: 'Marketplace',     href: '/marketplace',   emoji: '🛍️', public: true  },
+  { label: 'Hangouts',        href: '/hangouts',      emoji: '☕', public: false },
+]
+
+// Kept out of the bar to hold it at five, but not orphaned — a guest weighing
+// up whether this is for them still needs a way to reach them.
+const aboutLinks = [
+  { label: 'Why Smileys?', href: '/why',   emoji: '💡' },
+  { label: 'About',        href: '/about', emoji: '😊' },
 ]
 
 const pageTitles: [string, string][] = [
@@ -122,6 +148,7 @@ export default function Navbar() {
   const { user, logout, isLoggedIn } = useAuth()
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [discoverOpen, setDiscoverOpen] = useState(false)
+  const [mobileOpen, setMobileOpen]     = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const discoverRef = useRef<HTMLDivElement>(null)
   const pendingConnections = usePendingConnections()
@@ -166,7 +193,7 @@ export default function Navbar() {
 
           {/* Desktop nav */}
           <nav className="hidden md:flex items-center gap-1">
-            {primaryLinks.filter(link => isLoggedIn || link.public).map((link) => (
+            {(isLoggedIn ? memberPrimary : guestPrimary).map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
@@ -187,7 +214,7 @@ export default function Navbar() {
                 so the bar stays calm as new content sections get added. */}
             <div className="relative" ref={discoverRef}>
               {(() => {
-                const visible = discoverLinks.filter(link => isLoggedIn || link.public)
+                const visible = discoverLinks.filter(link => (isLoggedIn || link.public) && !(isLoggedIn && link.guestOnly))
                 const anyActive = visible.some(link => isActive(link.href))
                 return (
                   <>
@@ -209,6 +236,7 @@ export default function Navbar() {
                           <Link
                             key={link.href}
                             href={link.href}
+                            onClick={() => setDiscoverOpen(false)}
                             className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
                               isActive(link.href)
                                 ? 'bg-amber-50 text-amber-700 font-semibold'
@@ -219,12 +247,35 @@ export default function Navbar() {
                             <span>{link.label}</span>
                           </Link>
                         ))}
+                        {!isLoggedIn && (
+                          <div className="mt-1 pt-1 border-t border-gray-100">
+                            {aboutLinks.map(link => (
+                              <Link
+                                key={link.href}
+                                href={link.href}
+                                onClick={() => setDiscoverOpen(false)}
+                                className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
+                                  isActive(link.href)
+                                    ? 'bg-amber-50 text-amber-700 font-semibold'
+                                    : 'text-gray-700 hover:bg-gray-50'
+                                }`}
+                              >
+                                <span aria-hidden="true" className="text-base">{link.emoji}</span>
+                                <span>{link.label}</span>
+                              </Link>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
                   </>
                 )
               })()}
             </div>
+
+            {/* Cities ▾ — first-class, and populated from the database so a city
+                an admin takes live appears here with no deploy. */}
+            <CitiesMenu />
 
             {user.role === 'admin' && (
               <Link
@@ -268,18 +319,12 @@ export default function Navbar() {
 
             {!isLoggedIn ? (
               <div className="flex items-center gap-2">
-                <CitiesMenu />
-                <Link href="/why" className={`px-4 py-2 rounded-lg text-sm transition-colors ${isActive('/why') ? activeClass : inactiveClass}`}>
-                  Why Smileys?
-                </Link>
-                <Link href="/about" className={`px-4 py-2 rounded-lg text-sm transition-colors ${isActive('/about') ? activeClass : inactiveClass}`}>
-                  About
-                </Link>
                 <Link href="/login" className="px-4 py-2 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-100 transition-colors">
-                  Sign in
+                  Log in
                 </Link>
+                {/* The one prominent action in the header. */}
                 <Link href="/apply" className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors">
-                  Apply to join
+                  Join Smileys
                 </Link>
               </div>
             ) : (
@@ -345,10 +390,83 @@ export default function Navbar() {
                 </Link>
               </>
             ) : (
-              <Link href="/login" className="px-4 py-2.5 min-h-[44px] inline-flex items-center rounded-xl bg-amber-500 text-white text-sm font-semibold">Sign in</Link>
+              <>
+                {/* Guests had no mobile navigation at all before this — just a
+                    Sign in button — so every content page was unreachable from
+                    the header on a phone, which is most of the traffic. */}
+                <button
+                  onClick={() => setMobileOpen(o => !o)}
+                  aria-expanded={mobileOpen}
+                  aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+                  className="p-2 rounded-xl hover:bg-gray-100 transition-colors"
+                >
+                  <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    {mobileOpen
+                      ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />}
+                  </svg>
+                </button>
+                <Link href="/apply" className="px-3 py-2 min-h-[44px] inline-flex items-center rounded-xl bg-amber-500 text-white text-sm font-semibold">Join</Link>
+              </>
             )}
           </div>
         </div>
+
+        {/* Mobile menu — same five items as the desktop bar, in the same order,
+            so the two navigations teach the same structure. */}
+        {mobileOpen && !isLoggedIn && (
+          <div className="md:hidden border-t border-gray-100 bg-white max-h-[calc(100vh-4rem)] overflow-y-auto">
+            <nav className="px-4 py-3">
+              {guestPrimary.map(link => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  onClick={() => setMobileOpen(false)}
+                  className={`block px-3 py-3 rounded-xl text-base font-semibold transition-colors ${
+                    isActive(link.href) ? 'bg-amber-50 text-amber-700' : 'text-gray-800 hover:bg-gray-50'
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              ))}
+
+              <p className="px-3 pt-4 pb-1 text-[11px] font-bold uppercase tracking-widest text-gray-400">Discover</p>
+              {discoverLinks.filter(l => l.public).map(link => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  onClick={() => setMobileOpen(false)}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors ${
+                    isActive(link.href) ? 'bg-amber-50 text-amber-700 font-semibold' : 'text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  <span aria-hidden="true" className="text-base">{link.emoji}</span>
+                  <span>{link.label}</span>
+                </Link>
+              ))}
+
+              <p className="px-3 pt-4 pb-1 text-[11px] font-bold uppercase tracking-widest text-gray-400">Cities</p>
+              <div className="px-1"><CitiesMenu variant="inline" onNavigate={() => setMobileOpen(false)} /></div>
+
+              <div className="mt-4 pt-3 border-t border-gray-100 space-y-2">
+                {aboutLinks.map(link => (
+                  <Link key={link.href} href={link.href} onClick={() => setMobileOpen(false)}
+                    className="block px-3 py-2 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors">
+                    {link.label}
+                  </Link>
+                ))}
+                <Link href="/login" onClick={() => setMobileOpen(false)}
+                  className="block px-3 py-3 rounded-xl text-base font-semibold text-gray-800 hover:bg-gray-50 transition-colors">
+                  Log in
+                </Link>
+                <Link href="/apply" onClick={() => setMobileOpen(false)}
+                  className="block px-3 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-base font-semibold text-center transition-colors">
+                  Join Smileys
+                </Link>
+              </div>
+            </nav>
+          </div>
+        )}
       </div>
     </header>
   )
