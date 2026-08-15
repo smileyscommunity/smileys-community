@@ -4,13 +4,14 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
-import { getEvents } from '@/lib/db'
+import { getEvents, redactEventForGuest } from '@/lib/db'
 import { getSession } from '@/lib/session'
 import EventTabs from '@/components/EventTabs'
 import CityCard from '@/components/CityCard'
 import { resolveImageUrl, istanbulEventWindow } from '@/lib/data'
 import { getPublicCities, getDefaultCityId, CITY_STATUS } from '@/lib/cities'
 import { APP_URL } from '@/lib/env'
+import { loadContent } from '@/lib/content'
 
 // ── The global landing page ─────────────────────────────────────────────────
 // Smileys is not a website about Istanbul; Istanbul is the first Smileys city.
@@ -40,7 +41,7 @@ const getLandingData = unstable_cache(
     // filter rather than a different query — the shape already supports it.
     const cityId = await getDefaultCityId()
 
-    const [{ events }, testimonials, memberCount, stories] = await Promise.all([
+    const [{ events: rawEvents }, testimonials, memberCount, stories] = await Promise.all([
       // Wide enough for the tabs to filter across a month; the page is
       // cached for 60s, so one fetch beats a request per tab.
       getEvents({ limit: 24, upcoming: true, cityId }),
@@ -57,6 +58,11 @@ const getLandingData = unstable_cache(
       }),
     ])
 
+    // This page redirects every session away (see HomePage), so the viewer
+    // is a guest BY CONSTRUCTION — redact inside the cache, unconditionally.
+    // Same projection as GET /api/events: no exact address/GPS, no chat or
+    // meeting links, no payment contact, no attendee identities.
+    const events = rawEvents.map(redactEventForGuest)
     return { events, testimonials, memberCount, stories }
   },
   ['global-landing-data'],
@@ -78,6 +84,13 @@ export default async function HomePage() {
     if (session.role === 'admin') redirect('/admin')
     else redirect('/dashboard')
   }
+
+  // Hero copy and image are admin-editable at /admin/content → Home. Defaults
+  // below are the shipped copy, so clearing a field restores it rather than
+  // leaving the hero blank.
+  const home = loadContent().home ?? {}
+  const heroImage = home.heroImage || '/app/images/hero-istanbul.jpg'
+  const heroAlt   = 'Smileys members together at a community dinner'
 
   const [cities, { events, testimonials, memberCount, stories }] = await Promise.all([
     getPublicCities(),
@@ -118,17 +131,17 @@ export default async function HomePage() {
               </div>
 
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight text-gray-900 leading-[1.08] mb-6">
-                The social infrastructure for modern international life.
+                {home.headline || 'The social infrastructure for modern international life.'}
               </h1>
 
               <p className="text-lg md:text-xl text-gray-600 max-w-2xl leading-relaxed mb-10">
-                Meet people. Join communities. Discover experiences. Build your social life wherever you are.
+                {home.subtitle || 'Meet people. Join communities. Discover experiences. Build your social life wherever you are.'}
               </p>
 
               <div className="lg:hidden relative aspect-[3/2] rounded-2xl overflow-hidden shadow-xl mb-10">
                 <Image
-                  src="/app/images/hero-istanbul.jpg"
-                  alt="Smileys members together at a community dinner"
+                  src={resolveImageUrl(heroImage)}
+                  alt={heroAlt}
                   fill priority fetchPriority="high"
                   sizes="(max-width: 639px) calc(100vw - 32px), calc(100vw - 48px)"
                   className="object-cover"
@@ -155,8 +168,8 @@ export default async function HomePage() {
 
             <div className="hidden lg:block relative h-[500px] rounded-2xl overflow-hidden shadow-xl">
               <Image
-                src="/app/images/hero-istanbul.jpg"
-                alt="Smileys members together at a community dinner"
+                src={resolveImageUrl(heroImage)}
+                alt={heroAlt}
                 fill priority fetchPriority="high"
                 sizes="(max-width: 1024px) 0px, (max-width: 1344px) calc(50vw - 64px), 576px"
                 className="object-cover"

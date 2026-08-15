@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { downscaleImage } from '@/lib/image-resize'
+import { resolveImageUrl } from '@/lib/data'
 import { toast } from 'sonner'
 
 interface WeekDay  { day: string; short: string; emoji: string; event: string; desc: string }
@@ -9,7 +11,7 @@ interface FaqSection { id: string; icon: string; title: string; items: FaqItem[]
 interface Content {
   // `metric` set = published number comes from the database, not `value`.
   stats:         { value?: string; label: string; metric?: 'members' | 'events' | 'clubs' }[]
-  home:          { headline: string; subtitle: string }
+  home:          { headline: string; subtitle: string; heroImage?: string }
   about:         { headline: string; subtitle: string; story_p1: string; story_p2: string; story_p3: string }
   why:           { headline: string; tagline: string; subtitle: string; closing: string }
   get_involved:  { headline: string; subtitle: string }
@@ -55,7 +57,7 @@ const labelCls  = 'block text-xs font-bold text-zinc-400 uppercase tracking-wide
 // throw on first edit.
 const DEFAULT_CONTENT: Content = {
   stats:         [],
-  home:          { headline: '', subtitle: '' },
+  home:          { headline: '', subtitle: '', heroImage: '' },
   about:         { headline: '', subtitle: '', story_p1: '', story_p2: '', story_p3: '' },
   why:           { headline: '', tagline: '',  subtitle: '', closing: '' },
   get_involved:  { headline: '', subtitle: '' },
@@ -85,6 +87,7 @@ export default function ContentPage() {
   // What the database actually says, for comparison against the editorial
   // figures below. Never saved back — it's a reference reading, not content.
   const [live,      setLive]      = useState<LiveStats | null>(null)
+  const [heroUploading, setHeroUploading] = useState(false)
   const [tab,       setTab]       = useState<Tab>('stats')
   const [saving,    setSaving]    = useState(false)
   const [loading,   setLoading]   = useState(true)
@@ -131,6 +134,23 @@ export default function ContentPage() {
       })
       .finally(() => setLoading(false))
   }, [])
+
+  // Uploads into the shared store, then stages the URL. Publishing is still the
+  // Save button — an accidental pick shouldn't change the homepage instantly.
+  async function uploadHero(file: File) {
+    setHeroUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', await downscaleImage(file))
+      fd.append('folder', 'general')
+      const res = await fetch('/app/api/upload', { method: 'POST', credentials: 'include', body: fd })
+      const d   = await res.json()
+      if (!res.ok || !d.url) { toast.error(d.error ?? 'Upload failed'); return }
+      setContent(c => c ? { ...c, home: { ...c.home, heroImage: d.url } } : c)
+      toast.success('Uploaded — press Save to publish')
+    } catch { toast.error('Upload failed') }
+    finally { setHeroUploading(false) }
+  }
 
   async function save(section: Tab, data: unknown) {
     setSaving(true)
@@ -258,6 +278,40 @@ export default function ContentPage() {
             <label className={labelCls}>Subtitle</label>
             <textarea value={content.home.subtitle} onChange={e => set('home', { ...content.home, subtitle: e.target.value })} rows={3} className={`${inputCls} resize-none`} />
           </div>
+
+          {/* The big photo beside the headline on the landing page. Per-city
+              heroes are separate, on /admin/cities — this one is the network's
+              front door and isn't about any single city. */}
+          <div className="pt-3 border-t border-zinc-800">
+            <p className={labelCls}>Hero image</p>
+            <div className="flex items-start gap-4">
+              <div className="w-40 shrink-0 aspect-[3/2] rounded-xl overflow-hidden bg-zinc-950 border border-zinc-800 flex items-center justify-center">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={content.home.heroImage ? resolveImageUrl(content.home.heroImage) : '/app/images/hero-istanbul.jpg'}
+                  alt="Landing page hero" className="w-full h-full object-cover" />
+              </div>
+              <div className="flex-1 space-y-2">
+                <label className={`inline-block text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${heroUploading ? 'bg-zinc-800 text-zinc-500' : 'bg-zinc-800 hover:bg-zinc-700 text-amber-400 cursor-pointer'}`}>
+                  {heroUploading ? 'Uploading…' : content.home.heroImage ? 'Replace image' : 'Upload image'}
+                  <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" disabled={heroUploading}
+                    onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) uploadHero(f) }} />
+                </label>
+                {content.home.heroImage && (
+                  <button
+                    onClick={() => set('home', { ...content.home, heroImage: '' })}
+                    className="block text-xs text-zinc-500 hover:text-red-400 transition-colors">
+                    Remove (back to the shipped photo)
+                  </button>
+                )}
+                <p className="text-[11px] text-zinc-600 leading-relaxed">
+                  Landscape, ideally people rather than scenery — it sits beside the headline and is the first thing a
+                  visitor sees. Save below to publish. Large photos are downscaled before upload.
+                </p>
+              </div>
+            </div>
+          </div>
+
           <SaveButton onClick={() => save('home', content.home)} saving={saving} />
         </div>
       )}
