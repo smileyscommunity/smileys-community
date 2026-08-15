@@ -163,6 +163,8 @@ model User {
   sessions                   Session[]
   totpBackupCodes            TotpBackupCode[]
   city                       City                    @relation(fields: [cityId], references: [id])
+  // Cities joined beyond `city` above. See model CityMembership.
+  cityMemberships            CityMembership[]
   partner                    Partner?                @relation(fields: [partnerId], references: [id])
   visitorAnnouncements       VisitorAnnouncement[]
 
@@ -344,8 +346,31 @@ model City {
   posts                Post[]
   neighborhoods        Neighborhood[]
   guideEntries         GuideEntry[]
+  cityMemberships      CityMembership[]
 
   @@map("cities")
+}
+
+// ── City membership: the cities a member belongs to beyond their home one ───
+// Their HOME city stays User.cityId. That column scopes every feed and is read
+// in dozens of places, so it remains the single answer to "where does this
+// person live" — this table is strictly additive, which is also why no backfill
+// is needed: a member with no rows here simply belongs to their home city.
+//
+// Joining a second city is what makes one account work across the network: the
+// same profile, interests and history, without re-registering in Athens.
+model CityMembership {
+  id       String   @id @default(cuid())
+  userId   String
+  cityId   String
+  joinedAt DateTime @default(now())
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  city     City     @relation(fields: [cityId], references: [id], onDelete: Cascade)
+
+  // One membership per member per city; the home city is never stored here.
+  @@unique([userId, cityId])
+  @@index([cityId])
+  @@map("city_memberships")
 }
 
 // ── Guide entries: per-city editorial content (multi-city phase 2.3) ────────

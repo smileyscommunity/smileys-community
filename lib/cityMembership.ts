@@ -1,0 +1,130 @@
+// ── One account, many cities ────────────────────────────────────────────────
+//
+// The promise the multi-city product rests on: you live in Istanbul, you spend
+// a month in Athens, and your profile, interests and history come with you
+// rather than being re-registered.
+//
+// The model deliberately keeps two different things apart:
+//
+//   HOME city  — User.cityId. Exactly one, required, and what scopes a
+//                member's default feeds. Dozens of call sites read it; it is
+//                the answer to "where does this person live".
+//   JOINED     — rows in CityMembership. Additional cities they belong to.
+//                Additive only, so a member with no rows is simply
+//                home-city-only and nothing needed backfilling.
+//
+// Keeping home OUT of the join table means there is no way for the two to
+// disagree — the failure mode where a member's home city says Istanbul and
+// their membership rows say otherwise simply can't be represented.
+
+import { prisma } from './prisma'
+import { CITY_STATUS } from './cityStatus'
+
+export interface MemberCity {
+  id:     string
+  slug:   string
+  name:   string
+  status: string
+  home:   boolean
+}
+
+/**
+ * Every city a member belongs to, home first.
+ *
+ * Home is read from the user row rather than the join table, so this is
+ * correct even for a member who has never joined a second city.
+ */
+export async function getMemberCities(userId: string): Promise<MemberCity[]> {
+  const user = await prisma.user.findUnique({
+    where:  { id: userId },
+    select: {
+      city:            { select: { id: true, slug: true, name: true, status: true } },
+      cityMemberships: {
+        select:  { city: { select: { id: true, slug: true, name: true, status: true } } },
+        orderBy: { joinedAt: 'asc' },
+      },
+    },
+  })
+  if (!user) return []
+
+  return [
+    { ...user.city, home: true },
+    ...user.cityMemberships.map(m => ({ ...m.city, home: false })),
+  ]
+}
+
+/** Just the ids — for scoping a query to everywhere this member belongs. */
+export async function getMemberCityIds(userId: string): Promise<string[]> {
+  return (await getMemberCities(userId)).map(c => c.id)
+}
+
+export type JoinResult =
+  | { ok: true;  alreadyMember: boolean; city: { id: string; slug: string; name: string } }
+  | { ok: false; error: string }
+
+/**
+ * Join a city by slug.
+ *
+ * Only `live` cities can be joined: a member who joins a city with no clubs,
+ * events or people has been given an empty room, which is the same mistake the
+ * city cards and the go-live guard exist to prevent. Joining your own home city
+ * is a no-op success rather than an error — the caller usually can't tell, and
+ * the outcome they wanted ("I'm in this city") is already true.
+ */
+export async function joinCity(userId: string, slug: string): Promise<JoinResult> {
+  const [user, city] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId }, select: { cityId: true, status: true } }),
+    prisma.city.findUnique({ where: { slug }, select: { id: true, slug: true, name: true, status: true } }),
+  ])
+  if (!user) return { ok: false, error: 'Member not found' }
+  if (!city) return { ok: false, error: 'City not found' }
+  // Checked here rather than at the route: a pending member still holds a
+  // valid session (they can sign in while awaiting approval), and joining a
+  // second community would route them into feeds their status doesn't allow.
+  // Keeping the rule with the operation means any future caller inherits it.
+  if (user.status !== 'approved') {
+    return { ok: false, error: 'Your membership needs to be approved first' }
+  }
+  if (city.status !== CITY_STATUS.Live) {
+    return { ok: false, error: `${city.name} isn't open to join yet — we'll let you know when it launches.` }
+  }
+
+  if (city.id === user.cityId) {
+    return { ok: true, alreadyMember: true, city }
+  }
+
+  // Idempotent: a double-tap or a retried request must not 500 on the unique
+  // constraint, and must not read as a different outcome.
+  const existing = await prisma.cityMembership.findUnique({
+    where:  { userId_cityId: { userId, cityId: city.id } },
+    select: { id: true },
+  })
+  if (existing) return { ok: true, alreadyMember: true, city }
+
+  await prisma.cityMembership.create({ data: { userId, cityId: city.id } })
+  return { ok: true, alreadyMember: false, city }
+}
+
+export type LeaveResult = { ok: true } | { ok: false; error: string }
+
+/**
+ * Leave a joined city. The home city can't be left — that's a "move city"
+ * operation, which changes what every feed shows and belongs behind its own
+ * deliberate flow rather than a Leave button.
+ */
+export async function leaveCity(userId: string, slug: string): Promise<LeaveResult> {
+  const [user, city] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId }, select: { cityId: true } }),
+    prisma.city.findUnique({ where: { slug }, select: { id: true, name: true } }),
+  ])
+  if (!user) return { ok: false, error: 'Member not found' }
+  if (!city) return { ok: false, error: 'City not found' }
+  if (city.id === user.cityId) {
+    return { ok: false, error: `${city.name} is your home city — change it in your profile instead.` }
+  }
+
+  // deleteMany, not delete: leaving a city you aren't in should succeed
+  // quietly rather than throw on a missing row.
+  await prisma.cityMembership.deleteMany({ where: { userId, cityId: city.id } })
+  return { ok: true }
+}

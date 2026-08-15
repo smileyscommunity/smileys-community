@@ -8,6 +8,7 @@ import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
 import { getSession } from '@/lib/session'
 import { getEvents, getClubs, redactEventForGuest } from '@/lib/db'
 import EventTabs from '@/components/EventTabs'
+import JoinCityButton from '@/components/JoinCityButton'
 import ClubCard from '@/components/ClubCard'
 import { neighborhoodToSlug, getNeighborhoodMeta } from '@/lib/neighborhoods'
 import { resolveImageUrl, istanbulEventWindow } from '@/lib/data'
@@ -169,12 +170,10 @@ export default async function CityPage({ params }: Params) {
               </div>
 
               <div className="flex flex-col sm:flex-row gap-4 mb-3">
-                <Link href={`/apply?city=${city.slug}`} className="btn-primary text-base px-8 py-4">
-                  Join Smileys {city.name}
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                  </svg>
-                </Link>
+                {/* Signed-in members get a one-tap join (their account already
+                    exists — see components/JoinCityButton); guests fall through
+                    to the application flow below. */}
+                <JoinCityButton slug={city.slug} name={city.name} />
                 <Link href="/events" className="btn-secondary text-base px-8 py-4">See what's on</Link>
               </div>
               <p className="text-sm font-medium text-gray-700 mb-12">
