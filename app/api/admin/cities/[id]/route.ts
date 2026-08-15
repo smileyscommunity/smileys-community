@@ -19,7 +19,10 @@ interface Params { params: Promise<{ id: string }> }
 // admin-only at the file route (raw photos of pending and rejected applicants),
 // so such a hero would 403 for every visitor, and it has no business being a
 // marketing image in the first place. The uploader writes to `general/`.
-const PHOTO_RE = /^\/app\/api\/files\/(?!applications\/)[a-zA-Z0-9-]+\/[a-zA-Z0-9-]+\.(jpg|jpeg|png|webp|gif)$/
+// general/ only — the hero uploader writes there. A broader allowlist let an
+// admin point a city hero at a member's PROFILE photo (users/…): access-safe
+// (admins read those anyway) but a consent footgun as public marketing.
+const PHOTO_RE = /^\/app\/api\/files\/general\/[a-zA-Z0-9-]+\.(jpg|jpeg|png|webp|gif)$/
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   const session = await getSession()

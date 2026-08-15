@@ -12,6 +12,7 @@
 // The first two are re-exported here so server callers need one import.
 
 import { prisma } from './prisma'
+import { todayInTz, DEFAULT_TZ } from './cityTime'
 import { CITY_STATUS, isCityStatus, type CityStatus, type CityStats, type PublicCity } from './cityStatus'
 
 export * from './cityStatus'
@@ -77,7 +78,10 @@ export async function getPublicCity(slug: string): Promise<PublicCity | null> {
 // Grouped counts for the given cities in three queries total. `today` is
 // compared as a string because Event.date is stored as text 'YYYY-MM-DD'.
 async function getStatsFor(cityIds: string[]): Promise<Map<string, CityStats>> {
-  const today = new Date().toISOString().split('T')[0]
+  // Default-city calendar day, not UTC — between 00:00 and 03:00 Istanbul
+  // the UTC date is still yesterday and the count would include finished
+  // events. Per-city todays can come when stats span differing zones.
+  const today = todayInTz(DEFAULT_TZ)
 
   const [members, clubs, events] = await Promise.all([
     prisma.user.groupBy({

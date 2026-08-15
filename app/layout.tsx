@@ -76,8 +76,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     name:         'Smileys Community',
     url:          siteUrl,
     logo:         `${siteUrl}/icons/icon-512.png`,
-    description:  "Istanbul's curated social community — events, clubs, and genuine connections for expats, nomads, travelers, and locals.",
-    areaServed:   { '@type': 'City', name: 'Istanbul' },
+    description:  'The social infrastructure for modern international life — curated city communities with events, clubs, and genuine connections for expats, nomads, travelers, and locals.',
+    // Istanbul is the founding (and first live) city; add each city here as
+    // it goes live. Kept static rather than DB-driven: the root layout wraps
+    // every page and must not gain a query for a rarely-changing list.
+    areaServed:   [{ '@type': 'City', name: 'Istanbul' }],
     sameAs: [
       'https://www.instagram.com/smileys.community',
       'https://linkedin.com/company/smileys-community',

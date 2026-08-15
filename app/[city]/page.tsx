@@ -4,7 +4,9 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
-import { getEvents, getClubs } from '@/lib/db'
+import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
+import { getSession } from '@/lib/session'
+import { getEvents, getClubs, redactEventForGuest } from '@/lib/db'
 import EventTabs from '@/components/EventTabs'
 import ClubCard from '@/components/ClubCard'
 import { neighborhoodToSlug, getNeighborhoodMeta } from '@/lib/neighborhoods'
@@ -30,7 +32,11 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const city = await getPublicCity(slug)
   if (!city) return {}
 
-  const title = `Smileys ${city.name} — meet people, join clubs, discover events`
+  // A pre-launch page must not promise joinable clubs and events in the
+  // search snippet — say what it actually is.
+  const title = city.status === CITY_STATUS.Live
+    ? `Smileys ${city.name} — meet people, join clubs, discover events`
+    : `Smileys ${city.name} — coming soon`
   const description = city.description
     ?? city.tagline
     ?? `Your international social life in ${city.name}. Events, clubs and community for people building a life abroad.`
@@ -45,29 +51,32 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 
 const getCityPageData = unstable_cache(
   async (cityId: string) => {
-    const today        = new Date().toISOString().split('T')[0]
+    const today        = todayInTz(DEFAULT_TZ)
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
 
-    const [{ events }, clubs, neighborhoodCounts, testimonials, recentMembers] = await Promise.all([
+    const [{ events }, clubs, neighborhoodCounts, testimonials, newMembersThisWeek] = await Promise.all([
       getEvents({ limit: 24, upcoming: true, cityId }),
       getClubs(cityId),
       prisma.event.groupBy({
         by: ['neighborhood'],
-        where: { date: { gte: today }, cityId },
+        // published only — a duplicated draft must not inflate a public
+        // count, and the hero stat above filters the same way.
+        where: { date: { gte: today }, cityId, status: 'published' },
         _count: { _all: true },
         orderBy: { _count: { neighborhood: 'desc' } },
         take: 6,
       }),
       prisma.testimonial.findMany({ where: { active: true }, orderBy: [{ order: 'asc' }], take: 3 }),
-      prisma.user.findMany({
-        where: { status: 'approved', role: 'member', joinedAt: { gte: sevenDaysAgo }, cityId },
-        select: { name: true },
-        orderBy: { joinedAt: 'desc' },
-        take: 6,
+      // A number is all the page renders — never fetch names for a count
+      // (the shape invites the next edit to display them), and admin-hidden
+      // accounts stay out of every public figure. Uncapped: 'take' was
+      // silently flooring busy weeks at 6.
+      prisma.user.count({
+        where: { status: 'approved', role: 'member', joinedAt: { gte: sevenDaysAgo }, cityId, hiddenFromMembers: false },
       }),
     ])
 
-    return { events, clubs, neighborhoodCounts, testimonials, recentMembers }
+    return { events, clubs, neighborhoodCounts, testimonials, newMembersThisWeek }
   },
   ['city-page-data'],
   { revalidate: 60, tags: ['home'] },
@@ -101,7 +110,13 @@ export default async function CityPage({ params }: Params) {
     )
   }
 
-  const { events, clubs, neighborhoodCounts, testimonials, recentMembers } = await getCityPageData(city.id)
+  const { events: cachedEvents, clubs, neighborhoodCounts, testimonials, newMembersThisWeek } = await getCityPageData(city.id)
+
+  // Guest redaction happens per-request, OUTSIDE the shared cache entry —
+  // a session-dependent branch must never write into unstable_cache. Same
+  // projection as GET /api/events.
+  const session = await getSession()
+  const events = session ? cachedEvents : cachedEvents.map(redactEventForGuest)
 
   const topNeighborhoods = neighborhoodCounts.map(c => ({
     name:       c.neighborhood,
@@ -307,7 +322,7 @@ export default async function CityPage({ params }: Params) {
           </h2>
           <p className="text-lg text-gray-600 mb-8">
             Join Smileys and start building your social life in {city.name}.
-            {recentMembers.length > 0 && ` ${recentMembers.length} new members joined this week.`}
+            {newMembersThisWeek > 0 && ` ${newMembersThisWeek} new members joined this week.`}
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href={`/apply?city=${city.slug}`} className="btn-primary text-base px-8 py-4">Join Smileys</Link>

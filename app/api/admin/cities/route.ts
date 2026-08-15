@@ -60,6 +60,24 @@ export async function POST(req: NextRequest) {
   const slug = slugify(name)
   if (!slug) return NextResponse.json({ error: 'Name must contain letters or numbers' }, { status: 400 })
 
+  // Static segments always beat the /[city] dynamic route, so a city whose
+  // slug collides with a real page would render as an unreachable shopfront:
+  // its card and menu entry would silently link to /events or /login instead.
+  // List mirrors the top-level app/ directory — update it when a new
+  // top-level route lands.
+  const RESERVED_SLUGS = new Set([
+    'about', 'activate', 'admin', 'advertise', 'api', 'appeal', 'apply',
+    'board', 'clubs', 'contact', 'cookies', 'directory', 'events', 'faq',
+    'forgot-password', 'get-involved', 'guide', 'guidelines', 'handbook',
+    'host', 'login', 'marketplace', 'moving-sales', 'neighborhoods',
+    'onboarding', 'partner', 'posts', 'privacy', 'pro', 'reset-password',
+    'terms', 'unsubscribe', 'verify-email', 'visiting', 'why',
+    'dashboard', 'members', 'messages', 'account', 'search', 'hangouts',
+  ])
+  if (RESERVED_SLUGS.has(slug)) {
+    return NextResponse.json({ error: `"${slug}" collides with an existing page — pick a different city name or add a qualifier` }, { status: 400 })
+  }
+
   const existing = await prisma.city.findUnique({ where: { slug }, select: { id: true } })
   if (existing) return NextResponse.json({ error: `A city with slug "${slug}" already exists` }, { status: 409 })
 
