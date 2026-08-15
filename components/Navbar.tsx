@@ -195,9 +195,36 @@ export default function Navbar({ cities = [] }: { cities?: NavCity[] }) {
 
           {/* Desktop nav */}
           <nav className="hidden md:flex items-center gap-1">
-            {/* Discover ▾ and Cities ▾ lead the bar, ahead of the direct
-                links: they're the two entries that grow, so they anchor the
-                left edge while Events/Clubs/Visiting stay a fixed set. */}
+
+            {/* Cities ▾ leads the bar. It isn't a destination either — it's the
+                frame: "which city am I looking at?" conditions everything after
+                it, the way a location picker sits before results. Populated from
+                the database, so a city an admin takes live appears with no
+                deploy. */}
+            <CitiesMenu initial={cities} />
+
+            {(isLoggedIn ? memberPrimary : guestPrimary).map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={`relative px-4 py-2 rounded-lg text-sm transition-colors ${
+                  isActive(link.href) ? activeClass : inactiveClass
+                }`}
+              >
+                {link.label}
+                {link.href === '/members' && pendingConnections > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                    {pendingConnections > 9 ? '9+' : pendingConnections}
+                  </span>
+                )}
+              </Link>
+            ))}
+
+
+            {/* Discover ▾ sits LAST on purpose. It's a container, not a
+                destination — nobody arrives wanting "to discover" — so it
+                behaves like a "More" drawer and the first slots go to things
+                people actually came for. */}
             <div className="relative" ref={discoverRef}>
               {(() => {
                 const visible = discoverLinks.filter(link => (isLoggedIn || link.public) && !(isLoggedIn && link.guestOnly))
@@ -258,27 +285,6 @@ export default function Navbar({ cities = [] }: { cities?: NavCity[] }) {
                 )
               })()}
             </div>
-
-            {/* Cities ▾ — first-class, and populated from the database so a city
-                an admin takes live appears here with no deploy. */}
-            <CitiesMenu initial={cities} />
-
-            {(isLoggedIn ? memberPrimary : guestPrimary).map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={`relative px-4 py-2 rounded-lg text-sm transition-colors ${
-                  isActive(link.href) ? activeClass : inactiveClass
-                }`}
-              >
-                {link.label}
-                {link.href === '/members' && pendingConnections > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                    {pendingConnections > 9 ? '9+' : pendingConnections}
-                  </span>
-                )}
-              </Link>
-            ))}
 
 
             {user.role === 'admin' && (
@@ -421,6 +427,9 @@ export default function Navbar({ cities = [] }: { cities?: NavCity[] }) {
         {mobileOpen && !isLoggedIn && (
           <div className="md:hidden border-t border-gray-100 bg-white max-h-[calc(100vh-4rem)] overflow-y-auto">
             <nav className="px-4 py-3">
+              <p className="px-3 pt-4 pb-1 text-[11px] font-bold uppercase tracking-widest text-gray-400">Cities</p>
+              <div className="px-1"><CitiesMenu initial={cities} variant="inline" onNavigate={() => setMobileOpen(false)} /></div>
+
               {guestPrimary.map(link => (
                 <Link
                   key={link.href}
@@ -433,6 +442,7 @@ export default function Navbar({ cities = [] }: { cities?: NavCity[] }) {
                   {link.label}
                 </Link>
               ))}
+
 
               <p className="px-3 pt-4 pb-1 text-[11px] font-bold uppercase tracking-widest text-gray-400">Discover</p>
               {discoverLinks.filter(l => l.public).map(link => (
@@ -448,9 +458,6 @@ export default function Navbar({ cities = [] }: { cities?: NavCity[] }) {
                   <span>{link.label}</span>
                 </Link>
               ))}
-
-              <p className="px-3 pt-4 pb-1 text-[11px] font-bold uppercase tracking-widest text-gray-400">Cities</p>
-              <div className="px-1"><CitiesMenu initial={cities} variant="inline" onNavigate={() => setMobileOpen(false)} /></div>
 
               <div className="mt-4 pt-3 border-t border-gray-100 space-y-2">
                 {aboutLinks.map(link => (
