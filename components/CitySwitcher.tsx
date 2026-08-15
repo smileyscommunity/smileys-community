@@ -66,8 +66,11 @@ export default function CitySwitcher({
       const d = await res.json().catch(() => ({}))
       if (!res.ok) { toast.error(d.error ?? 'Could not switch city'); return }
       setOpen(false)
-      // Server components hold the city-scoped data, so a refresh is what makes
-      // the switch visible everywhere at once.
+      // Land on the city you just switched to. Refreshing in place left members
+      // on whatever page they happened to be on with silently different data —
+      // switching city is a destination change, so it should look like one.
+      // The refresh still matters: server components hold the city-scoped data.
+      router.push(`/${slug ?? homeSlug ?? ''}`)
       router.refresh()
     } catch {
       toast.error('Could not switch city')

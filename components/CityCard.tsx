@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { CITY_STATUS, CITY_STATUS_META, type PublicCity } from '@/lib/cityStatus'
 import { resolveImageUrl } from '@/lib/data'
 import { countryName } from '@/lib/country'
+import CityInterestLink from '@/components/CityInterestLink'
 
 // One card, every city, every stage. A city moves coming_soon → preparing →
 // live by an admin changing a dropdown; this component is what makes that flip
@@ -88,15 +89,11 @@ export default function CityCard({ city, featured = false }: { city: PublicCity;
               <span aria-hidden="true">→</span>
             </span>
           ) : (
-            // Not a dead end: the apply form carries the city through, so
-            // interest in a pre-launch city is captured rather than lost.
-            <Link
-              href={`/apply?city=${city.slug}`}
-              className="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-700 hover:text-amber-600 transition-colors"
-            >
-              Get notified
-              <span aria-hidden="true">→</span>
-            </Link>
+            // Not a dead end. Guests go to the apply form (which carries the
+            // city through); signed-in members register interest instead —
+            // sending an existing member to /apply asks them to apply to
+            // Smileys a second time.
+            <CityInterestLink slug={city.slug} name={city.name} />
           )}
         </div>
       </div>

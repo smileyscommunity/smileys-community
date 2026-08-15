@@ -165,6 +165,7 @@ model User {
   city                       City                    @relation(fields: [cityId], references: [id])
   // Cities joined beyond `city` above. See model CityMembership.
   cityMemberships            CityMembership[]
+  cityInterests              CityInterest[]
   partner                    Partner?                @relation(fields: [partnerId], references: [id])
   visitorAnnouncements       VisitorAnnouncement[]
 
@@ -347,8 +348,30 @@ model City {
   neighborhoods        Neighborhood[]
   guideEntries         GuideEntry[]
   cityMemberships      CityMembership[]
+  cityInterests        CityInterest[]
 
   @@map("cities")
+}
+
+// ── Interest in a city that hasn't launched ─────────────────────────────────
+// Deliberately NOT a CityMembership: you can't be a member of a community that
+// doesn't exist yet, and membership is live-only for exactly that reason. This
+// is "tell me when Bodrum opens" — a signal, not a belonging.
+//
+// It's also what an existing member needs instead of the application form: they
+// already have an account, so sending them to /apply for a pre-launch city asks
+// them to re-apply to Smileys, which is nonsense.
+model CityInterest {
+  id        String   @id @default(cuid())
+  userId    String
+  cityId    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  city      City     @relation(fields: [cityId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, cityId])
+  @@index([cityId])
+  @@map("city_interests")
 }
 
 // ── City membership: the cities a member belongs to beyond their home one ───

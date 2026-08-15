@@ -104,7 +104,7 @@ export default async function CityPage({ params }: Params) {
           {city.description ?? `We're building the ${city.name} community now — founding members, hosts and the first clubs. Join the list and you'll be among the first in.`}
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Link href={`/apply?city=${city.slug}`} className="btn-primary text-base px-8 py-4">Get notified</Link>
+          <JoinCityButton slug={city.slug} name={city.name} live={false} />
           <Link href="/" className="btn-secondary text-base px-8 py-4">See our live cities</Link>
         </div>
       </section>

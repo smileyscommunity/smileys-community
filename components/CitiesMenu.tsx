@@ -82,14 +82,18 @@ export default function CitiesMenu({
             <p className="px-4 pb-1 text-[11px] font-bold uppercase tracking-wider text-gray-400">Coming soon</p>
           </div>
           {soon.map(c => (
+            // Goes to the city's own page, not the apply form. The page is
+            // where the action lives — "Notify me" for signed-in members, the
+            // application for guests — and a menu entry should navigate, not
+            // dump you into a form you may not need.
             <Link
               key={c.slug}
-              href={`/apply?city=${c.slug}`}
+              href={`/${c.slug}`}
               onClick={() => { setOpen(false); onNavigate?.() }}
               className="flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-500 hover:bg-gray-50 rounded-xl transition-colors"
             >
               <span>{c.name}</span>
-              <span className="text-[11px] font-semibold text-amber-600">Get notified</span>
+              <span className="text-[11px] font-semibold text-amber-600">Coming soon</span>
             </Link>
           ))}
         </>

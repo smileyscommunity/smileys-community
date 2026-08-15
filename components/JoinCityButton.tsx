@@ -14,29 +14,44 @@ import { useAuth } from '@/contexts/AuthContext'
 // this one component so exactly one of them ever renders — when the page owned
 // the guest link separately, a signed-in member saw both.
 
-export default function JoinCityButton({ slug, name }: { slug: string; name: string }) {
+export default function JoinCityButton({
+  slug,
+  name,
+  live = true,
+}: {
+  slug: string
+  name: string
+  // Pre-launch cities can't be joined; a signed-in member registers interest
+  // instead. Sending them to /apply would ask an existing member to apply to
+  // Smileys a second time.
+  live?: boolean
+}) {
   const { isLoggedIn } = useAuth()
-  const [state, setState] = useState<'unknown' | 'member' | 'joinable'>('unknown')
+  const [state, setState] = useState<'unknown' | 'member' | 'joinable' | 'interested' | 'notify'>('unknown')
   const [busy, setBusy]   = useState(false)
 
   useEffect(() => {
     if (!isLoggedIn) return
-    fetch('/app/api/me/cities', { credentials: 'include' })
+    const url = live ? '/app/api/me/cities' : '/app/api/me/city-interest'
+    fetch(url, { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
       .then(d => {
-        if (!d?.cities) return
+        if (!d) return
+        if (!live) { setState(d.slugs?.includes(slug) ? 'interested' : 'notify'); return }
+        if (!d.cities) return
         setState(d.cities.some((c: { slug: string }) => c.slug === slug) ? 'member' : 'joinable')
       })
       // Stay 'unknown' and render nothing rather than offering a button whose
       // outcome we can't predict.
       .catch(() => {})
-  }, [isLoggedIn, slug])
+  }, [isLoggedIn, slug, live])
 
-  // Guests: the application flow, carrying the city through.
+  // Guests: the application flow either way — they need an account first, and
+  // the form carries the city through so a pre-launch signup is captured.
   if (!isLoggedIn) {
     return (
       <Link href={`/apply?city=${slug}`} className="btn-primary text-base px-8 py-4">
-        Join Smileys {name}
+        {live ? `Join Smileys ${name}` : `Get notified about ${name}`}
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
         </svg>
@@ -48,6 +63,22 @@ export default function JoinCityButton({ slug, name }: { slug: string; name: str
   // rather than a button whose outcome we can't predict.
   if (state === 'unknown') return null
 
+  if (state === 'interested') {
+    return (
+      <span className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-50 text-amber-700 text-sm font-semibold">
+        ✓ We&rsquo;ll tell you when {name} opens
+      </span>
+    )
+  }
+
+  if (state === 'notify') {
+    return (
+      <button onClick={registerInterest} disabled={busy} className="btn-primary text-base px-8 py-4 disabled:opacity-60">
+        {busy ? 'Saving…' : `Notify me when ${name} opens`}
+      </button>
+    )
+  }
+
   if (state === 'member') {
     return (
       <span className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-50 text-emerald-700 text-sm font-semibold">
@@ -55,6 +86,24 @@ export default function JoinCityButton({ slug, name }: { slug: string; name: str
         You&rsquo;re in {name}
       </span>
     )
+  }
+
+  async function registerInterest() {
+    if (busy) return
+    setBusy(true)
+    try {
+      const res = await fetch('/app/api/me/city-interest', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug }),
+      })
+      const d = await res.json()
+      if (!res.ok) { toast.error(d.error ?? 'Could not save'); return }
+      setState('interested')
+      toast.success(`We'll let you know when ${name} opens`)
+    } catch {
+      toast.error('Could not save')
+    } finally { setBusy(false) }
   }
 
   async function join() {
