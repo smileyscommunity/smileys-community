@@ -28,8 +28,61 @@ export async function getDefaultCityId(): Promise<string> {
 // The city a request is scoped to: the viewer's own city when signed in,
 // the default city for guests. Takes the session structurally so callers
 // don't need the Session type.
+// ── Viewing city (the member-facing city selector) ──────────────────────────
+//
+// A member's HOME city is fixed (User.cityId). The city they're currently
+// LOOKING AT is a cookie, so "show me Athens" is a view change, not a state
+// change — no membership required, instantly reversible, and it costs nothing
+// if they never touch it.
+//
+// It deliberately hooks in at resolveCityId, the single chokepoint every
+// city-scoped feed already calls, so one change makes events, clubs, the board,
+// hangouts and the rest follow the selector together instead of drifting apart.
+//
+// What it must NEVER do is affect authorization. Permission checks read
+// session.cityId directly (canActInCity in lib/access.ts), so a moderator who
+// switches their view to Athens still moderates only their own city. Content
+// scoping and authority are separate on purpose — keep them that way.
+export const VIEW_CITY_COOKIE = 'smileys_city'
+
+// slug → id for live cities only, cached briefly. This sits on every
+// city-scoped request, so it must not cost a query each time.
+const liveCityCache = new Map<string, { id: string | null; expires: number }>()
+const LIVE_TTL_MS = 60_000
+
+async function liveCityIdBySlug(slug: string): Promise<string | null> {
+  const hit = liveCityCache.get(slug)
+  if (hit && hit.expires > Date.now()) return hit.id
+  const city = await prisma.city.findFirst({
+    where:  { slug, status: 'live' },
+    select: { id: true },
+  })
+  const id = city?.id ?? null
+  liveCityCache.set(slug, { id, expires: Date.now() + LIVE_TTL_MS })
+  return id
+}
+
+/**
+ * The city the current request is viewing, or null for "wherever I belong".
+ *
+ * Only `live` cities resolve: a stale cookie naming a paused or pre-launch city
+ * falls back to the member's own rather than emptying every feed.
+ */
+export async function getViewCityId(): Promise<string | null> {
+  try {
+    const { cookies } = await import('next/headers')
+    const slug = (await cookies()).get(VIEW_CITY_COOKIE)?.value?.trim()
+    if (!slug) return null
+    return await liveCityIdBySlug(slug)
+  } catch {
+    // cookies() throws outside a request scope (e.g. inside unstable_cache or
+    // at build time). Falling back is correct there — nobody is "viewing".
+    return null
+  }
+}
+
 export async function resolveCityId(session: { cityId?: string } | null | undefined): Promise<string> {
-  return session?.cityId ?? getDefaultCityId()
+  return (await getViewCityId()) ?? session?.cityId ?? getDefaultCityId()
 }
 
 // ── Per-city config (timezone/currency), cached ─────────────────────────────

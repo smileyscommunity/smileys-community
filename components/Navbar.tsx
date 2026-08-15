@@ -6,6 +6,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import NotificationBell from '@/components/NotificationBell'
 import CitiesMenu from '@/components/CitiesMenu'
+import CitySwitcher from '@/components/CitySwitcher'
 import AccountMenu from '@/components/AccountMenu'
 import { resolveImageUrl } from '@/lib/data'
 import { usePendingConnections } from '@/hooks/usePendingConnections'
@@ -145,7 +146,15 @@ function getPageTitle(pathname: string): string {
 
 export interface NavCity { slug: string; name: string; country: string; status: string }
 
-export default function Navbar({ cities = [] }: { cities?: NavCity[] }) {
+export default function Navbar({
+  cities = [],
+  homeSlug,
+  viewingSlug,
+}: {
+  cities?: NavCity[]
+  homeSlug?: string
+  viewingSlug?: string
+}) {
   const pathname  = usePathname()
   const { user, logout, isLoggedIn } = useAuth()
   const [dropdownOpen, setDropdownOpen] = useState(false)
