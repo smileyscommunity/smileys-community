@@ -7,7 +7,8 @@ interface WeekDay  { day: string; short: string; emoji: string; event: string; d
 interface FaqItem  { q: string; a: string }
 interface FaqSection { id: string; icon: string; title: string; items: FaqItem[] }
 interface Content {
-  stats:         { value: string; label: string }[]
+  // `metric` set = published number comes from the database, not `value`.
+  stats:         { value?: string; label: string; metric?: 'members' | 'events' | 'clubs' }[]
   home:          { headline: string; subtitle: string }
   about:         { headline: string; subtitle: string; story_p1: string; story_p2: string; story_p3: string }
   why:           { headline: string; tagline: string; subtitle: string; closing: string }
@@ -68,6 +69,16 @@ const DEFAULT_CONTENT: Content = {
 }
 
 interface LiveStats { members: number; events: number; clubs: number }
+
+// Which measured number a row means, inferred from its label. Only used when
+// an admin ticks "live"; an unrecognised label falls back to members so the
+// control never silently does nothing.
+function METRIC_FOR(label: string): keyof LiveStats {
+  const l = label.toLowerCase()
+  if (l.includes('club'))  return 'clubs'
+  if (l.includes('event')) return 'events'
+  return 'members'
+}
 
 export default function ContentPage() {
   const [content,   setContent]   = useState<Content | null>(null)
@@ -194,17 +205,35 @@ export default function ContentPage() {
                 <div><span className="text-white font-bold tabular-nums">{live.clubs.toLocaleString('en-US')}</span> <span className="text-zinc-500">active clubs</span></div>
               </div>
               <p className="text-[11px] text-zinc-600 mt-3">
-                Clear a value to fall back to the measured figure. Keep one deliberately if it counts people the platform doesn't
-                — just make sure the label says so, since the city cards on the homepage show platform numbers.
+                Tick “live” on a row to publish the measured figure instead of a typed one — it then tracks the database and
+                can't go stale. Leave it off for numbers the database can't know (our WhatsApp community, events from before
+                the platform), and make sure those labels say what they count: the homepage city cards show platform numbers.
               </p>
             </div>
           )}
           {content.stats.map((s, i) => (
             <div key={i} className="grid grid-cols-2 gap-3">
               <div>
-                <label className={labelCls}>Value</label>
-                <input value={s.value} onChange={e => set('stats', content.stats.map((x, j) => j === i ? { ...x, value: e.target.value } : x))}
-                  className={inputCls} placeholder="4,000+" />
+                <div className="flex items-center justify-between mb-1">
+                  <label className={labelCls}>Value</label>
+                  <label className="flex items-center gap-1.5 text-[11px] text-zinc-400 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={!!s.metric}
+                      onChange={e => set('stats', content.stats.map((x, j) => j === i
+                        ? (e.target.checked
+                            ? { ...x, metric: METRIC_FOR(x.label), value: '' }
+                            : { ...x, metric: undefined })
+                        : x))}
+                    />
+                    live
+                  </label>
+                </div>
+                <input
+                  value={s.metric ? (live ? `${live[s.metric].toLocaleString('en-US')} (live)` : 'live') : (s.value ?? '')}
+                  disabled={!!s.metric}
+                  onChange={e => set('stats', content.stats.map((x, j) => j === i ? { ...x, value: e.target.value } : x))}
+                  className={`${inputCls} disabled:opacity-60`} placeholder="4,000+" />
               </div>
               <div>
                 <label className={labelCls}>Label</label>

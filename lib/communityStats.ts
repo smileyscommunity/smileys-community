@@ -51,6 +51,16 @@ export function approx(n: number): string {
 }
 
 /** The stat row shape the footer and marketing pages render. */
+export interface StatRow {
+  value?: string
+  label: string
+  // When set, `value` is ignored and the number is measured instead. This is
+  // how a stat stops going stale: "Active clubs" tracks the database, while
+  // "in our WhatsApp groups" stays editorial because nothing in the database
+  // knows about WhatsApp.
+  metric?: keyof CommunityStats
+}
+
 export async function getDefaultStatRow(): Promise<{ value: string; label: string }[]> {
   const s = await getCommunityStats()
   return [
@@ -58,4 +68,24 @@ export async function getDefaultStatRow(): Promise<{ value: string; label: strin
     { value: approx(s.events),  label: 'Events hosted' },
     { value: approx(s.clubs),   label: 'Active clubs' },
   ]
+}
+
+/**
+ * The stats every public surface renders: the admin's editorial rows, with any
+ * `metric`-backed row replaced by a measured, rounded-down figure.
+ *
+ * Resolved centrally rather than per page — the footer, About, Why, Advertise
+ * and Get-involved all showed their own hard-coded numbers once, which is how
+ * the club count ended up published as three different values.
+ */
+export async function resolveStats(rows: StatRow[] | undefined): Promise<{ value: string; label: string }[]> {
+  if (!rows?.length) return getDefaultStatRow()
+  if (!rows.some(r => r.metric)) {
+    return rows.map(r => ({ value: r.value ?? '', label: r.label }))
+  }
+  const s = await getCommunityStats()
+  return rows.map(r => ({
+    value: r.metric ? approx(s[r.metric]) : (r.value ?? ''),
+    label: r.label,
+  }))
 }

@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { resolveStats } from '@/lib/communityStats'
 import { APP_URL } from '@/lib/env'
 import AdvertiseFormClient from './AdvertiseFormClient'
 import { loadContent } from '@/lib/content'
@@ -112,7 +113,7 @@ const SECTORS = [
   'Finance & legal services', 'Tech & startups', 'Travel & tours',
 ]
 
-export default function AdvertisePage() {
+export default async function AdvertisePage() {
   const c   = loadContent()
   const adv = c.advertise ?? {}
   // Optional rate card, editable from /admin/content without a deploy.
@@ -120,12 +121,7 @@ export default function AdvertisePage() {
   // { "newsletter": "from ₺7.500" }. Formats without a price show
   // "Custom pricing" so we never publish a number nobody set.
   const PRICES: Record<string, string> = adv.prices ?? {}
-  const STATS = c.stats ?? [
-    { value: '4,000+', label: 'Community members'    },
-    { value: '500+',   label: 'Experiences hosted'   },
-    { value: '85%',    label: 'International members' },
-    { value: '70+',    label: 'Interest clubs'        },
-  ]
+  const STATS = await resolveStats(c.stats)
   return (
     <main>
 

@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { resolveStats } from '@/lib/communityStats'
 import Image from 'next/image'
 import { APP_URL } from '@/lib/env'
 import { loadContent } from '@/lib/content'
@@ -86,13 +87,13 @@ const HOW_IT_WORKS = [
   },
 ]
 
-export default function AboutPage() {
+export default async function AboutPage() {
   const c     = loadContent()
   const about = c.about ?? {}
   // `??` only triggers on null/undefined — an empty `c.stats = []`
   // would otherwise render zero stat tiles. Guard on .length so the
   // defaults are used whenever content didn't supply any.
-  const rawStats = c.stats?.length ? c.stats : DEFAULT_STATS
+  const rawStats = await resolveStats(c.stats)
   if (process.env.NODE_ENV !== 'production' && rawStats.length > 3) {
     console.warn(`[about] content has ${rawStats.length} stats but the layout only shows 3 — extras silently dropped. Trim content.json or widen the grid.`)
   }

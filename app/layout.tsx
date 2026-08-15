@@ -14,7 +14,7 @@ import { BRAND_AMBER } from '@/lib/constants'
 
 import { APP_URL } from '@/lib/env'
 import { loadContent } from '@/lib/content'
-import { getDefaultStatRow } from '@/lib/communityStats'
+import { resolveStats } from '@/lib/communityStats'
 
 const siteUrl = APP_URL
 const defaultImage = `${siteUrl}/api/og`
@@ -66,8 +66,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const nonce = (await headers()).get('x-nonce') ?? undefined
   // Admin override wins; otherwise the footer shows measured numbers rather
   // than a hard-coded figure that drifts (see lib/communityStats).
-  const editorial = loadContent().stats
-  const footerStats = editorial?.length ? editorial : await getDefaultStatRow()
+  const footerStats = await resolveStats(loadContent().stats)
   // Sitewide Organization schema — feeds Google's brand/knowledge-panel
   // signals. Not LocalBusiness: Smileys has no single storefront, events run
   // across venues city-wide. sameAs mirrors the social links in Footer.tsx.

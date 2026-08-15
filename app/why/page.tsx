@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { resolveStats } from '@/lib/communityStats'
 import { APP_URL } from '@/lib/env'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
@@ -101,6 +102,7 @@ export default async function WhyPage() {
   const [dbTestimonials, dbPhotos, clubs] = await getWhyPageData()
 
   const c    = loadContent()
+  const stats = await resolveStats(c.stats)
   const week = (c.week?.length > 0 ? c.week : null) ?? WEEK
   const why  = c.why ?? {}
   const testimonials = dbTestimonials.length > 0 ? dbTestimonials : MOCK_TESTIMONIALS
@@ -149,12 +151,7 @@ export default async function WhyPage() {
               requires. Also fixes the value size previously going
               4xl → md:3xl → lg:4xl (shrinking then growing back). */}
           <dl className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-10 sm:gap-6 text-center text-white">
-            {(c.stats ?? [
-              { value: '4,000+', label: 'Members'        },
-              { value: '500+',   label: 'Events hosted'  },
-              { value: '20+',    label: 'Active clubs'   },
-              { value: '59+',    label: 'Neighborhoods' },
-            ]).map((s: { value: string; label: string }) => (
+            {stats.map((s: { value: string; label: string }) => (
               <div key={s.label} className="flex flex-col-reverse gap-1">
                 <dt className="text-amber-100 text-sm uppercase tracking-wider">{s.label}</dt>
                 <dd className="text-4xl md:text-5xl font-extrabold">{s.value}</dd>

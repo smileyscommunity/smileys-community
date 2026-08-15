@@ -49,7 +49,7 @@ function str(v: unknown, max: number): string {
 
 interface HeroBlock { headline?: string; subtitle?: string; badge?: string }
 interface ContentValue {
-  stats?:        Array<{ value: string; label: string }>
+  stats?:        Array<{ value?: string; label: string; metric?: 'members' | 'events' | 'clubs' }>
   home?:         { headline: string; subtitle: string }
   about?:        { headline: string; subtitle: string; story_p1: string; story_p2: string; story_p3: string }
   why?:          { headline: string; tagline: string; subtitle: string; closing: string }

@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { resolveStats } from '@/lib/communityStats'
 
 export const metadata = {
   title: 'Get Involved — Smileys Community',
@@ -62,10 +63,10 @@ const STATS_FALLBACK = [
   { value: '500+', label: 'Experiences hosted' },
 ]
 
-export default function GetInvolvedPage() {
+export default async function GetInvolvedPage() {
   const c          = loadContent()
   const gi         = c.get_involved ?? {}
-  const STATS      = c.stats?.slice(0, 3) ?? STATS_FALLBACK
+  const STATS      = (await resolveStats(c.stats)).slice(0, 3)
   return (
     <main>
 
