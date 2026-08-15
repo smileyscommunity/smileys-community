@@ -70,7 +70,7 @@ export default function Footer({ stats }: FooterProps) {
             ))}
             <span className="text-gray-200 hidden sm:block">|</span>
             <span className="flex items-center gap-2">
-              🇹🇷 <span>Based in Istanbul</span>
+              🇹🇷 <span>Founded in Istanbul</span>
             </span>
           </div>
         </div>

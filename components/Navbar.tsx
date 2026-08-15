@@ -268,40 +268,10 @@ export default function Navbar({
             </div>
 
 
-            {user.role === 'admin' && (
-              <Link
-                href="/admin"
-                className={`px-4 py-2 rounded-lg text-sm transition-colors ${
-                  isActive('/admin') ? activeClass : inactiveClass
-                }`}
-              >
-                Admin Panel
-              </Link>
-            )}
-            {user.role === 'moderator' && (
-              <Link
-                href="/admin/moderator"
-                className={`px-4 py-2 rounded-lg text-sm transition-colors ${
-                  isActive('/admin/moderator')
-                    ? 'text-violet-700 bg-violet-100 font-semibold'
-                    : inactiveClass
-                }`}
-              >
-                Mod Panel
-              </Link>
-            )}
-            {user.isClubHost && (
-              <Link
-                href="/host"
-                className={`px-4 py-2 rounded-lg text-sm transition-colors ${
-                  isActive('/host')
-                    ? 'text-blue-700 bg-blue-100 font-semibold'
-                    : inactiveClass
-                }`}
-              >
-                Host Panel
-              </Link>
-            )}
+            {/* Admin, Mod and Host panels deliberately aren't here. They're in
+                the avatar menu, which is where your own tools belong — the bar
+                is for what everyone does. Same call as the bottom nav on
+                mobile, so the two read the same. */}
           </nav>
 
           {/* Right side */}
