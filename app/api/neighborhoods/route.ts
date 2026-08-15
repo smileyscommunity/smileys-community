@@ -14,7 +14,21 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
   }
   const session = await getSession()
-  const neighborhoods = await getNeighborhoodsForCity(await resolveCityId(session))
+  // ?city=<slug> serves another city's list (destination pickers); unknown
+  // slugs fail closed to an empty list. Default: the viewer's city.
+  let cityId: string
+  const citySlug = req.nextUrl.searchParams.get('city')?.trim()
+  if (citySlug) {
+    const { prisma } = await import('@/lib/prisma')
+    const c = await prisma.city.findFirst({
+      where: { slug: citySlug, status: { in: ['live', 'preparing'] } },
+      select: { id: true },
+    })
+    cityId = c?.id ?? '__no_such_city__'
+  } else {
+    cityId = await resolveCityId(session)
+  }
+  const neighborhoods = await getNeighborhoodsForCity(cityId)
   // 60s edge cache mirrors the helper's in-memory TTL.
   return NextResponse.json({ neighborhoods }, {
     headers: { 'Cache-Control': 'public, max-age=60, stale-while-revalidate=300' },

@@ -104,7 +104,9 @@ export default async function VisitingPage() {
     // still be told to "add your travel dates" right below their own card.
     session
       ? prisma.visitorAnnouncement.findFirst({
-          where:   { userId: session.id, status: 'active', endsOn: { gte: today } },
+          // Scoped to THIS page's city — a visit posted to another city must
+          // not drive Istanbul's "events during your stay" sections.
+          where:   { userId: session.id, status: 'active', endsOn: { gte: today }, cityId: await getDefaultCityId() },
           orderBy: { startsOn: 'asc' },
           select:  { startsOn: true, endsOn: true, neighborhood: true },
         })

@@ -19,10 +19,26 @@ export async function GET(req: NextRequest) {
   const today        = new Date().toISOString().split('T')[0]
 
   const session = await getSession()
+  // ?city=<slug> browses another city's visitors (the /[city] pages use
+  // this); unknown slugs fail closed to an empty list, and the default
+  // stays the viewer's own city.
+  let cityId: string
+  const citySlug = searchParams.get('city')?.trim()
+  if (citySlug) {
+    // Same statuses /api/cities publishes minus coming_soon — a paused
+    // city's visits must not be readable by guessing its slug.
+    const c = await prisma.city.findFirst({
+      where: { slug: citySlug, status: { in: ['live', 'preparing'] } },
+      select: { id: true },
+    })
+    cityId = c?.id ?? '__no_such_city__'
+  } else {
+    cityId = await resolveCityId(session)
+  }
   const announcements = await prisma.visitorAnnouncement.findMany({
     where: {
       status: 'active',
-      cityId: await resolveCityId(session),
+      cityId,
       endsOn: { gte: today },
       // Visibility is enforced here as well as on the page — otherwise a
       // guest could read members-only visits straight off the API while
@@ -85,7 +101,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Trip ends in the past' }, { status: 400 })
     }
 
-    const safeNeighborhood = await safeNeighborhoodFor(await resolveCityId(session), neighborhood)
+    // Destination city — the city being VISITED, chosen on the form. Only
+    // LIVE cities accept visits: a visit needs a community that can see it
+    // and welcome the visitor, and until per-city visiting surfaces exist,
+    // anything less than live is write-only — dates stored, shown to nobody.
+    // The status gate applies to the no-slug fallback too (older clients /
+    // the poster's own city), so both paths share one rule.
+    const citySlug = typeof body.city === 'string' ? body.city.trim() : ''
+    const dest = citySlug
+      ? await prisma.city.findUnique({ where: { slug: citySlug }, select: { id: true, slug: true, status: true } })
+      : await prisma.city.findUnique({ where: { id: await resolveCityId(session) }, select: { id: true, slug: true, status: true } })
+    if (!dest || dest.status !== 'live') {
+      return NextResponse.json({ error: 'That city is not open for visits yet' }, { status: 400 })
+    }
+    const destCityId = dest.id
+
+    const safeNeighborhood = await safeNeighborhoodFor(destCityId, neighborhood)
 
     const safeTravelerType = typeof travelerType === 'string'
       && (VISITOR_TRAVELER_TYPES as readonly { value: string }[]).some(t => t.value === travelerType)
@@ -110,9 +141,7 @@ export async function POST(req: NextRequest) {
     const created = await prisma.visitorAnnouncement.create({
       data: {
         userId:       session?.id ?? null,
-        // Destination city. Guests (userId null) land on the default city;
-        // a real destination picker arrives with the multi-city Visiting UI.
-        cityId:       await resolveCityId(session),
+        cityId:       destCityId,
         name:         name.trim().slice(0, 80),
         email:        typeof email === 'string' ? email.trim().slice(0, 200) || null : null,
         fromCity:     typeof fromCity === 'string' ? fromCity.trim().slice(0, 80) || null : null,
@@ -136,7 +165,10 @@ export async function POST(req: NextRequest) {
     // Skip if no neighborhood (avoid spamming everyone).
     if (safeNeighborhood) {
       prisma.user.findMany({
-        where:  { neighborhood: safeNeighborhood, status: 'approved' },
+        // Destination city's locals — neighborhood names are only unique
+        // per city, and an Istanbul 'Moda' ping about an Izmir visit would
+        // be noise even if the names collide.
+        where:  { neighborhood: safeNeighborhood, status: 'approved', cityId: destCityId },
         select: { id: true },
       }).then(locals => {
         for (const u of locals) {
@@ -146,7 +178,9 @@ export async function POST(req: NextRequest) {
             'visitor_announced',
             `👋 Visitor coming to ${safeNeighborhood}`,
             `${created.name.split(' ')[0]} from ${created.fromCity ?? 'abroad'} — ${created.startsOn} to ${created.endsOn}`,
-            `/visiting`,
+            // City-aware link: the default city's visitors live on /visiting,
+            // any other city's on its own landing page.
+            dest.slug === 'istanbul' ? '/visiting' : `/${dest.slug}`,
           ).catch(() => {})
         }
       }).catch(() => {})

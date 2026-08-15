@@ -4,10 +4,19 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from 'sonner'
-import { ISTANBUL_NEIGHBORHOODS, VISITOR_TRAVELER_TYPES, VISITOR_LOOKING_FOR, VISITOR_VISIBILITY } from '@/lib/data'
+import { VISITOR_TRAVELER_TYPES, VISITOR_LOOKING_FOR, VISITOR_VISIBILITY } from '@/lib/data'
+
+type PublicCity = { slug: string; name: string; status: string }
 
 export default function NewVisitingPage() {
   const { user } = useAuth()
+
+  // Destination: which Smileys city this visit is TO. The picker only
+  // renders once a second city exists (same progressive reveal as the
+  // apply form) — Istanbul-only stays a one-city form.
+  const [cities,        setCities]        = useState<PublicCity[]>([])
+  const [destination,   setDestination]   = useState('istanbul')
+  const [neighborhoods, setNeighborhoods] = useState<string[]>([])
 
   const [name,         setName]         = useState('')
   const [fromCity,     setFromCity]     = useState('')
@@ -35,6 +44,32 @@ export default function NewVisitingPage() {
     if (user.name && !name) setName(user.name)
   }, [user.name, name])
 
+  useEffect(() => {
+    // Visitable = LIVE only: a visit needs a community that can actually
+    // see it and respond. The API enforces the same rule; with one live
+    // city the picker simply never renders.
+    fetch('/app/api/cities')
+      .then(r => r.json())
+      .then((rows: PublicCity[]) => setCities(rows.filter(c => c.status === 'live')))
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    // Neighborhood options follow the destination; clear a stale pick when
+    // the destination changes so an Istanbul neighborhood can't ride along
+    // on an Izmir visit. The cancelled flag drops out-of-order responses —
+    // a slow earlier fetch must not overwrite a faster later one.
+    let cancelled = false
+    setNeighborhood('')
+    fetch(`/app/api/neighborhoods?city=${encodeURIComponent(destination)}`)
+      .then(r => r.json())
+      .then(d => { if (!cancelled) setNeighborhoods((d.neighborhoods ?? []).map((n: { name: string }) => n.name)) })
+      .catch(() => { if (!cancelled) setNeighborhoods([]) })
+    return () => { cancelled = true }
+  }, [destination])
+
+  const cityName = cities.find(c => c.slug === destination)?.name ?? 'Istanbul'
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
@@ -48,7 +83,7 @@ export default function NewVisitingPage() {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name, fromCity: fromCity || undefined,
+          name, city: destination, fromCity: fromCity || undefined,
           intro, startsOn, endsOn, neighborhood: neighborhood || undefined,
           contact: contact || undefined,
           travelerType: travelerType || undefined,
@@ -74,7 +109,7 @@ export default function NewVisitingPage() {
     // Native share sheet on mobile, clipboard everywhere else. A cancelled
     // share rejects, which is not an error worth surfacing.
     if (navigator.share) {
-      try { await navigator.share({ title: 'My Istanbul visit', url }) } catch { /* dismissed */ }
+      try { await navigator.share({ title: `My ${cityName} visit`, url }) } catch { /* dismissed */ }
       return
     }
     try {
@@ -91,7 +126,7 @@ export default function NewVisitingPage() {
         <div className="max-w-xl mx-auto px-4 sm:px-6 py-16 sm:py-24 text-center">
           <div aria-hidden="true" className="text-6xl mb-6">👋</div>
           <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">
-            Istanbul knows you&apos;re coming.
+            {cityName} knows you&apos;re coming.
           </h1>
           <p className="text-base text-gray-700 mt-4">
             Your visit is now visible to the Smileys community.
@@ -109,9 +144,9 @@ export default function NewVisitingPage() {
               className="flex-1 inline-flex items-center justify-center px-6 py-3.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl transition-colors">
               See my visitor card
             </Link>
-            <Link href="/neighborhoods"
+            <Link href={destination === 'istanbul' ? '/neighborhoods' : `/${destination}`}
               className="flex-1 inline-flex items-center justify-center px-6 py-3.5 border border-gray-200 hover:bg-white text-gray-700 font-bold rounded-xl transition-colors">
-              Explore Istanbul
+              Explore {cityName}
             </Link>
           </div>
           <button onClick={shareVisit}
@@ -130,7 +165,7 @@ export default function NewVisitingPage() {
           <Link href="/visiting" className="text-sm text-gray-400 hover:text-gray-600 mb-4 inline-flex items-center gap-1 transition-colors">
             ← All visitors
           </Link>
-          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">Coming to Istanbul?</h1>
+          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">Coming to {cities.length > 1 ? cityName : 'Istanbul'}?</h1>
           <p className="text-base text-gray-600 mt-1">
             Put yourself on the Smileys radar and start making connections before you arrive.
           </p>
@@ -154,6 +189,15 @@ export default function NewVisitingPage() {
             </div>
           </div>
 
+          {cities.length > 1 && (
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1.5">Where are you visiting?</label>
+              <select value={destination} onChange={e => setDestination(e.target.value)} className="input bg-white">
+                {cities.map(c => <option key={c.slug} value={c.slug}>{c.name}</option>)}
+              </select>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">From</label>
@@ -171,7 +215,7 @@ export default function NewVisitingPage() {
             </label>
             <select value={neighborhood} onChange={e => setNeighborhood(e.target.value)} className="input bg-white">
               <option value="">— Not sure yet —</option>
-              {ISTANBUL_NEIGHBORHOODS.map(n => <option key={n} value={n}>{n}</option>)}
+              {neighborhoods.map(n => <option key={n} value={n}>{n}</option>)}
             </select>
             <p className="text-xs text-gray-400 mt-1">Locals from that area get notified.</p>
           </div>
@@ -260,7 +304,7 @@ export default function NewVisitingPage() {
             className="w-full inline-flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition-colors">
             {submitting ? 'Posting…' : (
               <>
-                Let Istanbul Know I&apos;m Coming
+                Let {cityName} Know I&apos;m Coming
                 <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                 </svg>
