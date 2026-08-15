@@ -92,7 +92,7 @@ export default function Footer({ stats }: FooterProps) {
               </span>
             </Link>
             <p className="text-sm text-gray-600 leading-relaxed max-w-xs mb-5">
-              Real people, genuine friendships, unforgettable Istanbul experiences.
+              Real people, genuine friendships, unforgettable experiences.
             </p>
 
             {/* Social links */}
