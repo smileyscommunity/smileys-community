@@ -82,7 +82,7 @@ const memberPrimary = [
   { label: 'Members', href: '/members' },
 ]
 
-// Everything else lives under a "Discover ▾" dropdown so the bar stays calm.
+// Everything else lives under the "Discover ▾" dropdown so the bar stays calm.
 // Adding new content sections in the future drops in here instead of bloating
 // the top row.
 // Everything that isn't a primary action. Ordered by what a visitor deciding
@@ -195,25 +195,9 @@ export default function Navbar({ cities = [] }: { cities?: NavCity[] }) {
 
           {/* Desktop nav */}
           <nav className="hidden md:flex items-center gap-1">
-            {(isLoggedIn ? memberPrimary : guestPrimary).map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={`relative px-4 py-2 rounded-lg text-sm transition-colors ${
-                  isActive(link.href) ? activeClass : inactiveClass
-                }`}
-              >
-                {link.label}
-                {link.href === '/members' && pendingConnections > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                    {pendingConnections > 9 ? '9+' : pendingConnections}
-                  </span>
-                )}
-              </Link>
-            ))}
-
-            {/* Discover ▾ — groups everything that isn't Events/Clubs/Members
-                so the bar stays calm as new content sections get added. */}
+            {/* Discover ▾ and Cities ▾ lead the bar, ahead of the direct
+                links: they're the two entries that grow, so they anchor the
+                left edge while Events/Clubs/Visiting stay a fixed set. */}
             <div className="relative" ref={discoverRef}>
               {(() => {
                 const visible = discoverLinks.filter(link => (isLoggedIn || link.public) && !(isLoggedIn && link.guestOnly))
@@ -278,6 +262,24 @@ export default function Navbar({ cities = [] }: { cities?: NavCity[] }) {
             {/* Cities ▾ — first-class, and populated from the database so a city
                 an admin takes live appears here with no deploy. */}
             <CitiesMenu initial={cities} />
+
+            {(isLoggedIn ? memberPrimary : guestPrimary).map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={`relative px-4 py-2 rounded-lg text-sm transition-colors ${
+                  isActive(link.href) ? activeClass : inactiveClass
+                }`}
+              >
+                {link.label}
+                {link.href === '/members' && pendingConnections > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                    {pendingConnections > 9 ? '9+' : pendingConnections}
+                  </span>
+                )}
+              </Link>
+            ))}
+
 
             {user.role === 'admin' && (
               <Link
