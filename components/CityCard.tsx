@@ -3,7 +3,6 @@ import Link from 'next/link'
 import { CITY_STATUS, CITY_STATUS_META, type PublicCity } from '@/lib/cityStatus'
 import { resolveImageUrl } from '@/lib/data'
 import { countryName } from '@/lib/country'
-import CityInterestLink from '@/components/CityInterestLink'
 
 // One card, every city, every stage. A city moves coming_soon → preparing →
 // live by an admin changing a dropdown; this component is what makes that flip
@@ -93,21 +92,23 @@ export default function CityCard({ city, featured = false }: { city: PublicCity;
               <span aria-hidden="true">→</span>
             </span>
           ) : (
-            // Not a dead end. Guests go to the apply form (which carries the
-            // city through); signed-in members register interest instead —
-            // sending an existing member to /apply asks them to apply to
-            // Smileys a second time.
-            <CityInterestLink slug={city.slug} name={city.name} />
+            // The notify action lives on the city's page, not here: a button
+            // inside a link is a nested interactive element, and that page can
+            // tell a guest from a member properly.
+            <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-700 group-hover:gap-2.5 transition-all">
+              About {city.name}
+              <span aria-hidden="true">→</span>
+            </span>
           )}
         </div>
       </div>
     </div>
   )
 
-  // Only live cities are clickable as a whole; for the rest the inner "Get
-  // notified" link is the only affordance, so the card can't promise a
-  // destination that has nothing on it.
-  return isLive
-    ? <Link href={`/${city.slug}`} className="group block h-full">{body}</Link>
-    : <div className="h-full">{body}</div>
+  // Every card links to its city, live or not. The original rule — only live
+  // cities clickable — was written when a pre-launch city had no page worth
+  // visiting. It has one now (its photo, its description, and the notify
+  // action), so an unclickable card just looks broken: people click the photo
+  // and nothing happens.
+  return <Link href={`/${city.slug}`} className="group block h-full">{body}</Link>
 }
