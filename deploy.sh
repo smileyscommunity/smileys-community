@@ -109,7 +109,15 @@ if [ -z "$SKIP_BUILD" ]; then
   # UPLOAD_SOURCEMAPS=1 — it costs ~52s and only matters if you're about to
   # debug a production JS error. Skipped by default: `UPLOAD_SOURCEMAPS=1
   # ./deploy.sh` to include it for a release you expect to need that for.
-  APP_RELEASE="$APP_RELEASE" npm run build
+  # Raise the build worker's heap. Node defaults to ~2.2GB on this 8GB machine,
+  # and "Collecting build traces" runs out on a project this size — the worker
+  # dies with SIGTERM, or leaves a half-written .next and the build fails with a
+  # baffling `ENOENT ... pages-manifest.json` / `page.js.nft.json`. Neither
+  # message says "out of memory", so this reads as random flakiness and gets
+  # retried instead of fixed (it cost several deploy attempts on 2026-08-15).
+  # Respects an existing NODE_OPTIONS rather than clobbering it.
+  NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--max-old-space-size=4096" \
+    APP_RELEASE="$APP_RELEASE" npm run build
 else
   echo "→ Skipping build (SKIP_BUILD set, using existing .next)..."
 fi
