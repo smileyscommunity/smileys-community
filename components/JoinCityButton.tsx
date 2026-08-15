@@ -26,7 +26,7 @@ export default function JoinCityButton({
   // Smileys a second time.
   live?: boolean
 }) {
-  const { isLoggedIn } = useAuth()
+  const { isLoggedIn, isLoading } = useAuth()
   const [state, setState] = useState<'unknown' | 'member' | 'joinable' | 'interested' | 'notify'>('unknown')
   const [busy, setBusy]   = useState(false)
 
@@ -45,6 +45,14 @@ export default function JoinCityButton({
       // outcome we can't predict.
       .catch(() => {})
   }, [isLoggedIn, slug, live])
+
+  // Auth resolves client-side and starts as "not logged in", so rendering the
+  // guest CTA while it loads showed members an apply link for a second — long
+  // enough to click, which is exactly how a member ended up on the application
+  // form for a city they'd already joined Smileys for. Wait instead.
+  if (isLoading) {
+    return <span className="inline-block h-[52px] w-56 rounded-xl bg-gray-100 animate-pulse" aria-hidden="true" />
+  }
 
   // Guests: the application flow either way — they need an account first, and
   // the form carries the city through so a pre-launch signup is captured.

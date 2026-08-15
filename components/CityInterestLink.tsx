@@ -14,7 +14,7 @@ import { useAuth } from '@/contexts/AuthContext'
 // nonsense, and it's what this replaces.
 
 export default function CityInterestLink({ slug, name }: { slug: string; name: string }) {
-  const { isLoggedIn } = useAuth()
+  const { isLoggedIn, isLoading } = useAuth()
   const [done, setDone] = useState(false)
   const [busy, setBusy] = useState(false)
 
@@ -25,6 +25,12 @@ export default function CityInterestLink({ slug, name }: { slug: string; name: s
       .then(d => { if (d?.slugs?.includes(slug)) setDone(true) })
       .catch(() => {})
   }, [isLoggedIn, slug])
+
+  // Same reason as JoinCityButton: don't show the guest link to a member who
+  // simply hasn't been recognised yet.
+  if (isLoading) {
+    return <span className="inline-block h-5 w-24 rounded bg-gray-100 animate-pulse" aria-hidden="true" />
+  }
 
   if (!isLoggedIn) {
     return (
