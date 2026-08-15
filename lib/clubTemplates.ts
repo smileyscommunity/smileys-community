@@ -27,6 +27,17 @@ export interface ClubTemplate {
 }
 
 export const CLUB_TEMPLATES: ClubTemplate[] = [
+  // The flagship. Istanbul's equivalent (Social Istanbul) holds 1,446 members
+  // — roughly every approved member, and four times the next biggest club — yet
+  // it predates this catalogue, so cities seeded from templates were launching
+  // without their single most important club. It leads the list because it's
+  // the one every member joins and the natural home for a new city's first
+  // gathering.
+  {
+    key: 'social', name: 'Social {city}', category: 'Social',
+    emoji: '💬', color: 'text-amber-600', bgColor: 'bg-amber-50',
+    description: 'The signature Smileys gathering in {city} — the easiest way to meet people, whether you arrived last week or grew up here.',
+  },
   {
     key: 'language-exchange', name: 'Language Exchange', category: 'Language',
     emoji: '💬', color: 'text-purple-600', bgColor: 'bg-purple-50',
