@@ -15,6 +15,7 @@ import { BRAND_AMBER } from '@/lib/constants'
 import { APP_URL } from '@/lib/env'
 import { loadContent } from '@/lib/content'
 import { resolveStats } from '@/lib/communityStats'
+import { getNavCities } from '@/lib/cities'
 
 const siteUrl = APP_URL
 const defaultImage = `${siteUrl}/api/og`
@@ -67,6 +68,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // Admin override wins; otherwise the footer shows measured numbers rather
   // than a hard-coded figure that drifts (see lib/communityStats).
   const footerStats = await resolveStats(loadContent().stats)
+  // Server-rendered so Cities is in the HTML rather than appearing after
+  // hydration: it's a first-class nav item, and crawlers need to find the city
+  // pages through it.
+  const navCities = await getNavCities()
   // Sitewide Organization schema — feeds Google's brand/knowledge-panel
   // signals. Not LocalBusiness: Smileys has no single storefront, events run
   // across venues city-wide. sameAs mirrors the social links in Footer.tsx.
@@ -113,7 +118,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       </head>
       <body className="min-h-screen flex flex-col bg-white">
         <AuthProvider>
-          <Navbar />
+          <Navbar cities={navCities} />
           <VerifyEmailBanner />
           <PendingApprovalBanner />
           <main className="flex-1">{children}</main>

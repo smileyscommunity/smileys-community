@@ -14,23 +14,30 @@ export default function CitiesMenu({
   className = '',
   variant = 'dropdown',
   onNavigate,
+  initial = [],
 }: {
   className?: string
+  // Server-rendered city list from the layout. Without it the menu was absent
+  // from the HTML until a client fetch resolved — invisible to crawlers, and a
+  // pop-in for a nav item that's meant to be first-class.
+  initial?: City[]
   // 'inline' renders the list flat, for the mobile menu panel — a dropdown
   // inside an already-open drawer is a second thing to tap for no reason.
   variant?: 'dropdown' | 'inline'
   onNavigate?: () => void
 }) {
-  const [cities, setCities] = useState<City[]>([])
+  const [cities, setCities] = useState<City[]>(initial)
   const [open, setOpen]     = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
+    // Already server-rendered — don't spend a request re-fetching what we have.
+    if (initial.length > 0) return
     fetch('/app/api/cities')
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (Array.isArray(d)) setCities(d) })
       .catch(() => {})   // nav degrades to no menu rather than throwing
-  }, [])
+  }, [initial.length])
 
   useEffect(() => {
     if (!open) return

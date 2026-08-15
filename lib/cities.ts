@@ -11,6 +11,7 @@
 //   lib/cities.ts      this file — the public catalogue and its statistics.
 // The first two are re-exported here so server callers need one import.
 
+import { unstable_cache } from 'next/cache'
 import { prisma } from './prisma'
 import { todayInTz, DEFAULT_TZ } from './cityTime'
 import { CITY_STATUS, isCityStatus, type CityStatus, type CityStats, type PublicCity } from './cityStatus'
@@ -111,3 +112,15 @@ async function getStatsFor(cityIds: string[]): Promise<Map<string, CityStats>> {
   }
   return out
 }
+
+// Cities for the nav, cached — the layout renders on EVERY page, so this must
+// not cost a query per request. 60s is plenty: a city changes status about as
+// often as someone edits it in the admin, and the nav catching up a minute
+// later is invisible.
+export const getNavCities = unstable_cache(
+  async () => (await getPublicCities()).map(c => ({
+    slug: c.slug, name: c.name, country: c.country, status: c.status,
+  })),
+  ['nav-cities'],
+  { revalidate: 60, tags: ['cities'] },
+)

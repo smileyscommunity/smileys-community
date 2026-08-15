@@ -143,7 +143,9 @@ function getPageTitle(pathname: string): string {
   return ''
 }
 
-export default function Navbar() {
+export interface NavCity { slug: string; name: string; country: string; status: string }
+
+export default function Navbar({ cities = [] }: { cities?: NavCity[] }) {
   const pathname  = usePathname()
   const { user, logout, isLoggedIn } = useAuth()
   const [dropdownOpen, setDropdownOpen] = useState(false)
@@ -275,7 +277,7 @@ export default function Navbar() {
 
             {/* Cities ▾ — first-class, and populated from the database so a city
                 an admin takes live appears here with no deploy. */}
-            <CitiesMenu />
+            <CitiesMenu initial={cities} />
 
             {user.role === 'admin' && (
               <Link
@@ -446,7 +448,7 @@ export default function Navbar() {
               ))}
 
               <p className="px-3 pt-4 pb-1 text-[11px] font-bold uppercase tracking-widest text-gray-400">Cities</p>
-              <div className="px-1"><CitiesMenu variant="inline" onNavigate={() => setMobileOpen(false)} /></div>
+              <div className="px-1"><CitiesMenu initial={cities} variant="inline" onNavigate={() => setMobileOpen(false)} /></div>
 
               <div className="mt-4 pt-3 border-t border-gray-100 space-y-2">
                 {aboutLinks.map(link => (
