@@ -96,7 +96,7 @@ const memberPrimary = [
 const discoverLinks = [
   { label: 'People',          href: '/members',       emoji: '👋', public: true,  guestOnly: true },
   { label: 'Experiences',     href: '/experiences',   emoji: '✨', public: true  },
-  { label: 'Places',          href: '/directory',     emoji: '📍', public: true  },
+  { label: 'Directory',       href: '/directory',     emoji: '📍', public: true  },
   { label: 'Neighborhoods',   href: '/neighborhoods', emoji: '🏘️', public: true  },
   { label: 'City guide',      href: '/guide',         emoji: '🗺️', public: true  },
   { label: 'Handbook',        href: '/handbook',      emoji: '📖', public: true  },
