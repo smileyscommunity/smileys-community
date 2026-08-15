@@ -81,8 +81,13 @@ const WHY = [
 export default async function HomePage() {
   const session = await getSession()
   if (session) {
-    if (session.role === 'admin') redirect('/admin')
-    else redirect('/dashboard')
+    // Everyone lands on the member dashboard, admins included. The logo is the
+    // universal "take me home" control, and sending admins to /admin made it
+    // the one control that couldn't get them home — there was no route back to
+    // their own member view without typing the URL. /admin is a tap away in the
+    // Me sheet and the header, and an admin who can't easily see what members
+    // see stops noticing what members hit.
+    redirect('/dashboard')
   }
 
   // Hero copy and image are admin-editable at /admin/content → Home. Defaults
