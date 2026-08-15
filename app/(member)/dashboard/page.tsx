@@ -5,6 +5,7 @@ import { neighborhoodToSlug } from '@/lib/neighborhoods'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { resolveCityId } from '@/lib/city'
+import { DISCOVER_LINKS } from '@/lib/navLinks'
 import { redirect } from 'next/navigation'
 import { readFileSync } from 'fs'
 import { join } from 'path'
@@ -1809,6 +1810,40 @@ export default async function DashboardPage() {
                 </div>
               </div>
             )}
+
+            {/* ── DISCOVER ──
+                On mobile this is the ONLY route to these pages. The header's
+                Discover dropdown is desktop-only, the bottom bar is full at six
+                tabs, and the account sheet is for your own account — so without
+                this strip a member on a phone cannot reach Experiences, the
+                Guide, the Directory, the Board, Neighborhoods, Stories or
+                Hosts at all.
+                Placed low on purpose: it's for browsing once you've dealt with
+                what you came for, and it uses space the dashboard already has
+                rather than competing for a nav slot. Reads from lib/navLinks so
+                it can't drift from the desktop menu. */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-5">
+              <h2 className="text-sm font-bold text-gray-900 mb-3">Discover</h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {DISCOVER_LINKS.filter(l => !l.guestOnly).map(link => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-gray-50 hover:bg-amber-50 text-sm text-gray-700 hover:text-amber-700 transition-colors"
+                  >
+                    <span aria-hidden="true" className="text-base shrink-0">{link.emoji}</span>
+                    <span className="truncate">{link.label}</span>
+                  </Link>
+                ))}
+                <Link
+                  href="/cities"
+                  className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-gray-50 hover:bg-amber-50 text-sm text-gray-700 hover:text-amber-700 transition-colors"
+                >
+                  <span aria-hidden="true" className="text-base shrink-0">🌍</span>
+                  <span className="truncate">Cities</span>
+                </Link>
+              </div>
+            </div>
 
             {/* (QuickLinks / InviteBanner / ReferralImpact used to render
                 here behind lg:hidden + again in the right column. They
