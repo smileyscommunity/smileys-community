@@ -77,6 +77,7 @@ const discoverLinks = [
   // its own Community post); /cup page + data stay live for anyone linking
   // in from there or a bookmark, just no longer in primary nav.
   { label: 'Hangouts',      href: '/hangouts',      emoji: '☕', public: false },
+  { label: 'Experiences',   href: '/experiences',   emoji: '✨', public: true  },
   { label: 'Guide',         href: '/guide',         emoji: '🗺️', public: true  },
   { label: 'Handbook',      href: '/handbook',      emoji: '📖', public: true  },
   { label: 'Neighborhoods', href: '/neighborhoods', emoji: '🏘️', public: true  },
