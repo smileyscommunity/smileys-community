@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { getInitials, resolveImageUrl, formatDate, formatShortDate } from '@/lib/data'
+import { formatPrice, getInitials, resolveImageUrl, formatDate, formatShortDate } from '@/lib/data'
 
 interface ClubInfo { id: string; name: string; emoji: string; slug: string }
 
@@ -18,6 +18,7 @@ interface FeedItem {
   time?: string
   neighborhood?: string
   price?: number
+  currency?: string
   // post/announcement fields
   content?: string
   author?: { id: string; name: string; color: string; photo: string | null }
@@ -44,7 +45,7 @@ function EventItem({ item }: { item: FeedItem }) {
             {item.date ? formatShortDate(item.date) : ''}{item.time ? ` · ${item.time}` : ''}{item.neighborhood ? ` · ${item.neighborhood}` : ''}
           </p>
           {item.price !== undefined && (
-            <p className="text-xs text-gray-600 mt-1">{item.price === 0 ? 'Free' : `₺${item.price}`}</p>
+            <p className="text-xs text-gray-600 mt-1">{item.price === 0 ? 'Free' : formatPrice(item.price, item.currency)}</p>
           )}
         </div>
         <svg className="w-4 h-4 text-gray-300 shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">

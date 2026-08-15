@@ -1,3 +1,4 @@
+import { dayInTz, DEFAULT_TZ } from './cityTime'
 import { prisma } from '@/lib/prisma'
 
 // "Your First Event" matcher — a deterministic recommender aimed at the
@@ -80,10 +81,8 @@ export function scoreEvent(ev: ScoreInput, ctx: ScoreContext): { score: number; 
 /** Today's date in Istanbul as 'YYYY-MM-DD' (date-only → no 24:MM hazard). */
 export function istanbulDateStr(offsetDays = 0): string {
   const base = new Date(Date.now() + offsetDays * 86_400_000)
-  // en-CA formats as YYYY-MM-DD
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Europe/Istanbul', year: 'numeric', month: '2-digit', day: '2-digit',
-  }).format(base)
+  // Default-city calendar day (lib/cityTime) — per-city when nudges are.
+  return dayInTz(base, DEFAULT_TZ)
 }
 
 /**

@@ -1,6 +1,8 @@
 import { prisma } from './prisma'
 import type { Club, Event, VibeTag } from './data'
 import { todayIstanbul } from './data'
+import { nowInTz, DEFAULT_TZ } from './cityTime'
+import { getCityTz } from './city'
 
 // ── Clubs ─────────────────────────────────────────────────────────────────
 
@@ -178,28 +180,19 @@ export async function getEvents(options?: {
   cityId?: string
 }): Promise<{ events: Event[]; total: number }> {
   const { limit = 24, offset = 0, upcoming, cityId } = options ?? {}
-  // Istanbul date + time of day, computed together so they stay
-  // consistent across midnight. en-CA → YYYY-MM-DD / HH:MM:SS.
-  const istanbulParts = new Date().toLocaleString('en-CA', {
-    timeZone: 'Europe/Istanbul',
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    // hourCycle 'h23' (not hour12:false) — the latter makes some ICU builds
-    // render midnight as "24:MM" instead of "00:MM", which then computes a
-    // bogus ~19:00 cutoff and hides all of today's daytime events for the
-    // first hour after midnight.
-    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-  })
-  // en-CA renders as "YYYY-MM-DD, HH:MM" — split + normalize.
-  const [today, currentHM] = istanbulParts.split(', ')
+  // "Today" and the started-cutoff are computed in the CITY's timezone:
+  // when the feed is scoped to a city we use that city's zone, and the
+  // unscoped traveller view falls back to the default city's. Both live
+  // cities share Europe/Istanbul today, so this is behavior-neutral —
+  // but Athens's evening events must not be cut off on Istanbul's clock.
+  const tz = cityId ? await getCityTz(cityId) : DEFAULT_TZ
+  const { date: today, minutes: nowMins } = nowInTz(tz)
   // Drop events whose start was > 5h ago — keeps in-progress events
   // visible for a typical event's duration but removes finished ones.
-  // Subtract 5h from the current Istanbul time; if that underflows past
-  // midnight, clamp to 00:00 (events that crossed midnight from a previous
-  // day are already excluded by the `date >= today` lower bound).
-  // `% 24` defends against any residual "24:MM" midnight rendering.
-  const [chHraw, chM] = currentHM.split(':').map(Number)
-  const chH = chHraw % 24
-  const cutoffMins  = Math.max(0, chH * 60 + chM - 300)
+  // If subtracting 5h underflows past midnight, clamp to 00:00 (events
+  // that crossed midnight from a previous day are already excluded by
+  // the `date >= today` lower bound).
+  const cutoffMins  = Math.max(0, nowMins - 300)
   const cutoffTime  = `${String(Math.floor(cutoffMins / 60)).padStart(2, '0')}:${String(cutoffMins % 60).padStart(2, '0')}`
 
   // Include 'cancelled' so the EventCard banner is reachable — members

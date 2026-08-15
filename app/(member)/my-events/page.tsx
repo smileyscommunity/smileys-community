@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { formatShortDate, formatTime, resolveImageUrl, todayIstanbul } from '@/lib/data'
+import { formatPrice, formatShortDate, formatTime, resolveImageUrl, todayIstanbul } from '@/lib/data'
 import { useAuth } from '@/contexts/AuthContext'
 import dynamic from 'next/dynamic'
 import EmptyState from '@/components/EmptyState'
@@ -19,6 +19,7 @@ interface MyEvent {
   neighborhood: string
   emoji: string
   price: number
+  currency?: string
   coverImage?: string | null
   status: 'pending' | 'approved' | 'waitlisted'
   eventStatus?: string
@@ -49,7 +50,7 @@ function EventCard({ e, showQr, onQr }: { e: MyEvent; showQr?: boolean; onQr?: (
         <p className="text-xs text-gray-400 mt-0.5">📍 {e.neighborhood}</p>
       </div>
       <div className="text-right shrink-0 flex flex-col items-end justify-between gap-2">
-        <span className="text-sm font-bold text-gray-900">{e.price === 0 ? 'Free' : `₺${e.price}`}</span>
+        <span className="text-sm font-bold text-gray-900">{e.price === 0 ? 'Free' : formatPrice(e.price, e.currency)}</span>
         {showQr && e.eventStatus !== 'cancelled' && onQr && (
           <button onClick={onQr}
             className="flex items-center gap-1 px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-600 rounded-lg text-xs font-semibold transition-colors"

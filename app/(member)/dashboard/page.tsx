@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { formatDate, formatTime, resolveImageUrl, avatarUrl, BLUR_PLACEHOLDER, todayIstanbul } from '@/lib/data'
+import { formatDate, formatTime, formatPrice, resolveImageUrl, avatarUrl, BLUR_PLACEHOLDER, todayIstanbul } from '@/lib/data'
 import { articleCover } from '@/lib/articleCover'
 import { neighborhoodToSlug } from '@/lib/neighborhoods'
 import { prisma } from '@/lib/prisma'
@@ -139,7 +139,7 @@ export default async function DashboardPage() {
   // time (local `tsc --noEmit` didn't catch it; `next build` did).
   const upcomingAttendances = await prisma.eventAttendee.findMany({
     where: { userId: session.id, status: 'approved', event: { date: { gte: today } } },
-    include: { event: { select: { id: true, title: true, date: true, time: true, neighborhood: true, emoji: true, price: true, coverImage: true, limitedSpots: true, spotsLeft: true, lat: true, lng: true } } },
+    include: { event: { select: { id: true, title: true, date: true, time: true, neighborhood: true, emoji: true, price: true, currency: true, coverImage: true, limitedSpots: true, spotsLeft: true, lat: true, lng: true } } },
     orderBy: [{ event: { date: 'asc' } }],
     take: 5,
   })
@@ -257,18 +257,18 @@ export default async function DashboardPage() {
       ? prisma.event.findMany({
           where: { clubId: { in: clubIds }, date: { gte: today }, status: 'published', id: { notIn: joinedEventIds } },
           orderBy: { date: 'asc' }, take: 4,
-          select: { id: true, title: true, date: true, time: true, emoji: true, neighborhood: true, price: true, totalSpots: true, limitedSpots: true, coverImage: true, _count: { select: { attendees: { where: { status: 'approved' } } } } },
+          select: { id: true, title: true, date: true, time: true, emoji: true, neighborhood: true, price: true, currency: true, totalSpots: true, limitedSpots: true, coverImage: true, _count: { select: { attendees: { where: { status: 'approved' } } } } },
         })
       : userProfile?.neighborhood
         ? prisma.event.findMany({
             where: { neighborhood: userProfile.neighborhood, cityId, date: { gte: today }, status: 'published', id: { notIn: joinedEventIds } },
             orderBy: { date: 'asc' }, take: 4,
-            select: { id: true, title: true, date: true, time: true, emoji: true, neighborhood: true, price: true, totalSpots: true, limitedSpots: true, coverImage: true, _count: { select: { attendees: { where: { status: 'approved' } } } } },
+            select: { id: true, title: true, date: true, time: true, emoji: true, neighborhood: true, price: true, currency: true, totalSpots: true, limitedSpots: true, coverImage: true, _count: { select: { attendees: { where: { status: 'approved' } } } } },
           })
         : prisma.event.findMany({
             where: { cityId, date: { gte: today }, status: 'published', id: { notIn: joinedEventIds } },
             orderBy: { date: 'asc' }, take: 4,
-            select: { id: true, title: true, date: true, time: true, emoji: true, neighborhood: true, price: true, totalSpots: true, limitedSpots: true, coverImage: true, _count: { select: { attendees: { where: { status: 'approved' } } } } },
+            select: { id: true, title: true, date: true, time: true, emoji: true, neighborhood: true, price: true, currency: true, totalSpots: true, limitedSpots: true, coverImage: true, _count: { select: { attendees: { where: { status: 'approved' } } } } },
           }),
     // Club joins for the activity wall. Members of clubs see their own
     // clubs' joins; members of none fall back to community-wide joins
@@ -342,7 +342,7 @@ export default async function DashboardPage() {
     prisma.event.findMany({
       where: { featured: true, date: { gte: today }, status: 'published', id: { notIn: joinedEventIds } },
       orderBy: { date: 'asc' }, take: 3,
-      select: { id: true, title: true, date: true, time: true, emoji: true, neighborhood: true, price: true, spotsLeft: true, limitedSpots: true, coverImage: true },
+      select: { id: true, title: true, date: true, time: true, emoji: true, neighborhood: true, price: true, currency: true, spotsLeft: true, limitedSpots: true, coverImage: true },
     }),
     // Spots running low: upcoming events with ≤5 spots left that user hasn't
     // joined. Ordered soonest-first (date is text 'YYYY-MM-DD', so asc = chrono)
@@ -422,7 +422,7 @@ export default async function DashboardPage() {
       where: { date: { gte: today, lte: weekEndStr }, status: 'published' },
       orderBy: { date: 'asc' },
       take: 20,
-      select: { id: true, title: true, date: true, emoji: true, neighborhood: true, price: true },
+      select: { id: true, title: true, date: true, emoji: true, neighborhood: true, price: true, currency: true },
     }),
     prisma.user.count({ where: { status: 'approved' } }),
     prisma.event.count({ where: { date: { gte: today, lte: weekEndStr }, status: 'published' } }),
@@ -461,7 +461,7 @@ export default async function DashboardPage() {
       where: { cityId, date: { gte: today }, status: 'published', id: { notIn: joinedEventIds } },
       orderBy: { attendees: { _count: 'desc' } },
       take: 7,
-      select: { id: true, title: true, date: true, emoji: true, neighborhood: true, price: true, totalSpots: true, spotsLeft: true, limitedSpots: true, _count: { select: { attendees: { where: { status: 'approved' } } } } },
+      select: { id: true, title: true, date: true, emoji: true, neighborhood: true, price: true, currency: true, totalSpots: true, spotsLeft: true, limitedSpots: true, _count: { select: { attendees: { where: { status: 'approved' } } } } },
     }),
     // Members near you: same neighborhood, excluding self
     userProfile?.neighborhood
@@ -1460,7 +1460,7 @@ export default async function DashboardPage() {
                             <p className="text-xs text-gray-400 mt-0.5">{formatDate(event.date)} · {event.neighborhood}</p>
                           </div>
                           <div className="shrink-0 text-right">
-                            <span className="text-xs font-bold text-gray-700">{event.price === 0 ? 'Free' : `₺${event.price}`}</span>
+                            <span className="text-xs font-bold text-gray-700">{event.price === 0 ? 'Free' : formatPrice(event.price, event.currency)}</span>
                             <p className="text-[10px] text-gray-400 mt-0.5">{d === 0 ? 'Today' : d === 1 ? 'Tomorrow' : `${d}d`}</p>
                           </div>
                         </Link>
@@ -1510,7 +1510,7 @@ export default async function DashboardPage() {
                         <p className="text-xs text-gray-600 mt-0.5">{formatDate(event.date)} · 📍 {event.neighborhood}</p>
                       </div>
                       <div className="text-right shrink-0 self-center">
-                        <span className="text-sm font-bold text-gray-900">{event.price === 0 ? 'Free' : `₺${event.price}`}</span>
+                        <span className="text-sm font-bold text-gray-900">{event.price === 0 ? 'Free' : formatPrice(event.price, event.currency)}</span>
                         {event.limitedSpots && event.spotsLeft > 0 && event.spotsLeft <= 5 && (
                           <p className="text-xs text-red-500 font-medium">{event.spotsLeft} left</p>
                         )}
@@ -1605,7 +1605,7 @@ export default async function DashboardPage() {
                         <p className="text-xs text-gray-400 mt-0.5">{formatDate(event.date)} · 📍 {event.neighborhood}</p>
                       </div>
                       <div className="text-right shrink-0 self-center">
-                        <span className="text-sm font-bold text-gray-900">{event.price === 0 ? 'Free' : `₺${event.price}`}</span>
+                        <span className="text-sm font-bold text-gray-900">{event.price === 0 ? 'Free' : formatPrice(event.price, event.currency)}</span>
                       </div>
                     </Link>
                   ))}
@@ -1683,7 +1683,7 @@ export default async function DashboardPage() {
                                   <p className="text-xs text-gray-400 truncate">📍 {e.neighborhood}</p>
                                 </div>
                                 <span className="text-xs font-bold text-gray-600 shrink-0">
-                                  {e.price === 0 ? 'Free' : `₺${e.price}`}
+                                  {e.price === 0 ? 'Free' : formatPrice(e.price, e.currency)}
                                 </span>
                               </Link>
                             ))}
@@ -1874,7 +1874,7 @@ export default async function DashboardPage() {
                     </div>
                     <h3 className="text-sm font-bold text-gray-900 group-hover:text-amber-600 transition-colors leading-snug line-clamp-2">{e.title}</h3>
                     <p className="text-xs text-gray-600 mt-1.5">{formatDate(e.date)} · 📍 {e.neighborhood}</p>
-                    <p className="text-xs font-semibold text-amber-600 mt-1">{e.price === 0 ? 'Free' : `₺${e.price}`}</p>
+                    <p className="text-xs font-semibold text-amber-600 mt-1">{e.price === 0 ? 'Free' : formatPrice(e.price, e.currency)}</p>
                   </div>
                 </Link>
               )

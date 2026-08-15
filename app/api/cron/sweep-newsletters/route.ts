@@ -1,3 +1,4 @@
+import { nowInTz, DEFAULT_TZ } from '@/lib/cityTime'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { sendNewsletterBatch, recordEmailFailure } from '@/lib/email'
@@ -75,8 +76,8 @@ async function runAutoDigest(): Promise<string> {
   const setting = await prisma.appSetting.findUnique({ where: { key: 'autoWeeklyNewsletter' } })
   if (setting?.value !== 'on') return 'off'
 
-  const nowIst = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Istanbul' }))
-  if (nowIst.getDay() !== 1 || nowIst.getHours() < 12) return 'outside-window'
+  const nowIst = nowInTz(DEFAULT_TZ)
+  if (nowIst.weekdayShort !== 'Mon' || nowIst.hour < 12) return 'outside-window'
 
   const recentAuto = await prisma.newsletter.findFirst({
     where: { segment: 'auto-weekly', sentAt: { gte: new Date(Date.now() - 6 * 86_400_000) } },

@@ -4,6 +4,7 @@
 // exists iff it has a META entry. Re-exported here for the many callers that
 // import ISTANBUL_NEIGHBORHOODS from '@/lib/data'.
 export { ISTANBUL_NEIGHBORHOODS } from './neighborhoods'
+import { todayInTz, DEFAULT_TZ } from './cityTime'
 
 export const CLUB_CATEGORIES = [
   'Outdoor', 'Social', 'Food & Drinks', 'Nightlife', 'Networking', 'Business',
@@ -229,10 +230,12 @@ export interface Review {
   createdAt: string
 }
 
+// Delegates to the one shared implementation (lib/cityTime.ts). Call sites
+// that know their city should prefer todayInTz(await getCityTz(cityId));
+// this wrapper IS the default-city behavior and stays for the many surfaces
+// that are still Istanbul-implicit.
 export function todayIstanbul(offsetDays = 0): string {
-  const d = new Date()
-  if (offsetDays) d.setDate(d.getDate() + offsetDays)
-  return d.toLocaleDateString('en-CA', { timeZone: 'Europe/Istanbul' })
+  return todayInTz(DEFAULT_TZ, offsetDays)
 }
 
 // Date boundaries for the homepage event tabs, in Istanbul terms.

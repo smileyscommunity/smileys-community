@@ -1,3 +1,4 @@
+import { todayInTz, DEFAULT_TZ } from './cityTime'
 import { createHash } from 'crypto'
 import { prisma } from './prisma'
 import { sendFirstEventNudgeEmail } from './email'
@@ -78,9 +79,9 @@ function eventCap(ev: Candidate): number {
 }
 
 function istanbulDateStr(offsetDays = 0): string {
-  const ms = Date.now() + offsetDays * 86_400_000
-  const ist = new Date(new Date(ms).toLocaleString('en-US', { timeZone: 'Europe/Istanbul' }))
-  return ist.toISOString().slice(0, 10)
+  // Shared implementation (also drops the old toLocaleString→Date round-trip,
+  // which re-parsed a locale string and leaned on toISOString's UTC clock).
+  return todayInTz(DEFAULT_TZ, offsetDays)
 }
 
 // ── Randomised holdout ────────────────────────────────────────────────────

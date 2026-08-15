@@ -1,3 +1,4 @@
+import { DEFAULT_TZ } from './cityTime'
 // Quarterly Net Promoter Score helpers — shared across the cron
 // dispatcher, the member-facing form, the submit endpoint, and the
 // admin rollup. Single source of truth for period naming and score-
@@ -28,7 +29,7 @@ export function classify(score: number): ScoreBand {
 // in a date library.
 export function periodFor(date: Date = new Date()): string {
   const fmt = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Europe/Istanbul',
+    timeZone: DEFAULT_TZ,
     year:  'numeric',
     month: '2-digit',
   })

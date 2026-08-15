@@ -9,7 +9,7 @@ import RichText from '@/components/RichText'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import { SITE_URL, APP_URL } from '@/lib/env'
-import { resolveImageUrl, avatarUrl, formatShortDate } from '@/lib/data'
+import { resolveImageUrl, avatarUrl, formatShortDate, formatPrice } from '@/lib/data'
 import { loadCommunitySettings, communityInstagramUrl, communityWhatsappUrl, sameSocialUrl } from '@/lib/communitySettings'
 import ClubJoinWidget from './ClubJoinWidget'
 import ClubTabs from './ClubTabs'
@@ -323,7 +323,7 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
                 in lib/db.ts). Silently absent when the club has no
                 upcoming events. */}
             {(() => {
-              const next = clubEvents[0] as { id: string; title: string; date: string; time: string; location: string; neighborhood: string; price: number } | undefined
+              const next = clubEvents[0] as { id: string; title: string; date: string; time: string; location: string; neighborhood: string; price: number; currency?: string } | undefined
               if (!next) return null
               const when = new Date(next.date + 'T00:00:00')
               const today = new Date()
@@ -350,7 +350,7 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
                     <span className="text-amber-200">·</span>
                     <span>📍 {next.neighborhood}</span>
                     <span className="text-amber-200">·</span>
-                    <span className="font-bold">{next.price === 0 ? 'Free' : `₺${next.price}`}</span>
+                    <span className="font-bold">{next.price === 0 ? 'Free' : formatPrice(next.price, next.currency)}</span>
                   </div>
                   <p className="text-xs text-amber-100 mt-3 group-hover:text-white transition-colors">
                     View details + RSVP →

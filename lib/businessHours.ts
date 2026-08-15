@@ -1,3 +1,4 @@
+import { DEFAULT_TZ } from './cityTime'
 // Shared parsing + "open now" logic for Business.hours.
 //
 // Shape:
@@ -84,15 +85,15 @@ const JS_DAY_TO_KEY: Record<number, DayKey> = {
 }
 
 /**
- * Current local time + day-of-week in Europe/Istanbul.
- * Returns minutes-since-midnight + DayKey of the local day.
+ * Current local time + day-of-week in the venue's timezone (default: the
+ * default city's). Returns minutes-since-midnight + DayKey of the local day.
  */
-function nowInIstanbul(): { dayKey: DayKey; minutes: number } {
+function nowInVenueTz(tz: string): { dayKey: DayKey; minutes: number } {
   const now = new Date()
-  // formatToParts with the Istanbul timezone gives us hour/minute/weekday
+  // formatToParts with the venue timezone gives us hour/minute/weekday
   // without dragging in moment or date-fns.
   const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Europe/Istanbul',
+    timeZone: tz,
     // hourCycle 'h23' — hour12:false renders midnight as "24" on some ICU
     // builds, which would make minutes-since-midnight ~1440 instead of ~0
     // and break open/closed status for the first hour after midnight.
@@ -169,7 +170,7 @@ export function formatHoursSchema(hours: BusinessHours | null | undefined): Arra
  * Handles cross-midnight ranges: "21:00-02:00" on Friday is "open"
  * at 01:00 on Saturday via a check against the previous day's range.
  */
-export function getOpenStatus(hours: BusinessHours | null | undefined):
+export function getOpenStatus(hours: BusinessHours | null | undefined, tz: string = DEFAULT_TZ):
   | { open: true;  closesAt: string }
   | { open: false; opensAt?: string }
   | null
@@ -185,7 +186,7 @@ export function getOpenStatus(hours: BusinessHours | null | undefined):
     if (v !== undefined && v !== null && !isValidRange(v)) return null
   }
 
-  const { dayKey, minutes } = nowInIstanbul()
+  const { dayKey, minutes } = nowInVenueTz(tz)
 
   // 1. Today's range — if cross-midnight ("21:00-02:00"), it's "open"
   //    only before the close minute.

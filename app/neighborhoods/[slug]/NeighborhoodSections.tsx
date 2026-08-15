@@ -3,7 +3,7 @@ import Image from 'next/image'
 import { headers } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { neighborhoodToSlug, getNeighborhoodMeta, NEIGHBORHOOD_META } from '@/lib/neighborhoods'
-import { formatShortDate, formatTime, BLUR_PLACEHOLDER, resolveImageUrl, avatarUrl } from '@/lib/data'
+import { formatShortDate, formatTime, formatPrice, BLUR_PLACEHOLDER, resolveImageUrl, avatarUrl } from '@/lib/data'
 import { SITE_URL, APP_URL } from '@/lib/env'
 import NeighborhoodWall from '@/components/NeighborhoodWall'
 import AvatarImg from '@/components/AvatarImg'
@@ -528,7 +528,7 @@ export default async function NeighborhoodSections({
                       )}
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-bold text-gray-900">
-                          {event.price === 0 ? <span className="text-green-600">Free</span> : `₺${event.price}`}
+                          {event.price === 0 ? <span className="text-green-600">Free</span> : formatPrice(event.price, event.currency)}
                         </span>
                         {event.limitedSpots && (
                           <span className={`text-xs font-semibold ${spotsLeft <= 3 ? 'text-red-500' : 'text-gray-400'}`}>

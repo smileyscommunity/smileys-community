@@ -77,8 +77,10 @@ export function seriesCadenceLabel(group: SeriesGroup<SeriesGroupable>): string 
   const all = [group.next, ...group.upcoming]
   const weekdays = new Set(all.map(e => new Date(`${e.date}T12:00:00+03:00`).getUTCDay()))
   if (weekdays.size === 1) {
-    const name = new Date(`${group.next.date}T12:00:00+03:00`)
-      .toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'Europe/Istanbul' })
+    // A calendar date's weekday is timezone-independent — anchor at UTC
+    // noon instead of a city-specific offset literal.
+    const name = new Date(`${group.next.date}T12:00:00Z`)
+      .toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'UTC' })
     return `Every ${name}`
   }
   return `${group.seriesCount} upcoming dates`

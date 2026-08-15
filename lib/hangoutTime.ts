@@ -1,7 +1,10 @@
 // Time helpers for the Hangouts page — split out of the page component so
 // the chip/badge logic is unit-testable with a controlled clock. All
-// day/hour maths in Istanbul wall-clock, matching the rest of the page.
-const TZ = 'Europe/Istanbul'
+// day/hour maths in the DEFAULT city's wall-clock (imported from
+// lib/cityTime — client-safe). When hangout feeds go per-city these helpers
+// should take the city timezone; today both cities share it.
+import { DEFAULT_TZ } from './cityTime'
+const TZ = DEFAULT_TZ
 
 export type TimeFilter = 'all' | 'now' | 'today' | 'tonight' | 'tomorrow' | 'week'
 

@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { resolveCityId } from '@/lib/city'
+import { resolveCityId, getCityTz } from '@/lib/city'
+import { dayInTz, nowInTz } from '@/lib/cityTime'
 import { groupBySeries, seriesCadenceLabel } from '@/lib/eventSeries'
 
 // Events discovery (Events brief §6–7, §14–18): the personalized
@@ -22,18 +23,19 @@ const CARD_SELECT = {
   club: { select: { id: true, name: true, emoji: true, slug: true } },
 } as const
 
-// Istanbul-local day boundaries (UTC+3, no DST) — the same discipline
-// the rest of the app uses for date-as-text columns.
-function istanbulDays() {
-  const fmt = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul' }).format(d)
+// City-local day boundaries — the same discipline the rest of the app uses
+// for date-as-text columns, in the viewer's city's timezone (guests get the
+// default city's, matching the feed scoping below).
+function cityDays(tz: string) {
+  const fmt = (d: Date) => dayInTz(d, tz)
   const now = new Date()
   const today = fmt(now)
   const tomorrow = fmt(new Date(now.getTime() + 86_400_000))
   // Weekend = the coming Sat+Sun (today counts when we're already in it).
-  // Day-of-week comes from the Istanbul date string anchored at local
-  // noon — Intl has no numeric weekday, and noon avoids any edge where a
-  // UTC-midnight anchor lands on the previous day.
-  const dow = new Date(`${today}T12:00:00+03:00`).getUTCDay()
+  // Weekday comes from nowInTz's formatToParts read — no hand-built offset
+  // string, which is what kept the old version welded to UTC+3.
+  const DOW: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
+  const dow = DOW[nowInTz(tz, now).weekdayShort] ?? 0
   const daysToSat = (6 - dow + 7) % 7
   const sat = fmt(new Date(now.getTime() + daysToSat * 86_400_000))
   const sun = fmt(new Date(now.getTime() + (daysToSat + 1) * 86_400_000))
@@ -43,7 +45,8 @@ function istanbulDays() {
 
 export async function GET() {
   const session = await getSession()
-  const { today, sat, sun, weekOut } = istanbulDays()
+  const viewerCityId = await resolveCityId(session)
+  const { today, sat, sun, weekOut } = cityDays(await getCityTz(viewerCityId))
 
   const publishedUpcoming = {
     status: 'published' as const,
@@ -52,7 +55,7 @@ export async function GET() {
   // Feed sections are scoped to the viewer's city (guests → default city).
   // The viewer's OWN RSVPs below stay unscoped on purpose: an event you've
   // joined in another city still belongs in "Going", wherever you are.
-  const cityScoped = { ...publishedUpcoming, cityId: await resolveCityId(session) }
+  const cityScoped = { ...publishedUpcoming, cityId: viewerCityId }
 
   // Logged-out (§56): weekend + soon only, no personalization.
   if (!session) {
