@@ -36,8 +36,12 @@ export const metadata: Metadata = {
     statusBarStyle: 'default',
   },
   openGraph: {
-    title: 'Smileys Community — Istanbul',
-    description: `Join Istanbul's most vibrant social community. Discover events, join clubs, and meet amazing people.`,
+    // Site-wide fallback for any page that doesn't set its own. It named
+    // Istanbul, so every unshared-elsewhere link previewed as an Istanbul-only
+    // community — including the global landing page, now that three cities are
+    // live.
+    title: 'Smileys Community',
+    description: 'Meet people, join clubs and discover experiences. A network of local communities, growing city by city.',
     url: siteUrl,
     siteName: 'Smileys Community',
     images: [{ url: defaultImage, width: 1200, height: 630, alt: 'Smileys Community' }],
@@ -45,8 +49,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Smileys Community — Istanbul',
-    description: `Join Istanbul's most vibrant social community. Discover events, join clubs, and meet amazing people.`,
+    title: 'Smileys Community',
+    description: 'Meet people, join clubs and discover experiences. A network of local communities, growing city by city.',
     images: [defaultImage],
   },
 }

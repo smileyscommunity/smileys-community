@@ -12,6 +12,7 @@ import { resolveImageUrl, istanbulEventWindow } from '@/lib/data'
 import { getPublicCities, getDefaultCityId, CITY_STATUS } from '@/lib/cities'
 import { APP_URL } from '@/lib/env'
 import { loadContent } from '@/lib/content'
+import { absoluteOgImage } from '@/lib/og'
 
 // ── The global landing page ─────────────────────────────────────────────────
 // Smileys is not a website about Istanbul; Istanbul is the first Smileys city.
@@ -27,11 +28,27 @@ import { loadContent } from '@/lib/content'
 // copy that says "growing city by city" rather than implying a network that
 // doesn't exist yet.
 
-export const metadata: Metadata = {
-  title: 'Smileys — the social infrastructure for modern international life',
-  description:
-    'Meet people, join clubs and discover experiences wherever your international life takes you. Smileys is a network of local communities, growing city by city.',
-  alternates: { canonical: APP_URL },
+// Built per request so the share image is the hero the admin actually set. A
+// link to the global landing page previewed the generated card titled
+// "Smileys Community — Istanbul", which is the one message this page exists to
+// stop sending.
+export async function generateMetadata(): Promise<Metadata> {
+  const home    = loadContent().home ?? {}
+  const ogImage = absoluteOgImage(home.heroImage)
+  const title   = 'Smileys — the social infrastructure for modern international life'
+  const description =
+    'Meet people, join clubs and discover experiences wherever your international life takes you. Smileys is a network of local communities, growing city by city.'
+
+  return {
+    title,
+    description,
+    alternates: { canonical: APP_URL },
+    openGraph: {
+      title, description, url: APP_URL,
+      ...(ogImage ? { images: [{ url: ogImage, width: 1200, height: 630, alt: 'Smileys Community' }] } : {}),
+    },
+    ...(ogImage ? { twitter: { card: 'summary_large_image' as const, images: [ogImage] } } : {}),
+  }
 }
 
 const getLandingData = unstable_cache(
