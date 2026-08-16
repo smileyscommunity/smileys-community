@@ -87,7 +87,12 @@ export interface Club {
   // Which city the club belongs to (multi-city phase 1) — present on every
   // DB row; optional here only for legacy fixtures that predate the column.
   cityId?: string
+  /** Members of this club in the city being viewed. */
   memberCount: number
+  /** Network-wide members — differs from memberCount only for global clubs. */
+  globalMemberCount?: number
+  /** cityId is null: the club is listed in every city. */
+  isGlobal?: boolean
   emoji: string
   color: string
   bgColor: string

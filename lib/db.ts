@@ -21,7 +21,17 @@ export async function getClubs(cityId: string): Promise<Club[]> {
     where: { isActive: true, OR: [{ cityId }, { cityId: null }] },
     orderBy: { name: 'asc' },
     include: {
+      // Two counts, because a global club (cityId null) is listed in every
+      // city and its total says nothing about the city you're standing in.
+      // `memberCount` is scoped to this city — "225 members" on Bodrum's list
+      // would promise 225 people nearby when the real answer is none.
+      // `globalMemberCount` carries the network-wide figure for the surfaces
+      // that want to say "across Smileys".
       _count: { select: { memberships: { where: { status: 'approved' } } } },
+      memberships: {
+        where:  { status: 'approved', user: { cityId } },
+        select: { id: true },
+      },
       events: {
         where: { date: { gte: today } },
         orderBy: { date: 'asc' },
@@ -32,8 +42,12 @@ export async function getClubs(cityId: string): Promise<Club[]> {
   })
   return rows.map(r => ({
     ...r,
-    memberCount: r._count.memberships,
-    nextEvent:   r.events[0] ?? null,
+    // A city-scoped club's two counts are identical, so this only changes what
+    // a global club reports — and only outside the city its members are in.
+    memberCount:       r.cityId === null ? r.memberships.length : r._count.memberships,
+    globalMemberCount: r._count.memberships,
+    isGlobal:          r.cityId === null,
+    nextEvent:         r.events[0] ?? null,
   })) as unknown as Club[]
 }
 
