@@ -2,7 +2,7 @@
 // information architecture. Imported by the index, the category pages, the
 // article page and the admin post form so a rename happens in one place.
 //
-// The Handbook answers "how does Istanbul work?". That is a different job from
+// The Handbook answers "how does this city work?". That is a different job from
 // the Guide (why experience it), the Directory (who provides it), and
 // Neighborhoods (where is it) — keep category names practical, not evocative.
 //
@@ -45,9 +45,13 @@ export const HANDBOOK_CATEGORIES: Record<string, CategoryMeta> = {
     image: { src: '/app/images/handbook-getting-around.jpeg', alt: 'Getting Around — Istanbul Handbook' },
     volatility: 'high',
   },
-  'Living in Istanbul': {
-    emoji: '🏠', label: 'Living in Istanbul', tagline: 'Finding a home, renting, utilities, moving in.',
-    image: { src: '/app/images/handbook-daily-life.jpeg', alt: 'Living in Istanbul — Istanbul Handbook' },
+  // Renamed from 'Living in Istanbul': a category label must not name a city.
+  // The Handbook is now per-city (see app/handbook/page.tsx), and a shelf headed
+  // "Living in Istanbul" would render on Izmir's handbook the moment any article
+  // filed here is global. The old key still resolves — see the aliases below.
+  'Home & Housing': {
+    emoji: '🏠', label: 'Home & Housing', tagline: 'Finding a home, renting, utilities, moving in.',
+    image: { src: '/app/images/handbook-daily-life.jpeg', alt: 'Home & Housing — Smileys Handbook' },
     volatility: 'medium',
   },
   'Money & Banking': {
@@ -94,10 +98,14 @@ export const CATEGORY_KEYS = Object.keys(HANDBOOK_CATEGORIES)
 // kids' services into Everyday Life rather than giving family its own top-level
 // category.
 export const LEGACY_CATEGORY_ALIASES: Record<string, string> = {
-  'Bureaucracy': 'Residence & Legal',
-  'Money':       'Money & Banking',
-  'Daily Life':  'Living in Istanbul',
-  'Family':      'Everyday Life',
+  'Bureaucracy':        'Residence & Legal',
+  'Money':              'Money & Banking',
+  'Daily Life':         'Home & Housing',
+  'Family':             'Everyday Life',
+  // Was a canonical key until the Handbook went per-city. Aliased rather than
+  // migrated: rows still store it, /handbook/category/Living%20in%20Istanbul is
+  // indexed, and storedKeysFor() queries both so nothing drops out of the list.
+  'Living in Istanbul': 'Home & Housing',
 }
 
 /** Canonical category key for a stored value — resolves legacy aliases.

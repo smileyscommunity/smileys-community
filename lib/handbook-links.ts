@@ -18,7 +18,7 @@
 export const HANDBOOK_TO_GUIDE: Record<string, { anchor: string; label: string }> = {
   'Residence & Legal':  { anchor: 'visa-residence',   label: 'Visa & Residence apps and links' },
   'Money & Banking':    { anchor: 'banking-money',    label: 'Banking & Money apps and links' },
-  'Living in Istanbul': { anchor: 'housing',          label: 'Housing, utilities, and daily essentials' },
+  'Home & Housing':     { anchor: 'housing',          label: 'Housing, utilities, and daily essentials' },
   'Healthcare':         { anchor: 'healthcare',       label: 'Healthcare quick links' },
   'Getting Around':     { anchor: 'getting-around',   label: 'Getting Around apps and links' },
   'Mobile & Digital':   { anchor: 'mobile-internet',  label: 'Mobile & Internet apps and links' },
@@ -35,7 +35,7 @@ export const HANDBOOK_TO_GUIDE: Record<string, { anchor: string; label: string }
 export const GUIDE_TO_HANDBOOK: Record<string, string> = {
   'Visa & Residence':   'Residence & Legal',
   'Banking & Money':    'Money & Banking',
-  'Housing':            'Living in Istanbul',
+  'Housing':            'Home & Housing',
   'Healthcare':         'Healthcare',
   'Mobile & Internet':  'Mobile & Digital',
   'Getting Around':     'Getting Around',

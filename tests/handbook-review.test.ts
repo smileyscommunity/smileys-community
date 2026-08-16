@@ -151,8 +151,26 @@ describe('handbook category IA', () => {
   })
 
   it('gives legacy-keyed articles the successor category metadata', () => {
-    expect(categoryMeta('Daily Life')?.label).toBe('Living in Istanbul')
+    expect(categoryMeta('Daily Life')?.label).toBe('Home & Housing')
     expect(categoryMeta('Nonsense')).toBeNull()
+  })
+
+  it('keeps the retired city-named key resolving to its successor', () => {
+    // 'Living in Istanbul' was canonical until the Handbook went per-city — a
+    // category label must not name a city. Rows still store the old value and
+    // /handbook/category/Living%20in%20Istanbul is indexed, so both the
+    // resolver and the query set have to keep honouring it.
+    expect(canonicalCategory('Living in Istanbul')).toBe('Home & Housing')
+    expect(categoryMeta('Living in Istanbul')?.label).toBe('Home & Housing')
+    expect(storedKeysFor('Home & Housing').sort())
+      .toEqual(['Daily Life', 'Home & Housing', 'Living in Istanbul'])
+  })
+
+  it('has no category label naming a city', () => {
+    // The guard for the whole rename: the Handbook renders per city, so a
+    // shelf heading must read the same in Istanbul and Izmir.
+    const cityNamed = CATEGORY_KEYS.filter(k => /istanbul|izmir|bodrum/i.test(HANDBOOK_CATEGORIES[k].label))
+    expect(cityNamed).toEqual([])
   })
 
   it('marks exactly the topics where stale advice is costly as high-stakes', () => {

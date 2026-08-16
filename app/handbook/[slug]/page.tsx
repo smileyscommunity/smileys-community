@@ -48,7 +48,7 @@ const getHandbookArticle = unstable_cache(
 
 // Related articles are matched on the CANONICAL category, so an article still
 // stored under a legacy key ('Daily Life') and one stored under the new key
-// ('Living in Istanbul') recommend each other instead of sitting in separate
+// ('Home & Housing') recommend each other instead of sitting in separate
 // silos during the transition.
 //
 // City-scoped like the index: a shared link to a city-local article still
@@ -69,7 +69,7 @@ const getHandbookRelated = unstable_cache(
 const CATEGORY_STYLES: Record<string, string> = {
   'Getting Started':      'bg-sky-100 text-sky-700',
   'Getting Around':       'bg-violet-100 text-violet-700',
-  'Living in Istanbul':   'bg-amber-100 text-amber-700',
+  'Home & Housing':       'bg-amber-100 text-amber-700',
   'Money & Banking':      'bg-green-100 text-green-700',
   'Mobile & Digital':     'bg-cyan-100 text-cyan-700',
   'Healthcare':           'bg-teal-100 text-teal-700',
