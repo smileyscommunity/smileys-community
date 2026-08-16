@@ -1,5 +1,8 @@
-export function getUrgency(spotsLeft: number, totalSpots: number, limitedSpots: boolean, fillPercent: number) {
-  if (limitedSpots && spotsLeft <= 0)
+// soldOut is last and optional so the existing four-argument calls still
+// compile; it means the same thing the badge already said, just for events the
+// counter can't tell you about.
+export function getUrgency(spotsLeft: number, totalSpots: number, limitedSpots: boolean, fillPercent: number, soldOut = false) {
+  if (soldOut || (limitedSpots && spotsLeft <= 0))
     return { label: 'Sold out', bg: 'bg-amber-100 shadow-sm', text: 'text-amber-700', pulse: false }
   if (limitedSpots && spotsLeft <= 2)
     return { label: `🔥 Only ${spotsLeft} left`, bg: 'bg-red-500', text: 'text-white', pulse: true }

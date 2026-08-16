@@ -64,7 +64,7 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
     router.push(`/events?tags=${encodeURIComponent(vibe)}`)
   }
   const fillPercent = event.totalSpots > 0 ? (goingCount / event.totalSpots) * 100 : 0
-  const urgency     = getUrgency(event.spotsLeft, event.totalSpots, event.limitedSpots, fillPercent)
+  const urgency     = getUrgency(event.spotsLeft, event.totalSpots, event.limitedSpots, fillPercent, event.soldOut)
   const barColor    = getBarColor(fillPercent)
 
   const { status, loading, join } = useRSVP(event.id, initialStatus)

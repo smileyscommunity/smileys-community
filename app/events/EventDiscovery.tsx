@@ -5,12 +5,13 @@ import Link from 'next/link'
 import Image from 'next/image'
 import posthog from 'posthog-js'
 import { resolveImageUrl } from '@/lib/data'
+import { isSoldOut } from '@/lib/soldOut'
 
 interface DiscoveryEvent {
   id: string; title: string; emoji: string; date: string; time: string
   location: string; neighborhood: string | null; coverImage: string | null
   price: number; memberPrice: number | null; currency: string | null
-  spotsLeft: number; totalSpots: number; limitedSpots: boolean
+  spotsLeft: number; totalSpots: number; limitedSpots: boolean; soldOut?: boolean
   club: { id: string; name: string; emoji: string; slug: string } | null
   series?: { count: number; cadence: string | null; moreDates: string[] } | null
 }
@@ -40,7 +41,7 @@ function fmtDay(date: string, time: string) {
 
 // §10 — at most one meaningful badge per card.
 function badgeFor(e: DiscoveryEvent): { text: string; cls: string } | null {
-  if (e.limitedSpots && e.spotsLeft <= 0) return { text: 'Waitlist', cls: 'bg-gray-900 text-white' }
+  if (isSoldOut(e)) return { text: 'Waitlist', cls: 'bg-gray-900 text-white' }
   if (e.limitedSpots && e.spotsLeft <= 3) return { text: `${e.spotsLeft} spot${e.spotsLeft !== 1 ? 's' : ''} left`, cls: 'bg-red-500 text-white' }
   if (e.price === 0) return { text: 'Free', cls: 'bg-green-100 text-green-700' }
   return null

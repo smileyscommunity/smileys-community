@@ -18,7 +18,7 @@ const CARD_SELECT = {
   id: true, title: true, emoji: true, date: true, time: true,
   location: true, neighborhood: true, coverImage: true,
   price: true, memberPrice: true, currency: true,
-  spotsLeft: true, totalSpots: true, limitedSpots: true,
+  spotsLeft: true, totalSpots: true, limitedSpots: true, soldOut: true,
   seriesId: true, isRecurring: true, status: true,
   club: { select: { id: true, name: true, emoji: true, slug: true } },
 } as const
@@ -129,7 +129,7 @@ function shapeOne(e: any) {
     id: e.id, title: e.title, emoji: e.emoji, date: e.date, time: e.time,
     location: e.location, neighborhood: e.neighborhood, coverImage: e.coverImage,
     price: e.price, memberPrice: e.memberPrice, currency: e.currency,
-    spotsLeft: e.spotsLeft, totalSpots: e.totalSpots, limitedSpots: e.limitedSpots,
+    spotsLeft: e.spotsLeft, totalSpots: e.totalSpots, limitedSpots: e.limitedSpots, soldOut: e.soldOut,
     club: e.club ?? null,
   }
 }
