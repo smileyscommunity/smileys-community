@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { resolveCityId } from '@/lib/city'
+import { resolveCityId, getCityConfig } from '@/lib/city'
 import { canonicalCategory, categoryMeta, storedKeysFor, categoryHero } from '@/lib/handbook-categories'
 import { resolveImageUrl } from '@/lib/data'
 
@@ -33,8 +33,11 @@ export async function generateMetadata({ params }: Params) {
   const { key } = await params
   const cat = categoryMeta(decodeURIComponent(key))
   if (!cat) return { title: 'Handbook — Smileys Community' }
+  // Names the viewer's city. A crawler carries no cookie, so it resolves to the
+  // default city and keeps the indexed "… — Istanbul Handbook" titles intact.
+  const city = await getCityConfig(await resolveCityId(await getSession()))
   return {
-    title:       `${cat.label} — Istanbul Handbook | Smileys Community`,
+    title:       `${cat.label} — ${city.name} Handbook | Smileys Community`,
     description: cat.tagline,
   }
 }

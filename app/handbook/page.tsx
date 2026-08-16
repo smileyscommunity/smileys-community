@@ -5,8 +5,9 @@ import TransitLinks, { type Category } from '@/components/TransitLinks'
 import HandbookSearch from '@/components/HandbookSearch'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
+import type { Metadata } from 'next'
 import { getSession } from '@/lib/session'
-import { resolveCityId } from '@/lib/city'
+import { resolveCityId, getCityConfig, DEFAULT_CITY_SLUG } from '@/lib/city'
 import { resolveImageUrl } from '@/lib/data'
 import { canonicalCategory, categoryMeta, categoryHero, CATEGORY_KEYS, HANDBOOK_CATEGORIES } from '@/lib/handbook-categories'
 import { reviewLabel, readingTime } from '@/lib/handbook-review'
@@ -47,28 +48,49 @@ const getHandbookArticles = unstable_cache(
 // Fixed-size cover (1200×800) so we can assert real dimensions, unlike the
 // variable-aspect article photos. Served from public/ under the /app basePath.
 const HANDBOOK_OG_IMAGE = `${APP_URL}/images/handbook-cover.jpg`
-const HANDBOOK_OG_DESC  = 'Understand Istanbul. Practical answers for living, moving and navigating life in Istanbul — residence permits, banking, healthcare, transport — written by Smileys members who actually lived it.'
 
-export const metadata = {
-  alternates: { canonical: `${APP_URL}/handbook` },
-  title: 'The Istanbul Handbook — Understand Istanbul | Smileys Community',
-  description: HANDBOOK_OG_DESC,
-  openGraph: {
-    title: 'The Istanbul Handbook — Understand Istanbul',
-    description: HANDBOOK_OG_DESC,
-    // Include the /app basePath — the bare /handbook path 301-redirects, which
-    // some crawlers won't follow for the canonical.
-    url: `${APP_URL}/handbook`,
-    siteName: 'Smileys Community',
-    type: 'website',
-    images: [{ url: HANDBOOK_OG_IMAGE, secureUrl: HANDBOOK_OG_IMAGE, width: 1200, height: 800, alt: 'The Istanbul Handbook — Smileys Community' }],
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'The Istanbul Handbook — Understand Istanbul',
-    description: HANDBOOK_OG_DESC,
-    images: [HANDBOOK_OG_IMAGE],
-  },
+// The Handbook names the city you're reading it in. The DEFAULT city keeps its
+// exact indexed strings — this page ranks for "Istanbul handbook"/"understand
+// Istanbul", and rewording a title Google already has is a real loss for no
+// gain. Every other city gets the same sentence with its own name. The article
+// list itself is scoped the same way (see getHandbookArticles): global articles
+// everywhere, city-local ones only at home.
+export async function generateMetadata(): Promise<Metadata> {
+  const { name, isDefault } = await handbookCity()
+  const title = `The ${name} Handbook — Understand ${name}`
+  const desc  = isDefault
+    ? 'Understand Istanbul. Practical answers for living, moving and navigating life in Istanbul — residence permits, banking, healthcare, transport — written by Smileys members who actually lived it.'
+    : `Understand ${name}. Practical answers for living, moving and navigating life in ${name} — residence permits, banking, healthcare, transport — written by Smileys members who actually lived it.`
+
+  return {
+    alternates: { canonical: `${APP_URL}/handbook` },
+    title: `${title} | Smileys Community`,
+    description: desc,
+    openGraph: {
+      title,
+      description: desc,
+      // Include the /app basePath — the bare /handbook path 301-redirects, which
+      // some crawlers won't follow for the canonical.
+      url: `${APP_URL}/handbook`,
+      siteName: 'Smileys Community',
+      type: 'website',
+      images: [{ url: HANDBOOK_OG_IMAGE, secureUrl: HANDBOOK_OG_IMAGE, width: 1200, height: 800, alt: `The ${name} Handbook — Smileys Community` }],
+    },
+    twitter: {
+      card: 'summary_large_image' as const,
+      title,
+      description: desc,
+      images: [HANDBOOK_OG_IMAGE],
+    },
+  }
+}
+
+// Resolved once per render path (metadata and the page body each call it).
+// Both the session decode and the city config are cached, so this is cheap.
+async function handbookCity(): Promise<{ id: string; name: string; isDefault: boolean }> {
+  const cityId = await resolveCityId(await getSession())
+  const cfg    = await getCityConfig(cityId)
+  return { id: cityId, name: cfg.name, isDefault: cfg.slug === DEFAULT_CITY_SLUG }
 }
 
 // "Start here" — the questions people actually arrive with, each pointing at
@@ -76,6 +98,12 @@ export const metadata = {
 // never to duplicated summaries). Curated by slug; a card whose article is
 // missing or unpublished simply doesn't render, so a slug rename can't leave
 // a dead card on the most-trafficked section of the page.
+//
+// DEFAULT CITY ONLY, and by hand: this is an Istanbul reading list — an
+// Istanbulkart card has no business on another city's handbook, and most of
+// these articles are still filed as global (cityId null) so the query alone
+// won't hold them back. Per-city "start here" curation is the follow-up; until
+// then a second city gets the categories and Latest instead of a wrong shelf.
 const START_HERE: { slug: string; emoji: string; label: string }[] = [
   { slug: 'istanbulkart-mastery',                          emoji: '🚇', label: 'Get around with Istanbulkart' },
   { slug: 'opening-turkish-bank-account',                  emoji: '💳', label: 'Open a bank account' },
@@ -87,15 +115,22 @@ const START_HERE: { slug: string; emoji: string; label: string }[] = [
 ]
 
 // The other surfaces and their jobs, in the site's own vocabulary (brief §2).
-// The Handbook explains how Istanbul works; everything else has a different
+// The Handbook explains how the city works; everything else has a different
 // question to answer, and saying so out loud is what keeps the surfaces from
 // bleeding into each other.
-const OTHER_SURFACES = [
-  { href: '/guide',         emoji: '🗺️', label: 'Guide',         job: 'Experience Istanbul' },
-  { href: '/directory',     emoji: '🏪', label: 'Directory',     job: 'Find a business or service' },
-  { href: '/neighborhoods', emoji: '🏘️', label: 'Neighborhoods', job: 'Find your part of the city' },
-  { href: '/board',         emoji: '💬', label: 'Board',         job: 'Ask the community' },
-]
+//
+// The Guide tile is DEFAULT-CITY ONLY, matching the rule app/[city]/page.tsx
+// already follows: /guide holds the default city's experiences, so offering
+// "Experience Izmir" and landing on Istanbul's entries breaks the promise on
+// click. Directory, Neighborhoods and Board all resolve per city already.
+function otherSurfaces(cityName: string, isDefault: boolean) {
+  return [
+    ...(isDefault ? [{ href: '/guide', emoji: '🗺️', label: 'Guide', job: `Experience ${cityName}` }] : []),
+    { href: '/directory',     emoji: '🏪', label: 'Directory',     job: 'Find a business or service' },
+    { href: '/neighborhoods', emoji: '🏘️', label: 'Neighborhoods', job: 'Find your part of the city' },
+    { href: '/board',         emoji: '💬', label: 'Board',         job: 'Ask the community' },
+  ]
+}
 
 function formatReviewedShort(d: Date | string) {
   return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -103,7 +138,7 @@ function formatReviewedShort(d: Date | string) {
 
 // Quick-reference links (apps, official sites, practical how-tos) —
 // moved here from /guide in the information-architecture cleanup: the
-// Handbook owns "how Istanbul works", the Guide owns experiences. The
+// Handbook owns "how the city works", the Guide owns experiences. The
 // content still lives in data/city-guide.json (server-authoritative,
 // edited via /admin's guide editor). Food & Drink is skipped: its
 // cultural content was rebuilt as Guide experiences.
@@ -132,7 +167,8 @@ function loadQuickReference(): Category[] {
 }
 
 export default async function HandbookPage() {
-  const articles = await getHandbookArticles(await resolveCityId(await getSession()))
+  const city = await handbookCity()
+  const articles = await getHandbookArticles(city.id)
 
   // Group by CANONICAL category so legacy-keyed rows land in the new IA
   // without a data migration. Dev-only: warn when an article's category
@@ -177,7 +213,7 @@ export default async function HandbookPage() {
   })
   const enrichedBySlug = new Map(enriched.map(e => [e.slug, e]))
 
-  const startHere = START_HERE
+  const startHere = (city.isDefault ? START_HERE : [])
     .filter(c => bySlug.has(c.slug))
     .map(c => ({ ...c, article: enrichedBySlug.get(c.slug)! }))
 
@@ -195,13 +231,13 @@ export default async function HandbookPage() {
       <section className="bg-white border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-10">
           <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">
-            📖 The Istanbul Handbook
+            📖 The {city.name} Handbook
           </span>
           <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">
-            Understand <span className="text-amber-600">Istanbul.</span>
+            Understand <span className="text-amber-600">{city.name}.</span>
           </h1>
           <p className="text-base text-gray-600 mt-1 max-w-xl">
-            Practical answers for living, moving and navigating life in Istanbul —
+            Practical answers for living, moving and navigating life in {city.name} —
             written by Smileys members who actually lived it.
           </p>
           <div className="max-w-2xl mt-6">
@@ -320,7 +356,7 @@ export default async function HandbookPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-6">Need something else?</h2>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            {OTHER_SURFACES.map(s => (
+            {otherSurfaces(city.name, city.isDefault).map(s => (
               <Link key={s.href} href={s.href}
                 className="bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-2xl px-4 py-4 transition-colors group">
                 <div className="flex items-center gap-3">
@@ -380,7 +416,7 @@ export default async function HandbookPage() {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
               <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900">Quick reference</h2>
               <p className="text-gray-600 mt-1 mb-8">
-                Apps, official sites and practical links for functioning in Istanbul — vetted by the Smileys team, updated regularly.
+                Apps, official sites and practical links for functioning in {city.name} — vetted by the Smileys team, updated regularly.
               </p>
               <div className="max-w-3xl">
                 <TransitLinks categories={quickRef} />

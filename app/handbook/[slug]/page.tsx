@@ -5,7 +5,7 @@ import type { Metadata } from 'next'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { resolveCityId } from '@/lib/city'
+import { resolveCityId, getCityConfig } from '@/lib/city'
 import { sanitize } from '@/lib/sanitize'
 import { resolveImageUrl } from '@/lib/data'
 import { firstBodyImage } from '@/lib/articleCover'
@@ -24,7 +24,7 @@ import EditableArticle from './EditableArticle'
 // image stays under the ~600 KB OG cap. When the article has no cover, fall
 // back to the /api/og title card (article title + category as the eyebrow)
 // so a shared link still gets a tailored preview, not the generic brand card.
-function ogImageUrl(coverImage: string | null | undefined, title: string, category: string): string {
+function ogImageUrl(coverImage: string | null | undefined, title: string, category: string, handbookName: string): string {
   const resolved = coverImage ? resolveImageUrl(coverImage) : ''
   if (resolved.startsWith('http')) return resolved
   // Only a rooted same-origin path is safe to prefix with the origin; a data:/
@@ -32,7 +32,7 @@ function ogImageUrl(coverImage: string | null | undefined, title: string, catego
   if (resolved.startsWith('/')) return `${SITE_URL}${resolved}?w=1200`
   const params = new URLSearchParams({
     title,
-    eyebrow: category ? `${category} · Istanbul Handbook` : 'Istanbul Handbook',
+    eyebrow: category ? `${category} · ${handbookName}` : handbookName,
   })
   return `${APP_URL}/api/og?${params.toString()}`
 }
@@ -85,11 +85,14 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { slug } = await params
   const post = await getHandbookArticle(slug)
   if (!post || post.kind !== 'handbook' || post.status !== 'published') return { title: 'Handbook — Smileys Community' }
-  const title       = `${post.title} — Istanbul Handbook | Smileys Community`
+  // The viewer's city names the Handbook. A crawler sends no cookie, so it
+  // resolves to the default city and the indexed titles are unchanged.
+  const cityName    = (await getCityConfig(await resolveCityId(await getSession()))).name
+  const title       = `${post.title} — ${cityName} Handbook | Smileys Community`
   const description = post.excerpt ?? `Smileys Community handbook: ${post.title}`
   const pageUrl     = `${APP_URL}/handbook/${slug}`
   const cover       = post.coverImage ?? firstBodyImage(post.body)
-  const imageUrl    = ogImageUrl(cover, post.title, post.category)
+  const imageUrl    = ogImageUrl(cover, post.title, post.category, `${cityName} Handbook`)
   // The /api/og card is exactly 1200×630, but a real cover/body photo has a
   // variable aspect ratio — asserting 630 there gives FB/X a wrong hint that
   // mis-crops the preview on the first scrape. Derive the choice from what
@@ -139,10 +142,13 @@ export default async function HandbookArticlePage({ params }: Params) {
   const catLabel  = meta?.label ?? post.category
   const catKey    = canonical ?? post.category
 
+  const cityId   = await resolveCityId(await getSession())
+  const cityName = (await getCityConfig(cityId)).name
+
   const related = await getHandbookRelated(
     canonical ? storedKeysFor(canonical) : [post.category],
     post.id,
-    await resolveCityId(await getSession()),
+    cityId,
   )
 
   // Freshness + sources are computed server-side so the client component gets
@@ -179,7 +185,7 @@ export default async function HandbookArticlePage({ params }: Params) {
     '@type':           'Article',
     headline:          post.title,
     description:       post.excerpt ?? undefined,
-    image:             ogImageUrl(post.coverImage ?? firstBodyImage(post.body), post.title, post.category),
+    image:             ogImageUrl(post.coverImage ?? firstBodyImage(post.body), post.title, post.category, `${cityName} Handbook`),
     datePublished:     post.publishedAt ? new Date(post.publishedAt).toISOString() : undefined,
     dateModified:      post.updatedAt ? new Date(post.updatedAt).toISOString() : undefined,
     author:            { '@type': 'Person', name: post.author.name },
@@ -289,7 +295,7 @@ export default async function HandbookArticlePage({ params }: Params) {
             />
           </div>
           <SocialShare
-            title={`${post.title} — Smileys Community Istanbul Handbook`}
+            title={`${post.title} — Smileys Community ${cityName} Handbook`}
             url={`${APP_URL}/handbook/${post.slug}`}
             cacheKey={new Date(post.updatedAt ?? post.publishedAt ?? Date.now()).getTime().toString(36)}
           />
