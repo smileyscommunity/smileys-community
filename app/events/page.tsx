@@ -306,6 +306,7 @@ function AppEventsPageInner() {
               {/* The view-city cookie lives a year — without a visible way
                   out, one click into another city pins every feed there. */}
               {viewCity?.viewing && viewCity.homeName && (
+                // eslint-disable-next-line @next/next/no-html-link-for-pages -- route handler that must run server-side to clear the cookie; <Link> would client-navigate past it
                 <a href="/app/api/city/enter?clear=1&to=events"
                   className="inline-flex items-center gap-1.5 ml-2 mb-3 px-3 py-1.5 rounded-full text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors">
                   ✕ Back to {viewCity.homeName}
