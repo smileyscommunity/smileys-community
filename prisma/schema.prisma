@@ -380,6 +380,10 @@ model CityRelationship {
   cityId    String
   type      String
   createdAt DateTime @default(now())
+  // When the launch-day "your city is open" email went out for this
+  // interest row. The dedupe guard: a live → paused → live flip must not
+  // email the same people twice. Null on 'member' rows.
+  notifiedAt DateTime?
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   city      City     @relation(fields: [cityId], references: [id], onDelete: Cascade)
 

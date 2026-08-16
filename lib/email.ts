@@ -110,6 +110,35 @@ export async function sendVerificationEmail(email: string, name: string, token: 
   })
 }
 
+// Launch day: the promise behind "I'm interested" being kept. Sent once per
+// interest row when an admin flips the city to live (dedupe via
+// CityRelationship.notifiedAt). Requested-by-the-member, so it sends
+// regardless of marketing preferences — this IS the thing they signed up for.
+export async function sendCityLaunchEmail(email: string, name: string, cityName: string, citySlug: string) {
+  const url = `${APP_URL}/${citySlug}`
+  await getResend().emails.send({
+    from: FROM, to: email,
+    subject: `Smileys ${cityName} is open 🎉`,
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <div style="text-align:center;margin-bottom:32px">
+          <span style="font-size:40px">🎉</span>
+          <h1 style="font-size:24px;font-weight:800;color:#111;margin:8px 0 4px">${esc(cityName)} is open, ${esc(name)}!</h1>
+          <p style="color:#6b7280;font-size:14px;margin:0">You asked us to tell you when Smileys ${esc(cityName)} launches — today is that day.</p>
+        </div>
+        <a href="${url}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:24px">
+          See what's happening in ${esc(cityName)}
+        </a>
+        <p style="color:#9ca3af;font-size:12px;text-align:center">
+          One tap to join — your Smileys account travels with you. The first clubs and hosts are already there.
+        </p>
+        <hr style="border:none;border-top:1px solid #f3f4f6;margin:24px 0"/>
+        <p style="color:#d1d5db;font-size:11px;text-align:center">You received this because you joined the ${esc(cityName)} interest list.</p>
+      </div>
+    `,
+  })
+}
+
 // Sent when someone tries to re-register an already-verified
 // account. Lets the legit owner act on it (sign in or rotate
 // password) without the register endpoint having to reveal

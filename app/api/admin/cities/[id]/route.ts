@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
+import { notifyCityLaunch } from '@/lib/cityLaunch'
 import { CITY_STATUS, CITY_STATUS_VALUES, isCityStatus } from '@/lib/cityStatus'
 
 // PATCH /api/admin/cities/[id] — edit a city's shopfront and, crucially, its
@@ -101,6 +102,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   const updated = await prisma.city.update({ where: { id }, data })
 
+  // Launch day: the status flip to live is the moment the interest list was
+  // for. Awaited (lists are small) so the admin sees the count in the
+  // response; failures are per-recipient inside and never block the flip.
+  let launchNotifications: { notified: number; failed: number } | undefined
+  if (data.status === CITY_STATUS.Live && city.status !== CITY_STATUS.Live) {
+    launchNotifications = await notifyCityLaunch(city.id)
+  }
+
   await writeAudit(
     session.id, session.name,
     data.status && data.status !== city.status ? 'city.status_change' : 'city.update',
@@ -108,12 +117,15 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     {
       name: city.name,
       ...(data.status && data.status !== city.status ? { from: city.status, to: data.status } : {}),
+      ...(launchNotifications ? { launchNotifications } : {}),
       fields: Object.keys(data),
     },
   )
 
   return NextResponse.json({
     ok: true,
+    // Surfaced so the admin UI can toast "Notified 12 waiting members".
+    ...(launchNotifications ? { launchNotifications } : {}),
     city: {
       id: updated.id, name: updated.name, slug: updated.slug, status: updated.status,
       tagline: updated.tagline, description: updated.description, heroImage: updated.heroImage,
