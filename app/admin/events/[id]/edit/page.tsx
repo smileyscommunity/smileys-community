@@ -157,25 +157,36 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
 
   async function writeWithAI() {
     setAiLoading(true)
-    const club = clubs.find(c => c.id === form.clubId)
-    const res = await fetch('/app/api/host/events/describe', {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: form.title, location: form.location, vibes: [], clubName: club ? `${club.emoji} ${club.name}` : undefined, notes: aiNotes }),
-    })
-    if (res.ok) { const { description } = await res.json(); set('description', description.split(/\n\n+/).map((p: string) => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('')) }
-    setAiLoading(false)
+    try {
+      const club = clubs.find(c => c.id === form.clubId)
+      const res = await fetch('/app/api/host/events/describe', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: form.title, location: form.location, vibes: [], clubName: club ? `${club.emoji} ${club.name}` : undefined, notes: aiNotes }),
+      })
+      if (!res.ok) { toast.error(res.status === 429 ? 'AI limit reached — try again in an hour' : `Write with AI failed (${res.status})`); return }
+      const { description } = await res.json()
+      set('description', description.split(/\n\n+/).map((p: string) => `<p>${p.replace(/\n/g, '<br>')}</p>`).join(''))
+    } catch { toast.error('Write with AI failed — check your connection') }
+    finally { setAiLoading(false) }
   }
 
   async function suggestTags() {
     setAiLoading(true)
-    const res = await fetch('/app/api/host/events/suggest-tags', {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: form.title, description: form.description }),
-    })
-    if (res.ok) { const { tagIds } = await res.json(); if (tagIds?.length) setSelectedTagIds((prev: string[]) => [...new Set([...prev, ...tagIds])]) }
-    setAiLoading(false)
+    try {
+      const res = await fetch('/app/api/host/events/suggest-tags', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: form.title, description: form.description }),
+      })
+      if (!res.ok) { toast.error(res.status === 429 ? 'AI limit reached — try again in an hour' : `Suggest tags failed (${res.status})`); return }
+      const { tagIds } = await res.json()
+      if (!tagIds?.length) { toast.message('No matching tags — add more detail to the title or description'); return }
+      const added = tagIds.filter((id: string) => !selectedTagIds.includes(id)).length
+      setSelectedTagIds((prev: string[]) => [...new Set([...prev, ...tagIds])])
+      toast.success(added ? `Added ${added} suggested tag${added === 1 ? '' : 's'}` : 'Suggestions match the tags already selected')
+    } catch { toast.error('Suggest tags failed — check your connection') }
+    finally { setAiLoading(false) }
   }
 
   async function geocodeAddress() {
