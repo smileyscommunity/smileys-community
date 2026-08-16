@@ -42,7 +42,7 @@ export const HANDBOOK_CATEGORIES: Record<string, CategoryMeta> = {
   },
   'Getting Around': {
     emoji: '🚇', label: 'Getting Around', tagline: 'Metro, ferries, Marmaray, taxis, airports — the city is big, the answers are simple.',
-    image: { src: '/app/images/handbook-getting-around.jpeg', alt: 'Getting Around — Istanbul Handbook' },
+    image: { src: '/app/images/handbook-getting-around.jpeg', alt: 'Getting Around — Smileys Handbook' },
     volatility: 'high',
   },
   // Renamed from 'Living in Istanbul': a category label must not name a city.
@@ -56,7 +56,7 @@ export const HANDBOOK_CATEGORIES: Record<string, CategoryMeta> = {
   },
   'Money & Banking': {
     emoji: '💳', label: 'Money & Banking', tagline: 'Bank accounts, tax numbers, cards, transfers.',
-    image: { src: '/app/images/handbook-money.jpeg', alt: 'Money & Banking — Istanbul Handbook' },
+    image: { src: '/app/images/handbook-money.jpeg', alt: 'Money & Banking — Smileys Handbook' },
     volatility: 'high', highStakes: true,
   },
   'Mobile & Digital': {
@@ -69,12 +69,12 @@ export const HANDBOOK_CATEGORIES: Record<string, CategoryMeta> = {
   },
   'Residence & Legal': {
     emoji: '🛂', label: 'Residence & Legal', tagline: 'Permits, address registration, work permits — the slow grind of being legal.',
-    image: { src: '/app/images/handbook-bureaucracy.jpeg', alt: 'Residence & Legal — Istanbul Handbook' },
+    image: { src: '/app/images/handbook-bureaucracy.jpeg', alt: 'Residence & Legal — Smileys Handbook' },
     volatility: 'high', highStakes: true,
   },
   'Everyday Life': {
     emoji: '🛒', label: 'Everyday Life', tagline: 'Shopping, deliveries, schools, pets, the small things that wear you down until they don\'t.',
-    image: { src: '/app/images/handbook-family.jpeg', alt: 'Everyday Life — Istanbul Handbook' },
+    image: { src: '/app/images/handbook-family.jpeg', alt: 'Everyday Life — Smileys Handbook' },
     volatility: 'medium',
   },
   'Safety & Emergencies': {

@@ -79,6 +79,17 @@ const nextConfig = {
         destination: '/board/:path*',
         permanent:   true,
       },
+      // The SIM/internet article is national — its title and excerpt already
+      // say Türkiye, and the rules it describes (IMEI registration, the 120-day
+      // foreign-phone limit, the three operators) apply countrywide. Only its
+      // slug still claimed Istanbul, which would have read as a city-local
+      // article the moment a second city launched. Renamed in the DB; this 308
+      // keeps the indexed URL alive, same as the /listings rename above.
+      {
+        source:      '/handbook/istanbul-sim-card-and-internet-guide',
+        destination: '/handbook/sim-card-and-home-internet-in-turkiye',
+        permanent:   true,
+      },
     ]
   },
   async headers() {
