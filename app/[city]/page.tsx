@@ -7,6 +7,7 @@ import { prisma } from '@/lib/prisma'
 import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
 import { getSession } from '@/lib/session'
 import { getEvents, getClubs, redactEventForGuest } from '@/lib/db'
+import CityPageTracker from '@/components/CityPageTracker'
 import EventTabs from '@/components/EventTabs'
 import JoinCityButton from '@/components/JoinCityButton'
 import ClubCard from '@/components/ClubCard'
@@ -104,6 +105,7 @@ export default async function CityPage({ params }: Params) {
   if (city.status !== CITY_STATUS.Live) {
     return (
       <section className="max-w-3xl mx-auto px-4 sm:px-6 py-16 text-center">
+        <CityPageTracker slug={city.slug} status={city.status} />
         {/* The city's own photo, if one is set. A pre-launch page is a pitch —
             "this is where we're going next" lands far better with the place in
             front of you than with a paragraph of text. */}
@@ -184,6 +186,7 @@ export default async function CityPage({ params }: Params) {
 
   return (
     <>
+      <CityPageTracker slug={city.slug} status={city.status} />
       {/* Hero */}
       <section className="relative bg-gradient-to-b from-amber-50 via-white to-white overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,rgba(251,191,36,0.15),transparent)]" />
@@ -242,7 +245,23 @@ export default async function CityPage({ params }: Params) {
         </div>
       </section>
 
-      {/* Events */}
+      {/* Events — a live city with none yet gets an invitation, not a
+          missing section (§30: never look broken, communicate opportunity). */}
+      {tabEvents.length === 0 && (
+        <section className="py-12 sm:py-16 bg-gray-50">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="rounded-3xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-8 sm:p-12 text-center">
+              <h2 className="section-title mb-2">Events are coming soon</h2>
+              <p className="text-gray-600 mb-6 max-w-xl mx-auto">
+                Be one of the first to help build Smileys {city.name} — the first dinners, walks and meetups start with the first members.
+              </p>
+              <div className="flex justify-center">
+                <JoinCityButton slug={city.slug} name={city.name} />
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
       {tabEvents.length > 0 && (
         <section className="py-12 sm:py-16 bg-gray-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -255,7 +274,20 @@ export default async function CityPage({ params }: Params) {
         </section>
       )}
 
-      {/* Clubs */}
+      {/* Clubs — same rule: an empty grid becomes a host invitation. */}
+      {featuredClubs.length === 0 && (
+        <section className="py-12 sm:py-16 bg-white">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="rounded-3xl border border-gray-100 bg-gray-50 p-8 sm:p-12 text-center">
+              <h2 className="section-title mb-2">Clubs are forming</h2>
+              <p className="text-gray-600 mb-6 max-w-xl mx-auto">
+                Have an activity you want to organize in {city.name}? The first clubs are started by members like you.
+              </p>
+              <Link href="/get-involved" className="btn-primary inline-flex">Become a host</Link>
+            </div>
+          </div>
+        </section>
+      )}
       {featuredClubs.length > 0 && (
         <section className="py-12 sm:py-16 bg-white">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

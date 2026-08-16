@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { VIEW_CITY_COOKIE } from '@/lib/city'
+import { trackServer } from '@/lib/posthog-server'
 
 // The city selector's switch. Sets (or clears) the cookie that resolveCityId
 // reads, so every city-scoped feed follows in one move.
@@ -30,6 +31,8 @@ export async function POST(req: NextRequest) {
     select: { id: true, slug: true, name: true },
   })
   if (!city) return NextResponse.json({ error: 'That city isn\'t open yet' }, { status: 400 })
+
+  trackServer(session, 'city_switch', { city: city.slug, via: 'selector' })
 
   const res = NextResponse.json({ ok: true, city })
   res.cookies.set(VIEW_CITY_COOKIE, city.slug, {

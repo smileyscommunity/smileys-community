@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { VIEW_CITY_COOKIE } from '@/lib/city'
+import { getSession } from '@/lib/session'
+import { trackServer } from '@/lib/posthog-server'
 
 // Entering a city from its public shopfront (/izmir → "See what's on"): set
 // the view-city cookie and land on the requested feed, so events, clubs and
@@ -43,6 +45,13 @@ export async function GET(req: NextRequest) {
   // Relative Location, resolved by the browser against whatever origin the
   // user is on. Building an absolute URL from req.nextUrl here redirects to
   // the Nginx upstream (localhost:3000) in production.
+  // city_switch for signed-in members; guests have no server-side distinct
+  // id (their pageviews still land via posthog-js on the destination page).
+  const session = await getSession()
+  if (session && (clear || city)) {
+    trackServer(session, 'city_switch', clear ? { via: 'back' } : { city: city!.slug, via: 'city_page' })
+  }
+
   const res = new NextResponse(null, { status: 307, headers: { Location: `/app${to}` } })
   if (clear) {
     res.cookies.set(VIEW_CITY_COOKIE, '', { path: '/', maxAge: 0 })
