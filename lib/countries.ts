@@ -229,6 +229,15 @@ const NATIONALITY_ALIASES: Record<string, string> = {
   'zambian': 'ZM', 'zimbabwean': 'ZW',
 }
 
+/** ISO 3166-1 alpha-2 → country name, for the places we store a code (City.country)
+ *  but need to say the word — structured data, page copy. Unknown codes come back
+ *  as the code itself rather than as an empty string. */
+export function countryName(code: string | null | undefined): string {
+  if (!code) return ''
+  const up = code.trim().toUpperCase()
+  return COUNTRIES.find(c => c.code === up)?.name ?? up
+}
+
 export function countryFlag(nationality: string | null | undefined): string {
   if (!nationality) return ''
   const key = nationality.toLowerCase().trim()

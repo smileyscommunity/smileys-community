@@ -120,7 +120,9 @@ export async function describeCity(
 // timezone/currency effectively never change, but unlike the default-city id
 // they CAN (admin fixes a typo, as already happened with Izmir's 'EUROPE'),
 // so the cache must eventually notice without a restart.
-export interface CityConfig { timezone: string; currency: string; slug: string; name: string }
+// `country` is the ISO 3166-1 alpha-2 code the admin form collects, not a
+// display name — run it through countryName() before showing it to anyone.
+export interface CityConfig { timezone: string; currency: string; slug: string; name: string; country: string }
 
 const CONFIG_TTL_MS = 5 * 60_000
 const configCache = new Map<string, { cfg: CityConfig; expires: number }>()
@@ -130,11 +132,11 @@ export async function getCityConfig(cityId: string): Promise<CityConfig> {
   if (hit && hit.expires > Date.now()) return hit.cfg
   const city = await prisma.city.findUnique({
     where:  { id: cityId },
-    select: { timezone: true, currency: true, slug: true, name: true },
+    select: { timezone: true, currency: true, slug: true, name: true, country: true },
   })
   // Unknown id falls back to the default city's zone rather than throwing —
   // a stale cityId must degrade to Istanbul behavior, not a 500.
-  const cfg: CityConfig = city ?? { timezone: 'Europe/Istanbul', currency: 'TRY', slug: DEFAULT_CITY_SLUG, name: 'Istanbul' }
+  const cfg: CityConfig = city ?? { timezone: 'Europe/Istanbul', currency: 'TRY', slug: DEFAULT_CITY_SLUG, name: 'Istanbul', country: 'TR' }
   configCache.set(cityId, { cfg, expires: Date.now() + CONFIG_TTL_MS })
   return cfg
 }

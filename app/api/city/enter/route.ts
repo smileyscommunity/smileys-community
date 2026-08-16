@@ -21,14 +21,16 @@ const YEAR = 60 * 60 * 24 * 365
 // Closed set of destinations. This endpoint redirects, so the target must
 // never be caller-shaped — no open redirects, no path injection.
 const DESTINATIONS: Record<string, string> = {
-  events:    '/events',
-  clubs:     '/clubs',
-  directory: '/directory',
+  events:        '/events',
+  clubs:         '/clubs',
+  directory:     '/directory',
+  neighborhoods: '/neighborhoods',
 }
 
 export async function GET(req: NextRequest) {
   const slug  = req.nextUrl.searchParams.get('city')?.trim() ?? ''
-  const to    = DESTINATIONS[req.nextUrl.searchParams.get('to') ?? ''] ?? '/events'
+  const toKey = req.nextUrl.searchParams.get('to') ?? ''
+  let   to    = DESTINATIONS[toKey] ?? '/events'
   // `?clear=1` — the "back to my city" switch on feed headers. Drops the
   // cookie so resolveCityId falls back to the member's home (or the
   // default city for guests). Guest-usable, unlike DELETE /api/me/view-city.
@@ -39,8 +41,22 @@ export async function GET(req: NextRequest) {
   // member selector). Unknown/pre-launch slugs still redirect, just without
   // touching the cookie.
   const city = !clear && slug
-    ? await prisma.city.findFirst({ where: { slug, status: 'live' }, select: { slug: true } })
+    ? await prisma.city.findFirst({ where: { slug, status: 'live' }, select: { id: true, slug: true } })
     : null
+
+  // Deep link into one neighborhood of the city being entered. The slug is not
+  // appended as given — it has to match a row in THAT city's neighborhoods
+  // table, and what gets used is the stored value, so this stays as closed a
+  // set as DESTINATIONS itself (no traversal, no open redirect). A slug that
+  // doesn't match just lands on the index.
+  const nSlug = req.nextUrl.searchParams.get('n')?.trim()
+  if (city && toKey === 'neighborhoods' && nSlug) {
+    const hood = await prisma.neighborhood.findUnique({
+      where:  { cityId_slug: { cityId: city.id, slug: nSlug } },
+      select: { slug: true, active: true },
+    })
+    if (hood?.active) to = `/neighborhoods/${hood.slug}`
+  }
 
   // Relative Location, resolved by the browser against whatever origin the
   // user is on. Building an absolute URL from req.nextUrl here redirects to

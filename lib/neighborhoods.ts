@@ -24,8 +24,12 @@ export type NeighborhoodSide = 'Central' | 'European' | 'Asian' | 'Coastal' | 'E
 export interface NeighborhoodMeta {
   emoji: string
   vibe:  string
-  side:  NeighborhoodSide
-  cost:  1 | 2 | 3
+  // Istanbul's six sides are the values below, and they keep their autocomplete
+  // — but `area` is per-city free text in the neighborhoods table (İzmir groups
+  // by its own districts), so any string is legal here. Every consumer must
+  // read it as `LOOKUP[side] ?? fallback`, never as an exhaustive Record.
+  side:  NeighborhoodSide | (string & {})
+  cost:  number
   lat:   number
   lon:   number
 }

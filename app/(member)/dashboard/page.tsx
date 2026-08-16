@@ -417,7 +417,8 @@ export default async function DashboardPage() {
     // so members discover the KB without leaving the dashboard. Same
     // shape as latestPosts so we can reuse the existing card markup.
     prisma.post.findMany({
-      where:   { status: 'published', kind: 'handbook' },
+      // null cityId = global article, shown in every city.
+      where:   { status: 'published', kind: 'handbook', OR: [{ cityId }, { cityId: null }] },
       orderBy: { publishedAt: 'desc' },
       take: 2,
       select: { id: true, title: true, slug: true, excerpt: true, coverImage: true, body: true, category: true, publishedAt: true },

@@ -2,7 +2,8 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { headers } from 'next/headers'
 import { prisma } from '@/lib/prisma'
-import { neighborhoodToSlug, getNeighborhoodMeta, NEIGHBORHOOD_META } from '@/lib/neighborhoods'
+import type { NeighborhoodView } from '@/lib/neighborhoodsDb'
+import type { CityConfig } from '@/lib/city'
 import { formatShortDate, formatTime, formatPrice, BLUR_PLACEHOLDER, resolveImageUrl, avatarUrl } from '@/lib/data'
 import { SITE_URL, APP_URL } from '@/lib/env'
 import NeighborhoodWall from '@/components/NeighborhoodWall'
@@ -29,6 +30,17 @@ function jsonLdHtml(data: unknown): string {
     .replace(/\u2029/g, '\\u2029')
 }
 
+// Istanbul's areas read naturally as "the centre" / "the European side";
+// another city's area is just a name, so it falls through to "Also in <area>".
+const SIDE_HEADINGS: Record<string, string> = {
+  Central:  'Also in the centre',
+  Islands:  'Also on the islands',
+  European: 'Also on the European side',
+  Asian:    'Also on the Asian side',
+  Coastal:  'Also along the coast',
+  Emerging: 'Also in the emerging districts',
+}
+
 interface PlaceItem {
   name: string; description: string; address?: string; tip?: string; badge?: string
 }
@@ -43,7 +55,13 @@ interface NeighborhoodGuide {
 interface Props {
   name:    string
   slug:    string
-  meta:    ReturnType<typeof getNeighborhoodMeta>
+  meta:    NeighborhoodView
+  /** The rest of this city's registry — feeds the "nearby" and "you might also
+   *  like" rails. Passed down rather than re-queried: the page already resolved
+   *  it to find `meta`. */
+  siblings: NeighborhoodView[]
+  cityId:  string
+  city:    CityConfig
   guide:   NeighborhoodGuide | null
   myId:    string | null
   isStaff: boolean
@@ -51,8 +69,12 @@ interface Props {
   sideLabel: Record<string, string>
 }
 
+// Every query below filters on cityId. A neighborhood NAME is unique only
+// within its city, so an unscoped `where: { neighborhood: name }` would pool
+// two cities' events, members, listings and board posts onto one page the
+// moment any two of them share a district name.
 export default async function NeighborhoodSections({
-  name, slug, meta, guide, myId, isStaff, hasNoNeighborhood, sideLabel,
+  name, slug, meta, siblings, cityId, city, guide, myId, isStaff, hasNoNeighborhood, sideLabel,
 }: Props) {
   const today = new Date().toISOString().split('T')[0]
 
@@ -65,7 +87,7 @@ export default async function NeighborhoodSections({
     boardPosts,
   ] = await Promise.all([
     prisma.event.findMany({
-      where:   { neighborhood: name, date: { gte: today }, status: 'published' },
+      where:   { neighborhood: name, cityId, date: { gte: today }, status: 'published' },
       orderBy: [{ attendees: { _count: 'desc' } }, { date: 'asc' }],
       take: 3,
       include: {
@@ -78,38 +100,38 @@ export default async function NeighborhoodSections({
         },
       },
     }),
-    prisma.event.count({ where: { neighborhood: name, date: { lt: today } } }),
+    prisma.event.count({ where: { neighborhood: name, cityId, date: { lt: today } } }),
     prisma.user.findMany({
-      where:   { neighborhood: name, status: 'approved' },
+      where:   { neighborhood: name, cityId, status: 'approved' },
       select:  { id: true, name: true, color: true, profilePhoto: true },
       take:    12,
       orderBy: { joinedAt: 'desc' },
     }),
     prisma.event.groupBy({
       by:      ['hostId'],
-      where:   { neighborhood: name },
+      where:   { neighborhood: name, cityId },
       _count:  { _all: true },
       orderBy: { _count: { hostId: 'desc' } },
       take:    4,
     }),
-    prisma.user.count({ where: { neighborhood: name, status: 'approved' } }),
+    prisma.user.count({ where: { neighborhood: name, cityId, status: 'approved' } }),
     prisma.event.groupBy({
       by:    ['neighborhood'],
-      where: { date: { gte: today } },
+      where: { cityId, date: { gte: today } },
       _count: { _all: true },
     }),
     prisma.eventPhoto.findMany({
-      where:   { event: { neighborhood: name } },
+      where:   { event: { neighborhood: name, cityId } },
       take:    9,
       orderBy: { createdAt: 'desc' },
       select:  { id: true, url: true, caption: true, event: { select: { id: true, title: true } } },
     }),
-    myId ? prisma.neighborhoodPost.count({ where: { neighborhood: name } }) : Promise.resolve(null),
+    myId ? prisma.neighborhoodPost.count({ where: { neighborhood: name, cityId } }) : Promise.resolve(null),
     // Active marketplace listings tagged to this neighborhood — lets housing
     // posts surface where people look for them ("flats in Moda" arrives on the
     // Moda page and sees them, no extra step).
     prisma.listing.findMany({
-      where:   { neighborhood: name, status: 'active', user: { status: 'approved' } },
+      where:   { neighborhood: name, cityId, status: 'active', user: { status: 'approved' } },
       orderBy: { createdAt: 'desc' },
       take:    6,
       select:  {
@@ -122,7 +144,7 @@ export default async function NeighborhoodSections({
     // neighborhood. Local members get the "someone's coming to your area"
     // signal alongside events + listings.
     prisma.visitorAnnouncement.findMany({
-      where:   { neighborhood: name, status: 'active', endsOn: { gte: today } },
+      where:   { neighborhood: name, cityId, status: 'active', endsOn: { gte: today } },
       orderBy: { startsOn: 'asc' },
       take:    3,
       select:  {
@@ -134,7 +156,7 @@ export default async function NeighborhoodSections({
     // sweeper run can't show stale ones. Same shape the /hangouts feed uses
     // so users can recognize the cards.
     prisma.hangout.findMany({
-      where:   { neighborhood: name, status: 'active', endsAt: { gte: now }, user: { status: 'approved' } },
+      where:   { neighborhood: name, cityId, status: 'active', endsAt: { gte: now }, user: { status: 'approved' } },
       orderBy: { startsAt: 'asc' },
       take:    3,
       select:  {
@@ -148,7 +170,7 @@ export default async function NeighborhoodSections({
     // neighborhood pre-filtered. Silent when empty (matches every other
     // section here — quiet areas don't read as "no businesses").
     prisma.business.findMany({
-      where:   { neighborhood: name, isApproved: true, isActive: true },
+      where:   { neighborhood: name, cityId, isApproved: true, isActive: true },
       orderBy: { createdAt: 'desc' },
       take:    6,
       select:  {
@@ -162,7 +184,7 @@ export default async function NeighborhoodSections({
     // feed gates on session), so only fetch when the viewer is logged in.
     myId
       ? prisma.availabilityPulse.findMany({
-          where:   { neighborhood: name, until: { gte: now }, user: { status: 'approved' } },
+          where:   { neighborhood: name, cityId, until: { gte: now }, user: { status: 'approved' } },
           orderBy: { createdAt: 'desc' },
           take:    6,
           select:  {
@@ -176,7 +198,7 @@ export default async function NeighborhoodSections({
     // carry a neighborhood at all.
     prisma.boardPost.findMany({
       where: {
-        neighborhood: name, status: 'active',
+        neighborhood: name, cityId, status: 'active',
         OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
       },
       orderBy: { createdAt: 'desc' },
@@ -196,7 +218,7 @@ export default async function NeighborhoodSections({
   const clubActivity = await prisma.event.groupBy({
     by: ['clubId'],
     where: {
-      neighborhood: name,
+      neighborhood: name, cityId,
       clubId: { not: null },
       date: { gte: new Date(Date.now() - 30 * 86_400_000).toISOString().split('T')[0] },
     },
@@ -205,7 +227,7 @@ export default async function NeighborhoodSections({
     take: 3,
   })
   const clubsActiveHere = clubActivity.length > 0 ? await prisma.club.findMany({
-    where:  { id: { in: clubActivity.map(c => c.clubId as string) }, isActive: true },
+    where:  { id: { in: clubActivity.map(c => c.clubId as string) }, isActive: true, cityId },
     select: { id: true, slug: true, name: true, emoji: true, memberCount: true },
   }).then(clubs => clubs.map(c => ({
     ...c,
@@ -224,23 +246,22 @@ export default async function NeighborhoodSections({
     .map(h => ({ ...hosts.find(u => u.id === h.hostId)!, eventCount: h._count._all }))
     .filter(h => h.id)
 
-  const nearby = Object.entries(NEIGHBORHOOD_META)
-    .filter(([n, m]) => m.side === meta.side && n !== name)
-    .map(([n, m]) => {
-      const eventCount = allEventCounts.find(e => e.neighborhood === n)?._count._all ?? 0
-      return { name: n, slug: neighborhoodToSlug(n), meta: m, eventCount }
-    })
+  // Both rails read the city's own registry. `area` is per-city free text, so
+  // "same area" is only meaningful when this city groups its neighborhoods at
+  // all — an ungrouped city gets no nearby rail rather than a rail of
+  // everything.
+  const withCounts = (rows: NeighborhoodView[]) => rows
+    .map(n => ({ ...n, eventCount: allEventCounts.find(e => e.neighborhood === n.name)?._count._all ?? 0 }))
     .sort((a, b) => b.eventCount - a.eventCount)
     .slice(0, 3)
 
-  const similar = Object.entries(NEIGHBORHOOD_META)
-    .filter(([n, m]) => Math.abs(m.cost - meta.cost) <= 1 && n !== name && m.side !== meta.side)
-    .map(([n, m]) => {
-      const eventCount = allEventCounts.find(e => e.neighborhood === n)?._count._all ?? 0
-      return { name: n, slug: neighborhoodToSlug(n), meta: m, eventCount }
-    })
-    .sort((a, b) => b.eventCount - a.eventCount)
-    .slice(0, 3)
+  const nearby = meta.area
+    ? withCounts(siblings.filter(n => n.area === meta.area && n.name !== name))
+    : []
+
+  const similar = withCounts(
+    siblings.filter(n => Math.abs(n.cost - meta.cost) <= 1 && n.name !== name && n.area !== meta.area),
+  )
 
   // Read the per-request CSP nonce set by middleware — this component streams
   // in under a <Suspense> boundary but still renders within the same request,
@@ -261,14 +282,14 @@ export default async function NeighborhoodSections({
         name:         e.title,
         description:  e.description
           ? e.description.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 500)
-          : `${e.emoji} ${e.title} in ${name}, Istanbul`,
+          : `${e.emoji} ${e.title} in ${name}, ${city.name}`,
         startDate:    `${e.date}T${e.time ?? '00:00'}:00+03:00`,
         eventStatus:  'https://schema.org/EventScheduled',
         eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
         location: {
           '@type': 'Place',
-          name:    e.location || name || 'Istanbul',
-          address: { '@type': 'PostalAddress', addressLocality: 'Istanbul', addressCountry: 'TR' },
+          name:    e.location || name || city.name,
+          address: { '@type': 'PostalAddress', addressLocality: city.name, addressCountry: city.country },
         },
         image:     absoluteImageUrl(e.coverImage),
         url:       `${APP_URL}/events/${e.id}`,
@@ -295,8 +316,8 @@ export default async function NeighborhoodSections({
         address: {
           '@type':         'PostalAddress',
           addressLocality: name,
-          addressRegion:   'Istanbul',
-          addressCountry:  'TR',
+          addressRegion:   city.name,
+          addressCountry:  city.country,
         },
       },
     })),
@@ -871,18 +892,18 @@ export default async function NeighborhoodSections({
       {nearby.length > 0 && (
         <div>
           <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-5">
-            Also on the {meta.side === 'Central' ? 'centre' : meta.side === 'Islands' ? 'islands' : `${meta.side.toLowerCase()} side`}
+            {SIDE_HEADINGS[meta.area] ?? `Also in ${sideLabel[meta.area] ?? meta.area}`}
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {nearby.map(n => (
               <Link key={n.slug} href={`/neighborhoods/${n.slug}`}
                 className="group flex items-center gap-3 bg-white border border-gray-100 rounded-xl p-4 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all">
                 <div aria-hidden="true" className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-xl shrink-0 group-hover:bg-amber-100 transition-colors">
-                  {n.meta.emoji}
+                  {n.emoji}
                 </div>
                 <div className="min-w-0">
                   <div className="font-semibold text-sm text-gray-900 group-hover:text-amber-600 transition-colors truncate">{n.name}</div>
-                  <div className="text-xs text-gray-400 truncate">{n.meta.vibe}</div>
+                  {n.vibe && <div className="text-xs text-gray-400 truncate">{n.vibe}</div>}
                   {n.eventCount > 0 && <div className="text-xs text-amber-600 font-semibold mt-0.5">{n.eventCount} upcoming</div>}
                 </div>
               </Link>
@@ -900,15 +921,15 @@ export default async function NeighborhoodSections({
               <Link key={n.slug} href={`/neighborhoods/${n.slug}`}
                 className="group flex items-center gap-3 bg-white border border-gray-100 rounded-xl p-4 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all">
                 <div aria-hidden="true" className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center text-xl shrink-0 group-hover:bg-amber-50 transition-colors">
-                  {n.meta.emoji}
+                  {n.emoji}
                 </div>
                 <div className="min-w-0">
                   <div className="font-semibold text-sm text-gray-900 group-hover:text-amber-600 transition-colors truncate">{n.name}</div>
-                  <div className="text-xs text-gray-400 truncate">{n.meta.vibe}</div>
+                  {n.vibe && <div className="text-xs text-gray-400 truncate">{n.vibe}</div>}
                   <div className="text-xs text-gray-400 mt-0.5">
-                    <span aria-label={n.meta.cost === 1 ? 'Affordable' : n.meta.cost === 2 ? 'Mid-range' : 'Pricey'}>
-                      <span aria-hidden="true">{n.meta.cost === 1 ? '💰' : n.meta.cost === 2 ? '💰💰' : '💰💰💰'}</span>
-                    </span> · {sideLabel[n.meta.side]}
+                    <span aria-label={n.cost === 1 ? 'Affordable' : n.cost === 2 ? 'Mid-range' : 'Pricey'}>
+                      <span aria-hidden="true">{n.cost === 1 ? '💰' : n.cost === 2 ? '💰💰' : '💰💰💰'}</span>
+                    </span>{n.area ? ` · ${sideLabel[n.area] ?? n.area}` : ''}
                   </div>
                 </div>
               </Link>

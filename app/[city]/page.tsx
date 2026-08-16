@@ -11,12 +11,13 @@ import CityPageTracker from '@/components/CityPageTracker'
 import EventTabs from '@/components/EventTabs'
 import JoinCityButton from '@/components/JoinCityButton'
 import ClubCard from '@/components/ClubCard'
-import { neighborhoodToSlug, getNeighborhoodMeta } from '@/lib/neighborhoods'
+import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
 import { resolveImageUrl, istanbulEventWindow } from '@/lib/data'
 import { getPublicCity, DEFAULT_CITY_SLUG } from '@/lib/cities'
 import { CITY_STATUS } from '@/lib/cityStatus'
 import { APP_URL } from '@/lib/env'
 import { absoluteOgImage } from '@/lib/og'
+import { isSoldOut } from '@/lib/soldOut'
 
 // The per-city shopfront: /app/istanbul today, /app/athens the moment an admin
 // flips Athens to live. Nothing here names a city — everything comes from the
@@ -151,20 +152,22 @@ export default async function CityPage({ params }: Params) {
   const session = await getSession()
   const events = session ? cachedEvents : cachedEvents.map(redactEventForGuest)
 
-  const topNeighborhoods = neighborhoodCounts.map(c => ({
-    name:       c.neighborhood,
-    slug:       neighborhoodToSlug(c.neighborhood),
-    eventCount: c._count._all,
-    meta:       getNeighborhoodMeta(c.neighborhood),
-  }))
+  // Emoji and slug come from THIS city's registry, not Istanbul's constant —
+  // an İzmir district would otherwise render Istanbul's pin and link to a slug
+  // that resolves to nothing. A count for a neighborhood that's since been
+  // deactivated has no row to render, so it drops out.
+  const registry = await getNeighborhoodViews(city.id)
+  const topNeighborhoods = neighborhoodCounts.flatMap(c => {
+    const row = registry.find(n => n.name === c.neighborhood)
+    return row ? [{ name: row.name, slug: row.slug, emoji: row.emoji, eventCount: c._count._all }] : []
+  })
 
   // Prospect-facing surface: cancelled events break trust in a showcase slot,
   // and sold-out ones sink below the joinable ones.
   const liveEvents = events.filter(e => e.status !== 'cancelled')
-  const soldOut = (e: (typeof events)[number]) => e.limitedSpots && e.spotsLeft <= 0
   const tabEvents = [
-    ...liveEvents.filter(e => !soldOut(e)),
-    ...liveEvents.filter(soldOut),
+    ...liveEvents.filter(e => !isSoldOut(e)),
+    ...liveEvents.filter(isSoldOut),
   ]
   const eventWindow = istanbulEventWindow()
 
@@ -181,13 +184,12 @@ export default async function CityPage({ params }: Params) {
   // cookie before landing — so "See what's on" from /izmir shows İzmir's
   // events, not the default city's. Plain <a> targets (route handler, not a
   // page), hence the explicit /app basePath.
-  const enter = (to: 'events' | 'clubs' | 'directory') =>
-    `/app/api/city/enter?city=${city.slug}&to=${to}`
+  const enter = (to: 'events' | 'clubs' | 'directory' | 'neighborhoods', n?: string) =>
+    `/app/api/city/enter?city=${city.slug}&to=${to}${n ? `&n=${encodeURIComponent(n)}` : ''}`
 
-  // The guide and the neighborhood registry are default-city content for
-  // now — linking a new city into them would show the wrong city's places
-  // (and İzmir neighborhood slugs would 404). Render those sections only on
-  // the default city's page until they're per-city.
+  // The guide is still default-city content — /guide is that city's guide, and
+  // promising "the İzmir guide" over Istanbul's entries breaks trust on exactly
+  // the page meant to build it. Neighborhoods no longer need this gate.
   const isDefaultCity = city.slug === DEFAULT_CITY_SLUG
 
   return (
@@ -316,9 +318,13 @@ export default async function CityPage({ params }: Params) {
         </section>
       )}
 
-      {/* Neighborhoods — default city only: the registry behind
-          /neighborhoods is that city's, and other cities' slugs 404. */}
-      {isDefaultCity && topNeighborhoods.length > 0 && (
+      {/* Neighborhoods — every city now. /neighborhoods and
+          /neighborhoods/[slug] both resolve against the viewer's city, so an
+          İzmir slug is a real page rather than the 404 this gate existed to
+          avoid. Links route through /api/city/enter so arriving from /izmir
+          sets the view-city cookie first — without it a member whose home city
+          is Istanbul would land on the İzmir slug and 404 all over again. */}
+      {topNeighborhoods.length > 0 && (
         <section className="py-12 sm:py-16 bg-gray-50 border-t border-gray-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-end justify-between mb-8">
@@ -326,16 +332,16 @@ export default async function CityPage({ params }: Params) {
                 <h2 className="section-title">Explore by neighborhood</h2>
                 <p className="section-subtitle">Events happening all across {city.name}, every week.</p>
               </div>
-              <Link href="/neighborhoods" className="hidden md:flex btn-ghost text-sm items-center gap-1">All neighborhoods →</Link>
+              <a href={enter('neighborhoods')} className="hidden md:flex btn-ghost text-sm items-center gap-1">All neighborhoods →</a>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
               {topNeighborhoods.map(n => (
-                <Link key={n.slug} href={`/neighborhoods/${n.slug}`}
+                <a key={n.slug} href={enter('neighborhoods', n.slug)}
                   className="group flex flex-col items-center text-center gap-2 bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-amber-200 hover:-translate-y-0.5 transition-all duration-200">
-                  <span className="text-3xl">{n.meta.emoji}</span>
+                  <span className="text-3xl">{n.emoji}</span>
                   <span className="font-semibold text-sm text-gray-900 group-hover:text-amber-600 transition-colors leading-tight">{n.name}</span>
                   <span className="text-xs text-amber-600 font-semibold">{n.eventCount} event{n.eventCount !== 1 ? 's' : ''}</span>
-                </Link>
+                </a>
               ))}
             </div>
           </div>

@@ -3,22 +3,25 @@ import { prisma } from '@/lib/prisma'
 
 interface Props {
   name: string
+  /** Neighborhood names are only unique within a city, so every count here is
+   *  city-scoped — otherwise two cities with a "Merkez" would share stats. */
+  cityId: string
   groupLink?: string
   groupLabel?: string
   userId?: string
   isYourNeighborhood: boolean
 }
 
-export default async function HeroStats({ name, groupLink, groupLabel, userId, isYourNeighborhood }: Props) {
+export default async function HeroStats({ name, cityId, groupLink, groupLabel, userId, isYourNeighborhood }: Props) {
   const today = new Date().toISOString().split('T')[0]
   const monthStart = new Date()
   monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0)
   const monthStr = monthStart.toISOString().split('T')[0]
 
   const [monthlyCount, pastCount, totalLocals, approvedHost] = await Promise.all([
-    prisma.event.count({ where: { neighborhood: name, date: { gte: monthStr } } }),
-    prisma.event.count({ where: { neighborhood: name, date: { lt: today } } }),
-    prisma.user.count({ where: { neighborhood: name, status: 'approved' } }),
+    prisma.event.count({ where: { neighborhood: name, cityId, date: { gte: monthStr } } }),
+    prisma.event.count({ where: { neighborhood: name, cityId, date: { lt: today } } }),
+    prisma.user.count({ where: { neighborhood: name, cityId, status: 'approved' } }),
     userId
       ? prisma.clubMembership.findFirst({
           where: { userId, role: 'host', status: 'approved' },

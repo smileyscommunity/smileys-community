@@ -5,7 +5,9 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { readFileSync } from 'fs'
 import { join } from 'path'
-import { slugToNeighborhood, getNeighborhoodMeta, neighborhoodToSlug, NEIGHBORHOOD_META, type NeighborhoodMeta, type NeighborhoodSide } from '@/lib/neighborhoods'
+import { getNeighborhoodView, getNeighborhoodViews, type NeighborhoodView } from '@/lib/neighborhoodsDb'
+import { resolveCityId, getCityConfig, DEFAULT_CITY_SLUG } from '@/lib/city'
+import { countryName } from '@/lib/countries'
 import { APP_URL } from '@/lib/env'
 import MapSection from '@/components/MapSection'
 import SocialShare from '@/components/SocialShare'
@@ -16,10 +18,12 @@ import NeighborhoodSections from './NeighborhoodSections'
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
-  const name = slugToNeighborhood(slug)
-  if (!name) return {}
-  const meta  = getNeighborhoodMeta(name)
-  const guide = loadNeighborhoodGuide(slug)
+  const cityId = await resolveCityId(await getSession())
+  const city   = await getCityConfig(cityId)
+  const meta   = await getNeighborhoodView(cityId, slug)
+  if (!meta) return {}
+  const name  = meta.name
+  const guide = loadNeighborhoodGuide(city.slug, slug)
 
   // 89 of 103 neighborhoods have real, hand-authored place content (named
   // venues, addresses, tips — see buildAboutCopy's comment on why the other
@@ -34,7 +38,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
   const title = guide?.tagline
     ? `${meta.emoji} ${name}: Things to Do & Local Guide · Smileys Community`
-    : `${meta.emoji} ${name} — Social Events in Istanbul · Smileys Community`
+    : `${meta.emoji} ${name} — Social Events in ${city.name} · Smileys Community`
   // Taglines run 79-199 chars on their own (avg 150), so a raw concat with
   // place names routinely blew past Google's ~155-160 char display budget.
   // Brand mention is dropped here — it's already in the title, and every
@@ -43,7 +47,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   // taglines even after dropping the brand sentence.
   const rawDesc = guide?.tagline
     ? `${guide.tagline}${topPlaces.length ? ` Try ${topPlaces.join(', ')}.` : ''}`
-    : `Discover upcoming social events in ${name}, Istanbul. ${meta.vibe}. Join Smileys Community — Istanbul's expat & digital nomad social platform.`
+    : `Discover upcoming social events in ${name}, ${city.name}. ${meta.vibe}. Join Smileys Community — ${city.name}'s expat & digital nomad social platform.`
   const desc = rawDesc.length > 160
     ? `${rawDesc.slice(0, 157).replace(/\s+\S*$/, '').trimEnd()}…`
     : rawDesc
@@ -54,7 +58,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   // no preview at all on WhatsApp/iMessage/Twitter.
   const ogImage = `${APP_URL}/api/og?${new URLSearchParams({
     title:   `${meta.emoji} ${name}`,
-    eyebrow: 'Istanbul Neighborhoods · Smileys Community',
+    eyebrow: `${city.name} Neighborhoods · Smileys Community`,
     cta:     'See events here',
   }).toString()}`
   return {
@@ -69,6 +73,9 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   }
 }
 
+// Keyed by Istanbul's area vocabulary; any other city's grouping falls through
+// to the default. Areas are per-city free text (see NeighborhoodView.area), so
+// this is a lookup with a fallback, never an exhaustive map.
 const SIDE_GRADIENTS: Record<string, string> = {
   Central:  'from-amber-600 via-orange-500 to-yellow-500',
   European: 'from-blue-700 via-indigo-600 to-violet-600',
@@ -78,21 +85,32 @@ const SIDE_GRADIENTS: Record<string, string> = {
   Emerging: 'from-gray-700 via-slate-600 to-gray-500',
 }
 
+// Per-city editorial content, namespaced by city slug. The default city keeps
+// its 103 files at the flat legacy path (data/neighborhoods/moda.json) — moving
+// them would break nothing but is churn for no gain; every other city writes to
+// data/neighborhoods/<city>/<slug>.json. The namespacing is the point: slugs
+// are only unique WITHIN a city, so a flat lookup would eventually serve
+// Istanbul's copy on another city's identically-named district.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function loadNeighborhoodGuide(slug: string): any | null {
-  try {
-    const file = join(process.cwd(), 'data', 'neighborhoods', `${slug}.json`)
-    return JSON.parse(readFileSync(file, 'utf8'))
-  } catch { return null }
+function loadNeighborhoodGuide(citySlug: string, slug: string): any | null {
+  const paths = citySlug === DEFAULT_CITY_SLUG
+    ? [join(process.cwd(), 'data', 'neighborhoods', `${slug}.json`)]
+    : [join(process.cwd(), 'data', 'neighborhoods', citySlug, `${slug}.json`)]
+  for (const file of paths) {
+    try { return JSON.parse(readFileSync(file, 'utf8')) } catch { /* next */ }
+  }
+  return null
 }
 
-const COST_LABEL: Record<1 | 2 | 3, string> = { 1: 'budget-friendly', 2: 'mid-range', 3: 'upscale' }
+const COST_LABEL: Record<number, string> = { 1: 'budget-friendly', 2: 'mid-range', 3: 'upscale' }
 
-// Naturally-prepositioned phrase per side — sideLabel.toLowerCase() alone
-// produced grammatically odd sentences ("on the central istanbul", "on the
-// coastal istanbul") for some sides, since "on the X" only scans for a
-// handful of the six categories.
-const SIDE_PHRASE: Record<NeighborhoodSide, string> = {
+// Naturally-prepositioned phrase per Istanbul side — sideLabel.toLowerCase()
+// alone produced grammatically odd sentences ("on the central istanbul", "on
+// the coastal istanbul") for some sides, since "on the X" only scans for a
+// handful of the six categories. Other cities have their own area names and
+// no hand-written phrasing, so they get the neutral "in <city>" form rather
+// than a guessed preposition.
+const SIDE_PHRASE: Record<string, string> = {
   Central:  "in central Istanbul",
   European: 'on the European side',
   Asian:    'on the Asian side',
@@ -106,21 +124,30 @@ const SIDE_PHRASE: Record<NeighborhoodSide, string> = {
 // content. This gives every neighborhood a genuine, non-duplicate paragraph
 // built only from real structured data (side, cost tier, vibe, nearest
 // areas) — no invented specifics (restaurant names etc.) that would need an
-// actual local's input to be true.
-function buildAboutCopy(name: string, meta: NeighborhoodMeta, nearbyNames: string[]): string {
+// actual local's input to be true. Every clause is skipped when its data is
+// missing: a city that hasn't filled in vibes or areas gets a shorter true
+// sentence, never "one of Izmir's  neighborhoods, undefined".
+function buildAboutCopy(meta: NeighborhoodView, cityName: string, nearbyNames: string[]): string {
+  const { name, vibe, area, cost } = meta
+  const where = SIDE_PHRASE[area] ?? (area ? `in ${area}` : `in ${cityName}`)
+  const priced = COST_LABEL[cost] ? `, generally ${COST_LABEL[cost]} by local standards` : ''
+  const opener = vibe
+    ? `${name} is one of ${cityName}'s ${vibe.toLowerCase()} neighborhoods, ${where}${priced}.`
+    : `${name} is a neighborhood ${where}${priced}.`
   const near = nearbyNames.length > 0 ? ` It's close to ${nearbyNames.join(' and ')}.` : ''
-  return `${name} is one of Istanbul's ${meta.vibe.toLowerCase()} neighborhoods, ${SIDE_PHRASE[meta.side]}, generally ${COST_LABEL[meta.cost]} by local standards.${near} Smileys members based in ${name} connect through neighborhood events, meetups, and each other — this page tracks who's around, what's on, and what's nearby.`
+  return `${opener}${near} Smileys members based in ${name} connect through neighborhood events, meetups, and each other — this page tracks who's around, what's on, and what's nearby.`
 }
 
-// Small, cheap, no-DB nearest-neighbors lookup (mirrors the "Also on the
-// side" list computed later in NeighborhoodSections, but that's inside a
-// Suspense boundary — this runs synchronously so the About paragraph and its
-// internal links render in the initial HTML, not streamed in later).
-function nearestNeighborhoods(name: string, meta: NeighborhoodMeta, take: number): Array<{ name: string; slug: string }> {
-  return Object.entries(NEIGHBORHOOD_META)
-    .filter(([n, m]) => m.side === meta.side && n !== name)
+// Nearest-neighbors within the same area (mirrors the "Also on the side" list
+// computed later in NeighborhoodSections). Reads the city's own registry — the
+// 60s-cached list the page already resolved its own neighborhood from, so this
+// costs nothing extra.
+function nearestNeighborhoods(meta: NeighborhoodView, siblings: NeighborhoodView[], take: number): Array<{ name: string; slug: string }> {
+  if (!meta.area) return []
+  return siblings
+    .filter(n => n.area === meta.area && n.name !== meta.name)
     .slice(0, take)
-    .map(([n]) => ({ name: n, slug: neighborhoodToSlug(n) }))
+    .map(n => ({ name: n.name, slug: n.slug }))
 }
 
 // Skeleton shown while NeighborhoodSections streams in
@@ -167,18 +194,28 @@ export const dynamic = 'force-dynamic'
 
 export default async function NeighborhoodPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
-  const name = slugToNeighborhood(slug)
-  if (!name) notFound()
-
-  // All sync — no DB, renders immediately
-  const meta  = getNeighborhoodMeta(name)
-  const guide = loadNeighborhoodGuide(slug)
   const session = await getSession() // fast JWT decode, no DB
+
+  // The slug resolves against the VIEWER'S city, not a hardcoded Istanbul
+  // list — that list is why /neighborhoods/alsancak 404'd for an İzmir member
+  // while their own city page linked to it. Both the registry and the city
+  // config are 60s-cached in module memory, so this stays cheap.
+  const cityId   = await resolveCityId(session)
+  const city     = await getCityConfig(cityId)
+  const siblings = await getNeighborhoodViews(cityId)
+  const meta     = siblings.find(n => n.slug === slug)
+  if (!meta) notFound()
+
+  const name  = meta.name
+  const guide = loadNeighborhoodGuide(city.slug, slug)
 
   const isYourNeighborhood = session?.neighborhood === name
   const hasNoNeighborhood  = session && !session.neighborhood
   const isStaff = session?.role === 'admin' || session?.role === 'moderator'
 
+  // Istanbul's six areas have hand-written display labels; another city's area
+  // renders under its own name. Consumers must read this through
+  // `sideLabel[area] ?? area`, never assume a hit.
   const sideLabel: Record<string, string> = {
     Central:  'Central Istanbul',
     European: 'European Side',
@@ -188,8 +225,10 @@ export default async function NeighborhoodPage({ params }: { params: Promise<{ s
     Islands:  "Prince's Islands",
   }
 
-  const nearestForAbout = nearestNeighborhoods(name, meta, 2)
-  const aboutCopy = buildAboutCopy(name, meta, nearestForAbout.map(n => n.name))
+  const subtitle = [meta.vibe, meta.area ? (sideLabel[meta.area] ?? meta.area) : ''].filter(Boolean).join(' · ')
+
+  const nearestForAbout = nearestNeighborhoods(meta, siblings, 2)
+  const aboutCopy = buildAboutCopy(meta, city.name, nearestForAbout.map(n => n.name))
   const pageUrl = `${APP_URL}/neighborhoods/${slug}`
 
   // Read the per-request CSP nonce set by middleware so the JSON-LD <script>
@@ -208,14 +247,19 @@ export default async function NeighborhoodPage({ params }: { params: Promise<{ s
   const placeJsonLd = {
     '@context':   'https://schema.org',
     '@type':      'Place',
-    name:         `${name}, Istanbul`,
+    name:         `${name}, ${city.name}`,
     description:  aboutCopy,
     url:          pageUrl,
-    geo:          { '@type': 'GeoCoordinates', latitude: meta.lat, longitude: meta.lon },
+    // Omitted rather than zeroed when the city hasn't filled in coordinates:
+    // 0,0 is the Gulf of Guinea, and telling a crawler that is worse than
+    // telling it nothing.
+    ...(meta.lat && meta.lon
+      ? { geo: { '@type': 'GeoCoordinates', latitude: meta.lat, longitude: meta.lon } }
+      : {}),
     containedInPlace: {
       '@type': 'City',
-      name:    'Istanbul',
-      containedInPlace: { '@type': 'Country', name: 'Turkey' },
+      name:    city.name,
+      containedInPlace: { '@type': 'Country', name: countryName(city.country) },
     },
   }
 
@@ -254,7 +298,7 @@ export default async function NeighborhoodPage({ params }: { params: Promise<{ s
             <div className="absolute inset-0 bg-black/50" />
           </div>
         ) : (
-          <div className={`absolute inset-0 bg-gradient-to-br ${SIDE_GRADIENTS[meta.side] ?? 'from-amber-500 to-orange-500'}`}>
+          <div className={`absolute inset-0 bg-gradient-to-br ${SIDE_GRADIENTS[meta.area] ?? 'from-amber-500 to-orange-500'}`}>
             <div aria-hidden="true" className="absolute inset-0 flex items-center justify-center opacity-10 text-[160px] select-none pointer-events-none">
               {meta.emoji}
             </div>
@@ -274,7 +318,7 @@ export default async function NeighborhoodPage({ params }: { params: Promise<{ s
                 intent — the name stays visually dominant (large, first), the
                 rest reads as a natural subtitle rather than SEO boilerplate. */}
             <h1 className="text-4xl sm:text-5xl font-extrabold text-white tracking-tight drop-shadow-sm">
-              <span aria-hidden="true">{meta.emoji}</span> {name}, Istanbul
+              <span aria-hidden="true">{meta.emoji}</span> {name}, {city.name}
               <span className="block text-lg sm:text-xl font-semibold text-white/70 mt-1">
                 A neighborhood guide for the Smileys community
               </span>
@@ -285,7 +329,9 @@ export default async function NeighborhoodPage({ params }: { params: Promise<{ s
           </div>
 
           <div className="flex items-center gap-2 mt-2 flex-wrap">
-            <p className="text-white/75 text-sm font-medium">{meta.vibe} · {sideLabel[meta.side]}</p>
+            {/* Only the parts the city actually filled in — an unfilled vibe or
+                area used to render a bare " · " separator. */}
+            {subtitle && <p className="text-white/75 text-sm font-medium">{subtitle}</p>}
             <span className="text-xs font-semibold bg-white/15 backdrop-blur-sm text-white px-2 py-0.5 rounded-full">
               <span aria-hidden="true">{meta.cost === 1 ? '💰' : meta.cost === 2 ? '💰💰' : '💰💰💰'}</span>{' '}
               {meta.cost === 1 ? 'Affordable' : meta.cost === 2 ? 'Mid-range' : 'Pricey'}
@@ -315,6 +361,7 @@ export default async function NeighborhoodPage({ params }: { params: Promise<{ s
           <Suspense fallback={<div className="mt-5 h-14" />}>
             <HeroStats
               name={name}
+              cityId={cityId}
               groupLink={guide?.groupLink}
               groupLabel={guide?.groupLabel}
               userId={session?.id}
@@ -367,8 +414,8 @@ export default async function NeighborhoodPage({ params }: { params: Promise<{ s
             <MapSection lat={meta.lat} lon={meta.lon} name={name} />
           </div>
           <div className="bg-white px-4 py-3 flex items-center justify-between">
-            <span className="text-xs text-gray-600 font-medium"><span aria-hidden="true">📍</span> {name}, Istanbul</span>
-            <a href={`https://www.google.com/maps/search/${encodeURIComponent(name + ' Istanbul Turkey')}`}
+            <span className="text-xs text-gray-600 font-medium"><span aria-hidden="true">📍</span> {name}, {city.name}</span>
+            <a href={`https://www.google.com/maps/search/${encodeURIComponent(`${name} ${city.name} ${countryName(city.country)}`)}`}
               target="_blank" rel="noopener noreferrer"
               className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
               Open in Maps →
@@ -382,6 +429,9 @@ export default async function NeighborhoodPage({ params }: { params: Promise<{ s
             name={name}
             slug={slug}
             meta={meta}
+            siblings={siblings}
+            cityId={cityId}
+            city={city}
             guide={guide}
             myId={session?.id ?? null}
             isStaff={isStaff}
@@ -392,7 +442,7 @@ export default async function NeighborhoodPage({ params }: { params: Promise<{ s
 
         {/* Share */}
         <SocialShare
-          title={`${meta.emoji} ${name} — Smileys Community Istanbul`}
+          title={`${meta.emoji} ${name} — Smileys Community ${city.name}`}
           url={`${APP_URL}/neighborhoods/${slug}`}
           cacheKey={slug.slice(0, 6)}
         />

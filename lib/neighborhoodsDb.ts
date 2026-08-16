@@ -18,6 +18,8 @@
 // admin-edit cadence, and validation sits on hot write paths.
 
 import { prisma } from './prisma'
+import { NEIGHBORHOOD_META } from './neighborhoods'
+import { getCityConfig, DEFAULT_CITY_SLUG } from './city'
 
 export interface CityNeighborhood {
   id:    string
@@ -65,4 +67,54 @@ export async function slugToNeighborhoodFor(cityId: string, slug: string): Promi
 // returns the name when it's a real neighborhood of the city, else null.
 export async function safeNeighborhoodFor(cityId: string, name: unknown): Promise<string | null> {
   return (await isValidNeighborhoodFor(cityId, name)) ? (name as string) : null
+}
+
+// ── The render shape ────────────────────────────────────────────────────────
+// What a neighborhood page/card needs, with the editorial layer already
+// merged in. `area` is the city's own grouping vocabulary — Istanbul's
+// European/Asian/Coastal…, someone else's something entirely — so treat it
+// as an opaque label, never as a known set. '' means the city hasn't grouped
+// its neighborhoods at all, which must render as "no grouping", not as a
+// missing Istanbul side.
+export interface NeighborhoodView {
+  name:  string
+  slug:  string
+  emoji: string
+  vibe:  string
+  area:  string
+  cost:  number
+  lat:   number
+  lon:   number
+}
+
+// NEIGHBORHOOD_META is Istanbul's hand-authored editorial layer (vibes,
+// coordinates, cost tiers written by members). It's keyed by bare name, so it
+// may only be applied to the DEFAULT city — otherwise a second city that
+// happens to name a district "Merkez" or "Centre" would silently inherit
+// Istanbul's copy and Istanbul's latitude.
+function toView(row: CityNeighborhood, editorial: boolean): NeighborhoodView {
+  const meta = editorial ? NEIGHBORHOOD_META[row.name] : undefined
+  return {
+    name:  row.name,
+    slug:  row.slug,
+    emoji: meta?.emoji ?? row.emoji,
+    vibe:  meta?.vibe  ?? row.vibe ?? '',
+    area:  meta?.side  ?? row.area ?? '',
+    cost:  meta?.cost  ?? row.cost,
+    lat:   meta?.lat   ?? row.lat ?? 0,
+    lon:   meta?.lon   ?? row.lng ?? 0,
+  }
+}
+
+/** Every neighborhood of a city, ready to render. */
+export async function getNeighborhoodViews(cityId: string): Promise<NeighborhoodView[]> {
+  const [rows, cfg] = await Promise.all([getNeighborhoodsForCity(cityId), getCityConfig(cityId)])
+  const editorial = cfg.slug === DEFAULT_CITY_SLUG
+  return rows.map(r => toView(r, editorial))
+}
+
+/** One neighborhood of a city by slug, or null — the per-city replacement for
+ *  slugToNeighborhood + getNeighborhoodMeta. */
+export async function getNeighborhoodView(cityId: string, slug: string): Promise<NeighborhoodView | null> {
+  return (await getNeighborhoodViews(cityId)).find(n => n.slug === slug) ?? null
 }

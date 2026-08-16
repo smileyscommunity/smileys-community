@@ -2,15 +2,19 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
+import { getSession } from '@/lib/session'
+import { resolveCityId } from '@/lib/city'
 import { canonicalCategory, categoryMeta, storedKeysFor, categoryHero } from '@/lib/handbook-categories'
 import { resolveImageUrl } from '@/lib/data'
 
 // Queried by every stored key that maps to this canonical category, so legacy
 // rows still filed under the old vocabulary appear here rather than vanishing
 // from the IA until someone re-saves them.
+// Same city rule as the Handbook index: null cityId is global content and
+// matches everywhere; a city-local article only shows in its own city.
 const getHandbookCategory = unstable_cache(
-  async (storedKeys: string[]) => prisma.post.findMany({
-    where:   { kind: 'handbook', status: 'published', category: { in: storedKeys } },
+  async (storedKeys: string[], cityId: string) => prisma.post.findMany({
+    where:   { kind: 'handbook', status: 'published', category: { in: storedKeys }, OR: [{ cityId }, { cityId: null }] },
     orderBy: { publishedAt: 'desc' },
     select:  { id: true, slug: true, title: true, excerpt: true, coverImage: true, body: true, category: true, publishedAt: true, author: { select: { name: true } } },
   }),
@@ -44,7 +48,7 @@ export default async function HandbookCategoryPage({ params }: Params) {
   const cat = canonical ? categoryMeta(canonical) : null
   if (!canonical || !cat) notFound()
 
-  const articles = await getHandbookCategory(storedKeysFor(canonical))
+  const articles = await getHandbookCategory(storedKeysFor(canonical), await resolveCityId(await getSession()))
 
   return (
     <main className="bg-gray-50 min-h-screen">

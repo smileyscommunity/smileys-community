@@ -5,11 +5,11 @@ import { join } from 'path'
 import { unstable_cache } from 'next/cache'
 import { headers } from 'next/headers'
 import { prisma } from '@/lib/prisma'
-import { neighborhoodToSlug, NEIGHBORHOOD_META } from '@/lib/neighborhoods'
+import { neighborhoodToSlug } from '@/lib/neighborhoods'
 import { APP_URL } from '@/lib/env'
 import { getSession } from '@/lib/session'
-import { resolveCityId } from '@/lib/city'
-import { getNeighborhoodsForCity } from '@/lib/neighborhoodsDb'
+import { resolveCityId, getCityConfig, DEFAULT_CITY_SLUG } from '@/lib/city'
+import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
 import { restrictedSetFor } from '@/lib/memberPrivacy'
 import SayHiButton from '@/components/SayHiButton'
 import LocalFavorites, { type LocalPick } from '@/components/LocalFavorites'
@@ -25,28 +25,41 @@ function jsonLdHtml(data: unknown): string {
 
 // Fixed-size cover (1200×800) served from public/ under the /app basePath.
 const NEIGHBORHOODS_OG_IMAGE = `${APP_URL}/images/neighborhoods-cover.jpg`
-const NEIGHBORHOODS_OG_DESC  = 'Discover curated social events happening across Istanbul, organised by neighborhood.'
 
-export const metadata = {
-  alternates: { canonical: `${APP_URL}/neighborhoods` },
-  title: 'Explore Istanbul Neighborhoods — Smileys Community',
-  description: 'Find Smileys events happening near you. From Kadıköy to Beşiktaş, Cihangir to Ataşehir — discover social events across Istanbul by neighborhood.',
-  openGraph: {
-    title: 'Istanbul Neighborhoods — Smileys Community',
-    description: NEIGHBORHOODS_OG_DESC,
-    // Include the /app basePath — the bare /neighborhoods path 301-redirects,
-    // which some crawlers won't follow for the canonical.
-    url: `${APP_URL}/neighborhoods`,
-    siteName: 'Smileys Community',
-    type: 'website',
-    images: [{ url: NEIGHBORHOODS_OG_IMAGE, secureUrl: NEIGHBORHOODS_OG_IMAGE, width: 1200, height: 800, alt: 'Istanbul Neighborhoods — Smileys Community' }],
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'Istanbul Neighborhoods — Smileys Community',
-    description: NEIGHBORHOODS_OG_DESC,
-    images: [NEIGHBORHOODS_OG_IMAGE],
-  },
+// Names the city the viewer is actually looking at. The default city keeps the
+// hand-written, keyword-carrying description that's been indexed for months —
+// listing İzmir's districts in Istanbul's snippet would be a real SEO loss —
+// and every other city gets the generated form.
+export async function generateMetadata() {
+  const city = await getCityConfig(await resolveCityId(await getSession()))
+  const isDefault = city.slug === DEFAULT_CITY_SLUG
+  const title = `${isDefault ? 'Explore ' : ''}${city.name} Neighborhoods — Smileys Community`
+  const desc  = isDefault
+    ? 'Find Smileys events happening near you. From Kadıköy to Beşiktaş, Cihangir to Ataşehir — discover social events across Istanbul by neighborhood.'
+    : `Find Smileys events happening near you — discover social events across ${city.name} by neighborhood.`
+  const ogDesc = `Discover curated social events happening across ${city.name}, organised by neighborhood.`
+
+  return {
+    alternates: { canonical: `${APP_URL}/neighborhoods` },
+    title,
+    description: desc,
+    openGraph: {
+      title: `${city.name} Neighborhoods — Smileys Community`,
+      description: ogDesc,
+      // Include the /app basePath — the bare /neighborhoods path 301-redirects,
+      // which some crawlers won't follow for the canonical.
+      url: `${APP_URL}/neighborhoods`,
+      siteName: 'Smileys Community',
+      type: 'website',
+      images: [{ url: NEIGHBORHOODS_OG_IMAGE, secureUrl: NEIGHBORHOODS_OG_IMAGE, width: 1200, height: 800, alt: `${city.name} Neighborhoods — Smileys Community` }],
+    },
+    twitter: {
+      card: 'summary_large_image' as const,
+      title: `${city.name} Neighborhoods — Smileys Community`,
+      description: ogDesc,
+      images: [NEIGHBORHOODS_OG_IMAGE],
+    },
+  }
 }
 import { resolveImageUrl, avatarUrl } from '@/lib/data'
 import AvatarImg from '@/components/AvatarImg'
@@ -55,20 +68,23 @@ import { loadContent } from '@/lib/content'
 
 export const dynamic = 'force-dynamic'
 
+// cityId is part of the cache key so two cities never share a stats entry;
+// every count below is scoped to it, because a neighborhood name is only
+// unique within its city.
 const getNeighborhoodStats = unstable_cache(
-  async (today: string) => Promise.all([
+  async (today: string, cityId: string) => Promise.all([
     prisma.event.groupBy({
       by: ['neighborhood'],
-      where: { date: { gte: today } },
+      where: { cityId, date: { gte: today } },
       _count: { _all: true },
     }),
     prisma.user.groupBy({
       by: ['neighborhood'],
-      where: { neighborhood: { not: null }, status: 'approved' },
+      where: { cityId, neighborhood: { not: null }, status: 'approved' },
       _count: { _all: true },
     }),
     prisma.event.findMany({
-      where: { date: { gte: today }, status: 'published' },
+      where: { cityId, date: { gte: today }, status: 'published' },
       select: { neighborhood: true, title: true, date: true, emoji: true },
       orderBy: { date: 'asc' },
       take: 300,
@@ -76,7 +92,7 @@ const getNeighborhoodStats = unstable_cache(
     // "Local picks" per neighborhood — approved, active directory listings.
     prisma.business.groupBy({
       by: ['neighborhood'],
-      where: { neighborhood: { not: null }, isApproved: true, isActive: true },
+      where: { cityId, neighborhood: { not: null }, isApproved: true, isActive: true },
       _count: { _all: true },
     }),
   ]),
@@ -104,12 +120,13 @@ export default async function NeighborhoodsPage() {
   const nh = c.neighborhoods ?? {}
   const today = new Date().toISOString().split('T')[0]
 
-  const [session, [eventCounts, memberCounts, nextEventsRaw, pickCounts]] = await Promise.all([
-    getSession(),
-    getNeighborhoodStats(today),
-  ])
+  // The stats are city-scoped now, so the city has to resolve first — the
+  // session and the city id are both cheap (JWT decode + module-memory cache).
+  const session = await getSession()
+  const cityId  = await resolveCityId(session)
+  const city    = await getCityConfig(cityId)
 
-  const cityId = await resolveCityId(session)
+  const [eventCounts, memberCounts, nextEventsRaw, pickCounts] = await getNeighborhoodStats(today, cityId)
 
   // First upcoming event per neighborhood
   const nextEventMap: Record<string, { title: string; date: string; emoji: string }> = {}
@@ -130,23 +147,24 @@ export default async function NeighborhoodsPage() {
 
   // The list comes from the viewer's city, not the hard-coded Istanbul constant.
   // A member in Izmir was being shown Kadıköy, Moda and Cihangir under a nav
-  // heading that said "In Izmir". NEIGHBORHOOD_META is still the editorial
-  // layer (emoji, vibe, cost) for the cities that have one; a row without an
-  // entry falls back to what the table itself stores.
-  const cityRows = await getNeighborhoodsForCity(cityId)
-  const neighborhoods = cityRows.map(row => {
-    const name = row.name
-    const meta = NEIGHBORHOOD_META[name] ?? {
-      emoji: row.emoji, vibe: row.vibe ?? '', side: row.area ?? '',
-      cost: row.cost, lat: row.lat ?? 0, lon: row.lng ?? 0,
-    }
+  // heading that said "In Izmir". getNeighborhoodViews applies the editorial
+  // layer (emoji, vibe, cost) only for the default city — see its comment on
+  // why a second city must never inherit it by name.
+  const cityViews = await getNeighborhoodViews(cityId)
+  // "Is this a real neighborhood?" now means "of THIS city" — it used to mean
+  // "in Istanbul's constant", which is why an İzmir member's own neighborhood
+  // failed the check and their banner never rendered.
+  const viewByName = new Map(cityViews.map(v => [v.name, v]))
+  const neighborhoods = cityViews.map(view => {
+    const name = view.name
+    const meta = { emoji: view.emoji, vibe: view.vibe, side: view.area, cost: view.cost, lat: view.lat, lon: view.lon }
     const eventCount  = eventCounts.find(e => e.neighborhood === name)?._count._all  ?? 0
     const memberCount = memberCounts.find(m => m.neighborhood === name)?._count._all ?? 0
     const pickCount   = pickCounts.find(p => p.neighborhood === name)?._count._all   ?? 0
     const activityScore = eventCount * 3 + Math.round(memberCount / 6)
     return {
       name,
-      slug: row.slug,
+      slug: view.slug,
       meta,
       eventCount,
       memberCount,
@@ -167,19 +185,42 @@ export default async function NeighborhoodsPage() {
       return scoreB - scoreA
     })
 
+  // Istanbul's six areas have curated labels, icons and colours, and this is
+  // the order they read in. Any OTHER area a city defines still gets a section
+  // — named after itself, in a neutral palette, after the curated ones. That
+  // fallback is the whole point: these six used to be the only sections, so a
+  // city grouping by "Konak" or "Alsancak" rendered a completely empty page.
+  const CURATED: { side: string; label: string; icon: string; color: string }[] = [
+    { side: 'Central',  label: 'Central Hubs',  icon: '🌟',  color: 'bg-amber-100 text-amber-700'  },
+    { side: 'European', label: 'European Side', icon: '🇹🇷', color: 'bg-blue-100 text-blue-700'    },
+    { side: 'Asian',    label: 'Asian Side',    icon: '🌏',  color: 'bg-green-100 text-green-700'  },
+    { side: 'Coastal',  label: 'Coastal',       icon: '🌊',  color: 'bg-sky-100 text-sky-700'      },
+    { side: 'Islands',  label: 'Islands',       icon: '🏝️', color: 'bg-purple-100 text-purple-700' },
+    { side: 'Emerging', label: 'Emerging',      icon: '🚀',  color: 'bg-slate-100 text-slate-700'  },
+  ]
+  const curatedSides = new Set(CURATED.map(c => c.side))
+
+  // Areas this city uses that aren't curated, in first-seen (sortOrder) order.
+  // '' means the city hasn't grouped its neighborhoods at all — those land in
+  // one unlabelled section rather than a section headed "".
+  const extraSides = [...new Set(neighborhoods.map(n => n.meta.side).filter(s => s && !curatedSides.has(s)))]
+  const ungrouped  = neighborhoods.filter(n => !n.meta.side)
+
   const groups: Group[] = [
-    { label: 'Central Hubs', side: 'Central',  icon: '🌟', color: 'bg-amber-100 text-amber-700',  items: sortGroup(neighborhoods.filter(n => n.meta.side === 'Central'))  },
-    { label: 'European Side', side: 'European', icon: '🇹🇷', color: 'bg-blue-100 text-blue-700',   items: sortGroup(neighborhoods.filter(n => n.meta.side === 'European')) },
-    { label: 'Asian Side',    side: 'Asian',    icon: '🌏', color: 'bg-green-100 text-green-700',  items: sortGroup(neighborhoods.filter(n => n.meta.side === 'Asian'))    },
-    { label: 'Coastal',       side: 'Coastal',  icon: '🌊', color: 'bg-sky-100 text-sky-700',      items: sortGroup(neighborhoods.filter(n => n.meta.side === 'Coastal'))  },
-    { label: 'Islands',       side: 'Islands',  icon: '🏝️', color: 'bg-purple-100 text-purple-700', items: sortGroup(neighborhoods.filter(n => n.meta.side === 'Islands'))  },
-    { label: 'Emerging',      side: 'Emerging', icon: '🚀', color: 'bg-slate-100 text-slate-700',  items: sortGroup(neighborhoods.filter(n => n.meta.side === 'Emerging')) },
+    ...CURATED.map(c => ({ ...c, items: sortGroup(neighborhoods.filter(n => n.meta.side === c.side)) })),
+    ...extraSides.map(side => ({
+      label: side, side, icon: '📍', color: 'bg-gray-100 text-gray-700',
+      items: sortGroup(neighborhoods.filter(n => n.meta.side === side)),
+    })),
+    ...(ungrouped.length > 0
+      ? [{ label: `In ${city.name}`, side: '', icon: '🏘️', color: 'bg-gray-100 text-gray-700', items: sortGroup(ungrouped) }]
+      : []),
   ].filter(g => g.items.length > 0)
 
   let yourNeighborhoodMembers: { id: string; name: string; color: string; profilePhoto: string | null }[] = []
   if (userNeighborhood) {
     yourNeighborhoodMembers = await prisma.user.findMany({
-      where:   { neighborhood: userNeighborhood, status: 'approved' },
+      where:   { neighborhood: userNeighborhood, cityId, status: 'approved' },
       select:  { id: true, name: true, color: true, profilePhoto: true },
       take:    5,
       orderBy: { joinedAt: 'desc' },
@@ -191,7 +232,7 @@ export default async function NeighborhoodsPage() {
   // would otherwise be blank, so they fall back to the busiest neighborhood
   // and say so in the heading rather than implying it's the viewer's own.
   const busiest = [...memberCounts]
-    .filter(m => m.neighborhood && NEIGHBORHOOD_META[m.neighborhood])
+    .filter(m => m.neighborhood && viewByName.has(m.neighborhood))
     .sort((a, b) => b._count._all - a._count._all)[0]?.neighborhood ?? null
   const focusNeighborhood = userNeighborhood ?? busiest
   const focusIsYours      = !!userNeighborhood
@@ -207,7 +248,7 @@ export default async function NeighborhoodsPage() {
 
   if (focusNeighborhood) {
     nearbyEvents = await prisma.event.findMany({
-      where:   { status: 'published', date: { gte: today }, neighborhood: focusNeighborhood },
+      where:   { status: 'published', cityId, date: { gte: today }, neighborhood: focusNeighborhood },
       select:  {
         id: true, title: true, emoji: true, date: true, location: true,
         _count: { select: { attendees: { where: { status: 'approved' } } } },
@@ -223,6 +264,7 @@ export default async function NeighborhoodsPage() {
     const candidates = await prisma.user.findMany({
       where: {
         neighborhood: focusNeighborhood,
+        cityId,
         status: 'approved',
         neighborhoodVisible: true,
         ...(session ? { id: { not: session.id } } : { profileVisibility: { not: 'connections' } }),
@@ -245,6 +287,7 @@ export default async function NeighborhoodsPage() {
     ? await prisma.visitorAnnouncement.findMany({
         where:  {
           status: 'active',
+          cityId,
           neighborhood: focusNeighborhood,
           endsOn: { gte: today },
           ...(session ? {} : { visibility: 'public' }),
@@ -262,7 +305,9 @@ export default async function NeighborhoodsPage() {
   // only a handful have review text, so the member quote is opportunistic
   // rather than assumed.
   const localPicks = await prisma.business.findMany({
-    where:  { isApproved: true, isActive: true, coverImage: { not: null } },
+    // cityId, or an İzmir member browsing their own neighborhoods page is
+    // recommended cafés in Kadıköy.
+    where:  { isApproved: true, isActive: true, cityId, coverImage: { not: null } },
     select: {
       id: true, name: true, category: true, neighborhood: true, coverImage: true,
       reviews: {
@@ -308,11 +353,11 @@ export default async function NeighborhoodsPage() {
       position: i + 1,
       item: {
         '@type': 'Place',
-        name:    `${n.name}, Istanbul`,
+        name:    `${n.name}, ${city.name}`,
         url:     `${APP_URL}/neighborhoods/${n.slug}`,
         containedInPlace: {
           '@type': 'City',
-          name:    'Istanbul',
+          name:    city.name,
           containedInPlace: { '@type': 'Country', name: 'Turkey' },
         },
       },
@@ -343,10 +388,10 @@ export default async function NeighborhoodsPage() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
             <div className="max-w-2xl">
               <p className="text-xs font-bold tracking-[0.2em] uppercase text-amber-300 mb-4">
-                {nh.badge ?? 'Istanbul Neighborhoods'}
+                {nh.badge ?? `${city.name} Neighborhoods`}
               </p>
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-[1.1]">
-                {nh.headline ?? 'Find your Istanbul.'}
+                {nh.headline ?? `Find your ${city.name}.`}
               </h1>
               <p className="text-base sm:text-lg text-white/90 mt-5 leading-relaxed max-w-xl">
                 {nh.subtitle ?? 'Discover the people, events and local favorites around where you live, work or hang out.'}
@@ -374,11 +419,11 @@ export default async function NeighborhoodsPage() {
       </section>
 
       {/* Your neighborhood banner */}
-      {userNeighborhood && NEIGHBORHOOD_META[userNeighborhood] && (
+      {userNeighborhood && viewByName.has(userNeighborhood) && (
         <div id="your-neighborhood" className="scroll-mt-20 bg-amber-50 border-b border-amber-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-3">
-              <span aria-hidden="true" className="text-2xl">{NEIGHBORHOOD_META[userNeighborhood].emoji}</span>
+              <span aria-hidden="true" className="text-2xl">{viewByName.get(userNeighborhood)!.emoji}</span>
               <div>
                 <div className="text-xs font-bold text-amber-600 uppercase tracking-wide">Your neighborhood</div>
                 <div className="font-bold text-gray-900">{userNeighborhood}</div>
@@ -473,7 +518,7 @@ export default async function NeighborhoodsPage() {
         {session && !userNeighborhood && (
           <section className="mb-10 bg-amber-50 border border-amber-100 rounded-2xl p-6 sm:p-8">
             <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-gray-900">
-              Where&apos;s your Istanbul?
+              Where&apos;s your {city.name}?
             </h2>
             <p className="text-gray-700 mt-1.5 mb-5 max-w-xl">
               Choose the neighborhood where you live or spend most of your time, and this
@@ -494,8 +539,8 @@ export default async function NeighborhoodsPage() {
             </h2>
             <p className="text-gray-600 mt-1.5 mb-6">
               {focusIsYours
-                ? 'Events and plans around your side of Istanbul.'
-                : `Istanbul's most active Smileys neighborhood right now.`}
+                ? `Events and plans around your side of ${city.name}.`
+                : `${city.name}'s most active Smileys neighborhood right now.`}
             </p>
             {nearbyEvents.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -539,7 +584,7 @@ export default async function NeighborhoodsPage() {
               {focusIsYours ? 'People around you' : `People in ${focusNeighborhood}`}
             </h2>
             <p className="text-gray-600 mt-1.5 mb-6">
-              Meet Smileys members who call {focusIsYours ? 'your part of Istanbul' : focusNeighborhood} home.
+              Meet Smileys members who call {focusIsYours ? `your part of ${city.name}` : focusNeighborhood} home.
             </p>
             {/* Horizontal scroll on mobile per the brief; a plain grid once
                 there's room for it. */}
@@ -585,7 +630,7 @@ export default async function NeighborhoodsPage() {
         )}
 
         <section id="explore" className="scroll-mt-20">
-          <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900">Explore Istanbul</h2>
+          <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900">Explore {city.name}</h2>
           <p className="text-gray-600 mt-1.5 mb-6">Every neighborhood has its own rhythm. Find yours.</p>
           <NeighborhoodGrid groups={groups} userNeighborhood={userNeighborhood} />
         </section>
@@ -669,7 +714,7 @@ export default async function NeighborhoodsPage() {
         {/* ── Final CTA (§14) ── */}
         <section className="rounded-2xl bg-gray-900 px-6 py-14 sm:py-16 text-center mb-4">
           <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white leading-tight">
-            Istanbul is huge.<br />Your community doesn&apos;t have to be.
+            {city.name} is huge.<br />Your community doesn&apos;t have to be.
           </h2>
           <p className="text-gray-300 mt-4 max-w-xl mx-auto leading-relaxed">
             Choose your neighborhood and discover who&apos;s around you.
@@ -681,7 +726,7 @@ export default async function NeighborhoodsPage() {
             </Link>
             <a href="#explore"
               className="inline-flex items-center justify-center gap-2 px-7 py-3.5 border border-white/40 hover:bg-white/10 text-white text-base font-semibold rounded-xl transition-colors">
-              Explore Istanbul
+              Explore {city.name}
             </a>
           </div>
         </section>

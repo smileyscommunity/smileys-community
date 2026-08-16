@@ -5,6 +5,7 @@ import type { Metadata } from 'next'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { resolveCityId } from '@/lib/city'
 import { sanitize } from '@/lib/sanitize'
 import { resolveImageUrl } from '@/lib/data'
 import { firstBodyImage } from '@/lib/articleCover'
@@ -49,9 +50,14 @@ const getHandbookArticle = unstable_cache(
 // stored under a legacy key ('Daily Life') and one stored under the new key
 // ('Living in Istanbul') recommend each other instead of sitting in separate
 // silos during the transition.
+//
+// City-scoped like the index: a shared link to a city-local article still
+// opens for anyone (the article query above is deliberately unscoped — an
+// indexed URL must not start 404ing based on a cookie), but what we
+// RECOMMEND alongside it stays in the reader's own city.
 const getHandbookRelated = unstable_cache(
-  async (storedKeys: string[], excludeId: string) => prisma.post.findMany({
-    where:   { kind: 'handbook', status: 'published', category: { in: storedKeys }, NOT: { id: excludeId } },
+  async (storedKeys: string[], excludeId: string, cityId: string) => prisma.post.findMany({
+    where:   { kind: 'handbook', status: 'published', category: { in: storedKeys }, NOT: { id: excludeId }, OR: [{ cityId }, { cityId: null }] },
     orderBy: { publishedAt: 'desc' },
     take:    3,
     select:  { id: true, slug: true, title: true, excerpt: true },
@@ -136,6 +142,7 @@ export default async function HandbookArticlePage({ params }: Params) {
   const related = await getHandbookRelated(
     canonical ? storedKeysFor(canonical) : [post.category],
     post.id,
+    await resolveCityId(await getSession()),
   )
 
   // Freshness + sources are computed server-side so the client component gets

@@ -5,6 +5,8 @@ import TransitLinks, { type Category } from '@/components/TransitLinks'
 import HandbookSearch from '@/components/HandbookSearch'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
+import { getSession } from '@/lib/session'
+import { resolveCityId } from '@/lib/city'
 import { resolveImageUrl } from '@/lib/data'
 import { canonicalCategory, categoryMeta, categoryHero, CATEGORY_KEYS, HANDBOOK_CATEGORIES } from '@/lib/handbook-categories'
 import { reviewLabel, readingTime } from '@/lib/handbook-review'
@@ -22,9 +24,15 @@ function articleCover(a: { coverImage: string | null; body: string; category: st
   return categoryHero(a.category)?.src ?? null
 }
 
+// Scoped to the viewer's city. A null cityId means global — residence
+// permits and tax numbers are national, and most of the Handbook is —
+// so those match everywhere; only genuinely city-local articles are
+// filtered out. cityId is part of the cache key, not captured from the
+// request inside it: one shared cache entry per city, never a city's
+// articles served to another.
 const getHandbookArticles = unstable_cache(
-  async () => prisma.post.findMany({
-    where:   { kind: 'handbook', status: 'published' },
+  async (cityId: string) => prisma.post.findMany({
+    where:   { kind: 'handbook', status: 'published', OR: [{ cityId }, { cityId: null }] },
     orderBy: { publishedAt: 'desc' },
     select:  {
       id: true, slug: true, title: true, excerpt: true, body: true, coverImage: true, category: true,
@@ -124,7 +132,7 @@ function loadQuickReference(): Category[] {
 }
 
 export default async function HandbookPage() {
-  const articles = await getHandbookArticles()
+  const articles = await getHandbookArticles(await resolveCityId(await getSession()))
 
   // Group by CANONICAL category so legacy-keyed rows land in the new IA
   // without a data migration. Dev-only: warn when an article's category
