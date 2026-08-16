@@ -225,7 +225,9 @@ export default async function CityPage({ params }: Params) {
                   {[
                     { value: stats.members, label: 'Members' },
                     { value: stats.clubs,   label: 'Clubs' },
-                    { value: stats.events,  label: 'Upcoming events' },
+                    // "Upcoming events" wraps in a ~110px column on a 375px
+                    // phone; "Upcoming" is what the homepage city card says too.
+                    { value: stats.events,  label: 'Upcoming' },
                   ].map(s => (
                     <div key={s.label}>
                       <div className="text-2xl md:text-3xl font-extrabold text-gray-900 tracking-tight tabular-nums">
@@ -356,7 +358,12 @@ export default async function CityPage({ params }: Params) {
       )}
 
       {/* Stories */}
-      {testimonials.length > 0 && (
+      {/* Testimonials carry no city (the model has no cityId), so they're
+          Istanbul members' words. Showing them on a city with nobody in it
+          manufactures a community that doesn't exist yet — the same dishonesty
+          as publishing zeros, in a form that's harder to spot. Gate on the
+          city actually having members. */}
+      {testimonials.length > 0 && (stats?.members ?? 0) > 0 && (
         <section className="py-12 sm:py-16 bg-gray-50 border-t border-gray-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="mb-8">
