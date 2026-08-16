@@ -12,7 +12,7 @@ import JoinCityButton from '@/components/JoinCityButton'
 import ClubCard from '@/components/ClubCard'
 import { neighborhoodToSlug, getNeighborhoodMeta } from '@/lib/neighborhoods'
 import { resolveImageUrl, istanbulEventWindow } from '@/lib/data'
-import { getPublicCity } from '@/lib/cities'
+import { getPublicCity, DEFAULT_CITY_SLUG } from '@/lib/cities'
 import { CITY_STATUS } from '@/lib/cityStatus'
 import { APP_URL } from '@/lib/env'
 import { absoluteOgImage } from '@/lib/og'
@@ -129,7 +129,7 @@ export default async function CityPage({ params }: Params) {
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <JoinCityButton slug={city.slug} name={city.name} live={false} />
-          <Link href="/" className="btn-secondary text-base px-8 py-4">See our live cities</Link>
+          <Link href="/cities" className="btn-secondary text-base px-8 py-4">See our live cities</Link>
         </div>
       </section>
     )
@@ -169,6 +169,19 @@ export default async function CityPage({ params }: Params) {
 
   const stats = city.stats
 
+  // Feed links route through /api/city/enter, which sets the view-city
+  // cookie before landing — so "See what's on" from /izmir shows İzmir's
+  // events, not the default city's. Plain <a> targets (route handler, not a
+  // page), hence the explicit /app basePath.
+  const enter = (to: 'events' | 'clubs' | 'directory') =>
+    `/app/api/city/enter?city=${city.slug}&to=${to}`
+
+  // The guide and the neighborhood registry are default-city content for
+  // now — linking a new city into them would show the wrong city's places
+  // (and İzmir neighborhood slugs would 404). Render those sections only on
+  // the default city's page until they're per-city.
+  const isDefaultCity = city.slug === DEFAULT_CITY_SLUG
+
   return (
     <>
       {/* Hero */}
@@ -177,7 +190,7 @@ export default async function CityPage({ params }: Params) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-20 relative">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
             <div>
-              <Link href="/" className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-amber-700 hover:text-amber-800 mb-6">
+              <Link href="/cities" className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-amber-700 hover:text-amber-800 mb-6">
                 <span aria-hidden="true">←</span> All Smileys cities
               </Link>
 
@@ -198,7 +211,7 @@ export default async function CityPage({ params }: Params) {
                     exists — see components/JoinCityButton); guests fall through
                     to the application flow below. */}
                 <JoinCityButton slug={city.slug} name={city.name} />
-                <Link href="/events" className="btn-secondary text-base px-8 py-4">See what's on</Link>
+                <a href={enter('events')} className="btn-secondary text-base px-8 py-4">See what's on</a>
               </div>
               <p className="text-sm font-medium text-gray-700 mb-12">
                 Free to join · Applications reviewed by hand within 24 hours · Pay only for events you attend
@@ -251,20 +264,21 @@ export default async function CityPage({ params }: Params) {
                 <h2 className="section-title">Find your people</h2>
                 <p className="section-subtitle">Every interest covered — join as many as you like.</p>
               </div>
-              <Link href="/clubs" className="hidden md:flex btn-ghost text-sm items-center gap-1">All clubs →</Link>
+              <a href={enter('clubs')} className="hidden md:flex btn-ghost text-sm items-center gap-1">All clubs →</a>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
               {featuredClubs.map(club => <ClubCard key={club.id} club={club} hideEmptyNextEvent />)}
             </div>
             <div className="text-center mt-10 md:hidden">
-              <Link href="/clubs" className="btn-secondary">All clubs</Link>
+              <a href={enter('clubs')} className="btn-secondary">All clubs</a>
             </div>
           </div>
         </section>
       )}
 
-      {/* Neighborhoods */}
-      {topNeighborhoods.length > 0 && (
+      {/* Neighborhoods — default city only: the registry behind
+          /neighborhoods is that city's, and other cities' slugs 404. */}
+      {isDefaultCity && topNeighborhoods.length > 0 && (
         <section className="py-12 sm:py-16 bg-gray-50 border-t border-gray-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-end justify-between mb-8">
@@ -288,22 +302,26 @@ export default async function CityPage({ params }: Params) {
         </section>
       )}
 
-      {/* Guide */}
-      <section className="py-12 sm:py-16 bg-white border-t border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="rounded-3xl bg-gradient-to-br from-amber-50 to-white border border-amber-100 p-8 sm:p-12">
-            <h2 className="section-title">Get to know {city.name}</h2>
-            <p className="section-subtitle max-w-2xl mb-8">
-              Neighborhoods, where to go, things to do, coworking, nightlife and the local tips
-              that take newcomers months to work out.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Link href="/guide" className="btn-primary">Read the {city.name} guide</Link>
-              <Link href="/directory" className="btn-secondary">Browse places</Link>
+      {/* Guide — default city only: /guide is that city's guide, and
+          promising "the İzmir guide" over Istanbul content breaks trust on
+          exactly the page meant to build it. */}
+      {isDefaultCity && (
+        <section className="py-12 sm:py-16 bg-white border-t border-gray-100">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="rounded-3xl bg-gradient-to-br from-amber-50 to-white border border-amber-100 p-8 sm:p-12">
+              <h2 className="section-title">Get to know {city.name}</h2>
+              <p className="section-subtitle max-w-2xl mb-8">
+                Neighborhoods, where to go, things to do, coworking, nightlife and the local tips
+                that take newcomers months to work out.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4">
+                <Link href="/guide" className="btn-primary">Read the {city.name} guide</Link>
+                <a href={enter('directory')} className="btn-secondary">Browse places</a>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Stories */}
       {testimonials.length > 0 && (
@@ -349,7 +367,7 @@ export default async function CityPage({ params }: Params) {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href={`/apply?city=${city.slug}`} className="btn-primary text-base px-8 py-4">Join Smileys</Link>
-            <Link href="/events" className="btn-secondary text-base px-8 py-4">Browse events first</Link>
+            <a href={enter('events')} className="btn-secondary text-base px-8 py-4">Browse events first</a>
           </div>
         </div>
       </section>

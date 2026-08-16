@@ -20,11 +20,26 @@
 // still assumes. New code that knows its city should pass that city's tz.
 export const DEFAULT_TZ = 'Europe/Istanbul'
 
+// cities.timezone is admin-edited text, and an invalid value ('EUROPE'
+// happened once) reaches here as-is — Intl then throws, which 500s every
+// feed of that city until someone fixes the row. Degrade to the default
+// zone instead. Memoized: this sits on every city-scoped request.
+const tzFallbacks = new Map<string, string>()
+function safeTz(tz: string): string {
+  let resolved = tzFallbacks.get(tz)
+  if (resolved === undefined) {
+    try { new Intl.DateTimeFormat('en-US', { timeZone: tz }); resolved = tz }
+    catch { resolved = DEFAULT_TZ }
+    tzFallbacks.set(tz, resolved)
+  }
+  return resolved
+}
+
 /** The calendar date of `d` in `tz`, as 'YYYY-MM-DD'. */
 export function dayInTz(d: Date, tz: string = DEFAULT_TZ): string {
   // 'en-CA' formats as ISO (2026-08-15). A formatting trick, not a locale
   // preference — don't "tidy" it to en-US.
-  return d.toLocaleDateString('en-CA', { timeZone: tz })
+  return d.toLocaleDateString('en-CA', { timeZone: safeTz(tz) })
 }
 
 /**
@@ -55,7 +70,7 @@ export interface TzNow {
  */
 export function nowInTz(tz: string = DEFAULT_TZ, now: Date = new Date()): TzNow {
   const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: tz,
+    timeZone: safeTz(tz),
     weekday: 'short',
     year: 'numeric', month: '2-digit', day: '2-digit',
     hour: '2-digit', minute: '2-digit',
