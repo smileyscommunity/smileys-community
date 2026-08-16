@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getEvents, redactEventForGuest } from '@/lib/db'
 import { getSession } from '@/lib/session'
-import { resolveCityId, getCityConfig, DEFAULT_CITY_SLUG } from '@/lib/city'
+import { resolveCityId, describeCity, type ResolvedCityInfo } from '@/lib/city'
 import { rateLimit } from '@/lib/rateLimit'
 
 export async function GET(req: NextRequest) {
@@ -51,11 +51,11 @@ export async function GET(req: NextRequest) {
   const projected = session ? events : events.map(redactEventForGuest)
 
   // The resolved city rides along so the page header can name the city this
-  // calendar belongs to — the view-city cookie makes it vary per viewer.
-  let city: { name: string; slug: string; isDefault: boolean } | null = null
+  // calendar belongs to — the view-city cookie makes it vary per viewer —
+  // and offer the "back to my city" switch when the cookie moved them.
+  let city: ResolvedCityInfo | null = null
   if (cityId && cityId !== '__no_such_city__') {
-    const cfg = await getCityConfig(cityId)
-    city = { name: cfg.name, slug: cfg.slug, isDefault: cfg.slug === DEFAULT_CITY_SLUG }
+    city = await describeCity(cityId, session)
   }
 
   return NextResponse.json({ events: projected, total, hasMore: offset + events.length < total, city })

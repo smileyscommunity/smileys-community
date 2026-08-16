@@ -85,6 +85,35 @@ export async function resolveCityId(session: { cityId?: string } | null | undefi
   return (await getViewCityId()) ?? session?.cityId ?? getDefaultCityId()
 }
 
+// What a page header needs to know about the city a feed resolved to:
+// its name, whether it's the default, and — when the view-city cookie is
+// pointing somewhere other than the viewer's own city — the home city to
+// offer a "back to X" switch for. Without that switch the year-long
+// cookie is a trap: one click into İzmir pinned every feed there.
+export interface ResolvedCityInfo {
+  name: string
+  slug: string
+  isDefault: boolean
+  viewing: boolean          // true when the cookie moved this viewer off their own city
+  homeName: string | null   // the city "back" returns to; null unless viewing
+}
+
+export async function describeCity(
+  cityId: string,
+  session: { cityId?: string } | null | undefined,
+): Promise<ResolvedCityInfo> {
+  const cfg    = await getCityConfig(cityId)
+  const homeId = session?.cityId ?? await getDefaultCityId()
+  const viewing = (await getViewCityId()) === cityId && cityId !== homeId
+  return {
+    name:      cfg.name,
+    slug:      cfg.slug,
+    isDefault: cfg.slug === DEFAULT_CITY_SLUG,
+    viewing,
+    homeName:  viewing ? (await getCityConfig(homeId)).name : null,
+  }
+}
+
 // ── Per-city config (timezone/currency), cached ─────────────────────────────
 // Server-side companion to lib/cityTime.ts: cityId → the config a request
 // needs to compute that city's "today" or format its prices. 5-minute TTL —

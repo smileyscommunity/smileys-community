@@ -208,6 +208,13 @@ function AppClubsPageInner() {
   // bland. 'Find your community' reads as an invitation while leaving
   // the badge + subtitle communicating the actual content.
   const [hero, setHero] = useState({ badge: 'Smileys Clubs', headline: 'Find your people.', subtitle: "Whatever you're into, there's probably someone in Istanbul who's into it too." })
+  // The city this grid resolved to, from /api/city/current (the clubs API
+  // returns a bare array, so the city can't ride along like it does on
+  // /api/events). Separate from `hero` so the CMS fetch — whose copy is
+  // default-city-flavored — can't race it back. Only a non-default city
+  // overrides the subtitle.
+  const [viewCity, setViewCity] = useState<{ name: string; slug: string; isDefault: boolean; viewing?: boolean; homeName?: string | null } | null>(null)
+  const cityHero = viewCity && !viewCity.isDefault ? viewCity : null
 
   // Mirror filter state to the URL. Defaults omitted from the
   // querystring so a "clean" URL means "all defaults".
@@ -229,10 +236,12 @@ function AppClubsPageInner() {
       fetch('/app/api/content').then(r => r.json()).catch(() => null),
       fetch('/app/api/clubs', { credentials: 'include' }).then(r => r.json()).catch(() => null),
       fetch('/app/api/clubs/memberships', { credentials: 'include' }).then(r => r.json()).catch(() => null),
-    ]).then(([content, clubData, memberData]) => {
+      fetch('/app/api/city/current', { credentials: 'include' }).then(r => r.json()).catch(() => null),
+    ]).then(([content, clubData, memberData, cityData]) => {
       if (content?.clubs) setHero(h => ({ ...h, ...content.clubs }))
       setClubs(Array.isArray(clubData) ? clubData : [])
       setMemberships(Array.isArray(memberData) ? memberData : [])
+      if (cityData?.slug) setViewCity(cityData)
     }).finally(() => setLoading(false))
   }, [])
 
@@ -358,10 +367,19 @@ function AppClubsPageInner() {
           <div className="flex items-start justify-between gap-4 mb-5">
             <div>
               <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-3 py-1.5 mb-4">
-                🏛️ {hero.badge}
+                🏛️ {cityHero ? `${hero.badge} · ${cityHero.name}` : hero.badge}
               </span>
+              {/* Same escape hatch as the events page — the view-city
+                  cookie lives a year, so viewing another city needs a
+                  visible way back. */}
+              {viewCity?.viewing && viewCity.homeName && (
+                <a href="/app/api/city/enter?clear=1&to=clubs"
+                  className="inline-flex items-center gap-1.5 ml-2 mb-4 px-3 py-1.5 rounded-full text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors">
+                  ✕ Back to {viewCity.homeName}
+                </a>
+              )}
               <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">{hero.headline}</h1>
-              <p className="text-base text-gray-600 mt-2">{hero.subtitle}</p>
+              <p className="text-base text-gray-600 mt-2">{cityHero ? `Whatever you're into, there's probably someone in ${cityHero.name} who's into it too.` : hero.subtitle}</p>
               {/* (Total-clubs count used to be merged here as "354 clubs ·
                   Discover communities…". Awkward "·" merge AND duplicated
                   the filtered count above the grid. Kept only the

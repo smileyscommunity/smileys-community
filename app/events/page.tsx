@@ -96,7 +96,7 @@ function AppEventsPageInner() {
   // cookie makes it vary per viewer). Separate from `hero` so the CMS
   // fetch — whose copy is default-city-flavored — can't race it back to
   // Istanbul. Only a non-default city overrides the hero.
-  const [viewCity, setViewCity] = useState<{ name: string; slug: string; isDefault: boolean } | null>(null)
+  const [viewCity, setViewCity] = useState<{ name: string; slug: string; isDefault: boolean; viewing?: boolean; homeName?: string | null } | null>(null)
   const cityHero = viewCity && !viewCity.isDefault ? viewCity : null
 
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
@@ -303,6 +303,14 @@ function AppEventsPageInner() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">🗓️ {cityHero ? cityHero.name : hero.badge}</span>
+              {/* The view-city cookie lives a year — without a visible way
+                  out, one click into another city pins every feed there. */}
+              {viewCity?.viewing && viewCity.homeName && (
+                <a href="/app/api/city/enter?clear=1&to=events"
+                  className="inline-flex items-center gap-1.5 ml-2 mb-3 px-3 py-1.5 rounded-full text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors">
+                  ✕ Back to {viewCity.homeName}
+                </a>
+              )}
               <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">{hero.headline}</h1>
               <p className="text-base text-gray-600 mt-1">{cityHero ? `Find your next experience in ${cityHero.name}.` : hero.subtitle}</p>
             </div>

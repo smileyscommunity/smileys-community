@@ -25,14 +25,18 @@ const DESTINATIONS: Record<string, string> = {
 }
 
 export async function GET(req: NextRequest) {
-  const slug = req.nextUrl.searchParams.get('city')?.trim() ?? ''
-  const to   = DESTINATIONS[req.nextUrl.searchParams.get('to') ?? ''] ?? '/events'
+  const slug  = req.nextUrl.searchParams.get('city')?.trim() ?? ''
+  const to    = DESTINATIONS[req.nextUrl.searchParams.get('to') ?? ''] ?? '/events'
+  // `?clear=1` — the "back to my city" switch on feed headers. Drops the
+  // cookie so resolveCityId falls back to the member's home (or the
+  // default city for guests). Guest-usable, unlike DELETE /api/me/view-city.
+  const clear = req.nextUrl.searchParams.get('clear') === '1'
 
   // Live cities only — viewing a pre-launch city would empty every feed and
   // read as a broken site rather than an unlaunched one (same rule as the
   // member selector). Unknown/pre-launch slugs still redirect, just without
   // touching the cookie.
-  const city = slug
+  const city = !clear && slug
     ? await prisma.city.findFirst({ where: { slug, status: 'live' }, select: { slug: true } })
     : null
 
@@ -40,7 +44,9 @@ export async function GET(req: NextRequest) {
   // user is on. Building an absolute URL from req.nextUrl here redirects to
   // the Nginx upstream (localhost:3000) in production.
   const res = new NextResponse(null, { status: 307, headers: { Location: `/app${to}` } })
-  if (city) {
+  if (clear) {
+    res.cookies.set(VIEW_CITY_COOKIE, '', { path: '/', maxAge: 0 })
+  } else if (city) {
     res.cookies.set(VIEW_CITY_COOKIE, city.slug, {
       httpOnly: true,
       sameSite: 'lax',
