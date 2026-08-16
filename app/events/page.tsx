@@ -92,6 +92,12 @@ function AppEventsPageInner() {
   // CMS overrides land in this state on mount via /api/content. Defaults
   // are the fallback when the CMS hasn't been configured.
   const [hero, setHero] = useState({ badge: 'Istanbul', headline: "Events", subtitle: 'Find your next experience in Istanbul.' })
+  // The city this calendar resolved to, from /api/events (the view-city
+  // cookie makes it vary per viewer). Separate from `hero` so the CMS
+  // fetch — whose copy is default-city-flavored — can't race it back to
+  // Istanbul. Only a non-default city overrides the hero.
+  const [viewCity, setViewCity] = useState<{ name: string; slug: string; isDefault: boolean } | null>(null)
+  const cityHero = viewCity && !viewCity.isDefault ? viewCity : null
 
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
   const [showMap,         setShowMap]         = useState(false)
@@ -127,6 +133,7 @@ function AppEventsPageInner() {
       setEvents(prev => reset ? evts : [...prev, ...evts])
       setHasMore(data.hasMore ?? false)
       setOffset(currentOffset + evts.length)
+      if (data.city) setViewCity(data.city)
     } catch { /* transient — user can pull-to-refresh or retry load-more */ }
   }
 
@@ -295,9 +302,9 @@ function AppEventsPageInner() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-0">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">🗓️ {hero.badge}</span>
+              <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">🗓️ {cityHero ? cityHero.name : hero.badge}</span>
               <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">{hero.headline}</h1>
-              <p className="text-base text-gray-600 mt-1">{hero.subtitle}</p>
+              <p className="text-base text-gray-600 mt-1">{cityHero ? `Find your next experience in ${cityHero.name}.` : hero.subtitle}</p>
             </div>
             <div className="flex items-center gap-3">
               {/* List / Map toggle — hidden on past-events tab since the
@@ -551,7 +558,7 @@ function AppEventsPageInner() {
                 standing still, and Hangouts is the spontaneous layer. */}
             {(timeFilter === 'Today' || timeFilter === 'Tomorrow') && (
               <div className="mb-5">
-                <p className="text-sm text-gray-600 mb-3">But Istanbul isn&apos;t exactly standing still.</p>
+                <p className="text-sm text-gray-600 mb-3">But {cityHero?.name ?? 'Istanbul'} isn&apos;t exactly standing still.</p>
                 <Link href="/hangouts"
                   className="inline-block px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
                   See hangouts happening now →
