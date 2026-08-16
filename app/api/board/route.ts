@@ -181,7 +181,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Join the club to post in it' }, { status: 403 })
     }
     clubId = club.id
-    postCityId = club.cityId
+    // Global clubs (cityId null) have no city of their own — the post
+    // lives in the author's city instead. BoardPost.cityId stays required.
+    postCityId = club.cityId ?? await resolveCityId(session)
   }
 
   // Optional event tie (§31) — the post stays canonical on the Board and

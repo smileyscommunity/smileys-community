@@ -9,6 +9,8 @@ import { getCityTz } from './city'
 // cityId is required, not defaulted — every caller must decide whose city
 // it's listing (viewer's, or the default city on public surfaces), so a
 // second city's clubs can never leak into another grid by omission.
+// Global clubs (cityId NULL — Cultures of the World, Language) appear in
+// every city's grid alongside its local clubs.
 export async function getClubs(cityId: string): Promise<Club[]> {
   const today = todayIstanbul()
   // isActive:true is the public-surface gate. Admins deactivate
@@ -16,7 +18,7 @@ export async function getClubs(cityId: string): Promise<Club[]> {
   // are hidden everywhere a member could discover them — listing,
   // detail page, search, sitemap, dashboard recommendations.
   const rows = await prisma.club.findMany({
-    where: { isActive: true, cityId },
+    where: { isActive: true, OR: [{ cityId }, { cityId: null }] },
     orderBy: { name: 'asc' },
     include: {
       _count: { select: { memberships: { where: { status: 'approved' } } } },

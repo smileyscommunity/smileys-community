@@ -49,8 +49,10 @@ async function main() {
           data: {
             id: boardId,
             userId: p.userId,
-            // Clubs are per-city, so the board post inherits the club's city.
-            cityId: p.club.cityId,
+            // The board post inherits the club's city. This one-off ran
+            // before global (cityId-null) clubs existed; if ever re-run,
+            // fail loudly rather than write a null into a required column.
+            cityId: p.club.cityId ?? (() => { throw new Error(`club ${p.club.slug} is global — pick a city for its posts`) })(),
             type: 'share',
             title,
             body,

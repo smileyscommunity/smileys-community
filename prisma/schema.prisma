@@ -524,12 +524,16 @@ model Club {
   spotlightNote      String?
   spotlightUpdatedAt DateTime?
   coverImagePosition Int              @default(50)
-  cityId             String
+  // Null = GLOBAL club (Cultures of the World, Language clubs) — appears in
+  // every live city's grid. Local clubs carry their city as before.
+  // Classified by the owner 2026-08-16 (docs/global-club-candidates.md);
+  // never blanket-stamp.
+  cityId             String?
   memberships        ClubMembership[]
   photos             ClubPhoto[]
   posts              ClubPost[]
   resources          ClubResource[]
-  city               City             @relation(fields: [cityId], references: [id])
+  city               City?            @relation(fields: [cityId], references: [id])
   spotlightUser      User?            @relation("ClubSpotlight", fields: [spotlightUserId], references: [id])
   events             Event[]
   boardPosts         BoardPost[]      @relation("ClubBoardPosts")
