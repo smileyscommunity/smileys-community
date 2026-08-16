@@ -34,6 +34,18 @@ const TAG_STYLES: Record<string, { bg: string; text: string; border: string }> =
   Outdoor:    { bg: 'bg-lime-100',    text: 'text-lime-700',    border: 'border-lime-400'    },
   Wellness:   { bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-400' },
   Adventure:  { bg: 'bg-stone-100',   text: 'text-stone-700',   border: 'border-stone-400'   },
+  Music:      { bg: 'bg-violet-100',  text: 'text-violet-700',  border: 'border-violet-400'  },
+  Sports:     { bg: 'bg-cyan-100',    text: 'text-cyan-700',    border: 'border-cyan-400'    },
+  Games:      { bg: 'bg-purple-100',  text: 'text-purple-700',  border: 'border-purple-400'  },
+  Nightlife:  { bg: 'bg-slate-100',   text: 'text-slate-700',   border: 'border-slate-400'   },
+  Dance:      { bg: 'bg-pink-50',     text: 'text-pink-700',    border: 'border-pink-300'    },
+  Film:       { bg: 'bg-zinc-100',    text: 'text-zinc-700',    border: 'border-zinc-400'    },
+  Books:      { bg: 'bg-yellow-100',  text: 'text-yellow-700',  border: 'border-yellow-500'  },
+  Celebration:{ bg: 'bg-rose-50',     text: 'text-rose-700',    border: 'border-rose-300'    },
+  Support:    { bg: 'bg-teal-50',     text: 'text-teal-700',    border: 'border-teal-300'    },
+  'On the water':      { bg: 'bg-sky-50',   text: 'text-sky-700',   border: 'border-sky-300'   },
+  'Language exchange': { bg: 'bg-blue-50',  text: 'text-blue-700',  border: 'border-blue-300'  },
+  'Giving back':       { bg: 'bg-amber-100', text: 'text-amber-700', border: 'border-amber-400' },
 }
 
 const GROUP_DESC: Record<string, string> = {
@@ -53,6 +65,18 @@ const SUGGESTIONS: Record<string, string[]> = {
   Wellness:   ['Chill', 'Outdoor'],
   Adventure:  ['Active', 'Outdoor'],
   Creative:   ['Social'],
+  Music:      ['Party', 'Social'],
+  Sports:     ['Active', 'Outdoor'],
+  Games:      ['Social', 'Chill'],
+  Nightlife:  ['Party', 'Social'],
+  Dance:      ['Active', 'Party'],
+  Film:       ['Chill', 'Cultural'],
+  Books:      ['Chill', 'Learning'],
+  Celebration:['Party', 'Food'],
+  Support:    ['Chill', 'Social'],
+  'On the water':      ['Outdoor', 'Adventure'],
+  'Language exchange': ['Social', 'Learning'],
+  'Giving back':       ['Social'],
 }
 
 export default function VibePicker({ selectedIds, onChange }: Props) {
