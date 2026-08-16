@@ -28,12 +28,32 @@ const CODE_MAP: Record<number, { text: string; icon: string }> = {
   95: { text: 'Thunderstorm',   icon: '⛈️' },
 }
 
-export default function IstanbulWeather() {
+// Weather for the city you're actually in.
+//
+// This was hard-coded to Istanbul's coordinates and timezone, so a member in
+// Izmir or Bodrum saw Istanbul's weather with their own city implied. The
+// coordinates now come from the City row (lat/lng), resolved the same way every
+// other city-scoped surface is.
+//
+// Renders nothing when a city has no coordinates yet: a weather card showing
+// somewhere else's sky is worse than no card.
+export default function CityWeather({
+  name,
+  lat,
+  lng,
+  timezone = 'Europe/Istanbul',
+}: {
+  name: string
+  lat?: number | null
+  lng?: number | null
+  timezone?: string
+}) {
   const [weather, setWeather] = useState<Weather | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch('https://api.open-meteo.com/v1/forecast?latitude=41.0082&longitude=28.9784&current_weather=true&timezone=Europe%2FIstanbul')
+    if (lat == null || lng == null) { setLoading(false); return }
+    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true&timezone=${encodeURIComponent(timezone)}`)
       .then(r => r.json())
       .then(d => {
         const code = d.current_weather?.weathercode ?? 0
@@ -41,10 +61,10 @@ export default function IstanbulWeather() {
         setWeather({ temp: Math.round(d.current_weather.temperature), ...map })
       })
       .catch(() => {
-        setWeather({ temp: null, text: 'Istanbul', icon: '🌤️' })
+        setWeather({ temp: null, text: name, icon: '🌤️' })
       })
       .finally(() => setLoading(false))
-  }, [])
+  }, [lat, lng, timezone, name])
 
   if (loading) {
     return (
@@ -62,15 +82,17 @@ export default function IstanbulWeather() {
 
   if (!weather) return null
 
+  // hourCycle:'h23', never hour12:false — the latter renders midnight as
+  // "24:MM" on the server's ICU build.
   const now = new Date().toLocaleTimeString('en-GB', {
-    hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Istanbul',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: timezone,
   })
 
   return (
     <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl shadow-card p-4 text-white">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">Istanbul · {now}</p>
+          <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">{name} · {now}</p>
           <div className="flex items-end gap-1.5 mt-1">
             {weather.temp !== null && (
               <span className="text-3xl font-black leading-none">{weather.temp}°</span>

@@ -12,7 +12,7 @@ import { join } from 'path'
 import MiniCalendar from '@/components/MiniCalendar'
 import PullToRefreshTrigger from '@/components/PullToRefreshTrigger'
 import QuickLinks from '@/components/QuickLinks'
-import IstanbulWeather from '@/components/IstanbulWeather'
+import CityWeather from '@/components/CityWeather'
 import ReviewReminder from '@/components/ReviewReminder'
 import VenueReviewPrompt from '@/components/VenueReviewPrompt'
 import ReferralImpact from '@/components/ReferralImpact'
@@ -67,6 +67,12 @@ export default async function DashboardPage() {
   // dashboard was the biggest cross-city leak (Izmir's seeded clubs were
   // topping every Istanbul member's "new clubs" strip).
   const cityId = await resolveCityId(session)
+  // The weather card needs a point and a clock, not just an id — same city the
+  // rest of this page is scoped to.
+  const city = await prisma.city.findUnique({
+    where:  { id: cityId },
+    select: { name: true, lat: true, lng: true, timezone: true },
+  }) ?? { name: 'Istanbul', lat: null, lng: null, timezone: 'Europe/Istanbul' }
 
   const today      = todayIstanbul()
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
@@ -1880,7 +1886,7 @@ export default async function DashboardPage() {
               attendedCount={myAttendances.length}
             />
 
-            <IstanbulWeather />
+            <CityWeather name={city.name} lat={city.lat} lng={city.lng} timezone={city.timezone} />
 
             {/* Mini calendar */}
             <div className="bg-white rounded-2xl shadow-card p-5">

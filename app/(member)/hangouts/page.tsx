@@ -1140,7 +1140,9 @@ export default function HangoutsPage() {
   )
 }
 
-// Shared, once-fetched Istanbul weather for outdoor hangout cards. Cached at
+// Shared, once-fetched weather for outdoor hangout cards, for whichever city
+// this page is scoped to — it was pinned to Istanbul's coordinates, so an Izmir
+// member saw Istanbul's sky next to a hangout down their own road. Cached at
 // module scope so many cards trigger a single open-meteo call (the CSP already
 // allows api.open-meteo.com). Current conditions — only surfaced on today's
 // hangouts, where "now" weather is actually representative.
@@ -1152,15 +1154,18 @@ const WCODE: Record<number, string> = {
 }
 let _wxCache: { temp: number; icon: string } | null = null
 let _wxPromise: Promise<void> | null = null
+// Coordinates live server-side (/api/me/weather resolves the caller's city), so
+// this client never holds a latitude and can't drift back to Istanbul's.
 function fetchWeatherOnce(): Promise<void> {
   if (!_wxPromise) {
-    _wxPromise = fetch('https://api.open-meteo.com/v1/forecast?latitude=41.0082&longitude=28.9784&current_weather=true&timezone=Europe%2FIstanbul')
-      .then(r => r.json())
-      .then(d => { const c = d?.current_weather; if (c) _wxCache = { temp: Math.round(c.temperature), icon: WCODE[c.weathercode] ?? '🌤️' } })
+    _wxPromise = fetch('/app/api/me/weather', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.weather) _wxCache = { temp: d.weather.temp, icon: d.weather.icon } })
       .catch(() => {})
   }
   return _wxPromise
 }
+
 const OUTDOOR_RE = /\b(picnic|walk|stroll|park|hike|hiking|beach|run|running|jog|cycl|bike|rooftop|garden|bosphorus|outdoor|swim|sail|kayak|frisbee|football|basketball|tennis|padel|climb|ferry|sunset)\b/i
 
 function HangoutCard({ h, currentUser, onCancel, onMutated }: {
