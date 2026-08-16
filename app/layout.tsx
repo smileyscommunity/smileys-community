@@ -16,6 +16,7 @@ import { APP_URL } from '@/lib/env'
 import { loadContent } from '@/lib/content'
 import { resolveStats } from '@/lib/communityStats'
 import { getNavCities } from '@/lib/cities'
+import { CITY_STATUS } from '@/lib/cityStatus'
 import { getViewCityId, resolveCityId } from '@/lib/city'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
@@ -108,10 +109,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     url:          siteUrl,
     logo:         `${siteUrl}/icons/icon-512.png`,
     description:  'The social infrastructure for modern international life — curated city communities with events, clubs, and genuine connections for expats, nomads, travelers, and locals.',
-    // Istanbul is the founding (and first live) city; add each city here as
-    // it goes live. Kept static rather than DB-driven: the root layout wraps
-    // every page and must not gain a query for a rarely-changing list.
-    areaServed:   [{ '@type': 'City', name: 'Istanbul' }],
+    // Derived from the same cached list the nav uses, so it costs no extra
+    // query — the reason it was a hardcoded ['Istanbul'] before. Static was
+    // the real risk: every visible mention of which cities are live corrects
+    // itself from the database, so this literal would have been the one claim
+    // still naming Istanbul alone after a second city opened, with nothing to
+    // catch it. Live cities only: areaServed is where we operate, and a city
+    // taking sign-ups isn't one we serve yet.
+    areaServed:   navCities
+      .filter(c => c.status === CITY_STATUS.Live)
+      .map(c => ({ '@type': 'City', name: c.name })),
     sameAs: [
       'https://www.instagram.com/smileys.community',
       'https://linkedin.com/company/smileys-community',

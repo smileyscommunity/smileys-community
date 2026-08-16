@@ -139,6 +139,14 @@ export default async function HomePage() {
   // No copy change needed at launch — the page grows into it.
   const singleCity = liveCities.length === 1 && flagship
 
+  // The status pill is the only thing above the fold that can say Smileys is
+  // more than one city — the city grid proving it sits below. With the CTA
+  // reading "Explore Istanbul" right under it, a visitor who leaves in three
+  // seconds saw an Istanbul website. So the pill carries the rest of the
+  // network and links down to it, which beats spending a third button on it.
+  const eyebrow = singleCity ? `Live in ${flagship.name}` : `Live in ${liveCities.length} cities`
+  const onTheWay = otherCities.length > 0 ? ` · ${otherCities.length} more on the way` : ''
+
   return (
     <>
       {/* ── Hero ───────────────────────────────────────────────────────── */}
@@ -147,10 +155,21 @@ export default async function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-20 relative">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
             <div>
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase mb-8">
-                <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                {singleCity ? `Live in ${flagship.name}` : `Live in ${liveCities.length} cities`}
-              </div>
+              {onTheWay ? (
+                <Link
+                  href="#cities"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors text-xs font-bold tracking-widest uppercase mb-8"
+                >
+                  <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  {eyebrow}{onTheWay}
+                  <span aria-hidden="true">↓</span>
+                </Link>
+              ) : (
+                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase mb-8">
+                  <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  {eyebrow}
+                </div>
+              )}
 
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight text-gray-900 leading-[1.08] mb-6">
                 {home.headline || 'The social infrastructure for modern international life.'}
@@ -183,6 +202,15 @@ export default async function HomePage() {
                 )}
                 <Link href="/apply" className="btn-secondary text-base px-8 py-4">Join Smileys</Link>
               </div>
+              {/* Third action, deliberately not a third button: the city grid
+                  is worth reaching, not worth competing with Join. */}
+              {singleCity && otherCities.length > 0 && (
+                <p className="mb-3">
+                  <Link href="#cities" className="text-sm font-semibold text-amber-700 hover:text-amber-800 transition-colors">
+                    See all Smileys cities →
+                  </Link>
+                </p>
+              )}
               <p className="text-sm font-medium text-gray-700">
                 Free to join · Applications reviewed by hand within 24 hours · Pay only for events you attend
               </p>
