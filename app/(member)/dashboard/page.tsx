@@ -1915,9 +1915,11 @@ export default async function DashboardPage() {
               )
             })()}
 
-            {/* Latest listing widget */}
+            {/* Board listing widget — pick one of the 4 freshest listings at
+                random per page load instead of pinning the newest one, so
+                each gets sidebar airtime. */}
             {recentListings.length > 0 && (() => {
-              const l = recentListings[0]
+              const l = recentListings[Math.floor(Math.random() * recentListings.length)]
               const EMOJI: Record<string, string> = { ROOMS: '🏠', JOBS: '💼', SERVICES: '🛠️', BUY_SELL: '🛍️', FREE: '🎁', LOST_FOUND: '🔍', RECO: '⭐', EXPERIENCES: '🎟️', PETS: '🐾' }
               return (
                 <Link href={`/board?id=${l.id}`} className="block bg-white rounded-2xl shadow-card p-4 hover:shadow-md transition-shadow group">

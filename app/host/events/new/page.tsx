@@ -2,13 +2,13 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { toast } from 'sonner'
 import ImageUpload from '@/components/ImageUpload'
 import RichTextEditor from '@/components/RichTextEditor'
+import VibePicker from '@/components/VibePicker'
 import { ISTANBUL_NEIGHBORHOODS, todayIstanbul } from '@/lib/data'
 import { useAuth } from '@/contexts/AuthContext'
 import { EVENT_EMOJIS as EMOJIS } from '@/lib/eventEmojis'
-
-const VIBES = ['Social', 'Chill', 'Active', 'Party', 'Networking', 'Learning', 'Food', 'Outdoor', 'Cultural']
 
 const inputCls = 'w-full px-4 py-3 rounded-xl border border-zinc-700 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500 bg-zinc-800 placeholder-zinc-500'
 
@@ -36,10 +36,10 @@ function HostNewEventForm() {
   // externally. UI-only; maps onto the existing ticketUrl field on submit.
   const [paymentMethod, setPaymentMethod] = useState<'venue' | 'buyonline'>('venue')
 
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
   const [form, setForm] = useState({
     title:       '',
     clubId:      '',
-    vibes:       [] as string[],
     intent:      'social' as 'social' | 'professional',
     emoji:       '🎉',
     date:        '',
@@ -104,9 +104,9 @@ function HostNewEventForm() {
       if (Array.isArray(data) && data[0]) {
         setForm(f => ({ ...f, lat: parseFloat(data[0].lat).toFixed(6), lng: parseFloat(data[0].lon).toFixed(6) }))
       } else {
-        alert('No location found — paste a Google Maps link below instead')
+        toast.error('No location found — paste a Google Maps link below instead')
       }
-    } catch { alert('Geocoding failed — paste a Google Maps link below instead') }
+    } catch { toast.error('Geocoding failed — paste a Google Maps link below instead') }
     finally { setGeocoding(false) }
   }
 
@@ -138,14 +138,25 @@ function HostNewEventForm() {
     } finally {
       setGeocoding(false)
     }
-    alert('Could not extract coordinates — try pasting a Google Maps link with a visible location pin')
+    toast.error('Could not extract coordinates — try pasting a Google Maps link with a visible location pin')
   }
 
-  function toggleVibe(v: string) {
-    setForm(f => ({
-      ...f,
-      vibes: f.vibes.includes(v) ? f.vibes.filter(x => x !== v) : [...f.vibes, v],
-    }))
+  async function suggestTags() {
+    setAiLoading(true)
+    try {
+      const res = await fetch('/app/api/host/events/suggest-tags', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: form.title, description: form.description }),
+      })
+      if (!res.ok) { toast.error(res.status === 429 ? 'AI limit reached — try again in an hour' : `Suggest tags failed (${res.status})`); return }
+      const { tagIds } = await res.json()
+      if (!tagIds?.length) { toast.message('No matching tags — add more detail to the title or description'); return }
+      const added = tagIds.filter((id: string) => !selectedTagIds.includes(id)).length
+      setSelectedTagIds(prev => [...new Set([...prev, ...tagIds])])
+      toast.success(added ? `Added ${added} suggested tag${added === 1 ? '' : 's'}` : 'Suggestions match the tags already selected')
+    } catch { toast.error('Suggest tags failed — check your connection') }
+    finally { setAiLoading(false) }
   }
 
   function buildDates(): string[] {
@@ -171,7 +182,7 @@ function HostNewEventForm() {
       body: JSON.stringify({
         title:    form.title,
         location: form.location,
-        vibes:    form.vibes,
+        vibes:    [],
         clubName: club ? `${club.emoji} ${club.name}` : undefined,
         notes:    aiNotes,
       }),
@@ -212,7 +223,8 @@ function HostNewEventForm() {
       const payload = {
         title:        form.title.trim(),
         clubId:       form.clubId || undefined,
-        vibes:        form.vibes,
+        tagIds:       selectedTagIds,
+        vibes:        [],
         // Event Goal — was collected by the form but never sent, so
         // every host event silently defaulted to 'social'.
         intent:       form.intent,
@@ -325,24 +337,18 @@ function HostNewEventForm() {
 
         {/* Vibes */}
         <div>
-
-          <label className="block text-xs font-semibold text-zinc-400 mb-2">Vibe</label>
-          <div className="flex flex-wrap gap-2">
-            {VIBES.map(v => (
-              <button
-                key={v}
-                type="button"
-                onClick={() => toggleVibe(v)}
-                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                  form.vibes.includes(v)
-                    ? 'bg-amber-500 text-white'
-                    : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
-                }`}
-              >
-                {v}
-              </button>
-            ))}
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-xs font-semibold text-zinc-400">Vibe</label>
+            <button
+              type="button"
+              onClick={suggestTags}
+              disabled={aiLoading || (!form.title && !form.description)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 border border-violet-500/20 transition-colors disabled:opacity-40"
+            >
+              {aiLoading ? '⏳ Suggesting…' : '✦ Suggest tags'}
+            </button>
           </div>
+          <VibePicker selectedIds={selectedTagIds} onChange={setSelectedTagIds} />
         </div>
 
         {/* Date & Time */}
