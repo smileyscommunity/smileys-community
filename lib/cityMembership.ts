@@ -9,13 +9,14 @@
 //   HOME city  — User.cityId. Exactly one, required, and what scopes a
 //                member's default feeds. Dozens of call sites read it; it is
 //                the answer to "where does this person live".
-//   JOINED     — rows in CityMembership. Additional cities they belong to.
-//                Additive only, so a member with no rows is simply
-//                home-city-only and nothing needed backfilling.
+//   JOINED /   — rows in CityRelationship: type 'member' for additional
+//   INTERESTED   cities they belong to, 'interested' for pre-launch waiting
+//                lists. One row per (user, city) — interest transitions to
+//                membership on launch, never coexists with it.
 //
-// Keeping home OUT of the join table means there is no way for the two to
-// disagree — the failure mode where a member's home city says Istanbul and
-// their membership rows say otherwise simply can't be represented.
+// Keeping home OUT of the relationship table means there is no way for the
+// two to disagree — the failure mode where a member's home city says Istanbul
+// and their relationship rows say otherwise simply can't be represented.
 
 import { prisma } from './prisma'
 import { CITY_STATUS } from './cityStatus'
@@ -38,10 +39,11 @@ export async function getMemberCities(userId: string): Promise<MemberCity[]> {
   const user = await prisma.user.findUnique({
     where:  { id: userId },
     select: {
-      city:            { select: { id: true, slug: true, name: true, status: true } },
-      cityMemberships: {
+      city:              { select: { id: true, slug: true, name: true, status: true } },
+      cityRelationships: {
+        where:   { type: 'member' },
         select:  { city: { select: { id: true, slug: true, name: true, status: true } } },
-        orderBy: { joinedAt: 'asc' },
+        orderBy: { createdAt: 'asc' },
       },
     },
   })
@@ -49,7 +51,7 @@ export async function getMemberCities(userId: string): Promise<MemberCity[]> {
 
   return [
     { ...user.city, home: true },
-    ...user.cityMemberships.map(m => ({ ...m.city, home: false })),
+    ...user.cityRelationships.map(m => ({ ...m.city, home: false })),
   ]
 }
 
@@ -94,15 +96,68 @@ export async function joinCity(userId: string, slug: string): Promise<JoinResult
   }
 
   // Idempotent: a double-tap or a retried request must not 500 on the unique
-  // constraint, and must not read as a different outcome.
-  const existing = await prisma.cityMembership.findUnique({
+  // constraint, and must not read as a different outcome. A pre-launch
+  // 'interested' row transitions to 'member' here — that's the launch-day
+  // promise ("we'll let you know") being kept, not a new relationship.
+  const existing = await prisma.cityRelationship.findUnique({
     where:  { userId_cityId: { userId, cityId: city.id } },
-    select: { id: true },
+    select: { id: true, type: true },
   })
-  if (existing) return { ok: true, alreadyMember: true, city }
+  if (existing?.type === 'member') return { ok: true, alreadyMember: true, city }
 
-  await prisma.cityMembership.create({ data: { userId, cityId: city.id } })
+  if (existing) {
+    await prisma.cityRelationship.update({ where: { id: existing.id }, data: { type: 'member' } })
+  } else {
+    await prisma.cityRelationship.create({ data: { userId, cityId: city.id, type: 'member' } })
+  }
   return { ok: true, alreadyMember: false, city }
+}
+
+export type MoveResult =
+  | { ok: true;  alreadyHome: boolean; city: { id: string; slug: string; name: string } }
+  | { ok: false; error: string }
+
+/**
+ * Change the member's home city — the deliberate "I moved" flow the Leave
+ * button points at.
+ *
+ * Semantics (owner decision, 2026-08-16): history stays reachable. The old
+ * home becomes a joined city rather than vanishing from the member's list,
+ * so their old-city clubs and RSVPs keep a city they still belong to. Any
+ * join row for the NEW home is removed, because home lives on User.cityId
+ * only — the two representations must never overlap.
+ */
+export async function setHomeCity(userId: string, slug: string): Promise<MoveResult> {
+  const [user, city] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId }, select: { cityId: true, status: true } }),
+    prisma.city.findUnique({ where: { slug }, select: { id: true, slug: true, name: true, status: true } }),
+  ])
+  if (!user) return { ok: false, error: 'Member not found' }
+  if (!city) return { ok: false, error: 'City not found' }
+  if (user.status !== 'approved') {
+    return { ok: false, error: 'Your membership needs to be approved first' }
+  }
+  // Same rule as joining: home must be a live city, or every feed empties.
+  if (city.status !== CITY_STATUS.Live) {
+    return { ok: false, error: `${city.name} isn't open yet — your home city has to be a live one.` }
+  }
+  if (city.id === user.cityId) return { ok: true, alreadyHome: true, city }
+
+  const oldCityId = user.cityId
+  // One transaction: a crash must not change home without keeping the old
+  // city, or keep the old city without changing home. Upsert (not create)
+  // for the old home, so a stale 'interested' row from before that city
+  // went live becomes the membership it should be.
+  await prisma.$transaction([
+    prisma.cityRelationship.upsert({
+      where:  { userId_cityId: { userId, cityId: oldCityId } },
+      create: { userId, cityId: oldCityId, type: 'member' },
+      update: { type: 'member' },
+    }),
+    prisma.cityRelationship.deleteMany({ where: { userId, cityId: city.id } }),
+    prisma.user.update({ where: { id: userId }, data: { cityId: city.id } }),
+  ])
+  return { ok: true, alreadyHome: false, city }
 }
 
 export type LeaveResult = { ok: true } | { ok: false; error: string }
@@ -124,7 +179,8 @@ export async function leaveCity(userId: string, slug: string): Promise<LeaveResu
   }
 
   // deleteMany, not delete: leaving a city you aren't in should succeed
-  // quietly rather than throw on a missing row.
-  await prisma.cityMembership.deleteMany({ where: { userId, cityId: city.id } })
+  // quietly rather than throw on a missing row. Scoped to 'member' — a
+  // Leave button must not silently drop a waiting-list registration.
+  await prisma.cityRelationship.deleteMany({ where: { userId, cityId: city.id, type: 'member' } })
   return { ok: true }
 }

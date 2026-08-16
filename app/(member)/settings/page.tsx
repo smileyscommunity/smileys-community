@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 import { useAuth } from '@/contexts/AuthContext'
 import ActiveDevicesSection from '@/components/settings/ActiveDevicesSection'
+import HomeCitySection from '@/components/settings/HomeCitySection'
 import TwoFactorSection from '@/components/settings/TwoFactorSection'
 import DeleteAccountSection from '@/components/settings/DeleteAccountSection'
 import PasswordToggle from '@/components/PasswordToggle'
@@ -390,6 +391,11 @@ export default function SettingsPage() {
         </Section>
 
         <PushNotificationsSection />
+
+        {/* Home city — the "I moved" flow */}
+        <Section title="Home city" description="Where your feeds, events and clubs point by default">
+          <HomeCitySection />
+        </Section>
 
         {/* Open to… flags */}
         <Section title="Open to…" description="Shown as small badges on your member card so people know what you’re up for.">
