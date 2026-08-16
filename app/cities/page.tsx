@@ -2,6 +2,8 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import CityCard from '@/components/CityCard'
 import { getPublicCities, CITY_STATUS } from '@/lib/cities'
+import { getViewCityId } from '@/lib/city'
+import { getSession } from '@/lib/session'
 import { APP_URL } from '@/lib/env'
 import { absoluteOgImage } from '@/lib/og'
 
@@ -35,12 +37,23 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 }
 
-export const revalidate = 60
+// Was `revalidate = 60`. Reading the viewer's city makes the page per-request,
+// which is the price of it answering "which city am I in?" — the only place a
+// member on a phone can ask. The city data underneath is still cached, so this
+// costs a cookie read and a slug lookup, not a rebuild of the page's queries.
+export const dynamic = 'force-dynamic'
 
 export default async function CitiesPage() {
-  const cities = await getPublicCities()
+  const [cities, session, viewCityId] = await Promise.all([
+    getPublicCities(), getSession(), getViewCityId(),
+  ])
   const live   = cities.filter(c => c.status === CITY_STATUS.Live)
   const soon   = cities.filter(c => c.status !== CITY_STATUS.Live)
+
+  // Same precedence the nav menu uses: the cookie if it's set, otherwise your
+  // home city. Guests have neither and see the plain list.
+  const homeId    = session?.cityId
+  const viewingId = viewCityId ?? homeId
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
@@ -60,7 +73,10 @@ export default async function CitiesPage() {
             Live {live.length > 1 && <span className="text-gray-400">· {live.length}</span>}
           </h2>
           <div className={`grid gap-6 ${live.length === 1 ? 'lg:grid-cols-2' : 'md:grid-cols-2 lg:grid-cols-3'}`}>
-            {live.map((c, i) => <CityCard key={c.id} city={c} featured={live.length === 1 && i === 0} />)}
+            {live.map((c, i) => (
+              <CityCard key={c.id} city={c} featured={live.length === 1 && i === 0}
+                viewing={!!viewingId && c.id === viewingId} home={!!homeId && c.id === homeId} />
+            ))}
           </div>
         </section>
       )}

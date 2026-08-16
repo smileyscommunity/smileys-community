@@ -27,7 +27,20 @@ function Stat({ value, label }: { value: number; label: string }) {
   )
 }
 
-export default function CityCard({ city, featured = false }: { city: PublicCity; featured?: boolean }) {
+export default function CityCard({
+  city,
+  featured = false,
+  viewing = false,
+  home = false,
+}: {
+  city: PublicCity
+  featured?: boolean
+  // Which card is "yours". The city index is the only city list a member on a
+  // phone can reach — the nav's menu is desktop-only — so without these the
+  // answer to "which one am I in?" existed nowhere on mobile.
+  viewing?: boolean
+  home?: boolean
+}) {
   const isLive = city.status === CITY_STATUS.Live
   const meta   = CITY_STATUS_META[city.status]
 
@@ -61,11 +74,23 @@ export default function CityCard({ city, featured = false }: { city: PublicCity;
           </div>
         )}
 
-        <div className="absolute top-3 left-3">
+        <div className="absolute top-3 left-3 flex items-center gap-1.5">
           <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${TONE[meta.tone]}`}>
             {isLive && <span aria-hidden="true" className="inline-block w-1.5 h-1.5 rounded-full bg-white mr-1.5 align-middle" />}
             {meta.label}
           </span>
+          {/* Only one of the two: "Viewing" already implies this is where you
+              are, and stacking a second chip beside it turns a status corner
+              into a wall of labels. */}
+          {viewing ? (
+            <span className="px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-white text-amber-700 shadow-sm">
+              ✓ Viewing
+            </span>
+          ) : home ? (
+            <span className="px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-white/90 text-gray-600 shadow-sm">
+              Home
+            </span>
+          ) : null}
         </div>
       </div>
 

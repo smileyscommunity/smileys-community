@@ -6,7 +6,6 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import NotificationBell from '@/components/NotificationBell'
 import CitiesMenu from '@/components/CitiesMenu'
-import CitySwitcher from '@/components/CitySwitcher'
 import { DISCOVER_LINKS as discoverLinks, ABOUT_LINKS as aboutLinks } from '@/lib/navLinks'
 import AccountMenu from '@/components/AccountMenu'
 import { resolveImageUrl } from '@/lib/data'
@@ -181,8 +180,9 @@ export default function Navbar({
                 frame: "which city am I looking at?" conditions everything after
                 it, the way a location picker sits before results. Populated from
                 the database, so a city an admin takes live appears with no
-                deploy. */}
-            <CitiesMenu initial={cities} />
+                deploy, and it names the city you're currently in rather than
+                making you remember which one you picked. */}
+            <CitiesMenu initial={cities} homeSlug={homeSlug} viewingSlug={viewingSlug} />
 
             {(isLoggedIn ? memberPrimary : guestPrimary).map((link) => (
               <Link
@@ -379,7 +379,7 @@ export default function Navbar({
           <div className="md:hidden border-t border-gray-100 bg-white max-h-[calc(100vh-4rem)] overflow-y-auto">
             <nav className="px-4 py-3">
               <p className="px-3 pt-4 pb-1 text-[11px] font-bold uppercase tracking-widest text-gray-400">Cities</p>
-              <div className="px-1"><CitiesMenu initial={cities} variant="inline" onNavigate={() => setMobileOpen(false)} /></div>
+              <div className="px-1"><CitiesMenu initial={cities} variant="inline" homeSlug={homeSlug} viewingSlug={viewingSlug} onNavigate={() => setMobileOpen(false)} /></div>
 
               {guestPrimary.map(link => (
                 <Link
