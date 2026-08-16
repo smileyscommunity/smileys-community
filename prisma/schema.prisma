@@ -163,9 +163,8 @@ model User {
   sessions                   Session[]
   totpBackupCodes            TotpBackupCode[]
   city                       City                    @relation(fields: [cityId], references: [id])
-  // Cities joined beyond `city` above. See model CityMembership.
-  cityMemberships            CityMembership[]
-  cityInterests              CityInterest[]
+  // Cities joined or awaited beyond `city` above. See model CityRelationship.
+  cityRelationships          CityRelationship[]
   partner                    Partner?                @relation(fields: [partnerId], references: [id])
   visitorAnnouncements       VisitorAnnouncement[]
 
@@ -325,6 +324,13 @@ model City {
   tagline      String?
   description  String?
   heroImage    String?
+  // City centre, for anything that needs a point rather than a name — the
+  // dashboard weather card was fetching Istanbul's coordinates for every
+  // member, so an Izmir member saw Istanbul's weather labelled as theirs.
+  // Nullable: a city can exist before anyone fills these in, and consumers
+  // fall back rather than guess.
+  lat          Float?
+  lng          Float?
   createdAt    DateTime            @default(now())
   consulUserId String?
   cityHosts    CityHost[]
@@ -347,8 +353,7 @@ model City {
   posts                Post[]
   neighborhoods        Neighborhood[]
   guideEntries         GuideEntry[]
-  cityMemberships      CityMembership[]
-  cityInterests        CityInterest[]
+  cityRelationships    CityRelationship[]
 
   @@map("cities")
 }
@@ -361,17 +366,25 @@ model City {
 // It's also what an existing member needs instead of the application form: they
 // already have an account, so sending them to /apply for a pre-launch city asks
 // them to re-apply to Smileys, which is nonsense.
-model CityInterest {
+// One member↔city relationship row (2026-08 merge of the former
+// CityMembership + CityInterest tables — same shape, one lifecycle):
+//   'member'     — joined beyond their home city (home is User.cityId, never here)
+//   'interested' — pre-launch waiting list; transitions to 'member' on launch
+// Unique on (userId, cityId), deliberately WITHOUT type: being both a member
+// of and interested in the same city is a contradiction, so it's made
+// unrepresentable rather than merely discouraged.
+model CityRelationship {
   id        String   @id @default(cuid())
   userId    String
   cityId    String
+  type      String
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   city      City     @relation(fields: [cityId], references: [id], onDelete: Cascade)
 
   @@unique([userId, cityId])
-  @@index([cityId])
-  @@map("city_interests")
+  @@index([cityId, type])
+  @@map("city_relationships")
 }
 
 // ── City membership: the cities a member belongs to beyond their home one ───
@@ -382,19 +395,6 @@ model CityInterest {
 //
 // Joining a second city is what makes one account work across the network: the
 // same profile, interests and history, without re-registering in Athens.
-model CityMembership {
-  id       String   @id @default(cuid())
-  userId   String
-  cityId   String
-  joinedAt DateTime @default(now())
-  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  city     City     @relation(fields: [cityId], references: [id], onDelete: Cascade)
-
-  // One membership per member per city; the home city is never stored here.
-  @@unique([userId, cityId])
-  @@index([cityId])
-  @@map("city_memberships")
-}
 
 // ── Guide entries: per-city editorial content (multi-city phase 2.3) ────────
 // Replaces the repo-shipped data/guide-*.json as the source of truth so a
