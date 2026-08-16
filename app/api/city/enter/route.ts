@@ -36,7 +36,10 @@ export async function GET(req: NextRequest) {
     ? await prisma.city.findFirst({ where: { slug, status: 'live' }, select: { slug: true } })
     : null
 
-  const res = NextResponse.redirect(new URL(`/app${to}`, req.nextUrl.origin))
+  // Relative Location, resolved by the browser against whatever origin the
+  // user is on. Building an absolute URL from req.nextUrl here redirects to
+  // the Nginx upstream (localhost:3000) in production.
+  const res = new NextResponse(null, { status: 307, headers: { Location: `/app${to}` } })
   if (city) {
     res.cookies.set(VIEW_CITY_COOKIE, city.slug, {
       httpOnly: true,
