@@ -308,6 +308,17 @@ function DirectoryPageInner() {
   // surface "showing first 200 of N" when the server-side cap kicks in.
   const [total, setTotal] = useState<number | null>(null)
 
+  // The city this directory resolved to (the API follows the view-city
+  // cookie). Drives the header copy and the "back to my city" switch —
+  // same pattern as the clubs page.
+  const [viewCity, setViewCity] = useState<{ name: string; slug: string; isDefault: boolean; viewing?: boolean; homeName?: string | null } | null>(null)
+  useEffect(() => {
+    fetch('/app/api/city/current', { credentials: 'include' })
+      .then(r => r.json())
+      .then(d => { if (d?.slug) setViewCity(d) })
+      .catch(() => {})
+  }, [])
+
   const load = useCallback(() => {
     setLoading(true)
     const params = new URLSearchParams()
@@ -363,11 +374,20 @@ function DirectoryPageInner() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-0">
           <div className="flex flex-col sm:flex-row sm:items-start gap-4 mb-6">
             <div className="flex-1">
-              <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">🧭 Discover</span>
+              <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">🧭 Discover{viewCity && !viewCity.isDefault ? ` · ${viewCity.name}` : ''}</span>
+              {/* Same escape hatch as events/clubs — the view-city cookie
+                  lives a year, so viewing another city needs a way back. */}
+              {viewCity?.viewing && viewCity.homeName && (
+                // eslint-disable-next-line @next/next/no-html-link-for-pages -- route handler that must run server-side to clear the cookie; <Link> would client-navigate past it
+                <a href="/app/api/city/enter?clear=1&to=directory"
+                  className="inline-flex items-center gap-1.5 ml-2 mb-3 px-3 py-1.5 rounded-full text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors">
+                  ✕ Back to {viewCity.homeName}
+                </a>
+              )}
               <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">Directory</h1>
               {!loading && (
                 <p className="text-base text-gray-600 mt-1">
-                  {visible.length} {visible.length === 1 ? 'business' : 'businesses'} · expat-owned &amp; expat-friendly in Istanbul
+                  {visible.length} {visible.length === 1 ? 'business' : 'businesses'} · expat-owned &amp; expat-friendly in {viewCity?.name ?? 'Istanbul'}
                 </p>
               )}
             </div>
