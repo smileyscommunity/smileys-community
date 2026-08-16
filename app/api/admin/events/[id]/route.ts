@@ -87,7 +87,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
       'title', 'date', 'time', 'location', 'neighborhood', 'address', 'description',
       ...(admin ? ['totalSpots', 'spotsLeft'] : []),
       'price', 'memberPrice', 'payTo', 'paymentContact', 'ticketUrl', 'intent', 'emoji', 'isPremium',
-      'membersOnly', 'limitedSpots', 'isFirstTimerFriendly', 'vibes', 'status', 'coverImage', 'coverImagePosition', 'meetingUrl',
+      'membersOnly', 'limitedSpots', 'soldOut', 'isFirstTimerFriendly', 'vibes', 'status', 'coverImage', 'coverImagePosition', 'meetingUrl',
       'whatsappUrl', 'minAge', 'maxAge', 'language', 'difficulty', 'refundPolicy',
       'registrationDeadline', 'endTime', 'currency', 'approvalRequired', 'isRecurring',
       'lat', 'lng', 'featured', 'genderBalance', 'maleQuota', 'femaleQuota', 'turkishMaleQuota',

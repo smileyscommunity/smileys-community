@@ -575,6 +575,12 @@ model Event {
   totalSpots           Int
   spotsLeft            Int
   limitedSpots         Boolean         @default(false)
+  // Said sold out by a human, whatever the counter says. Tickets sold on a
+  // partner's site, seats given away over WhatsApp, a venue that quietly
+  // shrank — the number in this table isn't always the truth, and someone who
+  // knows the door is closed needs to say so without inventing a spot count.
+  // Never cleared automatically: only whoever set it knows if it still holds.
+  soldOut              Boolean         @default(false)
   isPremium            Boolean         @default(false)
   membersOnly          Boolean         @default(false)
   // Curated newcomer signal: admins flag low-commitment, welcoming events

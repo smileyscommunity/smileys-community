@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
         id: true, title: true, date: true, time: true, emoji: true,
         status: true, totalSpots: true, spotsLeft: true, clubId: true, hostId: true,
         neighborhood: true, coverImage: true, price: true, currency: true,
-        membersOnly: true, featured: true, isRecurring: true, seriesId: true,
+        membersOnly: true, featured: true, soldOut: true, isRecurring: true, seriesId: true,
         isFirstTimerFriendly: true,
         _count: { select: { attendees: { where: { status: 'approved' } } } },
       },

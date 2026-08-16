@@ -3,6 +3,7 @@ import type { Club, Event, VibeTag } from './data'
 import { todayIstanbul } from './data'
 import { nowInTz, DEFAULT_TZ } from './cityTime'
 import { getCityTz } from './city'
+import { isSoldOut } from '@/lib/soldOut'
 
 // ── Clubs ─────────────────────────────────────────────────────────────────
 
@@ -107,6 +108,7 @@ function mapEvent(e: any, spotsLeft?: number): Event {
     totalSpots:   e.totalSpots,
     spotsLeft:    spotsLeft ?? Math.max(0, e.spotsLeft ?? 0),
     limitedSpots: e.limitedSpots,
+    soldOut:      e.soldOut ?? false,
     isPremium:    e.isPremium,
     membersOnly:  e.membersOnly,
     tags:         e.tags?.map((et: any) => et.tagId) ?? [],
@@ -263,7 +265,7 @@ export async function getEvents(options?: {
   // Waitlist counts for the sold-out events on this page — shown on the
   // card's "Join waitlist" CTA as social proof of demand. One grouped
   // query for the page, only when a sold-out event is present at all.
-  const soldOutIds = rows.filter(e => e.limitedSpots && (e.spotsLeft ?? 0) <= 0).map(e => e.id)
+  const soldOutIds = rows.filter(isSoldOut).map(e => e.id)
   const [events, total, waitCounts] = await Promise.all([
     enrichHosts(rows.map(e => mapEvent(e))),
     prisma.event.count({ where }),

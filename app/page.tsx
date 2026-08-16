@@ -13,6 +13,7 @@ import { getPublicCities, getDefaultCityId, CITY_STATUS } from '@/lib/cities'
 import { APP_URL } from '@/lib/env'
 import { loadContent } from '@/lib/content'
 import { absoluteOgImage } from '@/lib/og'
+import { isSoldOut } from '@/lib/soldOut'
 
 // ── The global landing page ─────────────────────────────────────────────────
 // Smileys is not a website about Istanbul; Istanbul is the first Smileys city.
@@ -126,11 +127,10 @@ export default async function HomePage() {
   // Cancelled events break trust in a showcase slot; sold-out ones sink to the
   // bottom so joinable ones get the space. Order is preserved within each group,
   // and the tabs filter over the result.
-  const soldOut = (e: (typeof events)[number]) => e.limitedSpots && e.spotsLeft <= 0
   const liveEvents = events.filter(e => e.status !== 'cancelled')
   const tabEvents = [
-    ...liveEvents.filter(e => !soldOut(e)),
-    ...liveEvents.filter(soldOut),
+    ...liveEvents.filter(e => !isSoldOut(e)),
+    ...liveEvents.filter(isSoldOut),
   ]
   const eventWindow = istanbulEventWindow()
 

@@ -78,6 +78,10 @@ export async function POST(req: NextRequest, { params }: Params) {
       // previous auto-promote behavior, which also promoted directly
       // to 'approved' regardless of approvalRequired.
       const outcome = await prisma.$transaction(async (tx) => {
+        // A manual sold-out flag closes the door even when the counter says
+        // there's room. Without this the waitlist would promote people into
+        // an event whose page reads "Sold out".
+        if (event.soldOut) return { ok: false as const }
         const claimed = await tx.event.updateMany({
           where: { id: eventId, spotsLeft: { gt: 0 } },
           data:  { spotsLeft: { decrement: 1 } },
@@ -159,6 +163,12 @@ export async function POST(req: NextRequest, { params }: Params) {
           ).catch(() => {})
         }
         return NextResponse.json({ ok: true, status: 'waitlisted', position })
+      }
+
+      // Checked before the capacity maths: someone who has said the event is
+      // sold out has overridden the numbers, whatever they read.
+      if (event.soldOut) {
+        return waitlistWithReason(`"${event.title}" is sold out`)
       }
 
       if (approvedCount + pendingCount >= event.totalSpots) {
@@ -266,6 +276,10 @@ export async function POST(req: NextRequest, { params }: Params) {
         if (turkishMaleCount >= event.turkishMaleQuota) return { kind: 'turkish_full' as const }
       }
 
+      // Same override as the other two join paths: the flag wins over the
+      // counter, so the Join button can never contradict the banner above it.
+      if (event.soldOut) return { kind: 'sold_out' as const }
+
       const claimed = await tx.event.updateMany({
         where: { id: eventId, spotsLeft: { gt: 0 } },
         data:  { spotsLeft: { decrement: 1 } },
@@ -294,6 +308,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         outcome.kind === 'gender_full'  ? `Male spots for "${event.title}" are full` :
         outcome.kind === 'female_full'  ? `Female spots for "${event.title}" are full` :
         outcome.kind === 'turkish_full' ? `Turkish male spots for "${event.title}" are full` :
+        outcome.kind === 'sold_out'     ? `"${event.title}" is sold out` :
                                           `"${event.title}" is full`
       createNotification(session.id, 'waitlist', 'Added to waitlist 📋',
         `${reason} — you're #${position} on the waitlist.`,

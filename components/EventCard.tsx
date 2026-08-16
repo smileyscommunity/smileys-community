@@ -14,6 +14,7 @@ import AvatarStack from '@/components/AvatarStack'
 import EventBadges from '@/components/EventBadges'
 
 import { useRSVP } from '@/hooks/useRSVP'
+import { isSoldOut, isManuallySoldOut } from '@/lib/soldOut'
 
 function Tip({ text, children }: { text: string; children: React.ReactNode }) {
   // tabIndex on the wrapper + :focus-within (rather than only :hover) is what
@@ -68,6 +69,10 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
 
   const { status, loading, join } = useRSVP(event.id, initialStatus)
   const isCancelled = event.status === 'cancelled'
+  // Counter-full or said-so-by-a-human — the card treats both the same, and
+  // lib/soldOut is the one place that decides which.
+  const soldOut     = isSoldOut(event)
+  const saidSoldOut = isManuallySoldOut(event)
 
   async function handleJoin(e: React.MouseEvent) {
     e.preventDefault()
@@ -124,6 +129,20 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
               <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center pointer-events-none">
                 <span className="bg-red-600 text-white text-sm font-extrabold tracking-widest uppercase px-4 py-1.5 rounded-md shadow-lg -rotate-6">
                   Cancelled
+                </span>
+              </div>
+            </>
+          )}
+
+          {/* Same stamp language as Cancelled, deliberately softer: sold out
+              is disappointing, not void, and the waitlist below is still a
+              real thing to do. No grayscale for that reason. */}
+          {soldOut && !isCancelled && (
+            <>
+              <div className="absolute inset-0 bg-gray-950/35 pointer-events-none" />
+              <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center pointer-events-none">
+                <span className="bg-violet-600 text-white text-sm font-extrabold tracking-widest uppercase px-4 py-1.5 rounded-md shadow-lg -rotate-6">
+                  Sold out
                 </span>
               </div>
             </>
@@ -231,7 +250,7 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
             ) : (
               <span className="text-xs text-gray-400">Be the first to join</span>
             )}
-            {event.limitedSpots && event.spotsLeft <= 5 && event.spotsLeft > 0 && !urgency && (
+            {event.limitedSpots && event.spotsLeft <= 5 && event.spotsLeft > 0 && !urgency && !soldOut && (
               <span className="text-[11px] font-semibold text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full shrink-0">
                 {event.spotsLeft} left
               </span>
@@ -271,14 +290,14 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
               disabled={isCancelled || status !== 'idle'}
               whileTap={!isCancelled && status === 'idle' ? { scale: 0.93 } : {}}
               className={`text-xs font-semibold py-1.5 min-h-[44px] rounded-lg transition-colors disabled:cursor-default overflow-hidden ${
-                event.spotsLeft === 0 && event.limitedSpots && status === 'idle' && !isCancelled ? 'px-2' : 'px-3'
+                soldOut && status === 'idle' && !isCancelled ? 'px-2' : 'px-3'
               } ${
                 isCancelled         ? 'bg-red-100 text-red-700'      :
                 status === 'joined'  ? 'bg-green-100 text-green-700' :
                 status === 'pending' ? 'bg-amber-100 text-amber-700' :
                 status === 'loading' ? 'bg-gray-100 text-gray-400'   :
                 status === 'error'   ? 'bg-red-100 text-red-600'     :
-                event.spotsLeft === 0 && event.limitedSpots
+                soldOut
                   ? 'bg-violet-100 text-violet-700'
                   : 'bg-amber-500 hover:bg-amber-600 text-white'
               }`}
@@ -297,7 +316,7 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
                    status === 'pending' ? '⏳ Pending'  :
                    status === 'loading' ? '…'          :
                    status === 'error'   ? 'Error'      :
-                   event.spotsLeft === 0 && event.limitedSpots ? `Full · Join waitlist${event.waitlistCount ? ` (${event.waitlistCount})` : ''}` :
+                   soldOut ? `${saidSoldOut ? 'Sold out' : 'Full'} · Join waitlist${event.waitlistCount ? ` (${event.waitlistCount})` : ''}` :
                    event.approvalRequired                      ? 'Request' :
                    'Join'}
                 </motion.span>

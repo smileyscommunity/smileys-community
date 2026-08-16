@@ -26,6 +26,7 @@ import AddToCalendar from '@/components/AddToCalendar'
 import EventLocationMap from '@/components/EventLocationMap'
 import EventBadges from '@/components/EventBadges'
 import { sanitize } from '@/lib/sanitize'
+import { isSoldOut, isManuallySoldOut } from '@/lib/soldOut'
 
 export const dynamic = 'force-dynamic'
 
@@ -86,7 +87,7 @@ function buildEventJsonLd(event: Event, eventUrl: string) {
       '@type':       'Offer',
       price:         String(event.price ?? 0),
       priceCurrency: event.currency ?? 'TRY',
-      availability:  event.spotsLeft === 0
+      availability:  isSoldOut(event)
         ? 'https://schema.org/SoldOut'
         : 'https://schema.org/InStock',
       url: eventUrl,
@@ -147,6 +148,11 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
 
   const today  = new Date().toISOString().split('T')[0]
   const isPast = event.date < today
+  // One rule for the banner, the capacity strip, the RSVP button and the
+  // structured data — they contradicted each other the moment any of them
+  // was computed separately.
+  const soldOut     = isSoldOut(event)
+  const saidSoldOut = isManuallySoldOut(event)
 
   const session = await getSession()
 
@@ -538,6 +544,23 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
         <div className="lg:grid lg:grid-cols-3 lg:gap-10 px-4 lg:px-8 pt-6">
         {/* LEFT — main content */}
         <div className="lg:col-span-2 space-y-6">
+          {/* A full-width banner rather than another pill in the badge row:
+              this is the one fact that changes what you can do on the page, and
+              the badges beside it are all things you can still act on. */}
+          {soldOut && event.status !== 'cancelled' && (
+            <div className="flex items-start gap-3 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3">
+              <span aria-hidden="true" className="text-xl leading-none">🎟</span>
+              <div>
+                <p className="text-sm font-extrabold text-violet-800 uppercase tracking-wide">Sold out</p>
+                <p className="text-sm text-violet-700 leading-relaxed">
+                  {saidSoldOut
+                    ? 'The host has closed this one. Join the waitlist and you\'ll be told if a spot frees up.'
+                    : 'Every spot is taken. Join the waitlist and you\'ll be told if a spot frees up.'}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Title + Meta */}
           <div>
             <EventBadges event={event} variant="outline" layout="row" className="mb-3" />
@@ -700,8 +723,8 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
               {event.limitedSpots && event.spotsLeft <= 5 && event.spotsLeft > 0 && (
                 <span className="text-xs font-semibold text-red-500">⚡ {event.spotsLeft} spots left</span>
               )}
-              {event.spotsLeft === 0 && event.limitedSpots && (
-                <span className="text-xs font-semibold text-red-500">Full</span>
+              {soldOut && (
+                <span className="text-xs font-semibold text-violet-600">{saidSoldOut ? 'Sold out' : 'Full'}</span>
               )}
             </div>
             <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
@@ -1094,6 +1117,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                 eventId={event.id}
                 hostId={event.hostId}
                 spotsLeft={event.spotsLeft}
+                soldOut={soldOut}
                 price={event.price}
                 memberPrice={event.memberPrice}
                 membersOnly={event.membersOnly}

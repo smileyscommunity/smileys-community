@@ -134,6 +134,10 @@ export interface Event {
   limitedSpots: boolean
   spotsLeft: number
   totalSpots: number
+  // Set by a host or admin; see lib/soldOut.ts for how it combines with the
+  // counter. Optional so the many places that build partial event shapes for
+  // cards don't all have to carry it.
+  soldOut?: boolean
   // Populated by getEvents for sold-out events only — waitlist demand
   // shown on the card's "Join waitlist" CTA. Absent elsewhere.
   waitlistCount?: number
