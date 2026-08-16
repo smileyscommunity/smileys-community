@@ -8,6 +8,7 @@ import { formatShortDate } from '@/lib/data'
 import { resolveImageUrl, avatarUrl } from '@/lib/data'
 import { APP_URL, SITE_URL } from '@/lib/env'
 import { attributionDisplay } from '@/lib/directory'
+import { getCityConfig } from '@/lib/city'
 import { isSafeHref } from '@/lib/safeUrl'
 import {
   DAY_KEYS,
@@ -162,6 +163,8 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
   const meta = business.neighborhood ? getNeighborhoodMeta(business.neighborhood) : null
   // ?w=1200: see absoluteImageUrl comment above. Crawlers ingesting
   // JSON-LD pick up images at the same size as the OG variant.
+  const businessCity = await getCityConfig(business.cityId)
+
   const ldImage = business.coverImage
     ? `${SITE_URL}${resolveImageUrl(business.coverImage)}?w=1200`
     : business.logo
@@ -177,9 +180,12 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
     image:       ldImage,
     address: {
       '@type':           'PostalAddress',
-      addressLocality:   business.neighborhood ?? 'Istanbul',
-      addressRegion:     'Istanbul',
-      addressCountry:    'TR',
+      // The BUSINESS's city, not the viewer's — an address doesn't change with
+      // who is looking at it. Hardcoding Istanbul here published a false region
+      // and country for every listing outside it.
+      addressLocality:   business.neighborhood ?? businessCity.name,
+      addressRegion:     businessCity.name,
+      addressCountry:    businessCity.country,
       streetAddress:     business.address ?? undefined,
     },
   }
