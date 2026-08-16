@@ -69,6 +69,9 @@ export default async function DashboardPage() {
   const cityId = await resolveCityId(session)
   // The weather card needs a point and a clock, not just an id — same city the
   // rest of this page is scoped to.
+  const hasNeighborhoods = (await prisma.neighborhood.count({
+    where: { cityId, active: true },
+  })) > 0
   const city = await prisma.city.findUnique({
     where:  { id: cityId },
     select: { name: true, lat: true, lng: true, timezone: true },
@@ -1831,7 +1834,12 @@ export default async function DashboardPage() {
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-5">
               <h2 className="text-sm font-bold text-gray-900 mb-3">Discover</h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {DISCOVER_LINKS.filter(l => !l.guestOnly).map(link => (
+                {DISCOVER_LINKS
+                  .filter(l => !l.guestOnly)
+                  // Same rule as the footer: a city grows into neighbourhoods,
+                  // so don't offer the link until it has some.
+                  .filter(l => l.href !== '/neighborhoods' || hasNeighborhoods)
+                  .map(link => (
                   <Link
                     key={link.href}
                     href={link.href}

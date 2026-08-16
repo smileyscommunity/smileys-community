@@ -8,6 +8,8 @@ import { prisma } from '@/lib/prisma'
 import { neighborhoodToSlug, NEIGHBORHOOD_META } from '@/lib/neighborhoods'
 import { APP_URL } from '@/lib/env'
 import { getSession } from '@/lib/session'
+import { resolveCityId } from '@/lib/city'
+import { getNeighborhoodsForCity } from '@/lib/neighborhoodsDb'
 import { restrictedSetFor } from '@/lib/memberPrivacy'
 import SayHiButton from '@/components/SayHiButton'
 import LocalFavorites, { type LocalPick } from '@/components/LocalFavorites'
@@ -107,6 +109,8 @@ export default async function NeighborhoodsPage() {
     getNeighborhoodStats(today),
   ])
 
+  const cityId = await resolveCityId(session)
+
   // First upcoming event per neighborhood
   const nextEventMap: Record<string, { title: string; date: string; emoji: string }> = {}
   for (const e of nextEventsRaw) {
@@ -124,14 +128,25 @@ export default async function NeighborhoodsPage() {
     if (b?.active && b?.headline) adBanner = b
   } catch { /* no banner */ }
 
-  const neighborhoods = Object.entries(NEIGHBORHOOD_META).map(([name, meta]) => {
+  // The list comes from the viewer's city, not the hard-coded Istanbul constant.
+  // A member in Izmir was being shown Kadıköy, Moda and Cihangir under a nav
+  // heading that said "In Izmir". NEIGHBORHOOD_META is still the editorial
+  // layer (emoji, vibe, cost) for the cities that have one; a row without an
+  // entry falls back to what the table itself stores.
+  const cityRows = await getNeighborhoodsForCity(cityId)
+  const neighborhoods = cityRows.map(row => {
+    const name = row.name
+    const meta = NEIGHBORHOOD_META[name] ?? {
+      emoji: row.emoji, vibe: row.vibe ?? '', side: row.area ?? '',
+      cost: row.cost, lat: row.lat ?? 0, lon: row.lng ?? 0,
+    }
     const eventCount  = eventCounts.find(e => e.neighborhood === name)?._count._all  ?? 0
     const memberCount = memberCounts.find(m => m.neighborhood === name)?._count._all ?? 0
     const pickCount   = pickCounts.find(p => p.neighborhood === name)?._count._all   ?? 0
     const activityScore = eventCount * 3 + Math.round(memberCount / 6)
     return {
       name,
-      slug: neighborhoodToSlug(name),
+      slug: row.slug,
       meta,
       eventCount,
       memberCount,

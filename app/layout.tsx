@@ -93,6 +93,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const homeSlug       = cityRows.find(c => c.id === session?.cityId)?.slug
   const viewingSlug    = cityRows.find(c => c.id === viewCityId)?.slug
   const footerCityName = cityRows.find(c => c.id === footerCityId)?.name ?? 'Istanbul'
+  // Only Istanbul has neighbourhoods today. Rather than link every city to a
+  // page that would be empty, the entry appears when the city has rows.
+  const hasNeighborhoods = (await prisma.neighborhood.count({
+    where: { cityId: footerCityId, active: true },
+  })) > 0
   // Sitewide Organization schema — feeds Google's brand/knowledge-panel
   // signals. Not LocalBusiness: Smileys has no single storefront, events run
   // across venues city-wide. sameAs mirrors the social links in Footer.tsx.
@@ -144,7 +149,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <PendingApprovalBanner />
           <main className="flex-1">{children}</main>
           <BottomNav />
-          <Footer stats={footerStats} cityName={footerCityName} />
+          <Footer stats={footerStats} cityName={footerCityName} hasNeighborhoods={hasNeighborhoods} />
           <ClientOnlyComponents />
           <Toaster position="top-right" richColors closeButton />
         </AuthProvider>

@@ -10,6 +10,9 @@ interface FooterProps {
       default city for guests. Defaults defensively so the footer never renders
       a blank heading if a caller forgets it. */
   cityName?: string
+  /** Whether the viewed city has any neighbourhoods. A city grows into them —
+      linking to an empty page under a heading naming the city reads as broken. */
+  hasNeighborhoods?: boolean
 }
 
 // Only reached if the layout passes nothing (it passes measured numbers when
@@ -17,7 +20,7 @@ interface FooterProps {
 // than a second set of figures to drift out of date.
 const DEFAULT_STATS: { value: string; label: string }[] = []
 
-export default function Footer({ stats, cityName = 'Istanbul' }: FooterProps) {
+export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods = true }: FooterProps) {
   const { isLoggedIn } = useAuth()
   const footerStats = stats?.slice(0, 3) ?? DEFAULT_STATS
 
@@ -161,7 +164,7 @@ export default function Footer({ stats, cityName = 'Istanbul' }: FooterProps) {
                 { href: '/clubs',         label: 'Clubs 🏠'           },
                 { href: '/experiences',   label: 'Experiences ✨'     },
                 { href: '/guide',         label: 'Guide 🗺️'           },
-                { href: '/neighborhoods', label: 'Neighborhoods 🏘️'   },
+                ...(hasNeighborhoods ? [{ href: '/neighborhoods', label: 'Neighborhoods 🏘️'   }] : []),
                 // Country-level really, not city-level: 7 of 9 articles are
                 // Istanbul-specific and the rest are Türkiye-wide. It sits here
                 // because every Smileys city is currently in Türkiye, so one
