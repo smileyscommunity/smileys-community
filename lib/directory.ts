@@ -9,7 +9,7 @@ import { prisma } from './prisma'
 import { getCached, setCached } from './analyticsCache'
 
 export const PAGE_SIZE = 100
-export type DirectorySort = 'recent' | 'trending'
+export type DirectorySort = 'recent' | 'trending' | 'toprated'
 
 export type DirectoryFilters = {
   category?:     string
@@ -163,6 +163,10 @@ export async function queryDirectory(filters: DirectoryFilters & { cityId: strin
 
   const sorted = sort === 'trending'
     ? [...items].sort((a, b) => (trendingByBiz.get(b.id) ?? 0) - (trendingByBiz.get(a.id) ?? 0))
+    // Top rated — avgRating desc (unrated sink below 1-star), review
+    // count as tiebreaker so a 4.8×12 outranks a 4.8×1.
+    : sort === 'toprated'
+    ? [...items].sort((a, b) => ((b.avgRating ?? -1) - (a.avgRating ?? -1)) || (b.reviewCount - a.reviewCount))
     : items
 
   return { items: sorted as unknown as DirectoryBusiness[], nextCursor, total }

@@ -284,9 +284,10 @@ function DirectoryPageInner() {
   // every device; map is a one-tap toggle away.
   const [viewMode,     setViewMode]     = useState<'list' | 'map'>('list')
   // Sort axis. 'recent' (default) = createdAt DESC, what the directory
-  // has always shown. 'trending' = re-orders by saves in the last 7 days.
-  const [sort,         setSort]         = useState<'recent' | 'trending'>(
-    (searchParams.get('sort') as 'recent' | 'trending') ?? 'recent'
+  // has always shown. 'trending' = saves in the last 7 days.
+  // 'toprated' = avg review rating (review count as tiebreaker).
+  const [sort,         setSort]         = useState<'recent' | 'trending' | 'toprated'>(
+    (searchParams.get('sort') as 'recent' | 'trending' | 'toprated') ?? 'recent'
   )
 
   // Sync filter state back to the URL on every change so the current
@@ -464,14 +465,14 @@ function DirectoryPageInner() {
                 (last 7 days by save count). Sits at the front of the
                 filter row so the active sort axis is the first thing
                 the user sees. */}
-            {(['recent', 'trending'] as const).map(s => (
+            {(['recent', 'trending', 'toprated'] as const).map(s => (
               <button key={s} onClick={() => setSort(s)}
                 className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold border whitespace-nowrap transition-all ${
                   sort === s
                     ? 'bg-amber-500 text-white border-amber-500'
                     : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
                 }`}>
-                <span aria-hidden="true">{s === 'recent' ? '🆕' : '🔥'}</span> {s === 'recent' ? 'Recent' : 'Trending'}
+                <span aria-hidden="true">{s === 'recent' ? '🆕' : s === 'trending' ? '🔥' : '⭐'}</span> {s === 'recent' ? 'Recent' : s === 'trending' ? 'Trending' : 'Top rated'}
               </button>
             ))}
 

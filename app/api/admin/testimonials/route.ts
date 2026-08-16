@@ -4,13 +4,17 @@ import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
 
 import { ALLOWED_CATEGORIES } from './constants'
+import { INVALID, resolveCityIdInput } from './cityInput'
 
 export async function GET() {
   const session = await getSession()
   if (!session || !isAdminOrModerator(session)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
-  const items = await prisma.testimonial.findMany({ orderBy: [{ order: 'asc' }, { createdAt: 'desc' }] })
+  const items = await prisma.testimonial.findMany({
+    orderBy: [{ order: 'asc' }, { createdAt: 'desc' }],
+    include: { city: { select: { id: true, name: true } } },
+  })
   return NextResponse.json(items)
 }
 
@@ -19,7 +23,7 @@ export async function POST(req: NextRequest) {
   if (!session || !isAdminOrModerator(session)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
-  const { memberName, role, quote, category, photo } = await req.json()
+  const { memberName, role, quote, category, photo, cityId } = await req.json()
   if (!memberName?.trim() || !quote?.trim()) {
     return NextResponse.json({ error: 'Name and quote required' }, { status: 400 })
   }
@@ -39,6 +43,14 @@ export async function POST(req: NextRequest) {
 
   const cleanCategory = ALLOWED_CATEGORIES.includes(category) ? category : 'general'
 
+  // A quote belongs to a city, or explicitly to none. An unknown id is
+  // rejected rather than quietly coerced to null: silently turning "Izmir"
+  // into "everywhere" is how these ended up unscoped in the first place.
+  const cleanCityId = await resolveCityIdInput(cityId)
+  if (cleanCityId === INVALID) {
+    return NextResponse.json({ error: 'Unknown city' }, { status: 400 })
+  }
+
   const maxOrder = await prisma.testimonial.aggregate({ _max: { order: true } })
   const item = await prisma.testimonial.create({
     data: {
@@ -47,6 +59,7 @@ export async function POST(req: NextRequest) {
       quote:      quote.trim(),
       category:   cleanCategory,
       photo:      cleanPhoto,
+      cityId:     cleanCityId,
       order:      (maxOrder._max.order ?? 0) + 1,
     },
   })

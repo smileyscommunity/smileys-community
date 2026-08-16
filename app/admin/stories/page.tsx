@@ -23,6 +23,8 @@ interface Testimonial {
   photo:      string | null
   active:     boolean
   order:      number
+  cityId:     string | null
+  city:       { id: string; name: string } | null
 }
 
 interface StoryPhoto {
@@ -37,7 +39,7 @@ interface StoryPhoto {
 const CATEGORIES = [
   { key: 'general',   label: 'General',           icon: '💬' },
   { key: 'friends',   label: 'Made close friends', icon: '🤝' },
-  { key: 'expat',     label: 'New to Istanbul',    icon: '🌍' },
+  { key: 'expat',     label: 'New to the city',    icon: '🌍' },
   { key: 'business',  label: 'Business partners',  icon: '💼' },
   { key: 'travel',    label: 'Travel buddies',      icon: '✈️' },
 ]
@@ -57,7 +59,10 @@ export default function StoriesPage() {
   const [testimonials, setTestimonials] = useState<Testimonial[]>([])
   const [tLoading,     setTLoading]     = useState(true)
   const [showForm,     setShowForm]     = useState(false)
-  const [tForm,        setTForm]        = useState({ memberName: '', role: '', quote: '', category: 'general', photo: '' })
+  const [tForm,        setTForm]        = useState({ memberName: '', role: '', quote: '', category: 'general', photo: '', cityId: '' })
+  // Which city each quote speaks for. Loaded from the same endpoint the
+  // admin Cities page uses, so a city added there is immediately assignable.
+  const [cities,       setCities]       = useState<{ id: string; name: string; status: string }[]>([])
   const [tSaving,      setTSaving]      = useState(false)
   const [editId,       setEditId]       = useState<string | null>(null)
 
@@ -83,13 +88,16 @@ export default function StoriesPage() {
       .then(r => r.json()).then(d => { setTestimonials(Array.isArray(d) ? d : []); setTLoading(false) })
     fetch('/app/api/admin/story-photos', { credentials: 'include' })
       .then(r => r.json()).then(d => { setPhotos(Array.isArray(d) ? d : []); setPLoading(false) })
+    fetch('/app/api/admin/cities', { credentials: 'include' })
+      .then(r => r.json()).then(d => setCities(Array.isArray(d) ? d : []))
+      .catch(() => setCities([]))
   }, [])
 
   // ── Testimonials ──────────────────────────────────────────
-  function resetTForm() { setTForm({ memberName: '', role: '', quote: '', category: 'general', photo: '' }); setEditId(null); setShowForm(false) }
+  function resetTForm() { setTForm({ memberName: '', role: '', quote: '', category: 'general', photo: '', cityId: '' }); setEditId(null); setShowForm(false) }
 
   function startEdit(t: Testimonial) {
-    setTForm({ memberName: t.memberName, role: t.role ?? '', quote: t.quote, category: t.category, photo: t.photo ?? '' })
+    setTForm({ memberName: t.memberName, role: t.role ?? '', quote: t.quote, category: t.category, photo: t.photo ?? '', cityId: t.cityId ?? '' })
     setEditId(t.id)
     setShowForm(true)
   }
@@ -320,6 +328,17 @@ export default function StoriesPage() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
+                    <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wide mb-1.5">City</label>
+                    <select value={tForm.cityId} onChange={e => setTForm(f => ({ ...f, cityId: e.target.value }))}
+                      className="w-full px-3 py-2.5 bg-zinc-800 border border-zinc-700 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500">
+                      {/* Deliberately not the first option: an unassigned
+                          quote shows up in every city, and that should be a
+                          choice someone makes, not the one they skip past. */}
+                      {cities.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      <option value="">🌍 Across Smileys (every city)</option>
+                    </select>
+                  </div>
+                  <div>
                     <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wide mb-1.5">Category</label>
                     <select value={tForm.category} onChange={e => setTForm(f => ({ ...f, category: e.target.value }))}
                       className="w-full px-3 py-2.5 bg-zinc-800 border border-zinc-700 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500">
@@ -370,6 +389,11 @@ export default function StoriesPage() {
                         {t.role && <span className="text-xs text-zinc-500">{t.role}</span>}
                         <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${CAT_COLORS[t.category] ?? 'bg-zinc-100 text-zinc-600'}`}>
                           {cat?.icon} {cat?.label}
+                        </span>
+                        {/* An across-Smileys quote appears on every city page,
+                            so it gets the louder badge of the two. */}
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${t.city ? 'bg-zinc-800 text-zinc-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                          {t.city ? `📍 ${t.city.name}` : '🌍 Across Smileys'}
                         </span>
                       </div>
                       <p className="text-sm text-zinc-400 line-clamp-2 leading-relaxed">"{t.quote}"</p>

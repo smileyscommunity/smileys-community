@@ -36,7 +36,8 @@ export async function GET(req: NextRequest) {
     const category     = searchParams.get('category') || ''
     const neighborhood = searchParams.get('neighborhood') || ''
     const type         = searchParams.get('type') || ''
-    const sort         = (searchParams.get('sort') === 'trending' ? 'trending' : 'recent') as DirectorySort
+    const sortParam    = searchParams.get('sort')
+    const sort         = (sortParam === 'trending' || sortParam === 'toprated' ? sortParam : 'recent') as DirectorySort
     const cursor       = searchParams.get('cursor') || undefined
 
     if (category && category !== 'all' && !BUSINESS_CATEGORY_SET.has(category)) {

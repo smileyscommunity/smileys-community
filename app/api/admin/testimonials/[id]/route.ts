@@ -4,6 +4,7 @@ import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
 import { ALLOWED_CATEGORIES } from '../constants'
+import { INVALID, resolveCityIdInput } from '../cityInput'
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
@@ -34,11 +35,22 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     data.category = ALLOWED_CATEGORIES.includes(cat) ? cat : 'general'
   }
 
+  if ('cityId' in body) {
+    const cleanCityId = await resolveCityIdInput(body.cityId)
+    if (cleanCityId === INVALID) {
+      return NextResponse.json({ error: 'Unknown city' }, { status: 400 })
+    }
+    data.cityId = cleanCityId
+  }
+
   if (Object.keys(data).length === 0) {
     return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 })
   }
 
-  const item = await prisma.testimonial.update({ where: { id }, data })
+  const item = await prisma.testimonial.update({
+    where: { id }, data,
+    include: { city: { select: { id: true, name: true } } },
+  })
   return NextResponse.json(item)
 }
 

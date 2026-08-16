@@ -78,7 +78,13 @@ const getCityPageData = unstable_cache(
         orderBy: { _count: { neighborhood: 'desc' } },
         take: 6,
       }),
-      prisma.testimonial.findMany({ where: { active: true }, orderBy: [{ order: 'asc' }], take: 3 }),
+      // This city's members, plus quotes marked across-Smileys. Not every
+      // quote: these used to be Istanbul's words on every city's page.
+      prisma.testimonial.findMany({
+        where:   { active: true, OR: [{ cityId }, { cityId: null }] },
+        orderBy: [{ order: 'asc' }],
+        take:    3,
+      }),
       // A number is all the page renders — never fetch names for a count
       // (the shape invites the next edit to display them), and admin-hidden
       // accounts stay out of every public figure. Uncapped: 'take' was
@@ -358,12 +364,11 @@ export default async function CityPage({ params }: Params) {
       )}
 
       {/* Stories */}
-      {/* Testimonials carry no city (the model has no cityId), so they're
-          Istanbul members' words. Showing them on a city with nobody in it
-          manufactures a community that doesn't exist yet — the same dishonesty
-          as publishing zeros, in a form that's harder to spot. Gate on the
-          city actually having members. */}
-      {testimonials.length > 0 && (stats?.members ?? 0) > 0 && (
+      {/* No member-count gate here any more: the query itself is now the
+          honest filter. A quote reaches this page only if it belongs to this
+          city or was deliberately marked across-Smileys, so a brand-new city
+          shows nothing until someone says something about it. */}
+      {testimonials.length > 0 && (
         <section className="py-12 sm:py-16 bg-gray-50 border-t border-gray-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="mb-8">
