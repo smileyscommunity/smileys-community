@@ -410,15 +410,12 @@ export default async function CityPage({ params }: Params) {
           <div className="mb-8">
             <h2 className="section-title">Visiting <span className="text-amber-600">{city.name}?</span></h2>
             <p className="section-subtitle max-w-2xl">
-              {/* Only four cards render, and "See all visitors" exists for the
-                  default city alone (/visiting is hard-scoped to it). A bare
-                  total would advertise travelers a second city's reader has no
-                  way to reach, so say "4 of 12" in that case instead. */}
+              {/* Four cards render and the rest are one click away for every
+                  city now, so the total is an honest number again — it was
+                  "4 of 12" while a second city had no way to reach them. */}
               {visitorTotal === 0
                 ? 'Announce your trip and the community knows you\u2019re coming before you land.'
-                : isDefaultCity || visitorTotal <= visitors.length
-                  ? `${visitorTotal} traveler${visitorTotal === 1 ? ' is' : 's are'} announcing a trip right now \u2014 announce yours and arrive with plans.`
-                  : `${visitors.length} of ${visitorTotal} travelers announcing a trip right now \u2014 announce yours and arrive with plans.`}
+                : `${visitorTotal} traveler${visitorTotal === 1 ? ' is' : 's are'} announcing a trip right now \u2014 announce yours and arrive with plans.`}
             </p>
           </div>
           {visitors.length > 0 && (
@@ -438,11 +435,15 @@ export default async function CityPage({ params }: Params) {
             <Link href={`/visiting/new?city=${city.slug}`} className="btn-primary px-6 py-3">
               Announce your visit
             </Link>
-            {city.slug === DEFAULT_CITY_SLUG && (
-              <Link href="/visiting" className="text-sm font-bold text-amber-600 hover:underline">
-                See all visitors →
-              </Link>
-            )}
+            {/* Every city now, not just the default one: /visiting follows
+                ?city= (a4d00f3), so the rest of a second city's travelers are
+                reachable rather than advertised and hidden. */}
+            <Link
+              href={isDefaultCity ? '/visiting' : `/visiting?city=${city.slug}`}
+              className="text-sm font-bold text-amber-600 hover:underline"
+            >
+              See all visitors →
+            </Link>
           </div>
         </div>
       </section>
