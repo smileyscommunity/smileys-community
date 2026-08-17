@@ -122,7 +122,10 @@ export async function describeCity(
 // so the cache must eventually notice without a restart.
 // `country` is the ISO 3166-1 alpha-2 code the admin form collects, not a
 // display name — run it through countryName() before showing it to anyone.
-export interface CityConfig { timezone: string; currency: string; slug: string; name: string; country: string }
+// `showGlobalClubs` rides along here rather than costing getClubs() its own
+// query per grid render: the club listing needs it on every request, and it
+// changes about as often as the timezone does.
+export interface CityConfig { timezone: string; currency: string; slug: string; name: string; country: string; showGlobalClubs: boolean }
 
 const CONFIG_TTL_MS = 5 * 60_000
 const configCache = new Map<string, { cfg: CityConfig; expires: number }>()
@@ -132,11 +135,13 @@ export async function getCityConfig(cityId: string): Promise<CityConfig> {
   if (hit && hit.expires > Date.now()) return hit.cfg
   const city = await prisma.city.findUnique({
     where:  { id: cityId },
-    select: { timezone: true, currency: true, slug: true, name: true, country: true },
+    select: { timezone: true, currency: true, slug: true, name: true, country: true, showGlobalClubs: true },
   })
   // Unknown id falls back to the default city's zone rather than throwing —
-  // a stale cityId must degrade to Istanbul behavior, not a 500.
-  const cfg: CityConfig = city ?? { timezone: 'Europe/Istanbul', currency: 'TRY', slug: DEFAULT_CITY_SLUG, name: 'Istanbul', country: 'TR' }
+  // a stale cityId must degrade to Istanbul behavior, not a 500. That includes
+  // showGlobalClubs: Istanbul shows them, so a stale id doesn't silently strip
+  // the Culture and Language clubs out of the grid.
+  const cfg: CityConfig = city ?? { timezone: 'Europe/Istanbul', currency: 'TRY', slug: DEFAULT_CITY_SLUG, name: 'Istanbul', country: 'TR', showGlobalClubs: true }
   configCache.set(cityId, { cfg, expires: Date.now() + CONFIG_TTL_MS })
   return cfg
 }

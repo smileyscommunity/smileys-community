@@ -332,6 +332,13 @@ model City {
   lat          Float?
   lng          Float?
   createdAt    DateTime            @default(now())
+  // Whether this city's club grid also lists the GLOBAL clubs (cityId null —
+  // Cultures of the World, Language). Those are Istanbul-grown: 1,517 of their
+  // 1,519 memberships were Istanbul members, so Bodrum's grid opened with 32
+  // of them above its own three clubs, none with a single local member.
+  // Defaults to false so a newly launched city starts with only its own clubs
+  // and opts in once the cross-city communities have people there.
+  showGlobalClubs Boolean          @default(false)
   consulUserId String?
   cityHosts    CityHost[]
   clubs        Club[]

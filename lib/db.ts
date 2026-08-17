@@ -2,7 +2,7 @@ import { prisma } from './prisma'
 import type { Club, Event, VibeTag } from './data'
 import { todayIstanbul } from './data'
 import { nowInTz, DEFAULT_TZ } from './cityTime'
-import { getCityTz } from './city'
+import { getCityTz, getCityConfig } from './city'
 import { isSoldOut } from '@/lib/soldOut'
 
 // ── Clubs ─────────────────────────────────────────────────────────────────
@@ -10,16 +10,20 @@ import { isSoldOut } from '@/lib/soldOut'
 // cityId is required, not defaulted — every caller must decide whose city
 // it's listing (viewer's, or the default city on public surfaces), so a
 // second city's clubs can never leak into another grid by omission.
-// Global clubs (cityId NULL — Cultures of the World, Language) appear in
-// every city's grid alongside its local clubs.
+// Global clubs (cityId NULL — Cultures of the World, Language) appear
+// alongside a city's local clubs only where City.showGlobalClubs says so.
+// They're Istanbul-grown, so Bodrum's launch grid was 32 of them stacked above
+// its own three clubs, none with a member within 700km; a new city now starts
+// with only its own and opts in once those communities have people there.
 export async function getClubs(cityId: string): Promise<Club[]> {
   const today = todayIstanbul()
+  const { showGlobalClubs } = await getCityConfig(cityId)
   // isActive:true is the public-surface gate. Admins deactivate
   // clubs via /admin/clubs (sets isActive=false on the row); those
   // are hidden everywhere a member could discover them — listing,
   // detail page, search, sitemap, dashboard recommendations.
   const rows = await prisma.club.findMany({
-    where: { isActive: true, OR: [{ cityId }, { cityId: null }] },
+    where: { isActive: true, ...(showGlobalClubs ? { OR: [{ cityId }, { cityId: null }] } : { cityId }) },
     orderBy: { name: 'asc' },
     include: {
       // Two counts, because a global club (cityId null) is listed in every
