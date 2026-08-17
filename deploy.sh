@@ -22,6 +22,37 @@ if [ "${FILE_COUNT:-0}" -lt 50 ]; then
   exit 1
 fi
 
+# This script builds from the WORKING TREE, not from HEAD — but stamps the
+# release with HEAD's sha. Anything uncommitted therefore ships under a label
+# that does not contain it, which is invisible afterwards: the commit log looks
+# right and the server disagrees.
+#
+# That is not hypothetical. On 2026-08-16 it happened twice in one evening —
+# a whole soldOut feature (plus its unapplied migration) and an areaServed
+# change both reached production without appearing in any commit, and were
+# found only by grepping the server. Untracked files count too: lib/soldOut.ts
+# was untracked and shipped anyway.
+#
+# So: refuse by default. Deploying a dirty tree on purpose is legitimate
+# (a hotfix you have not committed yet), hence ALLOW_DIRTY=1 — which still
+# prints exactly what is riding along, so it is a decision rather than an
+# accident. Checked before the network calls below so it costs nothing.
+DIRTY=$(git status --porcelain 2>/dev/null || true)
+if [ -n "$DIRTY" ]; then
+  if [ -n "$ALLOW_DIRTY" ]; then
+    echo "⚠ Deploying a DIRTY working tree (ALLOW_DIRTY=1)."
+    echo "  Release will be stamped $APP_RELEASE, which does NOT contain:"
+    echo "$DIRTY" | sed 's/^/    /'
+  else
+    echo "✗ Refusing to deploy: the working tree is not clean."
+    echo "  deploy.sh builds from the working tree, so the following would ship"
+    echo "  as release $APP_RELEASE without being part of it:"
+    echo "$DIRTY" | sed 's/^/    /'
+    echo "  Commit or stash them, or re-run as: ALLOW_DIRTY=1 ./deploy.sh"
+    exit 1
+  fi
+fi
+
 # Uploads live outside the deploy root (see lib/uploadRoot). If UPLOAD_DIR is
 # missing from the server's .env, the app silently falls back to
 # <repo>/uploads: every image 404s, and new uploads land inside the rsync
