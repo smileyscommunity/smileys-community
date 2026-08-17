@@ -27,6 +27,37 @@ export function sanitize(html: string): string {
   })
 }
 
+// Article bodies (community posts + handbook) come from RichTextEditor, whose
+// toolbar offers seven text colours — TipTap's Color extension stores them as
+// `<span style="color: …">`. sanitize() drops every style attribute, so those
+// colours silently vanished the moment an article was published: the toolbar
+// promised something the page couldn't render.
+//
+// This variant permits `style` on `span` alone, and allowedStyles narrows it to
+// a single property with a value that must match a hex/rgb(a) literal — so the
+// vectors that keep `style` off the strict sanitizer are still unavailable:
+// no `position`/`display` for fake UI overlays, no `background-image: url()`
+// beacon, no attribute-selector exfiltration. Colour on its own can only
+// recolour text. Articles are written by admins/moderators, so this trades no
+// member-content trust; keep member-authored HTML on sanitize().
+const COLOR_VALUE = [
+  /^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i,
+  /^rgb\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*\)$/i,
+  /^rgba\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*(?:0|1|0?\.\d+)\s*\)$/i,
+]
+
+export function sanitizeArticle(html: string): string {
+  return sanitizeHtml(html, {
+    allowedTags:       ALLOWED_TAGS,
+    allowedAttributes: { ...ALLOWED_ATTR, span: ['style'] },
+    allowedStyles:     { span: { color: COLOR_VALUE } },
+    allowedSchemes:    ['https', 'mailto'],
+    transformTags: {
+      a: sanitizeHtml.simpleTransform('a', { target: '_blank', rel: 'noopener noreferrer' }),
+    },
+  })
+}
+
 // Newsletter bodies are admin-authored so we allow a richer tag set
 // (inline styles for email clients, tables for layout) while still
 // blocking scripts, event handlers, and javascript: hrefs.

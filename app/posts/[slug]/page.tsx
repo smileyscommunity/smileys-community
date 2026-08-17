@@ -6,7 +6,7 @@ import { prisma } from '@/lib/prisma'
 import { resolveImageUrl, avatarUrl } from '@/lib/data'
 import { firstBodyImage } from '@/lib/articleCover'
 import { APP_URL, SITE_URL } from '@/lib/env'
-import { sanitize } from '@/lib/sanitize'
+import { sanitize, sanitizeArticle } from '@/lib/sanitize'
 import ArticleInlineEditor from '@/components/ArticleInlineEditor'
 import ArticleViewBeacon from '@/components/ArticleViewBeacon'
 
@@ -72,6 +72,11 @@ const BODY_PROSE = [
   'prose-ul:my-5 prose-ol:my-5 prose-li:text-[17px] prose-li:text-gray-600 prose-li:my-1',
   '[&_li::marker]:text-amber-500',
   'prose-strong:font-bold prose-strong:text-gray-900',
+  // A colour picked in the editor lands as `<span style="color: …">`, and a
+  // child's own class beats a colour inherited from its parent — so bold text
+  // inside a coloured span would render prose-strong's gray-900 and lose the
+  // colour. Make anything nested in a styled span inherit it instead.
+  '[&_span[style]_*]:text-[color:inherit]',
   'prose-a:text-amber-600 prose-a:font-medium',
   'prose-blockquote:border-l-4 prose-blockquote:border-amber-400 prose-blockquote:not-italic prose-blockquote:text-gray-600',
   'prose-img:rounded-2xl prose-img:mx-auto',
@@ -270,7 +275,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
 
         {/* Body */}
         {isHtmlBody(post.body)
-          ? <div className={BODY_PROSE} dangerouslySetInnerHTML={{ __html: sanitize(post.body) }} />
+          ? <div className={BODY_PROSE} dangerouslySetInnerHTML={{ __html: sanitizeArticle(post.body) }} />
           : <div>{renderBody(post.body)}</div>}
        </ArticleInlineEditor>
 
