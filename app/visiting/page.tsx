@@ -5,8 +5,10 @@ import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import type { Metadata } from 'next'
 import { getSession } from '@/lib/session'
-import { getDefaultCityId } from '@/lib/city'
-import { NEIGHBORHOOD_META, neighborhoodToSlug } from '@/lib/neighborhoods'
+import { resolveCityForPage, type CitySearch } from '@/lib/cityPageParam'
+import { absoluteOgImage } from '@/lib/og'
+import { resolveImageUrl } from '@/lib/data'
+import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
 import { loadExperiences } from '@/lib/guideContent'
 import VisitingClient from './VisitingClient'
 import StickyVisitCta from './StickyVisitCta'
@@ -20,13 +22,13 @@ import StickyVisitCta from './StickyVisitCta'
 // ever takes two values, so this stays two shared cache entries instead of
 // forking per session. Guests get the public-only subset.
 const getAnnouncements = unstable_cache(
-  async (today: string, forMembers: boolean) => prisma.visitorAnnouncement.findMany({
+  // cityId is an ARGUMENT, not a closure read: unstable_cache keys on its args,
+  // so taking it from the enclosing request would have served one city's
+  // visitors to every city for the full 120s window.
+  async (today: string, forMembers: boolean, cityId: string) => prisma.visitorAnnouncement.findMany({
     where: {
       status: 'active',
-      // This page is the default city's visiting surface until the
-      // multi-city Visiting UI ships. Constant per deployment, so it's
-      // safe inside the shared cache entry without a key change.
-      cityId: await getDefaultCityId(),
+      cityId,
       endsOn: { gte: today },
       ...(forMembers ? {} : { visibility: 'public' }),
     },
@@ -54,25 +56,33 @@ const getAnnouncements = unstable_cache(
 // threshold for og:image.
 const ogImage = `${APP_URL}/images/visiting-hero-og.jpg`
 
-export const metadata: Metadata = {
-  alternates: { canonical: `${APP_URL}/visiting` },
-  title: 'Visiting Istanbul? Meet locals — Smileys Community',
-  description: 'Tell Smileys members you\'re coming to Istanbul. Locals will reach out to grab coffee, share neighborhood tips, and welcome you in.',
-  openGraph: {
-    title: 'Visiting Istanbul? Meet locals — Smileys Community',
-    description: 'Post your trip dates, see who else is in town, and connect with locals before you arrive.',
-    url: `${APP_URL}/visiting`,
-    images: [{ url: ogImage, width: 1200, height: 800, alt: 'Visiting Istanbul? — Smileys Community' }],
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'Visiting Istanbul? Meet locals — Smileys Community',
-    description: 'Post your trip dates, see who else is in town, and connect with locals before you arrive.',
-    images: [ogImage],
-  },
+export async function generateMetadata({ searchParams }: { searchParams?: Promise<CitySearch> }): Promise<Metadata> {
+  // Every string here named Istanbul, so Bodrum's guide sent a Bodrum reader to
+  // "Visiting Istanbul?" — and a shared link previewed Istanbul whatever the
+  // sharer had on screen. ?city= is what lets this URL say which city it means;
+  // a crawler has no session cookie.
+  const { city } = await resolveCityForPage(searchParams)
+  const title = `Visiting ${city.name}? Meet locals — Smileys Community`
+  const description = `Tell Smileys members you're coming to ${city.name}. Locals will reach out to grab coffee, share neighborhood tips, and welcome you in.`
+  const shareDesc = 'Post your trip dates, see who else is in town, and connect with locals before you arrive.'
+  const cityOg = absoluteOgImage(city.heroImage)
+  const image = cityOg
+    ? { url: cityOg, alt: `Visiting ${city.name}? — Smileys Community` }
+    : { url: ogImage, width: 1200, height: 800, alt: `Visiting ${city.name}? — Smileys Community` }
+  return {
+    alternates: { canonical: `${APP_URL}/visiting` },
+    title,
+    description,
+    openGraph: { title, description: shareDesc, url: `${APP_URL}/visiting`, images: [image] },
+    twitter: { card: 'summary_large_image', title, description: shareDesc, images: [image.url] },
+  }
 }
 
-export default async function VisitingPage() {
+export default async function VisitingPage({ searchParams }: { searchParams?: Promise<CitySearch> }) {
+  // One resolution for the whole page: every query below was pinned to the
+  // default city, so a Bodrum reader got Istanbul's events, members,
+  // neighborhoods and hangouts under a header inviting them to Istanbul.
+  const { city, cityId } = await resolveCityForPage(searchParams)
   const today         = new Date().toISOString().split('T')[0]
   const sixtyDaysOut  = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
@@ -98,7 +108,7 @@ export default async function VisitingPage() {
   }
 
   const [announcements, viewerVisit, upcomingEvents, featuredLocals, neighborhoodCounts] = await Promise.all([
-    getAnnouncements(today, !!session),
+    getAnnouncements(today, !!session, cityId),
     // The viewer's own visit is queried directly rather than fished out of
     // the cached list above: that cache lags mutations by up to 2 minutes
     // and caps at 100 rows, so a visitor who just posted their dates would
@@ -107,13 +117,13 @@ export default async function VisitingPage() {
       ? prisma.visitorAnnouncement.findFirst({
           // Scoped to THIS page's city — a visit posted to another city must
           // not drive Istanbul's "events during your stay" sections.
-          where:   { userId: session.id, status: 'active', endsOn: { gte: today }, cityId: await getDefaultCityId() },
+          where:   { userId: session.id, status: 'active', endsOn: { gte: today }, cityId: cityId },
           orderBy: { startsOn: 'asc' },
           select:  { startsOn: true, endsOn: true, neighborhood: true },
         })
       : null,
     prisma.event.findMany({
-      where:   { status: 'published', date: { gte: today, lte: sixtyDaysOut }, cityId: await getDefaultCityId() },
+      where:   { status: 'published', date: { gte: today, lte: sixtyDaysOut }, cityId: cityId },
       select:  {
         id: true, title: true, emoji: true, date: true, location: true, neighborhood: true,
         // Attendee count is filtered to approved RSVPs so the "N going"
@@ -124,14 +134,14 @@ export default async function VisitingPage() {
       take:    60,
     }),
     prisma.user.findMany({
-      where:   { status: 'approved', cityId: await getDefaultCityId() },
+      where:   { status: 'approved', cityId: cityId },
       select:  { id: true, name: true, color: true, profilePhoto: true, neighborhood: true },
       orderBy: { goodHangouts: 'desc' },
       take:    5,
     }),
     prisma.user.groupBy({
       by:      ['neighborhood'],
-      where:   { neighborhood: { not: null }, status: 'approved', cityId: await getDefaultCityId() },
+      where:   { neighborhood: { not: null }, status: 'approved', cityId: cityId },
       _count:  { _all: true },
     }),
   ])
@@ -175,7 +185,7 @@ export default async function VisitingPage() {
   const hangoutsDuringVisit = session ? await prisma.hangout.findMany({
     where: {
       status: 'active',
-      cityId: await getDefaultCityId(),
+      cityId,
       endsAt: { gte: new Date() },
       ...(viewerVisit ? { startsAt: { lte: new Date(viewerVisit.endsOn + 'T23:59:59+03:00') } } : {}),
     },
@@ -216,15 +226,20 @@ export default async function VisitingPage() {
   const memberCountFor = (n: string) =>
     neighborhoodCounts.find(c => c.neighborhood === n)?._count._all ?? 0
 
+  // From the VIEWED city's registry, not Istanbul's constant: this section
+  // offered Kadıköy and Moda to someone planning a trip to Bodrum, linked to
+  // slugs that resolve in another city.
+  const visitRegistry = await getNeighborhoodViews(cityId)
   const neighborhoodPicks = [
-    ...(viewerVisit?.neighborhood ? [viewerVisit.neighborhood] : []),
-    ...Object.keys(NEIGHBORHOOD_META)
-      .filter(n => n !== viewerVisit?.neighborhood)
-      .sort((a, b) => memberCountFor(b) - memberCountFor(a)),
-  ].slice(0, 4).map(name => ({
-    name,
-    meta:    NEIGHBORHOOD_META[name],
-    members: memberCountFor(name),
+    ...(viewerVisit?.neighborhood ? visitRegistry.filter(n => n.name === viewerVisit.neighborhood) : []),
+    ...visitRegistry
+      .filter(n => n.name !== viewerVisit?.neighborhood)
+      .sort((a, b) => memberCountFor(b.name) - memberCountFor(a.name)),
+  ].slice(0, 4).map(row => ({
+    name:    row.name,
+    slug:    row.slug,
+    meta:    { emoji: row.emoji, vibe: row.vibe },
+    members: memberCountFor(row.name),
   }))
 
   const fmtEventDate = (d: string) => {
@@ -242,9 +257,14 @@ export default async function VisitingPage() {
           horizon and drops well below AA. Kept opaque enough at the
           bottom that the CTAs never land on the busy boat/crowd detail. */}
       <section className="relative h-[500px] sm:h-[560px] lg:h-[620px] w-full overflow-hidden">
+        {/* The city's own photo where it has one — this shot is Istanbul, down
+            to the signpost in it, and its alt text said so to screen readers on
+            every city's page. */}
         <Image
-          src="/app/images/visiting-hero.jpg"
-          alt="Four Smileys members at an Istanbul viewpoint at sunset, one pointing across the Bosphorus toward a domed mosque, beside a signpost pointing to Galata Tower, Sultanahmet, and Hagia Sophia"
+          src={city.heroImage ? resolveImageUrl(city.heroImage) : '/app/images/visiting-hero.jpg'}
+          alt={city.heroImage
+            ? `Smileys members in ${city.name}`
+            : 'Four Smileys members at an Istanbul viewpoint at sunset, one pointing across the Bosphorus toward a domed mosque, beside a signpost pointing to Galata Tower, Sultanahmet, and Hagia Sophia'}
           fill
           priority
           fetchPriority="high"
@@ -256,13 +276,13 @@ export default async function VisitingPage() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
             <div className="max-w-2xl">
               <p className="text-xs font-bold tracking-[0.2em] uppercase text-amber-300 mb-4">
-                Visiting Istanbul
+                Visiting {city.name}
               </p>
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-[1.1]">
-                Your Istanbul starts before you arrive.
+                Your {city.name} starts before you arrive.
               </h1>
               <p className="text-base sm:text-lg text-white/90 mt-5 leading-relaxed max-w-xl">
-                Tell us when you&apos;re coming. Smileys members in Istanbul can reach out with
+                Tell us when you&apos;re coming. Smileys members in {city.name} can reach out with
                 local tips, coffee invitations, introductions and plans before you arrive.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-3">
@@ -297,7 +317,7 @@ export default async function VisitingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-12">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {[
-              { icon: '☕', title: 'Meet a Local',      body: 'Grab a coffee, drink or meal with someone already living in Istanbul.' },
+              { icon: '☕', title: 'Meet a Local',      body: `Grab a coffee, drink or meal with someone already living in ${city.name}.` },
               { icon: '💬', title: 'Get Local Tips',    body: 'Ask real people about neighborhoods, transport, restaurants and everyday life.' },
               { icon: '🤝', title: 'Make Connections',  body: 'Start meeting people before your flight even lands.' },
               { icon: '🎉', title: 'Find Plans',        body: "Discover Smileys events and activities happening while you're here." },
@@ -317,7 +337,7 @@ export default async function VisitingPage() {
       {firstTimers.length > 0 && (
         <section className="bg-amber-50 border-b border-amber-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-12">
-            <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-gray-900">First time in Istanbul?</h2>
+            <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-gray-900">First time in {city.name}?</h2>
             <p className="text-gray-600 mt-1 mb-5">Start with these — everything else can wait.</p>
             <div className="flex gap-3 overflow-x-auto pb-1 -mx-2 px-2">
               {firstTimers.map(e => (
@@ -369,7 +389,7 @@ export default async function VisitingPage() {
           <p className="text-gray-600 mt-2 mb-8">Discover your neighborhood before you arrive.</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {neighborhoodPicks.map(n => (
-              <Link key={n.name} href={`/neighborhoods/${neighborhoodToSlug(n.name)}`}
+              <Link key={n.name} href={`/neighborhoods/${n.slug}`}
                 className="bg-white border border-gray-100 rounded-2xl p-5 hover:border-amber-200 hover:shadow-md transition-all group">
                 <div aria-hidden="true" className="text-2xl mb-2">{n.meta?.emoji ?? '📍'}</div>
                 <h3 className="font-bold text-gray-900">{n.name}</h3>
@@ -384,7 +404,7 @@ export default async function VisitingPage() {
             ))}
           </div>
           <Link href="/neighborhoods" className="inline-block mt-8 text-sm font-bold text-amber-600 hover:underline">
-            Explore all Istanbul neighborhoods →
+            Explore all {city.name} neighborhoods →
           </Link>
         </div>
       </section>
@@ -490,7 +510,7 @@ export default async function VisitingPage() {
                 Perfect for your stay
               </h2>
               <p className="text-gray-600 mt-2 mb-8">
-                Experiences that suit the season you&apos;ll be here — from the Istanbul Guide.
+                Experiences that suit the season you&apos;ll be here — from the {city.name} Guide.
               </p>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {picks.map(e => (
@@ -549,7 +569,7 @@ export default async function VisitingPage() {
                     {hg.title}
                   </p>
                   <p className="text-xs text-gray-500 mt-1.5">
-                    🕐 {new Date(hg.startsAt).toLocaleString('en-GB', { weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'Europe/Istanbul' })}
+                    🕐 {new Date(hg.startsAt).toLocaleString('en-GB', { weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: city.timezone })}
                     {hg.neighborhood && <> · 📍 {hg.neighborhood}</>}
                   </p>
                   <p className="text-xs text-gray-500 mt-0.5">
@@ -567,11 +587,11 @@ export default async function VisitingPage() {
         </section>
       )}
 
-      {/* ── Already in Istanbul? ── */}
+      {/* ── Already in <city>? ── */}
       <section className="bg-amber-50 border-t border-amber-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
           <div className="max-w-3xl">
-            <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">Already in Istanbul?</h2>
+            <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">Already in {city.name}?</h2>
             <p className="text-gray-700 mt-3 leading-relaxed">
               Someone is about to experience your city for the first time.
               Help make their arrival a little easier.
@@ -608,7 +628,7 @@ export default async function VisitingPage() {
       <section className="bg-gray-900">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center">
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-white leading-tight">
-            Don&apos;t just visit Istanbul.<br />Know someone here.
+            Don&apos;t just visit {city.name}.<br />Know someone here.
           </h2>
           <p className="text-gray-300 mt-5 max-w-xl mx-auto leading-relaxed">
             Tell the community you&apos;re coming and start making connections before you arrive.

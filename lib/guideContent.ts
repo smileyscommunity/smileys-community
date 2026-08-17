@@ -66,6 +66,7 @@ function rowToExperience(r: any): Experience {
     slug: r.slug, title: r.title, emoji: r.emoji,
     collection: r.collection, moods: r.moods,
     tagline: r.tagline, cost: r.cost ?? '', time: r.time ?? '', when: r.when ?? '',
+    seasons: r.seasons ?? [],
     neighborhoods: r.neighborhoods, firstTime: r.firstTime || undefined,
     why: (c.why as string) ?? '', take: (c.take as string) ?? '',
     sections: (c.sections as Experience['sections']) ?? [],
@@ -91,7 +92,7 @@ function rowToRoute(r: any): GuideRoute {
 function jsonExperiences(): Experience[] {
   try {
     const raw = JSON.parse(readFileSync(join(process.cwd(), 'data', 'guide-experiences.json'), 'utf8'))
-    return ((raw.experiences ?? []) as Experience[]).map(e => ({ ...e, photo: photoFor(e.slug) }))
+    return ((raw.experiences ?? []) as Experience[]).map(e => ({ ...e, seasons: e.seasons ?? [], photo: photoFor(e.slug) }))
   } catch {
     return []
   }

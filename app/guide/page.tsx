@@ -22,7 +22,7 @@ import ExperienceExplorer from './ExperienceExplorer'
 import MySaved from './MySaved'
 import CityToday from './CityToday'
 import { computeTodayPicks } from '@/lib/guideToday'
-import { collectionsFor, moodsFor } from '@/lib/guide'
+import { collectionsFor, moodsFor, seasonsFor, seasonNow } from '@/lib/guide'
 import { loadExperiences, loadRoutes } from '@/lib/guideContent'
 
 interface Banner {
@@ -52,6 +52,8 @@ export default async function GuidePage() {
   const city    = await getCityConfig(cityId)
   const moods       = moodsFor(city.slug)
   const collections = collectionsFor(city.slug)
+  const seasons     = seasonsFor(city.slug)
+  const thisSeason  = seasonNow(city.timezone)
 
   const [eventCounts, memberCounts] = await Promise.all([
     prisma.event.groupBy({
@@ -279,6 +281,57 @@ export default async function GuidePage() {
               })}
             </div>
           </div>
+
+          {/* §15 — by season. A place whose character changes across the year
+              can't be served by one flat catalog: Bodrum in February and Bodrum
+              in August are different cities. Only renders for a city that has
+              actually tagged seasons, and only the seasons that have something
+              in them — an empty "Winter" shelf would be a promise, not a guide.
+              The current season leads and is marked, because that's the one the
+              reader can act on today. */}
+          {(() => {
+            const bySeason = seasons
+              .map(s2 => ({ ...s2, items: experiences.filter(e => e.seasons?.includes(s2.value)) }))
+              .filter(s2 => s2.items.length > 0)
+            if (bySeason.length === 0) return null
+            const ordered = [
+              ...bySeason.filter(s2 => s2.value === thisSeason),
+              ...bySeason.filter(s2 => s2.value !== thisSeason),
+            ]
+            return (
+              <div className="mt-12">
+                <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900 mb-1">{city.name} by season</h2>
+                <p className="text-gray-600 mb-5">The year changes what's worth doing.</p>
+                <div className="space-y-8">
+                  {ordered.map(s2 => (
+                    <div key={s2.value}>
+                      <div className="flex items-baseline gap-2 mb-3">
+                        <h3 className="text-sm font-bold text-gray-600 uppercase tracking-widest">
+                          <span aria-hidden="true">{s2.emoji}</span> {s2.label}
+                        </h3>
+                        {s2.value === thisSeason && (
+                          <span className="text-[11px] font-bold text-amber-700 bg-amber-100 rounded-full px-2 py-0.5">Now</span>
+                        )}
+                        <span className="text-xs text-gray-400 truncate">{s2.line}</span>
+                      </div>
+                      <div className="flex gap-3 overflow-x-auto pb-1 -mx-2 px-2">
+                        {s2.items.map(e => (
+                          <Link key={e.slug} href={`/guide/${e.slug}`}
+                            className="shrink-0 w-64 bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:border-amber-200 hover:shadow-md transition-all group">
+                            <div className="flex items-center gap-2.5">
+                              <span aria-hidden="true" className="text-2xl shrink-0">{e.emoji}</span>
+                              <p className="text-sm font-bold text-gray-900 leading-snug group-hover:text-amber-700 transition-colors">{e.title}</p>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-2 line-clamp-2">{e.tagline}</p>
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
 
           {/* §29 — routes: sequenced days built from the experiences. */}
           {(() => {

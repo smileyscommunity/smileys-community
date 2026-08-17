@@ -441,6 +441,11 @@ model GuideEntry {
   cost          String?
   time          String?
   when          String?
+  // Which parts of the year an experience is for — a real axis, unlike `when`
+  // above, which is display copy ("Late afternoon for the light"). Empty means
+  // all year: most experiences are, and tagging them all would be noise.
+  // Values live in lib/guide.ts (summer | spring | autumn | winter).
+  seasons       String[]  @default([])
   neighborhoods String[]  @default([])
   firstTime     Boolean   @default(false)
   content       Json

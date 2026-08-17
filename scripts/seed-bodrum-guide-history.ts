@@ -21,7 +21,9 @@ import { prisma } from '@/lib/prisma'
 
 const DRY_RUN = process.env.DRY_RUN === '1'
 
-// collection/moods use Bodrum's own vocabulary from lib/guide.ts.
+// collection/moods/seasons use Bodrum's own vocabulary from lib/guide.ts.
+// Seasons are left empty unless the entry's own note justifies one — a castle is
+// a castle in February. Only Pedasa earns a tag: it's an exposed hilltop walk.
 const ENTRIES = [
   {
     slug: 'bodrum-castle',
@@ -101,6 +103,7 @@ const ENTRIES = [
     cost: 'Free',
     time: 'Half a day with the walk',
     when: 'Spring and autumn — not midsummer',
+    seasons: ['spring', 'autumn'],
     neighborhoods: ['Konacık'],
     firstTime: false,
     why: 'One of the oldest settlements on the peninsula, pre-dating Greek Halicarnassus, on a hilltop with walls, cisterns and a long view. It is a walk-up site rather than a monument, which is most of its appeal.',
@@ -164,6 +167,7 @@ async function main() {
           time:   e.time,
           when:   e.when,
           neighborhoods: e.neighborhoods,
+          seasons: 'seasons' in e ? (e as { seasons: string[] }).seasons : [],
           firstTime: e.firstTime,
           // take: '' on purpose — a human writes the opinion before this goes live.
           content: { why: e.why, take: '', sections: e.sections },

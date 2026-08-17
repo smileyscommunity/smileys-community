@@ -107,6 +107,56 @@ export function hasOwnGuideTaxonomy(citySlug: string): boolean {
 export type GuideMood = string
 export type GuideCollection = string
 
+// ── §15 — the season axis ────────────────────────────────────────────────────
+// A separate axis from moods and collections on purpose: "when in the year" is
+// orthogonal to "what am I in the mood for", and a place like Bodrum changes
+// character completely between August and February. `Experience.when` is display
+// copy; these values are data.
+export interface GuideSeason extends GuideTaxon { line: string }
+
+export const SEASON_VALUES = ['spring', 'summer', 'autumn', 'winter'] as const
+export type SeasonValue = typeof SEASON_VALUES[number]
+
+// Bodrum's lines come from the brief. The point of §15 is that the peninsula is
+// not a two-month destination — the sea holds its warmth into October and
+// winter is when the local town reappears.
+const BODRUM_SEASONS: GuideSeason[] = [
+  { value: 'summer', label: 'Summer',           emoji: '☀️', line: 'Beach days, boats, nightlife and events.' },
+  { value: 'spring', label: 'Spring',           emoji: '🌿', line: 'Walking, food, villages and quieter beaches.' },
+  { value: 'autumn', label: 'September–October', emoji: '🍂', line: 'The sea is still warm, the crowds are gone.' },
+  { value: 'winter', label: 'Winter',           emoji: '🌧️', line: 'Local life, cafés, walks and culture.' },
+]
+
+// Names no geography and promises no weather, so it is safe for any city until
+// someone writes that city's own lines.
+const GENERIC_SEASONS: GuideSeason[] = [
+  { value: 'summer', label: 'Summer', emoji: '☀️', line: 'The hottest, busiest months.' },
+  { value: 'spring', label: 'Spring', emoji: '🌿', line: 'Mild days, fewer people.' },
+  { value: 'autumn', label: 'Autumn', emoji: '🍂', line: 'Still warm, much quieter.' },
+  { value: 'winter', label: 'Winter', emoji: '🌧️', line: 'The indoor, local season.' },
+]
+
+const CITY_SEASONS: Record<string, GuideSeason[]> = { bodrum: BODRUM_SEASONS }
+
+export function seasonsFor(citySlug: string): GuideSeason[] {
+  return CITY_SEASONS[citySlug] ?? GENERIC_SEASONS
+}
+
+/**
+ * Which season a city is in right now, by month in ITS timezone.
+ *
+ * Northern-hemisphere months, which every Smileys city shares today. A southern
+ * city needs this shifted by six months — this is the one place to do it, and
+ * it should key off the city rather than being assumed.
+ */
+export function seasonNow(timeZone: string): SeasonValue {
+  const month = Number(new Intl.DateTimeFormat('en-GB', { month: 'numeric', timeZone }).format(new Date()))
+  if (month >= 3 && month <= 5)  return 'spring'
+  if (month >= 6 && month <= 8)  return 'summer'
+  if (month >= 9 && month <= 11) return 'autumn'
+  return 'winter'
+}
+
 export interface ExperienceSection {
   title: string
   items: string[]
@@ -125,6 +175,8 @@ export interface Experience {
   cost: string
   time: string
   when: string
+  // §15 — which parts of the year this is for. Empty = all year.
+  seasons: string[]
   // §9 template.
   why: string
   take: string          // §10 — The Smileys Take. Short, opinionated, honest.
