@@ -5,7 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { readFileSync } from 'fs'
 import { join } from 'path'
-import { getNeighborhoodView, getNeighborhoodViews, type NeighborhoodView } from '@/lib/neighborhoodsDb'
+import { getNeighborhoodViews, resolveNeighborhoodBySlug, type NeighborhoodView } from '@/lib/neighborhoodsDb'
 import { resolveCityId, getCityConfig, DEFAULT_CITY_SLUG } from '@/lib/city'
 import { countryName } from '@/lib/countries'
 import { APP_URL } from '@/lib/env'
@@ -18,10 +18,16 @@ import NeighborhoodSections from './NeighborhoodSections'
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
-  const cityId = await resolveCityId(await getSession())
-  const city   = await getCityConfig(cityId)
-  const meta   = await getNeighborhoodView(cityId, slug)
-  if (!meta) return {}
+  // A crawler building a link preview has no session and no view-city cookie,
+  // so resolving the city from the session alone handed it the default city —
+  // and with it a 404 for every other city's neighborhood, plus Istanbul's
+  // site-wide title on the share card. The viewer's city stays the hint; the
+  // slug decides.
+  const viewerCityId = await resolveCityId(await getSession())
+  const hit  = await resolveNeighborhoodBySlug(slug, viewerCityId)
+  if (!hit) return {}
+  const city = await getCityConfig(hit.cityId)
+  const meta = hit.view
   const name  = meta.name
   const guide = loadNeighborhoodGuide(city.slug, slug)
 
@@ -127,9 +133,13 @@ const SIDE_PHRASE: Record<string, string> = {
 // actual local's input to be true. Every clause is skipped when its data is
 // missing: a city that hasn't filled in vibes or areas gets a shorter true
 // sentence, never "one of Izmir's  neighborhoods, undefined".
-function buildAboutCopy(meta: NeighborhoodView, cityName: string, nearbyNames: string[]): string {
+function buildAboutCopy(meta: NeighborhoodView, cityName: string, nearbyNames: string[], isDefaultCity: boolean): string {
   const { name, vibe, area, cost } = meta
-  const where = SIDE_PHRASE[area] ?? (area ? `in ${area}` : `in ${cityName}`)
+  // SIDE_PHRASE is Istanbul's hand-written prepositions, and `area` is per-city
+  // free text — so an İzmir neighborhood filed under "Central" read "Alsancak
+  // is one of Izmir's … neighborhoods, in central Istanbul". Only Istanbul gets
+  // the hand-written phrasing; everyone else gets the neutral form.
+  const where = (isDefaultCity ? SIDE_PHRASE[area] : undefined) ?? (area ? `in ${area}` : `in ${cityName}`)
   const priced = COST_LABEL[cost] ? `, generally ${COST_LABEL[cost]} by local standards` : ''
   const opener = vibe
     ? `${name} is one of ${cityName}'s ${vibe.toLowerCase()} neighborhoods, ${where}${priced}.`
@@ -200,11 +210,19 @@ export default async function NeighborhoodPage({ params }: { params: Promise<{ s
   // list — that list is why /neighborhoods/alsancak 404'd for an İzmir member
   // while their own city page linked to it. Both the registry and the city
   // config are 60s-cached in module memory, so this stays cheap.
-  const cityId   = await resolveCityId(session)
+  // …and when it doesn't, the slug is looked up across the other public
+  // cities rather than 404'd. Without that, every Bodrum neighborhood page was
+  // unreachable to anyone without a Bodrum cookie — including every crawler,
+  // so none of them could be indexed or shared.
+  const viewerCityId = await resolveCityId(session)
+  const hit          = await resolveNeighborhoodBySlug(slug, viewerCityId)
+  if (!hit) notFound()
+  const cityId   = hit.cityId
   const city     = await getCityConfig(cityId)
+  // Siblings come from the neighborhood's OWN city, so the "nearby" rail on a
+  // Bodrum page can't list Istanbul districts.
   const siblings = await getNeighborhoodViews(cityId)
-  const meta     = siblings.find(n => n.slug === slug)
-  if (!meta) notFound()
+  const meta     = hit.view
 
   const name  = meta.name
   const guide = loadNeighborhoodGuide(city.slug, slug)
@@ -216,19 +234,25 @@ export default async function NeighborhoodPage({ params }: { params: Promise<{ s
   // Istanbul's six areas have hand-written display labels; another city's area
   // renders under its own name. Consumers must read this through
   // `sideLabel[area] ?? area`, never assume a hit.
-  const sideLabel: Record<string, string> = {
+  //
+  // Gated on the city, not just the key: `area` is per-city free text, so any
+  // city that reasonably calls its centre "Central" or its shore "Coastal"
+  // would otherwise inherit Istanbul's label and be described as "Central
+  // Istanbul" on its own page. An empty map falls through to the raw area name,
+  // which is the correct rendering for every other city.
+  const sideLabel: Record<string, string> = city.slug === DEFAULT_CITY_SLUG ? {
     Central:  'Central Istanbul',
     European: 'European Side',
     Asian:    'Asian Side',
     Coastal:  'Coastal Istanbul',
     Emerging: 'Emerging District',
     Islands:  "Prince's Islands",
-  }
+  } : {}
 
   const subtitle = [meta.vibe, meta.area ? (sideLabel[meta.area] ?? meta.area) : ''].filter(Boolean).join(' · ')
 
   const nearestForAbout = nearestNeighborhoods(meta, siblings, 2)
-  const aboutCopy = buildAboutCopy(meta, city.name, nearestForAbout.map(n => n.name))
+  const aboutCopy = buildAboutCopy(meta, city.name, nearestForAbout.map(n => n.name), city.slug === DEFAULT_CITY_SLUG)
   const pageUrl = `${APP_URL}/neighborhoods/${slug}`
 
   // Read the per-request CSP nonce set by middleware so the JSON-LD <script>
