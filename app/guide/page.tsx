@@ -12,13 +12,17 @@ import { join } from 'path'
 import Link from 'next/link'
 import Image from 'next/image'
 import { prisma } from '@/lib/prisma'
-import { neighborhoodToSlug, getNeighborhoodMeta } from '@/lib/neighborhoods'
+import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
+import { resolveCityId, getCityConfig } from '@/lib/city'
+import { getSession } from '@/lib/session'
+import { resolveImageUrl } from '@/lib/data'
 import GuideCTA from './GuideCTA'
 import GuideStickyNav from './GuideStickyNav'
 import ExperienceExplorer from './ExperienceExplorer'
-import MyIstanbul from './MyIstanbul'
-import IstanbulToday, { computeTodayPicks } from './IstanbulToday'
-import { GUIDE_COLLECTIONS } from '@/lib/guide'
+import MySaved from './MySaved'
+import CityToday from './CityToday'
+import { computeTodayPicks } from '@/lib/guideToday'
+import { collectionsFor, moodsFor } from '@/lib/guide'
 import { loadExperiences, loadRoutes } from '@/lib/guideContent'
 
 interface Banner {
@@ -39,48 +43,71 @@ function loadBanner(): Banner | null {
 export default async function GuidePage() {
   const today = new Date().toISOString().split('T')[0]
 
+  // The Guide is per city. Both counts below were unscoped, so Bodrum's guide
+  // ranked ISTANBUL's neighborhoods by Istanbul's events and members — and the
+  // experiences came from the default city too (loadExperiences() with no
+  // argument). A guide that describes another city is worse than an empty one.
+  const session = await getSession()
+  const cityId  = await resolveCityId(session)
+  const city    = await getCityConfig(cityId)
+  const moods       = moodsFor(city.slug)
+  const collections = collectionsFor(city.slug)
+
   const [eventCounts, memberCounts] = await Promise.all([
     prisma.event.groupBy({
       by:      ['neighborhood'],
-      where:   { status: 'published', date: { gte: today } },
+      where:   { status: 'published', date: { gte: today }, cityId },
       _count:  { _all: true },
       orderBy: { _count: { neighborhood: 'desc' } },
       take:    10,
     }),
     prisma.user.groupBy({
       by:    ['neighborhood'],
-      where: { status: 'approved', neighborhood: { not: null } },
+      where: { status: 'approved', neighborhood: { not: null }, cityId },
       _count: { _all: true },
     }),
   ])
 
   const memberMap = Object.fromEntries(memberCounts.map(m => [m.neighborhood, m._count._all]))
 
-  const neighborhoods = eventCounts
-    .filter(n => n.neighborhood)
+  // Emoji and vibe come from THIS city's registry — getNeighborhoodMeta is
+  // Istanbul's hand-authored constant, so Bodrum's Gümüşlük would have rendered
+  // a default pin and an Istanbul vibe line. A name with no registry row is
+  // dropped rather than guessed: it links nowhere real.
+  const registry   = await getNeighborhoodViews(cityId)
+  const byName     = new Map(registry.map(n => [n.name, n]))
+  const withEvents = eventCounts
+    .filter(n => n.neighborhood && byName.has(n.neighborhood))
     .map(n => {
-      const meta = getNeighborhoodMeta(n.neighborhood!)
+      const row = byName.get(n.neighborhood!)!
       return {
-        name:    n.neighborhood!,
-        slug:    neighborhoodToSlug(n.neighborhood!),
+        name:    row.name,
+        slug:    row.slug,
         events:  n._count._all,
-        members: memberMap[n.neighborhood!] ?? 0,
-        emoji:   meta.emoji,
-        vibe:    meta.vibe,
-        side:    meta.side,
+        members: memberMap[row.name] ?? 0,
+        emoji:   row.emoji,
+        vibe:    row.vibe,
+        side:    row.area,
       }
     })
+  // §5/§17 of the Bodrum brief: a young city has areas worth exploring before
+  // it has a single event in them. Fall back to the registry's own order so the
+  // section is a map of the city rather than a leaderboard of empty rows.
+  const neighborhoods = withEvents.length > 0 ? withEvents : registry.slice(0, 6).map(row => ({
+    name: row.name, slug: row.slug, events: 0, members: memberMap[row.name] ?? 0,
+    emoji: row.emoji, vibe: row.vibe, side: row.area,
+  }))
 
   const banner = loadBanner()
 
-  const experiences = await loadExperiences()
-  const routes = await loadRoutes()
+  const experiences = await loadExperiences(cityId)
+  const routes = await loadRoutes(cityId)
   // De-duplication across homepage sections (reviewer feedback): the
   // explorer's default six lead; Istanbul Today picks around them; the
   // editorial Popular list picks around both. Collections stay the one
   // complete catalog.
   const defaultSix = experiences.slice(0, 6).map(e => e.slug)
-  const todayPicks = computeTodayPicks(defaultSix)
+  const todayPicks = computeTodayPicks(defaultSix, { citySlug: city.slug, timezone: city.timezone, available: experiences })
   const shownAbove = new Set([...defaultSix, ...todayPicks.slugs])
 
   const navItems = [
@@ -101,9 +128,14 @@ export default async function GuidePage() {
           white copy readable over the bright sky and sunset; the image's
           subject (right of center) stays clear of the text block. */}
       <div className="relative bg-gray-900 overflow-hidden">
+        {/* The city's own photo where it has one. The Golden Horn shot below
+            led Bodrum's guide, which is the same leak as the neighborhoods hero
+            — and the alt text described Galata to screen readers. */}
         <Image
-          src="/app/images/guide-hero.jpg"
-          alt="A traveler with a straw hat overlooking the Golden Horn at sunset, Galata Tower to the left, ferries crossing toward the old city"
+          src={city.heroImage ? resolveImageUrl(city.heroImage) : '/app/images/guide-hero.jpg'}
+          alt={city.heroImage
+            ? `${city.name} at golden hour`
+            : 'A traveler with a straw hat overlooking the Golden Horn at sunset, Galata Tower to the left, ferries crossing toward the old city'}
           fill
           priority
           fetchPriority="high"
@@ -113,9 +145,9 @@ export default async function GuidePage() {
         <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/45 to-black/15" />
         <div aria-hidden="true" className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/50 to-transparent" />
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-14 pb-12 sm:pt-20 sm:pb-16">
-          <span className="inline-block bg-white/10 text-amber-300 text-xs font-bold tracking-[0.2em] uppercase rounded-full px-4 py-1.5 mb-4 backdrop-blur-sm">🗺️ Istanbul Guide</span>
+          <span className="inline-block bg-white/10 text-amber-300 text-xs font-bold tracking-[0.2em] uppercase rounded-full px-4 py-1.5 mb-4 backdrop-blur-sm">🗺️ {city.name} Guide</span>
           <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight text-white max-w-3xl leading-tight">
-            Experience Istanbul like you know someone here.
+            Experience {city.name} like you know someone here.
           </h1>
           <p className="text-base sm:text-lg text-gray-300 mt-4 max-w-2xl">
             Things worth doing, places worth discovering and experiences recommended by people who actually live here.
@@ -123,7 +155,7 @@ export default async function GuidePage() {
           <div className="flex flex-wrap gap-3 mt-7">
             <a href="#experiences"
               className="inline-flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
-              Explore Istanbul
+              Explore {city.name}
             </a>
             {experiences.length > 0 && (() => {
               /* Rotates with the page's ISR window — a genuinely different
@@ -152,7 +184,7 @@ export default async function GuidePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10">
           {/* §4 — mood-based discovery over the full experience set. */}
           <div id="experiences" className="scroll-mt-16">
-            <ExperienceExplorer experiences={experiences} />
+            <ExperienceExplorer experiences={experiences} moods={moods} />
           </div>
 
           {/* §6's first-timer strip moved to /visiting — same curated
@@ -162,7 +194,7 @@ export default async function GuidePage() {
               "Visiting first?" cross-link further down sends people there. */}
 
           {/* §5 — Istanbul Today: time + season aware suggestions. */}
-          <IstanbulToday exclude={defaultSix} />
+          <CityToday exclude={defaultSix} cityId={cityId} citySlug={city.slug} cityName={city.name} timezone={city.timezone} />
 
           {/* §12 — Popular Right Now, from real save/recommend counts.
               Below the engagement floor it falls back to an editorial
@@ -209,9 +241,9 @@ export default async function GuidePage() {
 
           {/* §7 — collections: browsable shelves instead of category trees. */}
           <div id="collections" className="mt-12 scroll-mt-16">
-            <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900 mb-6">Istanbul Collections</h2>
+            <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900 mb-6">{city.name} Collections</h2>
             <div className="space-y-8">
-              {GUIDE_COLLECTIONS.map(col => {
+              {collections.map(col => {
                 const items = experiences.filter(e => e.collection === col.value)
                 if (items.length === 0) return null
                 return (
@@ -285,7 +317,7 @@ export default async function GuidePage() {
 
           {/* §18/§27 — the viewer's saved list. Client island; renders
               nothing for guests or empty lists. */}
-          <MyIstanbul experiences={experiences.map(e => ({ slug: e.slug, title: e.title, emoji: e.emoji }))} />
+          <MySaved cityName={city.name} experiences={experiences.map(e => ({ slug: e.slug, title: e.title, emoji: e.emoji }))} />
         </div>
       )}
 
@@ -298,7 +330,7 @@ export default async function GuidePage() {
         <div className="border-t border-gray-100 mt-6 pt-8 mb-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Link href="/handbook"
             className="bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-2xl px-5 py-4 transition-colors group">
-            <p className="text-sm font-bold text-gray-900"><span aria-hidden="true">📖</span> Understand Istanbul</p>
+            <p className="text-sm font-bold text-gray-900"><span aria-hidden="true">📖</span> Understand {city.name}</p>
             <p className="text-xs text-gray-600 mt-1">Residence permits, banking, transport, quick links — the Handbook.</p>
             <span className="inline-block text-xs font-bold text-gray-700 mt-2 group-hover:translate-x-0.5 transition-transform">Read the Handbook →</span>
           </Link>

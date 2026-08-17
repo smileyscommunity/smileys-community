@@ -13,7 +13,7 @@
 import { readFileSync, existsSync } from 'fs'
 import { join } from 'path'
 import { prisma } from './prisma'
-import { getDefaultCityId } from './city'
+import { getDefaultCityId, getCityConfig } from './city'
 import type { Experience } from './guide'
 
 // Drop-in photo pipeline (same as neighborhoods): an experience gets a
@@ -122,6 +122,42 @@ export async function loadExperiences(cityId?: string): Promise<Experience[]> {
 
 export async function getExperience(slug: string, cityId?: string): Promise<Experience | undefined> {
   return (await loadExperiences(cityId)).find(e => e.slug === slug)
+}
+
+/**
+ * Resolve an experience by slug ALONE, and report which city owns it.
+ *
+ * The detail page can't read the view-city cookie without losing its ISR
+ * window, and it shouldn't want to: a link to a Bodrum experience is a link to
+ * that experience, not "whatever my cookie says". Slugs are unique per
+ * (city, kind), so a collision across two cities is possible in principle —
+ * the default city wins it, since its slugs are the ones already indexed and
+ * shared. Falls back to the shipped JSON (default city) when the table has no
+ * row, which is how the pre-database entries still resolve.
+ */
+export async function getExperienceAnyCity(
+  slug: string,
+): Promise<{ experience: Experience; cityId: string; citySlug: string; cityName: string } | undefined> {
+  try {
+    const rows = await prisma.guideEntry.findMany({
+      where:   { slug, kind: 'experience', status: 'published' },
+      include: { city: { select: { id: true, slug: true, name: true } } },
+    })
+    if (rows.length > 0) {
+      const defaultId = await getDefaultCityId()
+      const row = rows.find(r => r.cityId === defaultId) ?? rows[0]
+      return {
+        experience: rowToExperience(row),
+        cityId:     row.city.id,
+        citySlug:   row.city.slug,
+        cityName:   row.city.name,
+      }
+    }
+  } catch { /* fall through to the shipped default-city content */ }
+  const fromJson = jsonExperiences().find(e => e.slug === slug)
+  if (!fromJson) return undefined
+  const cfg = await getCityConfig(await getDefaultCityId())
+  return { experience: fromJson, cityId: await getDefaultCityId(), citySlug: cfg.slug, cityName: cfg.name }
 }
 
 export async function loadRoutes(cityId?: string): Promise<GuideRoute[]> {

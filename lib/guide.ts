@@ -7,7 +7,12 @@
 // §4 of the plan — mood-based discovery beats category trees. Values are
 // stable ids used in experience JSON + URL params; labels/emoji render
 // the chips. Order = display order.
-export const GUIDE_MOODS = [
+export interface GuideTaxon { value: string; label: string; emoji: string }
+
+// Istanbul's vocabulary. "Be by the Bosphorus" is not a mood a Bodrum member
+// can act on, which is the whole reason these are per city now: a shared list
+// forces every city to describe itself in the flagship's geography.
+const ISTANBUL_MOODS: GuideTaxon[] = [
   { value: 'eat',       label: 'Eat Something Great',          emoji: '🍽️' },
   { value: 'bosphorus', label: 'Be by the Bosphorus',          emoji: '🌊' },
   { value: 'iconic',    label: 'See Something Iconic',         emoji: '🏛️' },
@@ -18,19 +23,89 @@ export const GUIDE_MOODS = [
   { value: 'rainy',     label: "It's Raining",                 emoji: '☔' },
   { value: 'night',     label: 'Istanbul at Night',            emoji: '🌙' },
   { value: 'people',    label: 'Meet People',                  emoji: '👥' },
-] as const
-export type GuideMood = typeof GUIDE_MOODS[number]['value']
+]
+
+// Bodrum is a peninsula of bays, beaches, marinas and seasons, so its discovery
+// verbs are different ones: get on a boat, find a beach, catch the sunset,
+// escape the crowds. Deliberately NOT a translation of Istanbul's list.
+const BODRUM_MOODS: GuideTaxon[] = [
+  { value: 'beach',     label: 'Find a Beach',          emoji: '🌊' },
+  { value: 'boat',      label: 'Get on a Boat',         emoji: '⛵' },
+  { value: 'eat',       label: 'Eat Something Great',   emoji: '🍽️' },
+  { value: 'sunset',    label: 'Watch the Sunset',      emoji: '🌅' },
+  { value: 'night-out', label: 'Go Out Tonight',        emoji: '🍸' },
+  { value: 'history',   label: 'Explore History',       emoji: '🏛️' },
+  { value: 'escape',    label: 'Escape the Crowds',     emoji: '🌿' },
+  { value: 'peninsula', label: 'Explore the Peninsula', emoji: '🏘️' },
+  { value: 'people',    label: 'Meet People',           emoji: '💃' },
+  { value: 'summer',    label: 'Make the Most of Summer', emoji: '☀️' },
+]
+
+// A city with no vocabulary of its own gets verbs that name no geography, so a
+// new launch reads as itself rather than as a copy of Istanbul. Whoever writes
+// that city's guide replaces this with its own list.
+const GENERIC_MOODS: GuideTaxon[] = [
+  { value: 'eat',       label: 'Eat Something Great',          emoji: '🍽️' },
+  { value: 'iconic',    label: 'See Something Iconic',         emoji: '🏛️' },
+  { value: 'night-out', label: 'Go Out Tonight',               emoji: '🍸' },
+  { value: 'escape',    label: 'Escape the Crowds',            emoji: '🌿' },
+  { value: 'different', label: 'Discover Something Different', emoji: '🎨' },
+  { value: 'free',      label: 'Do Something Free',            emoji: '💸' },
+  { value: 'people',    label: 'Meet People',                  emoji: '👥' },
+]
 
 // §7 — collections group experiences into browsable shelves.
-export const GUIDE_COLLECTIONS = [
+const ISTANBUL_COLLECTIONS: GuideTaxon[] = [
   { value: 'bosphorus', label: 'Life on the Bosphorus', emoji: '🌊' },
   { value: 'eat',       label: 'Eat Istanbul',          emoji: '🍽️' },
   { value: 'night',     label: 'Istanbul After Dark',   emoji: '🌙' },
   { value: 'free',      label: 'Istanbul for Free',     emoji: '💸' },
   { value: 'escape',    label: 'Escape Istanbul',       emoji: '🌿' },
   { value: 'different', label: 'Beyond the Obvious',    emoji: '🎨' },
-] as const
-export type GuideCollection = typeof GUIDE_COLLECTIONS[number]['value']
+]
+
+const BODRUM_COLLECTIONS: GuideTaxon[] = [
+  { value: 'beaches',   label: 'Beaches & Bays',         emoji: '🏖️' },
+  { value: 'boat',      label: 'Boat Life',              emoji: '⛵' },
+  { value: 'eat',       label: 'Taste Bodrum',           emoji: '🍽️' },
+  { value: 'night',     label: 'Bodrum After Dark',      emoji: '🌙' },
+  { value: 'sunset',    label: 'Sunset',                 emoji: '🌅' },
+  { value: 'history',   label: 'History & Culture',      emoji: '🏛️' },
+  { value: 'hidden',    label: 'Beyond the Beach Clubs', emoji: '🌿' },
+  { value: 'day-trips', label: 'Day Trips',              emoji: '🏝️' },
+]
+
+const GENERIC_COLLECTIONS: GuideTaxon[] = [
+  { value: 'eat',       label: 'Eat Well',            emoji: '🍽️' },
+  { value: 'night',     label: 'After Dark',          emoji: '🌙' },
+  { value: 'free',      label: 'For Free',            emoji: '💸' },
+  { value: 'escape',    label: 'Escape the Crowds',   emoji: '🌿' },
+  { value: 'different', label: 'Beyond the Obvious',  emoji: '🎨' },
+]
+
+// Keyed by city SLUG, not id: these are editorial vocabularies that live with
+// the code, and a slug is what a reader of this file recognises.
+const CITY_MOODS:       Record<string, GuideTaxon[]> = { istanbul: ISTANBUL_MOODS, bodrum: BODRUM_MOODS }
+const CITY_COLLECTIONS: Record<string, GuideTaxon[]> = { istanbul: ISTANBUL_COLLECTIONS, bodrum: BODRUM_COLLECTIONS }
+
+export function moodsFor(citySlug: string): GuideTaxon[] {
+  return CITY_MOODS[citySlug] ?? GENERIC_MOODS
+}
+
+export function collectionsFor(citySlug: string): GuideTaxon[] {
+  return CITY_COLLECTIONS[citySlug] ?? GENERIC_COLLECTIONS
+}
+
+/** Does this city define its own guide vocabulary, or is it on the generic set? */
+export function hasOwnGuideTaxonomy(citySlug: string): boolean {
+  return citySlug in CITY_MOODS
+}
+
+// Values are per-city strings now, so these can't be narrow unions any more —
+// validity depends on which city an entry belongs to. moodsFor/collectionsFor
+// are the check.
+export type GuideMood = string
+export type GuideCollection = string
 
 export interface ExperienceSection {
   title: string

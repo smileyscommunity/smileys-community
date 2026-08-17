@@ -3,12 +3,14 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import posthog from 'posthog-js'
-import { GUIDE_MOODS, type Experience, type GuideMood } from '@/lib/guide'
+import { type Experience, type GuideMood, type GuideTaxon } from '@/lib/guide'
 
 // §4 of the Guide plan — "What are you in the mood for?" chips filtering
 // the experience grid client-side. Same interaction pattern as the
 // Hangouts activity chips: exclusive toggle, tap again to clear.
-export default function ExperienceExplorer({ experiences }: { experiences: Experience[] }) {
+// `moods` comes from the server page, which knows which city is being viewed —
+// the chips are Bodrum's verbs on Bodrum's guide, Istanbul's on Istanbul's.
+export default function ExperienceExplorer({ experiences, moods }: { experiences: Experience[]; moods: GuideTaxon[] }) {
   const [mood, setMood] = useState<GuideMood | null>(null)
   const [showAll, setShowAll] = useState(false)
   const [query, setQuery] = useState('')
@@ -62,7 +64,7 @@ export default function ExperienceExplorer({ experiences }: { experiences: Exper
       </div>
 
       <div className="flex gap-2 overflow-x-auto pb-3 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-hide" role="tablist" aria-label="Mood filter">
-        {GUIDE_MOODS.map(m => (
+        {moods.map(m => (
           <button key={m.value} role="tab" aria-selected={mood === m.value}
             onClick={() => setMood(v => {
               const next = v === m.value ? null : m.value

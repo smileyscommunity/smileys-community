@@ -8,9 +8,9 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import Image from 'next/image'
 import { notFound } from 'next/navigation'
-import { GUIDE_COLLECTIONS } from '@/lib/guide'
-import { loadExperiences, getExperience } from '@/lib/guideContent'
-import { NEIGHBORHOOD_META, neighborhoodToSlug } from '@/lib/neighborhoods'
+import { collectionsFor } from '@/lib/guide'
+import { loadExperiences, getExperienceAnyCity } from '@/lib/guideContent'
+import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
 import { APP_URL } from '@/lib/env'
 import { prisma } from '@/lib/prisma'
 import ExperienceActions from './ExperienceActions'
@@ -25,11 +25,12 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
-  const exp = await getExperience(slug)
-  if (!exp) return {}
-  const og = `${APP_URL}/api/og?${new URLSearchParams({ title: exp.title, eyebrow: 'Istanbul Guide' })}`
+  const found = await getExperienceAnyCity(slug)
+  if (!found) return {}
+  const { experience: exp, cityName } = found
+  const og = `${APP_URL}/api/og?${new URLSearchParams({ title: exp.title, eyebrow: `${cityName} Guide` })}`
   return {
-    title: `${exp.title} — Istanbul Guide | Smileys Community`,
+    title: `${exp.title} — ${cityName} Guide | Smileys Community`,
     description: exp.tagline,
     alternates: { canonical: `${APP_URL}/guide/${exp.slug}` },
     openGraph: {
@@ -44,11 +45,22 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function ExperiencePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
-  const exp = await getExperience(slug)
-  if (!exp) notFound()
+  // Resolved by slug, so a shared link lands on the experience that was shared
+  // rather than on the viewer's city — the entry itself says which city it
+  // belongs to, and everything below is scoped to that.
+  const found = await getExperienceAnyCity(slug)
+  if (!found) notFound()
+  const { experience: exp, cityId, citySlug, cityName } = found
 
-  const collection = GUIDE_COLLECTIONS.find(c => c.value === exp.collection)
-  const nearby = exp.neighborhoods.filter(n => NEIGHBORHOOD_META[n])
+  const collection = collectionsFor(citySlug).find(c => c.value === exp.collection)
+  // "Explore nearby" validates against the OWNING city's registry, not
+  // Istanbul's constant: a Bodrum experience listing Gümüşlük would otherwise
+  // drop it silently and link Istanbul emoji for anything that did match.
+  const registry = await getNeighborhoodViews(cityId)
+  const nearbyRows = exp.neighborhoods
+    .map(n => registry.find(r => r.name === n))
+    .filter((r): r is NonNullable<typeof r> => !!r)
+  const nearby = nearbyRows.map(r => r.name)
 
   // §15 — upcoming events in this experience's neighborhoods. Public
   // data, refreshed with the page's ISR window; empty renders nothing.
@@ -66,7 +78,7 @@ export default async function ExperiencePage({ params }: { params: Promise<{ slu
     select: { slug: true, name: true, emoji: true, memberCount: true },
   }) : []
 
-  const related = (await loadExperiences())
+  const related = (await loadExperiences(cityId))
     .filter(e => e.slug !== exp.slug && (e.collection === exp.collection || e.moods.some(m => exp.moods.includes(m))))
     .slice(0, 3)
 
@@ -173,13 +185,16 @@ export default async function ExperiencePage({ params }: { params: Promise<{ slu
           <section>
             <h2 className="text-xl font-extrabold tracking-tight text-gray-900 mb-3">Explore nearby</h2>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {nearby.map(n => (
-                <TrackedLink key={n} href={`/neighborhoods/${neighborhoodToSlug(n)}`} event="guide_to_neighborhood"
-                  eventProps={{ experience: exp.slug, neighborhood: n }}
+              {/* Slug and vibe come from the owning city's registry row, so this
+                  links to a page that exists — neighborhoodToSlug is a pure
+                  string transform and can't know a second city's slugs. */}
+              {nearbyRows.map(r => (
+                <TrackedLink key={r.name} href={`/neighborhoods/${r.slug}`} event="guide_to_neighborhood"
+                  eventProps={{ experience: exp.slug, neighborhood: r.name }}
                   className="bg-white border border-gray-100 rounded-2xl p-4 text-center shadow-sm hover:border-amber-300 hover:-translate-y-0.5 transition-all group">
-                  <span aria-hidden="true" className="block text-2xl mb-1.5">{NEIGHBORHOOD_META[n].emoji}</span>
-                  <span className="block text-sm font-bold text-gray-900 group-hover:text-amber-700 transition-colors">{n}</span>
-                  <span className="block text-[11px] text-gray-400 mt-0.5">{NEIGHBORHOOD_META[n].vibe}</span>
+                  <span aria-hidden="true" className="block text-2xl mb-1.5">{r.emoji}</span>
+                  <span className="block text-sm font-bold text-gray-900 group-hover:text-amber-700 transition-colors">{r.name}</span>
+                  <span className="block text-[11px] text-gray-400 mt-0.5">{r.vibe}</span>
                 </TrackedLink>
               ))}
             </div>

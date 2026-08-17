@@ -6,10 +6,11 @@ import { useAuth } from '@/contexts/AuthContext'
 
 interface ExperienceCard { slug: string; title: string; emoji: string }
 
-// §18/§27 — "Your saved Istanbul" on the guide homepage. Client island
+// §18/§27 — the viewer's saved list on the guide homepage. Client island
 // (the page is ISR-cached); guests and members with nothing saved render
-// nothing at all.
-export default function MyIstanbul({ experiences }: { experiences: ExperienceCard[] }) {
+// nothing at all. Named for what it does rather than for one city — it was
+// MyIstanbul, which is a heading Bodrum members were also shown.
+export default function MySaved({ cityName, experiences }: { cityName: string; experiences: ExperienceCard[] }) {
   const { isLoggedIn } = useAuth()
   const [savedSlugs, setSavedSlugs] = useState<string[]>([])
   const [doneCount,  setDoneCount]  = useState(0)
@@ -32,7 +33,7 @@ export default function MyIstanbul({ experiences }: { experiences: ExperienceCar
   return (
     <div className="mt-12 bg-gray-900 rounded-3xl p-6 sm:p-8 relative overflow-hidden">
       <div aria-hidden="true" className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_80%_20%,#f59e0b_0%,transparent_60%)]" />
-      <h2 className="relative text-xl sm:text-2xl font-extrabold text-white">My Istanbul</h2>
+      <h2 className="relative text-xl sm:text-2xl font-extrabold text-white">My {cityName}</h2>
       <p className="relative text-sm text-gray-300 mt-1 mb-5">
         {saved.length > 0 && <>{saved.length} experience{saved.length !== 1 ? 's' : ''} on your list.</>}
         {doneCount > 0 && <> <span className="text-green-400 font-bold">{doneCount} completed ✓</span></>}
