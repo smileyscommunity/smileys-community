@@ -107,6 +107,94 @@ export function hasOwnGuideTaxonomy(citySlug: string): boolean {
 export type GuideMood = string
 export type GuideCollection = string
 
+// ── §14 — "What kind of <city> are you looking for?" ────────────────────────
+// Audience-based curation over the SAME experiences: no new content type, no
+// second database. An audience is a saved query across a city's own vocabulary.
+//
+// The hard rule here is that an audience must be BACKED by that vocabulary.
+// "Families" and "Digital nomads" are in the brief and are deliberately absent:
+// nothing in the taxonomy records whether an experience suits a five-year-old or
+// has wifi, so any mapping would be a guess — and a guess here recommends a
+// beach-club night to someone travelling with kids. Add the audience when the
+// data can answer it (a `family` mood, a coworking flag), not before.
+export interface GuideAudience {
+  value: string
+  label: string
+  emoji: string
+  /** Matches an experience carrying ANY of these moods. */
+  moods: string[]
+  /** …or sitting on ANY of these shelves. */
+  collections: string[]
+  /** Or, for "first time", the curated first-timer flag instead of a query. */
+  firstTimeOnly?: boolean
+}
+
+const BODRUM_AUDIENCES: GuideAudience[] = [
+  { value: 'first-time',  label: 'First time',   emoji: '🧭', moods: [], collections: [], firstTimeOnly: true },
+  { value: 'beach-lover', label: 'Beach lover',  emoji: '🏖️', moods: ['beach'],     collections: ['beaches'] },
+  { value: 'sailing',     label: 'Sailing',      emoji: '⛵', moods: ['boat'],      collections: ['boat'] },
+  { value: 'foodie',      label: 'Foodie',       emoji: '🍽️', moods: ['eat'],       collections: ['eat'] },
+  { value: 'nightlife',   label: 'Nightlife',    emoji: '🍸', moods: ['night-out'], collections: ['night'] },
+  { value: 'couples',     label: 'Couples',      emoji: '🌅', moods: ['sunset'],    collections: ['sunset'] },
+  { value: 'solo',        label: 'Solo',         emoji: '🙋', moods: ['people'],    collections: [] },
+  { value: 'slow',        label: 'Slow Bodrum',  emoji: '🌿', moods: ['escape'],    collections: ['hidden'] },
+]
+
+const ISTANBUL_AUDIENCES: GuideAudience[] = [
+  { value: 'first-time', label: 'First time',  emoji: '🧭', moods: [], collections: [], firstTimeOnly: true },
+  { value: 'foodie',     label: 'Foodie',      emoji: '🍽️', moods: ['eat'],       collections: ['eat'] },
+  { value: 'nightlife',  label: 'Nightlife',   emoji: '🍸', moods: ['night-out'], collections: ['night'] },
+  { value: 'solo',       label: 'Solo',        emoji: '🙋', moods: ['people'],    collections: [] },
+  { value: 'budget',     label: 'On a budget', emoji: '💸', moods: ['free'],      collections: ['free'] },
+  { value: 'slow',       label: 'Slow days',   emoji: '🌿', moods: ['escape'],    collections: ['escape'] },
+  { value: 'curious',    label: 'Something different', emoji: '🎨', moods: ['different'], collections: ['different'] },
+]
+
+const GENERIC_AUDIENCES: GuideAudience[] = [
+  { value: 'first-time', label: 'First time',  emoji: '🧭', moods: [], collections: [], firstTimeOnly: true },
+  { value: 'foodie',     label: 'Foodie',      emoji: '🍽️', moods: ['eat'],       collections: ['eat'] },
+  { value: 'nightlife',  label: 'Nightlife',   emoji: '🍸', moods: ['night-out'], collections: ['night'] },
+  { value: 'solo',       label: 'Solo',        emoji: '🙋', moods: ['people'],    collections: [] },
+  { value: 'slow',       label: 'Slow days',   emoji: '🌿', moods: ['escape'],    collections: ['escape'] },
+]
+
+const CITY_AUDIENCES: Record<string, GuideAudience[]> = {
+  istanbul: ISTANBUL_AUDIENCES,
+  bodrum:   BODRUM_AUDIENCES,
+}
+
+/**
+ * The audiences a city can actually honour.
+ *
+ * Every mood and collection is checked against that city's live vocabulary and
+ * dropped if absent, so a renamed taxon or a city on the reduced generic set
+ * silently narrows the list instead of offering a chip that matches nothing. An
+ * audience left with no query at all (and no first-timer flag) is dropped
+ * entirely — that's the case a typo would produce.
+ */
+export function audiencesFor(citySlug: string): GuideAudience[] {
+  const moodValues = new Set(moodsFor(citySlug).map(m => m.value))
+  const collValues = new Set(collectionsFor(citySlug).map(c => c.value))
+  return (CITY_AUDIENCES[citySlug] ?? GENERIC_AUDIENCES)
+    .map(a => ({
+      ...a,
+      moods:       a.moods.filter(m => moodValues.has(m)),
+      collections: a.collections.filter(c => collValues.has(c)),
+    }))
+    .filter(a => a.firstTimeOnly || a.moods.length > 0 || a.collections.length > 0)
+}
+
+/** Does an experience belong to this audience? */
+export function matchesAudience(
+  exp: { moods?: string[]; collection?: string | null; firstTime?: boolean },
+  audience: GuideAudience,
+): boolean {
+  if (audience.firstTimeOnly) return exp.firstTime === true
+  const moods = exp.moods ?? []
+  return audience.moods.some(m => moods.includes(m))
+    || (!!exp.collection && audience.collections.includes(exp.collection))
+}
+
 // ── §15 — the season axis ────────────────────────────────────────────────────
 // A separate axis from moods and collections on purpose: "when in the year" is
 // orthogonal to "what am I in the mood for", and a place like Bodrum changes

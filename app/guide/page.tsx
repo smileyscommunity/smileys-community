@@ -22,7 +22,7 @@ import ExperienceExplorer from './ExperienceExplorer'
 import MySaved from './MySaved'
 import CityToday from './CityToday'
 import { computeTodayPicks } from '@/lib/guideToday'
-import { collectionsFor, moodsFor, seasonsFor, seasonNow } from '@/lib/guide'
+import { collectionsFor, moodsFor, seasonsFor, seasonNow, audiencesFor, matchesAudience } from '@/lib/guide'
 import { loadExperiences, loadRoutes } from '@/lib/guideContent'
 
 interface Banner {
@@ -40,7 +40,7 @@ function loadBanner(): Banner | null {
 
 
 
-export default async function GuidePage() {
+export default async function GuidePage({ searchParams }: { searchParams?: Promise<{ for?: string }> }) {
   const today = new Date().toISOString().split('T')[0]
 
   // The Guide is per city. Both counts below were unscoped, so Bodrum's guide
@@ -113,14 +113,28 @@ export default async function GuidePage() {
 
   const banner = loadBanner()
 
-  const experiences = await loadExperiences(cityId)
+  const allExperiences = await loadExperiences(cityId)
   const routes = await loadRoutes(cityId)
+
+  // §14 — audience curation. `?for=` narrows the whole catalog to one kind of
+  // visitor; the audiences themselves are saved queries over this city's own
+  // vocabulary (see audiencesFor), never a second content set.
+  const audiences   = audiencesFor(city.slug).map(a => ({
+    ...a,
+    count: allExperiences.filter(e => matchesAudience(e, a)).length,
+  })).filter(a => a.count > 0)
+  const wantedFor   = (await searchParams)?.for?.trim()
+  const activeFor   = audiences.find(a => a.value === wantedFor) ?? null
+  const experiences = activeFor ? allExperiences.filter(e => matchesAudience(e, activeFor)) : allExperiences
   // De-duplication across homepage sections (reviewer feedback): the
   // explorer's default six lead; Istanbul Today picks around them; the
   // editorial Popular list picks around both. Collections stay the one
   // complete catalog.
   const defaultSix = experiences.slice(0, 6).map(e => e.slug)
-  const todayPicks = computeTodayPicks(defaultSix, { citySlug: city.slug, timezone: city.timezone, available: experiences })
+  // Today picks from the FULL catalog — the component does too, and if this
+  // disagreed with it the de-duplication below would stop working whenever an
+  // audience filter was active.
+  const todayPicks = computeTodayPicks(defaultSix, { citySlug: city.slug, timezone: city.timezone, available: allExperiences })
   const shownAbove = new Set([...defaultSix, ...todayPicks.slugs])
 
   const navItems = [
@@ -197,6 +211,19 @@ export default async function GuidePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10">
           {/* §4 — mood-based discovery over the full experience set. */}
           <div id="experiences" className="scroll-mt-16">
+            {activeFor && (
+              <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                <p className="text-sm text-amber-900">
+                  <span aria-hidden="true">{activeFor.emoji}</span>{' '}
+                  Showing <span className="font-bold">{experiences.length}</span>{' '}
+                  {experiences.length === 1 ? 'experience' : 'experiences'} for{' '}
+                  <span className="font-bold">{activeFor.label.toLowerCase()}</span>.
+                </p>
+                <Link href="/guide#experiences" className="text-sm font-bold text-amber-700 hover:underline">
+                  Show everything
+                </Link>
+              </div>
+            )}
             <ExperienceExplorer experiences={experiences} moods={moods} />
           </div>
 
@@ -206,8 +233,49 @@ export default async function GuidePage() {
               "First time in Istanbul?" is /visiting's exact audience; the
               "Visiting first?" cross-link further down sends people there. */}
 
-          {/* §5 — Istanbul Today: time + season aware suggestions. */}
-          <CityToday exclude={defaultSix} cityId={cityId} citySlug={city.slug} cityName={city.name} timezone={city.timezone} />
+          {/* §14 — "What kind of <city> are you looking for?" Cards rather than
+              another wall of shelves: each one narrows the catalog above, which
+              is what the brief asks for — curated views over the same
+              experiences, not a second database. Only audiences this city's
+              vocabulary can actually answer appear (see audiencesFor), and only
+              ones with something in them. */}
+          {audiences.length > 1 && (
+            <div className="mt-10">
+              <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900 mb-1">
+                What kind of {city.name} are you looking for?
+              </h2>
+              <p className="text-gray-600 mb-5">Same city, very different trips.</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {audiences.map(a => {
+                  const active = activeFor?.value === a.value
+                  return (
+                    <Link key={a.value}
+                      href={active ? '/guide#experiences' : `/guide?for=${a.value}#experiences`}
+                      className={`rounded-2xl border p-4 transition-all group ${
+                        active
+                          ? 'bg-amber-500 border-amber-500 shadow-md'
+                          : 'bg-white border-gray-100 shadow-sm hover:border-amber-200 hover:shadow-md'}`}>
+                      <span aria-hidden="true" className="block text-2xl mb-1.5">{a.emoji}</span>
+                      <p className={`text-sm font-bold leading-snug ${active ? 'text-white' : 'text-gray-900 group-hover:text-amber-700'}`}>
+                        {a.label}
+                      </p>
+                      <p className={`text-xs mt-0.5 ${active ? 'text-amber-50' : 'text-gray-500'}`}>
+                        {a.count} experience{a.count === 1 ? '' : 's'}
+                      </p>
+                    </Link>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* §5 — <City> Today: time + season aware suggestions. Hidden while an
+              audience filter is active: it picks from the whole catalog by
+              design, so under a banner reading "4 experiences for foodie" it
+              looked like the filter was leaking. */}
+          {!activeFor && (
+            <CityToday exclude={defaultSix} cityId={cityId} citySlug={city.slug} cityName={city.name} timezone={city.timezone} />
+          )}
 
           {/* §12 — Popular Right Now, from real save/recommend counts.
               Below the engagement floor it falls back to an editorial

@@ -55,6 +55,8 @@ interface Props {
   events:         EventSummary[]
   cityCount:      number
   featuredLocals: FeaturedLocal[]
+  /** The city being viewed — this heading said Istanbul to every city. */
+  cityName:       string
 }
 
 type FilterKey = 'all' | 'now' | 'week' | 'month' | 'later'
@@ -458,7 +460,7 @@ function AnnouncementCard({ a, viewerId, viewerInterests, events, allAnnouncemen
   )
 }
 
-export default function VisitingClient({ announcements, events, cityCount, featuredLocals }: Props) {
+export default function VisitingClient({ announcements, events, cityCount, featuredLocals, cityName }: Props) {
   const { user, isLoggedIn } = useAuth()
   const viewerId        = isLoggedIn ? user.id        : null
   const viewerInterests = isLoggedIn ? (user.interests ?? []) as string[] : []
@@ -493,7 +495,7 @@ export default function VisitingClient({ announcements, events, cityCount, featu
     return announcements.filter(a => bucketOf(a, todayUTC) === filter)
   }, [announcements, filter, todayUTC])
 
-  // Anyone currently in Istanbul sorts to the top — they're the only people
+  // Anyone currently in the city sorts to the top — they're the only people
   // on this page you can actually meet today — then by arrival date so the
   // soonest arrivals lead the rest.
   const sorted = useMemo(() => {
@@ -515,7 +517,7 @@ export default function VisitingClient({ announcements, events, cityCount, featu
     <>
       <div className="mb-6">
         <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">
-          Who&apos;s Coming to Istanbul?
+          Who&apos;s Coming to {cityName}?
         </h2>
         <p className="text-gray-600 mt-2">
           Meet Smileys members arriving soon and help them feel at home.

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { moodsFor, collectionsFor, hasOwnGuideTaxonomy, seasonsFor, seasonNow, SEASON_VALUES } from '@/lib/guide'
+import { moodsFor, collectionsFor, hasOwnGuideTaxonomy, seasonsFor, seasonNow, SEASON_VALUES, audiencesFor, matchesAudience } from '@/lib/guide'
 
 // The Guide's vocabulary is per city because a shared one forces every city to
 // describe itself in the flagship's geography: "Be by the Bosphorus" was a mood
@@ -98,5 +98,49 @@ describe('the season axis (§15)', () => {
     expect(seen.size).toBe(4)
     // And the live function agrees with that mapping for today.
     expect(SEASON_VALUES).toContain(seasonNow('Europe/Istanbul'))
+  })
+})
+
+describe('§14 audience curation', () => {
+  it('offers Bodrum the audiences its own vocabulary can answer', () => {
+    const values = audiencesFor('bodrum').map(a => a.value)
+    expect(values).toContain('sailing')
+    expect(values).toContain('beach-lover')
+    expect(values).toContain('first-time')
+    // In the brief, deliberately not built: nothing records whether an
+    // experience suits a child or has wifi, so any mapping would be a guess.
+    expect(values).not.toContain('families')
+    expect(values).not.toContain('digital-nomads')
+  })
+
+  it("never offers an audience built on another city's taxonomy", () => {
+    // The guard that matters: a renamed or missing taxon must narrow the list,
+    // not produce a chip that silently matches nothing.
+    for (const slug of ['bodrum', 'istanbul', 'some-new-city']) {
+      const moods = new Set(moodsFor(slug).map(m => m.value))
+      const colls = new Set(collectionsFor(slug).map(c => c.value))
+      for (const a of audiencesFor(slug)) {
+        for (const m of a.moods) expect(moods.has(m), `${slug}/${a.value}: mood ${m}`).toBe(true)
+        for (const c of a.collections) expect(colls.has(c), `${slug}/${a.value}: collection ${c}`).toBe(true)
+        // Every surviving audience must be able to match something.
+        expect(a.firstTimeOnly || a.moods.length + a.collections.length > 0).toBe(true)
+      }
+    }
+  })
+
+  it('matches by mood, by shelf, or by the first-timer flag', () => {
+    const [firstTime, beach] = [
+      audiencesFor('bodrum').find(a => a.value === 'first-time')!,
+      audiencesFor('bodrum').find(a => a.value === 'beach-lover')!,
+    ]
+    expect(matchesAudience({ firstTime: true, moods: [], collection: 'history' }, firstTime)).toBe(true)
+    expect(matchesAudience({ firstTime: false, moods: ['history'], collection: 'history' }, firstTime)).toBe(false)
+    // Mood hit, wrong shelf.
+    expect(matchesAudience({ moods: ['beach'], collection: 'history' }, beach)).toBe(true)
+    // Shelf hit, no moods.
+    expect(matchesAudience({ moods: [], collection: 'beaches' }, beach)).toBe(true)
+    expect(matchesAudience({ moods: ['history'], collection: 'history' }, beach)).toBe(false)
+    // Missing fields must not throw — JSON-era entries have no seasons/moods.
+    expect(matchesAudience({}, beach)).toBe(false)
   })
 })

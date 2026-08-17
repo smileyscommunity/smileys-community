@@ -94,7 +94,10 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
   // audience, and the same experiences were already reachable there via the
   // mood explorer and collections, so the strip was pure duplication on the
   // reference page.
-  const allExperiences = await loadExperiences()
+  // The viewed city's experiences. Unscoped, this put "Historic Istanbul
+  // Without Losing Your Mind" on Bodrum's visiting page — an experience in a
+  // city the reader isn't going to.
+  const allExperiences = await loadExperiences(cityId)
   const firstTimers = allExperiences.filter(e => e.firstTime)
 
   // §22 of the Guide IA brief — "Perfect for your stay": guide experiences
@@ -359,7 +362,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
             its own reading width so it doesn't stretch into a banner. */}
         <div id="visitors" className="scroll-mt-20">
 
-        <VisitingClient announcements={serialised} events={upcomingEvents} cityCount={cityCount} featuredLocals={featuredLocals} />
+        <VisitingClient announcements={serialised} events={upcomingEvents} cityCount={cityCount} featuredLocals={featuredLocals} cityName={city.name} />
 
         {/* Cross-link to /handbook — visitors landing here are the exact
             audience for the long-form survival reads. Closes the loop
