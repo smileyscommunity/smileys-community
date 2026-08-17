@@ -69,25 +69,6 @@ export async function safeNeighborhoodFor(cityId: string, name: unknown): Promis
   return (await isValidNeighborhoodFor(cityId, name)) ? (name as string) : null
 }
 
-/**
- * The one rule every write path that sets `User.neighborhood` must apply.
- *
- * A member's neighborhood is matched BY NAME against their city's registry by
- * every neighborhood feature, so a value that isn't in it silently excludes
- * them from all of them — their own neighborhood page, "members near you",
- * neighborhood event matching — while the profile still looks filled in. That
- * failure never gets reported, because nothing looks broken.
- *
- * Prod had 33 such rows before this existed (repaired by
- * scripts/fix-member-neighborhoods.ts): empty strings stored as values,
- * diacritics stripped by hand-typed input, and members holding another city's
- * district. This closes the door those came through.
- *
- * Blank (null / '' / whitespace) clears the field — members must be able to
- * unset it. Anything else has to be a real, active neighborhood of THIS city;
- * an unrecognised value is an error rather than a silently dropped one, so the
- * caller learns at the point the bad value is introduced.
- */
 // Turkish letters NFD can't decompose — 'ı' has no combining form — so the
 // fold needs them spelled out. This is the exact pairing that produced
 // 'Beyoglu' for 'Beyoğlu' in hand-typed member data.
@@ -165,6 +146,25 @@ export type NeighborhoodInput =
   | { ok: true;  value: string | null }
   | { ok: false; error: string }
 
+/**
+ * The one rule every write path that sets `User.neighborhood` must apply.
+ *
+ * A member's neighborhood is matched BY NAME against their city's registry by
+ * every neighborhood feature, so a value that isn't in it silently excludes
+ * them from all of them — their own neighborhood page, "members near you",
+ * neighborhood event matching — while the profile still looks filled in. That
+ * failure never gets reported, because nothing looks broken.
+ *
+ * Prod had 33 such rows before this existed (repaired by
+ * scripts/fix-member-neighborhoods.ts): empty strings stored as values,
+ * diacritics stripped by hand-typed input, and members holding another city's
+ * district. This closes the door those came through.
+ *
+ * Blank (null / '' / whitespace) clears the field — members must be able to
+ * unset it. Anything else has to be a real, active neighborhood of THIS city;
+ * an unrecognised value is an error rather than a silently dropped one, so the
+ * caller learns at the point the bad value is introduced.
+ */
 export async function normalizeNeighborhoodInput(cityId: string, raw: unknown): Promise<NeighborhoodInput> {
   if (raw === null || raw === undefined) return { ok: true, value: null }
   if (typeof raw !== 'string') return { ok: false, error: 'Neighborhood must be text' }
@@ -224,4 +224,44 @@ export async function getNeighborhoodViews(cityId: string): Promise<Neighborhood
  *  slugToNeighborhood + getNeighborhoodMeta. */
 export async function getNeighborhoodView(cityId: string, slug: string): Promise<NeighborhoodView | null> {
   return (await getNeighborhoodViews(cityId)).find(n => n.slug === slug) ?? null
+}
+
+/**
+ * Find a neighborhood by slug when the viewer's city is only a *hint*.
+ *
+ * /neighborhoods/<slug> carries no city, so the page resolved one from the
+ * session — which meant anyone arriving without a cookie got the default city
+ * and a 404 for every other city's neighborhood. That is not an edge case: a
+ * link-preview crawler (WhatsApp, iMessage, Slack, Google) never has a cookie,
+ * so all 15 of Bodrum's pages were unreachable and unindexable, and shares
+ * fell back to Istanbul's site-wide title.
+ *
+ * The viewer's own city still wins when it has the slug, so an ambiguous name
+ * resolves to the one they mean. Only when it doesn't do we search the other
+ * public cities. Slugs are unique per city, not globally, so ties are broken
+ * deterministically — default city first, then alphabetically by city slug —
+ * rather than by whatever order the DB happened to return.
+ */
+export async function resolveNeighborhoodBySlug(
+  slug: string,
+  viewerCityId: string,
+): Promise<{ cityId: string; view: NeighborhoodView } | null> {
+  const own = await getNeighborhoodView(viewerCityId, slug)
+  if (own) return { cityId: viewerCityId, view: own }
+
+  const rows = await prisma.neighborhood.findMany({
+    where:  { slug, active: true, city: { status: { in: ['live', 'preparing'] } } },
+    select: { cityId: true, city: { select: { slug: true } } },
+  })
+  if (rows.length === 0) return null
+
+  const defaultSlug = DEFAULT_CITY_SLUG
+  rows.sort((a, b) => {
+    if (a.city.slug === defaultSlug) return -1
+    if (b.city.slug === defaultSlug) return 1
+    return a.city.slug.localeCompare(b.city.slug)
+  })
+
+  const view = await getNeighborhoodView(rows[0].cityId, slug)
+  return view ? { cityId: rows[0].cityId, view } : null
 }
