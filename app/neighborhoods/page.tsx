@@ -10,35 +10,12 @@ import { APP_URL } from '@/lib/env'
 import { getSession } from '@/lib/session'
 import { redirect } from 'next/navigation'
 import { resolveCityId, getCityConfig, DEFAULT_CITY_SLUG } from '@/lib/city'
-import { getPublicCity } from '@/lib/cities'
+import { resolveCityForPage, type CitySearch } from '@/lib/cityPageParam'
 import { absoluteOgImage } from '@/lib/og'
 import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
 import { restrictedSetFor } from '@/lib/memberPrivacy'
 import SayHiButton from '@/components/SayHiButton'
 import LocalFavorites, { type LocalPick } from '@/components/LocalFavorites'
-
-// Which city this page is about.
-//
-// Unlike /neighborhoods/<slug>, nothing in this URL identifies a city, so the
-// page resolved one from the session — and a link-preview crawler has no
-// cookie, so every share of Bodrum's page previewed as Istanbul's, whatever
-// the sharer saw on screen. A URL that can't say which city it means can't be
-// shared correctly, so ?city= is what makes it sayable; the session stays the
-// default for someone who just navigates here.
-//
-// Unknown, paused or non-public slugs fall back rather than 404 — a stale link
-// should show *a* neighborhoods page, not an error.
-type CitySearch = { city?: string }
-
-async function resolveCityForPage(searchParams: Promise<CitySearch> | undefined) {
-  const wanted = (await searchParams)?.city?.trim()
-  if (wanted) {
-    const c = await getPublicCity(wanted)
-    if (c) return { city: await getCityConfig(c.id), cityId: c.id, pinned: true }
-  }
-  const cityId = await resolveCityId(await getSession())
-  return { city: await getCityConfig(cityId), cityId, pinned: false }
-}
 
 // Same script-tag escaping as the neighborhood detail page's JSON-LD
 // (handbook article / event detail / FAQ / neighborhood Place all match).
