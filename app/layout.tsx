@@ -18,6 +18,7 @@ import { resolveStats } from '@/lib/communityStats'
 import { getNavCities } from '@/lib/cities'
 import { CITY_STATUS } from '@/lib/cityStatus'
 import { getViewCityId, resolveCityId } from '@/lib/city'
+import { pathCitySlug } from '@/lib/pathCitySlug'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 
@@ -72,7 +73,8 @@ export const viewport: Viewport = {
 // rendering savings were already small.
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // Also captures the nonce for the sitewide Organization JSON-LD below.
-  const nonce = (await headers()).get('x-nonce') ?? undefined
+  const reqHeaders = await headers()
+  const nonce = reqHeaders.get('x-nonce') ?? undefined
   // Admin override wins; otherwise the footer shows measured numbers rather
   // than a hard-coded figure that drifts (see lib/communityStats).
   const footerStats = await resolveStats(loadContent().stats)
@@ -86,11 +88,29 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // heading can never disagree with the links under it.
   const session      = await getSession()
   const viewCityId   = await getViewCityId()
-  const footerCityId = await resolveCityId(session)
-  const cityIds      = [...new Set([session?.cityId, viewCityId, footerCityId].filter(Boolean) as string[])]
-  const cityRows     = cityIds.length
-    ? await prisma.city.findMany({ where: { id: { in: cityIds } }, select: { id: true, slug: true, name: true } })
+  const sessionCityId = await resolveCityId(session)
+  // The city shopfront being rendered, if this IS one. Someone arriving on
+  // /bodrum from a link or search hasn't "entered" Bodrum, so resolveCityId
+  // still answers Istanbul and the footer read "Find your people in Istanbul"
+  // underneath a Bodrum hero. The page on screen wins over the session for the
+  // footer's city band and city column.
+  //
+  // Middleware hands the path over as a header (layouts get no params); see
+  // pathCitySlug for the extraction. A segment that isn't a real city slug —
+  // /events, /clubs, /about — simply matches no row and changes nothing.
+  const pathSlug = pathCitySlug(reqHeaders.get('x-pathname') ?? '')
+
+  const cityIds      = [...new Set([session?.cityId, viewCityId, sessionCityId].filter(Boolean) as string[])]
+  const cityRows     = cityIds.length || pathSlug
+    ? await prisma.city.findMany({
+        // One query, not two: the path's candidate slug rides along with the
+        // ids the footer already needed.
+        where:  { OR: [{ id: { in: cityIds } }, ...(pathSlug ? [{ slug: pathSlug }] : [])] },
+        select: { id: true, slug: true, name: true },
+      })
     : []
+  const pathCity     = pathSlug ? cityRows.find(c => c.slug === pathSlug) : undefined
+  const footerCityId = pathCity?.id ?? sessionCityId
   const homeSlug       = cityRows.find(c => c.id === session?.cityId)?.slug
   const viewingSlug    = cityRows.find(c => c.id === viewCityId)?.slug
   const footerCityName = cityRows.find(c => c.id === footerCityId)?.name ?? 'Istanbul'
