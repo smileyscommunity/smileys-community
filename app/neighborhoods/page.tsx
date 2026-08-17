@@ -393,9 +393,16 @@ export default async function NeighborhoodsPage() {
           below AA. Content overrides (nh.*) are preserved so the copy stays
           editable without a deploy. */}
       <section className="relative h-[450px] sm:h-[500px] lg:h-[550px] w-full overflow-hidden">
+        {/* The city's own photo where it has one. This was hardcoded to
+            Istanbul's Galata waterfront, so Bodrum's neighborhoods page opened
+            on another city's skyline — and the alt text described it. Cities
+            without a hero keep the shared shot rather than a grey box, matching
+            CityHeroImage on /[city]. */}
         <Image
-          src="/app/images/neighborhoods-hero.jpg"
-          alt="People walking along an Istanbul waterfront promenade at sunset, café awnings on one side and the Galata skyline across the water"
+          src={city.heroImage ? resolveImageUrl(city.heroImage) : '/app/images/neighborhoods-hero.jpg'}
+          alt={city.heroImage
+            ? `${city.name} at sunset`
+            : 'People walking along an Istanbul waterfront promenade at sunset, café awnings on one side and the Galata skyline across the water'}
           fill
           priority
           fetchPriority="high"
