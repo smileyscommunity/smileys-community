@@ -134,7 +134,11 @@ export default async function CityPage({ params }: Params) {
           {city.status === CITY_STATUS.Preparing ? 'Preparing' : 'Coming soon'}
         </span>
         <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-gray-900 mb-5">
-          Smileys is coming to {city.name}.
+          {/* The city's own name carries the brand amber in every heading on
+              this page — amber-600 rather than the brand's amber-500, which is
+              a button fill and clears only ~2.1:1 on white. Matches the
+              handbook's city heading. */}
+          Smileys is coming to <span className="text-amber-600">{city.name}.</span>
         </h1>
         <p className="text-lg text-gray-600 leading-relaxed mb-10">
           {city.description ?? `We're building the ${city.name} community now — founding members, hosts and the first clubs. Join the list and you'll be among the first in.`}
@@ -231,7 +235,7 @@ export default async function CityPage({ params }: Params) {
               </Link>
 
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight text-gray-900 leading-[1.08] mb-6">
-                Find your people in {city.name}.
+                Find your people in <span className="text-amber-600">{city.name}.</span>
               </h1>
 
               <p className="text-lg md:text-xl text-gray-600 max-w-2xl leading-relaxed mb-10">
@@ -301,7 +305,7 @@ export default async function CityPage({ params }: Params) {
         <section className="py-12 sm:py-16 bg-gray-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="mb-6">
-              <h2 className="section-title">What's happening in {city.name}</h2>
+              <h2 className="section-title">What's happening in <span className="text-amber-600">{city.name}</span></h2>
               <p className="section-subtitle">Pick a day and see what's on.</p>
             </div>
             <EventTabs events={tabEvents} window={eventWindow} />
@@ -380,7 +384,7 @@ export default async function CityPage({ params }: Params) {
       <section className="py-14 sm:py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="mb-8">
-            <h2 className="section-title">Visiting {city.name}?</h2>
+            <h2 className="section-title">Visiting <span className="text-amber-600">{city.name}?</span></h2>
             <p className="section-subtitle max-w-2xl">
               {/* Only four cards render, and "See all visitors" exists for the
                   default city alone (/visiting is hard-scoped to it). A bare
@@ -426,7 +430,7 @@ export default async function CityPage({ params }: Params) {
         <section className="py-12 sm:py-16 bg-white border-t border-gray-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="rounded-3xl bg-gradient-to-br from-amber-50 to-white border border-amber-100 p-8 sm:p-12">
-              <h2 className="section-title">Get to know {city.name}</h2>
+              <h2 className="section-title">Get to know <span className="text-amber-600">{city.name}</span></h2>
               <p className="section-subtitle max-w-2xl mb-8">
                 Neighborhoods, where to go, things to do, coworking, nightlife and the local tips
                 that take newcomers months to work out.
