@@ -74,6 +74,55 @@ esac
 echo "  ✓ $DIR ($(find "$DIR" -type f | wc -l | tr -d ' ') files)"
 CHECK_UPLOADS
 
+# Schema must lead the code, never trail it. Prisma selects every column in a
+# model, so shipping code whose schema.prisma knows about a column the database
+# does not have makes EVERY query on that model throw P2022 — not the one new
+# feature, the whole table. `events.soldOut` was exactly this on 2026-08-16:
+# the code was one deploy away from 500'ing every events query site-wide.
+#
+# The root cause is `prisma db push`, which syncs the schema but runs none of
+# the migration SQL and records nothing in _prisma_migrations. That is how three
+# columns appeared in production with no history row and a backfill silently
+# skipped — the backfill being the entire point of the migration that owned it.
+# Use `prisma migrate deploy`, and let this check hold the line.
+#
+# Compares the migrations about to ship against what the database says it has
+# applied. Advisory-but-loud when the DB is unreachable rather than a hard fail:
+# a psql hiccup should not block a deploy that has nothing to do with schema.
+echo "→ Checking migrations are applied to prod..."
+APPLIED=$(ssh "$SERVER" bash -s <<'CHECK_MIGRATIONS' 2>/dev/null || true
+DB=$(grep -m1 '^DATABASE_URL' /root/smileys-community/.env 2>/dev/null | cut -d= -f2- | tr -d '"')
+[ -n "$DB" ] || exit 1
+psql "$DB" -At -c "SELECT migration_name FROM _prisma_migrations WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL;"
+CHECK_MIGRATIONS
+)
+if [ -z "$APPLIED" ]; then
+  echo "  ⚠ Could not read _prisma_migrations — skipping (check the server if this repeats)."
+else
+  PENDING=""
+  for dir in "$LOCAL"/prisma/migrations/*/; do
+    [ -d "$dir" ] || continue
+    name=$(basename "$dir")
+    printf '%s\n' "$APPLIED" | grep -qxF "$name" || PENDING="$PENDING$name"$'\n'
+  done
+  if [ -n "$PENDING" ]; then
+    if [ -n "$ALLOW_PENDING_MIGRATIONS" ]; then
+      echo "  ⚠ Shipping with migrations NOT applied (ALLOW_PENDING_MIGRATIONS=1):"
+      printf '%s' "$PENDING" | sed 's/^/      /'
+    else
+      echo "✗ Refusing to deploy: these migrations are not applied to prod."
+      printf '%s' "$PENDING" | sed 's/^/      /'
+      echo "  Code that reads a missing column throws P2022 on EVERY query for that"
+      echo "  model, not just the new feature. Apply them first:"
+      echo "    ssh $SERVER 'cd $REMOTE && npx --no-install prisma migrate deploy'"
+      echo "  If this deploy genuinely does not depend on them: ALLOW_PENDING_MIGRATIONS=1 ./deploy.sh"
+      exit 1
+    fi
+  else
+    echo "  ✓ all $(printf '%s\n' "$APPLIED" | grep -c . ) migrations applied"
+  fi
+fi
+
 echo "→ Checking for vulnerabilities..."
 # Audit gate: block on any high/critical ADVISORY except documented, verified-
 # non-applicable exceptions listed in AUDIT_ALLOW (moderate/low never gate).
