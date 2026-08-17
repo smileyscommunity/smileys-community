@@ -53,16 +53,23 @@ For **dropping** it is the opposite. A column the DB has and the code ignores is
 harmless; a column the code reads and the DB lacks is fatal. So the code ships
 first and the `DROP` follows.
 
-### 1. Move Serhan's Bodrum appointment into a row (data only, additive)
+### 1. Check whether any appointment still lives in the column
 
-His lead status currently lives in `cities.consulUserId`. Before the column can
-go, it has to exist as a `city_hosts` row:
+**As of 2026-08-17 this step is a no-op: `consulUserId` is NULL for every city.**
+Bodrum's was set and then unset the same day — Serhan is being proven on Bodrum
+as a club host first, and the Lead appointment follows Friday's launch rather
+than preceding it. Nate (founder) holds the Istanbul and Bodrum `city_hosts`
+rows, which already survive the rename untouched.
+
+Re-check before running step 3, since an appointment may have been made in the
+meantime. If any city has a non-null `consulUserId`, that grant exists **only**
+in the column and must become a row before the column is dropped:
 
 ```sql
 INSERT INTO city_hosts ("id","userId","cityId",status,"grantedAt")
 SELECT gen_random_uuid()::text, c."consulUserId", c.id, 'approved', now()
   FROM cities c
- WHERE c.slug = 'bodrum' AND c."consulUserId" IS NOT NULL
+ WHERE c."consulUserId" IS NOT NULL
 ON CONFLICT ("userId","cityId") DO NOTHING;
 ```
 
