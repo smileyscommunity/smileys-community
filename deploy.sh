@@ -339,6 +339,14 @@ fi
 #
 # Daily nudge for approved members who never logged in. 10 AM Istanbul (07:00 UTC).
 #
+# Weekly neighborhood-hygiene scan — Mondays 06:20 UTC, 20 min after the
+# connection-abuse scan so two tsx processes don't start together. Read-only:
+# it emails ADMIN_EMAIL a report of member neighborhoods that don't match their
+# city's registry. Unlike names there is no auto-fix in the cron — two of the
+# four write paths coerce a bad value to NULL rather than reject it (a bad
+# district must never block an approved registration), so that loss is silent
+# by design and this is what surfaces it. Fix with scripts/fix-member-neighborhoods.ts.
+#
 # Nightly name-hygiene sweep — re-cases member names (ALL-CAPS + lowercase
 # first letters) using each member's nationality for the Turkish-i rules.
 # 03:20 UTC (06:20 Istanbul), after the DB backup.
@@ -402,6 +410,10 @@ echo '  ✓ login-nudge'
 chmod +x $REMOTE/scripts/sweep-name-hygiene.sh
 (crontab -l 2>/dev/null | grep -v 'sweep-name-hygiene' ; echo '20 3 * * * $REMOTE/scripts/sweep-name-hygiene.sh >> /var/log/sweep-name-hygiene.log 2>&1') | crontab -
 echo '  ✓ name-hygiene'
+
+chmod +x $REMOTE/scripts/sweep-neighborhood-hygiene.sh
+(crontab -l 2>/dev/null | grep -v 'sweep-neighborhood-hygiene' ; echo '20 6 * * 1 $REMOTE/scripts/sweep-neighborhood-hygiene.sh >> /var/log/sweep-neighborhood-hygiene.log 2>&1') | crontab -
+echo '  ✓ neighborhood-hygiene'
 
 chmod +x $REMOTE/scripts/sweep-waitlists.sh
 (crontab -l 2>/dev/null | grep -v 'sweep-waitlists' ; echo '20 6 * * * $REMOTE/scripts/sweep-waitlists.sh >> /var/log/sweep-waitlists.log 2>&1') | crontab -

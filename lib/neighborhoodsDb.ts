@@ -88,6 +88,50 @@ export async function safeNeighborhoodFor(cityId: string, name: unknown): Promis
  * an unrecognised value is an error rather than a silently dropped one, so the
  * caller learns at the point the bad value is introduced.
  */
+// Turkish letters NFD can't decompose — 'ı' has no combining form — so the
+// fold needs them spelled out. This is the exact pairing that produced
+// 'Beyoglu' for 'Beyoğlu' in hand-typed member data.
+const TR_FOLD: Record<string, string> = {
+  ı: 'i', İ: 'i', i: 'i', ş: 's', Ş: 's', ğ: 'g', Ğ: 'g',
+  ç: 'c', Ç: 'c', ö: 'o', Ö: 'o', ü: 'u', Ü: 'u',
+}
+
+/** Loose comparison key for a place name: diacritics, case and punctuation removed. */
+export function foldPlaceName(s: string): string {
+  return [...s.trim().toLowerCase()]
+    .map(ch => TR_FOLD[ch] ?? ch)
+    .join('')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]/g, '')
+}
+
+/**
+ * What a stored neighborhood value IS, relative to its city's registry.
+ *
+ * Shared by the repair script and the weekly hygiene scan so the two can never
+ * disagree about what counts as fixable. 'canonical' is the mechanical case —
+ * one active row folds to the same key, so the value differs only in spelling
+ * or case and the right name is unambiguous. 'ambiguous' is deliberately never
+ * auto-resolved: two registry rows folding alike means a human decides.
+ */
+export type NeighborhoodVerdict =
+  | { kind: 'blank' }
+  | { kind: 'valid';     name: string }
+  | { kind: 'canonical'; name: string }
+  | { kind: 'ambiguous'; matches: string[] }
+  | { kind: 'unknown' }
+
+export async function classifyNeighborhoodValue(cityId: string, raw: unknown): Promise<NeighborhoodVerdict> {
+  if (typeof raw !== 'string' || !raw.trim()) return { kind: 'blank' }
+  const value = raw.trim()
+  const rows  = await getNeighborhoodsForCity(cityId)
+  if (rows.some(n => n.name === value)) return { kind: 'valid', name: value }
+  const hits = rows.filter(n => foldPlaceName(n.name) === foldPlaceName(value))
+  if (hits.length === 1) return { kind: 'canonical', name: hits[0].name }
+  if (hits.length > 1)   return { kind: 'ambiguous', matches: hits.map(h => h.name) }
+  return { kind: 'unknown' }
+}
+
 export type NeighborhoodInput =
   | { ok: true;  value: string | null }
   | { ok: false; error: string }

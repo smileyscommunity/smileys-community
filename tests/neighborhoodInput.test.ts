@@ -14,7 +14,7 @@ vi.mock('@/lib/city', () => ({
 }))
 
 import { prisma } from '@/lib/prisma'
-import { normalizeNeighborhoodInput } from '@/lib/neighborhoodsDb'
+import { normalizeNeighborhoodInput, classifyNeighborhoodValue, foldPlaceName } from '@/lib/neighborhoodsDb'
 
 const BODRUM = [{ name: 'Bodrum Merkez' }, { name: 'Gümbet' }, { name: 'Yalıkavak' }]
 
@@ -78,5 +78,60 @@ describe('normalizeNeighborhoodInput', () => {
     const city = freshCity()
     await normalizeNeighborhoodInput(city, 'Gümbet')
     expect((prisma.neighborhood.findMany as any).mock.calls[0][0].where).toEqual({ cityId: city, active: true })
+  })
+})
+
+// The classifier the weekly scan (scan-neighborhood-hygiene.ts) and the repair
+// script (fix-member-neighborhoods.ts) share, so "fixable" can't come to mean
+// two different things in the report and the fix.
+describe('classifyNeighborhoodValue', () => {
+  it('separates valid from merely-close', async () => {
+    expect(await classifyNeighborhoodValue(freshCity(), 'Gümbet')).toEqual({ kind: 'valid', name: 'Gümbet' })
+    // Spelling-only difference → the repair script can resolve it unattended.
+    expect(await classifyNeighborhoodValue(freshCity(), 'Gumbet')).toEqual({ kind: 'canonical', name: 'Gümbet' })
+    expect(await classifyNeighborhoodValue(freshCity(), 'gümbet')).toEqual({ kind: 'canonical', name: 'Gümbet' })
+  })
+
+  it('calls another city\'s district unknown, not fixable', async () => {
+    // Orphaned: nothing in Bodrum folds to 'Kadıköy', so no automatic answer
+    // exists — this is the bucket that needs a human or CLEAR_UNMATCHED=1.
+    expect(await classifyNeighborhoodValue(freshCity(), 'Kadıköy')).toEqual({ kind: 'unknown' })
+  })
+
+  it('treats blank as blank, not as a defect', async () => {
+    expect(await classifyNeighborhoodValue(freshCity(), '')).toEqual({ kind: 'blank' })
+    expect(await classifyNeighborhoodValue(freshCity(), null)).toEqual({ kind: 'blank' })
+  })
+
+  it('refuses to guess when two registry rows fold alike', async () => {
+    // A city naming both 'Merkez' and 'merkéz' must never be auto-resolved:
+    // silently picking one would write a value the member never chose.
+    ;(prisma.neighborhood.findMany as any).mockResolvedValue([{ name: 'Merkez' }, { name: 'Merkéz' }])
+    const v = await classifyNeighborhoodValue(freshCity(), 'merkez')
+    expect(v.kind).toBe('ambiguous')
+    expect(v.kind === 'ambiguous' && v.matches).toEqual(['Merkez', 'Merkéz'])
+  })
+})
+
+describe('foldPlaceName', () => {
+  it('folds every Turkish letter that broke real member data', async () => {
+    // The 9 prod values and their canonical spellings.
+    const pairs: [string, string][] = [
+      ['Beyoglu', 'Beyoğlu'], ['Besiktas', 'Beşiktaş'], ['Uskudar', 'Üsküdar'],
+      ['Sariyer', 'Sarıyer'], ['sarıyer', 'Sarıyer'], ['Bakirkoy', 'Bakırköy'],
+      ['Bahcelievler', 'Bahçelievler'], ['Eyupsultan', 'Eyüpsultan'], ['Zekeriyakoy', 'Zekeriyaköy'],
+    ]
+    for (const [typed, canonical] of pairs) {
+      expect(foldPlaceName(typed)).toBe(foldPlaceName(canonical))
+    }
+  })
+
+  it('does not collapse genuinely different names', async () => {
+    expect(foldPlaceName('Moda')).not.toBe(foldPlaceName('Modo'))
+    expect(foldPlaceName('Bitez')).not.toBe(foldPlaceName('Bodrum Merkez'))
+  })
+
+  it('ignores spacing and punctuation', async () => {
+    expect(foldPlaceName('  Bodrum   Merkez ')).toBe(foldPlaceName('Bodrum-Merkez'))
   })
 })

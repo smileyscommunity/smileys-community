@@ -27,25 +27,10 @@
 // DRY_RUN=1 prints the plan and writes nothing. CLEAR_UNMATCHED=1 additionally
 // NULLs values with no match in their city.
 import { prisma } from '@/lib/prisma'
+import { classifyNeighborhoodValue } from '@/lib/neighborhoodsDb'
 
 const DRY_RUN         = process.env.DRY_RUN === '1'
 const CLEAR_UNMATCHED = process.env.CLEAR_UNMATCHED === '1'
-
-// Turkish letters that NFD can't decompose ('ı' has no combining form), so an
-// explicit map is required — this is exactly the pairing that produced
-// 'Beyoglu' for 'Beyoğlu' in the first place.
-const TR_FOLD: Record<string, string> = {
-  ı: 'i', İ: 'i', i: 'i', ş: 's', Ş: 's', ğ: 'g', Ğ: 'g',
-  ç: 'c', Ç: 'c', ö: 'o', Ö: 'o', ü: 'u', Ü: 'u',
-}
-
-function fold(s: string): string {
-  return [...s.trim().toLowerCase()]
-    .map(ch => TR_FOLD[ch] ?? ch)
-    .join('')
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')   // é → e, and friends
-    .replace(/[^a-z0-9]/g, '')                          // spaces, hyphens, dots
-}
 
 type Plan = { id: string; name: string; city: string; from: string; to: string | null; why: string }
 
@@ -84,11 +69,13 @@ async function main() {
       continue
     }
 
-    const hits = rows.filter(r => fold(r.name) === fold(value))
-    if (hits.length === 1) {
-      fix.push({ ...base, to: hits[0].name, why: 'canonical spelling in this city' })
-    } else if (hits.length > 1) {
-      ambiguous.push({ ...base, to: null, why: `${hits.length} registry rows fold to the same form` })
+    // Same classifier the weekly scan and the write paths use, so "fixable"
+    // means one thing across all three.
+    const verdict = await classifyNeighborhoodValue(m.cityId, value)
+    if (verdict.kind === 'canonical') {
+      fix.push({ ...base, to: verdict.name, why: 'canonical spelling in this city' })
+    } else if (verdict.kind === 'ambiguous') {
+      ambiguous.push({ ...base, to: null, why: `${verdict.matches.length} registry rows fold to the same form` })
     } else {
       unmatched.push({ ...base, to: null, why: `no neighborhood of ${city} matches` })
     }
