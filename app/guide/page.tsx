@@ -90,13 +90,24 @@ export default async function GuidePage() {
         side:    row.area,
       }
     })
-  // §5/§17 of the Bodrum brief: a young city has areas worth exploring before
-  // it has a single event in them. Fall back to the registry's own order so the
-  // section is a map of the city rather than a leaderboard of empty rows.
-  const neighborhoods = withEvents.length > 0 ? withEvents : registry.slice(0, 6).map(row => ({
-    name: row.name, slug: row.slug, events: 0, members: memberMap[row.name] ?? 0,
-    emoji: row.emoji, vibe: row.vibe, side: row.area,
-  }))
+  // §5/§17 of the Bodrum brief: a young city has areas worth exploring long
+  // before it has events in them. Busiest first — that's the "sorted by
+  // upcoming events" promise in the header — then topped up from the registry
+  // so the section reads as a map of the city instead of stopping at the one
+  // area that happens to have a listing. Bodrum had 15 areas and one event,
+  // and showed a single card.
+  const TOP_UP_TO = 6
+  const seen = new Set(withEvents.map(n => n.name))
+  const neighborhoods = [
+    ...withEvents,
+    ...registry
+      .filter(row => !seen.has(row.name))
+      .slice(0, Math.max(0, TOP_UP_TO - withEvents.length))
+      .map(row => ({
+        name: row.name, slug: row.slug, events: 0, members: memberMap[row.name] ?? 0,
+        emoji: row.emoji, vibe: row.vibe, side: row.area,
+      })),
+  ]
 
   const banner = loadBanner()
 
@@ -458,9 +469,14 @@ export default async function GuidePage() {
                         <span className="text-sm font-semibold text-gray-900 group-hover:text-amber-700 transition-colors truncate">
                           {n.name}
                         </span>
-                        <span className="shrink-0 text-xs text-gray-500 tabular-nums">
-                          {n.events} event{n.events !== 1 ? 's' : ''}
-                        </span>
+                        {/* Silent at zero: a "0 events" stamp on every area of
+                            a young city reads as a dead city, and these cards
+                            exist to invite exploring, not to report counts. */}
+                        {n.events > 0 && (
+                          <span className="shrink-0 text-xs text-gray-500 tabular-nums">
+                            {n.events} event{n.events !== 1 ? 's' : ''}
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-gray-400 truncate">{n.vibe}</p>
                       {n.members > 0 && (
