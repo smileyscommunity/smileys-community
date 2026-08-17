@@ -200,6 +200,25 @@ export default async function NeighborhoodsPage() {
   ]
   const curatedSides = new Set(CURATED.map(c => c.side))
 
+  // "Cross the Bosphorus" (§9) is Istanbul's geography, not a universal one.
+  // The two cards already dropped out for a city with no Asian/European areas,
+  // but the heading above them didn't — so Bodrum, whose areas are neither,
+  // got an Istanbul headline over an empty grid. Build the cards up here and
+  // let the section render only when the city actually has that split.
+  const sideCards = ([
+    { side: 'Asian',    label: 'Explore the Asian Side',    gradient: 'from-emerald-500 to-teal-600', emoji: '🌏', photo: '/app/images/side-asian.jpg' },
+    { side: 'European', label: 'Explore the European Side', gradient: 'from-blue-500 to-indigo-600',  emoji: '🇹🇷', photo: '/app/images/side-european.jpg' },
+  ])
+    .map(card => ({
+      ...card,
+      names: neighborhoods
+        .filter(n => n.meta.side === card.side)
+        .sort((a, b) => b.memberCount - a.memberCount)
+        .slice(0, 5)
+        .map(n => n.name),
+    }))
+    .filter(card => card.names.length > 0)
+
   // Areas this city uses that aren't curated, in first-seen (sortOrder) order.
   // '' means the city hasn't grouped its neighborhoods at all — those land in
   // one unlabelled section rather than a section headed "".
@@ -671,27 +690,18 @@ export default async function NeighborhoodsPage() {
           </section>
         )}
 
-        {/* ── Cross the Bosphorus (§9) ── */}
-        <section className="mb-12">
-          <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900">Cross the Bosphorus.</h2>
-          <p className="text-gray-600 mt-1.5 mb-6">Your next favorite neighborhood might be on the other side.</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Photo backgrounds land per side as the shots arrive; a side
-                without one keeps its gradient rather than an empty slot. */}
-            {([
-              { side: 'Asian',    label: 'Explore the Asian Side',    gradient: 'from-emerald-500 to-teal-600',  emoji: '🌏', photo: '/app/images/side-asian.jpg' },
-              { side: 'European', label: 'Explore the European Side', gradient: 'from-blue-500 to-indigo-600',   emoji: '🇹🇷', photo: '/app/images/side-european.jpg' },
-            ]).map(s2 => {
-              const names = neighborhoods
-                .filter(n => n.meta.side === s2.side)
-                .sort((a, b) => b.memberCount - a.memberCount)
-                .slice(0, 5)
-                .map(n => n.name)
-              if (names.length === 0) return null
-              // ?side= pre-selects the matching filter in the grid — a bare
-              // #explore scrolled to the directory but left it unfiltered,
-              // which made the card a broken promise.
-              return (
+        {/* ── Cross the Bosphorus (§9) — Istanbul only; see sideCards ── */}
+        {sideCards.length > 0 && (
+          <section className="mb-12">
+            <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900">Cross the Bosphorus.</h2>
+            <p className="text-gray-600 mt-1.5 mb-6">Your next favorite neighborhood might be on the other side.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Photo backgrounds land per side as the shots arrive; a side
+                  without one keeps its gradient rather than an empty slot. */}
+              {sideCards.map(s2 => (
+                // ?side= pre-selects the matching filter in the grid — a bare
+                // #explore scrolled to the directory but left it unfiltered,
+                // which made the card a broken promise.
                 <a key={s2.side} href={`?side=${s2.side}#explore`}
                   className={`group relative overflow-hidden rounded-2xl bg-gradient-to-br ${s2.gradient} p-6 min-h-[160px] flex flex-col justify-between shadow-md hover:shadow-xl transition-all`}>
                   {s2.photo && (
@@ -704,12 +714,12 @@ export default async function NeighborhoodsPage() {
                   )}
                   <div aria-hidden="true" className="absolute right-4 bottom-2 text-7xl opacity-20 select-none leading-none">{s2.emoji}</div>
                   <p className="relative text-lg font-extrabold text-white">{s2.label} →</p>
-                  <p className="relative text-xs text-white/80 mt-3 leading-relaxed">{names.join(' · ')}</p>
+                  <p className="relative text-xs text-white/80 mt-3 leading-relaxed">{s2.names.join(' · ')}</p>
                 </a>
-              )
-            })}
-          </div>
-        </section>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* ── Final CTA (§14) ── */}
         <section className="rounded-2xl bg-gray-900 px-6 py-14 sm:py-16 text-center mb-4">
