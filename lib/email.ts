@@ -692,7 +692,7 @@ export async function sendListingExpiryEmail(email: string, name: string, listin
           </p>
         </div>
         <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:16px 20px;margin-bottom:24px">
-          <p style="color:#92400e;font-size:14px;margin:0">Renew it now to keep your listing visible to ${4000}+ Smileys members.</p>
+          <p style="color:#92400e;font-size:14px;margin:0">Renew it now to keep your listing visible to the Smileys community.</p>
         </div>
         <a href="${url}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:16px">
           Renew listing →
