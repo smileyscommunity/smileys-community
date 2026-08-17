@@ -6,6 +6,7 @@ import { createNotification } from '@/lib/notify'
 import { sendPremiumUpgradeEmail } from '@/lib/email'
 import { isPremium } from '@/lib/membership'
 import { writeAudit } from '@/lib/audit'
+import { normalizeNeighborhoodInput } from '@/lib/neighborhoodsDb'
 import { computeEventSurveyRollup, aggregateRollup } from '@/lib/survey'
 import { formatName, todayIstanbul } from '@/lib/data'
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
@@ -202,6 +203,18 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (typeof allowed.name === 'string') {
       allowed.name = formatName(allowed.name)
       if (!allowed.name) return NextResponse.json({ error: 'Name cannot be empty' }, { status: 400 })
+    }
+
+    // Neighborhood is validated against the TARGET member's city, not the
+    // admin's: editing a Bodrum member from an Istanbul admin session must not
+    // be able to save an Istanbul district onto them. An unrecognised value is
+    // rejected rather than stored, because a stored one silently drops that
+    // member out of every neighborhood feature (see
+    // scripts/fix-member-neighborhoods.ts for the 33 rows this produced).
+    if ('neighborhood' in allowed) {
+      const parsed = await normalizeNeighborhoodInput(target.cityId, allowed.neighborhood)
+      if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
+      allowed.neighborhood = parsed.value
     }
 
     // Validate enum values

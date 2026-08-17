@@ -120,8 +120,22 @@ describe('setHomeCity', () => {
       where: { userId: 'u1', cityId: ATHENS.id },
     })
     expect(prisma.user.update).toHaveBeenCalledWith({
-      where: { id: 'u1' }, data: { cityId: ATHENS.id },
+      where: { id: 'u1' }, data: { cityId: ATHENS.id, neighborhood: null },
     })
+  })
+
+  it('clears the neighborhood — it belonged to the city being left', async () => {
+    // A neighborhood is a name matched against its city's own registry, so
+    // carrying "Kadıköy" into Athens leaves a value nothing can match: the
+    // member keeps a neighborhood on their profile while dropping out of their
+    // neighborhood page, "members near you" and neighborhood event matching.
+    // That's the state 33 prod rows had to be repaired out of, and this move
+    // is the one path that recreates it on its own.
+    ;(prisma.user.findUnique as any).mockResolvedValue({ cityId: ISTANBUL.id, status: 'approved' })
+    ;(prisma.city.findUnique as any).mockResolvedValue(ATHENS)
+    await setHomeCity('u1', 'athens')
+    const data = (prisma.user.update as any).mock.calls[0][0].data
+    expect(data.neighborhood).toBeNull()
   })
 
   it('is a no-op success when the target is already home', async () => {

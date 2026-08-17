@@ -4,6 +4,8 @@ import { getSession, createSession, deleteSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import { isClubHost } from '@/lib/access'
 import { formatName } from '@/lib/data'
+import { getDefaultCityId } from '@/lib/city'
+import { normalizeNeighborhoodInput } from '@/lib/neighborhoodsDb'
 
 // Pull userAgent + IP from the inbound request when /me has no NextRequest
 // argument (GET). Same shape as lib/rateLimit.ts getIp — kept inline to
@@ -136,6 +138,20 @@ export async function PATCH(req: NextRequest) {
         return NextResponse.json({ error: 'Phone number is required' }, { status: 400 })
       }
       data.phone = v.trim()
+    }
+
+    // Neighborhood must be one of the member's OWN city's active
+    // neighborhoods. Every neighborhood feature matches this value by name, so
+    // an unrecognised one silently excludes the member from all of them while
+    // the profile looks complete — this route is where 21 empty strings and a
+    // set of hand-typed, diacritic-stripped names got in (see
+    // scripts/fix-member-neighborhoods.ts). Blank clears it; anything else has
+    // to be real, and the picker only ever offers real ones.
+    if ('neighborhood' in data) {
+      const homeCityId = session.cityId ?? await getDefaultCityId()
+      const parsed = await normalizeNeighborhoodInput(homeCityId, data.neighborhood)
+      if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
+      data.neighborhood = parsed.value
     }
 
     // Nationality is mandatory (it drives the profile flag) — members can

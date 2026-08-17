@@ -178,7 +178,14 @@ export async function setHomeCity(userId: string, slug: string): Promise<MoveRes
       update: { type: 'member' },
     }),
     prisma.cityRelationship.deleteMany({ where: { userId, cityId: city.id } }),
-    prisma.user.update({ where: { id: userId }, data: { cityId: city.id } }),
+    // Neighborhood goes with the old city. It's a name matched against the
+    // city's own registry, so carrying "Kadıköy" into Bodrum leaves a value
+    // nothing can ever match — the member would keep a neighborhood on their
+    // profile while being invisible to every neighborhood feature, which is
+    // exactly the state 33 rows had to be repaired out of
+    // (scripts/fix-member-neighborhoods.ts). Clearing it prompts them to pick
+    // one that exists where they now live.
+    prisma.user.update({ where: { id: userId }, data: { cityId: city.id, neighborhood: null } }),
   ])
   return { ok: true, alreadyHome: false, city }
 }

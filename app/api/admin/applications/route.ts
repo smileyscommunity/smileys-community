@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
 import { Prisma } from '@prisma/client'
 import { getSession } from '@/lib/session'
 import { isAdmin, isAdminOrModerator } from '@/lib/access'
@@ -126,7 +127,10 @@ export async function PATCH(req: NextRequest) {
                   profilePhoto: memberPhoto ?? null,
                   bio:          application.bio          ?? null,
                   instagram:    application.instagram    ?? null,
-                  neighborhood: application.neighborhood ?? null,
+                  // Coerced against the city being joined, never rejected: a bad
+                  // neighborhood on an application must not block an approval.
+                  // Null beats a value no neighborhood feature can ever match.
+                  neighborhood: await safeNeighborhoodFor(application.targetCityId, application.neighborhood),
                   // User joins the city they applied to.
                   cityId:       application.targetCityId,
                 },

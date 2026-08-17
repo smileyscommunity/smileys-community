@@ -69,6 +69,40 @@ export async function safeNeighborhoodFor(cityId: string, name: unknown): Promis
   return (await isValidNeighborhoodFor(cityId, name)) ? (name as string) : null
 }
 
+/**
+ * The one rule every write path that sets `User.neighborhood` must apply.
+ *
+ * A member's neighborhood is matched BY NAME against their city's registry by
+ * every neighborhood feature, so a value that isn't in it silently excludes
+ * them from all of them — their own neighborhood page, "members near you",
+ * neighborhood event matching — while the profile still looks filled in. That
+ * failure never gets reported, because nothing looks broken.
+ *
+ * Prod had 33 such rows before this existed (repaired by
+ * scripts/fix-member-neighborhoods.ts): empty strings stored as values,
+ * diacritics stripped by hand-typed input, and members holding another city's
+ * district. This closes the door those came through.
+ *
+ * Blank (null / '' / whitespace) clears the field — members must be able to
+ * unset it. Anything else has to be a real, active neighborhood of THIS city;
+ * an unrecognised value is an error rather than a silently dropped one, so the
+ * caller learns at the point the bad value is introduced.
+ */
+export type NeighborhoodInput =
+  | { ok: true;  value: string | null }
+  | { ok: false; error: string }
+
+export async function normalizeNeighborhoodInput(cityId: string, raw: unknown): Promise<NeighborhoodInput> {
+  if (raw === null || raw === undefined) return { ok: true, value: null }
+  if (typeof raw !== 'string') return { ok: false, error: 'Neighborhood must be text' }
+  const name = raw.trim()
+  if (!name) return { ok: true, value: null }
+  if (name.length > 200) return { ok: false, error: 'Neighborhood is too long' }
+  const safe = await safeNeighborhoodFor(cityId, name)
+  if (!safe) return { ok: false, error: 'Pick a neighborhood from your city' }
+  return { ok: true, value: safe }
+}
+
 // ── The render shape ────────────────────────────────────────────────────────
 // What a neighborhood page/card needs, with the editorial layer already
 // merged in. `area` is the city's own grouping vocabulary — Istanbul's
