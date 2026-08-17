@@ -511,12 +511,24 @@ export default async function CityPage({ params }: Params) {
             Ready to find your people?
           </h2>
           <p className="text-lg text-gray-600 mb-8">
-            Join Smileys and start building your social life in {city.name}.
-            {newMembersThisWeek > 0 && ` ${newMembersThisWeek} new members joined this week.`}
+            {/* "Join Smileys" to someone already signed in is an invitation to
+                apply to a community they're already in. */}
+            {session
+              ? `See what's on in ${city.name} this week.`
+              : `Join Smileys and start building your social life in ${city.name}.`}
+            {newMembersThisWeek > 0 && ` ${newMembersThisWeek} new member${newMembersThisWeek === 1 ? '' : 's'} joined this week.`}
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href={`/apply?city=${city.slug}`} className="btn-primary text-base px-8 py-4">Join Smileys</Link>
-            <a href={enter('events')} className="btn-secondary text-base px-8 py-4">Browse events first</a>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+            {/* Same component the hero uses, and for the same reason: it is the
+                one place that knows whether the viewer is a guest (apply), a
+                member of another city (join this one), or already in (a badge).
+                This section owned a bare /apply link instead — exactly the bug
+                JoinCityButton's comment describes, left behind when the hero
+                was fixed. */}
+            <JoinCityButton slug={city.slug} name={city.name} />
+            <a href={enter('events')} className="btn-secondary text-base px-8 py-4">
+              {session ? 'Browse events' : 'Browse events first'}
+            </a>
           </div>
         </div>
       </section>
