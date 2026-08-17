@@ -43,6 +43,60 @@ function formatDate(d: Date | string | null) {
   return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
+// Bodies come from two eras. The original authoring flow stored a markdown-ish
+// string (`## heading`, `- bullet`, `**bold**`) that renderBody() styles block
+// by block. PostForm / ArticleInlineEditor now use RichTextEditor, which stores
+// HTML — and TipTap emits it as a single line with no blank lines, so
+// renderBody saw a whole article as one "paragraph": it wrapped it in a styled
+// <p> and injected the HTML inside, where the nested <p>s broke straight back
+// out of that wrapper at parse time and took every body style with them (flat
+// text, no bullets, headings the size of body copy). HTML bodies go to the
+// prose container instead — same approach as the handbook.
+const HTML_BODY_RE = /<(?:p|h[1-4]|ul|ol|li|blockquote|img|hr|br)\b[^>]*>/i
+
+function isHtmlBody(body: string) {
+  return HTML_BODY_RE.test(body)
+}
+
+// Styles the sanitized article HTML. Tailwind's preflight strips heading sizes,
+// paragraph margins and list bullets, so without these the tags render flat.
+// Values mirror renderBody's markdown styling so both eras look identical.
+const BODY_PROSE = [
+  'prose prose-lg max-w-none',
+  'prose-headings:tracking-tight prose-headings:text-gray-900',
+  'prose-h1:text-2xl prose-h1:font-extrabold prose-h1:mt-10 prose-h1:mb-4',
+  'prose-h2:text-2xl prose-h2:font-extrabold prose-h2:mt-10 prose-h2:mb-4',
+  'prose-h3:text-xl prose-h3:font-bold prose-h3:text-gray-800 prose-h3:mt-8 prose-h3:mb-3',
+  'prose-h4:text-lg prose-h4:font-bold prose-h4:text-gray-800 prose-h4:mt-6 prose-h4:mb-2',
+  'prose-p:text-[17px] prose-p:text-gray-600 prose-p:leading-relaxed prose-p:my-5',
+  'prose-ul:my-5 prose-ol:my-5 prose-li:text-[17px] prose-li:text-gray-600 prose-li:my-1',
+  '[&_li::marker]:text-amber-500',
+  'prose-strong:font-bold prose-strong:text-gray-900',
+  'prose-a:text-amber-600 prose-a:font-medium',
+  'prose-blockquote:border-l-4 prose-blockquote:border-amber-400 prose-blockquote:not-italic prose-blockquote:text-gray-600',
+  'prose-img:rounded-2xl prose-img:mx-auto',
+  // TipTap wraps each list item's text in its own <p>; prose's paragraph
+  // margins would otherwise space single-line bullets like paragraphs.
+  '[&_li>p]:my-0',
+].join(' ')
+
+// Meta/OG description fallback. Bodies are HTML now, so a raw slice would ship
+// `<p>Smileys Community is growing — and <strong>…` as the share description.
+function plainSummary(body: string, max = 155) {
+  const text = body
+    .replace(/<(?:br|\/p|\/h[1-4]|\/li)\b[^>]*>/gi, ' ')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#(?:39|x27);/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim()
+  return text.slice(0, max)
+}
+
 function renderBody(text: string) {
   return text.split('\n\n').map((block, i) => {
     const trimmed = block.trim()
@@ -111,13 +165,13 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     : { url: imageUrl, secureUrl: imageUrl, width: 1200, height: 630, alt: post.title }
   return {
     title: `${post.title} — Smileys Community`,
-    description: post.excerpt ?? post.body.slice(0, 155),
+    description: post.excerpt ?? plainSummary(post.body),
     // Self-referencing canonical → the clean URL, so ?v=<cacheKey> share links
     // and other query variants aren't indexed as duplicate pages.
     alternates: { canonical: `${APP_URL}/posts/${slug}` },
     openGraph: {
       title: post.title,
-      description: post.excerpt ?? post.body.slice(0, 155),
+      description: post.excerpt ?? plainSummary(post.body),
       url: `${APP_URL}/posts/${slug}`,
       siteName: 'Smileys Community',
       type: 'article',
@@ -126,7 +180,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     twitter: {
       card: 'summary_large_image',
       title: post.title,
-      description: post.excerpt ?? post.body.slice(0, 155),
+      description: post.excerpt ?? plainSummary(post.body),
       images: [imageUrl],
     },
   }
@@ -215,9 +269,9 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
         <ArticleViewBeacon slug={post.slug} />
 
         {/* Body */}
-        <div className="prose-like">
-          {renderBody(post.body)}
-        </div>
+        {isHtmlBody(post.body)
+          ? <div className={BODY_PROSE} dangerouslySetInnerHTML={{ __html: sanitize(post.body) }} />
+          : <div>{renderBody(post.body)}</div>}
        </ArticleInlineEditor>
 
         {/* CTA */}
