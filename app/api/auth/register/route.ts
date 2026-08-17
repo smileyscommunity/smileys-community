@@ -6,7 +6,7 @@ import { createSession } from '@/lib/session'
 import { sendVerificationEmail, sendAlreadyRegisteredEmail, recordEmailFailure } from '@/lib/email'
 import { rateLimit, getIp } from '@/lib/rateLimit'
 import { verifyTurnstile } from '@/lib/turnstile'
-import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
+import { coerceNeighborhoodFor } from '@/lib/neighborhoodsDb'
 import { hashToken } from '@/lib/tokenHash'
 import { getPostHogClient, trackServer } from '@/lib/posthog-server'
 import { formatName } from '@/lib/data'
@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
         // invisible to every neighborhood feature from their first minute.
         // Coerced rather than rejected — a bad neighborhood must never be the
         // reason a paid-for, approved application can't finish registering.
-        neighborhood: await safeNeighborhoodFor(application.targetCityId, typeof neighborhood === 'string' ? neighborhood.trim() : neighborhood),
+        neighborhood: await coerceNeighborhoodFor(application.targetCityId, neighborhood, 'register'),
         languages:    langsFromReg.length > 0 ? langsFromReg : (application?.languages ?? []),
         interests:    Array.isArray(interests)  ? interests  : [],
         openToCoffee:   application?.openToCoffee   ?? false,

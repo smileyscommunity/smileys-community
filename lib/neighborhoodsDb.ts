@@ -132,6 +132,35 @@ export async function classifyNeighborhoodValue(cityId: string, raw: unknown): P
   return { kind: 'unknown' }
 }
 
+/**
+ * The coercing counterpart to normalizeNeighborhoodInput, for the two paths that
+ * must not fail over a neighborhood: registration and application approval. A
+ * bad district must never be why an approved, paid-for application can't finish
+ * signing up, so this returns null instead of an error.
+ *
+ * It says so in the log, though. A null here is indistinguishable afterwards
+ * from "never set", so the weekly hygiene scan cannot see what was lost — the
+ * warning is the only trace, and it names the value and the city so a stale
+ * client offering another city's list is diagnosable from the PM2 log.
+ *
+ * A spelling-only variant is rescued rather than dropped ('Gumbet' → 'Gümbet'):
+ * on these paths the member's intent is unambiguous and losing it would be
+ * gratuitous. Still logged — it means something upstream is sending
+ * non-canonical names.
+ */
+export async function coerceNeighborhoodFor(cityId: string, raw: unknown, context: string): Promise<string | null> {
+  const verdict = await classifyNeighborhoodValue(cityId, raw)
+  if (verdict.kind === 'blank') return null
+  if (verdict.kind === 'valid') return verdict.name
+  if (verdict.kind === 'canonical') {
+    console.warn(`[neighborhood] ${context}: canonicalized ${JSON.stringify(String(raw))} → ${JSON.stringify(verdict.name)} (city ${cityId})`)
+    return verdict.name
+  }
+  const detail = verdict.kind === 'ambiguous' ? `ambiguous between ${verdict.matches.join(' / ')}` : 'no match in that city'
+  console.warn(`[neighborhood] ${context}: DROPPED ${JSON.stringify(String(raw))} — ${detail} (city ${cityId}). Member saved with no neighborhood.`)
+  return null
+}
+
 export type NeighborhoodInput =
   | { ok: true;  value: string | null }
   | { ok: false; error: string }

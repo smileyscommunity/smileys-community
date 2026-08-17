@@ -14,7 +14,7 @@ vi.mock('@/lib/city', () => ({
 }))
 
 import { prisma } from '@/lib/prisma'
-import { normalizeNeighborhoodInput, classifyNeighborhoodValue, foldPlaceName } from '@/lib/neighborhoodsDb'
+import { normalizeNeighborhoodInput, classifyNeighborhoodValue, foldPlaceName, coerceNeighborhoodFor } from '@/lib/neighborhoodsDb'
 
 const BODRUM = [{ name: 'Bodrum Merkez' }, { name: 'Gümbet' }, { name: 'Yalıkavak' }]
 
@@ -133,5 +133,56 @@ describe('foldPlaceName', () => {
 
   it('ignores spacing and punctuation', async () => {
     expect(foldPlaceName('  Bodrum   Merkez ')).toBe(foldPlaceName('Bodrum-Merkez'))
+  })
+})
+
+// Registration and application-approval coerce instead of rejecting, so a bad
+// neighborhood can't block an approved member from signing up. The cost is that
+// the loss leaves no trace in the data — a NULL is indistinguishable from
+// "never set", and the weekly scan can only see what's still there. The log line
+// IS the trace, so it's tested like any other output.
+describe('coerceNeighborhoodFor', () => {
+  it('keeps a valid value silently', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(await coerceNeighborhoodFor(freshCity(), 'Gümbet', 'register')).toBe('Gümbet')
+    expect(warn).not.toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
+  it('rescues a spelling variant rather than dropping it, and says so', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(await coerceNeighborhoodFor(freshCity(), 'Gumbet', 'register')).toBe('Gümbet')
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(String(warn.mock.calls[0][0])).toContain('canonicalized')
+    warn.mockRestore()
+  })
+
+  it('logs the dropped value, the reason and the city when nothing matches', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const city = freshCity()
+    expect(await coerceNeighborhoodFor(city, 'Kadıköy', 'approve application app_1')).toBeNull()
+    const msg = String(warn.mock.calls[0][0])
+    // Everything needed to diagnose a stale client from the PM2 log alone.
+    expect(msg).toContain('DROPPED')
+    expect(msg).toContain('Kadıköy')
+    expect(msg).toContain('approve application app_1')
+    expect(msg).toContain(city)
+    warn.mockRestore()
+  })
+
+  it('stays quiet for a blank value — nothing was lost', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(await coerceNeighborhoodFor(freshCity(), '', 'register')).toBeNull()
+    expect(await coerceNeighborhoodFor(freshCity(), null, 'register')).toBeNull()
+    expect(warn).not.toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
+  it('names both candidates when the registry itself is ambiguous', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    ;(prisma.neighborhood.findMany as any).mockResolvedValue([{ name: 'Merkez' }, { name: 'Merkéz' }])
+    expect(await coerceNeighborhoodFor(freshCity(), 'merkez', 'register')).toBeNull()
+    expect(String(warn.mock.calls[0][0])).toContain('ambiguous between Merkez / Merkéz')
+    warn.mockRestore()
   })
 })
