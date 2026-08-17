@@ -8,12 +8,37 @@ import { prisma } from '@/lib/prisma'
 import { neighborhoodToSlug } from '@/lib/neighborhoods'
 import { APP_URL } from '@/lib/env'
 import { getSession } from '@/lib/session'
+import { redirect } from 'next/navigation'
 import { resolveCityId, getCityConfig, DEFAULT_CITY_SLUG } from '@/lib/city'
+import { getPublicCity } from '@/lib/cities'
 import { absoluteOgImage } from '@/lib/og'
 import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
 import { restrictedSetFor } from '@/lib/memberPrivacy'
 import SayHiButton from '@/components/SayHiButton'
 import LocalFavorites, { type LocalPick } from '@/components/LocalFavorites'
+
+// Which city this page is about.
+//
+// Unlike /neighborhoods/<slug>, nothing in this URL identifies a city, so the
+// page resolved one from the session — and a link-preview crawler has no
+// cookie, so every share of Bodrum's page previewed as Istanbul's, whatever
+// the sharer saw on screen. A URL that can't say which city it means can't be
+// shared correctly, so ?city= is what makes it sayable; the session stays the
+// default for someone who just navigates here.
+//
+// Unknown, paused or non-public slugs fall back rather than 404 — a stale link
+// should show *a* neighborhoods page, not an error.
+type CitySearch = { city?: string }
+
+async function resolveCityForPage(searchParams: Promise<CitySearch> | undefined) {
+  const wanted = (await searchParams)?.city?.trim()
+  if (wanted) {
+    const c = await getPublicCity(wanted)
+    if (c) return { city: await getCityConfig(c.id), cityId: c.id, pinned: true }
+  }
+  const cityId = await resolveCityId(await getSession())
+  return { city: await getCityConfig(cityId), cityId, pinned: false }
+}
 
 // Same script-tag escaping as the neighborhood detail page's JSON-LD
 // (handbook article / event detail / FAQ / neighborhood Place all match).
@@ -33,9 +58,12 @@ const NEIGHBORHOODS_OG_IMAGE = `${APP_URL}/images/neighborhoods-cover.jpg`
 // hand-written, keyword-carrying description that's been indexed for months —
 // listing İzmir's districts in Istanbul's snippet would be a real SEO loss —
 // and every other city gets the generated form.
-export async function generateMetadata() {
-  const city = await getCityConfig(await resolveCityId(await getSession()))
+export async function generateMetadata({ searchParams }: { searchParams?: Promise<CitySearch> }) {
+  const { city } = await resolveCityForPage(searchParams)
   const isDefault = city.slug === DEFAULT_CITY_SLUG
+  const canonicalUrl = isDefault
+    ? `${APP_URL}/neighborhoods`
+    : `${APP_URL}/neighborhoods?city=${city.slug}`
   const title = `${isDefault ? 'Explore ' : ''}${city.name} Neighborhoods — Smileys Community`
   const desc  = isDefault
     ? 'Find Smileys events happening near you. From Kadıköy to Beşiktaş, Cihangir to Ataşehir — discover social events across Istanbul by neighborhood.'
@@ -53,7 +81,9 @@ export async function generateMetadata() {
     : { url: NEIGHBORHOODS_OG_IMAGE, secureUrl: NEIGHBORHOODS_OG_IMAGE, width: 1200, height: 800, alt: `${city.name} Neighborhoods — Smileys Community` }
 
   return {
-    alternates: { canonical: `${APP_URL}/neighborhoods` },
+    // Each city's variant is its own canonical; a shared bare URL would
+    // otherwise point every city's page at Istanbul's.
+    alternates: { canonical: canonicalUrl },
     title,
     description: desc,
     openGraph: {
@@ -61,7 +91,7 @@ export async function generateMetadata() {
       description: ogDesc,
       // Include the /app basePath — the bare /neighborhoods path 301-redirects,
       // which some crawlers won't follow for the canonical.
-      url: `${APP_URL}/neighborhoods`,
+      url: canonicalUrl,
       siteName: 'Smileys Community',
       type: 'website',
       images: [ogImage],
@@ -128,7 +158,7 @@ function getActivitySignal(eventCount: number, memberCount: number) {
   return               { label: 'Quiet this month', icon: '😴', cls: 'bg-gray-50 text-gray-400'    }
 }
 
-export default async function NeighborhoodsPage() {
+export default async function NeighborhoodsPage({ searchParams }: { searchParams?: Promise<CitySearch> }) {
   const c = loadContent()
   const nh = c.neighborhoods ?? {}
   const today = new Date().toISOString().split('T')[0]
@@ -136,8 +166,12 @@ export default async function NeighborhoodsPage() {
   // The stats are city-scoped now, so the city has to resolve first — the
   // session and the city id are both cheap (JWT decode + module-memory cache).
   const session = await getSession()
-  const cityId  = await resolveCityId(session)
-  const city    = await getCityConfig(cityId)
+  const { city, cityId, pinned } = await resolveCityForPage(searchParams)
+  // Put the city in the URL for anyone not on the default city, so the address
+  // bar they copy is a link that survives being shared. Guarded on `pinned` so
+  // this can't loop, and skipped for the default city to leave its established
+  // bare URL (and its search ranking) alone.
+  if (!pinned && city.slug !== DEFAULT_CITY_SLUG) redirect(`/neighborhoods?city=${city.slug}`)
 
   const [eventCounts, memberCounts, nextEventsRaw, pickCounts] = await getNeighborhoodStats(today, cityId)
 
