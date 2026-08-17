@@ -27,7 +27,7 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
   return (
     <footer className="bg-white border-t border-gray-100">
 
-      {/* CTA band — the "Find your people in Istanbul" / Apply-to-join
+      {/* CTA band — the "Find your people in <city>" / Apply-to-join
           pitch is aimed at prospects. For signed-in members it just adds
           ~200px of empty space between the real page content and the
           rest of the footer (worst on short-content mobile screens like
@@ -37,9 +37,12 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
         <div className="bg-amber-500">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 flex flex-col sm:flex-row items-center justify-between gap-6">
             <div>
-              <p className="text-amber-950/60 text-sm font-medium mb-1">Istanbul's curated social community</p>
+              {/* Follows the viewer's city, like the "In {cityName}" column
+                  below it — this band hardcoded Istanbul, so Bodrum's footer
+                  pitched Istanbul to every prospect who landed there. */}
+              <p className="text-amber-950/60 text-sm font-medium mb-1">{cityName}&apos;s curated social community</p>
               <h2 className="text-2xl sm:text-3xl font-extrabold text-white leading-tight">
-                Find your people in Istanbul.
+                Find your people in {cityName}.
               </h2>
             </div>
             <div className="flex flex-col items-center sm:items-end gap-2 shrink-0">
