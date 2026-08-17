@@ -20,6 +20,7 @@
 
 import { prisma } from './prisma'
 import { CITY_STATUS } from './cityStatus'
+import { resolveCityId } from './city'
 
 export interface MemberCity {
   id:     string
@@ -58,6 +59,28 @@ export async function getMemberCities(userId: string): Promise<MemberCity[]> {
 /** Just the ids — for scoping a query to everywhere this member belongs. */
 export async function getMemberCityIds(userId: string): Promise<string[]> {
   return (await getMemberCities(userId)).map(c => c.id)
+}
+
+/**
+ * Which city a member may FILE new content into.
+ *
+ * `resolveCityId` answers "which city am I looking at", and the view-city
+ * cookie wins there — deliberately, and it lasts a year (see the trap
+ * documented in lib/city.ts). That is the right answer for a feed and the
+ * wrong one for a write: one click into another city's shopfront otherwise
+ * files your next room listing there, and because alert fan-out matches
+ * subscribers on their HOME city, the listing then reaches nobody at all —
+ * not the city it was filed to (no subscribers there yet) and not your own.
+ *
+ * So the viewed city counts only when the poster actually belongs to it —
+ * their home city, or one they've joined. Otherwise content lands at home,
+ * where their audience is.
+ */
+export async function resolvePostingCityId(session: { id: string; cityId?: string }): Promise<string> {
+  const viewed = await resolveCityId(session)
+  const home   = session.cityId ?? viewed
+  if (viewed === home) return home
+  return (await getMemberCityIds(session.id)).includes(viewed) ? viewed : home
 }
 
 export type JoinResult =

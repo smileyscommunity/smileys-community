@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { resolveCityId } from '@/lib/city'
+import { resolvePostingCityId } from '@/lib/cityMembership'
 import { sendListingAlertEmail, recordEmailFailure } from '@/lib/email'
 import { createNotification } from '@/lib/notify'
 import { rateLimit } from '@/lib/rateLimit'
@@ -158,9 +159,14 @@ export async function POST(req: NextRequest) {
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
   const safeContactEmail = typeof contactEmail === 'string' && contactEmail.trim().length <= 200 && EMAIL_RE.test(contactEmail.trim())
     ? contactEmail.trim().toLowerCase() : null
+  // The city this listing belongs to. Resolved ONCE — the neighborhood is
+  // validated against it and the row is filed to it, so the two cannot drift.
+  // Posting follows membership, not the view-city cookie: see
+  // resolvePostingCityId for why a browsed city must not capture a write.
+  const postingCityId = await resolvePostingCityId(session)
   // Validate against the canonical neighborhood list so we don't store typos that
   // would never match the filter dropdown on the browse page.
-  const safeNeighborhood = await safeNeighborhoodFor(await resolveCityId(session), neighborhood)
+  const safeNeighborhood = await safeNeighborhoodFor(postingCityId, neighborhood)
 
   const expiresAt = new Date()
   expiresAt.setDate(expiresAt.getDate() + 30)
@@ -168,7 +174,7 @@ export async function POST(req: NextRequest) {
   const listing = await prisma.listing.create({
     data: {
       userId: session.id,
-      cityId: await resolveCityId(session),
+      cityId: postingCityId,
       category,
       title: title.trim(),
       description: description.trim(),

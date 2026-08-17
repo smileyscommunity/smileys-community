@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Turnstile from '@/components/Turnstile'
 import { useAuth } from '@/contexts/AuthContext'
+import { safeReturnPath } from '@/lib/safeUrl'
 import type { AppUser } from '@/lib/auth'
 import posthog from 'posthog-js'
 // Same FingerprintJS library the apply form uses — collects a stable
@@ -36,7 +37,14 @@ function fromMessage(from: string | null): string | null {
 function LoginPageInner() {
   const router = useRouter()
   const { setUser } = useAuth()
-  const reason = fromMessage(useSearchParams().get('from'))
+  const searchParams = useSearchParams()
+  const reason = fromMessage(searchParams.get('from'))
+  // Where to land after signing in. `from` is what the (member) layout adds
+  // when it bounces a logged-out visitor; `next` is what the pages carrying
+  // their own gate use (board/new). Both were read for the *message* only, so
+  // every deep link into a member page ended on the dashboard instead — which
+  // silently broke the one-click renew link the listing-expiry email sends.
+  const returnTo = safeReturnPath(searchParams.get('next') ?? searchParams.get('from'))
 
   const [email,         setEmail]         = useState('')
   const [password,      setPassword]      = useState('')
@@ -170,7 +178,10 @@ function LoginPageInner() {
       })
     }
 
-    if (data.role === 'admin') router.push('/admin')
+    // An explicit deep link wins over the role's default landing page: someone
+    // who clicked "Renew" in an email wants the renew page, not /admin.
+    if (returnTo) router.push(returnTo)
+    else if (data.role === 'admin') router.push('/admin')
     else if (data.isClubHost) router.push('/host')
     else router.push('/dashboard')
   }

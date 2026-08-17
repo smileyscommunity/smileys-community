@@ -27,6 +27,27 @@ export function isSafeHref(url: string | null | undefined): boolean {
 }
 
 /**
+ * Validate a post-login return path taken from the query string.
+ *
+ * Deliberately much stricter than `isSafeHref`, which also permits absolute
+ * `https://` and `mailto:` URLs — harmless for an `<a href>`, an open redirect
+ * when fed to `router.push` after authentication. Only in-app paths qualify.
+ *
+ * Rejected: absolute URLs, protocol-relative `//evil.com`, anything with
+ * whitespace or control chars, and `/login` itself (which would loop).
+ *
+ * Returns the path when it's safe to navigate to, else null.
+ */
+export function safeReturnPath(v: string | null | undefined): string | null {
+  if (!v || typeof v !== 'string') return null
+  // eslint-disable-next-line no-control-regex
+  if (/[\x00-\x1f\x7f\s]/.test(v)) return null
+  if (!v.startsWith('/') || v.startsWith('//')) return null
+  if (v === '/login' || v.startsWith('/login?') || v.startsWith('/login/')) return null
+  return v
+}
+
+/**
  * Normalize an admin-supplied payment contact into a canonical wa.me link.
  *
  * Accepts:

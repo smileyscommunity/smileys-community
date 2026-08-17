@@ -855,12 +855,16 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
       : [...alertCategories, catId]
     setAlertCategories(next)
     try {
-      await fetch('/app/api/me/listing-alerts', {
+      const res = await fetch('/app/api/me/listing-alerts', {
         method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ listingAlerts: next }),
       })
+      // A rejected save (session expired, rate limited, 500) used to leave the
+      // optimistic "✓ you'll be emailed" standing until a reload — only a
+      // thrown network error rolled back.
+      if (!res.ok) setAlertCategories(alertCategories)
     } catch {
       setAlertCategories(alertCategories)
     }
@@ -1273,7 +1277,11 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
             {/* Demand capture (phase 3): an empty category is the moment a
                 member most wants an alert — one tap here is what guarantees
                 the FIRST poster in this category an audience within hours. */}
-            {category !== 'SAVED' && category !== 'ALL' && !debouncedSearch && isLoggedIn && (
+            {/* Allowlist, not a denylist: excluding ALL and SAVED by name let
+                MINE through, and MINE is not an alertable category — the API
+                filters it out of VALID and stores nothing, so the tap produced
+                a permanent "✓ you'll be emailed" that was never true. */}
+            {ALERT_CATS.some(c => c.id === category) && !debouncedSearch && isLoggedIn && (
               <div className="mb-6">
                 {alertCategories.includes(category) ? (
                   <p className="text-sm font-semibold text-emerald-600">

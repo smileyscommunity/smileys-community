@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { resolveCityId } from '@/lib/city'
+import { resolvePostingCityId } from '@/lib/cityMembership'
 import { rateLimit } from '@/lib/rateLimit'
 import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
 import { sendListingAlertEmail, recordEmailFailure } from '@/lib/email'
@@ -43,7 +44,11 @@ export async function POST(req: NextRequest) {
   if (leavingOn < new Date().toISOString().slice(0, 10)) {
     return NextResponse.json({ error: 'Leaving date is in the past' }, { status: 400 })
   }
-  const safeNeighborhood = await safeNeighborhoodFor(await resolveCityId(session), neighborhood)
+  // One resolution for the neighborhood check and the row itself, and it
+  // follows membership rather than the view-city cookie — same reasoning as
+  // the listings route (resolvePostingCityId).
+  const postingCityId = await resolvePostingCityId(session)
+  const safeNeighborhood = await safeNeighborhoodFor(postingCityId, neighborhood)
   const safeNote = typeof note === 'string' ? note.trim().slice(0, 500) || null : null
   // Matches the Listing route's PHOTO_RE — only accept a URL our own
   // upload route produced, never an arbitrary external string.
@@ -65,7 +70,7 @@ export async function POST(req: NextRequest) {
 
   const sale = await prisma.movingSale.create({
     data: {
-      userId: session.id, cityId: await resolveCityId(session), leavingOn, neighborhood: safeNeighborhood, note: safeNote, photo: safePhoto,
+      userId: session.id, cityId: postingCityId, leavingOn, neighborhood: safeNeighborhood, note: safeNote, photo: safePhoto,
       items: { create: safeItems },
     },
     select: { id: true, cityId: true },
