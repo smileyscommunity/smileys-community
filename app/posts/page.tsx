@@ -73,7 +73,7 @@ export default async function PostsPage() {
             📰 Community Articles
           </span>
           <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 tracking-tight">
-            Stories &amp; guides
+            Stories &amp; Guides
           </h1>
           <p className="text-base text-gray-600 mt-1 max-w-xl">
             Club spotlights, event recaps, Istanbul guides, and tips for making the most of Smileys.

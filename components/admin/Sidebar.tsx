@@ -151,7 +151,11 @@ const NAV_GROUPS = [
       { label: 'Stories',       href: '/admin/stories',                     exact: false, roles: ['admin', 'moderator'],  icon: 'stories'       },
       { label: 'Articles',      href: '/admin/posts',         exact: false, roles: ['admin', 'moderator'],  icon: 'articles'      },
       { label: 'Neighborhoods', href: '/admin/neighborhoods', exact: false, roles: ['admin', 'moderator'],  icon: 'tags'          },
-      { label: 'City Guide',    href: '/admin/guide',         exact: false, roles: ['admin', 'moderator'],  icon: 'content'       },
+      // Two different things, both called 'guide': /admin/guide edits the
+      // practical resources list, /admin/guide-entries edits the experiences
+      // the public /guide is actually built from (per city).
+      { label: 'Guide resources',  href: '/admin/guide',         exact: true,  roles: ['admin', 'moderator'],  icon: 'content'       },
+      { label: 'Guide experiences', href: '/admin/guide-entries', exact: false, roles: ['admin', 'moderator'],  icon: 'content'       },
       { label: 'Banners',       href: '/admin/banners',       exact: false, roles: ['admin', 'moderator'],  icon: 'banners'       },
       { label: 'Content',       href: '/admin/content',       exact: false, roles: ['admin', 'moderator'],  icon: 'content'       },
     ],
