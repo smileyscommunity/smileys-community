@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { ISTANBUL_NEIGHBORHOODS, resolveImageUrl, avatarUrl, getInitials } from '@/lib/data'
+import { resolveImageUrl, avatarUrl, getInitials } from '@/lib/data'
+import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import { countryFlag } from '@/lib/countries'
 import { matchesTimeFilter, statusBadge, type TimeFilter } from '@/lib/hangoutTime'
 import { HANGOUT_ACTIVITIES, ACTIVITY_META, HANGOUT_CAPACITIES } from '@/lib/hangoutActivities'
@@ -159,6 +160,7 @@ function defaultEndsAt(): string {
 export default function HangoutsPage() {
   const router = useRouter()
   const { user, isLoggedIn, isLoading } = useAuth()
+  const neighborhoods = useCityNeighborhoods()
 
   const [hangouts,       setHangouts]       = useState<Hangout[]>([])
   const [pulses,         setPulses]         = useState<Pulse[]>([])
@@ -626,7 +628,7 @@ export default function HangoutsPage() {
               </span>
               <select value={neighborhood} onChange={e => setNeighborhood(e.target.value)} className="input bg-white">
                 <option value="">— Not specified —</option>
-                {ISTANBUL_NEIGHBORHOODS.map(n => <option key={n} value={n}>{n}</option>)}
+                {neighborhoods.map(n => <option key={n} value={n}>{n}</option>)}
               </select>
             </label>
             {myClubs.length > 0 && (
@@ -721,7 +723,7 @@ export default function HangoutsPage() {
                 </span>
                 <select value={pulseNeighborhood} onChange={e => setPulseNeighborhood(e.target.value)} className="input bg-white">
                   <option value="">— Anywhere —</option>
-                  {ISTANBUL_NEIGHBORHOODS.map(n => <option key={n} value={n}>{n}</option>)}
+                  {neighborhoods.map(n => <option key={n} value={n}>{n}</option>)}
                 </select>
               </label>
               <label className="block">
@@ -980,6 +982,7 @@ export default function HangoutsPage() {
                     key={h.id}
                     h={h}
                     currentUser={user}
+                    neighborhoods={neighborhoods}
                     onCancel={handleCancel}
                     onMutated={updated => {
                       setHangouts(prev => prev.map(pp => pp.id === updated.id ? updated : pp))
@@ -1168,7 +1171,7 @@ function fetchWeatherOnce(): Promise<void> {
 
 const OUTDOOR_RE = /\b(picnic|walk|stroll|park|hike|hiking|beach|run|running|jog|cycl|bike|rooftop|garden|bosphorus|outdoor|swim|sail|kayak|frisbee|football|basketball|tennis|padel|climb|ferry|sunset)\b/i
 
-function HangoutCard({ h, currentUser, onCancel, onMutated }: {
+function HangoutCard({ h, currentUser, onCancel, onMutated, neighborhoods }: {
   h: Hangout
   // Real user from useAuth — used for ownership check + optimistic
   // join (was just `currentUserId: string`, which forced the just-
@@ -1179,6 +1182,9 @@ function HangoutCard({ h, currentUser, onCancel, onMutated }: {
   currentUser: { id: string; name: string; color: string; profilePhoto?: string | null; role?: string }
   onCancel: (id: string) => void
   onMutated: (h: Hangout) => void
+  // Passed down rather than fetched here: a card per hangout would mean a
+  // request per card, and /api/neighborhoods rate-limits at 60/minute.
+  neighborhoods: string[]
 }) {
   const isOwner = h.user.id === currentUser.id
   // Staff can moderate any hangout: the PATCH/DELETE endpoints already
@@ -1496,7 +1502,7 @@ function HangoutCard({ h, currentUser, onCancel, onMutated }: {
             <select value={eNeighborhood} onChange={e => setENeighborhood(e.target.value)}
               className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:ring-2 focus:ring-amber-400 focus:border-amber-400">
               <option value="">— none —</option>
-              {ISTANBUL_NEIGHBORHOODS.map(n => <option key={n} value={n}>{n}</option>)}
+              {neighborhoods.map(n => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
           <div>

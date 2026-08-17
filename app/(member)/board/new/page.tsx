@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
+import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import { downscaleImage } from '@/lib/image-resize'
 
 const CATEGORIES = [
@@ -29,6 +29,7 @@ export default function NewListingPage() {
   useEffect(() => {
     if (!isLoading && !isLoggedIn) router.replace('/login?next=/board/new')
   }, [isLoading, isLoggedIn, router])
+  const neighborhoods = useCityNeighborhoods()
 
   // Prefill from query params — the moving-sale → rooms bridge arrives as
   // /board/new?category=ROOMS&neighborhood=…&availableFrom=…. Categories
@@ -325,7 +326,7 @@ export default function NewListingPage() {
               className="input bg-white"
             >
               <option value="">— Pick one —</option>
-              {ISTANBUL_NEIGHBORHOODS.map(n => <option key={n} value={n}>{n}</option>)}
+              {neighborhoods.map(n => <option key={n} value={n}>{n}</option>)}
             </select>
             <p className="text-xs text-gray-400 mt-1">Lets people filter listings by area.</p>
           </div>

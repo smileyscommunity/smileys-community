@@ -5,7 +5,8 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useAuth } from '@/contexts/AuthContext'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
-import { resolveImageUrl, avatarUrl, ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
+import { resolveImageUrl, avatarUrl } from '@/lib/data'
+import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import posthog from 'posthog-js'
 import { toast } from 'sonner'
 import { SkeletonCard } from '@/components/Skeleton'
@@ -120,7 +121,7 @@ async function copyShare(id: string): Promise<boolean> {
   }
 }
 
-function ListingModal({ listing, currentUserId, isLoggedIn, isStaff, isSaved, onToggleSave, onClose, onDelete, onMarkFilled, onRenew, onEdit }: {
+function ListingModal({ listing, currentUserId, isLoggedIn, isStaff, isSaved, onToggleSave, onClose, onDelete, onMarkFilled, onRenew, onEdit, neighborhoods }: {
   listing: Listing
   // null = not signed in. Previous shape used '' and 'guest' as
   // sentinels; consumers now pass `isLoggedIn ? user.id : null`.
@@ -138,6 +139,9 @@ function ListingModal({ listing, currentUserId, isLoggedIn, isStaff, isSaved, on
   onMarkFilled: (id: string) => void
   onRenew: (id: string) => void
   onEdit: (id: string, patch: { title: string; description: string; price: string; neighborhood: string; contact: string; contactEmail: string }) => Promise<boolean>
+  // The viewer's city's neighborhoods, resolved once by the parent and shared
+  // with the filter select rather than re-fetched per modal open.
+  neighborhoods: string[]
 }) {
   const [copied, setCopied] = useState(false)
   // Gallery: cover + up to 4 more. activePhoto swaps the hero; guests get
@@ -417,7 +421,7 @@ function ListingModal({ listing, currentUserId, isLoggedIn, isStaff, isSaved, on
                   <select value={editForm.neighborhood} onChange={e => setEditForm(f => ({ ...f, neighborhood: e.target.value }))}
                     className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400">
                     <option value="">— None —</option>
-                    {ISTANBUL_NEIGHBORHOODS.map(n => <option key={n} value={n}>{n}</option>)}
+                    {neighborhoods.map(n => <option key={n} value={n}>{n}</option>)}
                   </select>
                 </div>
               </div>
@@ -654,6 +658,7 @@ function ListingCard({ listing, onClick, isLoggedIn, isSaved, onToggleSave }: {
 
 function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
   const { user, isLoggedIn } = useAuth()
+  const neighborhoods = useCityNeighborhoods()
   const currentUserId = isLoggedIn ? user.id : null
   const isStaff = isLoggedIn && (user.role === 'admin' || user.role === 'moderator')
   const searchParams = useSearchParams()
@@ -931,6 +936,7 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
           onMarkFilled={id => { handleMarkFilled(id); setSelected(null) }}
           onRenew={handleRenew}
           onEdit={handleEditListing}
+          neighborhoods={neighborhoods}
         />
       )}
 
@@ -1059,7 +1065,7 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
               title="Filter by neighborhood"
             >
               <option value="">All areas</option>
-              {ISTANBUL_NEIGHBORHOODS.map(n => <option key={n} value={n}>{n}</option>)}
+              {neighborhoods.map(n => <option key={n} value={n}>{n}</option>)}
             </select>
 
             {isLoggedIn && (

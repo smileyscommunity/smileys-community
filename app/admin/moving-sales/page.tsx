@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 import { confirmToast } from '@/lib/confirmToast'
-import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
+import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import { downscaleImage } from '@/lib/image-resize'
 
 interface Item { id: string; name: string; price: string | null; claimed: boolean }
@@ -47,6 +47,7 @@ function Avatar({ name, color }: { name: string; color: string }) {
 }
 
 export default function AdminMovingSalesPage() {
+  const neighborhoods = useCityNeighborhoods()
   const [sales,   setSales]   = useState<Sale[]>([])
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState<string | null>(null)
@@ -256,7 +257,7 @@ export default function AdminMovingSalesPage() {
                 onChange={e => setEditForm(f => ({ ...f, neighborhood: e.target.value }))}
                 className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white">
                 <option value="">—</option>
-                {ISTANBUL_NEIGHBORHOODS.map(n => <option key={n} value={n}>{n}</option>)}
+                {neighborhoods.map(n => <option key={n} value={n}>{n}</option>)}
               </select>
             </div>
 

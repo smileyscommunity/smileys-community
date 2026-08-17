@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { confirmToast } from '@/lib/confirmToast'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { ISTANBUL_NEIGHBORHOODS, resolveImageUrl } from '@/lib/data'
+import { resolveImageUrl } from '@/lib/data'
+import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import { downscaleImage } from '@/lib/image-resize'
 
 const STATUS_OPTS = [
@@ -64,6 +65,7 @@ function istanbulInputToISO(local: string) {
 }
 
 export default function AdminHangoutsPage() {
+  const neighborhoods = useCityNeighborhoods()
   const [hangouts, setHangouts] = useState<Hangout[]>([])
   const [total, setTotal]       = useState(0)
   const [hasMore, setHasMore]   = useState(false)
@@ -223,7 +225,7 @@ export default function AdminHangoutsPage() {
               <select value={editForm.neighborhood} onChange={e => setEditForm(f => ({ ...f, neighborhood: e.target.value }))}
                 className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
                 <option value="">— none —</option>
-                {ISTANBUL_NEIGHBORHOODS.map(n => <option key={n} value={n}>{n}</option>)}
+                {neighborhoods.map(n => <option key={n} value={n}>{n}</option>)}
               </select>
             </div>
             <div>

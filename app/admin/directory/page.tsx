@@ -8,7 +8,7 @@ import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import { isSafeHref } from '@/lib/safeUrl'
 import { BUSINESS_CATEGORIES, DIRECTORY_LIMITS, parseGoogleMapsUrl } from '@/lib/directory-constants'
 import { DAY_KEYS, DAY_LABELS } from '@/lib/businessHours'
-import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
+import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import { downscaleImage } from '@/lib/image-resize'
 
 // Small reusable upload widget used inline next to the Logo and Cover
@@ -219,7 +219,7 @@ function toEditFields(b: Business): EditFields {
   }
 }
 
-function BusinessRow({ b, onAction }: { b: Business; onAction: () => void }) {
+function BusinessRow({ b, onAction, neighborhoods }: { b: Business; onAction: () => void; neighborhoods: string[] }) {
   const [expanded,      setExpanded]      = useState(false)
   const [loading,       setLoading]       = useState(false)
   // Inline confirm replaces a single-click destructive delete — matches
@@ -472,7 +472,7 @@ function BusinessRow({ b, onAction }: { b: Business; onAction: () => void }) {
               <label className={labelCls}>Neighborhood</label>
               <select {...field('neighborhood')} className={inputCls}>
                 <option value="">—</option>
-                {ISTANBUL_NEIGHBORHOODS.map(n => <option key={n} value={n}>{n}</option>)}
+                {neighborhoods.map(n => <option key={n} value={n}>{n}</option>)}
               </select>
             </div>
             <div>
@@ -594,6 +594,7 @@ function BusinessRow({ b, onAction }: { b: Business; onAction: () => void }) {
 type CreateMode = 'single' | 'bulk'
 
 function CreateForm({ onCreated, onCancel }: { onCreated: () => void; onCancel: () => void }) {
+  const neighborhoods = useCityNeighborhoods()
   const [mode,    setMode]    = useState<CreateMode>('single')
   const [form,    setForm]    = useState<CreateForm>(EMPTY_CREATE)
   const [bulk,    setBulk]    = useState('')
@@ -714,7 +715,7 @@ function CreateForm({ onCreated, onCancel }: { onCreated: () => void; onCancel: 
               <label className={labelCls}>Neighborhood</label>
               <select value={form.neighborhood} onChange={e => set('neighborhood', e.target.value)} className={inputCls}>
                 <option value="">—</option>
-                {ISTANBUL_NEIGHBORHOODS.map(n => <option key={n} value={n}>{n}</option>)}
+                {neighborhoods.map(n => <option key={n} value={n}>{n}</option>)}
               </select>
             </div>
             <div>
@@ -1095,6 +1096,9 @@ function ReportsList() {
 export default function AdminDirectoryPage() {
   const searchParams = useSearchParams()
   const router       = useRouter()
+  // Fetched once here and handed to the rows: a hook inside BusinessRow would
+  // mean one /api/neighborhoods request per listing on screen.
+  const neighborhoods = useCityNeighborhoods()
   const raw          = searchParams.get('status')
   // Tab order is Approved → Pending → Rejected, so the first tab is also
   // the default landing view when no ?status= param is present.
@@ -1176,7 +1180,7 @@ export default function AdminDirectoryPage() {
         </div>
       ) : (
         <div className="space-y-2">
-          {items.map(b => <BusinessRow key={b.id} b={b} onAction={retry} />)}
+          {items.map(b => <BusinessRow key={b.id} b={b} onAction={retry} neighborhoods={neighborhoods} />)}
         </div>
       )}
     </div>

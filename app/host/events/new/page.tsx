@@ -6,7 +6,8 @@ import { toast } from 'sonner'
 import ImageUpload from '@/components/ImageUpload'
 import RichTextEditor from '@/components/RichTextEditor'
 import VibePicker from '@/components/VibePicker'
-import { ISTANBUL_NEIGHBORHOODS, todayIstanbul } from '@/lib/data'
+import { todayIstanbul } from '@/lib/data'
+import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import { useAuth } from '@/contexts/AuthContext'
 import { EVENT_EMOJIS as EMOJIS } from '@/lib/eventEmojis'
 
@@ -21,6 +22,7 @@ function HostNewEventForm() {
   const searchParams = useSearchParams()
   const neighborhoodParam = searchParams.get('neighborhood') ?? ''
   const { user } = useAuth()
+  const neighborhoods = useCityNeighborhoods()
 
   const [clubs,   setClubs]   = useState<{ id: string; name: string; emoji: string }[]>([])
   const [saving,      setSaving]      = useState(false)
@@ -449,7 +451,7 @@ function HostNewEventForm() {
             className={inputCls}
           >
             <option value="">Select neighborhood…</option>
-            {ISTANBUL_NEIGHBORHOODS.map(n => <option key={n} value={n}>{n}</option>)}
+            {neighborhoods.map(n => <option key={n} value={n}>{n}</option>)}
           </select>
         </div>
 

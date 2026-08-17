@@ -5,7 +5,7 @@ import { useState, useEffect, use } from 'react'
 import { confirmToast } from '@/lib/confirmToast'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
+import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import ImageUpload from '@/components/ImageUpload'
 import VibePicker from '@/components/VibePicker'
 import RichTextEditor from '@/components/RichTextEditor'
@@ -30,6 +30,7 @@ const emptyForm = {
 export default function EditEventPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const router  = useRouter()
+  const neighborhoods = useCityNeighborhoods()
 
   const [form,          setForm]          = useState(emptyForm)
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
@@ -599,7 +600,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
             <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Neighborhood</label>
             <select value={form.neighborhood} onChange={e => set('neighborhood', e.target.value)} className={inputCls}>
               <option value="">Select neighborhood…</option>
-              {ISTANBUL_NEIGHBORHOODS.map(n => <option key={n} value={n}>{n}</option>)}
+              {neighborhoods.map(n => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
           <div className="col-span-full">

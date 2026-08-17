@@ -4,7 +4,8 @@ import { useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { ISTANBUL_NEIGHBORHOODS, resolveImageUrl } from '@/lib/data'
+import { resolveImageUrl } from '@/lib/data'
+import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import { BUSINESS_CATEGORIES, DIRECTORY_LIMITS } from '@/lib/directory-constants'
 import { downscaleImage } from '@/lib/image-resize'
 
@@ -56,6 +57,7 @@ function MembersOnlyPitch() {
 export default function SubmitBusinessPage() {
   const router = useRouter()
   const { isLoggedIn, isLoading } = useAuth()
+  const neighborhoods = useCityNeighborhoods()
   const [form, setForm] = useState(EMPTY_FORM)
   const [submitting, setSubmitting] = useState(false)
   const [done,       setDone]       = useState(false)
@@ -234,7 +236,7 @@ export default function SubmitBusinessPage() {
             <label className={labelCls}>Neighborhood</label>
             <select value={form.neighborhood} onChange={e => set('neighborhood', e.target.value)} className={inputCls}>
               <option value="">Select…</option>
-              {ISTANBUL_NEIGHBORHOODS.map(n => <option key={n} value={n}>{n}</option>)}
+              {neighborhoods.map(n => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
           <div>

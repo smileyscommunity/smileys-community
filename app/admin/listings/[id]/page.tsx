@@ -6,7 +6,7 @@ import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { resolveImageUrl } from '@/lib/data'
-import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
+import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import { isValidContactEmail } from '@/lib/contactEmail'
 import ImageUpload from '@/components/ImageUpload'
 
@@ -72,6 +72,7 @@ function Avatar({ name, color, photo }: { name: string; color: string; photo: st
 export default function AdminListingDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
+  const neighborhoods = useCityNeighborhoods()
   const [listing, setListing] = useState<Listing | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving]   = useState(false)
@@ -266,7 +267,7 @@ export default function AdminListingDetailPage() {
               className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
             >
               <option value="">— None —</option>
-              {ISTANBUL_NEIGHBORHOODS.map(n => <option key={n} value={n}>{n}</option>)}
+              {neighborhoods.map(n => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
         </div>

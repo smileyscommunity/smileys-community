@@ -7,7 +7,7 @@ import Turnstile from '@/components/Turnstile'
 import { z } from 'zod'
 import { resolveImageUrl, avatarUrl } from '@/lib/data'
 import { COUNTRIES } from '@/lib/countries'
-import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
+import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import FingerprintJS from '@fingerprintjs/fingerprintjs'
 import posthog from 'posthog-js'
 import { downscaleImage, ImageUploadError } from '@/lib/image-resize'
@@ -109,6 +109,11 @@ function ApplyForm() {
   // is usable while the fetch is in flight.
   const [cities,         setCities]         = useState<{ slug: string; name: string; status: string }[]>([{ slug: 'istanbul', name: 'Istanbul', status: 'live' }])
   const [targetCitySlug, setTargetCitySlug] = useState('istanbul')
+
+  // The neighborhood options belong to the city being applied TO, not to
+  // whatever city the browser is resolved into — someone applying to İzmir
+  // from an Istanbul-pinned session must pick from İzmir's list.
+  const neighborhoods = useCityNeighborhoods(targetCitySlug)
 
   useEffect(() => {
     FingerprintJS.load().then(fp => fp.get()).then(result => setFingerprint(result.visitorId)).catch(() => {})
@@ -229,6 +234,16 @@ function ApplyForm() {
       }))
     } catch {}
   }, [draftHydrated, form, interests, socialStyles, languages, step])
+
+  // Switching the target city invalidates a neighborhood picked from the
+  // previous city's list. Clear it only once the new list has actually loaded
+  // and the pick is genuinely absent from it — checking membership rather than
+  // "the slug changed" keeps a restored draft's valid pick intact when the
+  // ?city= resolution lands on the city that draft was already for.
+  useEffect(() => {
+    if (neighborhoods.length === 0) return
+    setForm(f => (f.neighborhood && !neighborhoods.includes(f.neighborhood) ? { ...f, neighborhood: '' } : f))
+  }, [neighborhoods])
 
   function set(key: string, value: string) {
     setForm(f => ({ ...f, [key]: value }))
@@ -567,7 +582,7 @@ function ApplyForm() {
                 onChange={e => { set('neighborhood', e.target.value); validateField('neighborhood', e.target.value) }}
                 className={fieldCls(fieldErrors.neighborhood)}>
                 <option value="">Select your neighborhood…</option>
-                {ISTANBUL_NEIGHBORHOODS.map(n => (
+                {neighborhoods.map(n => (
                   <option key={n} value={n}>{n}</option>
                 ))}
               </select>

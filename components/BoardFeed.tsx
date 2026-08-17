@@ -7,7 +7,8 @@ import { toast } from 'sonner'
 import posthog from 'posthog-js'
 import { useAuth } from '@/contexts/AuthContext'
 import AvatarImg from '@/components/AvatarImg'
-import { avatarUrl, ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
+import { avatarUrl } from '@/lib/data'
+import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import { BOARD_POST_TYPES, QUESTION_TAGS, TAG_LABEL, type BoardPostType } from '@/lib/board'
 
 interface PostUser { id: string; name: string; color: string; profilePhoto: string | null }
@@ -103,6 +104,7 @@ function VisitorsModule({ visitors }: { visitors: Visitor[] }) {
 // ── Composer ────────────────────────────────────────────────────────────────
 function Composer({ onPosted, prefillNeighborhood }: { onPosted: () => void; prefillNeighborhood?: string | null }) {
   const { user, isLoggedIn } = useAuth()
+  const neighborhoods = useCityNeighborhoods()
   const [open,         setOpen]         = useState(false)
   // "Post to a club" (Clubs brief §30) — joined clubs, fetched lazily on
   // first open; the post stays canonical here and also surfaces in the club.
@@ -246,7 +248,7 @@ function Composer({ onPosted, prefillNeighborhood }: { onPosted: () => void; pre
             <select value={neighborhood} onChange={e => setNeighborhood(e.target.value)}
               className="border border-gray-200 rounded-xl px-3 py-2 text-xs bg-white focus:outline-none">
               <option value="">📍 No neighborhood</option>
-              {ISTANBUL_NEIGHBORHOODS.map(n => <option key={n} value={n}>{n}</option>)}
+              {neighborhoods.map(n => <option key={n} value={n}>{n}</option>)}
             </select>
             {myClubs.length > 0 && (
               <select value={postClub} onChange={e => setPostClub(e.target.value)}

@@ -4,7 +4,8 @@ import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from 'sonner'
-import { resolveImageUrl, ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
+import { resolveImageUrl } from '@/lib/data'
+import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import { COUNTRIES } from '@/lib/countries'
 import { SkeletonList } from '@/components/Skeleton'
 import { downscaleImage } from '@/lib/image-resize'
@@ -129,6 +130,7 @@ function TagPicker({ options, selected, onChange, max }: {
 
 export default function ProfilePage() {
   const { user, setUser, logout } = useAuth()
+  const neighborhoods = useCityNeighborhoods()
 
   const [loading,  setLoading]  = useState(true)
   const [saving,   setSaving]   = useState(false)
@@ -359,7 +361,7 @@ export default function ProfilePage() {
                   <label className="block text-xs font-semibold text-gray-600 mb-1.5">Neighborhood</label>
                   <select value={form.neighborhood} onChange={e => set('neighborhood', e.target.value)} className={inputCls}>
                     <option value="">Select…</option>
-                    {ISTANBUL_NEIGHBORHOODS.map(n => <option key={n} value={n}>{n}</option>)}
+                    {neighborhoods.map(n => <option key={n} value={n}>{n}</option>)}
                   </select>
                 </div>
                 <div>

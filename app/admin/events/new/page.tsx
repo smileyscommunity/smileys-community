@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
+import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import ImageUpload from '@/components/ImageUpload'
 import VibePicker from '@/components/VibePicker'
 import { useAdminMemberSearch } from '@/hooks/useAdminMemberSearch'
@@ -14,6 +14,7 @@ const inputCls = 'bg-zinc-800 border border-zinc-700 text-white placeholder-zinc
 
 export default function NewEventPage() {
   const router = useRouter()
+  const neighborhoods = useCityNeighborhoods()
   const [clubs, setClubs] = useState<{ id: string; name: string; emoji: string }[]>([])
   const [hosts,      setHosts]      = useState<{ id: string; name: string }[]>([])
   const [hostSearch, setHostSearch] = useState('')
@@ -410,7 +411,7 @@ export default function NewEventPage() {
             <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Neighborhood *</label>
             <select value={form.neighborhood} onChange={e => set('neighborhood', e.target.value)} className={inputCls}>
               <option value="">Select neighborhood…</option>
-              {ISTANBUL_NEIGHBORHOODS.map(n => <option key={n} value={n}>{n}</option>)}
+              {neighborhoods.map(n => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
           <div className="col-span-2">

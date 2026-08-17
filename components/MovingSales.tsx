@@ -6,7 +6,8 @@ import posthog from 'posthog-js'
 import { toast } from 'sonner'
 import { useAuth } from '@/contexts/AuthContext'
 import AvatarImg from '@/components/AvatarImg'
-import { avatarUrl, ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
+import { avatarUrl } from '@/lib/data'
+import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import { downscaleImage } from '@/lib/image-resize'
 
 interface SaleItem { id: string; name: string; price: string | null; claimed: boolean }
@@ -40,6 +41,7 @@ async function copyShare(id: string): Promise<boolean> {
 // is selected.
 export default function MovingSales() {
   const { user, isLoggedIn } = useAuth()
+  const neighborhoods = useCityNeighborhoods()
   const [sales,   setSales]   = useState<Sale[] | null>(null)
   const [showForm, setShowForm] = useState(false)
 
@@ -188,7 +190,7 @@ export default function MovingSales() {
               <span className="block text-sm font-semibold text-gray-700 mb-1.5">Neighborhood</span>
               <select value={neighborhood} onChange={e => setNeighborhood(e.target.value)} className="input bg-white">
                 <option value="">— Optional —</option>
-                {ISTANBUL_NEIGHBORHOODS.map(n => <option key={n} value={n}>{n}</option>)}
+                {neighborhoods.map(n => <option key={n} value={n}>{n}</option>)}
               </select>
             </label>
           </div>

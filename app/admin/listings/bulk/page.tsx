@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
+import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 
 // Bulk-add tool for seeding the marketplace. The user (admin) pastes 10-20 listings
 // in a labelled-block format, previews the parsed result, then creates them in one
@@ -81,6 +81,13 @@ function parse(raw: string): ParsedItem[] {
 
 export default function BulkAddListingsPage() {
   const router = useRouter()
+  // The admin's own resolved city. Attribution is a raw user-ID field, so this
+  // page can't know the attributed member's city without a lookup — and the
+  // API validates the neighborhood against THAT member's city (bulk/route.ts),
+  // nulling it on a mismatch. So bulk-posting for a member in another city
+  // still drops the neighborhood; the list is at least no longer Istanbul's
+  // for an admin working elsewhere.
+  const neighborhoods = useCityNeighborhoods()
   const [category, setCategory]               = useState('ROOMS')
   const [attributedUserId, setAttributedUserId] = useState('')
   const [defaultNeighborhood, setDefaultNeighborhood] = useState('')
@@ -152,7 +159,7 @@ export default function BulkAddListingsPage() {
             <select value={defaultNeighborhood} onChange={e => setDefaultNeighborhood(e.target.value)}
               className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm">
               <option value="">— none —</option>
-              {ISTANBUL_NEIGHBORHOODS.map(n => <option key={n} value={n}>{n}</option>)}
+              {neighborhoods.map(n => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
           <div>
