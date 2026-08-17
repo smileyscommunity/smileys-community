@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
       userId: session.id, cityId: await resolveCityId(session), leavingOn, neighborhood: safeNeighborhood, note: safeNote, photo: safePhoto,
       items: { create: safeItems },
     },
-    select: { id: true },
+    select: { id: true, cityId: true },
   })
 
   // Fire alert emails + push in background — same pattern as the Listing
@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
   const title = `Moving sale: ${safeItems.length} item${safeItems.length !== 1 ? 's' : ''}${safeNeighborhood ? ` in ${safeNeighborhood}` : ''}`
   const description = safeNote || safeItems.map(it => it.name).join(', ')
   prisma.user.findMany({
-    where: { listingAlerts: { has: 'MOVING' }, id: { not: session.id } },
+    where: { listingAlerts: { has: 'MOVING' }, id: { not: session.id }, cityId: sale.cityId },
     select: { id: true, email: true, name: true },
   }).then(alertees => {
     for (const u of alertees) {

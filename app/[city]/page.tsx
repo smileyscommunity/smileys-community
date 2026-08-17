@@ -12,7 +12,7 @@ import EventTabs from '@/components/EventTabs'
 import JoinCityButton from '@/components/JoinCityButton'
 import ClubCard from '@/components/ClubCard'
 import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
-import { resolveImageUrl, istanbulEventWindow } from '@/lib/data'
+import { resolveImageUrl, istanbulEventWindow, formatShortDate } from '@/lib/data'
 import { getPublicCity, DEFAULT_CITY_SLUG } from '@/lib/cities'
 import { CITY_STATUS } from '@/lib/cityStatus'
 import { APP_URL } from '@/lib/env'
@@ -151,6 +151,26 @@ export default async function CityPage({ params }: Params) {
   // projection as GET /api/events.
   const session = await getSession()
   const events = session ? cachedEvents : cachedEvents.map(redactEventForGuest)
+
+  // ── Visitors (phase 4: the cross-city loop's read side) ────────────────
+  // Per-request like the redaction above: members see members-only visits,
+  // guests only the public ones — a session-dependent set must never enter
+  // the shared cache. Contact and email are never selected at all, so the
+  // guest tier is safe by construction, not by stripping.
+  const visitorsToday = todayInTz(DEFAULT_TZ)
+  const visitorWhere = {
+    cityId: city.id, status: 'active', endsOn: { gte: visitorsToday },
+    ...(session ? {} : { visibility: 'public' }),
+  }
+  const [visitors, visitorTotal] = await Promise.all([
+    prisma.visitorAnnouncement.findMany({
+      where:   visitorWhere,
+      orderBy: { startsOn: 'asc' },
+      take:    4,
+      select:  { id: true, name: true, fromCity: true, startsOn: true, endsOn: true },
+    }),
+    prisma.visitorAnnouncement.count({ where: visitorWhere }),
+  ])
 
   // Emoji and slug come from THIS city's registry, not Istanbul's constant —
   // an İzmir district would otherwise render Istanbul's pin and link to a slug
@@ -347,6 +367,46 @@ export default async function CityPage({ params }: Params) {
           </div>
         </section>
       )}
+
+      {/* Visitors — who's coming to town, and the door to announcing your
+          own trip. Renders even when empty for LIVE cities: the empty state
+          IS the invitation, and the announce CTA is how the first visitor
+          card ever appears. */}
+      <section className="py-14 sm:py-20 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mb-8">
+            <h2 className="section-title">Visiting {city.name}?</h2>
+            <p className="section-subtitle max-w-2xl">
+              {visitorTotal > 0
+                ? `${visitorTotal} traveler${visitorTotal === 1 ? ' is' : 's are'} announcing a trip right now — announce yours and arrive with plans.`
+                : 'Announce your trip and the community knows you\u2019re coming before you land.'}
+            </p>
+          </div>
+          {visitors.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+              {visitors.map(v => (
+                <div key={v.id} className="card p-5">
+                  <p className="font-bold text-gray-900 truncate">{v.name.split(' ')[0]}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{v.fromCity ? `from ${v.fromCity}` : 'traveling'}</p>
+                  <p className="text-xs font-semibold text-amber-600 mt-2">
+                    {formatShortDate(v.startsOn)} – {formatShortDate(v.endsOn)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex items-center gap-4 flex-wrap">
+            <Link href={`/visiting/new?city=${city.slug}`} className="btn-primary px-6 py-3">
+              Announce your visit
+            </Link>
+            {city.slug === DEFAULT_CITY_SLUG && (
+              <Link href="/visiting" className="text-sm font-bold text-amber-600 hover:underline">
+                See all visitors →
+              </Link>
+            )}
+          </div>
+        </div>
+      </section>
 
       {/* Guide — default city only: /guide is that city's guide, and
           promising "the İzmir guide" over Istanbul content breaks trust on

@@ -191,7 +191,9 @@ export async function POST(req: NextRequest) {
   // alerts to dozens of subscribed members.
   const categoryLabel = CAT_LABELS[category] ?? category
   prisma.user.findMany({
-    where: { listingAlerts: { has: category }, id: { not: session.id } },
+    // Same city as the listing — an Izmir room must not email Istanbul's
+    // subscribers. The alert promise is "listings in MY city".
+    where: { listingAlerts: { has: category }, id: { not: session.id }, cityId: listing.cityId },
     select: { id: true, email: true, name: true },
   }).then(alertees => {
     for (const u of alertees) {

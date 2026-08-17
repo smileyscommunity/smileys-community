@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from 'sonner'
@@ -16,6 +17,10 @@ export default function NewVisitingPage() {
   // apply form) — Istanbul-only stays a one-city form.
   const [cities,        setCities]        = useState<PublicCity[]>([])
   const [destination,   setDestination]   = useState('istanbul')
+  // ?city=<slug> preselects the destination — the /[city] pages' "Announce
+  // your visit" arrives here. Applied only once the live-city list confirms
+  // the slug, so a junk param can't select an unpostable destination.
+  const requestedCity = useSearchParams().get('city')
   const [neighborhoods, setNeighborhoods] = useState<string[]>([])
 
   const [name,         setName]         = useState('')
@@ -50,7 +55,11 @@ export default function NewVisitingPage() {
     // city the picker simply never renders.
     fetch('/app/api/cities')
       .then(r => r.json())
-      .then((rows: PublicCity[]) => setCities(rows.filter(c => c.status === 'live')))
+      .then((rows: PublicCity[]) => {
+        const live = rows.filter(c => c.status === 'live')
+        setCities(live)
+        if (requestedCity && live.some(c => c.slug === requestedCity)) setDestination(requestedCity)
+      })
       .catch(() => {})
   }, [])
 
