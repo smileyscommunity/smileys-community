@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { resolveImageUrl, avatarUrl } from '@/lib/data'
 import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
 import posthog from 'posthog-js'
 import { toast } from 'sonner'
 import { SkeletonCard } from '@/components/Skeleton'
@@ -659,6 +660,11 @@ function ListingCard({ listing, onClick, isLoggedIn, isSaved, onToggleSave }: {
 function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
   const { user, isLoggedIn } = useAuth()
   const neighborhoods = useCityNeighborhoods()
+  // Empty until /api/city/current answers. The headings below fall back to
+  // city-neutral copy for that window rather than to the default city's name —
+  // this whole change exists because a Bodrum member was told they were
+  // reading Istanbul's board, and a flash of it would be the same lie briefly.
+  const cityName = useCurrentCity()?.name ?? ''
   const currentUserId = isLoggedIn ? user.id : null
   const isStaff = isLoggedIn && (user.role === 'admin' || user.role === 'moderator')
   const searchParams = useSearchParams()
@@ -950,10 +956,10 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
           <div className="flex items-start justify-between gap-4 mb-6">
             <div>
               <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-3 py-1.5 mb-4">
-                {view === 'community' ? '💬 Istanbul Board' : '🛍️ Smileys Marketplace'}
+                {view === 'community' ? (cityName ? `💬 ${cityName} Board` : '💬 Community Board') : '🛍️ Smileys Marketplace'}
               </span>
               <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">
-                {view === 'community' ? "What's happening, Istanbul?" : 'Find it. Offer it. Pass it on.'}
+                {view === 'community' ? (cityName ? `What's happening, ${cityName}?` : "What's happening?") : 'Find it. Offer it. Pass it on.'}
               </h1>
               <p className="text-base text-gray-600 mt-1 max-w-xl">
                 {view === 'community'
@@ -969,7 +975,7 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
                 <SocialShare
                   compact
                   context="board"
-                  title="Smileys Community Board — rooms, jobs, services & more in Istanbul"
+                  title={`Smileys Community Board — rooms, jobs, services & more${cityName ? ` in ${cityName}` : ''}`}
                   url={`${APP_URL}/board`}
                   cacheKey="1"
                 />

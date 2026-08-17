@@ -9,6 +9,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import AvatarImg from '@/components/AvatarImg'
 import { avatarUrl } from '@/lib/data'
 import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { BOARD_POST_TYPES, QUESTION_TAGS, TAG_LABEL, type BoardPostType } from '@/lib/board'
 
 interface PostUser { id: string; name: string; color: string; profilePhoto: string | null }
@@ -80,10 +81,13 @@ function HangoutsModule({ hangouts }: { hangouts: FeedHangout[] }) {
 }
 
 function VisitorsModule({ visitors }: { visitors: Visitor[] }) {
+  // Visitors are announced for the city being viewed, so the heading has to
+  // name that city — it read "Coming to Istanbul" on every city's board.
+  const cityName = useCurrentCity()?.name ?? ''
   if (visitors.length === 0) return null
   return (
     <div className="bg-sky-50 border border-sky-100 rounded-2xl p-5">
-      <p className="text-xs font-bold uppercase tracking-wide text-sky-700 mb-3">✈️ Coming to Istanbul</p>
+      <p className="text-xs font-bold uppercase tracking-wide text-sky-700 mb-3">✈️ Coming{cityName ? ` to ${cityName}` : ''}</p>
       <div className="space-y-2">
         {visitors.map(v => (
           <p key={v.id} className="text-sm text-gray-700">
