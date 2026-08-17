@@ -61,6 +61,10 @@ export interface PublicCity {
   tagline:     string | null
   description: string | null
   heroImage:   string | null
+  // The city's own IANA zone. Required on the model, so never null — any
+  // "is this today" comparison on a city page must use THIS, not DEFAULT_TZ,
+  // or a city hours from Istanbul gets its day boundary from Istanbul's clock.
+  timezone:    string
   // Null for anything not live. See the note at the top: a pre-launch city
   // showing zeros reads as a dead community rather than a future one.
   stats:       CityStats | null

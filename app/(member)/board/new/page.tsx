@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
@@ -19,7 +19,18 @@ const CATEGORIES = [
 // listings at retirement): recommendations and lost&found now live as
 // Board posts. Legacy listings in those categories still render.
 
+// Suspense wrapper is required by Next 15 when useSearchParams is read from a
+// client component — without it the static-paths optimizer bails out on the
+// whole page tree at build time. Same wrapper as /directory and /clubs.
 export default function NewListingPage() {
+  return (
+    <Suspense fallback={null}>
+      <NewListingPageInner />
+    </Suspense>
+  )
+}
+
+function NewListingPageInner() {
   const router = useRouter()
   // Posting is members-only — anonymous visitors get bounced to login. The page
   // itself lives outside the (member) route group so the rest of /board/* can

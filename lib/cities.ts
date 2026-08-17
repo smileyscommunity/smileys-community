@@ -41,7 +41,7 @@ export async function getPublicCities(): Promise<PublicCity[]> {
     where:  { status: { in: PUBLIC_STATUSES } },
     select: {
       id: true, slug: true, name: true, country: true, status: true,
-      tagline: true, description: true, heroImage: true,
+      tagline: true, description: true, heroImage: true, timezone: true,
     },
   })
 
@@ -66,7 +66,7 @@ export async function getPublicCity(slug: string): Promise<PublicCity | null> {
     where:  { slug, status: { in: PUBLIC_STATUSES } },
     select: {
       id: true, slug: true, name: true, country: true, status: true,
-      tagline: true, description: true, heroImage: true,
+      tagline: true, description: true, heroImage: true, timezone: true,
     },
   })
   if (!city) return null

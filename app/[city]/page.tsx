@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
-import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
+import { todayInTz } from '@/lib/cityTime'
 import { getSession } from '@/lib/session'
 import { getEvents, getClubs, redactEventForGuest } from '@/lib/db'
 import CityPageTracker from '@/components/CityPageTracker'
@@ -63,8 +63,11 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 }
 
 const getCityPageData = unstable_cache(
-  async (cityId: string) => {
-    const today        = todayInTz(DEFAULT_TZ)
+  // `tz` is the city's own zone, passed in rather than defaulted: it is part of
+  // the cache key (unstable_cache hashes the args), so two cities in different
+  // zones can't share a "today".
+  async (cityId: string, tz: string) => {
+    const today        = todayInTz(tz)
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
 
     const [{ events }, clubs, neighborhoodCounts, testimonials, newMembersThisWeek] = await Promise.all([
@@ -144,7 +147,7 @@ export default async function CityPage({ params }: Params) {
     )
   }
 
-  const { events: cachedEvents, clubs, neighborhoodCounts, testimonials, newMembersThisWeek } = await getCityPageData(city.id)
+  const { events: cachedEvents, clubs, neighborhoodCounts, testimonials, newMembersThisWeek } = await getCityPageData(city.id, city.timezone)
 
   // Guest redaction happens per-request, OUTSIDE the shared cache entry —
   // a session-dependent branch must never write into unstable_cache. Same
@@ -157,7 +160,9 @@ export default async function CityPage({ params }: Params) {
   // guests only the public ones — a session-dependent set must never enter
   // the shared cache. Contact and email are never selected at all, so the
   // guest tier is safe by construction, not by stripping.
-  const visitorsToday = todayInTz(DEFAULT_TZ)
+  // This city's clock, not Istanbul's — a visit whose last day is "today" here
+  // must not drop out (or linger) because Istanbul already rolled over.
+  const visitorsToday = todayInTz(city.timezone)
   const visitorWhere = {
     cityId: city.id, status: 'active', endsOn: { gte: visitorsToday },
     ...(session ? {} : { visibility: 'public' }),
@@ -377,9 +382,15 @@ export default async function CityPage({ params }: Params) {
           <div className="mb-8">
             <h2 className="section-title">Visiting {city.name}?</h2>
             <p className="section-subtitle max-w-2xl">
-              {visitorTotal > 0
-                ? `${visitorTotal} traveler${visitorTotal === 1 ? ' is' : 's are'} announcing a trip right now — announce yours and arrive with plans.`
-                : 'Announce your trip and the community knows you\u2019re coming before you land.'}
+              {/* Only four cards render, and "See all visitors" exists for the
+                  default city alone (/visiting is hard-scoped to it). A bare
+                  total would advertise travelers a second city's reader has no
+                  way to reach, so say "4 of 12" in that case instead. */}
+              {visitorTotal === 0
+                ? 'Announce your trip and the community knows you\u2019re coming before you land.'
+                : isDefaultCity || visitorTotal <= visitors.length
+                  ? `${visitorTotal} traveler${visitorTotal === 1 ? ' is' : 's are'} announcing a trip right now \u2014 announce yours and arrive with plans.`
+                  : `${visitors.length} of ${visitorTotal} travelers announcing a trip right now \u2014 announce yours and arrive with plans.`}
             </p>
           </div>
           {visitors.length > 0 && (

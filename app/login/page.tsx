@@ -30,7 +30,12 @@ const FROM_LABELS: [string, string][] = [
 
 function fromMessage(from: string | null): string | null {
   if (!from) return null
-  const label = FROM_LABELS.find(([prefix]) => from === prefix || from.startsWith(prefix + '/'))?.[1] ?? 'That page'
+  // Match on the path alone: `from` now carries the query string too (so the
+  // post-login return can keep ?city=), and a prefix match against
+  // "/visiting/new?city=izmir" would miss and degrade every deep link to the
+  // generic "That page".
+  const path = from.split('?')[0]
+  const label = FROM_LABELS.find(([prefix]) => path === prefix || path.startsWith(prefix + '/'))?.[1] ?? 'That page'
   return `${label} is for members only — sign in to continue, or apply to join.`
 }
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
@@ -9,7 +9,18 @@ import { VISITOR_TRAVELER_TYPES, VISITOR_LOOKING_FOR, VISITOR_VISIBILITY } from 
 
 type PublicCity = { slug: string; name: string; status: string }
 
+// Suspense wrapper is required by Next 15 when useSearchParams is read from a
+// client component — without it the static-paths optimizer bails out on the
+// whole page tree at build time. Same wrapper as /directory and /clubs.
 export default function NewVisitingPage() {
+  return (
+    <Suspense fallback={null}>
+      <NewVisitingPageInner />
+    </Suspense>
+  )
+}
+
+function NewVisitingPageInner() {
   const { user } = useAuth()
 
   // Destination: which Smileys city this visit is TO. The picker only
