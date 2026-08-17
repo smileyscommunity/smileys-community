@@ -93,7 +93,7 @@ export async function GET(req: NextRequest) {
     // EM3 fix: log SMTP failures so a silent outage doesn't make
     // every listing-expiry reminder vanish without trace. Cron
     // is automated — there's no admin in the loop to notice.
-    sendListingExpiryEmail(listing.user.email, listing.user.name, listing.title, daysLeft)
+    sendListingExpiryEmail(listing.user.email, listing.user.name, listing.title, daysLeft, listing.id)
       .catch(async err => {
         console.error('[cron reminders] sendListingExpiryEmail failed', { listingId: listing.id, userId: listing.userId, err: String(err) })
         await recordEmailFailure({ helper: 'sendListingExpiryEmail', recipient: listing.user.email, error: err, context: { listingId: listing.id, userId: listing.userId } })

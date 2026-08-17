@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { ISTANBUL_NEIGHBORHOODS } from '@/lib/data'
 import { downscaleImage } from '@/lib/image-resize'
@@ -30,19 +30,24 @@ export default function NewListingPage() {
     if (!isLoading && !isLoggedIn) router.replace('/login?next=/board/new')
   }, [isLoading, isLoggedIn, router])
 
-  const [category, setCategory]     = useState('')
+  // Prefill from query params — the moving-sale → rooms bridge arrives as
+  // /board/new?category=ROOMS&neighborhood=…&availableFrom=…. Categories
+  // validate against the picker's own ids; junk params fall back to blank.
+  const search = useSearchParams()
+  const paramCategory = search.get('category') ?? ''
+  const [category, setCategory]     = useState(CATEGORIES.some(c => c.id === paramCategory) ? paramCategory : '')
   const [title, setTitle]           = useState('')
   const [description, setDesc]      = useState('')
   const [price, setPrice]           = useState('')
   const [contact, setContact]       = useState('')
   const [contactEmail, setContactEmail] = useState('')
-  const [neighborhood, setNeighborhood] = useState('')
+  const [neighborhood, setNeighborhood] = useState(search.get('neighborhood') ?? '')
   const [photo, setPhoto]           = useState('')
   const [photos, setPhotos]         = useState<string[]>([])   // gallery beyond the cover, max 4
   // Category-specific attributes (§9-12) — the API allowlists per category,
   // so anything inapplicable is dropped server-side.
   const [housingType,   setHousingType]   = useState('')
-  const [availableFrom, setAvailableFrom] = useState('')
+  const [availableFrom, setAvailableFrom] = useState(/^\d{4}-\d{2}-\d{2}$/.test(search.get('availableFrom') ?? '') ? search.get('availableFrom')! : '')
   const [furnished,     setFurnished]     = useState<boolean | null>(null)
   const [jobType,       setJobType]       = useState('')
   const [remote,        setRemote]        = useState('')

@@ -1264,6 +1264,25 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
                 ? 'Be the first to post something for the community'
                 : `Switch to All to see everything, or post a ${activeCat?.label.toLowerCase()} listing`}
             </p>
+            {/* Demand capture (phase 3): an empty category is the moment a
+                member most wants an alert — one tap here is what guarantees
+                the FIRST poster in this category an audience within hours. */}
+            {category !== 'SAVED' && category !== 'ALL' && !debouncedSearch && isLoggedIn && (
+              <div className="mb-6">
+                {alertCategories.includes(category) ? (
+                  <p className="text-sm font-semibold text-emerald-600">
+                    ✓ You&apos;ll get an email the moment a {activeCat?.label.toLowerCase()} listing is posted
+                  </p>
+                ) : (
+                  <button
+                    onClick={() => toggleAlert(category)}
+                    className="inline-flex items-center gap-2 bg-white border border-amber-300 text-amber-700 text-sm font-bold px-6 py-3 rounded-xl hover:bg-amber-50 transition-colors"
+                  >
+                    🔔 Email me the moment one is posted
+                  </button>
+                )}
+              </div>
+            )}
             {category !== 'SAVED' && !debouncedSearch && (
               <div className="flex items-center justify-center gap-3 flex-wrap">
                 <Link

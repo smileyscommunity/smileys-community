@@ -676,8 +676,11 @@ export async function sendAccountLockedEmail(email: string, name: string) {
   })
 }
 
-export async function sendListingExpiryEmail(email: string, name: string, listingTitle: string, daysLeft: number) {
-  const url       = `${APP_URL}/board`
+export async function sendListingExpiryEmail(email: string, name: string, listingTitle: string, daysLeft: number, listingId?: string) {
+  // With an id, the CTA lands on the one-click renew/close page; without
+  // (older callers), the board. Renewal died at the generic link — all four
+  // room listings ever posted lapsed unrenewed.
+  const url       = listingId ? `${APP_URL}/board/renew/${listingId}` : `${APP_URL}/board`
   const firstName = name.split(' ')[0]
   await getResend().emails.send({
     from: FROM, to: email,

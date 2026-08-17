@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
 import posthog from 'posthog-js'
 import { toast } from 'sonner'
 import { useAuth } from '@/contexts/AuthContext'
@@ -42,6 +43,8 @@ export default function MovingSales() {
   const [sales,   setSales]   = useState<Sale[] | null>(null)
   const [showForm, setShowForm] = useState(false)
 
+  // Post-create rooms bridge — set once after a successful sale post.
+  const [roomBridge, setRoomBridge] = useState<{ neighborhood: string; leavingOn: string } | null>(null)
   // create form
   const [leavingOn,    setLeavingOn]    = useState('')
   const [neighborhood, setNeighborhood] = useState('')
@@ -98,6 +101,10 @@ export default function MovingSales() {
       if (!res.ok) { toast.error(data.error ?? 'Could not post'); return }
       posthog.capture('moving_sale_created', { items: items.filter(i => i.name.trim()).length })
       toast.success('Moving sale posted')
+      // Rooms bridge (phase 3): someone selling their stuff before leaving
+      // very likely has a room opening up — the single highest-value listing
+      // this community can have. Capture the moment, prefilled.
+      setRoomBridge({ neighborhood, leavingOn })
       setShowForm(false); setLeavingOn(''); setNeighborhood(''); setNote(''); setItems([{ name: '', price: '' }]); setPhoto('')
       load()
     } finally { setPosting(false) }
@@ -134,6 +141,25 @@ export default function MovingSales() {
 
   return (
     <div className="space-y-5">
+      {roomBridge && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <p className="font-bold text-gray-900">Is your place opening up too? 🏠</p>
+            <p className="text-sm text-gray-700 mt-0.5">A room listing is the most valuable thing you can leave the community.</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Link
+              href={`/board/new?category=ROOMS${roomBridge.neighborhood ? `&neighborhood=${encodeURIComponent(roomBridge.neighborhood)}` : ''}${roomBridge.leavingOn ? `&availableFrom=${encodeURIComponent(roomBridge.leavingOn)}` : ''}`}
+              className="bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold px-5 py-2.5 rounded-xl transition-colors"
+            >
+              List the room
+            </Link>
+            <button onClick={() => setRoomBridge(null)} className="text-sm text-gray-500 hover:text-gray-700 font-semibold">
+              Not this time
+            </button>
+          </div>
+        </div>
+      )}
       {/* Pitch + CTA */}
       <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm flex items-center justify-between gap-4 flex-wrap">
         <div>
