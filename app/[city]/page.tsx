@@ -186,10 +186,19 @@ export default async function CityPage({ params }: Params) {
   // that resolves to nothing. A count for a neighborhood that's since been
   // deactivated has no row to render, so it drops out.
   const registry = await getNeighborhoodViews(city.id)
-  const topNeighborhoods = neighborhoodCounts.flatMap(c => {
+  const byEvents = neighborhoodCounts.flatMap(c => {
     const row = registry.find(n => n.name === c.neighborhood)
-    return row ? [{ name: row.name, slug: row.slug, emoji: row.emoji, eventCount: c._count._all }] : []
+    return row ? [{ name: row.name, slug: row.slug, emoji: row.emoji, eventCount: c._count._all, vibe: row.vibe }] : []
   })
+  // A young city has neighborhoods before it has events, and deriving this
+  // section purely from event counts hid it entirely: Bodrum launched with 8
+  // neighborhoods, 0 upcoming events, and therefore no way to browse them from
+  // its own page. Fall back to the city's registry so the areas are still
+  // discoverable — the cards drop the count rather than advertise "0 events".
+  const topNeighborhoods = byEvents.length > 0
+    ? byEvents
+    : registry.slice(0, 6).map(n => ({ name: n.name, slug: n.slug, emoji: n.emoji, eventCount: 0, vibe: n.vibe }))
+  const neighborhoodsHaveEvents = byEvents.length > 0
 
   // Prospect-facing surface: cancelled events break trust in a showcase slot,
   // and sold-out ones sink below the joinable ones.
@@ -359,7 +368,14 @@ export default async function CityPage({ params }: Params) {
             <div className="flex items-end justify-between mb-8">
               <div>
                 <h2 className="section-title">Explore by neighborhood</h2>
-                <p className="section-subtitle">Events happening all across {city.name}, every week.</p>
+                {/* Don't promise weekly events to a city that has none yet —
+                    the same section serves both, so the subtitle follows the
+                    data rather than the ambition. */}
+                <p className="section-subtitle">
+                  {neighborhoodsHaveEvents
+                    ? `Events happening all across ${city.name}, every week.`
+                    : `The areas Smileys covers in ${city.name} — see who's around and what's starting.`}
+                </p>
               </div>
               <a href={enter('neighborhoods')} className="hidden md:flex btn-ghost text-sm items-center gap-1">All neighborhoods →</a>
             </div>
@@ -369,7 +385,15 @@ export default async function CityPage({ params }: Params) {
                   className="group flex flex-col items-center text-center gap-2 bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-amber-200 hover:-translate-y-0.5 transition-all duration-200">
                   <span className="text-3xl">{n.emoji}</span>
                   <span className="font-semibold text-sm text-gray-900 group-hover:text-amber-600 transition-colors leading-tight">{n.name}</span>
-                  <span className="text-xs text-amber-600 font-semibold">{n.eventCount} event{n.eventCount !== 1 ? 's' : ''}</span>
+                  {/* Event count where there are events; the neighborhood's own
+                      vibe line otherwise. "0 events" on every card reads as a
+                      dead city, and a city this young is the one that can least
+                      afford that first impression. */}
+                  {n.eventCount > 0
+                    ? <span className="text-xs text-amber-600 font-semibold">{n.eventCount} event{n.eventCount !== 1 ? 's' : ''}</span>
+                    : n.vibe
+                      ? <span className="text-xs text-gray-600 leading-snug">{n.vibe}</span>
+                      : null}
                 </a>
               ))}
             </div>
