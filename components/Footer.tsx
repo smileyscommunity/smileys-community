@@ -170,7 +170,7 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
                 // because every Smileys city is currently in Türkiye, so one
                 // handbook serves all of them. A non-Turkish city is what
                 // forces real country scoping.
-                { href: '/handbook',      label: 'The Handbook 📖'    },
+                { href: '/handbook',      label: 'Handbook 📖'        },
                 { href: '/directory',     label: 'Directory 🏢'       },
                 { href: '/hosts',         label: 'Meet the hosts 🎤'  },
                 { href: '/hangouts',      label: 'Hangouts ☕'        },
