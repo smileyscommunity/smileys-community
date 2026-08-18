@@ -113,6 +113,15 @@ export async function POST(req: NextRequest) {
     usedBackupCode,
     remainingBackupCodes,
   })
-  res.cookies.set('smileys_2fa_pending', '', { maxAge: 0, path: '/' })
+  // Same attributes login used to set it (httpOnly/secure/sameSite), or
+  // Safari declines to overwrite the Secure original and the pending-2FA
+  // cookie outlives the verification it was for.
+  res.cookies.set('smileys_2fa_pending', '', {
+    httpOnly: true,
+    secure:   process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge:   0,
+    path:     '/',
+  })
   return res
 }

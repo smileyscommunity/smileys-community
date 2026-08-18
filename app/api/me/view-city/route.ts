@@ -51,6 +51,18 @@ export async function DELETE() {
   if (!session) return NextResponse.json({ error: 'Not signed in' }, { status: 401 })
 
   const res = NextResponse.json({ ok: true })
-  res.cookies.set(VIEW_CITY_COOKIE, '', { path: '/', maxAge: 0 })
+  // Same attributes the POST above sets, with maxAge 0. A browser matches a
+  // cookie by name/domain/path, but Safari in particular will not let a
+  // non-Secure Set-Cookie overwrite a Secure one — and on https every cookie
+  // we set is Secure. Clearing it with a bare { path, maxAge } therefore left
+  // the override in place on iOS: you could switch INTO a city and never get
+  // back out, because "back to my city" is the only path that clears it.
+  res.cookies.set(VIEW_CITY_COOKIE, '', {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure:   process.env.NODE_ENV === 'production',
+    path:     '/',
+    maxAge:   0,
+  })
   return res
 }

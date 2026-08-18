@@ -71,7 +71,17 @@ export async function GET(req: NextRequest) {
 
   const res = new NextResponse(null, { status: 307, headers: { Location: `/app${to}` } })
   if (clear) {
-    res.cookies.set(VIEW_CITY_COOKIE, '', { path: '/', maxAge: 0 })
+    // Mirrors the set below, attribute for attribute. Safari won't let a
+    // non-Secure Set-Cookie overwrite a Secure one, and on https the set is
+    // always Secure — so a bare { path, maxAge: 0 } silently failed to clear
+    // the override on iOS, leaving "back to my city" a no-op.
+    res.cookies.set(VIEW_CITY_COOKIE, '', {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure:   process.env.NODE_ENV === 'production',
+      path:     '/',
+      maxAge:   0,
+    })
   } else if (city) {
     res.cookies.set(VIEW_CITY_COOKIE, city.slug, {
       httpOnly: true,
