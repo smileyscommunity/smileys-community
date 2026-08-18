@@ -597,10 +597,10 @@ export default function BoardFeed() {
     <div className="max-w-2xl">
       <Composer onPosted={() => load(filter, 0, false)} prefillNeighborhood={composeHood} />
 
-      <div className="flex gap-1.5 overflow-x-auto pb-3 scrollbar-hide">
+      <div className="flex flex-wrap gap-1.5 pb-3">
         {FEED_CHIPS.map(c => (
           <button key={c.id} onClick={() => setFilter(c.id)}
-            className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold border whitespace-nowrap transition-colors ${
+            className={`px-3.5 py-1.5 rounded-full text-xs font-bold border whitespace-nowrap transition-colors ${
               filter === c.id ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-gray-600 border-gray-200 hover:border-amber-300'
             }`}>
             {c.label}

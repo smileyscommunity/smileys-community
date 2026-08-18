@@ -40,7 +40,7 @@ export default function PartnersBanner() {
       </div>
 
       {/* Partner logos strip */}
-      <div className="px-4 py-4 flex items-center gap-3 overflow-x-auto scrollbar-none">
+      <div className="px-4 py-4 flex flex-wrap items-center justify-center gap-3">
         {partners.map(p => {
           const logo = resolveImageUrl(p.logo)
           return (

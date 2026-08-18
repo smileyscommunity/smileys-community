@@ -95,7 +95,7 @@ function Row({ title, subtitle, events, cta, from }: {
         </div>
         {cta && <Link href={cta.href} className="text-xs font-bold text-amber-600 hover:text-amber-700 shrink-0">{cta.label}</Link>}
       </div>
-      <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:overflow-visible scrollbar-hide">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pb-2">
         {events.map(e => <EventTile key={e.id} e={e} from={from} />)}
       </div>
     </div>

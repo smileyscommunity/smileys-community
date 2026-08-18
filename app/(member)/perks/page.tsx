@@ -135,7 +135,7 @@ export default function PerksPage() {
           </div>
 
           {/* Category tabs */}
-          <div className="flex gap-1 mt-4 overflow-x-auto pb-0">
+          <div className="flex flex-wrap gap-1 mt-4 pb-0">
             {categories.map(c => (
               <button key={c} onClick={() => setCategory(c)}
                 className={`px-4 py-2.5 text-sm font-semibold border-b-2 whitespace-nowrap transition-colors ${

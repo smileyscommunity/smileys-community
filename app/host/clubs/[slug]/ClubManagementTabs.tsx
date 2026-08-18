@@ -198,7 +198,7 @@ export default function ClubManagementTabs({
   return (
     <div>
       {/* Tab bar */}
-      <div className="flex gap-1 mb-6 border-b border-zinc-800 overflow-x-auto scrollbar-hide">
+      <div className="flex flex-wrap gap-1 mb-6 border-b border-zinc-800">
         {tabs.map(t => (
           <button
             key={t.key}

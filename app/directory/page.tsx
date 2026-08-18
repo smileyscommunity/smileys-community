@@ -448,7 +448,7 @@ function DirectoryPageInner() {
               (sibling absolute div below the scroll row) signals that
               more pills sit off-screen on narrow viewports. */}
           <div className="relative">
-            <div className="flex gap-2 pb-4 overflow-x-auto scrollbar-hide">
+            <div className="flex flex-wrap gap-2 pb-4">
             {/* Saved-only quick link → personal /directory/saved sub-page
                 (bookmarkable + shareable). Member-only — guests don't have
                 anything to show there. */}

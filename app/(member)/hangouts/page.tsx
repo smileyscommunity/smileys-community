@@ -531,7 +531,7 @@ export default function HangoutsPage() {
         {!showForm && !showPulseForm && (
           <div>
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2 px-1">Start something quick</p>
-            <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+            <div className="flex flex-wrap gap-2 pb-1">
               {QUICK_STARTS.map(p => (
                 <button key={p.label} onClick={() => quickStart(p)}
                   className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white border border-gray-200 hover:border-amber-400 hover:bg-amber-50 text-sm font-semibold text-gray-700 whitespace-nowrap shrink-0 transition-colors">
@@ -932,7 +932,7 @@ export default function HangoutsPage() {
                     <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
                       These members host often — a pulse might wake them up
                     </p>
-                    <div className="flex gap-3 overflow-x-auto pb-1 justify-center">
+                    <div className="flex flex-wrap gap-3 pb-1 justify-center">
                       {regulars.map(r => {
                         const photo = r.profilePhoto ? avatarUrl(r.profilePhoto, 128) : null
                         return (
@@ -1068,7 +1068,7 @@ export default function HangoutsPage() {
         {!loading && regulars.length > 0 && (hangouts.length > 0 || pulses.length > 0) && (
           <div className="pt-2">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 px-1">Most active hosts this month</p>
-            <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1">
+            <div className="flex flex-wrap gap-3 pb-1">
               {regulars.map((r, i) => {
                 const photo = r.profilePhoto ? avatarUrl(r.profilePhoto, 128) : null
                 return (

@@ -66,7 +66,7 @@ function Section({ title, subtitle, members, cta, onOpen }: {
         )}
       </div>
       {/* Horizontal scroll on mobile, grid on desktop (§49). */}
-      <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-3 lg:grid-cols-4 sm:overflow-visible scrollbar-hide">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 pb-2">
         {members.map(m => <MemberCard key={m.id} m={m} onOpen={onOpen} />)}
       </div>
     </div>

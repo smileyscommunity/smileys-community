@@ -392,7 +392,7 @@ function AppEventsPageInner() {
               directly under the header rather than buried in the filter
               sheet (where they still live for the advanced case).
               Horizontally scrollable on mobile. */}
-          <div className="flex gap-2 overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-hide" role="group" aria-label="Filter events by time">
+          <div className="flex flex-wrap gap-2 pb-4" role="group" aria-label="Filter events by time">
             {TIME_FILTERS.map(f => (
               <button
                 key={f}

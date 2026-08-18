@@ -1030,7 +1030,7 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
           <div className="flex flex-col gap-2 sm:gap-3">
             {pills.length > 0 && (
             <div className="relative min-w-0 overflow-hidden -mx-4 px-4 sm:mx-0 sm:px-0">
-              <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+              <div className="flex flex-wrap gap-2 pb-1">
                 {pills.map(cat => {
                 const isActive = category === cat.id
                 return (

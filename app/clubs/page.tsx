@@ -446,10 +446,10 @@ function AppClubsPageInner() {
           {/* Interest-group pills (brief §8) — 9 display groups, not the
               16 raw categories. */}
           {!loading && groups.length > 1 && (
-            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+            <div className="flex flex-wrap gap-2 pb-1">
               {[{ value: 'All', label: 'All', emoji: '🗂️' }, ...groups].map(g => (
                 <button key={g.value} onClick={() => setActiveCategory(g.value)}
-                  className={`shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold border whitespace-nowrap transition-all ${
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold border whitespace-nowrap transition-all ${
                     activeCategory === g.value
                       ? 'bg-amber-500 text-white border-amber-500'
                       : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
@@ -468,10 +468,10 @@ function AppClubsPageInner() {
         {!loading && tab === 'explore' && joinedClubs.length > 0 && (
           <div className="mb-8">
             <h2 className="text-xl font-extrabold tracking-tight text-gray-900 mb-3">Your clubs</h2>
-            <div className="flex gap-3 overflow-x-auto pb-2 -mx-2 px-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               {joinedClubs.map(c => (
                 <Link key={c.id} href={`/clubs/${c.slug}`}
-                  className="shrink-0 w-60 bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:border-amber-200 hover:shadow-md transition-all group">
+                  className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:border-amber-200 hover:shadow-md transition-all group">
                   <div className="flex items-center gap-2.5 mb-2">
                     <span aria-hidden="true" className="text-2xl shrink-0">{c.emoji}</span>
                     <p className="font-bold text-gray-900 leading-snug truncate group-hover:text-amber-700 transition-colors">{c.name}</p>

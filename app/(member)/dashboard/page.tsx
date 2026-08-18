@@ -953,7 +953,7 @@ export default async function DashboardPage() {
               <div className="bg-white rounded-2xl shadow-card p-5">
                 <h2 className="text-sm font-bold text-gray-900 mb-1">Who's going 👀</h2>
                 <p className="text-xs text-gray-400 mb-3">Familiar faces at upcoming events</p>
-                <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide">
+                <div className="flex flex-wrap gap-3 pb-1">
                   {whosGoing.map((a) => (
                     <Link key={a.user.id} href={`/events/${a.event.id}`}
                       className="flex flex-col items-center gap-1.5 shrink-0 group">
@@ -1776,7 +1776,7 @@ export default async function DashboardPage() {
                   </Link>
                 </div>
               ) : (
-                <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1">
+                <div className="flex flex-wrap gap-3 pb-1">
                   {clubs.map((club) => (
                     <Link key={club.id} href={`/clubs/${club.slug}`}
                       className="shrink-0 flex flex-col items-center gap-2 group">
