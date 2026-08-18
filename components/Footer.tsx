@@ -166,7 +166,7 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
                 { href: '/events',        label: 'Events 🎉'          },
                 { href: '/clubs',         label: 'Clubs 🏠'           },
                 { href: '/experiences',   label: 'Experiences ✨'     },
-                { href: '/guide',         label: 'Guide 🗺️'           },
+                { href: '/guide',         label: 'City Guide 🗺️'           },
                 ...(hasNeighborhoods ? [{ href: '/neighborhoods', label: 'Neighborhoods 🏘️'   }] : []),
                 // Country-level really, not city-level: 7 of 9 articles are
                 // Istanbul-specific and the rest are Türkiye-wide. It sits here
@@ -197,7 +197,7 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
                 { href: '/cities',   label: 'All cities 🌍'   },
                 { href: '/visiting', label: 'Visiting? 👋'    },
                 { href: '/members',  label: 'Members 👥'      },
-                { href: '/posts',    label: 'Articles 📰'     },
+                { href: '/posts',    label: 'Stories 📰'      },
                 { href: '/cup',      label: 'Smileys Cup ⚽'  },
               ].map(l => (
                 <li key={l.href}>

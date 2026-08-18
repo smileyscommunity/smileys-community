@@ -22,25 +22,35 @@ const getPosts = unstable_cache(
 // layout's default og:image, so this shared with no preview at all on
 // WhatsApp/iMessage/Twitter until this was added.
 const ogImage = `${APP_URL}/api/og?${new URLSearchParams({
-  title:   'Articles & Stories',
+  title:   'Stories',
   eyebrow: 'Smileys Community',
   cta:     'Read the stories',
 }).toString()}`
 
+// One name in every slot. This page called itself four different things —
+// "Stories" in the nav, "Community Articles" on the eyebrow, "Stories & Guides"
+// in the h1 and "Articles & Stories" here — and two of them promised guides.
+// It has none: the query below is `kind: 'community'` and excludes handbook
+// articles outright. Guides live at /guide (places and experiences) and
+// /handbook (how things work here), so naming this one "Guides" pointed
+// readers at the wrong surface and collided with both.
+//
+// The copy also named Istanbul five times, which on a second city's site
+// advertised another city's guides.
 export const metadata = {
   alternates: { canonical: `${APP_URL}/posts` },
-  title: 'Articles & Stories — Smileys Community',
-  description: 'Club spotlights, event recaps, Istanbul guides, and tips for making the most of Smileys. Stories from Istanbul\'s most vibrant social community.',
+  title: 'Stories — Smileys Community',
+  description: 'Club spotlights, event recaps, and tips for making the most of Smileys — written by the community, about the community.',
   openGraph: {
-    title: 'Articles & Stories — Smileys Community',
-    description: 'Club spotlights, Istanbul guides, and stories from the Smileys community.',
+    title: 'Stories — Smileys Community',
+    description: 'Club spotlights, event recaps and tips, written by the Smileys community.',
     url: `${APP_URL}/posts`,
-    images: [{ url: ogImage, width: 1200, height: 630, alt: 'Articles & Stories — Smileys Community' }],
+    images: [{ url: ogImage, width: 1200, height: 630, alt: 'Stories — Smileys Community' }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Articles & Stories — Smileys Community',
-    description: 'Club spotlights, Istanbul guides, and stories from the Smileys community.',
+    title: 'Stories — Smileys Community',
+    description: 'Club spotlights, event recaps and tips, written by the Smileys community.',
     images: [ogImage],
   },
 }
@@ -49,7 +59,6 @@ const categoryColors: Record<string, string> = {
   'Community':     'bg-amber-100 text-amber-700',
   'Club Stories':  'bg-violet-100 text-violet-700',
   'Events':        'bg-blue-100 text-blue-700',
-  'Istanbul Guide':'bg-green-100 text-green-700',
   'Tips':          'bg-pink-100 text-pink-700',
 }
 
@@ -70,13 +79,13 @@ export default async function PostsPage() {
       <section className="bg-white border-b border-gray-100">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-6">
           <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">
-            📰 Community Articles
+            📰 Community Stories
           </span>
           <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 tracking-tight">
-            Stories &amp; Guides
+            Stories
           </h1>
           <p className="text-base text-gray-600 mt-1 max-w-xl">
-            Club spotlights, event recaps, Istanbul guides, and tips for making the most of Smileys.
+            Club spotlights, event recaps, and tips for making the most of Smileys.
           </p>
         </div>
       </section>
