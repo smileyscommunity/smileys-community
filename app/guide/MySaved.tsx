@@ -38,10 +38,10 @@ export default function MySaved({ cityName, experiences }: { cityName: string; e
         {saved.length > 0 && <>{saved.length} experience{saved.length !== 1 ? 's' : ''} on your list.</>}
         {doneCount > 0 && <> <span className="text-green-400 font-bold">{doneCount} completed ✓</span></>}
       </p>
-      <div className="relative flex gap-3 overflow-x-auto pb-1 -mx-2 px-2">
+      <div className="relative grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {saved.map(e => (
           <Link key={e.slug} href={`/guide/${e.slug}`}
-            className="shrink-0 w-52 bg-white/10 hover:bg-white/20 rounded-2xl p-4 transition-colors group">
+            className="bg-white/10 hover:bg-white/20 rounded-2xl p-4 transition-colors group">
             <span aria-hidden="true" className="block text-3xl mb-2">{e.emoji}</span>
             <p className="text-sm font-bold text-white leading-snug">{e.title}</p>
             <span className="inline-block text-xs font-bold text-amber-400 mt-2 group-hover:translate-x-0.5 transition-transform">Do it →</span>

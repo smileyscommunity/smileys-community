@@ -6,8 +6,8 @@ export const revalidate = 300
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { loadRoutes, getRoute, loadExperiences } from '@/lib/guideContent'
-import { NEIGHBORHOOD_META, neighborhoodToSlug } from '@/lib/neighborhoods'
+import { loadRoutes, getRouteAnyCity, loadExperiences } from '@/lib/guideContent'
+import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
 import { APP_URL } from '@/lib/env'
 import TrackedLink from '@/components/TrackedLink'
 
@@ -17,11 +17,12 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
-  const route = await getRoute(slug)
-  if (!route) return {}
-  const og = `${APP_URL}/api/og?${new URLSearchParams({ title: route.title, eyebrow: 'Istanbul Guide · Route' })}`
+  const found = await getRouteAnyCity(slug)
+  if (!found) return {}
+  const { route, cityName } = found
+  const og = `${APP_URL}/api/og?${new URLSearchParams({ title: route.title, eyebrow: `${cityName} Guide · Route` })}`
   return {
-    title: `${route.title} — Istanbul Guide | Smileys Community`,
+    title: `${route.title} — ${cityName} Guide | Smileys Community`,
     description: route.tagline,
     alternates: { canonical: `${APP_URL}/guide/routes/${route.slug}` },
     openGraph: {
@@ -35,11 +36,19 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function RoutePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
-  const route = await getRoute(slug)
-  if (!route) notFound()
-  const expBySlug = new Map((await loadExperiences()).map(e => [e.slug, e]))
+  // Resolved by slug, so the page belongs to the route's own city — and the
+  // experiences it strings together come from that city, not the default one.
+  const found = await getRouteAnyCity(slug)
+  if (!found) notFound()
+  const { route, cityId, cityName } = found
+  const expBySlug = new Map((await loadExperiences(cityId)).map(e => [e.slug, e]))
 
-  const nearby = route.neighborhoods.filter(n => NEIGHBORHOOD_META[n])
+  // Validated against the owning city's registry, like the experience page.
+  const registry = await getNeighborhoodViews(cityId)
+  const nearbyRows = route.neighborhoods
+    .map(n => registry.find(r => r.name === n))
+    .filter((r): r is NonNullable<typeof r> => !!r)
+  const nearby = nearbyRows.map(r => r.name)
 
   return (
     <div className="min-h-screen bg-white">
@@ -47,7 +56,7 @@ export default async function RoutePage({ params }: { params: Promise<{ slug: st
         <div aria-hidden="true" className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_75%_30%,#f59e0b_0%,transparent_55%)]" />
         <div className="relative max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-12 sm:pt-14 sm:pb-16">
           <Link href="/guide" className="inline-block text-xs font-bold text-amber-300 hover:text-amber-200 mb-5">
-            ← Istanbul Guide
+            ← {cityName} Guide
           </Link>
           <p className="text-xs font-bold text-amber-300 uppercase tracking-widest mb-1.5">
             <span aria-hidden="true">{route.emoji}</span> Route · {route.time}
@@ -92,19 +101,19 @@ export default async function RoutePage({ params }: { params: Promise<{ slug: st
           <section>
             <h2 className="text-xl font-extrabold tracking-tight text-gray-900 mb-3">Along the way</h2>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {nearby.map(n => (
-                <TrackedLink key={n} href={`/neighborhoods/${neighborhoodToSlug(n)}`} event="guide_to_neighborhood"
-                  eventProps={{ route: route.slug, neighborhood: n }}
+              {nearbyRows.map(r => (
+                <TrackedLink key={r.name} href={`/neighborhoods/${r.slug}`} event="guide_to_neighborhood"
+                  eventProps={{ route: route.slug, neighborhood: r.name }}
                   className="bg-white border border-gray-100 rounded-2xl p-4 text-center shadow-sm hover:border-amber-300 hover:-translate-y-0.5 transition-all group">
-                  <span aria-hidden="true" className="block text-2xl mb-1.5">{NEIGHBORHOOD_META[n].emoji}</span>
-                  <span className="block text-sm font-bold text-gray-900 group-hover:text-amber-700 transition-colors">{n}</span>
+                  <span aria-hidden="true" className="block text-2xl mb-1.5">{r.emoji}</span>
+                  <span className="block text-sm font-bold text-gray-900 group-hover:text-amber-700 transition-colors">{r.name}</span>
                 </TrackedLink>
               ))}
             </div>
           </section>
         )}
 
-        <p className="text-center text-sm font-bold text-gray-400 pt-2">There&apos;s always more Istanbul.</p>
+        <p className="text-center text-sm font-bold text-gray-400 pt-2">There&apos;s always more {cityName}.</p>
       </div>
     </div>
   )

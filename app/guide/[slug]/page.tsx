@@ -98,7 +98,7 @@ export default async function ExperiencePage({ params }: { params: Promise<{ slu
         )}
         <div className="relative max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-12 sm:pt-14 sm:pb-16">
           <Link href="/guide" className="inline-block text-xs font-bold text-amber-300 hover:text-amber-200 mb-5">
-            ← Istanbul Guide
+            ← {cityName} Guide
           </Link>
           <div className="flex items-start gap-4">
             <span aria-hidden="true" className="text-5xl sm:text-6xl">{exp.emoji}</span>
@@ -257,7 +257,7 @@ export default async function ExperiencePage({ params }: { params: Promise<{ slu
           </section>
         )}
 
-        <p className="text-center text-sm font-bold text-gray-400 pt-2">There&apos;s always more Istanbul.</p>
+        <p className="text-center text-sm font-bold text-gray-400 pt-2">There&apos;s always more {cityName}.</p>
       </div>
     </div>
   )

@@ -63,7 +63,7 @@ export default function ExperienceExplorer({ experiences, moods }: { experiences
         )}
       </div>
 
-      <div className="flex gap-2 overflow-x-auto pb-3 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-hide" role="tablist" aria-label="Mood filter">
+      <div className="flex flex-wrap gap-2 pb-3" role="tablist" aria-label="Mood filter">
         {moods.map(m => (
           <button key={m.value} role="tab" aria-selected={mood === m.value}
             onClick={() => setMood(v => {
@@ -71,7 +71,7 @@ export default function ExperienceExplorer({ experiences, moods }: { experiences
               if (next) posthog.capture('mood_selected', { mood: next })
               return next
             })}
-            className={`shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-sm font-bold border whitespace-nowrap transition-all ${
+            className={`flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-sm font-bold border whitespace-nowrap transition-all ${
               mood === m.value
                 ? 'bg-amber-500 border-amber-500 text-white shadow-sm'
                 : 'bg-white border-gray-200 text-gray-700 hover:border-amber-300 hover:-translate-y-0.5'

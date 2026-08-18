@@ -323,7 +323,11 @@ export default async function GuidePage({ searchParams }: { searchParams?: Promi
             )
           })()}
 
-          {/* §7 — collections: browsable shelves instead of category trees. */}
+          {/* §7 — collections: browsable shelves instead of category trees.
+              A wrapping grid, not a horizontal scroller: a shelf with one entry
+              left a single 264px card marooned in a swipeable strip, which is
+              how every shelf of a young city starts. A grid holds one card as
+              happily as eight. */}
           <div id="collections" className="mt-12 scroll-mt-16">
             <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900 mb-6">{city.name} Collections</h2>
             <div className="space-y-8">
@@ -335,10 +339,10 @@ export default async function GuidePage({ searchParams }: { searchParams?: Promi
                     <h3 className="text-sm font-bold text-gray-600 uppercase tracking-widest mb-3">
                       <span aria-hidden="true">{col.emoji}</span> {col.label}
                     </h3>
-                    <div className="flex gap-3 overflow-x-auto pb-1 -mx-2 px-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                       {items.map(e => (
                         <Link key={e.slug} href={`/guide/${e.slug}`}
-                          className="shrink-0 w-64 bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:border-amber-200 hover:shadow-md transition-all group">
+                          className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:border-amber-200 hover:shadow-md transition-all group">
                           <div className="flex items-center gap-2.5">
                             <span aria-hidden="true" className="text-2xl shrink-0">{e.emoji}</span>
                             <p className="text-sm font-bold text-gray-900 leading-snug group-hover:text-amber-700 transition-colors">{e.title}</p>
@@ -385,10 +389,10 @@ export default async function GuidePage({ searchParams }: { searchParams?: Promi
                         )}
                         <span className="text-xs text-gray-400 truncate">{s2.line}</span>
                       </div>
-                      <div className="flex gap-3 overflow-x-auto pb-1 -mx-2 px-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                         {s2.items.map(e => (
                           <Link key={e.slug} href={`/guide/${e.slug}`}
-                            className="shrink-0 w-64 bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:border-amber-200 hover:shadow-md transition-all group">
+                            className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:border-amber-200 hover:shadow-md transition-all group">
                             <div className="flex items-center gap-2.5">
                               <span aria-hidden="true" className="text-2xl shrink-0">{e.emoji}</span>
                               <p className="text-sm font-bold text-gray-900 leading-snug group-hover:text-amber-700 transition-colors">{e.title}</p>

@@ -535,10 +535,10 @@ export default function VisitingClient({ announcements, events, cityCount, featu
 
       {/* Filter chips */}
       {announcements.length > 0 && (
-        <div className="flex gap-1.5 overflow-x-auto pb-4 scrollbar-hide">
+        <div className="flex flex-wrap gap-1.5 pb-4">
           {CHIPS.map(c => (
             <button key={c.key} onClick={() => setFilter(c.key)}
-              className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold transition-colors border whitespace-nowrap ${
+              className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-colors border whitespace-nowrap ${
                 filter === c.key
                   ? 'bg-amber-500 border-amber-500 text-white'
                   : 'bg-white border-gray-200 text-gray-600 hover:border-amber-200 hover:text-amber-700'

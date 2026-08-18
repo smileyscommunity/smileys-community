@@ -342,10 +342,10 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-12">
             <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-gray-900">First time in {city.name}?</h2>
             <p className="text-gray-600 mt-1 mb-5">Start with these — everything else can wait.</p>
-            <div className="flex gap-3 overflow-x-auto pb-1 -mx-2 px-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               {firstTimers.map(e => (
                 <Link key={e.slug} href={`/guide/${e.slug}`}
-                  className="shrink-0 w-56 bg-white border border-amber-100 rounded-2xl p-4 hover:border-amber-300 hover:shadow-md transition-all group">
+                  className="bg-white border border-amber-100 rounded-2xl p-4 hover:border-amber-300 hover:shadow-md transition-all group">
                   <span aria-hidden="true" className="block text-3xl mb-2">{e.emoji}</span>
                   <p className="text-sm font-bold text-gray-900 leading-snug group-hover:text-amber-700 transition-colors">{e.title}</p>
                   <span className="inline-block text-xs font-bold text-amber-600 mt-2">Read guide →</span>

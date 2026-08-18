@@ -59,7 +59,7 @@ export default function GuideStickyNav({ navItems }: { navItems: NavItem[] }) {
        start at the same left edge as the page title on wide screens. */
     <div className="sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-gray-100 relative">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <nav aria-label="Guide sections" className="flex gap-1.5 overflow-x-auto py-2 scrollbar-hide">
+        <nav aria-label="Guide sections" className="flex flex-wrap gap-1.5 py-2">
           {navItems.map(item => {
             const isActive = item.id === activeId
             return (

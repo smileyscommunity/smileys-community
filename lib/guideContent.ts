@@ -161,6 +161,33 @@ export async function getExperienceAnyCity(
   return { experience: fromJson, cityId: await getDefaultCityId(), citySlug: cfg.slug, cityName: cfg.name }
 }
 
+/**
+ * A route by slug, with the city that owns it — the routes twin of
+ * getExperienceAnyCity, and for the same reason: the page is ISR-cached and a
+ * shared link should land on the route that was shared, not on the reader's
+ * city.
+ */
+export async function getRouteAnyCity(
+  slug: string,
+): Promise<{ route: GuideRoute; cityId: string; citySlug: string; cityName: string } | undefined> {
+  try {
+    const rows = await prisma.guideEntry.findMany({
+      where:   { slug, kind: 'route', status: 'published' },
+      include: { city: { select: { id: true, slug: true, name: true } } },
+    })
+    if (rows.length > 0) {
+      const defaultId = await getDefaultCityId()
+      const row = rows.find(r => r.cityId === defaultId) ?? rows[0]
+      return { route: rowToRoute(row), cityId: row.city.id, citySlug: row.city.slug, cityName: row.city.name }
+    }
+  } catch { /* fall through to the shipped default-city content */ }
+  const fromJson = jsonRoutes().find(r => r.slug === slug)
+  if (!fromJson) return undefined
+  const id = await getDefaultCityId()
+  const cfg = await getCityConfig(id)
+  return { route: fromJson, cityId: id, citySlug: cfg.slug, cityName: cfg.name }
+}
+
 export async function loadRoutes(cityId?: string): Promise<GuideRoute[]> {
   try {
     const resolved = cityId ?? await getDefaultCityId()
