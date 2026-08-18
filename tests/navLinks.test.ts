@@ -53,3 +53,58 @@ describe('Discover link visibility', () => {
     expect(seen.length).toBe(new Set(seen).size)
   })
 })
+
+// One array serves two audiences, so ORDER is two properties rather than one,
+// and the second is easy to break while fixing the first.
+//
+// Members used to inherit the guest's priorities wholesale: Hangouts and
+// Visiting — the only two entries written for members, and the most
+// time-sensitive things in the menu — sat last, under the Handbook. Moving them
+// up is safe precisely because a guest's menu is the `public` entries in their
+// own relative order, so a members-only entry can go anywhere without touching
+// it. These tests are what make that safety checkable rather than asserted.
+describe('Discover ordering', () => {
+  // Pinned exactly, so reordering for members proves it left guests alone.
+  // If you genuinely mean to change the guest menu, change this list — that's
+  // the point, it should take a deliberate edit.
+  it('guest order is deliberate and unchanged', () => {
+    expect(DISCOVER_LINKS.filter(l => l.public).map(l => l.label)).toEqual([
+      'People',
+      'Experiences',
+      'Directory',
+      'Neighborhoods',
+      'City Guide',
+      'Handbook',
+      'Hosts',
+      'Stories',
+      'Community Board',
+      'Marketplace',
+    ])
+  })
+
+  it("puts a member's time-sensitive links above the reference material", () => {
+    const labels = forMember.map(l => l.label)
+    const firstReference = labels.indexOf('City Guide')
+    expect(firstReference).toBeGreaterThan(-1)
+    for (const live of ['Hangouts', 'Visiting']) {
+      expect(labels.indexOf(live), `${live} belongs above the reference block, not under the Handbook`)
+        .toBeLessThan(firstReference)
+    }
+  })
+
+  it('keeps the two members-only entries together rather than scattered', () => {
+    const idx = ['Hangouts', 'Visiting'].map(l => forMember.findIndex(x => x.label === l)).sort((a, b) => a - b)
+    expect(idx[1] - idx[0], 'Hangouts and Visiting read as a pair — what is on, and who is coming')
+      .toBe(1)
+  })
+
+  it('labels read as titles, like every other entry', () => {
+    // "City guide" sat among People, Community Board and Marketplace as the one
+    // entry in sentence case.
+    const odd = DISCOVER_LINKS
+      .filter(l => l.label.split(' ').some((w, i) => i > 0 && /^[a-z]/.test(w)))
+      .map(l => l.label)
+    expect(odd).toEqual([])
+  })
+})
+
