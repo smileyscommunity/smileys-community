@@ -253,6 +253,10 @@ export default function EditableArticle(props: Props) {
                    prose-p:text-gray-700 prose-p:leading-relaxed
                    prose-a:text-amber-600 hover:prose-a:underline prose-a:no-underline
                    prose-strong:text-gray-900
+                   /* A child's own class beats a colour inherited from a
+                      styled span, so bold inside a coloured passage would
+                      lose the colour without this. */
+                   [&_span[style]_*]:text-[color:inherit]
                    prose-li:text-gray-700
                    prose-ul:my-4 prose-ol:my-4
                    prose-blockquote:border-l-amber-300 prose-blockquote:text-gray-600 prose-blockquote:not-italic"

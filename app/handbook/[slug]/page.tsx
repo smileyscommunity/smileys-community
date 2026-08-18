@@ -6,7 +6,7 @@ import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { resolveCityId, getCityConfig } from '@/lib/city'
-import { sanitize } from '@/lib/sanitize'
+import { sanitizeArticle } from '@/lib/sanitize'
 import { resolveImageUrl } from '@/lib/data'
 import { firstBodyImage } from '@/lib/articleCover'
 import { SITE_URL, APP_URL } from '@/lib/env'
@@ -223,11 +223,14 @@ export default async function HandbookArticlePage({ params }: Params) {
         {/* Header + quick summary + body live in a client component so staff can
             edit them inline (see EditableArticle). Content is still
             server-rendered for SEO; the body arrives pre-sanitised. */}
+        {/* sanitizeArticle, not sanitize: handbook bodies come from the same
+            RichTextEditor as community articles, so the strict sanitizer
+            silently dropped every colour the toolbar offers. */}
         <EditableArticle
           id={post.id}
           title={post.title}
           excerpt={post.excerpt}
-          sanitizedBody={sanitize(post.body)}
+          sanitizedBody={sanitizeArticle(post.body)}
           rawBody={post.body}
           category={post.category}
           categoryLabel={catLabel}
