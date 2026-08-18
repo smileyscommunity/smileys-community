@@ -178,7 +178,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <VerifyEmailBanner />
           <PendingApprovalBanner />
           <main className="flex-1">{children}</main>
-          <BottomNav />
+          <BottomNav cities={navCities} homeSlug={homeSlug} viewingSlug={viewingSlug} />
           <Footer stats={footerStats} cityName={footerCityName} hasNeighborhoods={hasNeighborhoods} />
           <ClientOnlyComponents />
           <Toaster position="top-right" richColors closeButton />

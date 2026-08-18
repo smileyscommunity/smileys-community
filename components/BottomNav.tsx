@@ -8,6 +8,8 @@ import { isBottomNavRoute } from '@/lib/bottomNav'
 import { usePendingConnections } from '@/hooks/usePendingConnections'
 import { useState, useEffect, useCallback } from 'react'
 import AccountMenu from '@/components/AccountMenu'
+import CitiesMenu from '@/components/CitiesMenu'
+import type { NavCity } from '@/components/Navbar'
 
 function useUnreadMessages(isLoggedIn: boolean) {
   const [unread, setUnread] = useState(0)
@@ -43,7 +45,17 @@ function useUnreadNotifications(isLoggedIn: boolean) {
   return unread
 }
 
-export default function BottomNav() {
+export default function BottomNav({
+  cities = [],
+  homeSlug,
+  viewingSlug,
+}: {
+  // Same server-rendered list the Navbar gets, so the sheet needs no fetch of
+  // its own and the two can't disagree about which cities exist.
+  cities?: NavCity[]
+  homeSlug?: string
+  viewingSlug?: string
+} = {}) {
   const pathname  = usePathname()
   const { isLoggedIn, user } = useAuth()
   const pendingConnections    = usePendingConnections()
@@ -208,6 +220,31 @@ export default function BottomNav() {
         <div className="flex justify-center pt-2 pb-1">
           <div className="w-10 h-1 rounded-full bg-gray-300" />
         </div>
+
+        {/* Switching city is only possible through /api/city/enter, and
+            CitiesMenu is the only thing that calls it. It lived in the desktop
+            bar and in the Navbar's mobile menu — which renders for GUESTS
+            only, since members get search and messages in that header slot
+            instead. So a signed-in member on a phone had no way to switch at
+            all: tapping Cities reaches /cities, whose cards link to the city
+            shopfront, and a shopfront doesn't move you. The page then says
+            "Bodrum" everywhere while /guide, /events and the board keep
+            serving your old city, which is what "changing city doesn't work"
+            looks like from the outside.
+
+            It goes above the account links because it changes what every one
+            of them will show. */}
+        {isLoggedIn && cities.length > 1 && (
+          <div className="px-3 pt-1 pb-2 border-b border-gray-100">
+            <CitiesMenu
+              initial={cities}
+              variant="inline"
+              homeSlug={homeSlug}
+              viewingSlug={viewingSlug}
+              onNavigate={() => setSheetOpen(false)}
+            />
+          </div>
+        )}
 
         <AccountMenu onItemClick={() => setSheetOpen(false)} />
       </div>
