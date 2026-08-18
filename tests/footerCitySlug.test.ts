@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { pathCitySlug } from '@/lib/pathCitySlug'
+import { pathCitySlug, cityCandidatesFromUrl } from '@/lib/pathCitySlug'
 
 // The footer's city band belongs to the city page on screen, not to the
 // session: someone landing on /bodrum from search hasn't "entered" Bodrum, so
@@ -41,5 +41,47 @@ describe('pathCitySlug', () => {
   it('ignores doubled slashes', () => {
     expect(pathCitySlug('//bodrum')).toBe('bodrum')
     expect(pathCitySlug('/app//bodrum')).toBe('bodrum')
+  })
+})
+
+// Two URL shapes carry a city: the shopfront puts it in the path (/bodrum),
+// and the pages with no city of their own put it in the query
+// (/neighborhoods?city=bodrum, /visiting?city=izmir). Reading only the path
+// meant every query-shaped page rendered the DEFAULT city's footer under
+// another city's content — the same bug one URL shape over.
+describe('cityCandidatesFromUrl', () => {
+  it('reads a city out of the path', () => {
+    expect(cityCandidatesFromUrl('/bodrum')).toEqual(['bodrum'])
+    expect(cityCandidatesFromUrl('/app/bodrum')).toEqual(['bodrum'])
+  })
+
+  it('reads a city out of the query', () => {
+    expect(cityCandidatesFromUrl('/neighborhoods?city=bodrum')).toEqual(['bodrum', 'neighborhoods'])
+    expect(cityCandidatesFromUrl('/app/visiting?city=izmir')).toEqual(['izmir', 'visiting'])
+  })
+
+  it('puts ?city= first — a page that says which city it is beats the segment it lives under', () => {
+    expect(cityCandidatesFromUrl('/istanbul?city=bodrum')[0]).toBe('bodrum')
+  })
+
+  it('keeps the non-city segment as a candidate, which simply matches no city row', () => {
+    // "neighborhoods" is offered but will not match a city, so it changes
+    // nothing — cheaper than teaching this function the route table.
+    expect(cityCandidatesFromUrl('/neighborhoods')).toEqual(['neighborhoods'])
+  })
+
+  it('ignores an empty or whitespace ?city=', () => {
+    expect(cityCandidatesFromUrl('/neighborhoods?city=')).toEqual(['neighborhoods'])
+    expect(cityCandidatesFromUrl('/neighborhoods?city=%20%20')).toEqual(['neighborhoods'])
+  })
+
+  it('handles other params, and a bare or empty URL', () => {
+    expect(cityCandidatesFromUrl('/events?tab=all')).toEqual(['events'])
+    expect(cityCandidatesFromUrl('/?city=bodrum')).toEqual(['bodrum'])
+    expect(cityCandidatesFromUrl('')).toEqual([])
+  })
+
+  it('de-duplicates when path and query agree', () => {
+    expect(cityCandidatesFromUrl('/bodrum?city=bodrum')).toEqual(['bodrum'])
   })
 })

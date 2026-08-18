@@ -18,3 +18,25 @@ export function pathCitySlug(pathname: string): string {
     .split('/')
     .filter(Boolean)[0] ?? ''
 }
+
+/**
+ * Every slug a URL offers as its city, best first.
+ *
+ * Two shapes carry a city now, and the footer has to honour both. A city
+ * shopfront puts it in the path (`/bodrum`); the pages that have no city of
+ * their own put it in the query (`/neighborhoods?city=bodrum`,
+ * `/visiting?city=izmir`). Reading only the path meant every one of those
+ * query pages rendered "Find your people in Istanbul" beneath Izmir's content
+ * — the same bug the path fix was written to kill, one URL shape over.
+ *
+ * `?city=` wins: a page that says outright which city it is about is a
+ * stronger signal than the segment it happens to live under. Callers check
+ * these against real city rows, so a non-city first segment ("events",
+ * "clubs") simply matches nothing.
+ */
+export function cityCandidatesFromUrl(pathAndSearch: string): string[] {
+  const [path, search = ''] = pathAndSearch.split('?')
+  const fromQuery = new URLSearchParams(search).get('city')?.trim() ?? ''
+  const fromPath  = pathCitySlug(path)
+  return [...new Set([fromQuery, fromPath].filter(Boolean))]
+}

@@ -18,7 +18,7 @@ import { resolveStats } from '@/lib/communityStats'
 import { getNavCities } from '@/lib/cities'
 import { CITY_STATUS } from '@/lib/cityStatus'
 import { getViewCityId, resolveCityId } from '@/lib/city'
-import { pathCitySlug } from '@/lib/pathCitySlug'
+import { cityCandidatesFromUrl } from '@/lib/pathCitySlug'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 
@@ -95,22 +95,25 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // underneath a Bodrum hero. The page on screen wins over the session for the
   // footer's city band and city column.
   //
-  // Middleware hands the path over as a header (layouts get no params); see
-  // pathCitySlug for the extraction. A segment that isn't a real city slug —
-  // /events, /clubs, /about — simply matches no row and changes nothing.
-  const pathSlug = pathCitySlug(reqHeaders.get('x-pathname') ?? '')
+  // Middleware hands the URL over as a header (layouts get no params); see
+  // cityCandidatesFromUrl for the extraction and why both a path segment and
+  // ?city= count. Ordered best-first — ?city= beats the path, either beats the
+  // session. A candidate that isn't a real city slug (/events, /clubs, /about)
+  // matches no row and changes nothing.
+  const urlSlugs = cityCandidatesFromUrl(reqHeaders.get('x-pathname') ?? '')
 
   const cityIds      = [...new Set([session?.cityId, viewCityId, sessionCityId].filter(Boolean) as string[])]
-  const cityRows     = cityIds.length || pathSlug
+  const cityRows     = cityIds.length || urlSlugs.length
     ? await prisma.city.findMany({
-        // One query, not two: the path's candidate slug rides along with the
+        // One query, not two: the URL's candidate slugs ride along with the
         // ids the footer already needed.
-        where:  { OR: [{ id: { in: cityIds } }, ...(pathSlug ? [{ slug: pathSlug }] : [])] },
+        where:  { OR: [{ id: { in: cityIds } }, ...(urlSlugs.length ? [{ slug: { in: urlSlugs } }] : [])] },
         select: { id: true, slug: true, name: true },
       })
     : []
-  const pathCity     = pathSlug ? cityRows.find(c => c.slug === pathSlug) : undefined
-  const footerCityId = pathCity?.id ?? sessionCityId
+  // First candidate that is a real city wins, so ?city= takes precedence.
+  const urlCity      = urlSlugs.map(s => cityRows.find(c => c.slug === s)).find(Boolean)
+  const footerCityId = urlCity?.id ?? sessionCityId
   const homeSlug       = cityRows.find(c => c.id === session?.cityId)?.slug
   const viewingSlug    = cityRows.find(c => c.id === viewCityId)?.slug
   const footerCityName = cityRows.find(c => c.id === footerCityId)?.name ?? 'Istanbul'

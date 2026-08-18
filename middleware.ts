@@ -108,12 +108,14 @@ export function middleware(req: NextRequest) {
   const requestHeaders = new Headers(req.headers)
   requestHeaders.set('x-nonce', nonce)
   requestHeaders.set('x-request-id', requestId)
-  // The path being rendered. A layout gets no params, so this is the only way
-  // the root layout can tell WHICH city page it is wrapping — and the footer's
-  // city band belongs to the city on screen, not the one in the session cookie.
-  // Just the raw path: validating it against real city slugs needs prisma,
-  // which doesn't exist on the edge, so app/layout.tsx does that half.
-  requestHeaders.set('x-pathname', req.nextUrl.pathname)
+  // The URL being rendered, path AND query. A layout gets no params, so this is
+  // the only way the root layout can tell which city page it is wrapping — and
+  // the footer's city band belongs to the city on screen, not the one in the
+  // session cookie. The query matters because the city lives there on the pages
+  // that have none of their own (`/bodrum` vs `/neighborhoods?city=bodrum`).
+  // Raw, though: validating a slug against real cities needs prisma, which the
+  // edge runtime doesn't have, so app/layout.tsx does that half.
+  requestHeaders.set('x-pathname', req.nextUrl.pathname + req.nextUrl.search)
   requestHeaders.set('content-security-policy', csp)
 
   const res = NextResponse.next({ request: { headers: requestHeaders } })
