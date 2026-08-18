@@ -2,6 +2,7 @@ import { MetadataRoute } from 'next'
 import { statSync } from 'fs'
 import { join } from 'path'
 import { prisma } from '@/lib/prisma'
+import { loadExperiences, loadRoutes } from '@/lib/guideContent'
 import { getDefaultCityId, getPublicCities, CITY_STATUS } from '@/lib/cities'
 import { NEIGHBORHOOD_META, neighborhoodToSlug } from '@/lib/neighborhoods'
 
@@ -203,13 +204,36 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: 'weekly' as const,
     }))
 
-  const guideRoutes: MetadataRoute.Sitemap = [...new Map(guideEntries.map(g => [`${g.kind}:${g.slug}`, g])).values()]
-    .map(g => ({
-      url:             g.kind === 'route' ? `${BASE}/guide/routes/${g.slug}` : `${BASE}/guide/${g.slug}`,
-      lastModified:    g.updatedAt,
-      priority:        0.7,
-      changeFrequency: 'monthly' as const,
-    }))
+  // Asked of the LOADERS, not the table: loadExperiences falls back to the
+  // shipped JSON for the default city when guide_entries is empty (a fresh
+  // clone, or a DB hiccup), and those pages do serve. Querying the table
+  // directly meant the sitemap silently dropped every one of them in exactly
+  // that window — a second source of truth, disagreeing with the pages.
+  //
+  // Timestamps still come from the table where a row exists; a JSON-served
+  // entry has no row, so it takes the JSON file's mtime, which is the real
+  // "this content changed" date for it.
+  const guideByCity = await Promise.all(cityIds.map(async id => ({
+    experiences: await loadExperiences(id),
+    routes:      await loadRoutes(id),
+  })))
+  const stamp = new Map(guideEntries.map(g => [`${g.kind}:${g.slug}`, g.updatedAt]))
+  const jsonStamp = fileMtime('guide-experiences.json')
+
+  // Flat list first, then dedupe by key — the template-literal types make an
+  // inline Map of mixed tuples more trouble than it is worth.
+  const guidePages: { key: string; url: string }[] = guideByCity.flatMap(({ experiences, routes }) => [
+    ...experiences.map(e => ({ key: `experience:${e.slug}`, url: `${BASE}/guide/${e.slug}` })),
+    ...routes.map(r      => ({ key: `route:${r.slug}`,      url: `${BASE}/guide/routes/${r.slug}` })),
+  ])
+
+  const guideRoutes: MetadataRoute.Sitemap = [...new Map(guidePages.map(g => [g.key, g])).values()]
+    .map(({ url, key }) => ({
+    url,
+    lastModified:    stamp.get(key) ?? jsonStamp,
+    priority:        0.7,
+    changeFrequency: 'monthly' as const,
+  }))
 
   return [
     ...staticRoutes,
