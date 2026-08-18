@@ -122,7 +122,7 @@ export default async function ExperiencePage({ params }: { params: Promise<{ slu
             ))}
           </div>
           <div className="mt-6">
-            <ExperienceActions slug={exp.slug} />
+            <ExperienceActions slug={exp.slug} cityName={cityName} />
           </div>
         </div>
       </div>
