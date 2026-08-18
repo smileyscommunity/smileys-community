@@ -227,7 +227,15 @@ export default async function GuidePage({ searchParams }: { searchParams?: Promi
                 </Link>
               </div>
             )}
-            <ExperienceExplorer experiences={experiences} moods={moods} />
+            {/* Only moods this list can actually answer. Bodrum published twelve
+                experiences and none of them is a dinner, so "Eat Something
+                Great" filtered to nothing — a dead end on the guide's main
+                discovery control. Same rule the shelves and audience cards
+                already follow. */}
+            <ExperienceExplorer
+              experiences={experiences}
+              moods={moods.filter(m => experiences.some(e => (e.moods ?? []).includes(m.value)))}
+            />
           </div>
 
           {/* §6's first-timer strip moved to /visiting — same curated
@@ -303,11 +311,18 @@ export default async function GuidePage({ searchParams }: { searchParams?: Promi
             if (list.length === 0) return null
             return (
               <div className="mt-12">
+                {/* The fallback used to be headed "Popular with Smileys — the
+                    experiences members keep coming back to", which on Bodrum's
+                    guide described entries published that morning with zero
+                    saves. The comment above promises an honestly-labelled
+                    editorial list; this is that promise kept in the words too. */}
                 <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900 mb-1">
-                  {enough ? 'Popular right now' : 'Popular with Smileys'}
+                  {enough ? 'Popular right now' : 'Where to start'}
                 </h2>
                 <p className="text-gray-600 mb-5">
-                  {enough ? 'What members are saving and recommending.' : 'The experiences members keep coming back to.'}
+                  {enough
+                    ? 'What members are saving and recommending.'
+                    : `A hand-picked few — not enough saves yet to rank ${city.name} by what members love.`}
                 </p>
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                   {list.map(e => (
