@@ -40,3 +40,28 @@ export function cityCandidatesFromUrl(pathAndSearch: string): string[] {
   const fromPath  = pathCitySlug(path)
   return [...new Set([fromQuery, fromPath].filter(Boolean))]
 }
+
+/**
+ * The city a content page is ABOUT, when its URL doesn't say.
+ *
+ * `/bodrum` and `/neighborhoods?city=bodrum` announce their city in the URL, so
+ * cityCandidatesFromUrl handles them. `/guide/kara-ada-hot-springs` does not:
+ * the slug alone identifies the entry, and the city is a property of the row.
+ * The footer therefore fell back to the reader's own city and wrote "Find your
+ * people in Istanbul" under a Bodrum experience.
+ *
+ * These are the paths whose subject is a single city's content. A slug that
+ * matches no row returns null and the caller falls back as before, so a
+ * mistyped URL costs one indexed lookup and changes nothing.
+ *
+ * Deliberately NOT a general rule for every page: /events and /clubs are
+ * feeds of whichever city you're in, so the reader's city is the right answer
+ * there and the footer should keep following the session.
+ */
+export function contentCitySlugPath(pathname: string): { kind: 'guide' | 'route' | 'neighborhood'; slug: string } | null {
+  const parts = pathname.replace(/^\/app(?=\/|$)/, '').split('?')[0].split('/').filter(Boolean)
+  if (parts[0] === 'guide' && parts[1] === 'routes' && parts[2]) return { kind: 'route',        slug: parts[2] }
+  if (parts[0] === 'guide' && parts[1] && parts[1] !== 'routes') return { kind: 'guide',        slug: parts[1] }
+  if (parts[0] === 'neighborhoods' && parts[1])                  return { kind: 'neighborhood', slug: parts[1] }
+  return null
+}

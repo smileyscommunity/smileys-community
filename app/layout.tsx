@@ -18,7 +18,8 @@ import { resolveStats } from '@/lib/communityStats'
 import { getNavCities } from '@/lib/cities'
 import { CITY_STATUS } from '@/lib/cityStatus'
 import { getViewCityId, resolveCityId } from '@/lib/city'
-import { cityCandidatesFromUrl } from '@/lib/pathCitySlug'
+import { cityCandidatesFromUrl, contentCitySlugPath } from '@/lib/pathCitySlug'
+import { cityIdForContent } from '@/lib/contentCity'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 
@@ -100,9 +101,19 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // ?city= count. Ordered best-first — ?city= beats the path, either beats the
   // session. A candidate that isn't a real city slug (/events, /clubs, /about)
   // matches no row and changes nothing.
-  const urlSlugs = cityCandidatesFromUrl(reqHeaders.get('x-pathname') ?? '')
+  const pathAndSearch = reqHeaders.get('x-pathname') ?? ''
+  const urlSlugs = cityCandidatesFromUrl(pathAndSearch)
+  // Pages whose city lives in the row rather than the URL — a guide experience,
+  // a guide route, a neighborhood. Without this the footer under a Bodrum
+  // experience read "Find your people in Istanbul", because the slug alone says
+  // nothing about which city owns it.
+  const contentRef  = contentCitySlugPath(pathAndSearch)
+  const contentCityId = contentRef ? await cityIdForContent(contentRef) : null
 
-  const cityIds      = [...new Set([session?.cityId, viewCityId, sessionCityId].filter(Boolean) as string[])]
+  // contentCityId belongs in this list, not just in the choice below: the name
+  // is looked up from the rows this query returns, so leaving it out set the id
+  // correctly and then rendered "Istanbul" anyway.
+  const cityIds      = [...new Set([session?.cityId, viewCityId, sessionCityId, contentCityId].filter(Boolean) as string[])]
   const cityRows     = cityIds.length || urlSlugs.length
     ? await prisma.city.findMany({
         // One query, not two: the URL's candidate slugs ride along with the
@@ -113,7 +124,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     : []
   // First candidate that is a real city wins, so ?city= takes precedence.
   const urlCity      = urlSlugs.map(s => cityRows.find(c => c.slug === s)).find(Boolean)
-  const footerCityId = urlCity?.id ?? sessionCityId
+  // Order: an explicit city in the URL, then the city the page's content
+  // belongs to, then the reader's own. A feed (/events, /clubs) has no content
+  // city, so it keeps following the session — which is right, since a feed is
+  // about wherever you are.
+  const footerCityId = urlCity?.id ?? contentCityId ?? sessionCityId
   const homeSlug       = cityRows.find(c => c.id === session?.cityId)?.slug
   const viewingSlug    = cityRows.find(c => c.id === viewCityId)?.slug
   const footerCityName = cityRows.find(c => c.id === footerCityId)?.name ?? 'Istanbul'
