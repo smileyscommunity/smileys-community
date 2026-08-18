@@ -1,12 +1,7 @@
 'use client'
 
 import { useEditor, EditorContent } from '@tiptap/react'
-import StarterKit from '@tiptap/starter-kit'
-import Underline from '@tiptap/extension-underline'
-import { TextStyle } from '@tiptap/extension-text-style'
-import Color from '@tiptap/extension-color'
-import Link from '@tiptap/extension-link'
-import Image from '@tiptap/extension-image'
+import { richTextExtensions } from './richTextExtensions'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { downscaleImage } from '@/lib/image-resize'
@@ -54,29 +49,7 @@ export default function RichTextEditor({ value, onChange, placeholder, className
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const editor = useEditor({
-    extensions: [
-      // Headings are capped at h2/h3. StarterKit defaults to levels 1–6, and
-      // its markdown input rule means typing "# " would mint an <h1> that
-      // competes with the article title for the page's single top-level
-      // heading — and "#####" levels the template doesn't style.
-      StarterKit.configure({ heading: { levels: [2, 3] } }),
-      Underline,
-      TextStyle,
-      Color,
-      // Links: typed/pasted URLs auto-link (autolink), and the toolbar 🔗
-      // button links a selection. openOnClick off so clicks edit, not navigate.
-      Link.configure({
-        openOnClick: false,
-        autolink: true,
-        HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' },
-      }),
-      // Block images (not inline) uploaded via the toolbar 🖼 button. The
-      // src is always our own /api/files path, which survives sanitize().
-      Image.configure({
-        inline: false,
-        HTMLAttributes: { class: 'rounded-lg max-w-full h-auto' },
-      }),
-    ],
+    extensions: richTextExtensions,
     content: value || '',
     editorProps: {
       attributes: {
