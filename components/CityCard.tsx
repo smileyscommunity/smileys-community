@@ -135,5 +135,13 @@ export default function CityCard({
   // visiting. It has one now (its photo, its description, and the notify
   // action), so an unclickable card just looks broken: people click the photo
   // and nothing happens.
-  return <Link href={`/${city.slug}`} className="group block h-full">{body}</Link>
+  // A live city switches you into it and lands on its page. A pre-launch city
+  // is a plain link: there is nothing to scope feeds to yet, and the enter
+  // endpoint ignores non-live slugs anyway.
+  //
+  // Plain <a>, not <Link>: this is a server redirect that sets a cookie, and a
+  // client-side prefetch of a mutating endpoint is not something to invite.
+  return city.status === 'live'
+    ? <a href={`/app/api/city/enter?city=${city.slug}&to=city`} className="group block h-full">{body}</a>
+    : <Link href={`/${city.slug}`} className="group block h-full">{body}</Link>
 }

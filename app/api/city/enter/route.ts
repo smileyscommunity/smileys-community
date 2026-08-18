@@ -26,6 +26,10 @@ const DESTINATIONS: Record<string, string> = {
   directory:     '/directory',
   neighborhoods: '/neighborhoods',
   guide:         '/guide',
+  // The city's own page. Empty because the path is the city slug itself, filled
+  // in below once the slug has been checked against a real live city — the
+  // whole point of this map is that a redirect target is never caller-shaped.
+  city:          '',
 }
 
 export async function GET(req: NextRequest) {
@@ -51,6 +55,12 @@ export async function GET(req: NextRequest) {
   // set as DESTINATIONS itself (no traversal, no open redirect). A slug that
   // doesn't match just lands on the index.
   const nSlug = req.nextUrl.searchParams.get('n')?.trim()
+  // to=city — used by the city cards. Tapping a city should mean "show me this
+  // city", and landing on its page while your feeds still serve another city is
+  // how "changing city doesn't work" happens: the page says Bodrum everywhere
+  // and the guide, members and board stay on Istanbul.
+  if (city && toKey === 'city') to = `/${city.slug}`
+
   if (city && toKey === 'neighborhoods' && nSlug) {
     const hood = await prisma.neighborhood.findUnique({
       where:  { cityId_slug: { cityId: city.id, slug: nSlug } },
