@@ -22,19 +22,25 @@ function newest(dates: Array<Date | null | undefined>): Date | undefined {
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  // Public SEO surface = the default city until per-city pages ship.
-  const cityId = await getDefaultCityId()
-  const cities = await getPublicCities()
+  // The public SEO surface used to be the default city alone — a note from when
+  // Istanbul was the only one. Bodrum then launched with its own guide, clubs,
+  // events and fifteen neighborhood pages, none of which any crawler could
+  // find: /app/bodrum was listed, and nothing underneath it was.
+  const cities   = await getPublicCities()
+  const liveIds  = cities.filter(c => c.status === CITY_STATUS.Live).map(c => c.id)
+  // Fall back to the default city if no city is live (a fresh clone), so this
+  // never silently produces a sitemap with no content in it.
+  const cityIds  = liveIds.length ? liveIds : [await getDefaultCityId()]
 
-  const [events, clubs, posts, listings, businesses, movingSales] = await Promise.all([
+  const [events, clubs, posts, listings, businesses, movingSales, hoods, guideEntries] = await Promise.all([
     prisma.event.findMany({
-      where: { status: 'published', cityId },
+      where: { status: 'published', cityId: { in: cityIds } },
       select: { id: true, updatedAt: true },
       orderBy: { date: 'desc' },
       take: 200,
     }),
     prisma.club.findMany({
-      where: { isActive: true, cityId },
+      where: { isActive: true, cityId: { in: cityIds } },
       select: { slug: true, createdAt: true },
     }),
     prisma.post.findMany({
@@ -45,7 +51,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // Marketplace listings are public — let Google crawl them so search hits
     // like "flats in Moda" can land on the listing.
     prisma.listing.findMany({
-      where:   { status: 'active', cityId },
+      where:   { status: 'active', cityId: { in: cityIds } },
       select:  { id: true, updatedAt: true },
       orderBy: { createdAt: 'desc' },
       take:    500,
@@ -56,7 +62,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // "expat-owned Indian restaurant Kadıköy" land on the right
     // dedicated page.
     prisma.business.findMany({
-      where:   { isApproved: true, isActive: true, cityId },
+      where:   { isApproved: true, isActive: true, cityId: { in: cityIds } },
       select:  { id: true, updatedAt: true },
       orderBy: { updatedAt: 'desc' },
       take:    500,
@@ -65,10 +71,25 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // detail page at /moving-sales/[id] so a link sent off-platform still
     // lands somewhere real instead of a 404.
     prisma.movingSale.findMany({
-      where:   { status: 'active', cityId },
+      where:   { status: 'active', cityId: { in: cityIds } },
       select:  { id: true, createdAt: true },
       orderBy: { createdAt: 'desc' },
       take:    200,
+    }),
+    // Neighborhood pages come from the per-city registry now. They were built
+    // from NEIGHBORHOOD_META — Istanbul's hardcoded constant — so a second
+    // city's areas could never appear however many it had.
+    prisma.neighborhood.findMany({
+      where:   { cityId: { in: cityIds }, active: true },
+      select:  { slug: true, updatedAt: true },
+      orderBy: { sortOrder: 'asc' },
+    }),
+    // Guide experiences and routes were in the sitemap not at all: 27 pages,
+    // each with its own title, its own Take and its own share card, invisible.
+    prisma.guideEntry.findMany({
+      where:   { status: 'published', cityId: { in: cityIds } },
+      select:  { slug: true, kind: true, updatedAt: true },
+      orderBy: { updatedAt: 'desc' },
     }),
   ])
 
@@ -170,20 +191,31 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     changeFrequency: 'weekly',
   }))
 
-  const neighborhoodRoutes: MetadataRoute.Sitemap = Object.keys(NEIGHBORHOOD_META).map(name => {
-    const slug = neighborhoodToSlug(name)
-    return {
-      url:             `${BASE}/neighborhoods/${slug}`,
-      lastModified:    neighborhoodMtimes.get(slug),
+  // Slugs are unique per city but a URL is a URL — dedupe so two cities sharing
+  // a name (a "Merkez" apiece) can't emit the same <loc> twice.
+  const neighborhoodRoutes: MetadataRoute.Sitemap = [...new Map(hoods.map(n => [n.slug, n])).values()]
+    .map(n => ({
+      url:             `${BASE}/neighborhoods/${n.slug}`,
+      // The editorial JSON's mtime where one exists (Istanbul's), else the
+      // row's own timestamp — an honest date either way.
+      lastModified:    neighborhoodMtimes.get(n.slug) ?? n.updatedAt,
       priority:        0.7,
       changeFrequency: 'weekly' as const,
-    }
-  })
+    }))
+
+  const guideRoutes: MetadataRoute.Sitemap = [...new Map(guideEntries.map(g => [`${g.kind}:${g.slug}`, g])).values()]
+    .map(g => ({
+      url:             g.kind === 'route' ? `${BASE}/guide/routes/${g.slug}` : `${BASE}/guide/${g.slug}`,
+      lastModified:    g.updatedAt,
+      priority:        0.7,
+      changeFrequency: 'monthly' as const,
+    }))
 
   return [
     ...staticRoutes,
     ...cityRoutes,
     ...neighborhoodRoutes,
+    ...guideRoutes,
     ...eventRoutes,
     ...clubRoutes,
     ...postRoutes,
