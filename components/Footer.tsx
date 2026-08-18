@@ -158,7 +158,7 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
             {/* Two sub-columns: ten links in one stack made this column twice
                 the height of its neighbours. */}
             {/* Single stack on phones. Two columns at 375px leaves ~160px each,
-                which wraps "Community Board" and "Meet the hosts" — the split
+                which wraps "Community Board" and "Marketplace" — the split
                 exists to stop this column towering on desktop, a problem phones
                 don't have. */}
             <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
@@ -175,7 +175,7 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
                 // forces real country scoping.
                 { href: '/handbook',      label: 'Handbook 📖'        },
                 { href: '/directory',     label: 'Directory 🏢'       },
-                { href: '/hosts',         label: 'Meet the hosts 🎤'  },
+                { href: '/hosts',         label: 'Hosts 🎤'           },
                 { href: '/hangouts',      label: 'Hangouts ☕'        },
                 { href: '/board',         label: 'Community Board 💬' },
                 { href: '/marketplace',   label: 'Marketplace 🛍️'     },
