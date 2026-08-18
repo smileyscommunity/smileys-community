@@ -53,6 +53,14 @@ export type QuotaBlock = 'male_quota' | 'female_quota' | 'turkish_male_quota'
  * `null` quota means uncapped on that side, except maleQuota, which falls back
  * to half the spots — the historical default, kept so existing events behave
  * as they always have.
+ *
+ * A gender outside male/female counts toward NEITHER side, and that is a
+ * decision, not an oversight. 14 approved members are prefer_not_to_say (11),
+ * non_binary (2) or other (1), and four of them are on gender-balanced events.
+ * Eleven have explicitly declined to say, so assigning them a side to satisfy a
+ * cap would override the thing they chose. The cost is real and small: a
+ * 25/25 event can seat those few beyond the gender split, though totalSpots
+ * still caps the room. Reviewed 2026-08-18 and deliberately left as is.
  */
 export async function hasQuotaRoomFor(
   eventId: string,

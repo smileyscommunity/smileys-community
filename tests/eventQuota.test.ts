@@ -87,6 +87,17 @@ describe('hasQuotaRoomFor', () => {
     counts({ males: 99 })
     expect(await hasQuotaRoomFor('e1', EVENT, { gender: null, nationality: null })).toEqual({ ok: true })
   })
+
+  it('counts a gender outside male/female toward neither side — a decision, not a gap', async () => {
+    // 14 approved members are one of these, four of them on gender-balanced
+    // events. Eleven chose not to say, so assigning them a side to satisfy a
+    // cap would override that choice. Pinned so a future change is deliberate.
+    counts({ males: 99, females: 99 })
+    for (const gender of ['prefer_not_to_say', 'non_binary', 'other']) {
+      expect(await hasQuotaRoomFor('e1', { ...EVENT, femaleQuota: 1 }, { gender, nationality: 'Turkey' }))
+        .toEqual({ ok: true })
+    }
+  })
 })
 
 describe('findPromotableFromWaitlist', () => {
