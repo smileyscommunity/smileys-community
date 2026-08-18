@@ -53,10 +53,15 @@ function EventTile({ e, from }: { e: DiscoveryEvent; from: string }) {
   return (
     <Link href={`/events/${e.id}`}
       onClick={() => posthog.capture('event_viewed', { from, eventId: e.id })}
-      className="shrink-0 w-64 sm:w-auto bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-md hover:border-amber-200 hover:-translate-y-0.5 transition-all overflow-hidden group">
+      // w-full, not w-64: these rows were horizontal scrollers once, where a
+      // fixed 16rem card and shrink-0 were the point. They are grids now
+      // (grid-cols-1 on a phone), so the fixed width left every card at 256px
+      // inside a full-width cell — visibly narrower than the feed below it,
+      // for no reason anyone could see.
+      className="w-full bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-md hover:border-amber-200 hover:-translate-y-0.5 transition-all overflow-hidden group">
       <div className="relative h-32 bg-gradient-to-br from-amber-100 to-orange-50">
         {cover
-          ? <Image src={cover} alt="" fill sizes="(max-width: 640px) 16rem, 25vw" className="object-cover group-hover:scale-105 transition-transform duration-300" />
+          ? <Image src={cover} alt="" fill sizes="(max-width: 640px) 100vw, 25vw" className="object-cover group-hover:scale-105 transition-transform duration-300" />
           : <div className="absolute inset-0 flex items-center justify-center text-4xl">{e.emoji}</div>}
         {badge && (
           <span className={`absolute top-2 left-2 text-[11px] font-bold px-2 py-0.5 rounded-full ${badge.cls}`}>

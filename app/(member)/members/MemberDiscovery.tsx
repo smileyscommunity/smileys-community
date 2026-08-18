@@ -28,7 +28,9 @@ interface Discovery {
 function MemberCard({ m, onOpen }: { m: DiscoveryMember; onOpen: (id: string) => void }) {
   return (
     <Link href={`/members/${m.id}`} onClick={() => onOpen(m.id)}
-      className="shrink-0 w-44 sm:w-auto bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-amber-200 hover:-translate-y-0.5 transition-all group">
+      // Same scroller leftover as the events tile: w-44 pinned each card to
+      // 11rem inside a grid cell that is half the screen on a phone.
+      className="w-full bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-amber-200 hover:-translate-y-0.5 transition-all group">
       <AvatarImg src={avatarUrl(m.profilePhoto, 256)} name={m.name} color={m.color}
         size="w-16 h-16" textSize="text-lg" className="mb-3" />
       <p className="font-bold text-gray-900 text-sm truncate group-hover:text-amber-700 transition-colors">

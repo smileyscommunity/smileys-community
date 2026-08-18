@@ -636,12 +636,12 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
             <p className="text-gray-600 mt-1.5 mb-6">
               Meet Smileys members who call {focusIsYours ? `your part of ${city.name}` : focusNeighborhood} home.
             </p>
-            {/* Horizontal scroll on mobile per the brief; a plain grid once
-                there's room for it. */}
+            {/* A grid at every width — the horizontal scroller this once was is
+                gone, and the card widths went with it. */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pb-2">
               {peopleNearby.map(m => (
                 <div key={m.id}
-                  className="shrink-0 w-64 sm:w-auto bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
+                  className="w-full bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
                   <Link href={`/members/${m.id}`} className="block">
                     {/* AvatarImg handles the initials fallback itself, including
                         a photo that 403s behind the applications gate. */}
