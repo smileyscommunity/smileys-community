@@ -28,6 +28,27 @@ const FROM_LABELS: [string, string][] = [
   ['/messages',  'Messages'],
 ]
 
+// Why they were signed out, when they didn't do it themselves. getSession()
+// drops this cookie (SIGNOUT_REASON_COOKIE) as it kills a session for an
+// account-state change; without it a suspended member is simply ejected
+// mid-session with no explanation, and only finds out by trying to sign in
+// again. Read once and cleared, so it can't explain a later sign-out.
+const SIGNOUT_MESSAGES: Record<string, string> = {
+  suspended: 'Your account has been suspended, so you were signed out. Sign in for the details, or contact support if you think it\'s a mistake.',
+  banned:    'Your account has been closed, so you were signed out. Contact support if you believe this is an error.',
+}
+
+function readSignoutReason(): string | null {
+  if (typeof document === 'undefined') return null
+  const hit = document.cookie.split('; ').find(c => c.startsWith('smileys_signed_out='))
+  if (!hit) return null
+  const reason = decodeURIComponent(hit.split('=')[1] ?? '')
+  // Clear it immediately — this explains one sign-out, not every future visit
+  // to the login page.
+  document.cookie = 'smileys_signed_out=; Max-Age=0; Path=/'
+  return SIGNOUT_MESSAGES[reason] ?? null
+}
+
 function fromMessage(from: string | null): string | null {
   if (!from) return null
   // Match on the path alone: `from` now carries the query string too (so the
@@ -43,7 +64,12 @@ function LoginPageInner() {
   const router = useRouter()
   const { setUser } = useAuth()
   const searchParams = useSearchParams()
-  const reason = fromMessage(searchParams.get('from'))
+  // An involuntary sign-out outranks "that page is members-only": it explains
+  // something the member can't work out, where the other is self-evident once
+  // they see the form.
+  const [signedOut, setSignedOut] = useState<string | null>(null)
+  useEffect(() => { setSignedOut(readSignoutReason()) }, [])
+  const reason = signedOut ?? fromMessage(searchParams.get('from'))
   // Where to land after signing in. `from` is what the (member) layout adds
   // when it bounces a logged-out visitor; `next` is what the pages carrying
   // their own gate use (board/new). Both were read for the *message* only, so

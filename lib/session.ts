@@ -134,11 +134,11 @@ export async function getSession(): Promise<SessionUser | null> {
         : Promise.resolve(null),
     ])
     if (!dbUser || dbUser.status === 'banned') {
-      await deleteSession()
+      await deleteSession(dbUser ? 'banned' : undefined)
       return null
     }
     if (dbUser.suspendedUntil && new Date(dbUser.suspendedUntil) > new Date()) {
-      await deleteSession()
+      await deleteSession('suspended')
       return null
     }
     // JWTs issued before this column existed have no tokenVersion — treat as 0,
@@ -176,10 +176,33 @@ export async function getSession(): Promise<SessionUser | null> {
   }
 }
 
-export async function deleteSession() {
+// Why a session ended, for the one case the member can't work out themselves.
+// Being signed out mid-session with no explanation is indistinguishable from a
+// bug: they only learn they were suspended if they happen to try logging in
+// again, where /api/auth/login has told them properly all along.
+//
+// A separate short-lived cookie rather than a redirect, because getSession()
+// returns null — it has no way to redirect anything — and the layout that does
+// bounce them only knows `isLoggedIn === false`. Deliberately readable by the
+// client: /login is a client component, and the value is a reason code, not a
+// credential. Five minutes is long enough to survive the bounce and short
+// enough that a stale one can't explain some later, unrelated sign-out.
+export const SIGNOUT_REASON_COOKIE = 'smileys_signed_out'
+export type SignoutReason = 'suspended' | 'banned'
+
+export async function deleteSession(reason?: SignoutReason) {
   const cookieStore = await cookies()
   const token = cookieStore.get(COOKIE)?.value
   cookieStore.delete(COOKIE)
+  if (reason) {
+    cookieStore.set(SIGNOUT_REASON_COOKIE, reason, {
+      httpOnly: false,
+      secure:   process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge:   300,
+      path:     '/',
+    })
+  }
 
   // Also nuke the Session row for THIS device so the list in /settings
   // updates immediately. Fail-soft — the cookie is already cleared, so a
