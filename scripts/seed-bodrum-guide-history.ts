@@ -117,7 +117,10 @@ const ENTRIES = [
     emoji: '🎼',
     tagline: 'The house of Türkiye’s most beloved singer, kept as he left it.',
     collection: 'history',
-    moods: ['history', 'different'],
+    // 'different' is Istanbul's vocabulary — Bodrum has no such mood, so the
+    // chip would never match. 'people' is the honest one: this museum explains
+    // the town's place in Turkish cultural life.
+    moods: ['history', 'people'],
     cost: '₺',
     time: '45 minutes',
     when: 'Any time it is open',

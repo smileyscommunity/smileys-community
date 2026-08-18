@@ -144,3 +144,24 @@ describe('§14 audience curation', () => {
     expect(matchesAudience({}, beach)).toBe(false)
   })
 })
+
+describe('seeded Bodrum entries use Bodrum\'s vocabulary', () => {
+  it('the history seed references no mood or shelf Bodrum lacks', async () => {
+    // The Zeki Müren draft shipped with 'different', which is Istanbul's —
+    // invisible to every chip and rejected by the editor's own validator. A
+    // seed script is the one write path that bypasses that validator, so the
+    // check lives here instead.
+    const { readFileSync } = await import('fs')
+    const src = readFileSync('scripts/seed-bodrum-guide-history.ts', 'utf8')
+    const moods = new Set(moodsFor('bodrum').map(m => m.value))
+    const colls = new Set(collectionsFor('bodrum').map(c => c.value))
+
+    const seededMoods = [...src.matchAll(/moods: \[([^\]]*)\]/g)]
+      .flatMap(m => [...m[1].matchAll(/'([a-z-]+)'/g)].map(x => x[1]))
+    const seededColls = [...src.matchAll(/collection: '([a-z-]+)'/g)].map(m => m[1])
+
+    expect(seededMoods.length).toBeGreaterThan(0)
+    for (const m of seededMoods) expect(moods.has(m), `mood "${m}"`).toBe(true)
+    for (const c of seededColls) expect(colls.has(c), `collection "${c}"`).toBe(true)
+  })
+})

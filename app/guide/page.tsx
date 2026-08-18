@@ -180,7 +180,10 @@ export default async function GuidePage({ searchParams }: { searchParams?: Promi
             Things worth doing, places worth discovering and experiences recommended by people who actually live here.
           </p>
           <div className="flex flex-wrap gap-3 mt-7">
-            <a href="#experiences"
+            {/* #experiences only exists once the city has published some, so on
+                a young guide this pointed at nothing. Fall through to the one
+                section that does exist. */}
+            <a href={experiences.length > 0 ? '#experiences' : neighborhoods.length > 0 ? '#neighborhoods' : '/events'}
               className="inline-flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
               Explore {city.name}
             </a>
@@ -423,8 +426,18 @@ export default async function GuidePage({ searchParams }: { searchParams?: Promi
             )
           })()}
 
-          {/* §15/16 — experience it with people. Static cross-links in
-              phase 1; live counts arrive with the save/social phase. */}
+          {/* §18/§27 — the viewer's saved list. Client island; renders
+              nothing for guests or empty lists. */}
+          <MySaved cityName={city.name} experiences={experiences.map(e => ({ slug: e.slug, title: e.title, emoji: e.emoji }))} />
+        </div>
+      )}
+
+      {/* §16 — experience it with people. Deliberately OUTSIDE the
+          experiences gate: a city with no published experiences yet is the
+          one whose guide most needs to point somewhere, and clubs, events
+          and hangouts exist from day one. Bodrum's guide was otherwise a
+          hero and a list of neighborhoods. */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="mt-12 grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Link href="/clubs" className="bg-indigo-600 rounded-3xl p-6 sm:p-8 group hover:shadow-md transition-all">
               <p className="text-xs font-bold text-indigo-200 uppercase tracking-widest mb-2">Find your people</p>
@@ -447,11 +460,7 @@ export default async function GuidePage({ searchParams }: { searchParams?: Promi
             </Link>
           </div>
 
-          {/* §18/§27 — the viewer's saved list. Client island; renders
-              nothing for guests or empty lists. */}
-          <MySaved cityName={city.name} experiences={experiences.map(e => ({ slug: e.slug, title: e.title, emoji: e.emoji }))} />
-        </div>
-      )}
+      </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="max-w-3xl space-y-0">
