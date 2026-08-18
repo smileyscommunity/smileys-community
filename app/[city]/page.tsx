@@ -70,7 +70,7 @@ const getCityPageData = unstable_cache(
     const today        = todayInTz(tz)
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
 
-    const [{ events }, clubs, neighborhoodCounts, testimonials, newMembersThisWeek] = await Promise.all([
+    const [{ events }, clubs, neighborhoodCounts, testimonials, newMembersThisWeek, guideEntries] = await Promise.all([
       getEvents({ limit: 24, upcoming: true, cityId }),
       getClubs(cityId),
       prisma.event.groupBy({
@@ -96,9 +96,12 @@ const getCityPageData = unstable_cache(
       prisma.user.count({
         where: { status: 'approved', role: 'member', joinedAt: { gte: sevenDaysAgo }, cityId, hiddenFromMembers: false },
       }),
+      // Does this city have a guide worth linking to? Published entries only —
+      // a city whose guide is still all drafts has nothing to read yet.
+      prisma.guideEntry.count({ where: { cityId, status: 'published' } }),
     ])
 
-    return { events, clubs, neighborhoodCounts, testimonials, newMembersThisWeek }
+    return { events, clubs, neighborhoodCounts, testimonials, newMembersThisWeek, guideEntries }
   },
   ['city-page-data'],
   { revalidate: 60, tags: ['home'] },
@@ -151,7 +154,8 @@ export default async function CityPage({ params }: Params) {
     )
   }
 
-  const { events: cachedEvents, clubs, neighborhoodCounts, testimonials, newMembersThisWeek } = await getCityPageData(city.id, city.timezone)
+  const { events: cachedEvents, clubs, neighborhoodCounts, testimonials, newMembersThisWeek, guideEntries } = await getCityPageData(city.id, city.timezone)
+  const hasGuide = guideEntries > 0
 
   // Guest redaction happens per-request, OUTSIDE the shared cache entry —
   // a session-dependent branch must never write into unstable_cache. Same
@@ -222,12 +226,9 @@ export default async function CityPage({ params }: Params) {
   // cookie before landing — so "See what's on" from /izmir shows İzmir's
   // events, not the default city's. Plain <a> targets (route handler, not a
   // page), hence the explicit /app basePath.
-  const enter = (to: 'events' | 'clubs' | 'directory' | 'neighborhoods', n?: string) =>
+  const enter = (to: 'events' | 'clubs' | 'directory' | 'neighborhoods' | 'guide', n?: string) =>
     `/app/api/city/enter?city=${city.slug}&to=${to}${n ? `&n=${encodeURIComponent(n)}` : ''}`
 
-  // The guide is still default-city content — /guide is that city's guide, and
-  // promising "the İzmir guide" over Istanbul's entries breaks trust on exactly
-  // the page meant to build it. Neighborhoods no longer need this gate.
   const isDefaultCity = city.slug === DEFAULT_CITY_SLUG
 
   return (
@@ -448,10 +449,18 @@ export default async function CityPage({ params }: Params) {
         </div>
       </section>
 
-      {/* Guide — default city only: /guide is that city's guide, and
-          promising "the İzmir guide" over Istanbul content breaks trust on
-          exactly the page meant to build it. */}
-      {isDefaultCity && (
+      {/* Shown when the city HAS a guide, not when it is the default city.
+          The old gate was written when /guide could only ever serve the default
+          city's entries, so offering "the <city> guide" anywhere else would
+          have handed the reader someone else's content — worse than no link.
+          Both halves of that are now false: the guide reads per city, and the
+          second city has a dozen entries of its own. All the gate still did was
+          hide a real guide from the city it belongs to.
+
+          Counting entries rather than naming a city also keeps it honest for
+          city #3, which has none on day one and shouldn't be offered an empty
+          guide. */}
+      {hasGuide && (
         <section className="py-12 sm:py-16 bg-white border-t border-gray-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="rounded-3xl bg-gradient-to-br from-amber-50 to-white border border-amber-100 p-8 sm:p-12">
@@ -461,7 +470,10 @@ export default async function CityPage({ params }: Params) {
                 that take newcomers months to work out.
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
-                <Link href="/guide" className="btn-primary">Read the {city.name} guide</Link>
+                {/* Through the city-enter endpoint, which sets the view city before
+                    landing: /guide reads the viewer's city, so a plain link would
+                    show a cookie-less visitor Istanbul's guide from Bodrum's page. */}
+                <a href={enter('guide')} className="btn-primary">Read the {city.name} guide</a>
                 <a href={enter('directory')} className="btn-secondary">Browse places</a>
               </div>
             </div>

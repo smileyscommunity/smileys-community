@@ -28,20 +28,25 @@ export const DISCOVER_LINKS: NavLink[] = [
   { label: 'Experiences',     href: '/experiences',   emoji: '✨', public: true  },
   { label: 'Directory',       href: '/directory',     emoji: '📍', public: true  },
   { label: 'Neighborhoods',   href: '/neighborhoods', emoji: '🏘️', public: true  },
-  { label: 'City guide',      href: '/guide',         emoji: '🗺️', public: true  },
+  // The two members-only entries, placed together and ABOVE the reference
+  // block. They are the most time-sensitive things in this menu — a coffee
+  // happening this week, someone landing in your city on Thursday — and they
+  // were both at the bottom, under the Handbook, because the list is ordered
+  // for a guest deciding whether to join and members inherited those
+  // priorities wholesale.
+  //
+  // Moving them changes nothing for guests: a guest's menu is the `public`
+  // items in their existing relative order, and neither of these is public.
+  // `public: false` is the mirror of `guestOnly` — a guest reaches Visiting
+  // from their primary bar instead, so nobody sees either link twice.
+  { label: 'Hangouts',        href: '/hangouts',      emoji: '☕', public: false },
+  { label: 'Visiting',        href: '/visiting',      emoji: '👋', public: false },
+  { label: 'City Guide',      href: '/guide',         emoji: '🗺️', public: true  },
   { label: 'Handbook',        href: '/handbook',      emoji: '📖', public: true  },
   { label: 'Hosts',           href: '/hosts',         emoji: '🎤', public: true  },
   { label: 'Stories',         href: '/posts',         emoji: '📰', public: true  },
   { label: 'Community Board', href: '/board',         emoji: '💬', public: true  },
   { label: 'Marketplace',     href: '/marketplace',   emoji: '🛍️', public: true  },
-  { label: 'Hangouts',        href: '/hangouts',      emoji: '☕', public: false },
-  // Members only, because a guest already has Visiting in their primary bar —
-  // the mirror image of `guestOnly`. When the bars diverged (d6fc70c) this was
-  // moved into the guest bar and dropped from here, which left a signed-in
-  // member no route to /visiting at all, on desktop or mobile. Welcoming
-  // someone who's coming to your city is a member's action more than a
-  // guest's, so it has to be reachable from inside.
-  { label: 'Visiting',        href: '/visiting',      emoji: '👋', public: false },
 ]
 
 // Kept out of the bar to hold it at five, but not orphaned — a guest weighing

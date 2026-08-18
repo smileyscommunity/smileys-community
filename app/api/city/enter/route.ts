@@ -25,6 +25,7 @@ const DESTINATIONS: Record<string, string> = {
   clubs:         '/clubs',
   directory:     '/directory',
   neighborhoods: '/neighborhoods',
+  guide:         '/guide',
 }
 
 export async function GET(req: NextRequest) {
