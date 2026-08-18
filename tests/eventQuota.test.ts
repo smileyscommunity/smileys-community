@@ -59,11 +59,21 @@ describe('hasQuotaRoomFor', () => {
     expect(await hasQuotaRoomFor('e1', { ...EVENT, maleQuota: 12 }, MAN)).toEqual({ ok: false, reason: 'male_quota' })
   })
 
-  it('leaves the female side uncapped unless a quota is set', async () => {
-    counts({ females: 999 })
+  it('caps the female side at half the spots too — gender balance means half and half', async () => {
+    // It used to mean "cap the men at half, leave the women uncapped", because
+    // a null femaleQuota was read as no limit while maleQuota quietly fell back
+    // to totalSpots/2. Ticking the box is understood to mean 25/25 on a 50-spot
+    // event, and now does.
+    counts({ females: 24 })
     expect(await hasQuotaRoomFor('e1', EVENT, WOMAN)).toEqual({ ok: true })
+    counts({ females: 25 })
+    expect(await hasQuotaRoomFor('e1', EVENT, WOMAN)).toEqual({ ok: false, reason: 'female_quota' })
+  })
+
+  it('honours an explicit female quota over the inferred one', async () => {
     counts({ females: 20 })
     expect(await hasQuotaRoomFor('e1', { ...EVENT, femaleQuota: 20 }, WOMAN)).toEqual({ ok: false, reason: 'female_quota' })
+    expect(await hasQuotaRoomFor('e1', { ...EVENT, femaleQuota: 30 }, WOMAN)).toEqual({ ok: true })
   })
 
   it('applies the Turkish-male sub-quota before the general one, so the reason is specific', async () => {

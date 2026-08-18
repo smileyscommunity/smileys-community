@@ -50,9 +50,9 @@ export type QuotaBlock = 'male_quota' | 'female_quota' | 'turkish_male_quota'
  * allows a 2× pool of candidates for a host to choose between; that's a
  * different question from who may hold a spot.)
  *
- * `null` quota means uncapped on that side, except maleQuota, which falls back
- * to half the spots — the historical default, kept so existing events behave
- * as they always have.
+ * A null quota on either side falls back to half the spots. That is what
+ * "gender balance" is understood to mean when it's ticked, and only the male
+ * side used to honour it.
  *
  * A gender outside male/female counts toward NEITHER side, and that is a
  * decision, not an oversight. 14 approved members are prefer_not_to_say (11),
@@ -88,11 +88,16 @@ export async function hasQuotaRoomFor(
     if (males >= maleQuota) return { ok: false, reason: 'male_quota' }
   }
 
-  if (isFemale && event.femaleQuota != null) {
+  if (isFemale) {
+    // Mirrors the male side, including the fallback. Ticking "gender balance"
+    // is meant to mean half and half; it used to mean "cap the men at half,
+    // leave the women uncapped", because null was read as no limit here while
+    // the male side quietly fell back to totalSpots/2.
+    const femaleQuota = event.femaleQuota ?? Math.floor(event.totalSpots / 2)
     const females = await prisma.eventAttendee.count({
       where: { eventId, status: 'approved', user: { gender: { in: FEMALE_VARIANTS } } },
     })
-    if (females >= event.femaleQuota) return { ok: false, reason: 'female_quota' }
+    if (females >= femaleQuota) return { ok: false, reason: 'female_quota' }
   }
 
   return { ok: true }

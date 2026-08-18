@@ -347,14 +347,15 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         }
       }
 
-      // Female quota check — mirrors the male side. Only enforced when
-      // femaleQuota is explicitly set; null = uncapped female side (old
-      // behaviour, preserved by default).
-      if (event?.genderBalance && isFemale && event.femaleQuota != null) {
+      // Female quota check — mirrors the male side, fallback included. A null
+      // femaleQuota used to mean "uncapped", so ticking gender balance capped
+      // the men at half the room and let the women fill the rest.
+      if (event?.genderBalance && isFemale) {
+        const femaleQuota = event.femaleQuota ?? Math.floor(event.totalSpots / 2)
         const femaleCount = await prisma.eventAttendee.count({
           where: { eventId, status: 'approved', user: { gender: { in: FEMALE_VARIANTS } } },
         })
-        if (femaleCount >= event.femaleQuota) {
+        if (femaleCount >= femaleQuota) {
           await prisma.eventAttendee.delete({ where: { userId_eventId: { userId, eventId } } })
           await prisma.waitlistEntry.create({ data: { userId, eventId } })
           createNotification(userId, 'waitlist', 'Added to waitlist 📋',
