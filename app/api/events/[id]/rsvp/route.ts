@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { hasQuotaRoomFor } from '@/lib/eventQuota'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
@@ -77,6 +78,22 @@ export async function POST(req: NextRequest, { params }: Params) {
       // Approval-required events don't gate the claim: matches the
       // previous auto-promote behavior, which also promoted directly
       // to 'approved' regardless of approvalRequired.
+      // Claiming an open spot is a promotion too, so the same rule applies:
+      // an open spot is not automatically YOUR spot if your side is already at
+      // its cap. Checked before the transaction — this is a read against
+      // approved counts, and taking it inside would hold the row longer for no
+      // benefit.
+      const claimRoom = await hasQuotaRoomFor(eventId, event, {
+        gender:      userRecord?.gender      ?? null,
+        nationality: userRecord?.nationality ?? null,
+      })
+      if (!claimRoom.ok) {
+        return NextResponse.json({
+          ok: true, status: 'waitlisted', reason: claimRoom.reason,
+          message: `That spot is reserved for balance — you're still on the waitlist for "${event.title}".`,
+        })
+      }
+
       const outcome = await prisma.$transaction(async (tx) => {
         // A manual sold-out flag closes the door even when the counter says
         // there's room. Without this the waitlist would promote people into

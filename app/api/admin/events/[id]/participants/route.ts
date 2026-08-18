@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { findPromotableFromWaitlist, hasQuotaRoomFor, quotaEventSelect } from '@/lib/eventQuota'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin, isClubHost } from '@/lib/access'
@@ -177,7 +178,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
 
     const [entry, eventRow] = await Promise.all([
       prisma.eventAttendee.findUnique({ where: { userId_eventId: { userId, eventId } } }),
-      prisma.event.findUnique({ where: { id: eventId }, select: { title: true, approvalRequired: true, totalSpots: true } }),
+      prisma.event.findUnique({ where: { id: eventId }, select: { title: true, approvalRequired: true, ...quotaEventSelect } }),
     ])
     await prisma.eventAttendee.deleteMany({ where: { eventId, userId } })
 
@@ -195,8 +196,13 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     })
 
     if (entry?.status === 'approved') {
-      // Promote first person on waitlist, or free the spot
-      const next = await prisma.waitlistEntry.findFirst({ where: { eventId }, orderBy: { createdAt: 'asc' } })
+      // Promote the first person on the waitlist WHOSE SIDE HAS ROOM, or free
+      // the spot. Taking the head of the queue unconditionally is how a
+      // gender-balanced event drifts past its own cap: a woman cancels, the
+      // next in line is a man, and the male count steps over the quota that
+      // the approval path is careful to enforce. Order still decides who goes
+      // first; the quota decides who is eligible.
+      const next = eventRow ? await findPromotableFromWaitlist(eventId, eventRow) : null
       if (next) {
         await prisma.$transaction([
           prisma.waitlistEntry.delete({ where: { id: next.id } }),
