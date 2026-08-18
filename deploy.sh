@@ -150,17 +150,21 @@ echo "→ Checking for vulnerabilities..."
 # non-applicable exceptions listed in AUDIT_ALLOW (moderate/low never gate).
 #
 # 2026-07-23 — coordinated Next.js security release; all fixed in 15.5.21, but
-# 15.5.21 regresses CSP nonce injection (drops the nonce from <script> tags, so
-# our strict-dynamic CSP would block every script and take the site down —
-# caught by the smoke test). We stay on a pinned next@15.5.18 until a Next
-# release fixes the nonce, and accept these three HIGH advisories, each verified
-# NOT applicable to this app:
-#   GHSA-m99w-x7hq-7vfj  DoS via Server Actions   — app uses zero Server Actions
-#   GHSA-89xv-2m56-2m9x  SSRF via Server Actions  — app uses zero Server Actions
-#   GHSA-p9j2-gv94-2wf4  SSRF via rewrites         — rewrites use static hosts
-#                                                    (only :path* is templated)
-# Re-audit and drop these the moment we can move off 15.5.18.
-AUDIT_ALLOW="GHSA-m99w-x7hq-7vfj GHSA-89xv-2m56-2m9x GHSA-p9j2-gv94-2wf4"
+# 15.5.21 regressed CSP nonce injection (dropped the nonce from <script> tags,
+# so our strict-dynamic CSP would block every script and take the site down).
+# We pinned next@15.5.18 and accepted three HIGH advisories, each verified not
+# applicable here (no Server Actions; rewrites use static hosts).
+#
+# 2026-08-18 — moved to next@15.5.23 and the exceptions are gone. The nonce is
+# injected again: a built server returned 31 of 31 <script> tags carrying one
+# nonce, equal to the CSP header's and freshly rotated per request. Re-check
+# that on the next Next bump before assuming it still holds — this regressed
+# silently once, and the smoke test is what catches it.
+#
+# AUDIT_ALLOW stays as the mechanism for a documented, verified-non-applicable
+# advisory. It is empty because nothing currently qualifies; do not add an entry
+# without writing down what was checked and why it does not apply.
+AUDIT_ALLOW=""
 npm audit --json --legacy-peer-deps 2>/dev/null | AUDIT_ALLOW="$AUDIT_ALLOW" python3 -c '
 import json, os, sys
 allow = set(os.environ.get("AUDIT_ALLOW", "").split())

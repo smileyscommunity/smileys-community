@@ -145,6 +145,20 @@ gaps below).
   validates against a closed enum. See
   `app/api/admin/users/[id]/route.ts` and
   `app/api/admin/clubs/[id]/memberships/route.ts`.
+- **A route that writes `role` as a side effect is still a role
+  change.** `/api/admin/partners/[id]` assigns a partner account, which
+  means writing `role` on the target user — and its gate,
+  `canManagePartners`, admits moderators, while role changes are
+  admin-only (`canManageUsers`). A moderator could therefore POST the
+  admin's id and overwrite `role: 'admin'` with `'partner'`: not an
+  escalation, since `partner` ranks below `moderator`, but with one
+  admin and four moderators in production it was a one-request lockout
+  of every admin surface, and POST wrote no audit row naming who did
+  it. Both handlers now refuse a target already holding an elevated
+  role unless the caller `canManageUsers`, and both log the change.
+  Covered by `tests/partnerRoleGuard.test.ts`. When you add a route
+  that touches `role` or `status` incidentally, gate it on what it
+  *writes*, not on what the feature is called.
 
 ### Input handling
 
