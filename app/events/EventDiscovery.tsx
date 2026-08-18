@@ -97,7 +97,11 @@ function Row({ title, subtitle, events, cta, from }: {
           <h2 className="text-lg sm:text-xl font-extrabold tracking-tight text-gray-900 truncate">{title}</h2>
           {subtitle && <p className="text-sm text-gray-600 mt-0.5">{subtitle}</p>}
         </div>
-        {cta && <Link href={cta.href} className="text-xs font-bold text-amber-600 hover:text-amber-700 shrink-0">{cta.label}</Link>}
+        {/* Desktop only. On a phone these sat in the heading row taking width
+            from the title beside them, and the row's cards are the thing you
+            came for — /neighborhoods, /clubs and /my-events are all a tap away
+            in the nav anyway. Kept on wider screens, where the space is free. */}
+        {cta && <Link href={cta.href} className="hidden sm:inline text-xs font-bold text-amber-600 hover:text-amber-700 shrink-0">{cta.label}</Link>}
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pb-2">
         {events.map(e => <EventTile key={e.id} e={e} from={from} />)}
@@ -164,12 +168,9 @@ export default function EventDiscovery() {
       <Row title="From your clubs" events={d.fromClubs}
         cta={{ href: '/clubs', label: 'Your clubs →' }} from="from_clubs" />
 
-      {/* No CTA on this row. "Explore neighborhoods →" sat directly under
-          "Your clubs →" on the row above, and on a phone two long links stacked
-          like that crowded the headings without earning their place — the row
-          already shows what's near you, which is the thing you came for. */}
       {d.viewer.isMember && (d.viewer.neighborhood
-        ? <Row title={`Near ${d.viewer.neighborhood}`} events={d.nearYou} from="near_you" />
+        ? <Row title={`Near ${d.viewer.neighborhood}`} events={d.nearYou}
+            cta={{ href: '/neighborhoods', label: 'Explore neighborhoods →' }} from="near_you" />
         : (
           <div className="mb-8 bg-gray-50 border border-gray-200 rounded-2xl p-5 flex items-center justify-between gap-4 flex-wrap">
             <p className="text-sm text-gray-700">Choose your neighborhood to see what&apos;s happening nearby.</p>

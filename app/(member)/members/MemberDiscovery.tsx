@@ -59,8 +59,11 @@ function Section({ title, subtitle, members, cta, onOpen }: {
           <h2 className="text-lg sm:text-xl font-extrabold tracking-tight text-gray-900">{title}</h2>
           {subtitle && <p className="text-sm text-gray-600 mt-0.5">{subtitle}</p>}
         </div>
+        {/* Desktop only — same rule as the events rail: on a phone this sat in
+            the heading row taking width from the title, and every destination
+            it points at is a tap away in the nav. */}
         {cta && (
-          <Link href={cta.href} className="text-xs font-bold text-amber-600 hover:text-amber-700 shrink-0">
+          <Link href={cta.href} className="hidden sm:inline text-xs font-bold text-amber-600 hover:text-amber-700 shrink-0">
             {cta.label}
           </Link>
         )}
@@ -103,11 +106,11 @@ export default function MemberDiscovery() {
 
       {d.viewer.neighborhood
         ? <Section title={`Around ${d.viewer.neighborhood}`}
-            // Says "your neighborhood", not "your part of Istanbul" — this rail
-            // renders for every city. Same reason the CTA is gone: it sat under
-            // "Explore your clubs →" and crowded the headings on a phone.
+            // "your neighborhood", not "your part of Istanbul" — this rail
+            // renders for every city.
             subtitle="People in and around your neighborhood."
-            members={d.neighbours} onOpen={onOpen} />
+            members={d.neighbours}
+            cta={{ href: '/neighborhoods', label: 'Explore neighborhoods →' }} onOpen={onOpen} />
         : (
           <div className="mb-8 bg-amber-50 border border-amber-100 rounded-2xl p-5 flex items-center justify-between gap-4 flex-wrap">
             <div>
