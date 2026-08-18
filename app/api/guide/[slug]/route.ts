@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
-import { getExperience } from '@/lib/guideContent'
+import { getExperienceAnyCity } from '@/lib/guideContent'
 
 type Params = { params: Promise<{ slug: string }> }
 
@@ -11,7 +11,11 @@ type Params = { params: Promise<{ slug: string }> }
 // from this endpoint via a client island (same pattern as GuideCTA).
 export async function GET(_req: NextRequest, { params }: Params) {
   const { slug } = await params
-  if (!await getExperience(slug)) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  // ANY city's experience, not the default city's. getExperience(slug) with no
+  // cityId resolves against Istanbul alone, so saving, recommending or marking
+  // done on any of Bodrum's twelve pages answered 404 — the buttons were dead
+  // the moment a second city published anything.
+  if (!await getExperienceAnyCity(slug)) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const session = await getSession()
   const [recommendCount, mine] = await Promise.all([
@@ -42,7 +46,11 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   const { slug } = await params
-  if (!await getExperience(slug)) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  // ANY city's experience, not the default city's. getExperience(slug) with no
+  // cityId resolves against Istanbul alone, so saving, recommending or marking
+  // done on any of Bodrum's twelve pages answered 404 — the buttons were dead
+  // the moment a second city published anything.
+  if (!await getExperienceAnyCity(slug)) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const body = await req.json().catch(() => ({}))
   const kind = body.kind === 'recommend' ? 'recommended'

@@ -22,10 +22,15 @@ export default function MySaved({ cityName, experiences }: { cityName: string; e
       .then(d => {
         const rows = (d.saves ?? []) as { slug: string; saved: boolean; done?: boolean }[]
         setSavedSlugs(rows.filter(r => r.saved).map(r => r.slug))
-        setDoneCount(rows.filter(r => r.done).length)
+        // Scoped to THIS city's experiences. GuideSave is keyed on (userId,
+        // slug) with no city, so an unscoped count put "5 completed ✓" under
+        // the heading "My Bodrum" for five things done in Istanbul — and made
+        // the panel appear at all for a member with nothing saved here.
+        const here = new Set(experiences.map(e => e.slug))
+        setDoneCount(rows.filter(r => r.done && here.has(r.slug)).length)
       })
       .catch(() => {})
-  }, [isLoggedIn])
+  }, [isLoggedIn, experiences])
 
   const saved = experiences.filter(e => savedSlugs.includes(e.slug))
   if (saved.length === 0 && doneCount === 0) return null
