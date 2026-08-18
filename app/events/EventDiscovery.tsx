@@ -102,11 +102,12 @@ function Row({ title, subtitle, events, cta, from }: {
           <h2 className="text-lg sm:text-xl font-extrabold tracking-tight text-gray-900 truncate">{title}</h2>
           {subtitle && <p className="text-sm text-gray-600 mt-0.5">{subtitle}</p>}
         </div>
-        {/* Desktop only. On a phone these sat in the heading row taking width
-            from the title beside them, and the row's cards are the thing you
-            came for — /neighborhoods, /clubs and /my-events are all a tap away
-            in the nav anyway. Kept on wider screens, where the space is free. */}
-        {cta && <Link href={cta.href} className="hidden sm:inline text-xs font-bold text-amber-600 hover:text-amber-700 shrink-0">{cta.label}</Link>}
+        {/* Shown at every width again. These were hidden on phones while the
+            small cards were blamed on them; the cause turned out to be a fixed
+            card width left over from the scroller era (07dacb8), so the links
+            were never costing anything. The heading keeps min-w-0 + truncate,
+            which is what actually protects it from a shrink-0 link. */}
+        {cta && <Link href={cta.href} className="text-xs font-bold text-amber-600 hover:text-amber-700 shrink-0">{cta.label}</Link>}
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pb-2">
         {events.map(e => <EventTile key={e.id} e={e} from={from} />)}
