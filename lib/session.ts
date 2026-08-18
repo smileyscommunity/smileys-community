@@ -193,20 +193,41 @@ export type SignoutReason = 'suspended' | 'banned'
 export async function deleteSession(reason?: SignoutReason) {
   const cookieStore = await cookies()
   const token = cookieStore.get(COOKIE)?.value
-  cookieStore.delete(COOKIE)
-  if (reason) {
-    cookieStore.set(SIGNOUT_REASON_COOKIE, reason, {
-      httpOnly: false,
-      secure:   process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge:   300,
-      path:     '/',
-    })
+
+  // Cookies can only be written in a Route Handler or Server Action. This is
+  // also reached from getSession() during PAGE RENDERS — the suspension, ban
+  // and tokenVersion checks all invalidate mid-request — and there Next throws
+  // "Cookies can only be modified in a Server Action or Route Handler".
+  //
+  // That throw used to escape into getSession's catch, which returned null.
+  // Right answer, wrong route: it skipped everything below, so the Session row
+  // survived, the cookie was never cleared, and the sign-out reason was never
+  // set — on a render, which is exactly when a member gets ejected mid-session.
+  //
+  // Best-effort instead. The session is dead either way (getSession returns
+  // null regardless), and the next route handler runs this again where the
+  // writes are legal — AuthContext polls /api/auth/me, so that happens within
+  // moments rather than eventually.
+  try {
+    cookieStore.delete(COOKIE)
+    if (reason) {
+      cookieStore.set(SIGNOUT_REASON_COOKIE, reason, {
+        httpOnly: false,
+        secure:   process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge:   300,
+        path:     '/',
+      })
+    }
+  } catch {
+    // Render context. Nothing to do here — see above.
   }
 
   // Also nuke the Session row for THIS device so the list in /settings
-  // updates immediately. Fail-soft — the cookie is already cleared, so a
-  // missing row doesn't matter functionally.
+  // updates immediately. Outside the try above on purpose: a database write
+  // is legal during a render even though a cookie write isn't, and this is
+  // the half that revokes the session for every other request. Fail-soft —
+  // a missing row doesn't matter functionally.
   if (token) {
     try {
       const { payload } = await jwtVerify(token, SECRET)
