@@ -24,7 +24,7 @@ export interface NavLink {
 // own Community post); /cup page + data stay live for anyone linking in from
 // there or a bookmark, just no longer in nav.
 export const DISCOVER_LINKS: NavLink[] = [
-  { label: 'People',          href: '/members',       emoji: '👋', public: true,  guestOnly: true },
+  { label: 'Members',         href: '/members',       emoji: '👋', public: true,  guestOnly: true },
   { label: 'Experiences',     href: '/experiences',   emoji: '✨', public: true  },
   { label: 'Directory',       href: '/directory',     emoji: '📍', public: true  },
   { label: 'Neighborhoods',   href: '/neighborhoods', emoji: '🏘️', public: true  },

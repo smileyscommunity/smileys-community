@@ -69,7 +69,7 @@ describe('Discover ordering', () => {
   // the point, it should take a deliberate edit.
   it('guest order is deliberate and unchanged', () => {
     expect(DISCOVER_LINKS.filter(l => l.public).map(l => l.label)).toEqual([
-      'People',
+      'Members',
       'Experiences',
       'Directory',
       'Neighborhoods',

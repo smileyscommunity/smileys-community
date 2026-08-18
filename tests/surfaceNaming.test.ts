@@ -34,11 +34,11 @@ describe('a route has one name', () => {
   // called two DIFFERENT things, which is how /posts ended up as both
   // "Articles" and "Stories" with nobody noticing.
   //
-  // /members is the one live exception and it is a real decision, not an
-  // oversight: Discover says "People" (a guest browsing for humans), the
-  // footer says "Members". Listed here so the choice is visible rather than
-  // silently passing.
-  const KNOWN_DIFFERENT = new Set(['/members'])
+  // Empty on purpose. /members was the one entry here — Discover called it
+  // "People", the footer "Members", for the same page — and it was settled
+  // rather than allowlisted. Adding a route back into this set should mean a
+  // deliberate decision that two names are right, not a way past the test.
+  const KNOWN_DIFFERENT = new Set<string>()
 
   it('footer and Discover never call the same route two different things', () => {
     const contradictions: string[] = []
