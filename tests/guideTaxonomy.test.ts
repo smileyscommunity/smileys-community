@@ -146,13 +146,17 @@ describe('§14 audience curation', () => {
 })
 
 describe('seeded Bodrum entries use Bodrum\'s vocabulary', () => {
-  it('the history seed references no mood or shelf Bodrum lacks', async () => {
+  it('no Bodrum seed references a mood or shelf the city lacks', async () => {
     // The Zeki Müren draft shipped with 'different', which is Istanbul's —
     // invisible to every chip and rejected by the editor's own validator. A
     // seed script is the one write path that bypasses that validator, so the
-    // check lives here instead.
-    const { readFileSync } = await import('fs')
-    const src = readFileSync('scripts/seed-bodrum-guide-history.ts', 'utf8')
+    // check lives here instead, across every seed.
+    const { readFileSync, readdirSync } = await import('fs')
+    // Every Bodrum seed, not just the first one — each new script is another
+    // write path around the editor's validator.
+    const files = readdirSync('scripts').filter(f => /^seed-bodrum-guide-.*\.ts$/.test(f))
+    expect(files.length).toBeGreaterThan(1)
+    const src = files.map(f => readFileSync(`scripts/${f}`, 'utf8')).join('\n')
     const moods = new Set(moodsFor('bodrum').map(m => m.value))
     const colls = new Set(collectionsFor('bodrum').map(c => c.value))
 
