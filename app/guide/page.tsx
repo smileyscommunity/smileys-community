@@ -294,7 +294,9 @@ export default async function GuidePage({ searchParams }: { searchParams?: Promi
           {await (async () => {
             const counts = await prisma.guideSave.groupBy({
               by: ['slug'],
-              where: { OR: [{ saved: true }, { recommended: true }] },
+              // Within this city. Ranked network-wide, Istanbul's saves would
+              // decide what Bodrum calls popular.
+              where: { cityId, OR: [{ saved: true }, { recommended: true }] },
               _count: { _all: true },
               orderBy: { _count: { slug: 'desc' } },
               take: 4,
@@ -447,7 +449,7 @@ export default async function GuidePage({ searchParams }: { searchParams?: Promi
 
           {/* §18/§27 — the viewer's saved list. Client island; renders
               nothing for guests or empty lists. */}
-          <MySaved cityName={city.name} experiences={experiences.map(e => ({ slug: e.slug, title: e.title, emoji: e.emoji }))} />
+          <MySaved cityName={city.name} cityId={cityId} experiences={experiences.map(e => ({ slug: e.slug, title: e.title, emoji: e.emoji }))} />
         </div>
       )}
 

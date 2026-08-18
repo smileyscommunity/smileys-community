@@ -15,14 +15,18 @@ export async function GET(_req: NextRequest, { params }: Params) {
   // cityId resolves against Istanbul alone, so saving, recommending or marking
   // done on any of Bodrum's twelve pages answered 404 — the buttons were dead
   // the moment a second city published anything.
-  if (!await getExperienceAnyCity(slug)) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  const found = await getExperienceAnyCity(slug)
+  if (!found) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  const { cityId } = found
 
   const session = await getSession()
   const [recommendCount, mine] = await Promise.all([
-    prisma.guideSave.count({ where: { slug, recommended: true } }),
+    // Scoped to the city that owns the experience — the count was network-wide,
+    // so a slug reused by two cities would have pooled their recommendations.
+    prisma.guideSave.count({ where: { cityId, slug, recommended: true } }),
     session
       ? prisma.guideSave.findUnique({
-          where:  { userId_slug: { userId: session.id, slug } },
+          where:  { userId_cityId_slug: { userId: session.id, cityId, slug } },
           select: { saved: true, recommended: true, done: true },
         })
       : Promise.resolve(null),
@@ -49,8 +53,11 @@ export async function POST(req: NextRequest, { params }: Params) {
   // ANY city's experience, not the default city's. getExperience(slug) with no
   // cityId resolves against Istanbul alone, so saving, recommending or marking
   // done on any of Bodrum's twelve pages answered 404 — the buttons were dead
-  // the moment a second city published anything.
-  if (!await getExperienceAnyCity(slug)) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  // the moment a second city published anything. The row is written against the
+  // owning city, so a member's Bodrum list and Istanbul list stay separate.
+  const found = await getExperienceAnyCity(slug)
+  if (!found) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  const { cityId } = found
 
   const body = await req.json().catch(() => ({}))
   const kind = body.kind === 'recommend' ? 'recommended'
@@ -60,16 +67,16 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (!kind) return NextResponse.json({ error: 'kind must be save, recommend or done' }, { status: 400 })
 
   const existing = await prisma.guideSave.findUnique({
-    where: { userId_slug: { userId: session.id, slug } },
+    where: { userId_cityId_slug: { userId: session.id, cityId, slug } },
   })
   const next = !(existing?.[kind] ?? false)
 
   const row = await prisma.guideSave.upsert({
-    where:  { userId_slug: { userId: session.id, slug } },
-    create: { userId: session.id, slug, [kind]: true },
+    where:  { userId_cityId_slug: { userId: session.id, cityId, slug } },
+    create: { userId: session.id, cityId, slug, [kind]: true },
     update: { [kind]: next },
   })
 
-  const recommendCount = await prisma.guideSave.count({ where: { slug, recommended: true } })
+  const recommendCount = await prisma.guideSave.count({ where: { cityId, slug, recommended: true } })
   return NextResponse.json({ saved: row.saved, recommended: row.recommended, done: row.done, recommendCount })
 }

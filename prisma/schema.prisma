@@ -348,6 +348,7 @@ model City {
   // City-scoping sweep (multi-city phase 1): every model with a location
   // dimension carries a required cityId so a second city's content can
   // never leak into another city's feeds. Backfilled to Istanbul.
+  guideSaves           GuideSave[]
   partners             Partner[]
   businesses           Business[]
   listings             Listing[]
@@ -2203,6 +2204,11 @@ model MovingSaleItem {
 model GuideSave {
   id          String   @id @default(cuid())
   userId      String
+  // Which city's experience this is. Without it, two cities reusing a slug
+  // would share one save row — and every count over this table was
+  // network-wide, which is how "5 completed ✓" appeared under "My Bodrum" for
+  // five things done in Istanbul.
+  cityId      String
   slug        String
   saved       Boolean  @default(false)
   recommended Boolean  @default(false)
@@ -2211,8 +2217,10 @@ model GuideSave {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  city        City     @relation(fields: [cityId], references: [id])
 
-  @@unique([userId, slug])
+  @@unique([userId, cityId, slug])
+  @@index([cityId, slug])
   @@index([slug, recommended])
   @@map("guide_saves")
 }

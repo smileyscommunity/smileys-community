@@ -10,27 +10,26 @@ interface ExperienceCard { slug: string; title: string; emoji: string }
 // (the page is ISR-cached); guests and members with nothing saved render
 // nothing at all. Named for what it does rather than for one city — it was
 // MyIstanbul, which is a heading Bodrum members were also shown.
-export default function MySaved({ cityName, experiences }: { cityName: string; experiences: ExperienceCard[] }) {
+export default function MySaved({ cityName, cityId, experiences }: { cityName: string; cityId: string; experiences: ExperienceCard[] }) {
   const { isLoggedIn } = useAuth()
   const [savedSlugs, setSavedSlugs] = useState<string[]>([])
   const [doneCount,  setDoneCount]  = useState(0)
 
   useEffect(() => {
     if (!isLoggedIn) return
-    fetch('/app/api/guide/saves', { credentials: 'include' })
+    fetch(`/app/api/guide/saves?cityId=${encodeURIComponent(cityId)}`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : { saves: [] })
       .then(d => {
         const rows = (d.saves ?? []) as { slug: string; saved: boolean; done?: boolean }[]
         setSavedSlugs(rows.filter(r => r.saved).map(r => r.slug))
-        // Scoped to THIS city's experiences. GuideSave is keyed on (userId,
-        // slug) with no city, so an unscoped count put "5 completed ✓" under
-        // the heading "My Bodrum" for five things done in Istanbul — and made
-        // the panel appear at all for a member with nothing saved here.
+        // The API scopes to this city now, so every row here belongs to it.
+        // Kept as a set intersection anyway: a slug that is saved but no longer
+        // published shouldn't be counted as something to do.
         const here = new Set(experiences.map(e => e.slug))
         setDoneCount(rows.filter(r => r.done && here.has(r.slug)).length)
       })
       .catch(() => {})
-  }, [isLoggedIn, experiences])
+  }, [isLoggedIn, experiences, cityId])
 
   const saved = experiences.filter(e => savedSlugs.includes(e.slug))
   if (saved.length === 0 && doneCount === 0) return null
