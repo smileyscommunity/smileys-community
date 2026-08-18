@@ -25,11 +25,14 @@ async function auditAttendeeRemoval(opts: {
   session: { id: string; name: string }
   userId: string
   eventId: string
-  reason: 'delete' | 'reject'
+  reason: 'delete' | 'reject' | 'to_waitlist'
   eventTitle?: string | null
 }) {
   const { session, userId, eventId, reason, eventTitle } = opts
-  const reasonLabel = reason === 'reject' ? 'Admin rejected RSVP' : 'Admin removed attendee'
+  const reasonLabel =
+    reason === 'reject'      ? 'Admin rejected RSVP'
+    : reason === 'to_waitlist' ? 'Admin moved attendee to waitlist'
+    : 'Admin removed attendee'
 
   const [pending, paid] = await Promise.all([
     prisma.payment.findMany({
@@ -234,7 +237,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (!await canManageEvent(session.id, eventId, session.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
-    const { userId, action } = await req.json() // action: 'approve' | 'reject' | 'markPaid' | 'markUnpaid'
+    const { userId, action } = await req.json() // action: 'approve' | 'reject' | 'toWaitlist' | 'markPaid' | 'markUnpaid'
 
     // Payment checklist ops — money handling is admin-only. Hosts manage
     // attendance above, but flipping paid states on Smileys-collected
@@ -383,6 +386,53 @@ export async function PATCH(req: NextRequest, { params }: Params) {
             return recordEmailFailure({ helper: 'sendEventApprovedEmail', recipient: user.email, error: err, context: { eventId, userId } })
           })
       }
+    } else if (action === 'toWaitlist') {
+      // Move an approved attendee back to the waitlist without removing them
+      // from the event. The quota paths already do exactly this when someone
+      // doesn't fit; this is the same move made by hand — for the attendee who
+      // is already over a cap, or when a host needs to free a spot without
+      // telling someone they're out.
+      //
+      // Keeps their place: a waitlist row created now sorts last, which is the
+      // honest position for someone who held a spot and gave it up.
+      const existing = await prisma.eventAttendee.findUnique({
+        where:  { userId_eventId: { userId, eventId } },
+        select: { status: true },
+      })
+      if (!existing) {
+        return NextResponse.json({ error: 'Not an attendee of this event' }, { status: 404 })
+      }
+      const [, waitlisted] = await prisma.$transaction([
+        prisma.eventAttendee.delete({ where: { userId_eventId: { userId, eventId } } }),
+        // They may already sit on the waitlist from an earlier round; the
+        // unique (userId, eventId) makes a plain create throw there.
+        prisma.waitlistEntry.upsert({
+          where:  { userId_eventId: { userId, eventId } },
+          create: { userId, eventId },
+          update: {},
+          select: { id: true, userId: true, createdAt: true },
+        }),
+      ])
+      // Same payment handling as any other removal — a pending charge must not
+      // outlive the spot it was for, and a paid one needs refund review.
+      await auditAttendeeRemoval({
+        session,
+        userId,
+        eventId,
+        reason:     'to_waitlist',
+        eventTitle: event?.title,
+      })
+      // Only an approved attendee was holding a spot; a pending request wasn't.
+      if (existing.status === 'approved' && event) {
+        await recomputeSpotsLeft(eventId, event.totalSpots)
+      }
+      createNotification(userId, 'waitlist', 'Moved to the waitlist 📋',
+        `Your spot for "${event?.title}" was moved to the waitlist — we'll let you know if one opens up.`,
+        `/events/${eventId}`)
+      // Hand back the real row: the admin page moves them between two lists on
+      // screen, and inventing an id/createdAt for that is how a UI drifts from
+      // what the database actually holds.
+      return NextResponse.json({ ok: true, waitlisted })
     } else if (action === 'reject') {
       await prisma.eventAttendee.delete({ where: { userId_eventId: { userId, eventId } } })
       // AD2 fix: reject path needs the same payment-aware audit

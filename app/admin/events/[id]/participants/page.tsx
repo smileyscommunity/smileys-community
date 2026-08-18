@@ -127,6 +127,34 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
     setBusy(null)
   }
 
+  // Frees the spot without telling someone they're out — the move a host wants
+  // for an attendee who is over a gender cap, or when a spot has to open up.
+  // They keep a place in the queue rather than losing the event entirely.
+  async function moveToWaitlist(userId: string) {
+    if (!(await confirmToast('Move this attendee to the waitlist?'))) return
+    setBusy(userId)
+    const res = await fetch(`/app/api/admin/events/${id}/participants`, {
+      method: 'PATCH', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, action: 'toWaitlist' }),
+    })
+    if (res.ok) {
+      // Move it in the UI rather than reloading: the row leaves the attendee
+      // list and joins the waitlist below, which is exactly what happened. The
+      // id and createdAt come from the response, not from a guess here.
+      const { waitlisted } = await res.json().catch(() => ({ waitlisted: null }))
+      const moved = attendees.find(a => a.userId === userId)
+      setAttendees(prev => prev.filter(a => a.userId !== userId))
+      if (moved && waitlisted) {
+        setWaitlist(prev => [...prev, { ...waitlisted, createdAt: String(waitlisted.createdAt), user: moved.user }])
+      }
+      toast('Moved to waitlist')
+    } else {
+      toast.error('Could not move to waitlist')
+    }
+    setBusy(null)
+  }
+
   async function toggleCheckin(userId: string, current: boolean) {
     setToggling(userId)
     const res = await fetch(`/app/api/events/${id}/checkin`, {
@@ -621,6 +649,17 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
                       className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors disabled:opacity-40 ${a.checkedIn ? 'bg-green-500 text-white' : 'bg-zinc-700 text-zinc-400 hover:bg-zinc-600'}`}>
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </button>
+                    {/* Between check-in and remove on purpose: it sits with
+                        the other per-attendee actions, and next to the
+                        destructive one it is the gentler alternative — the
+                        attendee keeps a place in the queue. */}
+                    <button onClick={() => moveToWaitlist(a.userId)} disabled={busy === a.userId}
+                      title="Move to waitlist"
+                      className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-600 hover:text-amber-400 hover:bg-amber-500/10 transition-colors disabled:opacity-40">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7M17 15l3 3-3 3" />
                       </svg>
                     </button>
                     <button onClick={() => removeAttendee(a.userId)} disabled={busy === a.userId}
