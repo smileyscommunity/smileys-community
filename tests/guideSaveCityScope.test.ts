@@ -5,8 +5,12 @@ vi.mock('@/lib/prisma', () => ({ prisma: {
   city:       { findFirst: vi.fn() },
 } }))
 vi.mock('@/lib/city', () => ({
-  getDefaultCityId: vi.fn(async () => 'c-istanbul'),
-  getCityConfig:    vi.fn(async () => ({ slug: 'istanbul', name: 'Istanbul' })),
+  getDefaultCityId:  vi.fn(async () => 'c-istanbul'),
+  getCityConfig:     vi.fn(async () => ({ slug: 'istanbul', name: 'Istanbul' })),
+  // guideContent reads this now (photos are keyed by city); a mocked module
+  // throws on any export it doesn't declare, and the throw was being swallowed
+  // by the loader's own try/catch.
+  DEFAULT_CITY_SLUG: 'istanbul',
 }))
 
 import { prisma } from '@/lib/prisma'

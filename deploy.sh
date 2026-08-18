@@ -6,6 +6,28 @@ REMOTE="/root/smileys-community"
 LOCAL="/Users/nate/smileys-community"
 APP_RELEASE=$(git rev-parse --short HEAD)
 
+# ── One deploy at a time ─────────────────────────────────────────────────────
+# Two builds sharing this working directory corrupt .next for BOTH of them. The
+# failure lands minutes later as `ENOENT .next/server/pages-manifest.json` or a
+# random `PageNotFoundError: Cannot find module for page /<something>` — errors
+# that name nothing useful and cost a full rebuild to diagnose. That happened
+# six times in one day with two agent sessions in this repo, which is what this
+# lock is for.
+#
+# shlock, not flock: macOS ships no flock(1). shlock records the holder's PID
+# and treats a lock whose process is gone as stale, so a killed or crashed
+# deploy releases automatically instead of wedging the next one.
+LOCK_FILE="${SMILEYS_DEPLOY_LOCK:-/tmp/smileys-deploy.lock}"
+if ! /usr/bin/shlock -f "$LOCK_FILE" -p $$; then
+  HOLDER=$(tr -d ' \n' < "$LOCK_FILE" 2>/dev/null)
+  echo "✗ Refusing to deploy: another deploy is already running (pid ${HOLDER:-unknown})."
+  echo "  Wait for it to finish — two builds would corrupt .next for both."
+  echo "  If you are certain that process is gone: rm $LOCK_FILE"
+  exit 1
+fi
+# Released on every exit path, including the early refusals below and Ctrl-C.
+trap 'rm -f "$LOCK_FILE"' EXIT
+
 # Safety check: rsync --delete will wipe the remote if LOCAL is empty/missing.
 # Verify the working copy has the expected anchor files before we trust it.
 for anchor in package.json next.config.js app prisma/schema.prisma; do

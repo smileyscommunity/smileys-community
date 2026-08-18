@@ -13,18 +13,29 @@
 import { readFileSync, existsSync } from 'fs'
 import { join } from 'path'
 import { prisma } from './prisma'
-import { getDefaultCityId, getCityConfig } from './city'
+import { getDefaultCityId, getCityConfig, DEFAULT_CITY_SLUG } from './city'
 import type { Experience } from './guide'
 
-// Drop-in photo pipeline (same as neighborhoods): an experience gets a
-// photo the moment public/images/guide/<slug>.jpg exists — no code or
-// data change. Missing photo -> the emoji/gradient fallback renders.
-// Filesystem keying is by slug alone, so a second city reusing a slug
-// would inherit the photo — mind collisions until photos move to a column.
-function photoFor(slug: string): string | null {
-  return existsSync(join(process.cwd(), 'public', 'images', 'guide', `${slug}.jpg`))
-    ? `/app/images/guide/${slug}.jpg`
-    : null
+// Drop-in photo pipeline (same as neighborhoods): an experience gets a photo
+// the moment its file exists — no code or data change. Missing photo -> the
+// emoji/gradient fallback renders.
+//
+// Keyed by CITY first: public/images/guide/<citySlug>/<slug>.jpg. Keying by
+// slug alone meant two cities reusing one — an "old-town-walk" in each — would
+// silently show the same photograph, and a guide whose promise is local
+// knowledge cannot illustrate one city with another's picture.
+//
+// The flat public/images/guide/<slug>.jpg path still resolves, and only for the
+// DEFAULT city: that is where the fifteen existing files live, and moving them
+// would break them for no gain. A second city gets no such fallback, which is
+// the whole point — its photos are its own or it has none.
+function photoFor(slug: string, citySlug?: string): string | null {
+  const base = join(process.cwd(), 'public', 'images', 'guide')
+  if (citySlug) {
+    if (existsSync(join(base, citySlug, `${slug}.jpg`))) return `/app/images/guide/${citySlug}/${slug}.jpg`
+    if (citySlug !== DEFAULT_CITY_SLUG) return null
+  }
+  return existsSync(join(base, `${slug}.jpg`)) ? `/app/images/guide/${slug}.jpg` : null
 }
 
 export interface RouteStop {
@@ -60,7 +71,7 @@ async function dbEntries(cityId: string, kind: 'experience' | 'route'): Promise<
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-function rowToExperience(r: any): Experience {
+function rowToExperience(r: any, citySlug?: string): Experience {
   const c = (r.content ?? {}) as Record<string, unknown>
   return {
     slug: r.slug, title: r.title, emoji: r.emoji,
@@ -73,7 +84,7 @@ function rowToExperience(r: any): Experience {
     handbook: c.handbook as Experience['handbook'],
     directory: c.directory as Experience['directory'],
     clubs: c.clubs as Experience['clubs'],
-    photo: photoFor(r.slug),
+    photo: photoFor(r.slug, citySlug),
   } as Experience
 }
 
@@ -111,7 +122,11 @@ export async function loadExperiences(cityId?: string): Promise<Experience[]> {
   try {
     const resolved = cityId ?? await getDefaultCityId()
     const rows = await dbEntries(resolved, 'experience')
-    if (rows.length > 0) return rows.map(rowToExperience)
+    if (rows.length > 0) {
+      // The city's slug keys the photo lookup — see photoFor.
+      const { slug: citySlug } = await getCityConfig(resolved)
+      return rows.map(r => rowToExperience(r, citySlug))
+    }
     const isDefault = cityId === undefined || cityId === await getDefaultCityId()
     return isDefault ? jsonExperiences() : []
   } catch {
@@ -148,7 +163,7 @@ export async function getExperienceAnyCity(
       const defaultId = await getDefaultCityId()
       const row = rows.find(r => r.cityId === defaultId) ?? rows[0]
       return {
-        experience: rowToExperience(row),
+        experience: rowToExperience(row, row.city.slug),
         cityId:     row.city.id,
         citySlug:   row.city.slug,
         cityName:   row.city.name,

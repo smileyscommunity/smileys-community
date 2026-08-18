@@ -35,3 +35,25 @@ describe('contentCitySlugPath', () => {
     expect(cityCandidatesFromUrl('/app/neighborhoods?city=izmir')[0]).toBe('izmir')
   })
 })
+
+// Photos are keyed by city, because two cities reusing a slug would otherwise
+// illustrate one with the other's photograph — on a guide whose whole promise
+// is that it knows the place.
+describe('guide photo paths', () => {
+  it('documents the resolution order', () => {
+    // photoFor is module-private (it touches the filesystem), so this pins the
+    // contract the loaders depend on rather than the function:
+    //   <citySlug>/<slug>.jpg   — any city
+    //   <slug>.jpg              — DEFAULT city only, where the existing files live
+    //   null                    — a second city with no photo of its own
+    const resolve = (citySlug: string, has: (p: string) => boolean) => {
+      if (has(`${citySlug}/x.jpg`)) return `/app/images/guide/${citySlug}/x.jpg`
+      if (citySlug !== 'istanbul') return null
+      return has('x.jpg') ? '/app/images/guide/x.jpg' : null
+    }
+    expect(resolve('bodrum',   p => p === 'bodrum/x.jpg')).toBe('/app/images/guide/bodrum/x.jpg')
+    // The flat file belongs to Istanbul; Bodrum must not inherit it.
+    expect(resolve('bodrum',   p => p === 'x.jpg')).toBeNull()
+    expect(resolve('istanbul', p => p === 'x.jpg')).toBe('/app/images/guide/x.jpg')
+  })
+})
