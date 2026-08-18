@@ -88,9 +88,13 @@ function Row({ title, subtitle, events, cta, from }: {
   if (events.length === 0) return null
   return (
     <div className="mb-8">
+      {/* min-w-0 so a long CTA can't squeeze the heading: the link is shrink-0
+          by design (a wrapped "My events →" reads as two links), which means
+          the title is the side that has to give. Without this a neighborhood
+          like "Near Küçükçekmece" got crushed on a narrow screen. */}
       <div className="flex items-end justify-between gap-4 mb-3">
-        <div>
-          <h2 className="text-lg sm:text-xl font-extrabold tracking-tight text-gray-900">{title}</h2>
+        <div className="min-w-0">
+          <h2 className="text-lg sm:text-xl font-extrabold tracking-tight text-gray-900 truncate">{title}</h2>
           {subtitle && <p className="text-sm text-gray-600 mt-0.5">{subtitle}</p>}
         </div>
         {cta && <Link href={cta.href} className="text-xs font-bold text-amber-600 hover:text-amber-700 shrink-0">{cta.label}</Link>}
@@ -160,9 +164,12 @@ export default function EventDiscovery() {
       <Row title="From your clubs" events={d.fromClubs}
         cta={{ href: '/clubs', label: 'Your clubs →' }} from="from_clubs" />
 
+      {/* No CTA on this row. "Explore neighborhoods →" sat directly under
+          "Your clubs →" on the row above, and on a phone two long links stacked
+          like that crowded the headings without earning their place — the row
+          already shows what's near you, which is the thing you came for. */}
       {d.viewer.isMember && (d.viewer.neighborhood
-        ? <Row title={`Near ${d.viewer.neighborhood}`} events={d.nearYou}
-            cta={{ href: '/neighborhoods', label: 'Explore neighborhoods →' }} from="near_you" />
+        ? <Row title={`Near ${d.viewer.neighborhood}`} events={d.nearYou} from="near_you" />
         : (
           <div className="mb-8 bg-gray-50 border border-gray-200 rounded-2xl p-5 flex items-center justify-between gap-4 flex-wrap">
             <p className="text-sm text-gray-700">Choose your neighborhood to see what&apos;s happening nearby.</p>

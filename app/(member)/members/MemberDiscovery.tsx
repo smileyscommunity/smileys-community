@@ -103,9 +103,11 @@ export default function MemberDiscovery() {
 
       {d.viewer.neighborhood
         ? <Section title={`Around ${d.viewer.neighborhood}`}
-            subtitle="People in and around your part of Istanbul."
-            members={d.neighbours}
-            cta={{ href: '/neighborhoods', label: 'Explore neighborhoods →' }} onOpen={onOpen} />
+            // Says "your neighborhood", not "your part of Istanbul" — this rail
+            // renders for every city. Same reason the CTA is gone: it sat under
+            // "Explore your clubs →" and crowded the headings on a phone.
+            subtitle="People in and around your neighborhood."
+            members={d.neighbours} onOpen={onOpen} />
         : (
           <div className="mb-8 bg-amber-50 border border-amber-100 rounded-2xl p-5 flex items-center justify-between gap-4 flex-wrap">
             <div>
