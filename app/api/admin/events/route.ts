@@ -29,9 +29,14 @@ export async function GET(req: NextRequest) {
     const takeParam    = takeRaw && /^\d+$/.test(takeRaw) && +takeRaw > 0 && +takeRaw <= 100
                          ? +takeRaw : undefined
     const fromValid    = fromParam && /^\d{4}-\d{2}-\d{2}$/.test(fromParam) ? fromParam : undefined
+    // Optional city filter, so the dashboard's upcoming-events panel can
+    // follow the same city as the numbers above it. Unset means every city,
+    // which is the long-standing behaviour of this endpoint.
+    const cityParam    = req.nextUrl.searchParams.get('city')
 
     const where: Prisma.EventWhereInput = {
       ...(clubHost ? { hostId: session.id } : {}),
+      ...(cityParam ? { cityId: cityParam } : {}),
       ...(!showArchived && !statusParam ? { status: { not: 'archived' } } : {}),
       ...(fromValid ? { date: { gte: fromValid } } : {}),
     }

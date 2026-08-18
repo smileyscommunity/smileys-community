@@ -2,14 +2,44 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { canViewAnalytics } from '@/lib/access'
-import { todayIstanbul } from '@/lib/data'
+import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
+import { getCityTz } from '@/lib/city'
 import { listStaleSweepers } from '@/lib/cronHealth'
 
-export async function GET() {
+export async function GET(req: Request) {
   const session = await getSession()
   if (!session || !canViewAnalytics(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const todayStr = todayIstanbul()
+  // ?city=<id> scopes every count below to one city. Omitted means
+  // network-wide, which is what the dashboard has always shown — with two
+  // cities live that total silently blends them, so the switcher exists to
+  // let you ask the question that actually matters: is *this* city working?
+  //
+  // Admin-only route (canViewAnalytics), so any admin may look at any city;
+  // there is no per-city gate to apply here.
+  const cityParam = new URL(req.url).searchParams.get('city')
+  const city = cityParam
+    ? await prisma.city.findUnique({ where: { id: cityParam }, select: { id: true, name: true, slug: true } })
+    : null
+  if (cityParam && !city) return NextResponse.json({ error: 'Unknown city' }, { status: 400 })
+  const cityId = city?.id ?? null
+
+  // Most of the models below have no cityId of their own and reach one
+  // through a relation. Spelling each path out once keeps the queries honest
+  // — and keeps the empty-object fallback (network-wide) in exactly one place.
+  const inCity       = cityId ? { cityId }                : {}
+  const byUser       = cityId ? { user:     { cityId } }   : {}
+  const viaEvent     = cityId ? { event:    { cityId } }   : {}
+  const viaReported  = cityId ? { reported: { cityId } }   : {}
+  const viaHangout   = cityId ? { hangout:  { cityId } }   : {}
+  const appCity      = cityId ? { targetCityId: cityId }   : {}
+
+  // Event.date is a bare 'YYYY-MM-DD' meaning a calendar day in the city's
+  // own timezone, so "today" has to be asked in that timezone. Both live
+  // cities are Europe/Istanbul today; this stops being a no-op the first
+  // time a city launches outside it.
+  const tz       = cityId ? await getCityTz(cityId) : DEFAULT_TZ
+  const todayStr = todayInTz(tz)
   const now      = Date.now()
   const thirtyDays = 30 * 24 * 60 * 60 * 1000
   const monthAgo   = new Date(now - thirtyDays)
@@ -39,34 +69,37 @@ export async function GET() {
     pendingJoinRequests, todayEventsRaw,
     ...rsvpsByDayCounts
   ] = await Promise.all<any>([
-    prisma.user.count({ where: { role: { not: 'admin' } } }),
-    prisma.user.count({ where: { status: 'approved', role: { in: ['member', 'moderator'] } } }),
-    prisma.clubMembership.groupBy({ by: ['userId'], where: { role: 'host', status: 'approved' } }).then(r => r.length),
-    prisma.event.count(),
-    prisma.eventAttendee.count({ where: { status: 'approved', user: { role: { not: 'admin' } } } }),
-    prisma.memberApplication.count({ where: { status: 'pending' } }),
-    prisma.report.count({ where: { status: 'pending' } }),
-    prisma.event.count({ where: { date: { gte: todayStr } } }),
+    prisma.user.count({ where: { role: { not: 'admin' }, ...inCity } }),
+    prisma.user.count({ where: { status: 'approved', role: { in: ['member', 'moderator'] }, ...inCity } }),
+    // Scoped by the host's own city rather than the club's: a global club
+    // (cityId null) has no city to attribute its hosts to, and this metric
+    // sits next to `members` — both should mean "people in this city".
+    prisma.clubMembership.groupBy({ by: ['userId'], where: { role: 'host', status: 'approved', ...byUser } }).then(r => r.length),
+    prisma.event.count({ where: { ...inCity } }),
+    prisma.eventAttendee.count({ where: { status: 'approved', user: { role: { not: 'admin' } }, ...viaEvent } }),
+    prisma.memberApplication.count({ where: { status: 'pending', ...appCity } }),
+    prisma.report.count({ where: { status: 'pending', ...viaReported } }),
+    prisma.event.count({ where: { date: { gte: todayStr }, ...inCity } }),
     // Members growth
-    prisma.user.count({ where: { status: 'approved', role: { not: 'admin' }, joinedAt: { gte: monthAgo } } }),
-    prisma.user.count({ where: { status: 'approved', role: { not: 'admin' }, joinedAt: { gte: prevMonth, lt: monthAgo } } }),
+    prisma.user.count({ where: { status: 'approved', role: { not: 'admin' }, joinedAt: { gte: monthAgo }, ...inCity } }),
+    prisma.user.count({ where: { status: 'approved', role: { not: 'admin' }, joinedAt: { gte: prevMonth, lt: monthAgo }, ...inCity } }),
     // RSVPs growth
-    prisma.eventAttendee.count({ where: { status: 'approved', joinedAt: { gte: monthAgo } } }),
-    prisma.eventAttendee.count({ where: { status: 'approved', joinedAt: { gte: prevMonth, lt: monthAgo } } }),
+    prisma.eventAttendee.count({ where: { status: 'approved', joinedAt: { gte: monthAgo }, ...viaEvent } }),
+    prisma.eventAttendee.count({ where: { status: 'approved', joinedAt: { gte: prevMonth, lt: monthAgo }, ...viaEvent } }),
     // Revenue
-    prisma.payment.groupBy({ by: ['status'], _sum: { amount: true }, _count: true }),
-    prisma.payment.groupBy({ by: ['status'], where: { createdAt: { gte: prevMonth, lt: monthAgo } }, _sum: { amount: true } }),
+    prisma.payment.groupBy({ by: ['status'], where: { ...viaEvent }, _sum: { amount: true }, _count: true }),
+    prisma.payment.groupBy({ by: ['status'], where: { createdAt: { gte: prevMonth, lt: monthAgo }, ...viaEvent }, _sum: { amount: true } }),
     // Hangouts pulse — active (in-flight) hangouts, today's posts, and
     // references created in the last 7 days. References-this-week is the
     // best proxy for "is the trust loop actually firing?"
-    prisma.hangout.count({ where: { status: 'active', endsAt: { gte: new Date() } } }),
-    prisma.hangout.count({ where: { startsAt: { gte: todayStart, lt: new Date(todayStart.getTime() + 24 * 60 * 60 * 1000) } } }),
-    prisma.hangoutReference.count({ where: { createdAt: { gte: weekAgo } } }),
+    prisma.hangout.count({ where: { status: 'active', endsAt: { gte: new Date() }, ...inCity } }),
+    prisma.hangout.count({ where: { startsAt: { gte: todayStart, lt: new Date(todayStart.getTime() + 24 * 60 * 60 * 1000) }, ...inCity } }),
+    prisma.hangoutReference.count({ where: { createdAt: { gte: weekAgo }, ...viaHangout } }),
     // Top hangout host this week — surfaces the rising community
     // connector. groupBy + take=1 keeps it to a single query.
     prisma.hangout.groupBy({
       by: ['userId'],
-      where: { createdAt: { gte: weekAgo } },
+      where: { createdAt: { gte: weekAgo }, ...inCity },
       _count: { _all: true },
       orderBy: { _count: { userId: 'desc' } },
       take: 1,
@@ -76,17 +109,18 @@ export async function GET() {
     prisma.visitorAnnouncement.count({
       where: {
         status:   'active',
-        startsOn: { gte: todayStr, lte: todayIstanbul(7) },
+        startsOn: { gte: todayStr, lte: todayInTz(tz, 7) },
+        ...inCity,
       },
     }),
     // Conversion funnel — applications → approved → first event → repeat.
     // Distinct-attendees-by-RSVP-count gives us the last two steps from a
     // single groupBy that we then filter in JS.
-    prisma.memberApplication.count(),
-    prisma.user.count({ where: { status: 'approved' } }),
+    prisma.memberApplication.count({ where: { ...appCity } }),
+    prisma.user.count({ where: { status: 'approved', ...inCity } }),
     prisma.eventAttendee.groupBy({
       by:     ['userId'],
-      where:  { status: 'approved', user: { role: { not: 'admin' } } },
+      where:  { status: 'approved', user: { role: { not: 'admin' } }, ...viaEvent },
       _count: { _all: true },
     }),
     // Post-event survey rollup — 30d window + previous-30d window
@@ -94,29 +128,29 @@ export async function GET() {
     // anomaly-true) because Prisma's typed API doesn't expose _sum
     // on Boolean columns. Counted in the same Promise.all so wall
     // time stays flat.
-    prisma.eventSurvey.count({ where: { createdAt: { gte: monthAgo } } })
+    prisma.eventSurvey.count({ where: { createdAt: { gte: monthAgo }, ...viaEvent } })
       .then(async total => ({
         total,
-        ret:  await prisma.eventSurvey.count({ where: { createdAt: { gte: monthAgo }, wouldReturn: true } }),
-        anom: await prisma.eventSurvey.count({ where: { createdAt: { gte: monthAgo }, anomaly: true } }),
+        ret:  await prisma.eventSurvey.count({ where: { createdAt: { gte: monthAgo }, wouldReturn: true, ...viaEvent } }),
+        anom: await prisma.eventSurvey.count({ where: { createdAt: { gte: monthAgo }, anomaly: true, ...viaEvent } }),
       })),
-    prisma.eventSurvey.count({ where: { createdAt: { gte: prevMonth, lt: monthAgo } } })
+    prisma.eventSurvey.count({ where: { createdAt: { gte: prevMonth, lt: monthAgo }, ...viaEvent } })
       .then(async total => ({
         total,
-        ret:  await prisma.eventSurvey.count({ where: { createdAt: { gte: prevMonth, lt: monthAgo }, wouldReturn: true } }),
-        anom: await prisma.eventSurvey.count({ where: { createdAt: { gte: prevMonth, lt: monthAgo }, anomaly: true } }),
+        ret:  await prisma.eventSurvey.count({ where: { createdAt: { gte: prevMonth, lt: monthAgo }, wouldReturn: true, ...viaEvent } }),
+        anom: await prisma.eventSurvey.count({ where: { createdAt: { gte: prevMonth, lt: monthAgo }, anomaly: true, ...viaEvent } }),
       })),
     // Join requests waiting for a decision on upcoming events — the
     // /admin/participants inbox's Pending count, surfaced as an alert
     // pill so requests don't sit unseen until someone opens that page.
     prisma.eventAttendee.count({
-      where: { status: 'pending', event: { date: { gte: todayStr }, status: 'published' } },
+      where: { status: 'pending', event: { date: { gte: todayStr }, status: 'published', ...inCity } },
     }),
     // Events running TODAY with going/checked-in counts — drives the
     // "happening today" hero. On event days the dashboard's top job is
     // door ops, not lifetime stats.
     prisma.event.findMany({
-      where:   { date: todayStr, status: 'published' },
+      where:   { date: todayStr, status: 'published', ...inCity },
       orderBy: { time: 'asc' },
       select: {
         id: true, title: true, emoji: true, time: true, totalSpots: true,
@@ -128,7 +162,7 @@ export async function GET() {
     // Promise.all parallelism keeps total wall-time low.
     ...sevenDayBuckets.map(b =>
       prisma.eventAttendee.count({
-        where: { status: 'approved', joinedAt: { gte: b.start, lt: b.end } },
+        where: { status: 'approved', joinedAt: { gte: b.start, lt: b.end }, ...viaEvent },
       }),
     ),
   ])
@@ -179,6 +213,10 @@ export async function GET() {
   ])
 
   return NextResponse.json({
+    // Which city these numbers describe — null means network-wide. The UI
+    // labels every card from this, so a scoped total can never be mistaken
+    // for the platform total.
+    city,
     totalAccounts, members, hosts, events, upcoming, rsvps,
     newMembersThisMonth, revenueCollected, revenuePending, pendingPayments,
     pendingApplications, pendingReports, emailFailures24h,

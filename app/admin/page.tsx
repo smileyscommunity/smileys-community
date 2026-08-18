@@ -11,6 +11,8 @@ interface TopHost {
 }
 
 interface Stats {
+  // Which city these numbers describe; null = every city combined.
+  city: { id: string; name: string; slug: string } | null
   totalAccounts: number; members: number; hosts: number
   events: number; upcoming: number; rsvps: number
   newMembersThisMonth: number
@@ -115,6 +117,21 @@ export default function AdminPage() {
   const [loading,  setLoading]  = useState(true)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
+  // City scope. null = every city combined (the historical view). Persisted
+  // to localStorage because the scope is a stance, not a one-off query: an
+  // admin checking on a new city wants every visit to open there until they
+  // say otherwise. Read lazily so SSR doesn't touch localStorage.
+  const [cities, setCities] = useState<{ id: string; name: string; slug: string; status: string }[]>([])
+  const [cityId, setCityId] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null
+    return window.localStorage.getItem('admin_dash_city') || null
+  })
+  const setCityScope = useCallback((id: string | null) => {
+    setCityId(id)
+    if (id) window.localStorage.setItem('admin_dash_city', id)
+    else    window.localStorage.removeItem('admin_dash_city')
+  }, [])
+
   // Auto-refresh state — "Updated 12s ago" indicator + 60s background poll.
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
   const [, setTick] = useState(0)  // forces re-render so the timer label ages
@@ -130,10 +147,11 @@ export default function AdminPage() {
     if (!background) setLoading(true)
     setErrorMsg(null)
     const today = todayIstanbul()
+    const cityQ = cityId ? `&city=${encodeURIComponent(cityId)}` : ''
     Promise.all([
-      fetch('/app/api/admin/stats',                                                  { credentials: 'include' }),
+      fetch(`/app/api/admin/stats${cityId ? `?city=${encodeURIComponent(cityId)}` : ''}`, { credentials: 'include' }),
       fetch('/app/api/admin/audit?take=8',                                            { credentials: 'include' }),
-      fetch(`/app/api/admin/events?status=published&from=${today}&take=6`,            { credentials: 'include' }),
+      fetch(`/app/api/admin/events?status=published&from=${today}&take=6${cityQ}`,     { credentials: 'include' }),
     ]).then(async ([sRes, aRes, eRes]) => {
       if (!sRes.ok) throw new Error('stats')
       const [s, a, e] = await Promise.all([
@@ -152,9 +170,32 @@ export default function AdminPage() {
       // currently reading.
       if (!background) setErrorMsg('Could not load dashboard. Try again?')
     }).finally(() => { if (!background) setLoading(false) })
-  }, [])
+  }, [cityId])
 
   useEffect(() => { load(false) }, [load])
+
+  // City list for the switcher. Fetched once — cities are created about as
+  // often as a launch, so there's nothing to poll for. A stored city that
+  // no longer exists (deleted between visits) falls back to every-city
+  // rather than leaving the dashboard pinned to a 400.
+  useEffect(() => {
+    let cancelled = false
+    fetch('/app/api/admin/cities', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : [])
+      .then((rows: { id: string; name: string; slug: string; status: string }[]) => {
+        if (cancelled || !Array.isArray(rows)) return
+        setCities(rows)
+        setCityId(prev => {
+          if (prev && !rows.some(c => c.id === prev)) {
+            window.localStorage.removeItem('admin_dash_city')
+            return null
+          }
+          return prev
+        })
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
 
   // Background auto-refresh — every 60s, but pause when the tab is hidden
   // (saves DB load when nobody's looking) and resume immediately on focus
@@ -274,6 +315,44 @@ export default function AdminPage() {
           <p className="text-xs text-zinc-500 font-medium">{greeting}</p>
           <h1 className="text-xl font-extrabold text-white tracking-tight">{firstName} 👋</h1>
         </div>
+
+        {/* ── City scope ──
+            Pills rather than a <select>: with a handful of cities they're
+            one tap instead of two, and the current scope stays readable
+            without opening anything. Only rendered once more than one city
+            exists — a single-city platform has no scope to choose. */}
+        {cities.length > 1 && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {[{ id: null as string | null, name: 'All cities', status: 'live' }, ...cities].map(c => {
+              const active = cityId === c.id
+              return (
+                <button key={c.id ?? 'all'} onClick={() => setCityScope(c.id)}
+                  aria-pressed={active}
+                  className={`min-h-9 px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${
+                    active
+                      ? 'bg-white text-zinc-900 border-white'
+                      : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-700 hover:text-zinc-200'
+                  }`}>
+                  {c.name}
+                  {c.status !== 'live' && c.id && (
+                    <span className={`ml-1.5 font-semibold ${active ? 'text-zinc-500' : 'text-zinc-600'}`}>soon</span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Email + cron health are platform-level facts with no city
+            dimension, so they keep reporting network-wide while everything
+            else narrows. Say so rather than let a scoped dashboard imply
+            Bodrum has its own SMTP. */}
+        {cityId && stats?.city && (
+          <p className="text-[11px] text-zinc-500">
+            Counts below are <span className="font-bold text-zinc-400">{stats.city.name}</span> only.
+            Email and cron health stay platform-wide.
+          </p>
+        )}
         <button onClick={() => window.dispatchEvent(new CustomEvent('open-command-palette'))}
           className="w-full sm:max-w-md flex items-center gap-2.5 px-3.5 py-2.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-xl transition-colors text-left">
           <svg className="w-4 h-4 text-zinc-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
