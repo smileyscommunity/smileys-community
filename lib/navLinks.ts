@@ -35,6 +35,13 @@ export const DISCOVER_LINKS: NavLink[] = [
   { label: 'Community Board', href: '/board',         emoji: '💬', public: true  },
   { label: 'Marketplace',     href: '/marketplace',   emoji: '🛍️', public: true  },
   { label: 'Hangouts',        href: '/hangouts',      emoji: '☕', public: false },
+  // Members only, because a guest already has Visiting in their primary bar —
+  // the mirror image of `guestOnly`. When the bars diverged (d6fc70c) this was
+  // moved into the guest bar and dropped from here, which left a signed-in
+  // member no route to /visiting at all, on desktop or mobile. Welcoming
+  // someone who's coming to your city is a member's action more than a
+  // guest's, so it has to be reachable from inside.
+  { label: 'Visiting',        href: '/visiting',      emoji: '👋', public: false },
 ]
 
 // Kept out of the bar to hold it at five, but not orphaned — a guest weighing
