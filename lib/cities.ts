@@ -15,6 +15,7 @@ import { unstable_cache } from 'next/cache'
 import { prisma } from './prisma'
 import { todayInTz, DEFAULT_TZ } from './cityTime'
 import { CITY_STATUS, isCityStatus, type CityStatus, type CityStats, type PublicCity } from './cityStatus'
+import { classifyCityMaturity } from './cityMaturity'
 
 export * from './cityStatus'
 export { DEFAULT_CITY_SLUG, getDefaultCityId, resolveCityId } from './city'
@@ -76,15 +77,18 @@ export async function getPublicCity(slug: string): Promise<PublicCity | null> {
   return { ...city, status, stats }
 }
 
-// Grouped counts for the given cities in three queries total. `today` is
-// compared as a string because Event.date is stored as text 'YYYY-MM-DD'.
-async function getStatsFor(cityIds: string[]): Promise<Map<string, CityStats>> {
+// Grouped counts for the given cities. `today` is compared as a string
+// because Event.date is stored as text 'YYYY-MM-DD'. Exported for the admin
+// cities console, which needs the derived maturity as an ops signal.
+export async function getStatsFor(cityIds: string[]): Promise<Map<string, CityStats>> {
   // Default-city calendar day, not UTC — between 00:00 and 03:00 Istanbul
   // the UTC date is still yesterday and the count would include finished
   // events. Per-city todays can come when stats span differing zones.
   const today = todayInTz(DEFAULT_TZ)
 
-  const [members, clubs, events] = await Promise.all([
+  const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+
+  const [members, clubs, events, hostedClubRows, hangouts] = await Promise.all([
     prisma.user.groupBy({
       by: ['cityId'],
       where: { cityId: { in: cityIds }, status: 'approved' },
@@ -100,14 +104,37 @@ async function getStatsFor(cityIds: string[]): Promise<Map<string, CityStats>> {
       where: { cityId: { in: cityIds }, status: 'published', date: { gte: today } },
       _count: { _all: true },
     }),
+    // Maturity signals. Hosted clubs can't come from groupBy (relation
+    // filter), but the club list is small — fetch ids and count here.
+    prisma.club.findMany({
+      where: {
+        cityId: { in: cityIds }, isActive: true,
+        memberships: { some: { role: 'host', status: 'approved' } },
+      },
+      select: { cityId: true },
+    }),
+    prisma.hangout.groupBy({
+      by: ['cityId'],
+      where: { cityId: { in: cityIds }, createdAt: { gte: monthAgo } },
+      _count: { _all: true },
+    }),
   ])
 
   const out = new Map<string, CityStats>()
   for (const id of cityIds) {
-    out.set(id, {
+    const s = {
       members: members.find(m => m.cityId === id)?._count._all ?? 0,
       clubs:   clubs.find(c => c.cityId === id)?._count._all   ?? 0,
       events:  events.find(e => e.cityId === id)?._count._all  ?? 0,
+    }
+    out.set(id, {
+      ...s,
+      maturity: classifyCityMaturity({
+        members:           s.members,
+        upcomingEvents:    s.events,
+        hostedClubs:       hostedClubRows.filter(c => c.cityId === id).length,
+        memberActivity30d: hangouts.find(h => h.cityId === id)?._count._all ?? 0,
+      }),
     })
   }
   return out

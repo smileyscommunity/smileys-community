@@ -14,6 +14,7 @@ import ClubCard from '@/components/ClubCard'
 import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
 import { resolveImageUrl, istanbulEventWindow, formatShortDate } from '@/lib/data'
 import { getPublicCity, DEFAULT_CITY_SLUG } from '@/lib/cities'
+import { CITY_MATURITY } from '@/lib/cityMaturity'
 import { CITY_STATUS } from '@/lib/cityStatus'
 import { APP_URL } from '@/lib/env'
 import { absoluteOgImage } from '@/lib/og'
@@ -267,7 +268,20 @@ export default async function CityPage({ params }: Params) {
                 Free to join · Applications reviewed by hand within 24 hours · Pay only for events you attend
               </p>
 
-              {stats && (
+              {/* Seeding = live but empty; "1 / 11 / 1" in hero type reads as
+                  a dead community, not a young one. Stage-honest copy instead —
+                  derived (lib/cityMaturity), so it flips back to real numbers
+                  by itself the moment the city earns them. */}
+              {stats && (stats.maturity === CITY_MATURITY.Seeding ? (
+                <div className="rounded-2xl border border-amber-100 bg-amber-50/60 px-5 py-4">
+                  <p className="text-sm font-bold text-amber-800 uppercase tracking-wider mb-1">Founding stage</p>
+                  <p className="text-gray-700">
+                    {stats.clubs > 0
+                      ? <>{stats.clubs} club{stats.clubs === 1 ? '' : 's'} forming and the first events going on the calendar — the founding members shape everything here.</>
+                      : <>The first clubs and events are being set up now — the founding members shape everything here.</>}
+                  </p>
+                </div>
+              ) : (
                 <div className="grid grid-cols-3 gap-x-6">
                   {[
                     { value: stats.members, label: 'Members' },
@@ -284,7 +298,7 @@ export default async function CityPage({ params }: Params) {
                     </div>
                   ))}
                 </div>
-              )}
+              ))}
             </div>
 
             <div className="hidden lg:block relative h-[500px] rounded-2xl overflow-hidden shadow-xl">

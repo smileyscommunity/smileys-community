@@ -6,6 +6,7 @@ import { isAdmin, isAdminOrModerator } from '@/lib/access'
 import { slugify } from '@/lib/slug'
 import { toCountryCode } from '@/lib/country'
 import { DEFAULT_CITY_SLUG } from '@/lib/city'
+import { getStatsFor } from '@/lib/cities'
 
 // GET /api/admin/cities — list every city with its club count + hosts, so the
 // admin Cities page can show launch status at a glance.
@@ -26,6 +27,11 @@ export async function GET() {
     },
   })
 
+  // Derived maturity for the live cities — the ops signal that separates
+  // "live and thriving" from "live and stuck in seeding for 90 days".
+  const liveIds = cities.filter(c => c.status === CITY_STATUS.Live).map(c => c.id)
+  const stats   = liveIds.length ? await getStatsFor(liveIds) : new Map()
+
   return NextResponse.json(cities.map(c => ({
     id: c.id, name: c.name, slug: c.slug, country: c.country, timezone: c.timezone,
     // Lets list UIs badge only non-default-city rows without hardcoding
@@ -35,6 +41,7 @@ export async function GET() {
     currency: c.currency, defaultLang: c.defaultLang, status: c.status,
     tagline: c.tagline, description: c.description, heroImage: c.heroImage,
     clubCount: c._count.clubs,
+    maturity: stats.get(c.id)?.maturity ?? null,
     hosts: c.cityHosts.map(h => ({ cityHostId: h.id, id: h.user.id, name: h.user.name, email: h.user.email })),
   })))
 }

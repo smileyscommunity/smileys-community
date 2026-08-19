@@ -13,11 +13,15 @@ import { resolveImageUrl } from '@/lib/data'
 import { useAdminLoad } from '@/lib/admin/useAdminLoad'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import { CITY_STATUS, CITY_STATUS_META, CITY_STATUS_VALUES } from '@/lib/cityStatus'
+import { CITY_MATURITY, type CityMaturity } from '@/lib/cityMaturity'
 
 interface CityHost { cityHostId: string; id: string; name: string; email: string }
 interface City {
   id: string; name: string; slug: string; country: string; timezone: string
   currency: string; defaultLang: string; status: string; clubCount: number; hosts: CityHost[]
+  // Derived from live data (lib/cityMaturity) — the API computes it for live
+  // cities only; null otherwise. Deliberately not editable anywhere.
+  maturity: CityMaturity | null
   tagline: string | null; description: string | null; heroImage: string | null
 }
 
@@ -320,6 +324,20 @@ export default function AdminCitiesPage() {
               </div>
 
               <div className="flex items-center gap-3 mt-4">
+                {/* Ops signal, not a setting: derived from members/events/hosts/
+                    hangouts. A live city sitting in "seeding" needs a person's
+                    attention — there is nothing to click here on purpose. */}
+                {city.maturity && (
+                  <span
+                    title="Derived from live data — members, upcoming events, hosted clubs, member activity. Not editable."
+                    className={`text-[11px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                      city.maturity === CITY_MATURITY.SelfSustaining ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25'
+                      : city.maturity === CITY_MATURITY.Forming      ? 'bg-sky-500/15 text-sky-400 border border-sky-500/25'
+                      :                                                'bg-amber-500/15 text-amber-400 border border-amber-500/25'
+                    }`}>
+                    {city.maturity === CITY_MATURITY.SelfSustaining ? 'self-sustaining' : city.maturity}
+                  </span>
+                )}
                 <span className="text-sm text-zinc-400"><strong className="text-zinc-200">{city.clubCount}</strong> clubs</span>
                 <button onClick={() => launchClubs(city)} disabled={launching === city.id}
                   className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-amber-400 transition-colors disabled:opacity-40">

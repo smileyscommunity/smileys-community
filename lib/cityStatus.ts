@@ -46,10 +46,15 @@ export const CITY_STATUS_META: Record<CityStatus, { label: string; tone: 'live' 
   [CITY_STATUS.Paused]:     { label: 'Paused',      tone: 'muted' },
 }
 
+import type { CityMaturity } from './cityMaturity'
+
 export interface CityStats {
   members: number
   clubs:   number
   events:  number   // upcoming, not lifetime — "what can I join?" beats "what have you done?"
+  // Derived stage (see lib/cityMaturity). Drives stage-honest copy: a seeding
+  // city shows "be one of the first", never "1 member".
+  maturity: CityMaturity
 }
 
 export interface PublicCity {

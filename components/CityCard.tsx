@@ -1,6 +1,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { CITY_STATUS, CITY_STATUS_META, type PublicCity } from '@/lib/cityStatus'
+import { CITY_MATURITY } from '@/lib/cityMaturity'
 import { resolveImageUrl } from '@/lib/data'
 import { countryName } from '@/lib/country'
 
@@ -102,13 +103,25 @@ export default function CityCard({
 
         <p className="text-sm text-gray-600 leading-relaxed">{tagline}</p>
 
-        {isLive && city.stats && (
+        {/* A seeding city is live but empty, and "1 member" on a card reads
+            as dead rather than early. Same honesty, different frame: say what
+            stage it's in and what exists to join. The stage is derived from
+            data (lib/cityMaturity), so this can't be gamed into flattery. */}
+        {isLive && city.stats && (city.stats.maturity === CITY_MATURITY.Seeding ? (
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            <p className="text-sm text-gray-700">
+              <span className="font-bold text-amber-700">Founding stage</span>
+              {city.stats.clubs > 0 && <> · {city.stats.clubs} club{city.stats.clubs === 1 ? '' : 's'} forming</>}
+              {' '}· be one of the first
+            </p>
+          </div>
+        ) : (
           <div className="grid grid-cols-3 gap-3 mt-4 pt-4 border-t border-gray-100">
             <Stat value={city.stats.members} label="Members" />
             <Stat value={city.stats.clubs}   label="Clubs" />
             <Stat value={city.stats.events}  label="Upcoming" />
           </div>
-        )}
+        ))}
 
         <div className="mt-4">
           {isLive ? (
