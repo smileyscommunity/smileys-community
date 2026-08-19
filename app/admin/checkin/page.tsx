@@ -16,6 +16,7 @@ interface Event {
   time: string
   emoji: string
   status: string
+  city?: { name: string; slug: string } | null
 }
 
 interface Attendee {
@@ -160,6 +161,9 @@ function CheckInPageInner() {
     const today = todayIstanbul()
     return events.filter(e => e.date >= today)
   }, [events, showAllEvents])
+  // Only surface the city in the option label when the visible events span
+  // more than one — otherwise it's noise in single-city door ops.
+  const multiCity = new Set(visibleEvents.map(e => e.city?.slug).filter(Boolean)).size > 1
 
   // If toggling back from "Show all" with a past event selected, snap
   // to the first current/future event so the dropdown doesn't render
@@ -260,7 +264,7 @@ function CheckInPageInner() {
                 </option>
               )}
               {visibleEvents.map(e => (
-                <option key={e.id} value={e.id}>{e.emoji} {e.title} — {e.date}</option>
+                <option key={e.id} value={e.id}>{e.emoji} {e.title} — {e.date}{multiCity && e.city ? ` · ${e.city.name}` : ''}</option>
               ))}
             </select>
             {/* Toggle is a single tap to switch between today-only (the

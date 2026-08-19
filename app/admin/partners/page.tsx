@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import CitySelect, { CityBadge, useAdminCities } from '@/components/admin/CitySelect'
 import { confirmToast } from '@/lib/confirmToast'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -23,6 +24,7 @@ interface Partner {
   coverImage: string | null
   isActive: boolean
   users: PartnerUser[]
+  city?: { name: string; slug: string } | null
 }
 interface Member { id: string; name: string; email: string }
 
@@ -61,6 +63,8 @@ export default function AdminPartnersPage() {
   }
 
   const [panel,      setPanel]      = useState<{ id: string; mode: PanelMode }>({ id: '', mode: null })
+  const [cityFilter, setCityFilter] = useState('')
+  const cities = useAdminCities()
   const [searches,   setSearches]   = useState<Record<string, string>>({})
   // Server-side member search for the assign picker — /api/admin/users
   // without ?search= caps at the newest 1000 rows, so filtering a
@@ -170,6 +174,13 @@ export default function AdminPartnersPage() {
           <h1 className="text-2xl font-extrabold text-white">Partners</h1>
           <p className="text-sm text-zinc-500 mt-0.5">Local businesses offering member discounts</p>
         </div>
+        {cities.length > 1 && (
+          <select value={cityFilter} onChange={e => setCityFilter(e.target.value)}
+            className="ml-auto mr-2 px-3 py-2 text-xs rounded-xl bg-zinc-800 border border-zinc-700 text-zinc-300 focus:outline-none focus:ring-2 focus:ring-amber-500">
+            <option value="">All cities</option>
+            {cities.map(c => <option key={c.id} value={c.slug}>{c.name}</option>)}
+          </select>
+        )}
         <Link href="/admin/partners/new"
           className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-colors shrink-0">
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -205,7 +216,7 @@ export default function AdminPartnersPage() {
       : partners.length === 0 ? <div className="text-center py-16 text-zinc-600">No partners yet.</div>
       : (
         <div className="space-y-3">
-          {partners.map(p => {
+          {partners.filter(p => !cityFilter || (p.city?.slug ?? '') === cityFilter).map(p => {
             const isOpen    = panel.id === p.id
             const mode      = isOpen ? panel.mode : null
             const editData  = editForms[p.id] ?? p
@@ -229,6 +240,7 @@ export default function AdminPartnersPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="font-bold text-white truncate">{p.name}</p>
+                        <CityBadge city={p.city} cities={cities} />
                         <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full shrink-0 ${p.isActive ? 'bg-green-500/15 text-green-400' : 'bg-zinc-700 text-zinc-500'}`}>
                           {p.isActive ? 'Active' : 'Inactive'}
                         </span>
