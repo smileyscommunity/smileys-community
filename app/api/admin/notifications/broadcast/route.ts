@@ -51,20 +51,36 @@ export async function POST(req: NextRequest) {
   const session = await getSession()
   if (!session || !canSendBroadcasts(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { title, message, type, channel, audience, clubId, eventId } = await req.json()
+  const { title, message, type, channel, audience, clubId, eventId, cityId } = await req.json()
   if (!title?.trim() || !message?.trim()) return NextResponse.json({ error: 'Title and message required' }, { status: 400 })
 
   const notifType = type === 'alert' ? 'system_alert' : 'announcement'
   const link      = eventId ? `/events/${eventId}` : clubId ? `/clubs/${clubId}` : undefined
   const isEmail   = channel === 'email'
 
+  // `audience === 'city'` → every approved member of one city. Validated for
+  // every role — a typo'd id must not fall through to a smaller-than-intended
+  // (or empty) send that the toast would still report as success. The gate is
+  // canSendBroadcasts itself: admins reach any city, a moderator exactly
+  // their own — which also makes this the first audience besides club/event
+  // a moderator can use.
+  if (audience === 'city') {
+    if (!cityId) return NextResponse.json({ error: 'cityId required for a city broadcast' }, { status: 400 })
+    const city = await prisma.city.findUnique({ where: { id: cityId }, select: { id: true } })
+    if (!city) return NextResponse.json({ error: 'Unknown city' }, { status: 400 })
+    if (!canSendBroadcasts(session, city.id)) {
+      return NextResponse.json({ error: 'Cross-city broadcast is admin-only' }, { status: 403 })
+    }
+  }
+
   // City-scope check for non-admins. Previously a moderator could broadcast
   // to *every* approved user across *every* city. Now we derive the target
   // city from the audience:
   //   - `audience === 'all'`     → admins only
+  //   - `audience === 'city'`    → gated above via canSendBroadcasts
   //   - `audience === 'event'`   → must match the event's cityId
   //   - `audience === 'club'`    → must match the club's cityId
-  if (!isAdmin(session)) {
+  if (!isAdmin(session) && audience !== 'city') {
     if (audience === 'event' && eventId) {
       const ev = await prisma.event.findUnique({ where: { id: eventId }, select: { cityId: true } })
       if (!ev || !canSendBroadcasts(session, ev.cityId)) {
@@ -96,6 +112,11 @@ export async function POST(req: NextRequest) {
       include: { user: { select: { id: true, name: true, email: true, emailMarketing: true } } },
     })
     users = members.map(m => m.user)
+  } else if (audience === 'city' && cityId) {
+    users = await prisma.user.findMany({
+      where: { status: 'approved', cityId },
+      select: { id: true, name: true, email: true, emailMarketing: true },
+    })
   } else {
     users = await prisma.user.findMany({
       where: { status: 'approved' },
@@ -121,6 +142,7 @@ export async function POST(req: NextRequest) {
       data: { title: title.trim(), message: message.trim(), type: type ?? 'announcement',
               audience: audience ?? 'all', channel: 'email',
               clubId: clubId || null, eventId: eventId || null,
+              cityId: audience === 'city' ? cityId : null,
               sentBy: session.name, sentCount: eligible.length },
     })
     return NextResponse.json({ ok: true, sent: eligible.length, skipped: dedup.length - eligible.length })
@@ -132,6 +154,7 @@ export async function POST(req: NextRequest) {
       data: { title: title.trim(), message: message.trim(), type: type ?? 'announcement',
               audience: audience ?? 'all', channel: 'in-app',
               clubId: clubId || null, eventId: eventId || null,
+              cityId: audience === 'city' ? cityId : null,
               sentBy: session.name, sentCount: dedup.length },
     })
     return NextResponse.json({ ok: true, sent: dedup.length })

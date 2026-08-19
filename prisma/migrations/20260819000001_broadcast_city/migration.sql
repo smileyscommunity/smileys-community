@@ -1,0 +1,11 @@
+-- Broadcasts get a city dimension.
+--
+-- The audience options were all / club / event. "All" meant every approved
+-- user in every city — there was no way to send "everyone in Istanbul"
+-- without also reaching Bodrum's members, so a seasonal announcement meant
+-- for one city had no correct target at all.
+--
+-- Nullable, no backfill: existing rows were genuinely network-wide ("all")
+-- or derive their city from the club/event they targeted. NULL means
+-- exactly what it meant before the column existed.
+ALTER TABLE "broadcasts" ADD COLUMN "cityId" TEXT;

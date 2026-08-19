@@ -6,8 +6,9 @@ import { useAuth } from '@/contexts/AuthContext'
 
 type Channel  = 'in-app' | 'email'
 type MsgType  = 'announcement' | 'reminder' | 'alert'
-type Audience = 'all' | 'club' | 'event'
+type Audience = 'all' | 'city' | 'club' | 'event'
 
+interface CityOption  { id: string; name: string; status: string }
 interface ClubOption  { id: string; name: string; emoji?: string }
 interface EventOption { id: string; title: string; emoji?: string }
 
@@ -21,10 +22,12 @@ interface BroadcastRecord {
   sentBy:    string
   sentCount: number
   createdAt: string
+  cityId?:   string | null
 }
 
 const audienceButtonLabel: Record<Audience, string> = {
   all:   'All members',
+  city:  'City',
   club:  'Club',
   event: 'Event',
 }
@@ -37,6 +40,7 @@ const typeConfig: Record<MsgType, { label: string; color: string }> = {
 
 const audienceLabel: Record<string, string> = {
   all:   'All members',
+  city:  'City',
   club:  'Club',
   event: 'Event',
 }
@@ -45,12 +49,14 @@ export default function AdminNotificationsPage() {
   const { user } = useAuth()
   const isModerator = user.role === 'moderator'
 
+  const [cities,    setCities]    = useState<CityOption[]>([])
   const [clubs,     setClubs]     = useState<ClubOption[]>([])
   const [events,    setEvents]    = useState<EventOption[]>([])
   // Moderators can't broadcast to all members (server returns 403 since
   // commit cdcbc0d). Force them onto a scoped audience on first render so
   // the UI matches the server's actual policy.
   const [audience,  setAudience]  = useState<Audience>(isModerator ? 'club' : 'all')
+  const [cityId,    setCityId]    = useState('')
   const [clubId,    setClubId]    = useState('')
   const [eventId,   setEventId]   = useState('')
   const [channel,   setChannel]   = useState<Channel>('in-app')
@@ -91,6 +97,9 @@ export default function AdminNotificationsPage() {
   }, [])
 
   useEffect(() => {
+    fetch('/app/api/admin/cities', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setCities(Array.isArray(d) ? d : []))
     fetch('/app/api/admin/clubs',  { credentials: 'include' })
       .then(r => r.ok ? r.json() : [])
       .then(d => setClubs(Array.isArray(d) ? d : []))
@@ -125,6 +134,7 @@ export default function AdminNotificationsPage() {
   const canSend = !!(
     title.trim() && message.trim() &&
     (audience === 'all'   ? !isModerator :
+     audience === 'city'  ? !!cityId      :
      audience === 'club'  ? !!clubId      :
                             !!eventId)
   )
@@ -138,7 +148,7 @@ export default function AdminNotificationsPage() {
       const res = await fetch('/app/api/admin/notifications/broadcast', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, message, type, channel, audience, clubId: clubId || null, eventId: eventId || null }),
+        body: JSON.stringify({ title, message, type, channel, audience, cityId: cityId || null, clubId: clubId || null, eventId: eventId || null }),
       })
       const data = await res.json()
       if (res.ok) {
@@ -238,7 +248,7 @@ export default function AdminNotificationsPage() {
           <div>
             <label className="text-zinc-400 text-xs font-semibold uppercase tracking-wide block mb-2">Audience</label>
             <div className="flex gap-1.5 mb-2 flex-wrap">
-              {(['all', 'club', 'event'] as const).map(a => {
+              {(['all', 'city', 'club', 'event'] as const).map(a => {
                 // Moderators can't broadcast to all cities — server returns
                 // 403. Disable the button + show a tooltip rather than
                 // letting them click into a guaranteed failure.
@@ -246,9 +256,9 @@ export default function AdminNotificationsPage() {
                 return (
                   <button
                     key={a}
-                    onClick={() => { if (disabled) return; setAudience(a); setClubId(''); setEventId('') }}
+                    onClick={() => { if (disabled) return; setAudience(a); setCityId(''); setClubId(''); setEventId('') }}
                     disabled={disabled}
-                    title={disabled ? 'Moderators can only broadcast to a specific club or event in their city' : undefined}
+                    title={disabled ? 'Moderators can broadcast to their own city, or to a club or event in it — not to every city at once' : undefined}
                     className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors flex-1 sm:flex-none ${
                       disabled
                         ? 'bg-zinc-900 text-zinc-700 cursor-not-allowed border border-zinc-800'
@@ -262,6 +272,15 @@ export default function AdminNotificationsPage() {
                 )
               })}
             </div>
+            {audience === 'city' && (
+              <select value={cityId} onChange={e => setCityId(e.target.value)}
+                className="w-full bg-zinc-800 border border-zinc-700 text-white text-sm rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                <option value="">Select city…</option>
+                {cities.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}{c.status !== 'live' ? ' (coming soon)' : ''}</option>
+                ))}
+              </select>
+            )}
             {audience === 'club' && (
               <select value={clubId} onChange={e => setClubId(e.target.value)}
                 className="w-full bg-zinc-800 border border-zinc-700 text-white text-sm rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-amber-500 focus:outline-none">
@@ -370,7 +389,9 @@ export default function AdminNotificationsPage() {
                           {b.type}
                         </span>
                         <span className="text-xs text-zinc-500 bg-zinc-800 px-1.5 py-0.5 rounded-full">
-                          {audienceLabel[b.audience] ?? b.audience}
+                          {b.audience === 'city'
+                            ? `City: ${cities.find(c => c.id === b.cityId)?.name ?? '?'}`
+                            : audienceLabel[b.audience] ?? b.audience}
                         </span>
                         {b.channel && (
                           <span className="text-xs text-zinc-500 bg-zinc-800 px-1.5 py-0.5 rounded-full">

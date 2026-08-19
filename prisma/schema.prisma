@@ -1219,6 +1219,9 @@ model Broadcast {
   sentCount Int
   createdAt DateTime @default(now())
   channel   String   @default("in-app")
+  // Set when audience = 'city'. Plain string, no relation — this is an audit
+  // record of where a send went, and must survive a city row's deletion.
+  cityId    String?
 
   @@map("broadcasts")
 }
