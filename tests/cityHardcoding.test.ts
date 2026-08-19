@@ -76,7 +76,8 @@ const BASELINE: Record<string, number> = {
   'app/api/host/events/suggest-tags/route.ts': 1,
   'app/api/og/route.tsx': 2,
   'app/apply/layout.tsx': 5,
-  'app/apply/page.tsx': 5,
+  'app/apply/page.tsx': 1,        // server wrapper — only the honest 'Istanbul' fallback default (2026-08-19)
+  'app/apply/ApplyClient.tsx': 3,  // renamed from page.tsx; visible copy now city-aware, only first-load default + fallback remain
   'app/clubs/layout.tsx': 4,
   'app/clubs/page.tsx': 1,
   'app/contact/page.tsx': 1,
