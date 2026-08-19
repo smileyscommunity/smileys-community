@@ -7,6 +7,7 @@ import { getSession } from '@/lib/session'
 import { resolveCityId } from '@/lib/city'
 import { getStatsFor } from '@/lib/cities'
 import { CITY_MATURITY } from '@/lib/cityMaturity'
+import { CITY_STATUS } from '@/lib/cityStatus'
 import { DISCOVER_LINKS } from '@/lib/navLinks'
 import { redirect } from 'next/navigation'
 import { readFileSync } from 'fs'
@@ -77,8 +78,8 @@ export default async function DashboardPage() {
   })) > 0
   const city = await prisma.city.findUnique({
     where:  { id: cityId },
-    select: { name: true, lat: true, lng: true, timezone: true },
-  }) ?? { name: 'Istanbul', lat: null, lng: null, timezone: 'Europe/Istanbul' }
+    select: { name: true, lat: true, lng: true, timezone: true, status: true },
+  }) ?? { name: 'Istanbul', lat: null, lng: null, timezone: 'Europe/Istanbul', status: CITY_STATUS.Live }
 
   const today      = todayIstanbul()
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
@@ -153,11 +154,16 @@ export default async function DashboardPage() {
     where: { cityId, status: 'approved', role: { in: ['member', 'moderator'] } },
   })
   let founding: { cityName: string; rank: number; total: number; firstName: string } | null = null
-  // Only for a member whose OWN city is seeding — not someone merely viewing a
-  // small city they don't belong to (an admin, or a member browsing another
-  // city's feeds). "You're a founding member" is a claim about the viewer's
-  // home; showing it to a non-member produced "you're member #0".
-  if (cityMemberCount < 150 && cityId === session.cityId) {
+  // Only for a member whose OWN city is seeding, and only once that city is
+  // LIVE. Two guards:
+  //  - cityId === session.cityId: "you're a founding member" is a claim about
+  //    the viewer's HOME, not a small city they're merely viewing (an admin, a
+  //    member browsing another city) — showing it to a non-member produced
+  //    "you're member #0".
+  //  - status === live: a coming_soon/preparing city hasn't opened, so "host
+  //    the first event / invite your friends" is premature (Antalya has 2
+  //    members but isn't launched — it should stay hidden until it flips live).
+  if (city.status === CITY_STATUS.Live && cityMemberCount < 150 && cityId === session.cityId) {
     const stats = (await getStatsFor([cityId])).get(cityId)
     if (stats?.maturity === CITY_MATURITY.Seeding && userProfile?.joinedAt) {
       // This member's join position in the city — count of approved members
