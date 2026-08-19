@@ -186,12 +186,25 @@ async function main() {
         if (found.lat  == null && lat != null) patch.lat = lat
         if (found.lng  == null && lng != null) patch.lng = lng
       }
+      // Say what was NOT applied, too. Filling only nulls is the safe rule,
+      // but silence about the rest is how an operator edits a vibe in the
+      // file, sees "3 already present", and believes it landed. Refusing to
+      // overwrite is a decision; hiding the refusal is a bug.
+      const refused = FILL_BLANKS
+        ? (['vibe', 'area'] as const)
+            .filter(k => e[k] && found[k] != null && e[k] !== found[k])
+            .map(k => `${k} ("${found[k]}" kept, file says "${e[k]}")`)
+        : []
+
       if (Object.keys(patch).length > 0) {
         if (!DRY_RUN) await prisma.neighborhood.update({ where: { id: found.id }, data: patch })
         console.log(`  ~ ${name} — ${DRY_RUN ? 'would fill' : 'filled'} ${Object.keys(patch).join(', ')}`)
         filled++
       } else {
         skipped++
+      }
+      if (refused.length) {
+        console.log(`  ! ${name} — left as-is: ${refused.join('; ')}. Change it in /admin, not here.`)
       }
       continue
     }
