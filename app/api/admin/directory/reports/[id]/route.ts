@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator } from '@/lib/access'
+import { isAdminOrModerator, canActInCity } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
 
 type Params = { params: Promise<{ id: string }> }
@@ -22,9 +22,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
     const report = await prisma.businessReport.findUnique({
       where:  { id },
-      select: { id: true, businessId: true, reason: true },
+      select: { id: true, businessId: true, reason: true, business: { select: { cityId: true } } },
     })
     if (!report) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    if (!canActInCity(session, report.business.cityId)) {
+      return NextResponse.json({ error: 'Cross-city moderation is admin-only' }, { status: 403 })
+    }
 
     await prisma.businessReport.update({
       where: { id },

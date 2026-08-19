@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator } from '@/lib/access'
+import { isAdminOrModerator, canActInCity } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
 import { writeAudit } from '@/lib/audit'
 
@@ -30,9 +30,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     const claim = await prisma.businessClaim.findUnique({
       where:   { id },
-      include: { business: { select: { id: true, name: true, claimedById: true } } },
+      include: { business: { select: { id: true, name: true, claimedById: true, cityId: true } } },
     })
     if (!claim) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    // Directory moderation is city work — approving a claim hands a real
+    // business to a member. Admins everywhere, moderators only at home.
+    if (!canActInCity(session, claim.business.cityId)) {
+      return NextResponse.json({ error: 'Cross-city moderation is admin-only' }, { status: 403 })
+    }
 
     if (action === 'approve') {
       // Refuse to overwrite a different existing owner — that would

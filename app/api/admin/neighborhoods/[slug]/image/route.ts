@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
 import { slugToNeighborhood } from '@/lib/neighborhoods'
+import { canActInCity } from '@/lib/access'
+import { getDefaultCityId } from '@/lib/city'
 import { writeFileSync, mkdirSync, unlinkSync, readdirSync } from 'fs'
 import { join } from 'path'
 import sharp from 'sharp'
@@ -12,6 +14,13 @@ export const runtime = 'nodejs'
 export async function POST(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const session = await getSession()
   if (!session || !isAdminOrModerator(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  // These guides are the default city's editorial content — slugToNeighborhood
+  // only resolves Istanbul slugs, so an edit here is an edit to Istanbul's
+  // pages. Cross-city rule as everywhere: admins yes, other cities' moderators
+  // no. (Reads stay open to all moderators; the content is public anyway.)
+  if (!canActInCity(session, await getDefaultCityId())) {
+    return NextResponse.json({ error: "Editing another city's guides is admin-only" }, { status: 403 })
+  }
   const { slug } = await params
   if (!slugToNeighborhood(slug)) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator } from '@/lib/access'
+import { isAdminOrModerator, canActInCity } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
 import { normalizeContactEmail } from '@/lib/contactEmail'
 
@@ -16,6 +16,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     include: { user: { select: { id: true, name: true, email: true, color: true, profilePhoto: true } } },
   })
   if (!listing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  // The board list is city-scoped; this [id] route accepted any id. Same
+  // rule everywhere: admins reach every city, moderators only their own.
+  if (!canActInCity(session, listing.cityId)) {
+    return NextResponse.json({ error: 'Cross-city moderation is admin-only' }, { status: 403 })
+  }
   return NextResponse.json(listing)
 }
 
@@ -28,6 +33,9 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   const { id } = await params
   const listing = await prisma.listing.findUnique({ where: { id } })
   if (!listing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!canActInCity(session, listing.cityId)) {
+    return NextResponse.json({ error: 'Cross-city moderation is admin-only' }, { status: 403 })
+  }
 
   await prisma.listing.update({ where: { id }, data: { status: 'deleted' } })
 
@@ -97,6 +105,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
   if ('photoPosition' in body && typeof body.photoPosition === 'number') {
     data.photoPosition = Math.min(100, Math.max(0, Math.round(body.photoPosition)))
+  }
+
+  // PATCH previously wrote blind; the fetch exists for the city gate and
+  // doubles as a clean 404 for a missing id (was a P2025 500).
+  const current = await prisma.listing.findUnique({ where: { id }, select: { cityId: true } })
+  if (!current) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!canActInCity(session, current.cityId)) {
+    return NextResponse.json({ error: 'Cross-city moderation is admin-only' }, { status: 403 })
   }
 
   const updated = await prisma.listing.update({ where: { id }, data })

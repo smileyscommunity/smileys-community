@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator } from '@/lib/access'
+import { isAdminOrModerator, canActInCity } from '@/lib/access'
 import { todayIstanbul } from '@/lib/data'
 import { writeAudit } from '@/lib/audit'
 
@@ -33,6 +33,11 @@ export async function POST(_: NextRequest, { params }: Params) {
 
     const source = await prisma.event.findUnique({ where: { id } })
     if (!source) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    // The copy lands in the source's city, so duplicating another city's
+    // event IS creating an event there — same gate as any cross-city create.
+    if (!canActInCity(session, source.cityId)) {
+      return NextResponse.json({ error: 'Cross-city duplicate is admin-only' }, { status: 403 })
+    }
 
     // Pull every field except the ones we want to override or have
     // Prisma regenerate (id, createdAt, updatedAt).

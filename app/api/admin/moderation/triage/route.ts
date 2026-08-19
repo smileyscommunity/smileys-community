@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { canModerateReports } from '@/lib/access'
+import { canModerateReports, canActInCity } from '@/lib/access'
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
       reporter: { select: { name: true } },
       reported: {
         select: {
-          name: true, status: true, warningCount: true, joinedAt: true,
+          name: true, status: true, warningCount: true, joinedAt: true, cityId: true,
           _count: { select: { reportsReceived: true } },
         },
       },
@@ -38,6 +38,13 @@ export async function POST(req: NextRequest) {
   })
 
   if (!report) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // The moderation queue scopes moderators to reports about their own
+  // city's members; this AI-triage route accepted any reportId and fed the
+  // subject's history into the summary. Same scope as the queue itself.
+  if (!canActInCity(session, report.reported.cityId)) {
+    return NextResponse.json({ error: 'Cross-city moderation is admin-only' }, { status: 403 })
+  }
 
   const prompt = `You are a community moderator for Smileys, a curated social community in Istanbul. Review this user report and recommend an action.
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator } from '@/lib/access'
+import { isAdminOrModerator, canActInCity } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
 
 type Params = { params: Promise<{ id: string }> }
@@ -23,8 +23,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Missing `hide` boolean' }, { status: 400 })
     }
 
-    const review = await prisma.businessReview.findUnique({ where: { id }, select: { id: true, businessId: true } })
+    const review = await prisma.businessReview.findUnique({
+      where: { id }, select: { id: true, businessId: true, business: { select: { cityId: true } } },
+    })
     if (!review) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    if (!canActInCity(session, review.business.cityId)) {
+      return NextResponse.json({ error: 'Cross-city moderation is admin-only' }, { status: 403 })
+    }
 
     await prisma.businessReview.update({
       where: { id },

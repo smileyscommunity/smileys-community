@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { canReviewApplications } from '@/lib/access'
+import { canReviewApplications, canActInCity } from '@/lib/access'
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
@@ -17,10 +17,17 @@ export async function POST(req: NextRequest) {
 
   const app = await prisma.memberApplication.findUnique({
     where: { id },
-    select: { fullName: true, interests: true, contribution: true, reasonHere: true, profession: true },
+    select: { fullName: true, interests: true, contribution: true, reasonHere: true, profession: true, targetCityId: true },
   })
 
   if (!app) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  // The list view scopes moderators to their own city's applications, but
+  // this route accepted any id — and feeds the whole application (name,
+  // socials, bio) into the response. Same rule as the list: admins
+  // everywhere, moderators only their own city's applicants.
+  if (!canActInCity(session, app.targetCityId)) {
+    return NextResponse.json({ error: 'Cross-city review is admin-only' }, { status: 403 })
+  }
 
   const firstName = app.fullName?.split(' ')[0] ?? app.fullName ?? 'there'
   const interests = (app.interests ?? []).slice(0, 3).join(', ')
