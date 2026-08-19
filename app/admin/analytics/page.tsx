@@ -4,10 +4,13 @@ import React, { useState, useEffect, useCallback, Suspense } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { resolveImageUrl } from '@/lib/data'
+import CitySelect, { useAdminCities } from '@/components/admin/CitySelect'
 
 interface Analytics {
   period: string
   periodLabel: string
+  city: { id: string; name: string; slug: string } | null
+  banRateScoped?: boolean
   months: string[]
   members:      { total: number; newLast30: number; newPrev30: number; growthRate: number; byMonth: number[] }
   engagement:   { activeMemberCount: number; activeMemberRate: number; dormantCount: number; repeatRsvpRate: number; totalUniqueRsvpers: number; repeatRsvpers: number; dormantMembers: { id: string; name: string; joinedAt: string; interests: string[]; neighborhood: string | null }[] }
@@ -275,6 +278,17 @@ function AnalyticsInner() {
   const [lastRefresh,   setLastRefresh]   = useState<Date | null>(null)
   const [, setTick] = useState(0)
   const [period,        setPeriod]        = useState('6m')
+  // City scope for every chart. '' = all cities (network-wide). Persisted so a
+  // multi-city admin's drill-down stays where they left it, mirroring the
+  // dashboard switcher.
+  const [cityId, setCityId] = useState<string>(() =>
+    typeof window === 'undefined' ? '' : (window.localStorage.getItem('admin_analytics_city') || ''))
+  const cities = useAdminCities()
+  const setCityScope = (id: string) => {
+    setCityId(id)
+    if (id) window.localStorage.setItem('admin_analytics_city', id)
+    else    window.localStorage.removeItem('admin_analytics_city')
+  }
   const [reengageId,    setReengageId]    = useState<string | null>(null)
   const [reengageMsgs,  setReengageMsgs]  = useState<Record<string, string>>({})
   const [reengageLoad,  setReengageLoad]  = useState<string | null>(null)
@@ -331,7 +345,7 @@ function AnalyticsInner() {
     if (isInitial) setLoading(true)
     else           setRefreshing(true)
     setErrorMsg(null)
-    fetch(`/app/api/admin/analytics?period=${period}`, { credentials: 'include' })
+    fetch(`/app/api/admin/analytics?period=${period}${cityId ? `&city=${encodeURIComponent(cityId)}` : ''}`, { credentials: 'include' })
       .then(async r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
         return r.json()
@@ -346,7 +360,7 @@ function AnalyticsInner() {
   // decide skeleton-vs-stale, but re-running the effect on data change
   // would cause an infinite fetch loop.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [period])
+  }, [period, cityId])
 
   useEffect(() => { load() }, [load])
 
@@ -425,6 +439,13 @@ function AnalyticsInner() {
               <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
               Refreshing…
             </span>
+          )}
+          {cities.length > 1 && (
+            <select value={cityId} onChange={e => setCityScope(e.target.value)} disabled={refreshing}
+              className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs font-semibold text-zinc-300 focus:outline-none focus:ring-2 focus:ring-amber-500 disabled:cursor-wait">
+              <option value="">All cities</option>
+              {cities.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
           )}
           <div className={`flex items-center bg-zinc-900 border border-zinc-800 rounded-xl p-1 gap-0.5 transition-opacity ${refreshing ? 'opacity-60' : ''}`}>
             {PERIODS.map(p => (

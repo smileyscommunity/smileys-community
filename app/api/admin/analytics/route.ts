@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 import { getSession } from '@/lib/session'
 import { canViewAnalytics } from '@/lib/access'
 import { getCached, setCached } from '@/lib/analyticsCache'
@@ -25,7 +26,31 @@ export async function GET(req: NextRequest) {
     const period    = PERIODS[periodKey] ?? PERIODS['6m']
     const numMonths = period.months
 
-    const cacheKey = `analytics:${periodKey}`
+    // ?city=<id> scopes every metric to one city; omitted = network-wide
+    // (the historical view). Validated so a bad id can't render a page of
+    // zeros labelled as a real city.
+    const cityParam = req.nextUrl.searchParams.get('city')
+    const city = cityParam
+      ? await prisma.city.findUnique({ where: { id: cityParam }, select: { id: true, name: true, slug: true } })
+      : null
+    if (cityParam && !city) return NextResponse.json({ error: 'Unknown city' }, { status: 400 })
+    const cityId = city?.id ?? null
+
+    // Relation paths to city, mirroring the stats route. Empty = network-wide.
+    // event_recommendations and audit have their own handling below.
+    const userCity     = cityId ? { cityId }                    : {}   // users
+    const eventCity    = cityId ? { cityId }                    : {}   // events (own city)
+    const viaEvent     = cityId ? { event: { cityId } }         : {}   // eventAttendee, payment
+    const appCity      = cityId ? { targetCityId: cityId }      : {}   // memberApplication
+    const reportedCity = cityId ? { reported: { is: { cityId } } } : {} // report
+    const clubCity     = cityId ? { cityId }                    : {}   // club (own city)
+    const hangoutCity  = cityId ? { cityId }                    : {}   // hangout
+    const viaHangout   = cityId ? { hangout: { cityId } }       : {}   // hangoutReference
+    // Conditional SQL fragment for the raw first-event-matcher queries, keyed
+    // on the recommendation's user's city (the member the matcher serves).
+    const sqlUserCity  = cityId ? Prisma.sql`AND u."cityId" = ${cityId}` : Prisma.empty
+
+    const cacheKey = `analytics:${periodKey}:${cityId ?? 'all'}`
     const cached   = getCached<object>(cacheKey)
     if (cached) return NextResponse.json(cached)
 
@@ -58,27 +83,30 @@ export async function GET(req: NextRequest) {
       reportsInPeriod, bansInPeriod, totalApprovedMembers,
     ] = await Promise.all([
       prisma.user.findMany({
-        where: { role: { not: 'admin' } },
+        where: { role: { not: 'admin' }, ...userCity },
         select: { status: true, joinedAt: true },
       }),
       prisma.memberApplication.findMany({
+        where: { ...appCity },
         select: { status: true, interests: true, createdAt: true },
       }),
       prisma.event.findMany({
+        where: { ...eventCity },
         select: { date: true, status: true, totalSpots: true, spotsLeft: true, price: true, createdAt: true },
       }),
       prisma.eventAttendee.findMany({
-        where: { status: 'approved' },
+        where: { status: 'approved', ...viaEvent },
         // userId needed for cohort retention math (which cohort attended an
         // event within their first 30 / 90 days).
         select: { joinedAt: true, userId: true },
       }),
       prisma.payment.findMany({
+        where: { ...viaEvent },
         select: { status: true, amount: true, createdAt: true },
       }),
-      prisma.report.groupBy({ by: ['status'], _count: true }),
+      prisma.report.groupBy({ by: ['status'], where: { ...reportedCity }, _count: true }),
       prisma.event.findMany({
-        where: { date: { lt: today } },
+        where: { date: { lt: today }, ...eventCity },
         orderBy: { attendees: { _count: 'desc' } },
         take: 5,
         select: {
@@ -87,14 +115,14 @@ export async function GET(req: NextRequest) {
         },
       }),
       prisma.club.findMany({
-        where: { isActive: true },
+        where: { isActive: true, ...clubCity },
         select: { id: true, name: true, emoji: true, memberCount: true, _count: { select: { events: true } } },
         orderBy: { memberCount: 'desc' },
         take: 5,
       }),
       // Active members: attended at least 1 event in last 30 days
       prisma.eventAttendee.findMany({
-        where: { status: 'approved', joinedAt: { gte: day30 } },
+        where: { status: 'approved', joinedAt: { gte: day30 }, ...viaEvent },
         select: { userId: true },
         distinct: ['userId'],
       }),
@@ -106,6 +134,7 @@ export async function GET(req: NextRequest) {
           joinedEvents: {
             none: { joinedAt: { gte: day90 }, status: 'approved' },
           },
+          ...userCity,
         },
         select: { id: true, name: true, joinedAt: true, interests: true, neighborhood: true },
         orderBy: { joinedAt: 'asc' },
@@ -114,29 +143,29 @@ export async function GET(req: NextRequest) {
       // Repeat RSVP rate: users with more than 1 RSVP vs total unique attendees
       prisma.eventAttendee.groupBy({
         by: ['userId'],
-        where: { status: 'approved' },
+        where: { status: 'approved', ...viaEvent },
         _count: { userId: true },
       }),
       // Member neighborhoods
       prisma.user.findMany({
-        where: { status: 'approved', neighborhood: { not: '' } },
+        where: { status: 'approved', neighborhood: { not: '' }, ...userCity },
         select: { neighborhood: true },
       }),
       // Event neighborhoods (all published/archived)
       prisma.event.findMany({
-        where: { status: { in: ['published', 'archived'] }, neighborhood: { not: '' } },
+        where: { status: { in: ['published', 'archived'] }, neighborhood: { not: '' }, ...eventCity },
         select: { neighborhood: true },
       }),
       // Interests from actually attended events (via tags)
       prisma.eventAttendee.findMany({
-        where: { status: 'approved' },
+        where: { status: 'approved', ...viaEvent },
         select: {
           event: { select: { tags: { select: { tag: { select: { name: true } } } } } },
         },
       }),
       // Revenue per club: paid payments → event → club
       prisma.payment.findMany({
-        where: { status: 'paid' },
+        where: { status: 'paid', ...viaEvent },
         select: {
           amount: true,
           event: { select: { clubId: true, club: { select: { name: true, emoji: true } } } },
@@ -144,7 +173,7 @@ export async function GET(req: NextRequest) {
       }),
       // Refund rate by host: all payments with event host info
       prisma.payment.findMany({
-        where: { status: { in: ['paid', 'refunded'] } },
+        where: { status: { in: ['paid', 'refunded'] }, ...viaEvent },
         select: {
           status: true,
           amount: true,
@@ -160,7 +189,7 @@ export async function GET(req: NextRequest) {
       // Hangouts created in the selected period — feeds byMonth chart and
       // top-hosts ranking. Includes host name for the leaderboard row.
       prisma.hangout.findMany({
-        where:  { createdAt: { gte: periodStart } },
+        where:  { createdAt: { gte: periodStart }, ...hangoutCity },
         select: {
           createdAt: true,
           userId:    true,
@@ -170,7 +199,7 @@ export async function GET(req: NextRequest) {
       // Hangout references in the selected period — drives the velocity
       // chart + vibe breakdown ("is the trust loop firing? what shape?").
       prisma.hangoutReference.findMany({
-        where:  { createdAt: { gte: periodStart } },
+        where:  { createdAt: { gte: periodStart }, ...viaHangout },
         select: { createdAt: true, vibe: true },
       }),
       // Host pipeline — every application where the applicant said
@@ -178,38 +207,43 @@ export async function GET(req: NextRequest) {
       // page can render the Yasemin trap: approved-host-candidates with
       // 0 events to their name.
       prisma.memberApplication.findMany({
-        where:  { contribution: 'host' },
+        where:  { contribution: 'host', ...appCity },
         select: { fullName: true, email: true, status: true, createdAt: true, interests: true },
       }),
       // Events grouped by hostId so we can tell which host-intent users
       // have actually thrown an event vs. fell through onboarding.
       prisma.event.groupBy({
         by: ['hostId'],
-        where:  { status: { in: ['published', 'archived'] } },
+        where:  { status: { in: ['published', 'archived'] }, ...eventCity },
         _count: { _all: true },
       }),
       // All approved-status applications with source — the acquisition
       // attribution dataset. Matched to users-with-event-attendance below
       // to compute conversion-by-source.
       prisma.memberApplication.findMany({
-        where:  { status: 'approved' },
+        where:  { status: 'approved', ...appCity },
         select: { email: true, source: true },
       }),
       // Reports in the selected period with their resolution timestamps —
       // drives mod velocity ("how fast are reports getting actioned?") and
       // surfaces repeat offenders (users named in ≥2 reports).
       prisma.report.findMany({
-        where:  { createdAt: { gte: periodStart } },
+        where:  { createdAt: { gte: periodStart }, ...reportedCity },
         select: { createdAt: true, status: true, reviewedAt: true, reportedId: true },
       }),
       // Bans applied in period — pulled from the AuditLog so a ban that
       // was later reversed still counts as a moderation action taken.
-      prisma.auditLog.findMany({
-        where:  { createdAt: { gte: periodStart }, action: 'user.ban' },
-        select: { createdAt: true },
-      }),
+      cityId
+        ? prisma.user.findMany({
+            where:  { cityId, status: 'banned', bannedAt: { gte: periodStart } },
+            select: { bannedAt: true },
+          })
+        : prisma.auditLog.findMany({
+            where:  { createdAt: { gte: periodStart }, action: 'user.ban' },
+            select: { createdAt: true },
+          }),
       // Total approved members — denominator for the ban-rate metric.
-      prisma.user.count({ where: { status: 'approved', role: { in: ['member', 'moderator'] } } }),
+      prisma.user.count({ where: { status: 'approved', role: { in: ['member', 'moderator'] }, ...userCity } }),
     ]) as [any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], any[], number]
 
     // ── Members ──────────────────────────────────────────────────────────────
@@ -458,15 +492,17 @@ export async function GET(req: NextRequest) {
     // attended joins host-recorded check-ins → a floor, not an exact count.
     // Separate queries — the main Promise.all is already at TS's inference ceiling.
     const [femShown, femClicked, femRsvped] = await Promise.all([
-      prisma.eventRecommendation.findMany({ distinct: ['userId'], select: { userId: true } }),
-      prisma.eventRecommendation.findMany({ where: { clickedAt: { not: null } }, distinct: ['userId'], select: { userId: true } }),
-      prisma.eventRecommendation.findMany({ where: { rsvpedAt:  { not: null } }, distinct: ['userId'], select: { userId: true } }),
+      prisma.eventRecommendation.findMany({ where: cityId ? { user: { cityId } } : {}, distinct: ['userId'], select: { userId: true } }),
+      prisma.eventRecommendation.findMany({ where: { clickedAt: { not: null }, ...(cityId ? { user: { cityId } } : {}) }, distinct: ['userId'], select: { userId: true } }),
+      prisma.eventRecommendation.findMany({ where: { rsvpedAt:  { not: null }, ...(cityId ? { user: { cityId } } : {}) }, distinct: ['userId'], select: { userId: true } }),
     ])
     const femAttendedRows = await prisma.$queryRaw<{ n: bigint }[]>`
       SELECT count(DISTINCT r."userId") AS n
       FROM event_recommendations r
       JOIN event_attendees a
-        ON a."userId" = r."userId" AND a."eventId" = r."eventId" AND a."checkedIn" = true`
+        ON a."userId" = r."userId" AND a."eventId" = r."eventId" AND a."checkedIn" = true
+      JOIN users u ON u.id = r."userId"
+      WHERE true ${sqlUserCity}`
 
     // Fair conversion + a time-normalised cut. Members shown the block last week
     // haven't had the same chance to convert as ones shown in July, so `matured`
@@ -476,7 +512,11 @@ export async function GET(req: NextRequest) {
       rsvp_any: bigint; matured: bigint; matured_rsvp: bigint
     }[]>`
       WITH shown AS (
-        SELECT "userId", MIN("createdAt") AS t0 FROM event_recommendations GROUP BY 1
+        SELECT er."userId", MIN(er."createdAt") AS t0
+        FROM event_recommendations er
+        JOIN users u ON u.id = er."userId"
+        WHERE true ${sqlUserCity}
+        GROUP BY er."userId"
       ), flags AS (
         SELECT
           s.t0 <= now() - interval '14 days' AS matured,
@@ -517,6 +557,7 @@ export async function GET(req: NextRequest) {
       WHERE u.status = 'approved'
         AND u."joinedAt" >= date_trunc('month', now()) - interval '5 months'
         AND u."joinedAt" <= now() - interval '14 days'
+        ${sqlUserCity}
       GROUP BY 1 ORDER BY 1`
 
     const femShownCount = femShown.length
@@ -603,6 +644,13 @@ export async function GET(req: NextRequest) {
     const result = {
       period: periodKey,
       periodLabel: period.label,
+      // Which city these numbers describe; null = network-wide. The UI labels
+      // every scoped view from this so a city total can't read as the platform.
+      city,
+      // Ban rate is derived differently when scoped (this city's currently-
+      // banned members) vs network-wide (audit-logged ban actions), so the UI
+      // can footnote it rather than compare the two across the switch.
+      banRateScoped: !!cityId,
       months: monthKeys,
       members: {
         total: approved.length, newLast30, newPrev30, growthRate,
