@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
+import CitySelect from '@/components/admin/CitySelect'
 
 const inputCls = 'bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none px-3 py-2.5 w-full text-sm'
 const labelCls = 'block text-xs font-semibold text-zinc-400 mb-1.5'
@@ -15,6 +16,7 @@ export default function NewPartnerPage() {
   const [saving, setSaving] = useState(false)
   const [error,  setError]  = useState('')
   const [form,   setForm]   = useState({
+    cityId:       '',   // '' = creator's own city; ids come from CitySelect
     name:         '',
     category:     '',
     discount:     '',
@@ -46,7 +48,7 @@ export default function NewPartnerPage() {
       const res = await fetch('/app/api/admin/partners', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, cityId: form.cityId || undefined }),
       })
       if (res.ok) {
         toast.success('Partner created ✓')
@@ -84,6 +86,7 @@ export default function NewPartnerPage() {
       <section className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5">
         <h2 className="text-white font-bold mb-5">Business info</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <CitySelect value={form.cityId} onChange={v => set('cityId', v)} className={inputCls} />
           <div className="sm:col-span-2">
             <label className={labelCls}>Business name *</label>
             <input type="text" value={form.name} onChange={e => set('name', e.target.value)}

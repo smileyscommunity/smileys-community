@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { useAdminLoad } from '@/lib/admin/useAdminLoad'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
+import CitySelect from '@/components/admin/CitySelect'
 import { isSafeHref } from '@/lib/safeUrl'
 import { BUSINESS_CATEGORIES, DIRECTORY_LIMITS, parseGoogleMapsUrl } from '@/lib/directory-constants'
 import { DAY_KEYS, DAY_LABELS } from '@/lib/businessHours'
@@ -597,6 +598,10 @@ function CreateForm({ onCreated, onCancel }: { onCreated: () => void; onCancel: 
   const neighborhoods = useCityNeighborhoods()
   const [mode,    setMode]    = useState<CreateMode>('single')
   const [form,    setForm]    = useState<CreateForm>(EMPTY_CREATE)
+  // Panel-level, not per-form: single and bulk share it, and the bulk path
+  // is the one that really wants it — importing a batch for a city you're
+  // not in. '' = creator's own city (the server resolves it).
+  const [cityId,  setCityId]  = useState('')
   const [bulk,    setBulk]    = useState('')
   const [busy,    setBusy]    = useState(false)
   const [report,  setReport]  = useState<{ created: number; failed: number; errors: { index: number; name?: string; error: string }[] } | null>(null)
@@ -613,7 +618,7 @@ function CreateForm({ onCreated, onCancel }: { onCreated: () => void; onCancel: 
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ business: form }),
+        body: JSON.stringify({ business: form, cityId: cityId || undefined }),
       })
       const d = await r.json().catch(() => ({}))
       if (!r.ok) { toast.error(d?.error || 'Failed to create'); return }
@@ -648,7 +653,7 @@ function CreateForm({ onCreated, onCancel }: { onCreated: () => void; onCancel: 
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ businesses: parsed }),
+        body: JSON.stringify({ businesses: parsed, cityId: cityId || undefined }),
       })
       const d = await r.json().catch(() => ({}))
       if (!r.ok) { toast.error(d?.error || 'Failed to import'); return }
@@ -689,6 +694,10 @@ function CreateForm({ onCreated, onCancel }: { onCreated: () => void; onCancel: 
           </div>
           <button onClick={onCancel} className="text-xs text-zinc-500 hover:text-zinc-300">Cancel</button>
         </div>
+      </div>
+
+      <div className="mb-3 sm:max-w-xs">
+        <CitySelect value={cityId} onChange={setCityId} className={inputCls} />
       </div>
 
       {mode === 'single' ? (

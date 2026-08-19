@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { resolveCityId } from '@/lib/city'
+import { resolveTargetCityId } from '@/lib/city'
 import { canManagePartners, isAdmin } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
 
@@ -26,16 +26,23 @@ export async function POST(req: NextRequest) {
   if (!session || !canManagePartners(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await req.json()
-  const { name, category, discount, address, neighborhood } = body
+  const { name, category, discount, address, neighborhood, cityId: requestedCityId } = body
 
   if (!name || !category || !discount || !address || !neighborhood) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
 
+  // Explicit cityId wins (validated + canActInCity-gated); omitted keeps the
+  // old behaviour — the creator's own context via resolveCityId.
+  const target = await resolveTargetCityId(session, requestedCityId)
+  if ('error' in target) {
+    return NextResponse.json({ error: target.error }, { status: target.status })
+  }
+
   const partner = await prisma.partner.create({
     data: {
       name,
-      cityId: await resolveCityId(session),
+      cityId: target.cityId,
       category,
       discount,
       address,

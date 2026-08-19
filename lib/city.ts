@@ -1,4 +1,6 @@
 import { prisma } from './prisma'
+import { canActInCity } from './access'
+import type { SessionUser } from './session'
 
 // ── City scoping (multi-city phase 1) ───────────────────────────────────────
 // Every feed with a location dimension is scoped to exactly one city. Members
@@ -152,4 +154,37 @@ export async function getCityConfig(cityId: string): Promise<CityConfig> {
 /** The IANA timezone a request's city runs on. */
 export async function getCityTz(cityId: string): Promise<string> {
   return (await getCityConfig(cityId)).timezone
+}
+
+// ── Admin create paths: which city should a new record land in? ────────────
+// Until 2026-08, every admin create path hardcoded the creator's own city
+// (session.cityId or resolveCityId), which made standing up a second city
+// impossible through the panel — an Istanbul admin creating "Bodrum Beach
+// Club" got an Istanbul club. An explicit cityId in the request is how you
+// create *there*, but only after two checks: the city must exist (a typo'd
+// id would otherwise become an orphaned record no city page ever lists),
+// and the caller must be allowed to act there — canActInCity, so admins go
+// anywhere and a moderator stays in their own city.
+//
+// With no cityId requested, falls back to resolveCityId(session): the
+// view-city cookie, then the creator's own city, then the default. That is
+// what partners/directory always did; clubs join them (previously
+// session.cityId or a 400 — the cookie-aware fallback is strictly more
+// useful and the create forms now send an explicit id anyway).
+export async function resolveTargetCityId(
+  session: SessionUser,
+  requested: unknown,
+): Promise<{ cityId: string } | { error: string; status: number }> {
+  if (requested !== undefined && requested !== null && requested !== '') {
+    if (typeof requested !== 'string') {
+      return { error: 'cityId must be a string', status: 400 }
+    }
+    const city = await prisma.city.findUnique({ where: { id: requested }, select: { id: true } })
+    if (!city) return { error: 'Unknown city', status: 400 }
+    if (!canActInCity(session, city.id)) {
+      return { error: 'Cross-city create is admin-only', status: 403 }
+    }
+    return { cityId: city.id }
+  }
+  return { cityId: await resolveCityId(session) }
 }

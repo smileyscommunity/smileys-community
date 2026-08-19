@@ -8,6 +8,7 @@ import ImageUpload from '@/components/ImageUpload'
 import { resolveImageUrl, CLUB_CATEGORIES } from '@/lib/data'
 import { useAdminLoad } from '@/lib/admin/useAdminLoad'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
+import CitySelect from '@/components/admin/CitySelect'
 import { confirmToast } from '@/lib/confirmToast'
 
 const EMOJI_GROUPS = [
@@ -105,6 +106,7 @@ interface Club {
 }
 
 const emptyForm = {
+  cityId: '',   // '' = creator's own city; ids come from CitySelect
   name: '', description: '', category: '', emoji: '🎉',
   whatsappUrl: '', instagramUrl: '', rules: '',
   isPrivate: false, coverImage: '', coverImagePosition: 50, location: '', foundedAt: '',
@@ -223,6 +225,7 @@ export default function AdminClubsPage() {
   function startEdit(club: Club) {
     setEditingId(club.id)
     setEditForm({
+      cityId:       '',   // present to satisfy the shared form type; PUT whitelists fields, so it never reaches the server logic
       name:         club.name,
       description:  club.description,
       category:     club.category,
@@ -281,6 +284,7 @@ export default function AdminClubsPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ...newForm,
+        cityId:       newForm.cityId       || undefined,
         whatsappUrl:  newForm.whatsappUrl  || null,
         instagramUrl: newForm.instagramUrl || null,
         rules:        newForm.rules        || null,
@@ -495,6 +499,13 @@ export default function AdminClubsPage() {
       {showCreate && (
         <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-6">
           <h2 className="text-white font-bold mb-5">New club</h2>
+          {/* Create-only: which city this club belongs to. Deliberately not
+              part of ClubForm — the edit panel reuses that, and moving an
+              existing club between cities means moving its members and
+              events, which is not an inline edit. */}
+          <div className="mb-4 sm:max-w-xs">
+            <CitySelect value={newForm.cityId} onChange={v => setNewForm(f => ({ ...f, cityId: v }))} className={inputCls} />
+          </div>
           <ClubForm value={newForm} onChange={setNewForm} />
           <div className="flex gap-3 mt-5">
             <button onClick={handleCreate} disabled={saving || !newForm.name.trim()} className="bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl px-4 py-2 text-sm disabled:opacity-50">

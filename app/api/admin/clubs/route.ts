@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { CLUB_CATEGORIES } from '@/lib/data'
 import { slugify } from '@/lib/slug'
+import { resolveTargetCityId } from '@/lib/city'
 import { computeEventSurveyRollup, aggregateRollup } from '@/lib/survey'
 
 // GET /api/admin/clubs
@@ -85,7 +86,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
     const body = await req.json()
-    const { name, description, category, emoji } = body
+    const { name, description, category, emoji, cityId: requestedCityId } = body
 
     if (!name?.trim()) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 })
@@ -103,11 +104,12 @@ export async function POST(req: NextRequest) {
 
     const slug = slugify(name)
 
-    // Default new clubs to the admin's own city. Multi-city UI for
-    // creating clubs across cities is a later phase; for now the
-    // creator's affiliation is the right behaviour.
-    if (!session.cityId) {
-      return NextResponse.json({ error: 'Your account has no city — contact a super-admin' }, { status: 400 })
+    // An explicit cityId is how an admin creates a club for a city they are
+    // not in — validated + gated in resolveTargetCityId (moderators stay in
+    // their own city). Omitted falls back to the creator's context.
+    const target = await resolveTargetCityId(session, requestedCityId)
+    if ('error' in target) {
+      return NextResponse.json({ error: target.error }, { status: target.status })
     }
 
     const club = await prisma.club.create({
@@ -120,7 +122,7 @@ export async function POST(req: NextRequest) {
         color:       'text-amber-600',
         bgColor:     'bg-amber-50',
         memberCount: 0,
-        cityId:      session.cityId,
+        cityId:      target.cityId,
       },
     })
     return NextResponse.json(club, { status: 201 })

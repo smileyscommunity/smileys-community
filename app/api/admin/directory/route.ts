@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { resolveCityId } from '@/lib/city'
+import { resolveTargetCityId } from '@/lib/city'
 import { isAdminOrModerator } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
 import { writeAudit } from '@/lib/audit'
@@ -79,6 +79,16 @@ export async function POST(req: NextRequest) {
     const single = (body as Record<string, unknown>).business
     const bulk   = (body as Record<string, unknown>).businesses
 
+    // Top-level cityId (never inside the business rows — those pass through
+    // validateBusinessCreate, which must not learn to accept a city). One
+    // resolution covers the whole request: explicit id validated + gated by
+    // canActInCity, omitted keeps the creator's own context. Also fixes the
+    // bulk path resolving the same city once per row.
+    const target = await resolveTargetCityId(session, (body as Record<string, unknown>).cityId)
+    if ('error' in target) {
+      return NextResponse.json({ error: target.error }, { status: target.status })
+    }
+
     if (Array.isArray(bulk)) {
       if (bulk.length === 0) {
         return NextResponse.json({ error: 'No businesses to import' }, { status: 400 })
@@ -119,7 +129,7 @@ export async function POST(req: NextRequest) {
             ...(result.data as Record<string, unknown>),
             // The `as never` casts below bypass tsc, so a missing cityId
             // here would surface as a runtime NOT NULL violation — keep it.
-            cityId:        await resolveCityId(session),
+            cityId:        target.cityId,
             submittedById: session.id,
             reviewedById:  session.id,
             reviewedAt:    new Date(),
@@ -184,7 +194,7 @@ export async function POST(req: NextRequest) {
     const created = await prisma.business.create({
       data: {
         ...(result.data as Record<string, unknown>),
-        cityId:        await resolveCityId(session),
+        cityId:        target.cityId,
         submittedById: session.id,
         reviewedById:  session.id,
         reviewedAt:    new Date(),
