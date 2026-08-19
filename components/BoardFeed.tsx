@@ -109,6 +109,8 @@ function VisitorsModule({ visitors }: { visitors: Visitor[] }) {
 function Composer({ onPosted, prefillNeighborhood }: { onPosted: () => void; prefillNeighborhood?: string | null }) {
   const { user, isLoggedIn } = useAuth()
   const neighborhoods = useCityNeighborhoods()
+  // The city this post will file to — empty until /api/city/current answers.
+  const cityName = useCurrentCity()?.name ?? ''
   const [open,         setOpen]         = useState(false)
   // "Post to a club" (Clubs brief §30) — joined clubs, fetched lazily on
   // first open; the post stays canonical here and also surfaces in the club.
@@ -261,7 +263,18 @@ function Composer({ onPosted, prefillNeighborhood }: { onPosted: () => void; pre
                 {myClubs.map(c => <option key={c.id} value={c.slug}>{c.emoji} {c.name}</option>)}
               </select>
             )}
-            <div className="ml-auto flex gap-2">
+            <div className="ml-auto flex items-center gap-2">
+              {/* Which board this lands on. A board post files to the city
+                  you're VIEWING (api/board POST resolves the view city), which
+                  is not the same rule listings use — those follow membership.
+                  Either way the composer named no city at all, so someone who
+                  had switched cities was posting somewhere they couldn't see.
+                  Empty until /api/city/current answers, never a guessed name. */}
+              {cityName && !postClub && (
+                <span className="hidden sm:inline text-xs text-gray-500 mr-1">
+                  Posting to <span className="font-semibold text-gray-700">{cityName}</span>
+                </span>
+              )}
               <button onClick={() => setOpen(false)}
                 className="px-4 py-2 text-xs font-bold text-gray-500 hover:text-gray-700 transition-colors">
                 Cancel

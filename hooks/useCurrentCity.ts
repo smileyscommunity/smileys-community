@@ -19,6 +19,12 @@ export interface CurrentCity {
   name:     string
   slug:     string
   isDefault: boolean
+  // Where a POST from this member would land, which is not always the city
+  // above: a write follows membership, not the view-city cookie, so browsing
+  // another city's board files your listing back home unless you've joined
+  // that city. `differs` is that case, and the only one worth explaining in
+  // the UI. Absent for guests, who have nothing to post with.
+  posting?: { name: string; slug: string; differs: boolean }
 }
 
 export function useCurrentCity(): CurrentCity | null {
@@ -28,7 +34,10 @@ export function useCurrentCity(): CurrentCity | null {
     let cancelled = false
     fetch('/app/api/city/current', { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
-      .then(d => { if (!cancelled && d?.name) setCity({ name: d.name, slug: d.slug, isDefault: !!d.isDefault }) })
+      .then(d => { if (!cancelled && d?.name) setCity({
+        name: d.name, slug: d.slug, isDefault: !!d.isDefault,
+        ...(d.posting?.name ? { posting: { name: d.posting.name, slug: d.posting.slug, differs: !!d.posting.differs } } : {}),
+      }) })
       .catch(() => {})
     return () => { cancelled = true }
   }, [])

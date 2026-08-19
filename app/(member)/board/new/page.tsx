@@ -3,7 +3,9 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
+import Link from 'next/link'
 import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { downscaleImage } from '@/lib/image-resize'
 
 const CATEGORIES = [
@@ -41,6 +43,9 @@ function NewListingPageInner() {
     if (!isLoading && !isLoggedIn) router.replace('/login?next=/board/new')
   }, [isLoading, isLoggedIn, router])
   const neighborhoods = useCityNeighborhoods()
+  // Null until /api/city/current answers; the header renders the plain
+  // 30-day line in that window rather than flashing a city that may be wrong.
+  const city = useCurrentCity()
 
   // Prefill from query params — the moving-sale → rooms bridge arrives as
   // /board/new?category=ROOMS&neighborhood=…&availableFrom=…. Categories
@@ -137,11 +142,40 @@ function NewListingPageInner() {
       <div className="bg-white border-b border-gray-100">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 pt-8 pb-6">
           <button onClick={() => router.back()} className="text-sm text-gray-400 hover:text-gray-600 mb-4 flex items-center gap-1 transition-colors">
-            ← Back to Board
+            ← Back
           </button>
-          <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">Community Board</span>
+          {/* This form posts a LISTING, which lives on the Marketplace since
+              the Board/Marketplace split — the eyebrow still said "Community
+              Board", pointing at the other surface. */}
+          <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">
+            {city?.posting ? `${city.posting.name} Marketplace` : 'Marketplace'}
+          </span>
           <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">Post a listing</h1>
-          <p className="text-base text-gray-600 mt-1">Expires automatically after 30 days.</p>
+          <p className="text-base text-gray-600 mt-1">
+            {city?.posting
+              ? <>Posting to <span className="font-semibold text-gray-900">{city.posting.name}</span>. Expires automatically after 30 days.</>
+              : 'Expires automatically after 30 days.'}
+          </p>
+
+          {/* A write follows MEMBERSHIP, not the view-city cookie: browsing
+              another city files your listing back home unless you've joined
+              that city (resolvePostingCityId — alert fan-out matches
+              subscribers on their home city, so a listing filed into a city you
+              merely looked at reaches nobody). Correct, and previously
+              invisible: the form named no city at all, so a member browsing
+              another city's marketplace had no way to know their listing was
+              going home instead. Only the mismatch is worth a callout; the
+              ordinary case is the quiet line above. */}
+          {city?.posting?.differs && (
+            <div className="mt-4 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+              <span aria-hidden="true" className="text-lg leading-none mt-0.5">📍</span>
+              <p className="text-sm text-amber-900">
+                You&apos;re browsing <span className="font-semibold">{city.name}</span>, but this listing will be posted
+                to <span className="font-semibold">{city.posting.name}</span> — the city you belong to, where the members
+                who get listing alerts are. <Link href="/cities" className="underline underline-offset-2 font-semibold hover:text-amber-950">Join {city.name}</Link> if you want to post there instead.
+              </p>
+            </div>
+          )}
         </div>
       </div>
       <div className="max-w-2xl mx-auto px-4 sm:px-6 pt-8">

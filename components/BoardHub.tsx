@@ -956,7 +956,16 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
           <div className="flex items-start justify-between gap-4 mb-6">
             <div>
               <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-3 py-1.5 mb-4">
-                {view === 'community' ? (cityName ? `💬 ${cityName} Board` : '💬 Community Board') : '🛍️ Smileys Marketplace'}
+                {/* Marketplace was the one surface that never named its city —
+                    a fixed "Smileys Marketplace" over a city-scoped feed, while
+                    the Board beside it named the city in the same spot. Someone
+                    browsing another city had nothing on screen telling them
+                    which marketplace they were in. Same fallback as the Board:
+                    city-neutral copy until /api/city/current answers, never the
+                    default city's name. */}
+                {view === 'community'
+                  ? (cityName ? `💬 ${cityName} Board`       : '💬 Community Board')
+                  : (cityName ? `🛍️ ${cityName} Marketplace` : '🛍️ Smileys Marketplace')}
               </span>
               <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">
                 {view === 'community' ? (cityName ? `What's happening, ${cityName}?` : "What's happening?") : 'Find it. Offer it. Pass it on.'}
@@ -964,7 +973,7 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
               <p className="text-base text-gray-600 mt-1 max-w-xl">
                 {view === 'community'
                   ? 'Ask a question, make a plan, share something useful or see what people around you are talking about.'
-                  : 'Buy, sell, find a room or offer a service — member to member, within the Smileys community.'}
+                  : `Buy, sell, find a room or offer a service — member to member${cityName ? `, across ${cityName}` : ', within the Smileys community'}.`}
               </p>
 
               {/* Share the whole board. cacheKey pins a ?v= suffix so X / Facebook
