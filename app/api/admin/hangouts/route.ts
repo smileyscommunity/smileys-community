@@ -51,6 +51,7 @@ export async function GET(req: NextRequest) {
       take,
       include: {
         user:   { select: { id: true, name: true, email: true, color: true } },
+        city:   { select: { name: true, slug: true } },
         _count: { select: { joins: true, messages: true } },
       },
     }),

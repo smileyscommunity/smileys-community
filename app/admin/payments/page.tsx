@@ -5,6 +5,7 @@ import { confirmToast } from '@/lib/confirmToast'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { toast } from 'sonner'
 import { useAdminLoad } from '@/lib/admin/useAdminLoad'
+import { CityBadge, useAdminCities } from '@/components/admin/CitySelect'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 
 interface Payment {
@@ -16,7 +17,7 @@ interface Payment {
   notes: string | null
   createdAt: string
   user: { name: string; email: string }
-  event: { title: string; emoji: string }
+  event: { title: string; emoji: string; city?: { name: string; slug: string } | null }
 }
 
 interface PaymentLog {
@@ -126,6 +127,7 @@ function AdminPaymentsPageInner() {
     setData({ ...data, payments: updated })
   }
 
+  const cities = useAdminCities()
   const [filter,        setFilter]        = useState<FilterKey>(initialFilter)
   const [search,        setSearch]        = useState(initialSearch)
   const [dateFrom,      setDateFrom]      = useState(initialDateFrom)
@@ -481,7 +483,7 @@ function AdminPaymentsPageInner() {
                   <div className="min-w-0">
                     <div className="text-sm font-semibold text-white truncate">{p.user.name}</div>
                     <div className="text-xs text-zinc-500 truncate">{p.user.email}</div>
-                    <div className="text-xs text-zinc-400 mt-0.5">{p.event.emoji} {p.event.title}</div>
+                    <div className="text-xs text-zinc-400 mt-0.5">{p.event.emoji} {p.event.title} <CityBadge city={p.event.city} cities={cities} /></div>
                   </div>
                   <div className="shrink-0 text-right">
                     <div className="text-base font-bold text-white">₺{p.amount.toLocaleString()}</div>
@@ -590,7 +592,7 @@ function AdminPaymentsPageInner() {
                         <div className="text-white font-medium">{p.user.name}</div>
                         <div className="text-zinc-500 text-xs">{p.user.email}</div>
                       </td>
-                      <td className="px-4 py-3 text-zinc-300">{p.event.emoji} {p.event.title}</td>
+                      <td className="px-4 py-3 text-zinc-300">{p.event.emoji} {p.event.title} <CityBadge city={p.event.city} cities={cities} /></td>
                       <td className="px-4 py-3 text-white font-bold">₺{p.amount.toLocaleString()}</td>
                       <td className="px-4 py-3">
                         <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${statusMeta(p.status).color}`}>

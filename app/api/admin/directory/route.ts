@@ -49,6 +49,7 @@ export async function GET(req: NextRequest) {
       include: {
         submittedBy: { select: { id: true, name: true, email: true } },
         reviewedBy:  { select: { id: true, name: true } },
+        city:        { select: { name: true, slug: true } },
       },
     })
 

@@ -21,6 +21,7 @@ export async function GET() {
       select: {
         id: true, leavingOn: true, neighborhood: true, note: true, photo: true, status: true, createdAt: true,
         user:  { select: { id: true, name: true, email: true, color: true } },
+        city:  { select: { name: true, slug: true } },
         items: { select: { id: true, name: true, price: true, claimed: true } },
       },
     })

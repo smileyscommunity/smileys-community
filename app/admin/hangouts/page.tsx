@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { confirmToast } from '@/lib/confirmToast'
+import { CityBadge, useAdminCities } from '@/components/admin/CitySelect'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { resolveImageUrl } from '@/lib/data'
@@ -33,6 +34,7 @@ interface Hangout {
   photo: string | null
   createdAt: string
   user: { id: string; name: string; email: string; color: string }
+  city?: { name: string; slug: string } | null
   _count: { joins: number; messages: number }
 }
 
@@ -73,6 +75,8 @@ export default function AdminHangoutsPage() {
   const [error, setError]       = useState<string | null>(null)
   const [search, setSearch]     = useState('')
   const [status, setStatus]     = useState('active')
+  const [cityFilter, setCityFilter] = useState('')
+  const cities = useAdminCities()
   const [query, setQuery]       = useState('')
   const [editing, setEditing]   = useState<Hangout | null>(null)
   const [editForm, setEditForm] = useState({ title: '', location: '', neighborhood: '', description: '', startsAt: '', endsAt: '' })
@@ -81,9 +85,10 @@ export default function AdminHangoutsPage() {
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving]     = useState(false)
 
-  const loadHangouts = useCallback(async (q: string, st: string, offset: number, append = false) => {
+  const loadHangouts = useCallback(async (q: string, st: string, offset: number, append = false, city = cityFilter) => {
     const params = new URLSearchParams({ offset: String(offset), status: st })
     if (q) params.set('search', q)
+    if (city) params.set('city', city)
     const res = await fetch(`/app/api/admin/hangouts?${params}`, { credentials: 'include' })
     if (!res.ok) {
       const text = await res.text().catch(() => '')
@@ -93,7 +98,7 @@ export default function AdminHangoutsPage() {
     setHangouts(prev => append ? [...prev, ...(data.hangouts ?? [])] : (data.hangouts ?? []))
     setTotal(data.total ?? 0)
     setHasMore(!!data.hasMore)
-  }, [])
+  }, [cityFilter])
 
   useEffect(() => {
     setLoading(true)
@@ -101,7 +106,7 @@ export default function AdminHangoutsPage() {
     loadHangouts(query, status, 0)
       .catch(e => setError(e?.message ?? 'Failed to load'))
       .finally(() => setLoading(false))
-  }, [query, status, loadHangouts])
+  }, [query, status, cityFilter, loadHangouts])
 
   // Debounce search
   useEffect(() => {
@@ -327,6 +332,13 @@ export default function AdminHangoutsPage() {
         >
           {STATUS_OPTS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
         </select>
+        {cities.length > 1 && (
+          <select value={cityFilter} onChange={e => setCityFilter(e.target.value)}
+            className="px-3 py-2.5 text-sm bg-zinc-800 border border-zinc-700 rounded-xl text-zinc-200 focus:outline-none focus:ring-2 focus:ring-amber-500">
+            <option value="">All cities</option>
+            {cities.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        )}
       </div>
 
       {/* Table */}
@@ -368,7 +380,7 @@ export default function AdminHangoutsPage() {
                   {/* Title + location */}
                   <td className="px-4 py-4 max-w-[45vw] sm:max-w-xs">
                     <Link href={`/hangouts/${h.id}`} className="block group/t">
-                      <p className="font-semibold text-zinc-100 truncate group-hover/t:text-amber-400 transition-colors">{h.title}</p>
+                      <p className="font-semibold text-zinc-100 truncate group-hover/t:text-amber-400 transition-colors">{h.title} <CityBadge city={h.city} cities={cities} /></p>
                       <p className="text-xs text-zinc-500 truncate mt-0.5">
                         📍 {h.location}{h.neighborhood ? ` · ${h.neighborhood}` : ''}
                       </p>

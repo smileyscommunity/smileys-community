@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { confirmToast } from '@/lib/confirmToast'
 import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import { downscaleImage } from '@/lib/image-resize'
+import { CityBadge, useAdminCities } from '@/components/admin/CitySelect'
 
 interface Item { id: string; name: string; price: string | null; claimed: boolean }
 interface Sale {
@@ -16,6 +17,7 @@ interface Sale {
   status: string
   createdAt: string
   user: { id: string; name: string; email: string; color: string }
+  city?: { name: string; slug: string } | null
   items: Item[]
 }
 
@@ -52,6 +54,8 @@ export default function AdminMovingSalesPage() {
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState<string | null>(null)
   const [status,  setStatus]  = useState<'all' | 'active' | 'done' | 'removed'>('active')
+  const [cityFilter, setCityFilter] = useState('')
+  const cities = useAdminCities()
   const [removingId, setRemovingId] = useState<string | null>(null)
 
   const [editing,  setEditing]  = useState<Sale | null>(null)
@@ -149,7 +153,7 @@ export default function AdminMovingSalesPage() {
     }
   }
 
-  const visible = sales.filter(s => status === 'all' || s.status === status)
+  const visible = sales.filter(s => (status === 'all' || s.status === status) && (!cityFilter || (s.city?.slug ?? '') === cityFilter))
 
   return (
     <div className="p-4 sm:p-8 max-w-6xl">
@@ -169,6 +173,13 @@ export default function AdminMovingSalesPage() {
             {s}
           </button>
         ))}
+        {cities.length > 1 && (
+          <select value={cityFilter} onChange={e => setCityFilter(e.target.value)}
+            className="ml-1 px-3 py-1.5 rounded-lg text-xs bg-zinc-800 border border-zinc-700 text-zinc-300 focus:outline-none focus:ring-2 focus:ring-amber-500">
+            <option value="">All cities</option>
+            {cities.map(c => <option key={c.id} value={c.slug}>{c.name}</option>)}
+          </select>
+        )}
       </div>
 
       {loading ? (
@@ -197,6 +208,7 @@ export default function AdminMovingSalesPage() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-semibold text-white">{s.user.name}</span>
+                      <CityBadge city={s.city} cities={cities} />
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${STATUS_COLOR[s.status] ?? STATUS_COLOR.active}`}>
                         {s.status}
                       </span>

@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { useAdminLoad } from '@/lib/admin/useAdminLoad'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
-import CitySelect, { useAdminCities } from '@/components/admin/CitySelect'
+import CitySelect, { CityBadge, useAdminCities } from '@/components/admin/CitySelect'
 import { isSafeHref } from '@/lib/safeUrl'
 import { BUSINESS_CATEGORIES, DIRECTORY_LIMITS, parseGoogleMapsUrl } from '@/lib/directory-constants'
 import { DAY_KEYS, DAY_LABELS } from '@/lib/businessHours'
@@ -145,6 +145,7 @@ interface BusinessUser { id: string; name: string; email: string }
 interface Business {
   id: string
   name: string
+  city?: { name: string; slug: string } | null
   category: string
   description: string
   neighborhood: string | null
@@ -220,7 +221,7 @@ function toEditFields(b: Business): EditFields {
   }
 }
 
-function BusinessRow({ b, onAction, neighborhoods }: { b: Business; onAction: () => void; neighborhoods: string[] }) {
+function BusinessRow({ b, onAction, neighborhoods, cities }: { b: Business; onAction: () => void; neighborhoods: string[]; cities: { id: string; name: string; slug: string; status: string; isDefault?: boolean }[] }) {
   const [expanded,      setExpanded]      = useState(false)
   const [loading,       setLoading]       = useState(false)
   // Inline confirm replaces a single-click destructive delete — matches
@@ -334,6 +335,7 @@ function BusinessRow({ b, onAction, neighborhoods }: { b: Business; onAction: ()
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-semibold text-white truncate">{b.name}</span>
+            <CityBadge city={b.city} cities={cities} />
             <span className="text-[10px] text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded-full">{b.category}</span>
             {b.isExpatOwned    && <span className="text-[10px] text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full">Expat-owned</span>}
             {b.isExpatFriendly && <span className="text-[10px] text-teal-400 bg-teal-500/10 px-2 py-0.5 rounded-full">Expat-friendly</span>}
@@ -376,7 +378,7 @@ function BusinessRow({ b, onAction, neighborhoods }: { b: Business; onAction: ()
               single phrase rather than a loose keyword set. */}
           <div className="flex gap-3 flex-wrap text-xs">
             <a
-              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`"${b.name}"${b.neighborhood ? ` ${b.neighborhood}` : ''} Istanbul`)}`}
+              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`"${b.name}"${b.neighborhood ? ` ${b.neighborhood}` : ''} ${b.city?.name ?? 'Istanbul'}`)}`}
               target="_blank"
               rel="noopener noreferrer nofollow"
               className="text-emerald-400 hover:text-emerald-300 hover:underline"
@@ -384,7 +386,7 @@ function BusinessRow({ b, onAction, neighborhoods }: { b: Business; onAction: ()
               🗺 Verify on Google Maps
             </a>
             <a
-              href={`https://www.google.com/search?q=${encodeURIComponent(`"${b.name}"${b.neighborhood ? ` ${b.neighborhood}` : ''} Istanbul`)}`}
+              href={`https://www.google.com/search?q=${encodeURIComponent(`"${b.name}"${b.neighborhood ? ` ${b.neighborhood}` : ''} ${b.city?.name ?? 'Istanbul'}`)}`}
               target="_blank"
               rel="noopener noreferrer nofollow"
               className="text-blue-400 hover:text-blue-300 hover:underline"
@@ -1126,7 +1128,10 @@ export default function AdminDirectoryPage() {
     (v): v is Business[] => Array.isArray(v),
     { enabled: !isAux },
   )
-  const items = data ?? []
+  const allItems = data ?? []
+  const listCities = useAdminCities()
+  const [cityFilter, setCityFilter] = useState('')
+  const items = cityFilter ? allItems.filter(b => (b.city?.slug ?? '') === cityFilter) : allItems
   const [showAdd, setShowAdd] = useState(false)
 
   function setView(v: View) {
@@ -1169,6 +1174,13 @@ export default function AdminDirectoryPage() {
             {v}
           </button>
         ))}
+        {listCities.length > 1 && !isClaims && view !== 'reports' && (
+          <select value={cityFilter} onChange={e => setCityFilter(e.target.value)}
+            className="ml-2 text-xs px-3 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 focus:outline-none focus:ring-2 focus:ring-amber-500">
+            <option value="">All cities</option>
+            {listCities.map(c => <option key={c.id} value={c.slug}>{c.name}</option>)}
+          </select>
+        )}
       </div>
 
       {isClaims ? (
@@ -1194,7 +1206,7 @@ export default function AdminDirectoryPage() {
         </div>
       ) : (
         <div className="space-y-2">
-          {items.map(b => <BusinessRow key={b.id} b={b} onAction={retry} neighborhoods={neighborhoods} />)}
+          {items.map(b => <BusinessRow key={b.id} b={b} onAction={retry} neighborhoods={neighborhoods} cities={listCities} />)}
         </div>
       )}
     </div>

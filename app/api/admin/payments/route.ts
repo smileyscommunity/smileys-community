@@ -68,7 +68,7 @@ export async function GET() {
       take:    ROW_CAP,
       include: {
         user:  { select: { name: true, email: true } },
-        event: { select: { title: true, emoji: true } },
+        event: { select: { title: true, emoji: true, city: { select: { name: true, slug: true } } } },
       },
     }),
     prisma.payment.count(),
