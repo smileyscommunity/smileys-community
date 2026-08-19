@@ -178,6 +178,35 @@ the server and a guard test, not a hidden nav item.
 
 ---
 
+## 6b. The view-city cookie survived sign-out — fixed 2026-08-19
+
+Recorded because the *class* of bug will recur: `smileys_city` is per-person
+state living in a per-browser cookie, and it was written only by
+`/api/city/enter` and `/api/me/view-city`. Nothing else touched it — not login,
+not logout, not a home-city change.
+
+So on a shared browser: look at Bodrum, sign out, next member signs in, and
+they land in Bodrum rather than their own city with nothing on screen to
+explain it. Nothing leaks — the override only picks which city's *public*
+content renders, and authorization is by session throughout — but "sign in and
+land in my city" fails silently, which is how it gets reported as "the city
+switcher is broken on mobile".
+
+`deleteSession` now clears it, by setting empty with `maxAge: 0` and the same
+attributes rather than `delete()`: on https the original is Secure, and a
+non-Secure `Set-Cookie` may not overwrite a Secure one, so a bare delete
+silently no-ops on iOS. `/api/city/enter` had already learned that.
+
+Deliberately **not** cleared on sign-in: a guest who browses Bodrum and then
+signs in should stay in Bodrum. Sign-out is where the person changes.
+
+Guarded by `tests/signOutClearsViewCity.test.ts`.
+
+**The general rule:** any per-person preference kept in a cookie needs an owner
+in the sign-out path. Check that before adding the next one.
+
+---
+
 ## 7. Bodrum is `live` with one member — status is the wrong instrument
 
 **Evidence.** `bodrum · live · 1 member · 1 event · 11 clubs`.

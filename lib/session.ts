@@ -1,6 +1,9 @@
 import { SignJWT, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
+// Constant only. lib/city imports just a TYPE from here, so this adds no
+// runtime cycle — keep it that way if either module grows.
+import { VIEW_CITY_COOKIE } from '@/lib/city'
 
 if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET environment variable is not set')
 const SECRET = new TextEncoder().encode(process.env.JWT_SECRET)
@@ -210,6 +213,30 @@ export async function deleteSession(reason?: SignoutReason) {
   // moments rather than eventually.
   try {
     cookieStore.delete(COOKIE)
+
+    // The view-city override is per-PERSON state, not per-browser, and nothing
+    // used to clear it: it was written only by /api/city/enter and
+    // /api/me/view-city, and survived sign-out. So on a shared browser someone
+    // could look at Bodrum, sign out, and the next member to sign in landed in
+    // Bodrum instead of their own city — with no visible cause, since the
+    // switcher was never touched. Same effect for a member who changes home
+    // city while an old override lingers.
+    //
+    // Cleared by setting empty rather than delete(): on https the original set
+    // is Secure, and browsers refuse to let a non-Secure Set-Cookie overwrite a
+    // Secure one, so a bare delete silently no-ops on iOS. /api/city/enter
+    // learned that the hard way — same attributes here for the same reason.
+    //
+    // Deliberately NOT cleared on sign-IN: a guest who browses Bodrum and then
+    // signs in should stay in Bodrum. Sign-out is where the person changes.
+    cookieStore.set(VIEW_CITY_COOKIE, '', {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure:   process.env.NODE_ENV === 'production',
+      path:     '/',
+      maxAge:   0,
+    })
+
     if (reason) {
       cookieStore.set(SIGNOUT_REASON_COOKIE, reason, {
         httpOnly: false,
