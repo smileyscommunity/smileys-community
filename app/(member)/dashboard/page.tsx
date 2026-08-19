@@ -5,6 +5,8 @@ import { neighborhoodToSlug } from '@/lib/neighborhoods'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { resolveCityId } from '@/lib/city'
+import { getStatsFor } from '@/lib/cities'
+import { CITY_MATURITY } from '@/lib/cityMaturity'
 import { DISCOVER_LINKS } from '@/lib/navLinks'
 import { redirect } from 'next/navigation'
 import { readFileSync } from 'fs'
@@ -26,6 +28,7 @@ import ClubActivityTimeline from '@/components/ClubActivityTimeline'
 import DashboardVisitorsStrip from '@/components/DashboardVisitorsStrip'
 import PartnersBanner from '@/components/PartnersBanner'
 import GetStartedChecklist from '@/components/GetStartedChecklist'
+import FoundingMemberPanel from '@/components/FoundingMemberPanel'
 import FirstEventBlock from '@/components/FirstEventBlock'
 import Image from 'next/image'
 import { categoryMeta } from '@/lib/handbook-categories'
@@ -140,6 +143,31 @@ export default async function DashboardPage() {
       },
     }),
   ])
+
+  // Founding-member panel: only for members in a SEEDING city (a handful of
+  // people, no real activity yet). Cheap gate first — a city past the
+  // self-sustaining member floor (150) is never seeding, so Istanbul's
+  // dashboard pays one count and skips the rest; only small cities run the
+  // full maturity computation + rank query.
+  const cityMemberCount = await prisma.user.count({
+    where: { cityId, status: 'approved', role: { in: ['member', 'moderator'] } },
+  })
+  let founding: { cityName: string; rank: number; total: number; firstName: string } | null = null
+  // Only for a member whose OWN city is seeding — not someone merely viewing a
+  // small city they don't belong to (an admin, or a member browsing another
+  // city's feeds). "You're a founding member" is a claim about the viewer's
+  // home; showing it to a non-member produced "you're member #0".
+  if (cityMemberCount < 150 && cityId === session.cityId) {
+    const stats = (await getStatsFor([cityId])).get(cityId)
+    if (stats?.maturity === CITY_MATURITY.Seeding && userProfile?.joinedAt) {
+      // This member's join position in the city — count of approved members
+      // who joined no later than they did.
+      const rank = await prisma.user.count({
+        where: { cityId, status: 'approved', role: { in: ['member', 'moderator'] }, joinedAt: { lte: userProfile.joinedAt } },
+      })
+      founding = { cityName: city.name, rank, total: cityMemberCount, firstName: session.name.split(' ')[0] }
+    }
+  }
 
   // Upcoming attendances with full event payload — the only place that
   // needs the heavy event fields (cards + map). Bounded to 5. Pulled
@@ -888,6 +916,12 @@ export default async function DashboardPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Founding-member panel leads the page for a seeding city — before
+            the (empty) discovery grids, so the first thing a founder sees is
+            what to build, not what's missing. */}
+        {founding && (
+          <FoundingMemberPanel cityName={founding.cityName} rank={founding.rank} total={founding.total} firstName={founding.firstName} />
+        )}
         {/* Flex column on mobile (was a plain block stack) so the
             children can re-order with `order-N`. On desktop reverts to
             lg:flex-row with the original left/center/right layout. */}
