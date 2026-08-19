@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin, isAdminOrModerator } from '@/lib/access'
 import { seedCityClubs } from '@/lib/seedCityClubs'
+import { CITY_STATUS } from '@/lib/cityStatus'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -20,8 +21,19 @@ export async function POST(_req: NextRequest, { params }: Params) {
   if (!isAdmin(session) && session.cityId !== id) {
     return NextResponse.json({ error: 'Cross-city club launch is admin-only' }, { status: 403 })
   }
-  const city = await prisma.city.findUnique({ where: { id }, select: { slug: true } })
+  const city = await prisma.city.findUnique({ where: { id }, select: { slug: true, name: true, status: true } })
   if (!city) return NextResponse.json({ error: 'City not found' }, { status: 404 })
+
+  // Seeding a city that's still `coming_soon` is how Izmir ended up with 11
+  // clubs and no members — a template dump wearing a community's clothes,
+  // which reads as abandoned rather than unstarted. `preparing` is the state
+  // that exists for "hosts are setting this up and members can't see it yet",
+  // so that's the earliest point starter clubs mean anything.
+  if (city.status === CITY_STATUS.ComingSoon) {
+    return NextResponse.json({
+      error: `${city.name} is still Coming soon — move it to Preparing before seeding clubs, so the lineup arrives with hosts rather than sitting empty.`,
+    }, { status: 400 })
+  }
 
   try {
     const result = await seedCityClubs(prisma, city.slug)

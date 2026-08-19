@@ -58,14 +58,24 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // Going live with no clubs and no hosts produces exactly the empty-city
     // shopfront the whole design is meant to avoid, so it's blocked here rather
     // than discovered by a visitor.
+    //
+    // Neighborhoods are in the count because the launch checklist calls them
+    // "this one is a launch blocker" — the only item it marks that way — and
+    // the gate wasn't checking them, so the doc and the code disagreed about
+    // what blocks a launch. A city with no neighborhood rows renders an empty
+    // dropdown in every picker (profile, apply, board, hangout, directory) and
+    // safeNeighborhoodFor silently nulls whatever is submitted, so the field
+    // looks saved and comes back blank.
     if (body.status === CITY_STATUS.Live && city.status !== CITY_STATUS.Live) {
-      const [clubs, hosts] = await Promise.all([
+      const [clubs, hosts, neighborhoods] = await Promise.all([
         prisma.club.count({ where: { cityId: id, isActive: true } }),
         prisma.cityHost.count({ where: { cityId: id, revokedAt: null } }),
+        prisma.neighborhood.count({ where: { cityId: id, active: true } }),
       ])
-      if (clubs === 0 || hosts === 0) {
+      if (clubs === 0 || hosts === 0 || neighborhoods === 0) {
+        const n = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`
         return NextResponse.json({
-          error: `${city.name} isn't ready to go live yet — it has ${clubs} active club${clubs === 1 ? '' : 's'} and ${hosts} host${hosts === 1 ? '' : 's'}. Seed starter clubs and assign at least one host first, or set it to Preparing.`,
+          error: `${city.name} isn't ready to go live yet — it has ${n(clubs, 'active club')}, ${n(hosts, 'host')} and ${n(neighborhoods, 'neighborhood')}. Seed starter clubs, assign at least one host and add neighborhoods first, or set it to Preparing.`,
         }, { status: 400 })
       }
     }
