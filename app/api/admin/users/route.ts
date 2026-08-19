@@ -75,6 +75,7 @@ export async function GET(req: NextRequest) {
         // links mangled to '90xxx' before this).
         lastActive: true, phone: true, password: true, lastFingerprint: true, nationality: true,
         hiddenFromMembers: true,
+        city: { select: { name: true, slug: true } },
       },
     })
 

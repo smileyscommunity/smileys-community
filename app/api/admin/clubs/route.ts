@@ -25,16 +25,27 @@ import { computeEventSurveyRollup, aggregateRollup } from '@/lib/survey'
 // consistent and the list page can render the full picture
 // without follow-up requests.
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const session = await getSession()
     if (!session || !isAdminOrModerator(session)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
+    // Optional ?city= narrows to clubs that BELONG to that city — exact
+    // match, deliberately excluding global clubs (cityId null) that merely
+    // appear in every city's member-facing grid. ?city=global lists exactly
+    // those. Unset keeps the full network list this endpoint always returned.
+    const cityParam = req.nextUrl.searchParams.get('city')
     const clubs = await prisma.club.findMany({
+      where: cityParam === 'global' ? { cityId: null }
+           : cityParam              ? { cityId: cityParam }
+           : {},
       orderBy: { name: 'asc' },
-      include: { _count: { select: { events: true } } },
+      include: {
+        _count: { select: { events: true } },
+        city:   { select: { name: true, slug: true } },
+      },
     })
     const clubIds = clubs.map((c: any) => c.id)
 

@@ -3,6 +3,7 @@
 import { toast } from 'sonner'
 import { confirmToast } from '@/lib/confirmToast'
 import Link from 'next/link'
+import CitySelect, { CityBadge, useAdminCities } from '@/components/admin/CitySelect'
 import { useState, useEffect, useMemo, useCallback, Suspense } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { formatTime, resolveImageUrl, todayIstanbul, getInitials } from '@/lib/data'
@@ -20,6 +21,7 @@ interface AdminEvent {
   price: number; currency: string; membersOnly: boolean; featured: boolean
   soldOut: boolean
   isRecurring: boolean; seriesId: string | null; isFirstTimerFriendly: boolean
+  city?: { name: string; slug: string } | null
   _count: { attendees: number }
   host: { id: string; name: string; color: string; profilePhoto: string | null } | null
   // Survey rollup from the post-event safety survey. Null when no
@@ -203,6 +205,9 @@ function AdminEventsPageInner() {
   const [search,     setSearch]     = useState(initialSearch)
   const [tabStatus,  setTabStatus]  = useState<TabKey>(initialTab)
   const [clubFilter, setClubFilter] = useState(initialClub)
+  // Client-side like the club filter — this page loads the full list once.
+  const [cityFilter, setCityFilter] = useState('')
+  const cities = useAdminCities()
   const [dateFrom,   setDateFrom]   = useState(initialFrom)
   const [dateTo,     setDateTo]     = useState(initialTo)
 
@@ -467,12 +472,13 @@ function AdminEventsPageInner() {
     const q = search.trim().toLowerCase()
     return events.filter(e => {
       if (clubFilter !== 'all' && e.clubId !== clubFilter) return false
+      if (cityFilter && (e.city?.slug ?? '') !== cityFilter) return false
       if (dateFrom && e.date < dateFrom) return false
       if (dateTo   && e.date > dateTo)   return false
       if (q && !e.title.toLowerCase().includes(q) && !e.neighborhood.toLowerCase().includes(q) && !(e.host?.name.toLowerCase().includes(q))) return false
       return true
     })
-  }, [events, search, clubFilter, dateFrom, dateTo])
+  }, [events, search, clubFilter, cityFilter, dateFrom, dateTo])
 
   const visible = useMemo(() => {
     const filtered = baseFiltered.filter(e => {
@@ -565,6 +571,13 @@ function AdminEventsPageInner() {
             <option value="all">All clubs</option>
             {clubs.map(c => <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}
           </select>
+          {cities.length > 1 && (
+            <select value={cityFilter} onChange={e => setCityFilter(e.target.value)}
+              className="text-xs px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:ring-2 focus:ring-amber-500">
+              <option value="">All cities</option>
+              {cities.map(c => <option key={c.id} value={c.slug}>{c.name}</option>)}
+            </select>
+          )}
           {/* Native date pickers — `type="text"` placeholders forced
               admins to hand-type yyyy-mm-dd with no validation. Same
               treatment the other admin pages got. */}
@@ -742,6 +755,7 @@ function AdminEventsPageInner() {
                           className="font-semibold text-sm text-white hover:text-amber-400 transition-colors leading-snug">
                           {event.title}
                         </Link>
+                        <CityBadge city={event.city} cities={cities} />
                         <span className={`text-xs font-bold px-2 py-0.5 rounded-full shrink-0 ${statusCls}`}>{statusLabel}</span>
                       </div>
                       <div className="text-xs text-zinc-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
@@ -821,6 +835,7 @@ function AdminEventsPageInner() {
                           className="font-semibold text-sm text-white hover:text-amber-400 transition-colors truncate">
                           {event.title}
                         </Link>
+                        <CityBadge city={event.city} cities={cities} />
                         {isFeatured && <span className="text-amber-400 text-xs shrink-0">★</span>}
                         {event.membersOnly && <span className="text-violet-400 text-xs shrink-0">🔒</span>}
                         {event.isFirstTimerFriendly && <span className="text-xs shrink-0" title="First-timer friendly">👋</span>}

@@ -14,6 +14,7 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url)
   const category = searchParams.get('category') || undefined
+  const cityParam = searchParams.get('city') || undefined
   const status   = searchParams.get('status') || 'active'
   const search   = searchParams.get('search') || ''
   const offset   = parseInt(searchParams.get('offset') || '0', 10)
@@ -22,6 +23,7 @@ export async function GET(req: NextRequest) {
   const where: Record<string, unknown> = {
     ...(status !== 'all' ? { status } : {}),
     ...(category ? { category } : {}),
+    ...(cityParam ? { cityId: cityParam } : {}),
     ...(search ? {
       OR: [
         { title:       { contains: search, mode: 'insensitive' } },
@@ -37,7 +39,10 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: 'desc' },
       skip: offset,
       take,
-      include: { user: { select: { id: true, name: true, email: true, color: true } } },
+      include: {
+        user: { select: { id: true, name: true, email: true, color: true } },
+        city: { select: { name: true, slug: true } },
+      },
     }),
     prisma.listing.count({ where }),
   ])

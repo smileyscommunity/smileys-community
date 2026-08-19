@@ -22,21 +22,27 @@ function normalizeName(name: string): string {
     .join(' ')
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const session = await getSession()
     if (!session || !isAdminOrModerator(session)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
     // Moderators see only applications targeting their own city. Admins
-    // see everything (cross-city audits + global review).
-    const cityFilter = isAdmin(session) || !session.cityId
-      ? {}
-      : { targetCityId: session.cityId }
+    // see everything (cross-city audits + global review), optionally
+    // narrowed to one city via ?city= — the moderator scope wins over the
+    // param so a moderator can't widen their view by passing one.
+    const cityParam = req.nextUrl.searchParams.get('city')
+    const cityFilter = isAdmin(session)
+      ? (cityParam ? { targetCityId: cityParam } : {})
+      : { targetCityId: session.cityId ?? '__no_city__' }
     const applications = await prisma.memberApplication.findMany({
       where:   cityFilter,
       orderBy: { createdAt: 'desc' },
-      include: { reviewer: { select: { name: true } } },
+      include: {
+        reviewer:   { select: { name: true } },
+        targetCity: { select: { name: true, slug: true } },
+      },
     })
     return NextResponse.json(applications)
   } catch (e) {

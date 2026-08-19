@@ -7,6 +7,7 @@ import { promptToast } from '@/lib/promptToast'
 import { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
+import CitySelect, { CityBadge, useAdminCities } from '@/components/admin/CitySelect'
 import { getInitials, whatsappUrl } from '@/lib/data'
 import { useAuth } from '@/contexts/AuthContext'
 
@@ -40,6 +41,7 @@ interface DBUser {
   noShowCount: number
   // Admin-set: excluded from the member directory while keeping account access.
   hiddenFromMembers: boolean
+  city?: { name: string; slug: string } | null
   // Self-deleted accounts are anonymized to "Deleted Member" with a
   // …@deleted.smileys email. deletedIdentity is the admin-only retained
   // snapshot of who they were (from the account.self_delete audit entry) —
@@ -145,9 +147,17 @@ function AdminUsersPageInner() {
   const searchRef = useRef(search)
   searchRef.current = search
 
+  // City filter — '' = every city. Server-side param (not a client filter)
+  // so it composes with server-side search across the full roster.
+  const [cityFilter, setCityFilter] = useState('')
+  const cities = useAdminCities()
+
   const load = useCallback((background = false) => {
     if (!background) setLoading(true)
-    const q = searchRef.current.trim() ? `?search=${encodeURIComponent(searchRef.current.trim())}` : ''
+    const params = new URLSearchParams()
+    if (searchRef.current.trim()) params.set('search', searchRef.current.trim())
+    if (cityFilter)               params.set('city', cityFilter)
+    const q = params.size ? `?${params}` : ''
     fetch(`/app/api/admin/users${q}`, { credentials: 'include' })
       .then(r => r.json())
       .then(data => {
@@ -158,7 +168,7 @@ function AdminUsersPageInner() {
       })
       .catch(() => {})
       .finally(() => { if (!background) setLoading(false) })
-  }, [])
+  }, [cityFilter])
 
   useEffect(() => { load(false) }, [load])
 
@@ -621,6 +631,8 @@ function AdminUsersPageInner() {
               className="w-full pl-8 pr-3 py-2 text-xs rounded-xl bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
             />
           </div>
+          <CitySelect value={cityFilter} onChange={setCityFilter} label={null} emptyLabel="All cities"
+            className="shrink-0 px-3 py-2 text-xs font-semibold rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 transition-colors cursor-pointer" />
           <select
             value={sortBy}
             onChange={e => setSortBy(e.target.value as SortKey)}
@@ -837,6 +849,7 @@ function AdminUsersPageInner() {
                       <div className="flex items-center gap-2">
                         <Link href={`/admin/users/${u.id}`} className="font-semibold text-sm text-white truncate hover:text-amber-400 transition-colors">{u.name}</Link>
                         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full capitalize shrink-0 ${roleBadgeClass(u.role)}`}>{u.role}</span>
+                        <CityBadge city={u.city} cities={cities} />
                       </div>
                       <div className="text-xs text-zinc-500">
                         {new Date(u.joinedAt).toLocaleDateString('en-GB')}
@@ -875,6 +888,7 @@ function AdminUsersPageInner() {
                     <div className="min-w-0">
                       <div className="font-semibold text-sm text-white truncate group-hover:text-amber-400 transition-colors flex items-center gap-1.5">
                         {u.name}
+                        <CityBadge city={u.city} cities={cities} />
                         {/* Status badges live next to the name on desktop so
                             an admin scanning a long list spots banned /
                             suspended rows without inferring it from the

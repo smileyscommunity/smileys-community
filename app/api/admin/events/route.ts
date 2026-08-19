@@ -52,6 +52,7 @@ export async function GET(req: NextRequest) {
         neighborhood: true, coverImage: true, price: true, currency: true,
         membersOnly: true, featured: true, soldOut: true, isRecurring: true, seriesId: true,
         isFirstTimerFriendly: true,
+        city: { select: { name: true, slug: true } },
         _count: { select: { attendees: { where: { status: 'approved' } } } },
       },
     })

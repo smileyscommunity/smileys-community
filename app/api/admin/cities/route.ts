@@ -5,6 +5,7 @@ import { getSession } from '@/lib/session'
 import { isAdmin, isAdminOrModerator } from '@/lib/access'
 import { slugify } from '@/lib/slug'
 import { toCountryCode } from '@/lib/country'
+import { DEFAULT_CITY_SLUG } from '@/lib/city'
 
 // GET /api/admin/cities — list every city with its club count + hosts, so the
 // admin Cities page can show launch status at a glance.
@@ -27,6 +28,10 @@ export async function GET() {
 
   return NextResponse.json(cities.map(c => ({
     id: c.id, name: c.name, slug: c.slug, country: c.country, timezone: c.timezone,
+    // Lets list UIs badge only non-default-city rows without hardcoding
+    // Istanbul client-side (lib/city imports prisma, so client components
+    // can't read DEFAULT_CITY_SLUG themselves).
+    isDefault: c.slug === DEFAULT_CITY_SLUG,
     currency: c.currency, defaultLang: c.defaultLang, status: c.status,
     tagline: c.tagline, description: c.description, heroImage: c.heroImage,
     clubCount: c._count.clubs,

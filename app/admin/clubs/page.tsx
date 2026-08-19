@@ -8,7 +8,7 @@ import ImageUpload from '@/components/ImageUpload'
 import { resolveImageUrl, CLUB_CATEGORIES } from '@/lib/data'
 import { useAdminLoad } from '@/lib/admin/useAdminLoad'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
-import CitySelect from '@/components/admin/CitySelect'
+import CitySelect, { CityBadge, useAdminCities } from '@/components/admin/CitySelect'
 import { confirmToast } from '@/lib/confirmToast'
 
 const EMOJI_GROUPS = [
@@ -95,6 +95,8 @@ interface Club {
   createdAt:          string | null
   // List-card signal additions — populated by GET /api/admin/clubs.
   // Both null-safe when API not yet returning them (older clients).
+  // city is null for a global club — listed in every city, owned by none.
+  city?: { name: string; slug: string } | null
   pendingCount?: number
   quality?: {
     eventsTracked:   number
@@ -211,6 +213,10 @@ export default function AdminClubsPage() {
   // is bounded enough that landing on it cold doesn't lose much.
   const [search,       setSearch]       = useState('')
   const [categoryFilter, setCategoryFilter] = useState<string>('')
+  // '' = all · a slug = that city's own clubs · 'global' = the city-less
+  // clubs listed everywhere (Culture and Language etc.).
+  const [cityFilter, setCityFilter] = useState('')
+  const cities = useAdminCities()
   const [statusFilter,   setStatusFilter]   = useState<'all' | 'active' | 'inactive' | 'with-pending'>('all')
 
   // Two-stage destructive confirms — Delete is permanent (cascades
@@ -433,6 +439,10 @@ export default function AdminClubsPage() {
   // dropdown filters exactly; status pills filter active/inactive/
   // with-pending. All three composable.
   const filtered = clubList.filter(c => {
+    // 'global' keeps only city-less clubs; a slug keeps exactly that city's
+    // own (globals excluded — same semantics as the API's ?city=).
+    if (cityFilter === 'global' && c.city) return false
+    if (cityFilter && cityFilter !== 'global' && c.city?.slug !== cityFilter) return false
     if (categoryFilter && c.category !== categoryFilter) return false
     if (statusFilter === 'active'       && !c.isActive)              return false
     if (statusFilter === 'inactive'     &&  c.isActive)              return false
@@ -532,6 +542,14 @@ export default function AdminClubsPage() {
             <option value="">All categories</option>
             {CLUB_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
+          {cities.length > 1 && (
+            <select value={cityFilter} onChange={e => setCityFilter(e.target.value)}
+              className="px-3 py-2 text-sm rounded-xl bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:ring-2 focus:ring-amber-500">
+              <option value="">All cities</option>
+              {cities.map(c => <option key={c.id} value={c.slug}>{c.name}</option>)}
+              <option value="global">Global (no city)</option>
+            </select>
+          )}
           <div className="flex gap-1 bg-zinc-800 rounded-xl p-1 border border-zinc-700">
             {(['all', 'active', 'inactive', 'with-pending'] as const).map(s => (
               <button key={s} onClick={() => setStatusFilter(s)}
@@ -611,6 +629,10 @@ export default function AdminClubsPage() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className={`font-bold ${club.isActive ? 'text-white' : 'text-zinc-500'}`}>{club.name}</h3>
                       <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400">{club.category}</span>
+                      <CityBadge city={club.city} cities={cities} />
+                      {!club.city && cities.length > 1 && (
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-500" title="Listed in every city, owned by none">Global</span>
+                      )}
                       {club.isPrivate && <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-400">Private</span>}
                       {!club.isActive && <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-500/10 text-red-400">Inactive</span>}
                       {/* Pending badge — the difference between

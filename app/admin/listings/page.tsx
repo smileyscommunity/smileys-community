@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { confirmToast } from '@/lib/confirmToast'
 import { isValidContactEmail } from '@/lib/contactEmail'
 import Link from 'next/link'
+import { CityBadge, useAdminCities } from '@/components/admin/CitySelect'
 import { toast } from 'sonner'
 
 const CATEGORIES = [
@@ -70,6 +71,7 @@ interface Listing {
   expiresAt: string
   createdAt: string
   user: { id: string; name: string; email: string; color: string }
+  city?: { name: string; slug: string } | null
 }
 
 function timeAgo(date: string) {
@@ -146,10 +148,14 @@ export default function AdminListingsPage() {
   // the list. The error path bubbles up through the .catch() in the
   // useEffect below so a 401/403/500 lands in the red banner instead
   // of silently rendering "No listings found."
-  const loadListings = useCallback(async (q: string, cat: string, st: string, offset: number, append = false) => {
+  const [cityFilter, setCityFilter] = useState('')
+  const cities = useAdminCities()
+
+  const loadListings = useCallback(async (q: string, cat: string, st: string, offset: number, append = false, city = cityFilter) => {
     const params = new URLSearchParams({ offset: String(offset), status: st })
     if (cat !== 'all') params.set('category', cat)
     if (q) params.set('search', q)
+    if (city) params.set('city', city)
     const res = await fetch(`/app/api/admin/listings?${params}`, { credentials: 'include' })
     if (!res.ok) {
       const text = await res.text().catch(() => '')
@@ -159,7 +165,7 @@ export default function AdminListingsPage() {
     setListings(prev => append ? [...prev, ...(data.listings ?? [])] : (data.listings ?? []))
     setTotal(data.total ?? 0)
     setHasMore(!!data.hasMore)
-  }, [])
+  }, [cityFilter])
 
   useEffect(() => {
     setLoading(true)
@@ -461,6 +467,14 @@ export default function AdminListingsPage() {
           {CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
         </select>
 
+        {cities.length > 1 && (
+          <select value={cityFilter} onChange={e => setCityFilter(e.target.value)}
+            className="px-3 py-2.5 text-sm bg-zinc-800 border border-zinc-700 rounded-xl text-zinc-200 focus:outline-none focus:ring-2 focus:ring-amber-500">
+            <option value="">All cities</option>
+            {cities.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        )}
+
         {/* Status */}
         <select
           value={status}
@@ -516,7 +530,7 @@ export default function AdminListingsPage() {
                   {/* Title + description */}
                   <td className="px-5 py-4 max-w-xs">
                     <Link href={`/admin/listings/${l.id}`} className="block group/t">
-                      <p className="font-semibold text-zinc-100 truncate group-hover/t:text-amber-400 transition-colors">{l.title}</p>
+                      <p className="font-semibold text-zinc-100 truncate group-hover/t:text-amber-400 transition-colors">{l.title} <CityBadge city={l.city} cities={cities} /></p>
                       <p className="text-xs text-zinc-500 truncate mt-0.5">{l.description}</p>
                       {l.price && <span className="text-xs text-amber-400 font-semibold">{l.price}</span>}
                     </Link>

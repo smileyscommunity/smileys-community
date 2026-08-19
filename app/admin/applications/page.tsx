@@ -1,6 +1,7 @@
 'use client'
 
 import { toast } from 'sonner'
+import { CityBadge, useAdminCities } from '@/components/admin/CitySelect'
 import { confirmToast } from '@/lib/confirmToast'
 
 import Link from 'next/link'
@@ -32,6 +33,9 @@ interface Application {
   suspicionScore?: number
   referrer?: { name: string } | null
   escalated?: boolean; escalatedNote?: string | null
+  // Which Smileys city they applied to — NOT the free-text `city` above,
+  // which is the applicant's self-described hometown.
+  targetCity?: { name: string; slug: string } | null
 }
 
 const STATUS: Record<string, string> = {
@@ -148,6 +152,8 @@ function AdminApplicationsPageInner() {
   // distinct source values seen in the loaded applications so it adapts to
   // whatever's actually in the data (source is free-text from the apply form).
   const [filterSource, setFilterSource] = useState(searchParams.get('source') ?? '')
+  const [filterCity,   setFilterCity]   = useState('')
+  const cities = useAdminCities()
   const [reviewNote,    setReviewNote]    = useState('')
   const [rejectMsg,     setRejectMsg]     = useState('')
   const [assignedClubs, setAssignedClubs] = useState<string[]>([])
@@ -533,6 +539,7 @@ function AdminApplicationsPageInner() {
       .filter(a => !filterInterest     || a.interests?.includes(filterInterest))
       .filter(a => !filterContribution || a.contribution === filterContribution)
       .filter(a => !filterSource       || (a.source ?? '').toLowerCase() === filterSource.toLowerCase())
+      .filter(a => !filterCity         || a.targetCity?.slug === filterCity)
       .filter(a => !q || a.fullName.toLowerCase().includes(q) || a.email.toLowerCase().includes(q))
       .sort((a, b) => {
         if (sortBy === 'score')     return (scoreById.get(b.id) ?? 0) - (scoreById.get(a.id) ?? 0)
@@ -540,7 +547,7 @@ function AdminApplicationsPageInner() {
                                     || new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       })
-  }, [apps, tab, filterInterest, filterContribution, filterSource, searchQuery, sortBy, scoreById])
+  }, [apps, tab, filterInterest, filterContribution, filterSource, filterCity, searchQuery, sortBy, scoreById])
 
   // Distinct sources for the dropdown — sorted alphabetically with the
   // most-common ones first (a tiny bias so 'friend' / 'instagram' surface
@@ -631,6 +638,14 @@ function AdminApplicationsPageInner() {
           <option value="score">Best fit first</option>
           <option value="suspicion">Most suspicious first</option>
         </select>
+
+        {cities.length > 1 && (
+          <select value={filterCity} onChange={e => setFilterCity(e.target.value)}
+            className="px-3 py-1.5 rounded-xl border border-zinc-700 text-xs text-zinc-300 bg-zinc-800 focus:outline-none focus:ring-1 focus:ring-amber-500">
+            <option value="">All cities</option>
+            {cities.map(c => <option key={c.id} value={c.slug}>{c.name}</option>)}
+          </select>
+        )}
 
         <select value={filterInterest} onChange={e => setFilterInterest(e.target.value)}
           className="px-3 py-1.5 rounded-xl border border-zinc-700 text-xs text-zinc-300 bg-zinc-800 focus:outline-none focus:ring-1 focus:ring-amber-500">
@@ -788,6 +803,7 @@ function AdminApplicationsPageInner() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-bold text-white text-sm">{app.fullName}</span>
+                  <CityBadge city={app.targetCity} cities={cities} />
                   {app.profession && <span className="text-xs text-zinc-500">{app.profession}</span>}
                   {app.country && <span className="text-xs text-zinc-600">· {app.country}</span>}
                 </div>
