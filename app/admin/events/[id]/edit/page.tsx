@@ -10,6 +10,7 @@ import ImageUpload from '@/components/ImageUpload'
 import VibePicker from '@/components/VibePicker'
 import RichTextEditor from '@/components/RichTextEditor'
 import { useAdminMemberSearch } from '@/hooks/useAdminMemberSearch'
+import { useAuth } from '@/contexts/AuthContext'
 import { EVENT_EMOJIS as EMOJIS } from '@/lib/eventEmojis'
 const inputCls = 'bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none px-3 py-2.5 w-full text-sm'
 
@@ -28,6 +29,10 @@ const emptyForm = {
 }
 
 export default function EditEventPage({ params }: { params: Promise<{ id: string }> }) {
+  const { user } = useAuth()
+  // A club host can't publish past staff review (the PUT route enforces it);
+  // don't offer 'Published' in their dropdown so the UI can't imply otherwise.
+  const canPublish = user.role === 'admin' || user.role === 'moderator'
   const { id } = use(params)
   const router  = useRouter()
   const neighborhoods = useCityNeighborhoods()
@@ -524,7 +529,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
             <select value={form.status} onChange={e => set('status', e.target.value)} className={inputCls}>
               <option value="pending">Pending (awaiting approval)</option>
               <option value="draft">Draft</option>
-              <option value="published">Published</option>
+              {canPublish && <option value="published">Published</option>}
               <option value="postponed">Postponed</option>
               <option value="cancelled">Cancelled</option>
               <option value="archived">Archived</option>

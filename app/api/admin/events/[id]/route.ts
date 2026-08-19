@@ -148,6 +148,24 @@ export async function PUT(req: NextRequest, { params }: Params) {
     if (clubHost) {
       delete rest.hostId
       delete rest.featured
+      // Publication is a staff decision. A club host's own new events are
+      // forced to 'pending' at creation (needsReview in ../route.ts) so staff
+      // review them before they hit the public feed and fan out to members.
+      // Without this, a host could POST an event (→ pending) then immediately
+      // PUT {status:'published'} on it and skip the queue entirely. Editing an
+      // ALREADY-published event must still work, so this blocks only the
+      // transition INTO published from an unpublished state — never a no-op
+      // resubmit of the current status. Hosts keep every de-escalating move
+      // (draft, postponed, cancelled, archived) on their own events.
+      if (rest.status === 'published' && before.status !== 'published') {
+        return NextResponse.json(
+          { error: 'Publishing an event is staff-only — it stays pending until a moderator approves it.' },
+          { status: 403 },
+        )
+      }
+      // approvalRequired gates who may join; flipping it off is a moderation
+      // decision, not a host one. Leave a host's existing value untouched.
+      delete rest.approvalRequired
       if (rest.clubId && rest.clubId !== before.clubId) {
         if (!await isClubHostFor(session.id, rest.clubId as string)) {
           return NextResponse.json({ error: 'You are not a host of the target club' }, { status: 403 })
