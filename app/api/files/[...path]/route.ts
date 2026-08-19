@@ -30,7 +30,7 @@ const MIME: Record<string, string> = {
 // precisely so Next can't serve them statically around this gate. See
 // lib/uploadRoot.
 const UPLOAD_ROOT = uploadRoot()
-const VALID_FOLDERS = ['events', 'clubs', 'users', 'general', 'applications', 'posts', 'neighborhoods', 'directory', 'listings', 'hangouts']
+const VALID_FOLDERS = ['events', 'clubs', 'users', 'general', 'applications', 'posts', 'neighborhoods', 'directory', 'listings', 'hangouts', 'guide']
 const VALID_FILE = /^[\w\-]+\.(jpg|jpeg|png|webp|gif)$/i
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
