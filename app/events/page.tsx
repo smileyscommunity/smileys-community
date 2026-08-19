@@ -302,7 +302,13 @@ function AppEventsPageInner() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-0">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">🗓️ {cityHero ? cityHero.name : hero.badge}</span>
+              {/* Named for every city, default included, and in the same
+                  "<badge> · <City>" shape the clubs and directory eyebrows use
+                  — this one used to REPLACE the CMS badge with the city name
+                  for a non-default city and show the bare badge for the default
+                  one, so the default city was the only feed that never said
+                  where it was. Appending keeps the editor's badge either way. */}
+              <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">🗓️ {viewCity ? `${hero.badge} · ${viewCity.name}` : hero.badge}</span>
               {/* The view-city cookie lives a year — without a visible way
                   out, one click into another city pins every feed there. */}
               {viewCity?.viewing && viewCity.homeName && (
@@ -563,11 +569,16 @@ function AppEventsPageInner() {
                 ? `No events in ${neighborhoodFilter} right now`
                 : 'No events match your filters'}
             </h2>
-            {/* §61 — an empty day isn't a dead end: Istanbul isn't
-                standing still, and Hangouts is the spontaneous layer. */}
+            {/* §61 — an empty day isn't a dead end: the city isn't standing
+                still, and Hangouts is the spontaneous layer. */}
             {(timeFilter === 'Today' || timeFilter === 'Tomorrow') && (
               <div className="mb-5">
-                <p className="text-sm text-gray-600 mb-3">But {cityHero?.name ?? 'Istanbul'} isn&apos;t exactly standing still.</p>
+                {/* Read the city from viewCity, not cityHero: cityHero is null
+                    for the default city, so this fell back to a hardcoded name
+                    — right by luck while that city is the default, wrong the
+                    moment the default changes. "the city" covers the window
+                    before /api/city/current answers. */}
+                <p className="text-sm text-gray-600 mb-3">But {viewCity?.name ?? 'the city'} isn&apos;t exactly standing still.</p>
                 <Link href="/hangouts"
                   className="inline-block px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
                   See hangouts happening now →

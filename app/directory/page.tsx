@@ -375,7 +375,13 @@ function DirectoryPageInner() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-0">
           <div className="flex flex-col sm:flex-row sm:items-start gap-4 mb-6">
             <div className="flex-1">
-              <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">🧭 Discover{viewCity && !viewCity.isDefault ? ` · ${viewCity.name}` : ''}</span>
+              {/* Every city is named, the default one included. Suppressing it
+                  for the default city is a habit from when there was only one:
+                  it read as "Discover · Bodrum" beside a bare "Discover" that
+                  the reader had to know meant the default city. The city is
+                  still omitted until /api/city/current answers, so the label
+                  never flashes the wrong name. */}
+              <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">🧭 Discover{viewCity ? ` · ${viewCity.name}` : ''}</span>
               {/* Same escape hatch as events/clubs — the view-city cookie
                   lives a year, so viewing another city needs a way back. */}
               {viewCity?.viewing && viewCity.homeName && (

@@ -367,7 +367,15 @@ function AppClubsPageInner() {
           <div className="flex items-start justify-between gap-4 mb-5">
             <div>
               <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-3 py-1.5 mb-4">
-                🏛️ {cityHero ? `${hero.badge} · ${cityHero.name}` : hero.badge}
+                {/* Named for every city, default included — same reason as the
+                    directory eyebrow: a bare badge beside a "· <City>" one
+                    reads as "the city we don't have to mention". This appends
+                    to the CMS badge rather than replacing it, so nothing an
+                    editor wrote is lost. The SUBTITLE below still only
+                    overrides for a non-default city, because there the CMS copy
+                    IS the default city's copy and replacing it would discard
+                    editorial work. */}
+                🏛️ {viewCity ? `${hero.badge} · ${viewCity.name}` : hero.badge}
               </span>
               {/* Same escape hatch as the events page — the view-city
                   cookie lives a year, so viewing another city needs a
