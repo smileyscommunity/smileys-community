@@ -5,6 +5,7 @@ import { isAdmin } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
 import { notifyCityLaunch } from '@/lib/cityLaunch'
 import { CITY_STATUS, CITY_STATUS_VALUES, isCityStatus } from '@/lib/cityStatus'
+import { DEFAULT_CITY_SLUG } from '@/lib/city'
 
 // PATCH /api/admin/cities/[id] — edit a city's shopfront and, crucially, its
 // status. Flipping status to `live` is what publishes a city across the whole
@@ -55,6 +56,23 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         { status: 400 },
       )
     }
+    // The default city is the fallback every unresolved request lands on —
+    // guests, crawlers, and any code path that can't name a city — so it has to
+    // stay reachable. Nothing enforced that. Setting it to `paused` leaves
+    // getDefaultCityId (which doesn't filter on status) still resolving every
+    // feed to it, while getPublicCity excludes paused and its shopfront 404s:
+    // the members whose home city it is keep working feeds and lose their own
+    // city page. `coming_soon` and `preparing` are public but render a holding
+    // page, which is the same contradiction in a friendlier font.
+    //
+    // So the default city stays live. An admin who genuinely wants to retire it
+    // has to move DEFAULT_CITY_SLUG first, which is a code change on purpose.
+    if (city.slug === DEFAULT_CITY_SLUG && body.status !== CITY_STATUS.Live) {
+      return NextResponse.json({
+        error: `${city.name} is the default city — every guest, crawler and unresolved request falls back to it, so it has to stay live. Point the default at another city first.`,
+      }, { status: 400 })
+    }
+
     // Going live with no clubs and no hosts produces exactly the empty-city
     // shopfront the whole design is meant to avoid, so it's blocked here rather
     // than discovered by a visitor.

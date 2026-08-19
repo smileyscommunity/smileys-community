@@ -103,6 +103,49 @@ describe('go-live gate', () => {
   })
 })
 
+describe('default city stays reachable', () => {
+  // The default city is where every unresolved request lands — guests,
+  // crawlers, any path that can't name a city. Pausing it used to be allowed:
+  // getDefaultCityId doesn't filter on status so feeds kept resolving to it,
+  // while getPublicCity excludes paused and the shopfront 404s. The members
+  // whose home city it is would keep working feeds and lose their city page.
+  const asDefault = (status = 'live') =>
+    (prisma.city.findUnique as any).mockResolvedValue({
+      id: 'c1', name: 'Istanbul', slug: 'istanbul', status,
+    })
+
+  it('refuses to pause it', async () => {
+    asDefault()
+    const res = await PATCH(req({ status: 'paused' }), params)
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toContain('default city')
+    expect(prisma.city.update).not.toHaveBeenCalled()
+  })
+
+  it('refuses to send it back to coming_soon or preparing — a holding page over live members', async () => {
+    for (const status of ['coming_soon', 'preparing']) {
+      asDefault()
+      expect((await PATCH(req({ status }), params)).status).toBe(400)
+    }
+    expect(prisma.city.update).not.toHaveBeenCalled()
+  })
+
+  it('still allows a no-op set to live', async () => {
+    asDefault()
+    expect((await PATCH(req({ status: 'live' }), params)).status).toBe(200)
+  })
+
+  it('leaves its other fields editable — this guards status, not the row', async () => {
+    asDefault()
+    expect((await PATCH(req({ tagline: 'Find your people' }), params)).status).toBe(200)
+  })
+
+  it('does not constrain any other city', async () => {
+    ;(prisma.city.findUnique as any).mockResolvedValue({ id: 'c2', name: 'Bodrum', slug: 'bodrum', status: 'live' })
+    expect((await PATCH(req({ status: 'paused' }), params)).status).toBe(200)
+  })
+})
+
 describe('club seeding gate', () => {
   it('refuses to seed a coming_soon city — the shape that produced Izmir', async () => {
     ;(prisma.city.findUnique as any).mockResolvedValue({ slug: 'ankara', name: 'Ankara', status: 'coming_soon' })
