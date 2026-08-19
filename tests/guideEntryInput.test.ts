@@ -125,10 +125,23 @@ describe('guideEntryPayload', () => {
     expect(r.ok).toBe(true)
     if (!r.ok) return
     const p = guideEntryPayload(r.value)
-    expect(p.content).toEqual({ why: valid.why, take: valid.take, sections: [] })
+    expect(p.content).toEqual({ why: valid.why, take: valid.take, sections: [], photo: null })
     // Empty strings would render as blank chips; null renders nothing.
     expect(p.cost).toBeNull()
     expect(p.time).toBe('Half a day')
     expect(p.seasons).toEqual(['summer'])
+  })
+
+  it('accepts an uploaded-pipeline photo URL and rejects anything else', async () => {
+    const okPhoto = await validateGuideEntry({ ...valid, photo: '/app/api/files/guide/1755-abc123.jpg' }, city())
+    expect(okPhoto.ok).toBe(true)
+    if (okPhoto.ok) expect(guideEntryPayload(okPhoto.value).content.photo).toBe('/app/api/files/guide/1755-abc123.jpg')
+    // External URLs and public/-convention paths are refused — runtime files
+    // in public/ are wiped by the next deploy's rsync, and remote URLs are
+    // exactly what the uploads pipeline exists to avoid.
+    for (const bad of ['https://evil.example/x.jpg', '/app/images/guide/bodrum/x.jpg', '/etc/passwd']) {
+      const r = await validateGuideEntry({ ...valid, photo: bad }, city())
+      expect(r.ok, bad).toBe(false)
+    }
   })
 })

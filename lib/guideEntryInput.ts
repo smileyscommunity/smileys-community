@@ -30,6 +30,12 @@ export interface GuideEntryValue {
   why: string
   take: string
   sections: { title: string; items: string[] }[]
+  // Uploaded photo URL (the /app/api/files/... pipeline). Optional — entries
+  // without one render the emoji/gradient fallback. NOT the public/images
+  // filesystem convention: runtime uploads into public/ would be wiped by the
+  // next deploy's rsync --delete, so uploads live in uploadRoot like every
+  // other user image, and the entry carries the URL.
+  photo: string | null
   status: 'draft' | 'published'
   sortOrder: number
 }
@@ -101,6 +107,14 @@ export async function validateGuideEntry(
   const take = str(b.take)
   if (take.length > TAKE_MAX) return { ok: false, error: `The Smileys Take is too long (max ${TAKE_MAX})` }
 
+  // Same local-files shape the event cover validator enforces — never an
+  // external URL, never a path outside the uploads pipeline.
+  const photoRaw = str(b.photo)
+  if (photoRaw && !/^\/app\/api\/files\/[a-zA-Z0-9-]+\/[a-zA-Z0-9.-]+\.(jpg|jpeg|png|webp|gif)$/.test(photoRaw)) {
+    return { ok: false, error: 'Photo must be an uploaded image' }
+  }
+  const photo = photoRaw || null
+
   const status = b.status === 'published' ? 'published' : 'draft'
   if (status === 'published') {
     if (!why)  return { ok: false, error: 'Write "Why go" before publishing' }
@@ -126,7 +140,7 @@ export async function validateGuideEntry(
       slug, title, emoji, tagline, collection, moods, seasons,
       cost: str(b.cost), time: str(b.time), when: str(b.when),
       neighborhoods, firstTime: b.firstTime === true,
-      why, take, sections, status, sortOrder,
+      why, take, sections, photo, status, sortOrder,
     },
   }
 }
@@ -138,7 +152,7 @@ export function guideEntryPayload(v: GuideEntryValue) {
     collection: v.collection, moods: v.moods, seasons: v.seasons,
     cost: v.cost || null, time: v.time || null, when: v.when || null,
     neighborhoods: v.neighborhoods, firstTime: v.firstTime,
-    content: { why: v.why, take: v.take, sections: v.sections },
+    content: { why: v.why, take: v.take, sections: v.sections, photo: v.photo },
     status: v.status, sortOrder: v.sortOrder,
   }
 }

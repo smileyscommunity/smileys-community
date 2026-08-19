@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 import { confirmToast } from '@/lib/confirmToast'
+import ImageUpload from '@/components/ImageUpload'
 import { moodsFor, collectionsFor, seasonsFor, type GuideTaxon } from '@/lib/guide'
 
 // Guide phase 2.3b — the editor for guide experiences.
@@ -34,7 +35,7 @@ interface Entry {
   when: string | null
   neighborhoods: string[]
   firstTime: boolean
-  content: { why?: string; take?: string; sections?: Section[] } | null
+  content: { why?: string; take?: string; sections?: Section[]; photo?: string } | null
   status: string
   sortOrder: number
   city: { slug: string; name: string }
@@ -48,13 +49,14 @@ type Draft = {
   cost: string; time: string; when: string
   neighborhoods: string[]; firstTime: boolean
   why: string; take: string; sections: Section[]
+  photo: string
   status: 'draft' | 'published'; sortOrder: number
 }
 
 const emptyDraft = (): Draft => ({
   slug: '', title: '', emoji: '✨', tagline: '', collection: '', moods: [], seasons: [],
   cost: '', time: '', when: '', neighborhoods: [], firstTime: false,
-  why: '', take: '', sections: [], status: 'draft', sortOrder: 0,
+  why: '', take: '', sections: [], photo: '', status: 'draft', sortOrder: 0,
 })
 
 const toDraft = (e: Entry): Draft => ({
@@ -64,6 +66,7 @@ const toDraft = (e: Entry): Draft => ({
   neighborhoods: e.neighborhoods ?? [], firstTime: e.firstTime,
   why: e.content?.why ?? '', take: e.content?.take ?? '',
   sections: e.content?.sections ?? [],
+  photo: e.content?.photo ?? '',
   status: e.status === 'published' ? 'published' : 'draft',
   sortOrder: e.sortOrder,
 })
@@ -238,6 +241,14 @@ export default function AdminGuideEntriesPage() {
             <label className="label">Tagline (card copy)</label>
             <input value={draft.tagline} onChange={e => setDraft(d => ({ ...d, tagline: e.target.value }))}
               className="input" placeholder="See Bodrum from the sea." />
+          </div>
+
+          {/* Photo — uploads pipeline, NOT public/images/guide: files dropped
+              into public/ at runtime are wiped by the next deploy's rsync.
+              Optional; entries without one render the emoji/gradient card. */}
+          <div className="mb-3">
+            <ImageUpload value={draft.photo} onChange={url => setDraft(d => ({ ...d, photo: url }))}
+              label="Photo (optional)" folder="guide" />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">

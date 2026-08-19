@@ -8,7 +8,7 @@ interface Props {
   value: string
   onChange: (url: string) => void
   label?: string
-  folder?: 'events' | 'clubs' | 'users' | 'general' | 'listings'
+  folder?: 'events' | 'clubs' | 'users' | 'general' | 'listings' | 'guide'
   position?: number
   onPositionChange?: (pos: number) => void
 }

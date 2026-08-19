@@ -84,7 +84,10 @@ function rowToExperience(r: any, citySlug?: string): Experience {
     handbook: c.handbook as Experience['handbook'],
     directory: c.directory as Experience['directory'],
     clubs: c.clubs as Experience['clubs'],
-    photo: photoFor(r.slug, citySlug),
+    // An uploaded photo (stored on the entry, served from the uploads
+    // pipeline) wins over the deploy-time filesystem convention — uploads
+    // survive rsync --delete; files dropped into public/ at runtime don't.
+    photo: (typeof c.photo === 'string' && c.photo ? c.photo : null) ?? photoFor(r.slug, citySlug),
   } as Experience
 }
 
