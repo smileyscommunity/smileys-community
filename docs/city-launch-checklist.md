@@ -5,6 +5,11 @@ that launch actually needed and what it broke. Istanbul is the default city, so
 anything not done here tends to fall back to Istanbul rather than fail — which
 is why these steps are a list rather than a thing you'd notice.
 
+The city's card in `/admin/cities` now shows a **readiness meter** ("2/3 to
+launch · ✓ clubs · ✓ host · ✗ neighborhoods"), derived from the same three
+counts the go-live gate checks — so what's missing is visible before the gate
+rejects the flip, not after.
+
 The order matters: **everything under "Before `live`" should be done while the
 city is still `preparing`.** A `coming_soon` or `preparing` city renders a
 holding page, so nothing below is visible to members until you flip it. Once
@@ -29,8 +34,22 @@ board post, hangout, directory submit. A city with no rows gets an **empty
 dropdown** in all of them, and `safeNeighborhoodFor` silently nulls anything
 submitted — the field looks saved and comes back blank.
 
-Copy `scripts/seed-neighborhoods-bodrum.ts`. It's idempotent and takes
-`DRY_RUN=1`. Four traps it exists because of:
+**As of 2026-08-20 this is self-serve: paste names into the Neighborhoods box
+on the city's card in /admin/cities** (comma- or newline-separated). Slugs are
+derived with the same `neighborhoodToSlug` the seed scripts use, duplicates
+(including Turkish-fold collisions like `karsiyaka` vs `Karşıyaka`) are
+skipped, re-pasting a grown list adds exactly the new rows, and `sortOrder`
+appends after the existing max. Name is all a launch needs — emoji, vibe,
+area and map coordinates are enrichment you can add later.
+
+The rest of this section is the script path, kept for cities that want the
+full metadata treatment up front. Copy `scripts/seed-neighborhoods-bodrum.ts`.
+
+**Starter clubs open in Bodrum's shape (2026-08-20):** the launch button seeds
+the full template lineup but only the social flagship, the newcomers club and
+coffee start ACTIVE — the rest are dormant until a host appears. Activate a
+club from /admin/clubs when someone volunteers to run it.
+It's idempotent and takes `DRY_RUN=1`. Four traps it exists because of:
 
 - **Check what's already there first.** Bodrum had 8 rows seeded under
   different names (`Bodrum Merkez`, not `Bodrum Town`; `Türkbükü`, not

@@ -19,6 +19,10 @@ interface CityHost { cityHostId: string; id: string; name: string; email: string
 interface City {
   id: string; name: string; slug: string; country: string; timezone: string
   currency: string; defaultLang: string; status: string; clubCount: number; hosts: CityHost[]
+  neighborhoodCount: number
+  // Derived from the same counts the go-live gate checks — the panel shows
+  // the path to live instead of the gate's rejection being the first signal.
+  readiness: { clubs: boolean; hosts: boolean; neighborhoods: boolean }
   // Derived from live data (lib/cityMaturity) — the API computes it for live
   // cities only; null otherwise. Deliberately not editable anywhere.
   maturity: CityMaturity | null
@@ -47,6 +51,8 @@ export default function AdminCitiesPage() {
   // Per-city transient state
   const [launching, setLaunching] = useState<string | null>(null)
   const [hostEmail, setHostEmail] = useState<Record<string, string>>({})
+  const [hoodInput, setHoodInput] = useState<Record<string, string>>({})
+  const [hoodBusy,  setHoodBusy]  = useState<string | null>(null)
   const [saving, setSaving]       = useState<string | null>(null)
   const [uploading, setUploading] = useState<string | null>(null)
   // Shopfront copy is edited inline per city; drafts live here until saved so
@@ -134,6 +140,29 @@ export default function AdminCitiesPage() {
       toast.success(`${city.name}: ${d.created} clubs created, ${d.skipped} already existed`)
       setData(prev => (prev ?? []).map(c => c.id === city.id ? { ...c, clubCount: c.clubCount + d.created } : c))
     } finally { setLaunching(null) }
+  }
+
+  async function addNeighborhoods(city: City) {
+    const raw = (hoodInput[city.id] ?? '').trim()
+    if (!raw) return
+    // Accept comma- or newline-separated paste — whichever the admin has.
+    const names = raw.split(/[\n,]/).map(s => s.trim()).filter(Boolean)
+    if (names.length === 0) return
+    setHoodBusy(city.id)
+    try {
+      const res = await fetch(`/app/api/admin/cities/${city.id}/neighborhoods`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ names }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) { toast.error(d?.error ?? 'Could not add neighborhoods'); return }
+      toast.success(`${d.added} added${d.skipped ? ` · ${d.skipped} already present` : ''}`)
+      setHoodInput(prev => ({ ...prev, [city.id]: '' }))
+      setData(prev => (prev ?? []).map(c => c.id === city.id
+        ? { ...c, neighborhoodCount: d.total, readiness: { ...c.readiness, neighborhoods: d.total > 0 } }
+        : c))
+    } finally { setHoodBusy(null) }
   }
 
   async function addHost(city: City) {
@@ -339,6 +368,29 @@ export default function AdminCitiesPage() {
                   </span>
                 )}
                 <span className="text-sm text-zinc-400"><strong className="text-zinc-200">{city.clubCount}</strong> clubs</span>
+                {/* Launch readiness — mirrors the go-live gate's three counts.
+                    Hidden once live: the gate has already been passed. */}
+                {city.status !== 'live' && (() => {
+                  const items = [
+                    { ok: city.readiness.clubs,         label: 'clubs' },
+                    { ok: city.readiness.hosts,         label: 'host' },
+                    { ok: city.readiness.neighborhoods, label: 'neighborhoods' },
+                  ]
+                  const done = items.filter(i => i.ok).length
+                  return (
+                    <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2 py-0.5 rounded-full border ${
+                      done === 3 ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25'
+                                 : 'bg-zinc-800 text-zinc-400 border-zinc-700'
+                    }`} title="What the go-live gate checks">
+                      {done}/3 to launch
+                      {items.map(i => (
+                        <span key={i.label} className={i.ok ? 'text-emerald-400' : 'text-zinc-600'}>
+                          {i.ok ? '✓' : '✗'} {i.label}
+                        </span>
+                      ))}
+                    </span>
+                  )
+                })()}
                 <button onClick={() => launchClubs(city)} disabled={launching === city.id}
                   className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-amber-400 transition-colors disabled:opacity-40">
                   {launching === city.id ? 'Launching…' : 'Launch starter clubs'}
@@ -365,6 +417,24 @@ export default function AdminCitiesPage() {
                     onKeyDown={e => { if (e.key === 'Enter') addHost(city) }} />
                   <button onClick={() => addHost(city)}
                     className="shrink-0 text-xs font-semibold px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition-colors">Add host</button>
+                </div>
+              </div>
+
+              {/* Neighborhoods — the last launch step that used to need a
+                  developer-run seed script. Paste names (comma or newline
+                  separated); slug and defaults are derived. Enrichment
+                  (emoji, vibe, coords) can come later per city. */}
+              <div className="mt-4 pt-4 border-t border-zinc-800">
+                <p className={label}>Neighborhoods <span className="normal-case font-normal text-zinc-600">· {city.neighborhoodCount} active</span></p>
+                <div className="flex items-start gap-2">
+                  <textarea className={`${input} min-h-[38px] resize-y`} rows={1}
+                    placeholder="Paste names — comma or newline separated"
+                    value={hoodInput[city.id] ?? ''}
+                    onChange={e => setHoodInput(prev => ({ ...prev, [city.id]: e.target.value }))} />
+                  <button onClick={() => addNeighborhoods(city)} disabled={hoodBusy === city.id}
+                    className="shrink-0 text-xs font-semibold px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition-colors disabled:opacity-40">
+                    {hoodBusy === city.id ? 'Adding…' : 'Add'}
+                  </button>
                 </div>
               </div>
             </div>

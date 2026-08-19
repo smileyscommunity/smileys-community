@@ -19,7 +19,14 @@ export async function GET() {
   const cities = await prisma.city.findMany({
     orderBy: { createdAt: 'asc' },
     include: {
-      _count: { select: { clubs: true } },
+      _count: {
+        select: {
+          clubs: { where: { isActive: true } },
+          // active only — must mirror the go-live gate's count exactly, or the
+          // panel could show "ready" for a city the gate would still reject.
+          neighborhoods: { where: { active: true } },
+        },
+      },
       cityHosts: {
         where: { revokedAt: null },
         select: { id: true, user: { select: { id: true, name: true, email: true } } },
@@ -41,6 +48,17 @@ export async function GET() {
     currency: c.currency, defaultLang: c.defaultLang, status: c.status,
     tagline: c.tagline, description: c.description, heroImage: c.heroImage,
     clubCount: c._count.clubs,
+    neighborhoodCount: c._count.neighborhoods,
+    // Launch readiness, derived from the SAME three counts the go-live gate
+    // checks (clubs, hosts, neighborhoods) — so the panel shows the path to
+    // live instead of the gate's rejection being the first time an admin
+    // learns what's missing. The checklist doc stays the narrative; this is
+    // the data.
+    readiness: {
+      clubs:         c._count.clubs > 0,
+      hosts:         c.cityHosts.length > 0,
+      neighborhoods: c._count.neighborhoods > 0,
+    },
     maturity: stats.get(c.id)?.maturity ?? null,
     hosts: c.cityHosts.map(h => ({ cityHostId: h.id, id: h.user.id, name: h.user.name, email: h.user.email })),
   })))

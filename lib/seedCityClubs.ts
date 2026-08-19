@@ -9,6 +9,15 @@ export interface SeedCityClubsResult {
   createdSlugs: string[]
 }
 
+// The clubs a new city OPENS with, vs the ones it grows into. Bodrum set the
+// pattern (manually, post-seed): three active — the social flagship, the
+// newcomers club, and coffee (the lowest-commitment ways to meet people) —
+// and the rest seeded but INACTIVE, flipped on as hosts appear. Eleven empty
+// special-interest clubs read as a dead community; three warm ones read as a
+// beginning. seedCityClubs now creates that shape directly instead of every
+// city repeating Bodrum's manual deactivation pass.
+const ACTIVE_CORE = new Set(['social', 'newcomers', 'coffee-social'])
+
 // Create a city's starter club lineup from the shared template catalog.
 //
 // Idempotent: clubs are keyed by a city-scoped slug (`<key>-<citySlug>`), and
@@ -49,7 +58,7 @@ export async function seedCityClubs(
         color:       t.color,
         bgColor:     t.bgColor,
         memberCount: 0,
-        isActive:    true,
+        isActive:    ACTIVE_CORE.has(t.key),
         cityId:      city.id,
         templateKey: t.key,
       },

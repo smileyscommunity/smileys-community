@@ -31,4 +31,15 @@ describe('club template provenance', () => {
     // The stamp is the template's own key, not something derived per city.
     expect(new Set(created.map(c => c.templateKey))).toEqual(new Set(CLUB_TEMPLATES.map(t => t.key)))
   })
+
+  it("opens with Bodrum's shape: 3 active core clubs, the rest dormant", async () => {
+    const { prisma, created } = mockPrisma()
+    await seedCityClubs(prisma, 'izmir')
+    const active = created.filter(c => c.isActive).map(c => c.templateKey).sort()
+    // The lowest-commitment ways to meet people open the city; everything
+    // else waits for a host. Eleven empty special-interest clubs read as a
+    // dead community; three warm ones read as a beginning.
+    expect(active).toEqual(['coffee-social', 'newcomers', 'social'])
+    expect(created.filter(c => !c.isActive).length).toBe(CLUB_TEMPLATES.length - 3)
+  })
 })
