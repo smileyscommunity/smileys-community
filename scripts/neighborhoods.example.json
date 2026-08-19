@@ -1,0 +1,23 @@
+[
+  {
+    "name": "Alsancak",
+    "emoji": "🌊",
+    "vibe": "Seafront bars, long evenings",
+    "area": "Central",
+    "cost": 3,
+    "lat": 38.4370,
+    "lng": 27.1428
+  },
+  {
+    "name": "Karşıyaka",
+    "emoji": "⛴️",
+    "vibe": "The other side of the bay, families, ferry commute",
+    "area": "North",
+    "cost": 2,
+    "lat": 38.4600,
+    "lng": 27.1200
+  },
+  {
+    "name": "Bornova"
+  }
+]
