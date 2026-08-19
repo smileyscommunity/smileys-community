@@ -49,7 +49,23 @@ export default function Turnstile({ onVerify, onExpire, resetSignal }: Props) {
         widgetId.current = window.turnstile.render(containerRef.current, {
           sitekey:            SITE_KEY,
           callback:           (token: string) => { setFailed(false); onVerifyRef.current(token) },
-          'expired-callback': () => { onExpire?.(); widgetId.current = null },
+          // A Turnstile token dies after ~5 minutes, which any real login page
+          // reaches — open the tab, get distracted, come back. This used to
+          // null the widget id, and resetting NEEDS that id, so the reset path
+          // below became a permanent no-op: the token was gone, no new one
+          // could be issued, and the only way out was a full page reload.
+          // Submitting in that state is what produced the run of
+          // 'timeout-or-duplicate' / 'missing-input-response' rejections and
+          // the "human verification failed" that wouldn't clear.
+          //
+          // Keep the handle and reset in place instead: Cloudflare issues a
+          // fresh challenge and the parent gets a new token via `callback`.
+          'expired-callback': () => {
+            onExpire?.()
+            if (widgetId.current && window.turnstile) {
+              try { window.turnstile.reset(widgetId.current) } catch { setFailed(true) }
+            }
+          },
           // Fires on network error, domain/config mismatch, or challenge
           // failure — without this the widget just vanishes with no signal.
           // Return nothing so Cloudflare still runs its own auto-retry.
@@ -90,7 +106,15 @@ export default function Turnstile({ onVerify, onExpire, resetSignal }: Props) {
 
   useEffect(() => {
     if (!resetSignal) return
-    if (widgetId.current && window.turnstile) window.turnstile.reset(widgetId.current)
+    // A parent bumps this after a rejected submit, which is exactly when the
+    // widget may have no live handle (expired, removed, script reloaded). A
+    // bare reset() silently did nothing there and the form could never get
+    // another token — so fall back to a full re-mount, which always can.
+    if (widgetId.current && window.turnstile) {
+      try { window.turnstile.reset(widgetId.current) } catch { setRetry(n => n + 1) }
+    } else {
+      setRetry(n => n + 1)
+    }
   }, [resetSignal])
 
   if (!SITE_KEY) return null
