@@ -244,7 +244,14 @@ export async function DELETE(_: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
     const { id } = await params
+    const doomed = await prisma.club.findUnique({ where: { id }, select: { name: true, cityId: true } })
     await prisma.club.delete({ where: { id } })
+    if (doomed) {
+      writeAudit(session.id, session.name, 'club.delete', id, 'club',
+        { name: doomed.name, cityId: doomed.cityId },
+        `Deleted club "${doomed.name}"`,
+      )
+    }
     return NextResponse.json({ ok: true })
   } catch (e) {
     console.error(e)

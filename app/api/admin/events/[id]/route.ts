@@ -25,7 +25,7 @@ export async function DELETE(_: NextRequest, { params }: Params) {
     // City-scope check for non-admins (moderators + club hosts both need it
     // here — the previous DELETE handler gated only on hostId for club hosts
     // and let any moderator delete any event in any city).
-    const eventScope = await prisma.event.findUnique({ where: { id }, select: { hostId: true, cityId: true } })
+    const eventScope = await prisma.event.findUnique({ where: { id }, select: { hostId: true, cityId: true, title: true, date: true } })
     if (!eventScope) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
     if (clubHost && eventScope.hostId !== session.id) {
@@ -35,12 +35,21 @@ export async function DELETE(_: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Cross-city moderation is admin-only' }, { status: 403 })
     }
 
+    // Count what the cascade will erase, for the audit snapshot — a hard
+    // delete takes the attendees/waitlist/reviews with it, so the record of
+    // "who deleted an event with 40 RSVPs" has to be captured before the row
+    // is gone (PUT was audited; DELETE wasn't).
+    const attendeeCount = await prisma.eventAttendee.count({ where: { eventId: id } })
     await prisma.$transaction([
       prisma.eventAttendee.deleteMany({ where: { eventId: id } }),
       prisma.waitlistEntry.deleteMany({ where: { eventId: id } }),
       prisma.review.deleteMany({ where: { eventId: id } }),
       prisma.event.delete({ where: { id } }),
     ])
+    writeAudit(session.id, session.name, 'event.delete', id, 'event',
+      { title: eventScope.title, date: eventScope.date, attendeesRemoved: attendeeCount },
+      `Deleted event "${eventScope.title}" (${eventScope.date}, ${attendeeCount} attendees removed)`,
+    )
     return NextResponse.json({ ok: true })
   } catch (e) {
     console.error(e)

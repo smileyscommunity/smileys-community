@@ -74,7 +74,17 @@ function read(): Record<BannerPage, Banner[]> {
 }
 
 export async function GET() {
-  return NextResponse.json(read())
+  // Public + member components (AdBannerStrip) read this to render banners, so
+  // it can't require auth — but it must not hand a logged-out guest the
+  // UNRELEASED placements (active:false) an admin is still drafting. Staff get
+  // the full config for the editor; everyone else gets only active banners.
+  const session = await getSession()
+  const all = read()
+  if (session && isAdminOrModerator(session)) return NextResponse.json(all)
+  const activeOnly = Object.fromEntries(
+    Object.entries(all).map(([page, list]) => [page, (list as Banner[]).filter(b => b.active)]),
+  )
+  return NextResponse.json(activeOnly)
 }
 
 const VALID_TYPES: BannerType[] = ['sponsored', 'promo', 'strip']

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin, isAdminOrModerator } from '@/lib/access'
+import { writeAudit } from '@/lib/audit'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -39,6 +40,13 @@ export async function POST(req: NextRequest, { params }: Params) {
     select: { id: true },
   })
 
+  // Granting city-host is an access-control change (that person can now act on
+  // the city) — it belongs in the audit trail as much as a role change does.
+  await writeAudit(session.id, session.name, 'cityhost.grant', user.id, 'user',
+    { cityId, email: user.email, name: user.name },
+    `Granted ${user.name} city-host of ${cityId}`,
+  )
+
   return NextResponse.json({ cityHostId: host.id, id: user.id, name: user.name, email: user.email }, { status: 201 })
 }
 
@@ -55,7 +63,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
 
   // Load the grant's city first so a moderator can't revoke another city's host
   // by guessing/enumerating cityHostIds.
-  const target = await prisma.cityHost.findUnique({ where: { id: cityHostId }, select: { cityId: true } })
+  const target = await prisma.cityHost.findUnique({ where: { id: cityHostId }, select: { cityId: true, userId: true, user: { select: { name: true, email: true } } } })
   if (!target) return NextResponse.json({ error: 'Host grant not found' }, { status: 404 })
   if (!isAdmin(session) && session.cityId !== target.cityId) {
     return NextResponse.json({ error: 'Cross-city host management is admin-only' }, { status: 403 })
@@ -65,6 +73,11 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     where: { id: cityHostId },
     data:  { revokedAt: new Date() },
   })
+
+  await writeAudit(session.id, session.name, 'cityhost.revoke', target.userId, 'user',
+    { cityId: target.cityId, email: target.user?.email, name: target.user?.name },
+    `Revoked ${target.user?.name ?? 'a member'}'s city-host of ${target.cityId}`,
+  )
 
   return NextResponse.json({ ok: true })
 }

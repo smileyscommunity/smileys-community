@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator } from '@/lib/access'
+import { isAdminOrModerator, isAdmin } from '@/lib/access'
 
 // Read-only oversight list for the admin Hangouts page. Editing and
 // cancelling a hangout reuse the member endpoints (PATCH/DELETE
@@ -19,9 +19,18 @@ export async function GET(req: NextRequest) {
   const status = searchParams.get('status') || 'active'
   const search = searchParams.get('search') || ''
   const offset = parseInt(searchParams.get('offset') || '0', 10)
+  const cityParam = searchParams.get('city')
   const take   = 50
 
+  // Oversight is city work: a moderator sees only their own city's hangouts
+  // (fail-closed, like every sibling list), admins see all or one via ?city=.
+  // Without this the list — and each creator's email — spanned every city.
+  const cityScope = isAdmin(session)
+    ? (cityParam ? { cityId: cityParam } : {})
+    : { cityId: session.cityId ?? '__no_city__' }
+
   const where: Record<string, unknown> = {
+    ...cityScope,
     ...(status !== 'all' ? { status } : {}),
     ...(search ? {
       OR: [
@@ -48,5 +57,12 @@ export async function GET(req: NextRequest) {
     prisma.hangout.count({ where }),
   ])
 
-  return NextResponse.json({ hangouts, total, hasMore: offset + take < total })
+  // Moderators don't get raw member emails elsewhere (the users list masks
+  // them); keep that consistent here rather than leaking them through the
+  // hangout creator field.
+  const safe = isAdmin(session)
+    ? hangouts
+    : hangouts.map(h => ({ ...h, user: { ...h.user, email: '' } }))
+
+  return NextResponse.json({ hangouts: safe, total, hasMore: offset + take < total })
 }

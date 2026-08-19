@@ -41,7 +41,14 @@ function read(): StoredAnnouncement {
 }
 
 export async function GET() {
-  return NextResponse.json(read())
+  // Public + member components (AnnouncementBanner) read this, so no auth gate
+  // — but a guest shouldn't see an unpublished (active:false) draft's text, nor
+  // the staff name in updatedBy. Staff get the raw record for the editor.
+  const session = await getSession()
+  const stored  = read()
+  if (session && isAdminOrModerator(session)) return NextResponse.json(stored)
+  if (!stored.active) return NextResponse.json({ ...EMPTY })
+  return NextResponse.json({ ...stored, updatedBy: null })
 }
 
 export async function POST(req: NextRequest) {
