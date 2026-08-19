@@ -152,6 +152,17 @@ export async function PUT(req: NextRequest, { params }: Params) {
     const allowed: Record<string, unknown> = {}
     for (const key of whitelist) { if (key in body) allowed[key] = body[key] }
 
+    // Name arrives trimmed on POST but this path wrote it verbatim —
+    // which is how prod got a club named "Social Bodrum " whose stray
+    // space survived every edit. Trim here too, and refuse a name that
+    // trims away entirely rather than blanking the club.
+    if (typeof allowed.name === 'string') {
+      allowed.name = allowed.name.trim()
+      if (!allowed.name) {
+        return NextResponse.json({ error: 'Name is required' }, { status: 400 })
+      }
+    }
+
     // Category guard — when PUT carries a category, it must be one
     // of the known options. Same reasoning as the POST validator:
     // silent fallbacks make the audit trail lie. Only validate when
