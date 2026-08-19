@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import RichTextEditor from '@/components/RichTextEditor'
+import CitySelect from '@/components/admin/CitySelect'
 import { confirmToast } from '@/lib/confirmToast'
 
 // ISO timestamp → the 'YYYY-MM-DDTHH:MM' local format a datetime-local input
@@ -175,6 +176,9 @@ export default function NewsletterPage() {
   const [subject,          setSubject]          = useState('')
   const [bodyHtml,         setBodyHtml]         = useState('')
   const [segment,          setSegment]          = useState<Segment>('all')
+  // Optional city scope for an immediate send. '' = all cities. Not applied to
+  // scheduled sends (the cron resolves recipients network-wide).
+  const [sendCityId,       setSendCityId]       = useState('')
   const [scheduleMode,     setScheduleMode]     = useState(false)
   const [scheduledFor,     setScheduledFor]     = useState('')
   const [sending,          setSending]          = useState(false)
@@ -473,6 +477,7 @@ export default function NewsletterPage() {
           subject:      subject.trim(),
           bodyHtml:     bodyHtml.trim(),
           segment,
+          cityId:       scheduleMode ? undefined : (sendCityId || undefined),
           scheduledFor: scheduleMode ? scheduledFor : undefined,
         }),
       })
@@ -550,6 +555,15 @@ export default function NewsletterPage() {
               </button>
             ))}
           </div>
+          {/* City scope — immediate sends only. Lets an admin reach just one
+              city's members (e.g. a Bodrum-specific note) instead of everyone.
+              Hidden while scheduling, since the cron ignores it. */}
+          {!scheduleMode && (
+            <div className="mt-2">
+              <CitySelect value={sendCityId} onChange={setSendCityId} label={null} emptyLabel="All cities"
+                className="w-full bg-zinc-800 border border-zinc-700 text-white text-xs rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500" />
+            </div>
+          )}
         </div>
 
         {/* Subject */}
@@ -692,6 +706,9 @@ export default function NewsletterPage() {
               <p className="text-xs text-zinc-500 mt-1">
                 Every Monday at 12:00 (Istanbul) the digest composes and sends itself to all opted-in members —
                 this week&apos;s events, 3 featured clubs, and new-member welcomes. Skips weeks with no events.
+                <strong className="text-zinc-400"> Content is Istanbul&apos;s today</strong>, so members in other
+                cities receive Istanbul&apos;s digest until per-city sends ship — use a manual, city-scoped send for
+                another city in the meantime.
               </p>
             </div>
             <button

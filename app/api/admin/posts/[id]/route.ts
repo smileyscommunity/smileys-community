@@ -25,7 +25,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!session || !canManagePosts(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { id } = await params
-  const { title, excerpt, body, coverImage, status, category, kind } = await req.json()
+  const { title, excerpt, body, coverImage, status, category, kind, cityId } = await req.json()
   const existing = await prisma.post.findUnique({ where: { id } })
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   // Kind can be edited (blog↔handbook). Fall back to existing when the body
@@ -58,9 +58,24 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const wasPublished = existing.status === 'published'
   const nowPublished = status === 'published'
 
+  // Only touch cityId when the client sent the key, so a partial edit can't
+  // silently globalize a city-pinned post. '' / null = global; a real id is
+  // validated so it can't orphan the post.
+  let cityPatch: { cityId?: string | null } = {}
+  if (cityId !== undefined) {
+    if (cityId) {
+      const c = await prisma.city.findUnique({ where: { id: cityId }, select: { id: true } })
+      if (!c) return NextResponse.json({ error: 'Unknown city' }, { status: 400 })
+      cityPatch = { cityId: c.id }
+    } else {
+      cityPatch = { cityId: null }
+    }
+  }
+
   const post = await prisma.post.update({
     where: { id },
     data: {
+      ...cityPatch,
       title:       cleanTitle,
       excerpt:     cleanExcerpt || null,
       body:        cleanBody,

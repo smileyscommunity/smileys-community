@@ -13,18 +13,21 @@ type Segment = 'all' | 'new' | 'active' | 'inactive'
 
 const BASE_WHERE = { emailMarketing: true, emailVerified: true, status: 'approved' } as const
 
-function recipientWhere(segment: Segment) {
+function recipientWhere(segment: Segment, cityId?: string) {
   const now = new Date()
   const days = (n: number) => new Date(now.getTime() - n * 86_400_000)
+  // A city id narrows any segment to that city's members — the only way to
+  // send "just Bodrum" until the auto weekly digest becomes per-city.
+  const city = cityId ? { cityId } : {}
   switch (segment) {
     case 'new':
-      return { ...BASE_WHERE, joinedAt: { gte: days(60) } }
+      return { ...BASE_WHERE, ...city, joinedAt: { gte: days(60) } }
     case 'active':
-      return { ...BASE_WHERE, joinedEvents: { some: { status: 'approved', joinedAt: { gte: days(90) } } } }
+      return { ...BASE_WHERE, ...city, joinedEvents: { some: { status: 'approved', joinedAt: { gte: days(90) } } } }
     case 'inactive':
-      return { ...BASE_WHERE, joinedEvents: { none: { status: 'approved', joinedAt: { gte: days(180) } } } }
+      return { ...BASE_WHERE, ...city, joinedEvents: { none: { status: 'approved', joinedAt: { gte: days(180) } } } }
     default:
-      return BASE_WHERE
+      return { ...BASE_WHERE, ...city }
   }
 }
 
@@ -84,6 +87,15 @@ export async function POST(req: NextRequest) {
   const bodyHtml     = typeof body?.bodyHtml === 'string' ? body.bodyHtml.trim() : ''
   const segment: Segment = ['all', 'new', 'active', 'inactive'].includes(body?.segment)
     ? body.segment : 'all'
+  // Optional city scope on a manual send. Validated so a typo can't silently
+  // send to zero recipients under a "sent!" toast.
+  const rawCityId = typeof body?.cityId === 'string' && body.cityId ? body.cityId : null
+  let sendCityId: string | null = null
+  if (rawCityId) {
+    const c = await prisma.city.findUnique({ where: { id: rawCityId }, select: { id: true, name: true } })
+    if (!c) return NextResponse.json({ error: 'Unknown city' }, { status: 400 })
+    sendCityId = c.id
+  }
   const scheduledFor = body?.scheduledFor ? new Date(body.scheduledFor) : null
   if (scheduledFor && isNaN(scheduledFor.getTime())) {
     return NextResponse.json({ error: 'Invalid scheduledFor date' }, { status: 400 })
@@ -134,9 +146,12 @@ export async function POST(req: NextRequest) {
   }
 
   const recipients = await prisma.user.findMany({
-    where:  recipientWhere(segment),
+    where:  recipientWhere(segment, sendCityId ?? undefined),
     select: { id: true, email: true, name: true },
   })
+  if (recipients.length === 0) {
+    return NextResponse.json({ error: 'No recipients match that segment/city' }, { status: 400 })
+  }
 
   const newsletter = await prisma.newsletter.create({
     data: { subject, bodyHtml: safeBodyHtml, segment, recipientCount: recipients.length, sentById: session.id },
@@ -144,8 +159,8 @@ export async function POST(req: NextRequest) {
 
   await writeAudit(
     session.id, session.name, 'newsletter.send', newsletter.id, 'newsletter',
-    { recipientCount: recipients.length, segment },
-    `Sent newsletter "${subject}" to ${recipients.length} members (segment: ${segment})`,
+    { recipientCount: recipients.length, segment, cityId: sendCityId },
+    `Sent newsletter "${subject}" to ${recipients.length} members (segment: ${segment}${sendCityId ? `, city-scoped` : ''})`,
   )
 
   // Batch API send (≤100 per request) — stays under Resend's rate limit,

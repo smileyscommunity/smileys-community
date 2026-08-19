@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
   const session = await getSession()
   if (!session || !canManagePosts(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { title, excerpt, body, coverImage, status, category, kind } = await req.json()
+  const { title, excerpt, body, coverImage, status, category, kind, cityId } = await req.json()
   const cleanTitle   = String(title   ?? '').trim()
   const cleanExcerpt = excerpt ? String(excerpt).trim() : ''
   const cleanBody    = String(body    ?? '').trim()
@@ -62,6 +62,16 @@ export async function POST(req: NextRequest) {
     slug = `${base}-${i++}`
   }
 
+  // cityId is nullable by design: null/'' = a global article shown in every
+  // city; a real id pins it to one city's Stories. Validate a provided id so
+  // a typo can't orphan the post to a city that doesn't exist.
+  let postCityId: string | null = null
+  if (cityId) {
+    const c = await prisma.city.findUnique({ where: { id: cityId }, select: { id: true } })
+    if (!c) return NextResponse.json({ error: 'Unknown city' }, { status: 400 })
+    postCityId = c.id
+  }
+
   const willPublish = status === 'published'
   const post = await prisma.post.create({
     data: {
@@ -74,6 +84,7 @@ export async function POST(req: NextRequest) {
       kind:        cleanKind,
       category:    cleanCategory,
       authorId:    session.id,
+      cityId:      postCityId,
       publishedAt: willPublish ? new Date() : null,
     },
   })

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import CitySelect from '@/components/admin/CitySelect'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import RichTextEditor from '@/components/RichTextEditor'
@@ -17,6 +18,7 @@ interface PostFormProps {
     status?: string
     kind?: string
     category?: string
+    cityId?: string | null
   }
 }
 
@@ -30,6 +32,9 @@ export default function PostForm({ initial = {} }: PostFormProps) {
   const [coverImage,  setCoverImage]  = useState(initial.coverImage  ?? '')
   const [status,      setStatus]      = useState(initial.status      ?? 'draft')
   const [kind,        setKind]        = useState(initial.kind        ?? 'community')
+  // '' = global (shown in every city); an id pins the article to one city's
+  // Stories. Global is the right default — most articles are network-wide.
+  const [cityId,      setCityId]      = useState(initial.cityId ?? '')
   // A handbook article still stored under a legacy category key is shown
   // pre-selected on its canonical successor — otherwise the select renders with
   // nothing highlighted and an unwary save would land on the default category.
@@ -71,6 +76,7 @@ export default function PostForm({ initial = {} }: PostFormProps) {
         status: publishNow ? 'published' : status,
         kind,
         category,
+        cityId: cityId || null,
       }
       const url    = isEdit ? `/app/api/admin/posts/${initial.id}` : '/app/api/admin/posts'
       const method = isEdit ? 'PUT' : 'POST'
@@ -213,6 +219,17 @@ export default function PostForm({ initial = {} }: PostFormProps) {
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* City — global by default; renders only when >1 city exists */}
+          <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-4 empty:hidden">
+            <CitySelect
+              value={cityId}
+              onChange={setCityId}
+              label="City"
+              emptyLabel="All cities (global)"
+              className="w-full bg-zinc-900 border border-zinc-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500"
+            />
           </div>
 
           {/* Category */}

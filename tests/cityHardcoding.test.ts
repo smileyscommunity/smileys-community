@@ -57,7 +57,7 @@ const BASELINE: Record<string, number> = {
   'app/admin/events/new/page.tsx': 1,
   'app/admin/guide/page.tsx': 1,
   'app/admin/hangouts/page.tsx': 3,
-  'app/admin/newsletter/page.tsx': 1,
+  'app/admin/newsletter/page.tsx': 3,  // +2: honest copy disclosing the auto digest is Istanbul-scoped (2026-08-19)
   'app/admin/posts/constants.ts': 1,
   'app/admin/posts/page.tsx': 1,
   'app/admin/spotlight/page.tsx': 2,
