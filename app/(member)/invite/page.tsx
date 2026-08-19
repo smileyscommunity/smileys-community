@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { SITE_URL } from '@/lib/env'
 import { resolveImageUrl } from '@/lib/data'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
 
 const QRCode = dynamic(() => import('@/components/QRCode'), { ssr: false })
 
@@ -23,6 +24,13 @@ interface Stats {
 }
 
 export default function InvitePage() {
+  const city = useCurrentCity()
+  // The member's own city drives the invite copy AND the apply link's target:
+  // a Bodrum founder sharing "…in Istanbul" and dropping their friend on an
+  // Istanbul-defaulted apply form is the leak this fixes. Falls back to the
+  // shipped Istanbul copy until the hook resolves, so nothing renders blank.
+  const cityName = city?.name ?? 'Istanbul'
+  const citySlug = city?.slug ?? ''
   const [stats,   setStats]   = useState<Stats | null>(null)
   const [copied,  setCopied]  = useState(false)
   const [loading, setLoading] = useState(true)
@@ -33,7 +41,7 @@ export default function InvitePage() {
       .then(d => { setStats(d); setLoading(false) })
   }, [])
 
-  const inviteUrl = stats ? `${typeof window !== 'undefined' ? window.location.origin : SITE_URL}/app/apply?ref=${stats.code}` : ''
+  const inviteUrl = stats ? `${typeof window !== 'undefined' ? window.location.origin : SITE_URL}/app/apply?ref=${stats.code}${citySlug && !city?.isDefault ? `&city=${citySlug}` : ''}` : ''
 
   async function copyLink() {
     // Clipboard writes reject in some in-app browsers / non-secure
@@ -48,13 +56,13 @@ export default function InvitePage() {
   }
 
   function shareWhatsApp() {
-    const text = `Hey! I think you'd really enjoy Smileys Community — a curated social community in Istanbul where expats, digital nomads, frequent travelers, and global-minded locals connect through events, clubs, and real friendships.\nFrom social nights and dinners to sailing trips, hiking, language meetups, wellness activities, and networking events, there's always something happening and new people to meet.\nYou can apply here:\n${inviteUrl}`
+    const text = `Hey! I think you'd really enjoy Smileys Community — a curated social community in ${cityName} where expats, digital nomads, frequent travelers, and global-minded locals connect through events, clubs, and real friendships.\nFrom social nights and dinners to sailing trips, hiking, language meetups, wellness activities, and networking events, there's always something happening and new people to meet.\nYou can apply here:\n${inviteUrl}`
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
   }
 
   function shareEmail() {
-    const subject = encodeURIComponent("Join Smileys Community in Istanbul!")
-    const body = encodeURIComponent(`Hey! I think you'd really enjoy Smileys Community — a curated social community in Istanbul where expats, digital nomads, frequent travelers, and global-minded locals connect through events, clubs, and real friendships.\n\nFrom social nights and dinners to sailing trips, hiking, language meetups, wellness activities, and networking events, there's always something happening and new people to meet.\n\nYou can apply here:\n${inviteUrl}`)
+    const subject = encodeURIComponent(`Join Smileys Community in ${cityName}!`)
+    const body = encodeURIComponent(`Hey! I think you'd really enjoy Smileys Community — a curated social community in ${cityName} where expats, digital nomads, frequent travelers, and global-minded locals connect through events, clubs, and real friendships.\n\nFrom social nights and dinners to sailing trips, hiking, language meetups, wellness activities, and networking events, there's always something happening and new people to meet.\n\nYou can apply here:\n${inviteUrl}`)
     window.location.href = `mailto:?subject=${subject}&body=${body}`
   }
 
