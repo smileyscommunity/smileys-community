@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { resolveCityId } from '@/lib/city'
-import { isAdminOrModerator } from '@/lib/access'
+import { isAdmin } from '@/lib/access'
 import { sendListingAlertEmail } from '@/lib/email'
 import { createNotification } from '@/lib/notify'
 import { getNeighborhoodsForCity } from '@/lib/neighborhoodsDb'
+import { writeAudit } from '@/lib/audit'
 
 const VALID_CATEGORIES = ['ROOMS', 'JOBS', 'BUY_SELL', 'SERVICES', 'FREE', 'RECO']
 const CAT_LABELS: Record<string, string> = {
@@ -19,7 +20,11 @@ const CAT_LABELS: Record<string, string> = {
 
 export async function POST(req: NextRequest) {
   const session = await getSession()
-  if (!session || !isAdminOrModerator(session)) {
+  // Admin-only, matching the header comment and the single-create route
+  // (POST /api/admin/listings). This creates content ATTRIBUTED to an
+  // arbitrary member — impersonation a moderator shouldn't wield, and
+  // previously could, in any city, with no audit trail.
+  if (!session || !isAdmin(session)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -114,6 +119,11 @@ export async function POST(req: NextRequest) {
         ).catch(() => {})
       }
     }).catch(() => {})
+
+    // Attributed bulk-create is impersonation-by-design (seeding under a real
+    // member's name) — it must leave a record of who actually did it.
+    await writeAudit(session.id, session.name, 'listing.bulk_create', userId, 'listing',
+      { count: result.count, category, attributedTo: userId, cityId: listingCityId })
 
     return NextResponse.json({ created: result.count }, { status: 201 })
   } catch (e) {

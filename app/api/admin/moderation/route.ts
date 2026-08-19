@@ -14,9 +14,12 @@ export async function GET() {
     // Reports don't carry cityId directly; they're scoped via the
     // reported user's cityId. Moderators see only reports against
     // users in their own city. Admins see everything.
-    const cityFilter = isAdmin(session) || !session.cityId
+    // Admins see every city; a moderator sees only reports about their own
+    // city's members. A city-less moderator must fail CLOSED (match nothing),
+    // not fall through to the admin all-cities view — the bug this replaces.
+    const cityFilter = isAdmin(session)
       ? {}
-      : { reported: { is: { cityId: session.cityId } } }
+      : { reported: { is: { cityId: session.cityId ?? '__no_city__' } } }
 
     const reports = await prisma.report.findMany({
       where:   cityFilter,

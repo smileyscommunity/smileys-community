@@ -1,4 +1,4 @@
-import { canViewAuditLog } from '@/lib/access'
+import { canViewAuditLog, canManageUsers } from '@/lib/access'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
@@ -42,5 +42,14 @@ export async function GET(req: NextRequest) {
     orderBy: { createdAt: 'desc' },
     take,
   })
-  return NextResponse.json(logs)
+
+  // `meta` is the PII carrier: account.self_delete stores the deleted member's
+  // name/email/phone, and user.remove / email_change / partner.assign_user
+  // carry full emails — data the users routes deliberately withhold from
+  // moderators. The audit table has no city column to scope by, so strip meta
+  // for non-admins. who/what/when (adminName, action, description, targetId,
+  // createdAt) stays — that's the accountability a moderator needs.
+  const full = canManageUsers(session)
+  const safe = full ? logs : logs.map(l => ({ ...l, meta: null }))
+  return NextResponse.json(safe)
 }

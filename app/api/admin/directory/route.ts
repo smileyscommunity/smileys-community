@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { resolveTargetCityId } from '@/lib/city'
-import { isAdminOrModerator } from '@/lib/access'
+import { isAdminOrModerator, isAdmin, canActInCity } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
 import { writeAudit } from '@/lib/audit'
 import { validateBusinessCreate, validateFieldUpdate, dropUnchanged } from './_lib'
@@ -19,7 +19,15 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const status = searchParams.get('status') || 'pending'
 
-    const where: Record<string, unknown> = {}
+    // Directory moderation is city work. Moderators see only their own city's
+    // queue (fail-closed like every sibling list); admins see all, or one via
+    // ?city=. Without this a moderator's queue showed every city's businesses.
+    const cityParam = searchParams.get('city')
+    const cityScope = isAdmin(session)
+      ? (cityParam ? { cityId: cityParam } : {})
+      : { cityId: session.cityId ?? '__no_city__' }
+
+    const where: Record<string, unknown> = { ...cityScope }
     // Three filter buckets that partition every business:
     //   pending  → submitted, not yet reviewed
     //   approved → live in the directory
@@ -233,6 +241,12 @@ export async function PATCH(req: NextRequest) {
 
     const existing = await prisma.business.findUnique({ where: { id } })
     if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    // The [id] moderation siblings got this gate; the parent route (approve/
+    // reject/edit-any-field) did not — a moderator could act on any city's
+    // business. Same rule: admins everywhere, moderators only at home.
+    if (!canActInCity(session, existing.cityId)) {
+      return NextResponse.json({ error: 'Cross-city moderation is admin-only' }, { status: 403 })
+    }
 
     if (action === 'approve') {
       await prisma.business.update({
@@ -315,8 +329,11 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'ID required' }, { status: 400 })
     }
 
-    const existing = await prisma.business.findUnique({ where: { id }, select: { name: true } })
+    const existing = await prisma.business.findUnique({ where: { id }, select: { name: true, cityId: true } })
     if (!existing) return NextResponse.json({ ok: true })
+    if (!canActInCity(session, existing.cityId)) {
+      return NextResponse.json({ error: 'Cross-city moderation is admin-only' }, { status: 403 })
+    }
 
     await prisma.business.delete({ where: { id } })
     await writeAudit(session.id, session.name, 'directory.delete', id, 'business', { name: existing.name })

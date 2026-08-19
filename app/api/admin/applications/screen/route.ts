@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { prisma } from '@/lib/prisma'
+import { rateLimit } from '@/lib/rateLimit'
 import { getSession } from '@/lib/session'
 import { canReviewApplications, canActInCity } from '@/lib/access'
 
@@ -36,6 +37,12 @@ export async function POST(req: NextRequest) {
   // everywhere, moderators only their own city's applicants.
   if (!canActInCity(session, app.targetCityId)) {
     return NextResponse.json({ error: 'Cross-city review is admin-only' }, { status: 403 })
+  }
+  // Rate-limit the actual OpenAI call — after auth, so a cross-city probe
+  // doesn't spend the budget. A loop on one id would otherwise be unbounded
+  // spend + applicant PII shipped off-platform repeatedly.
+  if (!await rateLimit(`ai-screen:${session.id}`, 15, 60_000)) {
+    return NextResponse.json({ error: 'Rate limit — wait a moment' }, { status: 429 })
   }
 
   const prompt = `You are a community manager for Smileys, a curated social community in Istanbul for international and local residents who want genuine connection, shared experiences, and a sense of belonging. The community is application-based, English-first, and values people who are curious, kind, contribute to group energy, and attend events regularly.

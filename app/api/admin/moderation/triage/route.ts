@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { prisma } from '@/lib/prisma'
+import { rateLimit } from '@/lib/rateLimit'
 import { getSession } from '@/lib/session'
 import { canModerateReports, canActInCity } from '@/lib/access'
 
@@ -44,6 +45,10 @@ export async function POST(req: NextRequest) {
   // subject's history into the summary. Same scope as the queue itself.
   if (!canActInCity(session, report.reported.cityId)) {
     return NextResponse.json({ error: 'Cross-city moderation is admin-only' }, { status: 403 })
+  }
+  // Rate-limit the OpenAI call after auth — see applications/screen.
+  if (!await rateLimit(`ai-triage:${session.id}`, 15, 60_000)) {
+    return NextResponse.json({ error: 'Rate limit — wait a moment' }, { status: 429 })
   }
 
   const prompt = `You are a community moderator for Smileys, a curated social community in Istanbul. Review this user report and recommend an action.

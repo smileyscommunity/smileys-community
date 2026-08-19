@@ -65,6 +65,15 @@ export async function GET(_: NextRequest, { params }: Params) {
       }
     }
 
+    // adminNotes is staff-internal commentary about a member — the most
+    // sensitive text in the record. It's gated harder than email/phone: even
+    // a moderator actively reviewing this user (canSeePII true) shouldn't read
+    // other staff's private notes. Writing a note is already admin-only; make
+    // reading match. Strip rather than mask — a redacted note is noise.
+    if (!isAdmin) {
+      ;(user as { adminNotes?: unknown }).adminNotes = []
+    }
+
     // Host quality — aggregate post-event survey signal across every
     // event this user has hosted. The single most powerful host-
     // quality metric the platform has: an objective "would the room
