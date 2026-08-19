@@ -252,7 +252,7 @@ export default function AdminPage() {
     // the underlying failures are queryable.
     stats.emailFailures24h > 0 && {
       icon: '📭', label: `${stats.emailFailures24h} email failure${stats.emailFailures24h !== 1 ? 's' : ''} (24h)`,
-      href: '/admin/audit?action=email', color: 'border-red-500/30 bg-red-500/5 text-red-400',
+      color: 'border-red-500/30 bg-red-500/5 text-red-400',  // no href — investigate in Resend / server logs
     },
     // #5 monitoring — cron sweeper has gone silent. Each name in
     // the array hasn't checked in for > 2× its expected cadence.
@@ -261,7 +261,7 @@ export default function AdminPage() {
     // crontab + server logs directly.
     stats.staleSweepers && stats.staleSweepers.length > 0 && {
       icon: '⏱️', label: `${stats.staleSweepers.length} stale cron${stats.staleSweepers.length !== 1 ? 's' : ''}: ${stats.staleSweepers.join(', ')}`,
-      href: '/admin/audit?action=cron', color: 'border-red-500/30 bg-red-500/5 text-red-400',
+      color: 'border-red-500/30 bg-red-500/5 text-red-400',  // no href — the label names the stale sweepers; fix is server-side
     },
     // Visitors pill — soft signal, not a "do something" alert. Sits in the
     // same row so admins see "what's happening" + "what needs me" together.

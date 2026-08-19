@@ -289,7 +289,15 @@ function ModerationPageInner() {
         setSelected(null)
         setReviewNote('')
         setBanReason('')
+      } else {
+        // A failed moderation action used to un-busy the button with no
+        // signal — the operator thought the ban/warn landed while the report
+        // sat unresolved. Surface the server's reason and keep the modal open.
+        const d = await res.json().catch(() => ({}))
+        toast.error(d?.error ?? `Couldn't ${action} — try again`)
       }
+    } catch {
+      toast.error('Network error — nothing was saved')
     } finally {
       setSaving(false)
     }

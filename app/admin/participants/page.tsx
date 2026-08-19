@@ -153,6 +153,7 @@ export default function AdminParticipantsPage() {
   const [attendees,   setAttendees]   = useState<Attendee[]>([])
   const [waitlist,    setWaitlist]    = useState<WaitlistEntry[]>([])
   const [loading,     setLoading]     = useState(true)
+  const [loadError,   setLoadError]   = useState(false)
   const [view,        setView]        = useState<View>('pending')
   const [q,           setQ]           = useState('')
   const [selected,    setSelected]    = useState<Set<string>>(new Set())
@@ -162,14 +163,24 @@ export default function AdminParticipantsPage() {
   // mutations (so spotsLeft and counts resync with the server) and when
   // the app regains focus (door-duty admins act on live numbers).
   const load = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true)
-    const res = await fetch('/app/api/admin/participants', { credentials: 'include' })
-    if (res.ok) {
+    if (!silent) { setLoading(true); setLoadError(false) }
+    try {
+      const res = await fetch('/app/api/admin/participants', { credentials: 'include' })
+      if (!res.ok) throw new Error(String(res.status))
       const data = await res.json()
       setAttendees(Array.isArray(data.attendees) ? data.attendees : [])
       setWaitlist(Array.isArray(data.waitlist) ? data.waitlist : [])
+      setLoadError(false)
+    } catch {
+      // A thrown fetch (offline, CORS) used to skip setLoading(false) and
+      // strand the page on the skeleton forever; a non-ok response rendered
+      // an empty inbox indistinguishable from "nobody's waiting". Both now
+      // surface a retry — but only on a foreground load, so a background
+      // resync failure doesn't yank the door admin out of their queue.
+      if (!silent) setLoadError(true)
+    } finally {
+      if (!silent) setLoading(false)
     }
-    if (!silent) setLoading(false)
   }, [])
 
   useEffect(() => { load() }, [load])
@@ -387,7 +398,12 @@ export default function AdminParticipantsPage() {
         <p className="text-sm text-zinc-400 mt-0.5">All event join requests across every event</p>
       </div>
 
-      {loading ? (
+      {loadError ? (
+        <div className="rounded-2xl border border-red-500/30 bg-red-500/5 px-4 py-6 text-center">
+          <p className="text-sm text-red-300 font-medium mb-3">Couldn't load participants.</p>
+          <button onClick={() => load()} className="text-xs font-bold bg-red-500 hover:bg-red-400 text-white px-3 py-1.5 rounded-lg">Retry</button>
+        </div>
+      ) : loading ? (
         <div className="text-zinc-500 text-sm text-center py-16">Loading…</div>
       ) : (
         <>

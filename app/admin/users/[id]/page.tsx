@@ -272,7 +272,6 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
     }
   }
 
-  const [clubAssignments,  setClubAssignments]  = useState<{ clubId: string; clubName: string; emoji: string }[]>([])
   const [profileForm,   setProfileForm]   = useState({
     email: '', phone: '', nationality: '', neighborhood: '', instagram: '',
     languages: '', interests: '', bio: '', partnerId: '',
@@ -283,12 +282,6 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
   useEffect(() => {
     fetch('/app/api/partners').then(r => r.json()).then(d => setPartners(Array.isArray(d) ? d : []))
   }, [])
-
-  useEffect(() => {
-    fetch(`/app/api/admin/users/${id}/clubs`)
-      .then(r => r.ok ? r.json() : [])
-      .then(d => setClubAssignments(d))
-  }, [id])
 
   const handleSaveProfile = async () => {
     setSavingProfile(true)
