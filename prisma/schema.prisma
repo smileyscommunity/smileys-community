@@ -529,6 +529,9 @@ model Club {
   color              String
   bgColor            String
   memberCount        Int              @default(0)
+  // Which lib/clubTemplates entry seeded this club; NULL = hand-made or
+  // pre-catalog. Provenance only — never joined, never user-visible.
+  templateKey        String?
   coverImage         String?
   foundedAt          DateTime?
   instagramUrl       String?

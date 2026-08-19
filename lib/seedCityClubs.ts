@@ -51,6 +51,7 @@ export async function seedCityClubs(
         memberCount: 0,
         isActive:    true,
         cityId:      city.id,
+        templateKey: t.key,
       },
     })
     created++
