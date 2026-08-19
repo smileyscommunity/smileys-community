@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { useAdminLoad } from '@/lib/admin/useAdminLoad'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
-import CitySelect from '@/components/admin/CitySelect'
+import CitySelect, { useAdminCities } from '@/components/admin/CitySelect'
 import { isSafeHref } from '@/lib/safeUrl'
 import { BUSINESS_CATEGORIES, DIRECTORY_LIMITS, parseGoogleMapsUrl } from '@/lib/directory-constants'
 import { DAY_KEYS, DAY_LABELS } from '@/lib/businessHours'
@@ -595,13 +595,18 @@ function BusinessRow({ b, onAction, neighborhoods }: { b: Business; onAction: ()
 type CreateMode = 'single' | 'bulk'
 
 function CreateForm({ onCreated, onCancel }: { onCreated: () => void; onCancel: () => void }) {
-  const neighborhoods = useCityNeighborhoods()
   const [mode,    setMode]    = useState<CreateMode>('single')
   const [form,    setForm]    = useState<CreateForm>(EMPTY_CREATE)
   // Panel-level, not per-form: single and bulk share it, and the bulk path
   // is the one that really wants it — importing a batch for a city you're
   // not in. '' = creator's own city (the server resolves it).
   const [cityId,  setCityId]  = useState('')
+  // The neighborhood options must follow the CITY being created into, not the
+  // viewer's — otherwise choosing Bodrum in the selector still offered
+  // Istanbul's neighborhoods and safeNeighborhoodFor silently nulled the save.
+  const cities  = useAdminCities()
+  const citySlug = cities.find(c => c.id === cityId)?.slug
+  const neighborhoods = useCityNeighborhoods(citySlug)
   const [bulk,    setBulk]    = useState('')
   const [busy,    setBusy]    = useState(false)
   const [report,  setReport]  = useState<{ created: number; failed: number; errors: { index: number; name?: string; error: string }[] } | null>(null)

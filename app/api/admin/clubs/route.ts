@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
       orderBy: { name: 'asc' },
       include: {
         _count: { select: { events: true } },
-        city:   { select: { name: true, slug: true } },
+        city:   { select: { name: true, slug: true, country: true } },
       },
     })
     const clubIds = clubs.map((c: any) => c.id)

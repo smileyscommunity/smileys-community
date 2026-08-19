@@ -3,6 +3,7 @@
 import { toast } from 'sonner'
 import { useState, useEffect, use } from 'react'
 import { confirmToast } from '@/lib/confirmToast'
+import { countryName } from '@/lib/country'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
@@ -35,11 +36,10 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
   const canPublish = user.role === 'admin' || user.role === 'moderator'
   const { id } = use(params)
   const router  = useRouter()
-  const neighborhoods = useCityNeighborhoods()
 
   const [form,          setForm]          = useState(emptyForm)
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
-  const [clubs,         setClubs]         = useState<{ id: string; name: string; emoji: string }[]>([])
+  const [clubs,         setClubs]         = useState<{ id: string; name: string; emoji: string; city?: { name: string; slug: string; country: string } }[]>([])
   const [hostSearch,    setHostSearch]    = useState('')
   const [loading,       setLoading]       = useState(true)
   const [saving,        setSaving]        = useState(false)
@@ -100,7 +100,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
   useEffect(() => {
     Promise.all([
       fetch(`/app/api/events/${id}`, { credentials: 'include' }).then(r => r.json()),
-      fetch('/app/api/clubs', { credentials: 'include' }).then(r => r.json()),
+      fetch('/app/api/admin/clubs', { credentials: 'include' }).then(r => r.json()),
       fetch(`/app/api/admin/events/${id}/cohosts`, { credentials: 'include' }).then(r => r.json()),
     ]).then(([event, clubData, cohostData]) => {
       if (Array.isArray(cohostData)) setCohosts(cohostData)
@@ -159,6 +159,12 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
     })
   }, [id])
 
+  // Neighborhoods follow the event's city (its parent club's), not the
+  // viewer's — so a Bodrum event offers Bodrum areas. Falls back to the
+  // viewer's own city until a club is chosen.
+  const selectedClubCity = clubs.find(c => c.id === form.clubId)?.city?.slug
+  const neighborhoods = useCityNeighborhoods(selectedClubCity)
+
   function set(key: string, value: string | boolean | number) { setForm(f => ({ ...f, [key]: value })) }
 
   async function writeWithAI() {
@@ -196,7 +202,13 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
   }
 
   async function geocodeAddress() {
-    const query = [form.location, form.address, form.neighborhood, 'Istanbul, Turkey'].filter(Boolean).join(', ')
+    // Geocode within the event's OWN city (inherited from the parent club),
+    // not a hardcoded Istanbul — otherwise a Bodrum address resolves to
+    // Istanbul coordinates. Falls back to the default city only when no club
+    // is picked yet.
+    const geoClub = clubs.find(c => c.id === form.clubId)
+    const cityHint = geoClub?.city ? `${geoClub.city.name}, ${countryName(geoClub.city.country)}` : 'Istanbul, Turkey'
+    const query = [form.location, form.address, form.neighborhood, cityHint].filter(Boolean).join(', ')
     setGeocoding(true)
     try {
       const res = await fetch(`/app/api/admin/geocode?q=${encodeURIComponent(query)}`, { credentials: 'include' })

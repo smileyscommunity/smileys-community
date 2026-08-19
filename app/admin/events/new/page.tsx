@@ -9,13 +9,13 @@ import ImageUpload from '@/components/ImageUpload'
 import VibePicker from '@/components/VibePicker'
 import { useAdminMemberSearch } from '@/hooks/useAdminMemberSearch'
 import { EVENT_EMOJIS as EMOJIS } from '@/lib/eventEmojis'
+import { countryName } from '@/lib/country'
 const inputCls = 'bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none px-3 py-2.5 w-full text-sm'
 
 
 export default function NewEventPage() {
   const router = useRouter()
-  const neighborhoods = useCityNeighborhoods()
-  const [clubs, setClubs] = useState<{ id: string; name: string; emoji: string }[]>([])
+  const [clubs, setClubs] = useState<{ id: string; name: string; emoji: string; city?: { name: string; slug: string; country: string } }[]>([])
   const [hosts,      setHosts]      = useState<{ id: string; name: string }[]>([])
   const [hostSearch, setHostSearch] = useState('')
 
@@ -51,7 +51,7 @@ export default function NewEventPage() {
   const { results: hostMatches } = useAdminMemberSearch(form.hostId ? '' : hostSearch, 1)
 
   useEffect(() => {
-    fetch('/app/api/clubs', { credentials: 'include' }).then(r => r.json()).then(d => setClubs(Array.isArray(d) ? d : []))
+    fetch('/app/api/admin/clubs', { credentials: 'include' }).then(r => r.json()).then(d => setClubs(Array.isArray(d) ? d : []))
     fetch('/app/api/auth/me', { credentials: 'include' }).then(r => r.json()).then(me => {
       if (me?.id) { setForm(f => ({ ...f, hostId: me.id })); setHostSearch(me.name ?? '') }
     })
@@ -70,6 +70,12 @@ export default function NewEventPage() {
         if (clubHosts.length > 0) setForm(f => ({ ...f, hostId: clubHosts[0].id }))
       })
   }, [form.clubId])
+
+  // Neighborhoods follow the event's city (its parent club's), not the
+  // viewer's — so a Bodrum event offers Bodrum areas. Falls back to the
+  // viewer's own city until a club is chosen.
+  const selectedClubCity = clubs.find(c => c.id === form.clubId)?.city?.slug
+  const neighborhoods = useCityNeighborhoods(selectedClubCity)
 
   function set(key: string, value: string | boolean | number) {
     setForm(f => ({ ...f, [key]: value }))
@@ -110,7 +116,13 @@ export default function NewEventPage() {
   }
 
   async function geocodeAddress() {
-    const query = [form.location, form.address, form.neighborhood, 'Istanbul, Turkey'].filter(Boolean).join(', ')
+    // Geocode within the event's OWN city (inherited from the parent club),
+    // not a hardcoded Istanbul — otherwise a Bodrum address resolves to
+    // Istanbul coordinates. Falls back to the default city only when no club
+    // is picked yet.
+    const geoClub = clubs.find(c => c.id === form.clubId)
+    const cityHint = geoClub?.city ? `${geoClub.city.name}, ${countryName(geoClub.city.country)}` : 'Istanbul, Turkey'
+    const query = [form.location, form.address, form.neighborhood, cityHint].filter(Boolean).join(', ')
     setGeocoding(true)
     try {
       const res = await fetch(`/app/api/admin/geocode?q=${encodeURIComponent(query)}`, { credentials: 'include' })
