@@ -13,8 +13,12 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { prisma } from '@/lib/prisma'
 import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
-import { resolveCityId, getCityConfig } from '@/lib/city'
-import { getSession } from '@/lib/session'
+import { DEFAULT_CITY_SLUG } from '@/lib/city'
+import { resolveCityForPage, type CitySearch } from '@/lib/cityPageParam'
+import { absoluteOgImage } from '@/lib/og'
+import { APP_URL } from '@/lib/env'
+import { redirect } from 'next/navigation'
+import type { Metadata } from 'next'
 import { resolveImageUrl } from '@/lib/data'
 import GuideCTA from './GuideCTA'
 import GuideStickyNav from './GuideStickyNav'
@@ -40,16 +44,42 @@ function loadBanner(): Banner | null {
 
 
 
-export default async function GuidePage({ searchParams }: { searchParams?: Promise<{ for?: string }> }) {
+export async function generateMetadata({ searchParams }: { searchParams?: Promise<{ for?: string } & CitySearch> }): Promise<Metadata> {
+  const { city } = await resolveCityForPage(searchParams)
+  const isDefault = city.slug === DEFAULT_CITY_SLUG
+  const url = isDefault ? `${APP_URL}/guide` : `${APP_URL}/guide?city=${city.slug}`
+  const title = `${city.name} City Guide — Smileys Community`
+  const description = `Experience ${city.name} like you know someone here — things worth doing, recommended by people who actually live here.`
+  // A city with its own photo shares that. The branded fallback card has
+  // "Istanbul" baked into the artwork, so it is only honest for the default
+  // city; every other city falls back to the plain card rather than a photo of
+  // somewhere else.
+  const cityOg = absoluteOgImage(city.heroImage)
+  const image = cityOg
+    ? { url: cityOg, alt: `${city.name} Guide — Smileys Community` }
+    : { url: `${APP_URL}/images/guide-og.jpg`, width: 1200, height: 640, alt: 'Smileys Guide — Experience the city. Live the stories.' }
+
+  return {
+    alternates: { canonical: url },
+    title,
+    description,
+    openGraph: { title, description, url, images: [image] },
+    twitter:   { card: 'summary_large_image', title, description, images: [image.url] },
+  }
+}
+
+export default async function GuidePage({ searchParams }: { searchParams?: Promise<{ for?: string } & CitySearch> }) {
   const today = new Date().toISOString().split('T')[0]
 
   // The Guide is per city. Both counts below were unscoped, so Bodrum's guide
   // ranked ISTANBUL's neighborhoods by Istanbul's events and members — and the
   // experiences came from the default city too (loadExperiences() with no
   // argument). A guide that describes another city is worse than an empty one.
-  const session = await getSession()
-  const cityId  = await resolveCityId(session)
-  const city    = await getCityConfig(cityId)
+  // ?city= wins over the cookie, and the bare URL redirects to the explicit
+  // one below — a share has to carry its city, because the crawler that
+  // fetches it has no cookie to read.
+  const { city, cityId, pinned } = await resolveCityForPage(searchParams)
+  if (!pinned && city.slug !== DEFAULT_CITY_SLUG) redirect(`/guide?city=${city.slug}`)
   const moods       = moodsFor(city.slug)
   const collections = collectionsFor(city.slug)
   const seasons     = seasonsFor(city.slug)
