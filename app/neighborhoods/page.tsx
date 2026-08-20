@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { jsonLdHtml } from '@/lib/jsonLd'
 import Image from 'next/image'
 import { readFileSync } from 'fs'
 import { join } from 'path'
@@ -19,12 +20,6 @@ import LocalFavorites, { type LocalPick } from '@/components/LocalFavorites'
 
 // Same script-tag escaping as the neighborhood detail page's JSON-LD
 // (handbook article / event detail / FAQ / neighborhood Place all match).
-function jsonLdHtml(data: unknown): string {
-  return JSON.stringify(data)
-    .replace(/</g, '\\u003c')
-    .replace(/\u2028/g, '\\u2028')
-    .replace(/\u2029/g, '\\u2029')
-}
 
 // Fixed-size cover (1200×800) served from public/ under the /app basePath.
 // Only the fallback now: a city with its own photo shares that instead, because

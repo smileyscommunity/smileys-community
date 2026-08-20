@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { resolvePublicCityIdFromSlug } from '@/lib/cities'
 import { revalidateTag } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
@@ -25,13 +26,9 @@ export async function GET(req: NextRequest) {
   let cityId: string
   const citySlug = searchParams.get('city')?.trim()
   if (citySlug) {
-    // Same statuses /api/cities publishes minus coming_soon — a paused
-    // city's visits must not be readable by guessing its slug.
-    const c = await prisma.city.findFirst({
-      where: { slug: citySlug, status: { in: ['live', 'preparing'] } },
-      select: { id: true },
-    })
-    cityId = c?.id ?? '__no_such_city__'
+    // Shared resolver — the status rule (no paused/hidden cities by slug)
+    // lives in lib/cities.resolvePublicCityIdFromSlug.
+    cityId = await resolvePublicCityIdFromSlug(citySlug)
   } else {
     cityId = await resolveCityId(session)
   }

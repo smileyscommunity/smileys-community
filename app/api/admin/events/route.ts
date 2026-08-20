@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdmin, isModerator, isClubHost, isClubHostFor } from '@/lib/access'
+import { isAdmin, isModerator, isClubHost, isClubHostFor, failClosedCityId } from '@/lib/access'
 import { createNotification, notifyNewEvent } from '@/lib/notify'
 import {splitLeadingEmoji, stripDupTrailingEmoji} from '@/lib/data'
 import { normalizePaymentContact } from '@/lib/safeUrl'
@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
     const cityScope: Prisma.EventWhereInput = isAdmin(session)
       ? (cityParam ? { cityId: cityParam } : {})
       : isModerator(session)
-        ? { cityId: session.cityId ?? '__no_city__' }
+        ? { cityId: failClosedCityId(session) }
         : {}
 
     const where: Prisma.EventWhereInput = {

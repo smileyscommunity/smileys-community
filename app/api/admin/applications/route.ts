@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { coerceNeighborhoodFor } from '@/lib/neighborhoodsDb'
 import { Prisma } from '@prisma/client'
 import { getSession } from '@/lib/session'
-import { isAdmin, isAdminOrModerator } from '@/lib/access'
+import { isAdmin, isAdminOrModerator, failClosedCityId } from '@/lib/access'
 import { sendActivationEmail, sendApplicationRejectedEmail, sendRequestMoreInfoEmail } from '@/lib/email'
 import { createNotification } from '@/lib/notify'
 import { writeAudit } from '@/lib/audit'
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
     const cityParam = req.nextUrl.searchParams.get('city')
     const cityFilter = isAdmin(session)
       ? (cityParam ? { targetCityId: cityParam } : {})
-      : { targetCityId: session.cityId ?? '__no_city__' }
+      : { targetCityId: failClosedCityId(session) }
     const applications = await prisma.memberApplication.findMany({
       where:   cityFilter,
       orderBy: { createdAt: 'desc' },

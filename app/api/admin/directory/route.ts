@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { resolveTargetCityId } from '@/lib/city'
-import { isAdminOrModerator, isAdmin, canActInCity } from '@/lib/access'
+import { isAdminOrModerator, isAdmin, canActInCity, failClosedCityId } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
 import { writeAudit } from '@/lib/audit'
 import { validateBusinessCreate, validateFieldUpdate, dropUnchanged } from './_lib'
@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
     const cityParam = searchParams.get('city')
     const cityScope = isAdmin(session)
       ? (cityParam ? { cityId: cityParam } : {})
-      : { cityId: session.cityId ?? '__no_city__' }
+      : { cityId: failClosedCityId(session) }
 
     const where: Record<string, unknown> = { ...cityScope }
     // Three filter buckets that partition every business:

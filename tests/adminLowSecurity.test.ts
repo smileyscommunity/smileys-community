@@ -8,6 +8,7 @@ vi.mock('@/lib/session', () => ({ getSession: vi.fn() }))
 vi.mock('@/lib/access', () => ({
   isAdmin:            (s: any) => s?.role === 'admin',
   isAdminOrModerator: (s: any) => s?.role === 'admin' || s?.role === 'moderator',
+  failClosedCityId:   (s: any) => s?.cityId ?? '__no_city__',
 }))
 
 const bannersStore = {

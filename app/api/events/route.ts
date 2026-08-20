@@ -34,16 +34,9 @@ export async function GET(req: NextRequest) {
     const slug = searchParams.get('city')?.trim()
     if (slug) {
       const { prisma } = await import('@/lib/prisma')
-      // Same status gate as the visitors route: a paused city's events must
-      // not be readable by guessing its slug — pausing a city is precisely
-      // the moment its feed should go dark. live/preparing only.
-      const c = await prisma.city.findFirst({
-        where: { slug, status: { in: ['live', 'preparing'] } },
-        select: { id: true },
-      })
-      // Unknown (or paused/hidden) slug fails CLOSED (empty list), not open
-      // to all cities — '?city=' is the one client-supplied city input.
-      cityId = c?.id ?? '__no_such_city__'
+      // Shared resolver — status-gated (no paused city by slug), fails closed.
+      const { resolvePublicCityIdFromSlug } = await import('@/lib/cities')
+      cityId = await resolvePublicCityIdFromSlug(slug)
     } else {
       // Guests land on the default city, same as every other feed —
       // only the explicit `?all=1` traveller view crosses cities.

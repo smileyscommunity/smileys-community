@@ -1,4 +1,5 @@
 import { Suspense } from 'react'
+import { jsonLdHtml } from '@/lib/jsonLd'
 import { notFound } from 'next/navigation'
 import { headers } from 'next/headers'
 import Link from 'next/link'
@@ -297,20 +298,14 @@ export default async function NeighborhoodPage({ params }: { params: Promise<{ s
         // the unicode line separators (same guard as the other JSON-LD
         // blocks: handbook article, event detail, FAQ, Organization).
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(breadcrumbJsonLd)
-            .replace(/</g, '\\u003c')
-            .replace(/\u2028/g, '\\u2028')
-            .replace(/\u2029/g, '\\u2029'),
+          __html: jsonLdHtml(breadcrumbJsonLd),
         }}
       />
       <script
         type="application/ld+json"
         nonce={nonce}
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(placeJsonLd)
-            .replace(/</g, '\\u003c')
-            .replace(/\u2028/g, '\\u2028')
-            .replace(/\u2029/g, '\\u2029'),
+          __html: jsonLdHtml(placeJsonLd),
         }}
       />
       {/* ── Hero — renders immediately, no DB ── */}

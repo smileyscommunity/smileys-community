@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { resolveImageUrl } from '@/lib/data'
+import { resolveImageUrl, getInitials } from '@/lib/data'
 import { downscaleImage, ImageUploadError } from '@/lib/image-resize'
 
 interface Photo {
@@ -20,9 +20,6 @@ interface Props {
   currentUserId?: string
 }
 
-function getInitials(name: string) {
-  return name.trim().split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
-}
 
 export default function EventPhotos({ eventId, photos: initial, canUpload, currentUserId }: Props) {
   const [photos,    setPhotos]    = useState<Photo[]>(initial)

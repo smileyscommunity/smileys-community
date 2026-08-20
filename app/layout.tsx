@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next'
+import { jsonLdHtml } from '@/lib/jsonLd'
 import { headers } from 'next/headers'
 import './globals.css'
 import { Toaster } from 'sonner'
@@ -180,10 +181,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           // `</script><script>` in an interpolated value would break out of
           // this tag. Nothing here is user-controlled, kept for consistency.
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify(organizationJsonLd)
-              .replace(/</g, '\\u003c')
-              .replace(/\u2028/g, '\\u2028')
-              .replace(/\u2029/g, '\\u2029'),
+            __html: jsonLdHtml(organizationJsonLd),
           }}
         />
       </head>

@@ -1,4 +1,5 @@
 import { headers } from 'next/headers'
+import { jsonLdHtml } from '@/lib/jsonLd'
 import { APP_URL, SITE_URL } from '@/lib/env'
 import { prisma } from '@/lib/prisma'
 import { getDefaultCityId } from '@/lib/city'
@@ -32,12 +33,6 @@ export const metadata = {
 }
 
 // Same script-tag escaping used by every other JSON-LD block in the app.
-function jsonLdHtml(data: unknown): string {
-  return JSON.stringify(data)
-    .replace(/</g, '\\u003c')
-    .replace(/\u2028/g, '\\u2028')
-    .replace(/\u2029/g, '\\u2029')
-}
 
 function absoluteImageUrl(path: string | null | undefined): string | undefined {
   if (!path) return undefined

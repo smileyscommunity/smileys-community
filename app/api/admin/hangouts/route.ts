@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator, isAdmin } from '@/lib/access'
+import { isAdminOrModerator, isAdmin, failClosedCityId } from '@/lib/access'
 
 // Read-only oversight list for the admin Hangouts page. Editing and
 // cancelling a hangout reuse the member endpoints (PATCH/DELETE
@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
   // Without this the list — and each creator's email — spanned every city.
   const cityScope = isAdmin(session)
     ? (cityParam ? { cityId: cityParam } : {})
-    : { cityId: session.cityId ?? '__no_city__' }
+    : { cityId: failClosedCityId(session) }
 
   const where: Record<string, unknown> = {
     ...cityScope,

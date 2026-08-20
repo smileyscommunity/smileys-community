@@ -11,6 +11,11 @@
 // an empty guide for a launching city is honest, Istanbul's content under
 // an Izmir header is not.
 import { readFileSync, existsSync } from 'fs'
+import React from 'react'
+// React 18's runtime (vitest) has no cache(); Next's server runtime does.
+// Identity fallback keeps tests running — memoization is an optimization.
+const reactCache: <T extends (...a: never[]) => unknown>(fn: T) => T =
+  (React as unknown as { cache?: typeof reactCache }).cache ?? ((fn) => fn)
 import { join } from 'path'
 import { prisma } from './prisma'
 import { getDefaultCityId, getCityConfig, DEFAULT_CITY_SLUG } from './city'
@@ -154,7 +159,7 @@ export async function getExperience(slug: string, cityId?: string): Promise<Expe
  * shared. Falls back to the shipped JSON (default city) when the table has no
  * row, which is how the pre-database entries still resolve.
  */
-export async function getExperienceAnyCity(
+async function getExperienceAnyCityUncached(
   slug: string,
 ): Promise<{ experience: Experience; cityId: string; citySlug: string; cityName: string } | undefined> {
   try {
@@ -185,7 +190,7 @@ export async function getExperienceAnyCity(
  * shared link should land on the route that was shared, not on the reader's
  * city.
  */
-export async function getRouteAnyCity(
+async function getRouteAnyCityUncached(
   slug: string,
 ): Promise<{ route: GuideRoute; cityId: string; citySlug: string; cityName: string } | undefined> {
   try {
@@ -221,3 +226,11 @@ export async function loadRoutes(cityId?: string): Promise<GuideRoute[]> {
 export async function getRoute(slug: string, cityId?: string): Promise<GuideRoute | undefined> {
   return (await loadRoutes(cityId)).find(r => r.slug === slug)
 }
+
+// Request-scoped memo: generateMetadata and the page body both call this,
+// so without cache() every detail page paid the query twice per request.
+export const getExperienceAnyCity: typeof getExperienceAnyCityUncached = reactCache(getExperienceAnyCityUncached)
+
+// Request-scoped memo: generateMetadata and the page body both call this,
+// so without cache() every detail page paid the query twice per request.
+export const getRouteAnyCity: typeof getRouteAnyCityUncached = reactCache(getRouteAnyCityUncached)

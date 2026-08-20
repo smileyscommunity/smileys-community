@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isUploadedImageUrl } from '@/lib/uploadedImageUrl'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { resolveCityId } from '@/lib/city'
@@ -52,8 +53,7 @@ export async function POST(req: NextRequest) {
   const safeNote = typeof note === 'string' ? note.trim().slice(0, 500) || null : null
   // Matches the Listing route's PHOTO_RE — only accept a URL our own
   // upload route produced, never an arbitrary external string.
-  const PHOTO_RE = /^\/app\/api\/files\/[a-zA-Z0-9\-]+\/[a-zA-Z0-9\-]+\.(jpg|jpeg|png|webp|gif)$/
-  const safePhoto = typeof photo === 'string' && PHOTO_RE.test(photo) ? photo : null
+  const safePhoto = typeof photo === 'string' && isUploadedImageUrl(photo) ? photo : null
 
   // Items: 1–20, name required, price free text (matches Listing.price) or
   // empty = FREE.

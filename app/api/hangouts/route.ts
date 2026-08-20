@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isUploadedImageUrl } from '@/lib/uploadedImageUrl'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { resolveCityId } from '@/lib/city'
@@ -174,8 +175,7 @@ export async function POST(req: NextRequest) {
     // photo: must be a string matching the upload-output URL pattern. Same
     // regex as DM image attachments — prevents a malicious client from
     // smuggling a remote URL through this field.
-    const PHOTO_URL_RE = /^\/app\/api\/files\/[a-zA-Z0-9\-]+\/[a-zA-Z0-9\-]+\.(jpg|jpeg|png|webp|gif)$/
-    const safePhoto = typeof photo === 'string' && PHOTO_URL_RE.test(photo) ? photo : null
+    const safePhoto = typeof photo === 'string' && isUploadedImageUrl(photo) ? photo : null
 
     // Optional club share (Clubs brief §29) — one canonical Hangout,
     // additionally surfaced in the club. Requires approved membership.

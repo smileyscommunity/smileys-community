@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isUploadedImageUrl } from '@/lib/uploadedImageUrl'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
@@ -77,9 +78,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (photo !== undefined) {
     // Same regex as the create route / DM attachments — only our own
     // upload-output paths, never a smuggled remote URL.
-    const PHOTO_URL_RE = /^\/app\/api\/files\/[a-zA-Z0-9\-]+\/[a-zA-Z0-9\-]+\.(jpg|jpeg|png|webp|gif)$/
     if (photo === null) data.photo = null
-    else if (typeof photo === 'string' && PHOTO_URL_RE.test(photo)) data.photo = photo
+    else if (typeof photo === 'string' && isUploadedImageUrl(photo)) data.photo = photo
     else return NextResponse.json({ error: 'Invalid photo URL' }, { status: 400 })
   }
 

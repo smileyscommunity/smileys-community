@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { timeAgo } from '@/lib/timeAgo'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
@@ -46,15 +47,6 @@ const TYPE_ICON: Record<string, string> = {
   event_survey:        '✍️',
 }
 
-function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime()
-  const m = Math.floor(diff / 60000)
-  if (m < 1)  return 'just now'
-  if (m < 60) return `${m}m ago`
-  const h = Math.floor(m / 60)
-  if (h < 24) return `${h}h ago`
-  return `${Math.floor(h / 24)}d ago`
-}
 
 export default function NotificationBell() {
   const [open,   setOpen]   = useState(false)

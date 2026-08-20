@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { resolveImageUrl } from '@/lib/data'
+import { resolveImageUrl, getInitials } from '@/lib/data'
 
 interface Requester {
   id: string
@@ -18,9 +18,6 @@ interface PendingConn {
   createdAt: string
 }
 
-function getInitials(name: string) {
-  return name.trim().split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
-}
 
 export default function PendingConnectionsWidget() {
   const [pending,  setPending]  = useState<PendingConn[]>([])

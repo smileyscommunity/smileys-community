@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isUploadedImageUrl } from '@/lib/uploadedImageUrl'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
 import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
 
 type Params = { params: Promise<{ id: string }> }
-
-const PHOTO_RE = /^\/app\/api\/files\/[a-zA-Z0-9\-]+\/[a-zA-Z0-9\-]+\.(jpg|jpeg|png|webp|gif)$/
 
 // Owner lifecycle: mark items claimed, close or remove the sale, or (owner/
 // admin) edit the sale's own fields — date, neighborhood, note, photo, and
@@ -54,7 +53,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       data.note = typeof note === 'string' ? note.trim().slice(0, 500) || null : null
     }
     if (photo !== undefined) {
-      data.photo = typeof photo === 'string' && PHOTO_RE.test(photo) ? photo : null
+      data.photo = typeof photo === 'string' && isUploadedImageUrl(photo) ? photo : null
     }
 
     if (items !== undefined) {

@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { formatDate, formatTime, formatPrice, resolveImageUrl, avatarUrl, BLUR_PLACEHOLDER } from '@/lib/data'
+import { formatDate, formatTime, formatPrice, resolveImageUrl, avatarUrl, BLUR_PLACEHOLDER, getInitials } from '@/lib/data'
 import { articleCover } from '@/lib/articleCover'
 import { neighborhoodToSlug } from '@/lib/neighborhoods'
 import { prisma } from '@/lib/prisma'
@@ -37,9 +37,6 @@ import { todayInTz } from '@/lib/cityTime'
 
 export const dynamic = 'force-dynamic'
 
-function getInitials(name: string) {
-  return name.trim().split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
-}
 
 function getGreeting(tz: string) {
   // Use the IANA Europe/Istanbul zone instead of hardcoding `getUTCHours() + 3`.

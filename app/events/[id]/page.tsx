@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation'
+import { jsonLdHtml } from '@/lib/jsonLd'
 import { headers } from 'next/headers'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -177,10 +178,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
           type="application/ld+json"
           nonce={nonce}
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify(guestJsonLd)
-              .replace(/</g, '\\u003c')
-              .replace(/\u2028/g, '\\u2028')
-              .replace(/\u2029/g, '\\u2029'),
+            __html: jsonLdHtml(guestJsonLd),
           }}
         />
 
@@ -493,10 +491,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
         // and the unicode line separators U+2028 / U+2029 (which
         // terminate JS string literals).
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(jsonLd)
-            .replace(/</g, '\\u003c')
-            .replace(/\u2028/g, '\\u2028')
-            .replace(/\u2029/g, '\\u2029'),
+          __html: jsonLdHtml(jsonLd),
         }}
       />
       {/* Back */}

@@ -12,6 +12,11 @@
 // The first two are re-exported here so server callers need one import.
 
 import { unstable_cache } from 'next/cache'
+import React from 'react'
+// React 18's runtime (vitest) has no cache(); Next's server runtime does.
+// Identity fallback keeps tests running — memoization is an optimization.
+const cache: <T extends (...a: never[]) => unknown>(fn: T) => T =
+  (React as unknown as { cache?: typeof cache }).cache ?? ((fn) => fn)
 import { prisma } from './prisma'
 import { todayInTz, DEFAULT_TZ } from './cityTime'
 import { CITY_STATUS, isCityStatus, type CityStatus, type CityStats, type PublicCity } from './cityStatus'
@@ -37,7 +42,7 @@ const STATUS_RANK: Record<string, number> = {
  * live ones. One query for the cities plus three grouped counts — not N+1 per
  * city — so this stays cheap as cities are added.
  */
-export async function getPublicCities(): Promise<PublicCity[]> {
+async function getPublicCitiesUncached(): Promise<PublicCity[]> {
   const cities = await prisma.city.findMany({
     where:  { status: { in: PUBLIC_STATUSES } },
     select: {
@@ -62,7 +67,7 @@ export async function getPublicCities(): Promise<PublicCity[]> {
 }
 
 /** One city by slug, or null. Returns paused/unknown as null — same rule as the grid. */
-export async function getPublicCity(slug: string): Promise<PublicCity | null> {
+async function getPublicCityUncached(slug: string): Promise<PublicCity | null> {
   const city = await prisma.city.findFirst({
     where:  { slug, status: { in: PUBLIC_STATUSES } },
     select: {
@@ -145,6 +150,31 @@ export async function getStatsFor(cityIds: string[]): Promise<Map<string, CitySt
   return out
 }
 
+/**
+ * Resolve a client-supplied ?city=<slug> to a cityId for a PUBLIC feed, or a
+ * fail-closed sentinel that matches no rows.
+ *
+ * The one place the status rule lives. Before this, five near-copies each
+ * decided independently which statuses a guessed slug may reach — and the
+ * events copy had no status filter at all, so a PAUSED city's events stayed
+ * readable by slug (pausing a city is precisely the moment its feeds should
+ * go dark). Default allows live + preparing, matching what /api/cities
+ * publishes minus coming_soon; pass ['live'] for surfaces that only exist
+ * once a city has launched.
+ */
+export async function resolvePublicCityIdFromSlug(
+  slug: string,
+  statuses: CityStatus[] = [CITY_STATUS.Live, CITY_STATUS.Preparing],
+): Promise<string> {
+  const c = await prisma.city.findFirst({
+    where:  { slug, status: { in: statuses } },
+    select: { id: true },
+  })
+  // Unknown (or paused/hidden) slug fails CLOSED — an id no row carries —
+  // rather than open to all cities or the default city.
+  return c?.id ?? '__no_such_city__'
+}
+
 // Cities for the nav, cached — the layout renders on EVERY page, so this must
 // not cost a query per request. 60s is plenty: a city changes status about as
 // often as someone edits it in the admin, and the nav catching up a minute
@@ -156,3 +186,11 @@ export const getNavCities = unstable_cache(
   ['nav-cities'],
   { revalidate: 60, tags: ['cities'] },
 )
+
+// Request-scoped memo: generateMetadata and the page body both call this,
+// so without cache() every detail page paid the query twice per request.
+export const getPublicCities: typeof getPublicCitiesUncached = cache(getPublicCitiesUncached)
+
+// Request-scoped memo: generateMetadata and the page body both call this,
+// so without cache() every detail page paid the query twice per request.
+export const getPublicCity: typeof getPublicCityUncached = cache(getPublicCityUncached)

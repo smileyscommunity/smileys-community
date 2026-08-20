@@ -1,4 +1,9 @@
 import { prisma } from './prisma'
+import React from 'react'
+// React 18's runtime (vitest) has no cache(); Next's server runtime does.
+// Identity fallback keeps tests running — memoization is an optimization.
+const cache: <T extends (...a: never[]) => unknown>(fn: T) => T =
+  (React as unknown as { cache?: typeof cache }).cache ?? ((fn) => fn)
 import type { Club, Event, VibeTag } from './data'
 import { nowInTz, todayInTz, DEFAULT_TZ } from './cityTime'
 import { getCityTz, getCityConfig } from './city'
@@ -56,7 +61,7 @@ export async function getClubs(cityId: string): Promise<Club[]> {
   })) as unknown as Club[]
 }
 
-export async function getClubBySlug(slug: string): Promise<Club | undefined> {
+async function getClubBySlugUncached(slug: string): Promise<Club | undefined> {
   // findFirst (not findUnique) so we can compose the slug match with
   // the isActive gate. Deactivated clubs return undefined → the
   // detail page + public JSON endpoint both 404, matching the
@@ -285,7 +290,7 @@ export async function getEvents(options?: {
   return { events, total }
 }
 
-export async function getEventById(id: string): Promise<Event | undefined> {
+async function getEventByIdUncached(id: string): Promise<Event | undefined> {
   const row = await prisma.event.findUnique({
     where: { id },
     include: eventInclude,
@@ -318,3 +323,11 @@ export async function getEventsByClub(clubId: string): Promise<Event[]> {
   })
   return enrichHosts(rows.map(e => mapEvent(e)))
 }
+
+// Request-scoped memo: generateMetadata and the page body both call this,
+// so without cache() every detail page paid the query twice per request.
+export const getClubBySlug: typeof getClubBySlugUncached = cache(getClubBySlugUncached)
+
+// Request-scoped memo: generateMetadata and the page body both call this,
+// so without cache() every detail page paid the query twice per request.
+export const getEventById: typeof getEventByIdUncached = cache(getEventByIdUncached)

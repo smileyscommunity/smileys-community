@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isUploadedImageUrl } from '@/lib/uploadedImageUrl'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { Role } from '@/lib/constants'
@@ -11,7 +12,9 @@ import { areApplicationsOpen, newApplicationEmailsEnabled } from '@/lib/communit
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const disposableDomains: string[] = require('disposable-email-domains')
 
-const PHOTO_RE = /^\/app\/api\/files\/[a-zA-Z0-9-]+\/[a-zA-Z0-9-]+\.(jpg|jpeg|png|webp|gif)$/
+// Applicant photos live in the applications/ folder (their own upload
+// route); that folder is admin-gated at serve time and excluded from the
+// shared validator's public default, so it's named explicitly here.
 
 const applySchema = z.object({
   firstName:   z.string().trim().min(1).max(100),
@@ -21,7 +24,7 @@ const applySchema = z.object({
   country:     z.string().trim().min(1).max(100),
   neighborhood:z.string().trim().min(1).max(200),
   gender:      z.string().trim().min(1).max(50),
-  profilePhoto:z.string().trim().regex(PHOTO_RE, 'Invalid profile photo'),
+  profilePhoto:z.string().trim().refine(v => isUploadedImageUrl(v, ['applications']), 'Invalid profile photo'),
   // Optional fields
   birthdate:       z.string().trim().max(20).optional().nullable(),
   city:            z.string().trim().max(100).optional().nullable(),

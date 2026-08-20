@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator, isAdmin } from '@/lib/access'
+import { isAdminOrModerator, isAdmin, failClosedCityId } from '@/lib/access'
 
 export async function GET(req: NextRequest) {
   const session = await getSession()
@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   const cityParam = new URL(req.url).searchParams.get('city')
   const cityId = isAdmin(session)
     ? (cityParam || null)
-    : (session.cityId ?? '__no_city__')
+    : (failClosedCityId(session))
 
   const now       = new Date()
   const day7ago   = new Date(now.getTime() - 7  * 86400000)

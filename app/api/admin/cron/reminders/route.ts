@@ -11,6 +11,18 @@ import { getSession } from '@/lib/session'
 import { citiesByToday, type CityDay } from '@/lib/city'
 import { uploadRoot } from '@/lib/uploadRoot'
 
+// One findMany instead of a findFirst per attendee. The per-row shape ran
+// events × attendees queries every nightly sweep — easily 1–2k round trips;
+// each loop below now pre-fetches its dedupe set in a single query.
+async function sentKeys(type: string, userIds: string[], links: string[]): Promise<Set<string>> {
+  if (userIds.length === 0 || links.length === 0) return new Set()
+  const rows = await prisma.notification.findMany({
+    where:  { type, userId: { in: userIds }, link: { in: links } },
+    select: { userId: true, link: true },
+  })
+  return new Set(rows.map(r => `${r.userId}:${r.link}`))
+}
+
 export async function GET(req: NextRequest) {
   const cronSecret = process.env.CRON_SECRET
   if (!cronSecret) {
@@ -78,6 +90,24 @@ export async function GET(req: NextRequest) {
     where: { status: 'active', expiresAt: { gte: now, lte: in7days } },
     include: { user: { select: { id: true, email: true, name: true } } },
   })
+  // Pre-fetch the latest expiry reminder per (user, listing) in one query —
+  // this loop ran a findFirst per expiring listing.
+  const expiryRows = await prisma.notification.findMany({
+    where: {
+      type: 'listing_expiry',
+      userId: { in: [...new Set(expiringListings.map(l => l.userId))] },
+      link:   { in: expiringListings.flatMap(l => [`/board/${l.id}`, `/listings/${l.id}`]) },
+    },
+    select: { userId: true, link: true, createdAt: true },
+  })
+  const latestExpiryNote = new Map<string, number>()
+  for (const r of expiryRows) {
+    if (!r.link) continue
+    const lid = r.link.split('/').pop()!
+    const key = `${r.userId}:${lid}`
+    const t = new Date(r.createdAt).getTime()
+    if ((latestExpiryNote.get(key) ?? 0) < t) latestExpiryNote.set(key, t)
+  }
   for (const listing of expiringListings) {
     const daysLeft = Math.ceil((listing.expiresAt.getTime() - Date.now()) / 86400000)
     const isWarningDay = daysLeft === 7 || daysLeft === 3
@@ -90,12 +120,8 @@ export async function GET(req: NextRequest) {
     // the rename a member could get one extra reminder — a duplicate is far
     // safer here than missing an expiry warning and losing the listing.
     const listingLink = `/board/${listing.id}`
-    const alreadyNotified = await prisma.notification.findFirst({
-      where: { userId: listing.userId, type: 'listing_expiry', link: { in: [listingLink, `/listings/${listing.id}`] } },
-      orderBy: { createdAt: 'desc' },
-    })
-    const recentlyNotified = alreadyNotified && (Date.now() - new Date(alreadyNotified.createdAt).getTime()) < 2 * 24 * 60 * 60 * 1000
-    if (recentlyNotified) continue
+    const lastSent = latestExpiryNote.get(`${listing.userId}:${listing.id}`)
+    if (lastSent && Date.now() - lastSent < 2 * 24 * 60 * 60 * 1000) continue
     await createNotification(
       listing.userId,
       'listing_expiry',
@@ -125,16 +151,17 @@ export async function GET(req: NextRequest) {
   })
 
   let sentConnections = 0
+  const connSent = await sentKeys(
+    'connection_suggestion',
+    justArchivedEvents.flatMap(e => e.attendees.map(a => a.userId)),
+    justArchivedEvents.map(e => `/events/${e.id}`),
+  )
   for (const event of justArchivedEvents) {
     const attendeeIds = event.attendees.map(a => a.userId)
     if (attendeeIds.length < 2) continue
 
     for (const userId of attendeeIds) {
-      // Skip if already sent a connection suggestion for this event
-      const exists = await prisma.notification.findFirst({
-        where: { userId, type: 'connection_suggestion', link: `/events/${event.id}` },
-      })
-      if (exists) continue
+      if (connSent.has(`${userId}:/events/${event.id}`)) continue
 
       const othersCount = attendeeIds.length - 1
       await createNotification(
@@ -169,6 +196,12 @@ export async function GET(req: NextRequest) {
   let sent2h  = 0
   let sentReviews = 0
 
+  const upcomingAttendeeIds = upcomingEvents.flatMap(e => e.attendees.map(a => a.userId))
+  const upcomingLinks = upcomingEvents.map(e => `/events/${e.id}`)
+  const [sent24Set, sent2Set] = await Promise.all([
+    sentKeys('reminder_24h', upcomingAttendeeIds, upcomingLinks),
+    sentKeys('reminder_2h',  upcomingAttendeeIds, upcomingLinks),
+  ])
   for (const event of upcomingEvents) {
     const eventTime = new Date(`${event.date}T${event.time.length === 5 ? event.time : event.time.substring(0, 5)}:00`)
     const diffHours = (eventTime.getTime() - now.getTime()) / (60 * 60 * 1000)
@@ -180,20 +213,14 @@ export async function GET(req: NextRequest) {
 
     for (const { userId } of event.attendees) {
       if (is24h) {
-        const exists = await prisma.notification.findFirst({
-          where: { userId, type: 'reminder_24h', link: `/events/${event.id}` },
-        })
-        if (!exists) {
+        if (!sent24Set.has(`${userId}:/events/${event.id}`)) {
           await createNotification(userId, 'reminder_24h', 'Event tomorrow ⏰', `"${event.title}" is tomorrow at ${event.time}`, `/events/${event.id}`)
           sendPushToUser(userId, { title: 'Event tomorrow ⏰', body: `"${event.title}" is tomorrow at ${event.time}`, link: `/events/${event.id}` }).catch(() => {})
           sent24h++
         }
       }
       if (is2h) {
-        const exists = await prisma.notification.findFirst({
-          where: { userId, type: 'reminder_2h', link: `/events/${event.id}` },
-        })
-        if (!exists) {
+        if (!sent2Set.has(`${userId}:/events/${event.id}`)) {
           await createNotification(userId, 'reminder_2h', 'Starting soon ⚡', `"${event.title}" starts in ~2 hours at ${event.time}`, `/events/${event.id}`)
           sendPushToUser(userId, { title: 'Starting soon ⚡', body: `"${event.title}" starts in ~2 hours at ${event.time}`, link: `/events/${event.id}` }).catch(() => {})
           sent2h++
@@ -203,13 +230,16 @@ export async function GET(req: NextRequest) {
   }
 
   // Review requests — yesterday's events
+  const reviewSent = await sentKeys('review_request',
+    pastEvents.flatMap(e => e.attendees.map(a => a.user.id)), ['/reviews'])
   for (const event of pastEvents) {
     for (const attendee of event.attendees) {
       const userId = attendee.user.id
-      const exists = await prisma.notification.findFirst({
-        where: { userId, type: 'review_request', link: `/reviews` },
-      })
-      if (!exists) {
+      if (!reviewSent.has(`${userId}:/reviews`)) {
+        // Mark locally too — two of yesterday's events sharing an attendee
+        // must not send twice within this run (the DB row from the first
+        // send isn't in the pre-fetched set).
+        reviewSent.add(`${userId}:/reviews`)
         await createNotification(
           userId,
           'review_request',

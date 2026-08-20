@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation'
+import { jsonLdHtml } from '@/lib/jsonLd'
 import { headers } from 'next/headers'
 import Link from 'next/link'
 import type { Metadata } from 'next'
@@ -204,10 +205,7 @@ export default async function HandbookArticlePage({ params }: Params) {
         type="application/ld+json"
         nonce={nonce}
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(articleJsonLd)
-            .replace(/</g, '\\u003c')
-            .replace(/\u2028/g, '\\u2028')
-            .replace(/\u2029/g, '\\u2029'),
+          __html: jsonLdHtml(articleJsonLd),
         }}
       />
       <HandbookArticleTracker slug={post.slug} title={post.title} category={post.category} />

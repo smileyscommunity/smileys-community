@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isUploadedImageUrl } from '@/lib/uploadedImageUrl'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { resolveCityId } from '@/lib/city'
@@ -119,13 +120,11 @@ export async function POST(req: NextRequest) {
   }
   if (title.length > 120) return NextResponse.json({ error: 'Title too long' }, { status: 400 })
   if (description.length > 2000) return NextResponse.json({ error: 'Description too long' }, { status: 400 })
-
-  const PHOTO_RE = /^\/app\/api\/files\/[a-zA-Z0-9\-]+\/[a-zA-Z0-9\-]+\.(jpg|jpeg|png|webp|gif)$/
-  const safePhoto = typeof photo === 'string' && PHOTO_RE.test(photo) ? photo : null
+  const safePhoto = typeof photo === 'string' && isUploadedImageUrl(photo) ? photo : null
   // Gallery: up to 4 more shots, each held to the same upload-URL shape as
   // the cover so nothing external can be embedded.
   const safePhotos = Array.isArray(photos)
-    ? [...new Set(photos.filter((u): u is string => typeof u === 'string' && PHOTO_RE.test(u)))].slice(0, 4)
+    ? [...new Set(photos.filter((u): u is string => typeof u === 'string' && isUploadedImageUrl(u)))].slice(0, 4)
     : []
 
   // Category-specific attributes — one JSON column, but only allowlisted

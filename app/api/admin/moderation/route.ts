@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { canModerateReports, isAdmin } from '@/lib/access'
+import { canModerateReports, isAdmin, failClosedCityId } from '@/lib/access'
 import { neighborhoodToSlug } from '@/lib/neighborhoods'
 
 export async function GET() {
@@ -19,7 +19,7 @@ export async function GET() {
     // not fall through to the admin all-cities view — the bug this replaces.
     const cityFilter = isAdmin(session)
       ? {}
-      : { reported: { is: { cityId: session.cityId ?? '__no_city__' } } }
+      : { reported: { is: { cityId: failClosedCityId(session) } } }
 
     const reports = await prisma.report.findMany({
       where:   cityFilter,

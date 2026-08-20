@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { resolvePublicCityIdFromSlug } from '@/lib/cities'
 import { getSession } from '@/lib/session'
 import { resolveCityId } from '@/lib/city'
 import { getNeighborhoodsForCity } from '@/lib/neighborhoodsDb'
@@ -19,12 +20,7 @@ export async function GET(req: NextRequest) {
   let cityId: string
   const citySlug = req.nextUrl.searchParams.get('city')?.trim()
   if (citySlug) {
-    const { prisma } = await import('@/lib/prisma')
-    const c = await prisma.city.findFirst({
-      where: { slug: citySlug, status: { in: ['live', 'preparing'] } },
-      select: { id: true },
-    })
-    cityId = c?.id ?? '__no_such_city__'
+    cityId = await resolvePublicCityIdFromSlug(citySlug)
   } else {
     cityId = await resolveCityId(session)
   }

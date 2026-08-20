@@ -1,4 +1,4 @@
-import { canManageUsers, canViewUserList, isAdmin as sessionIsAdmin } from '@/lib/access'
+import { canManageUsers, canViewUserList, isAdmin as sessionIsAdmin, failClosedCityId } from '@/lib/access'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
       // Fail CLOSED for a city-less moderator — an empty filter used to fall
       // through to `{}` (all cities), exposing the full cross-city roster
       // (incl. banReason/appealNote/lastFingerprint). Match nothing instead.
-      if (!sessionIsAdmin(session)) return { cityId: session.cityId ?? '__no_city__' }
+      if (!sessionIsAdmin(session)) return { cityId: failClosedCityId(session) }
       const cityId = params.get('city')
       return cityId ? { cityId } : {}
     })()

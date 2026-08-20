@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { jsonLdHtml } from '@/lib/jsonLd'
 import Image from 'next/image'
 import { headers } from 'next/headers'
 import { prisma } from '@/lib/prisma'
@@ -23,12 +24,6 @@ function absoluteImageUrl(path: string | null | undefined): string | undefined {
 // (handbook article / event detail / FAQ / neighborhood Place) — JSON.stringify
 // doesn't escape `<`, so a literal `</script>` in interpolated text would
 // break out of the tag.
-function jsonLdHtml(data: unknown): string {
-  return JSON.stringify(data)
-    .replace(/</g, '\\u003c')
-    .replace(/\u2028/g, '\\u2028')
-    .replace(/\u2029/g, '\\u2029')
-}
 
 // Istanbul's areas read naturally as "the centre" / "the European side";
 // another city's area is just a name, so it falls through to "Also in <area>".

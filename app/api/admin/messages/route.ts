@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { canModerateMessages, isAdmin } from '@/lib/access'
+import { canModerateMessages, isAdmin, failClosedCityId } from '@/lib/access'
 
 export async function GET(req: NextRequest) {
   try {
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
     // re-check the event's cityId.
     const cityFilter = isAdmin(session)
       ? {}
-      : { event: { cityId: session.cityId ?? '__none__' } }
+      : { event: { cityId: failClosedCityId(session) } }
 
     const messages = await prisma.eventMessage.findMany({
       where: { ...(eventId ? { eventId } : {}), ...cityFilter },

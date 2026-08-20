@@ -47,6 +47,19 @@ export function isPartner(session: SessionUser): boolean {
 //
 // Defensive: a moderator missing `session.cityId` (e.g. session issued
 // from a frame where the DB refresh hasn't run yet) fails closed.
+/**
+ * The cityId a MODERATOR's list queries scope to: their own city, or — for a
+ * moderator with no city — a sentinel that matches no rows (fail CLOSED).
+ *
+ * Before this, the idiom was hand-rolled ~12 times with two different
+ * sentinel spellings ('__no_city__' and '__none__'), and one route
+ * (moderation) once inverted it into fail-OPEN. One helper, one spelling,
+ * one behavior to audit.
+ */
+export function failClosedCityId(session: Pick<SessionUser, 'cityId'>): string {
+  return session.cityId ?? '__no_city__'
+}
+
 export function canActInCity(session: SessionUser, targetCityId?: string | null): boolean {
   if (session.role === Role.Admin) return true
   if (session.role !== 'moderator') return false

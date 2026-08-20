@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isUploadedImageUrl } from '@/lib/uploadedImageUrl'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { createNotification } from '@/lib/notify'
@@ -103,8 +104,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     // Image must be a path produced by our /api/upload (same regex enforced
     // for event/listing photos) — prevents injecting external trackers.
-    const photoRegex = /^\/app\/api\/files\/[a-zA-Z0-9\-]+\/[a-zA-Z0-9\-]+\.(jpg|jpeg|png|webp|gif)$/
-    const safeImageUrl = hasImage && photoRegex.test(imageUrl) ? imageUrl : null
+    const safeImageUrl = hasImage && isUploadedImageUrl(imageUrl) ? imageUrl : null
     if (hasImage && !safeImageUrl) return NextResponse.json({ error: 'Invalid image URL' }, { status: 400 })
 
     // Verify the replyToId (if present) belongs to this conversation — prevents

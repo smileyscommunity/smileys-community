@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { canViewModStats, isAdmin } from '@/lib/access'
+import { canViewModStats, isAdmin, failClosedCityId } from '@/lib/access'
 import { todayInCity, resolveCityId } from '@/lib/city'
 
 export async function GET() {
@@ -15,9 +15,9 @@ export async function GET() {
     // city-scoped for moderators (fail-closed), so a network-wide count here
     // made a Bodrum moderator's sidebar say "3 reports" over an empty queue.
     // Admins keep the network view (their dashboard is the scoped stats route).
-    const inCity        = isAdmin(session) ? {} : { cityId: session.cityId ?? '__no_city__' }
-    const reportsInCity = isAdmin(session) ? {} : { reported: { is: { cityId: session.cityId ?? '__no_city__' } } }
-    const msgInCity     = isAdmin(session) ? {} : { event: { is: { cityId: session.cityId ?? '__no_city__' } } }
+    const inCity        = isAdmin(session) ? {} : { cityId: failClosedCityId(session) }
+    const reportsInCity = isAdmin(session) ? {} : { reported: { is: { cityId: failClosedCityId(session) } } }
+    const msgInCity     = isAdmin(session) ? {} : { event: { is: { cityId: failClosedCityId(session) } } }
 
     const [
       pendingApplications,
@@ -27,7 +27,7 @@ export async function GET() {
       recentMessages,
       myEvents,
     ] = await Promise.all([
-      prisma.memberApplication.count({ where: { status: 'pending', ...(isAdmin(session) ? {} : { targetCityId: session.cityId ?? '__no_city__' }) } }),
+      prisma.memberApplication.count({ where: { status: 'pending', ...(isAdmin(session) ? {} : { targetCityId: failClosedCityId(session) }) } }),
       prisma.report.count({ where: { status: 'pending', ...reportsInCity } }),
       prisma.event.count({ where: { status: 'pending', ...inCity } }),
       // Visitors-this-week — mods see the same soft signal admins do so the

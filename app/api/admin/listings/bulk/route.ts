@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isUploadedImageUrl } from '@/lib/uploadedImageUrl'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { resolveCityId } from '@/lib/city'
@@ -67,7 +68,6 @@ export async function POST(req: NextRequest) {
 
   // Validate each item before writing anything — atomic-ish (we don't wrap in a tx
   // because alerts fire per-create; if one fails it fails the batch).
-  const photoRegex = /^\/app\/api\/files\/[a-zA-Z0-9\-]+\/[a-zA-Z0-9\-]+\.(jpg|jpeg|png|webp|gif)$/
   const cleaned = items.map((raw, i) => {
     const title = String(raw.title ?? '').trim()
     const description = String(raw.description ?? '').trim()
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
     if (description.length > 2000) throw new Error(`Item ${i + 1}: description too long`)
     const price = raw.price ? String(raw.price).trim().slice(0, 100) : null
     const contact = raw.contact ? String(raw.contact).trim().slice(0, 200) : null
-    const photo = typeof raw.photo === 'string' && photoRegex.test(raw.photo) ? raw.photo : null
+    const photo = typeof raw.photo === 'string' && isUploadedImageUrl(raw.photo) ? raw.photo : null
     // Per-item override (parsed from "Neighborhood:" line) wins over the batch default;
     // unknown names silently fall back to the default rather than failing the whole batch.
     const itemNbhd = typeof raw.neighborhood === 'string'

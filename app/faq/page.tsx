@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { jsonLdHtml } from '@/lib/jsonLd'
 import { headers } from 'next/headers'
 import { isValidElement, type ReactNode } from 'react'
 import { APP_URL } from '@/lib/env'
@@ -228,10 +229,7 @@ export default async function FAQPage() {
         // interpolated value would break out of this tag — escape `<` plus
         // the unicode line separators (same guard as the other JSON-LD blocks).
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(faqJsonLd)
-            .replace(/</g, '\\u003c')
-            .replace(/\u2028/g, '\\u2028')
-            .replace(/\u2029/g, '\\u2029'),
+          __html: jsonLdHtml(faqJsonLd),
         }}
       />
 
