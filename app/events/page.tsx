@@ -308,7 +308,17 @@ function AppEventsPageInner() {
                   for a non-default city and show the bare badge for the default
                   one, so the default city was the only feed that never said
                   where it was. Appending keeps the editor's badge either way. */}
-              <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">🗓️ {viewCity ? `${hero.badge} · ${viewCity.name}` : hero.badge}</span>
+              <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">🗓️ {(() => {
+                // Appending the city to the CMS badge produced "ISTANBUL ·
+                // ISTANBUL" when the badge itself is the city name (the
+                // client-state default is 'Istanbul', and an editor can type
+                // the city too). Dedupe: an empty or city-named badge renders
+                // as just the city.
+                const badge = hero.badge?.trim()
+                if (!viewCity) return badge
+                if (!badge || badge.toLowerCase() === viewCity.name.toLowerCase()) return viewCity.name
+                return `${badge} · ${viewCity.name}`
+              })()}</span>
               {/* The view-city cookie lives a year — without a visible way
                   out, one click into another city pins every feed there. */}
               {viewCity?.viewing && viewCity.homeName && (
