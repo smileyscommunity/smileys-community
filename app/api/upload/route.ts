@@ -32,24 +32,20 @@ export async function POST(req: NextRequest) {
     // Admins and moderators can upload anywhere
     const isPrivileged = ['admin', 'moderator'].includes(session.role)
 
-    // Club hosts (role = 'member' at account level but 'host' in a club) can upload event images
-    let isClubHost = false
-    if (!isPrivileged && folder !== 'users') {
-      const hostMembership = await prisma.clubMembership.findFirst({
-        where: { userId: session.id, role: 'host', status: 'approved' },
-        select: { id: true },
-      })
-      isClubHost = !!hostMembership
-    }
-
     // Regular members can upload event/club/hangout/listing/directory
     // photos; downstream API routes enforce per-feature auth (e.g. the
     // hangouts POST checks the returned URL against a regex before
     // storing). Directory submissions go through admin review unless
     // the submitter is an admin, so misuse gets caught there.
+    //
+    // There used to be a club-host branch here that BYPASSED the folder
+    // check entirely — any member holding a club-host membership could
+    // upload into posts/, guide/, general/, anywhere. Its stated purpose
+    // ("event images") was already covered by the member set below, so it
+    // was pure privilege widening; removed rather than folder-scoped.
     const isMemberUpload = folder === 'events' || folder === 'clubs' || folder === 'hangouts' || folder === 'listings' || folder === 'directory'
 
-    if (!isPrivileged && !isClubHost && !isMemberUpload && folder !== 'users') {
+    if (!isPrivileged && !isMemberUpload && folder !== 'users') {
       return NextResponse.json({ error: 'You can only upload profile photos.' }, { status: 403 })
     }
 

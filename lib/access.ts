@@ -180,6 +180,41 @@ export function canViewModStats(session: SessionUser): boolean {
 }
 
 // ── Async host checks ──────────────────────────────────────────────────────
+
+/**
+ * May this user manage a specific EVENT's operations — participants,
+ * check-in, attendee actions?
+ *
+ * True for: admins; the event's host; its CO-hosts; and approved hosts of
+ * its parent club. This predicate used to exist as two byte-identical
+ * private copies (admin participants route + public check-in route), both
+ * of which OMITTED co-hosts — so a co-host added via the cohosts route
+ * could see the event chat and photos (those siblings check eventCoHost)
+ * but couldn't run the door at their own event. One home, co-hosts
+ * included, so the next fix lands everywhere at once.
+ *
+ * Deliberately admin-only at the role level (not moderators): participant
+ * mutations are event-ops, and a moderator with no relationship to the
+ * event has no business at its door. Moderators who host still qualify
+ * through the host/co-host arms.
+ */
+export async function canManageEventOps(sessionId: string, sessionRole: string, eventId: string): Promise<boolean> {
+  if (sessionRole === 'admin') return true
+  const event = await prisma.event.findUnique({ where: { id: eventId }, select: { clubId: true, hostId: true } })
+  if (!event) return false
+  if (event.hostId === sessionId) return true
+  const cohost = await prisma.eventCoHost.findUnique({
+    where: { eventId_userId: { eventId, userId: sessionId } },
+    select: { userId: true },
+  })
+  if (cohost) return true
+  if (!event.clubId) return false
+  const membership = await prisma.clubMembership.findFirst({
+    where: { userId: sessionId, clubId: event.clubId, role: 'host', status: 'approved' },
+    select: { id: true },
+  })
+  return !!membership
+}
 export async function isClubHost(userId: string): Promise<boolean> {
   const count = await prisma.clubMembership.count({
     where: { userId, status: MembershipStatus.Approved, role: 'host' },

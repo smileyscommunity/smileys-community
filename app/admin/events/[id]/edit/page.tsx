@@ -385,17 +385,18 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
       setSeriesId(sid)
     }
 
+    // Derived from buildSavePayload rather than re-spreading `form`: this
+    // block used to skip the payTo/ticketUrl remap and the gender-quota
+    // parse/clear, so every spawned copy of a paid or gender-balanced event
+    // POSTed UI-only payTo values ('free'/'buyonline') and string quotas.
+    // One payload builder, spawn-specific overrides on top.
     const payload = {
-      ...form, tagIds: selectedTagIds, vibes: [], seriesId: sid, isRecurring: true,
-      minAge: form.minAge ? parseInt(form.minAge) : null,
-      maxAge: form.maxAge ? parseInt(form.maxAge) : null,
-      coverImage: form.coverImage || null, coverImagePosition: form.coverImagePosition,
-      meetingUrl: form.meetingUrl || null,
-      whatsappUrl: form.whatsappUrl || null, address: form.address || null,
-      language: form.language || null, refundPolicy: form.refundPolicy || null,
+      ...buildSavePayload(false),
+      applyToSeries: undefined,
+      seriesId: sid, isRecurring: true,
+      // Each copy gets its own date below; a deadline copied from the source
+      // would predate most of the series.
       registrationDeadline: null,
-      lat: form.lat ? parseFloat(form.lat) : null,
-      lng: form.lng ? parseFloat(form.lng) : null,
     }
     try {
       for (const date of dates) {

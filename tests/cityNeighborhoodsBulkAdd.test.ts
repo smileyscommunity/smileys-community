@@ -13,7 +13,7 @@ vi.mock('@/lib/audit',   () => ({ writeAudit: vi.fn(async () => {}) }))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     city:         { findUnique: vi.fn(async () => ({ id: 'c-izm', name: 'Izmir' })) },
-    neighborhood: { findMany: vi.fn(async () => []), createMany: vi.fn(async () => ({ count: 0 })), updateMany: vi.fn() },
+    neighborhood: { findMany: vi.fn(async () => []), createMany: vi.fn(async () => ({ count: 0 })), updateMany: vi.fn(), count: vi.fn(async () => 0) },
   },
 }))
 
@@ -45,7 +45,7 @@ describe('city neighborhoods bulk-add', () => {
 
   it('re-pasting a grown list adds exactly the new names', async () => {
     ;(prisma.neighborhood.findMany as any).mockResolvedValue([
-      { slug: 'alsancak', name: 'Alsancak', sortOrder: 1 },
+      { id: 'n0', slug: 'alsancak', name: 'Alsancak', sortOrder: 1, active: true },
     ])
     const res = await post({ names: ['Alsancak', 'Bornova'] })
     const body = await res.json()
@@ -75,5 +75,19 @@ describe('city neighborhoods bulk-add', () => {
     const res = await post({ names: Array.from({ length: 101 }, (_, i) => `Hood ${i}`) })
     expect(res.status).toBe(400)
     expect(prisma.neighborhood.createMany).not.toHaveBeenCalled()
+  })
+
+  it('re-pasting a soft-deleted name RE-ACTIVATES it instead of skipping', async () => {
+    ;(prisma.neighborhood.findMany as any).mockResolvedValueOnce([
+      { id: 'n1', slug: 'foo', name: 'Foo', sortOrder: 1, active: false },
+    ])
+    const res = await post({ names: ['Foo'] })
+    const body = await res.json()
+    // Not created (slug exists), not skipped (it was hidden) — reactivated.
+    expect(body.reactivated).toBe(1)
+    expect(body.added).toBe(0)
+    expect((prisma.neighborhood.updateMany as any).mock.calls[0][0]).toMatchObject({
+      data: { active: true },
+    })
   })
 })

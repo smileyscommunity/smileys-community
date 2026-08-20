@@ -848,7 +848,24 @@ function AdminUsersPageInner() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <Link href={`/admin/users/${u.id}`} className="font-semibold text-sm text-white truncate hover:text-amber-400 transition-colors">{u.name}</Link>
-                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full capitalize shrink-0 ${roleBadgeClass(u.role)}`}>{u.role}</span>
+                        {/* Same role control as the desktop row — this was a
+                            static badge, which made promote/demote structurally
+                            impossible from a phone. Admin rows stay read-only,
+                            matching desktop. */}
+                        {u.role === 'admin' ? (
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full capitalize shrink-0 ${roleBadgeClass(u.role)}`}>{u.role}</span>
+                        ) : (
+                          <select
+                            value={u.role}
+                            onChange={e => changeRole(u, e.target.value)}
+                            onClick={e => e.stopPropagation()}
+                            className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-zinc-700 text-zinc-300 border-0 focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer shrink-0"
+                          >
+                            <option value="member">member</option>
+                            <option value="moderator">moderator</option>
+                            <option value="admin">admin</option>
+                          </select>
+                        )}
                         <CityBadge city={u.city} cities={cities} />
                       </div>
                       <div className="text-xs text-zinc-500">

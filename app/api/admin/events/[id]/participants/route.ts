@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { findPromotableFromWaitlist, hasQuotaRoomFor, quotaEventSelect } from '@/lib/eventQuota'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdmin, isClubHost } from '@/lib/access'
+import { isAdmin, isClubHost, canManageEventOps } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
 import { sendEventApprovedEmail, sendEventRejectedEmail, recordEmailFailure } from '@/lib/email'
 import { autoJoinClub } from '@/lib/autoJoinClub'
@@ -96,24 +96,14 @@ type Params = { params: Promise<{ id: string }> }
 
 const userSelect = { id: true, name: true, color: true, email: true, profilePhoto: true, gender: true, nationality: true, phone: true }
 
-async function canManageEvent(sessionId: string, eventId: string, sessionRole: string): Promise<boolean> {
-  if (sessionRole === 'admin') return true
-  const event = await prisma.event.findUnique({ where: { id: eventId }, select: { clubId: true, hostId: true } })
-  if (!event) return false
-  if (event.hostId === sessionId) return true
-  if (!event.clubId) return false
-  const membership = await prisma.clubMembership.findFirst({
-    where: { userId: sessionId, clubId: event.clubId, role: 'host', status: 'approved' },
-  })
-  return !!membership
-}
+// Shared predicate — see lib/access.canManageEventOps (adds co-hosts, one home).
 
 export async function GET(_: NextRequest, { params }: Params) {
   try {
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     const { id: eventId } = await params
-    if (!await canManageEvent(session.id, eventId, session.role)) {
+    if (!await canManageEventOps(session.id, session.role, eventId)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -169,7 +159,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     const { id: eventId } = await params
-    if (!await canManageEvent(session.id, eventId, session.role)) {
+    if (!await canManageEventOps(session.id, session.role, eventId)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
     const { userId, type } = await req.json()
@@ -234,7 +224,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     const { id: eventId } = await params
-    if (!await canManageEvent(session.id, eventId, session.role)) {
+    if (!await canManageEventOps(session.id, session.role, eventId)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
     const { userId, action } = await req.json() // action: 'approve' | 'reject' | 'toWaitlist' | 'markPaid' | 'markUnpaid'
@@ -471,7 +461,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     const { id: eventId } = await params
-    if (!await canManageEvent(session.id, eventId, session.role)) {
+    if (!await canManageEventOps(session.id, session.role, eventId)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
     const { userId } = await req.json()
@@ -515,7 +505,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     const { id: eventId } = await params
-    if (!await canManageEvent(session.id, eventId, session.role)) {
+    if (!await canManageEventOps(session.id, session.role, eventId)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
     const { userId } = await req.json()

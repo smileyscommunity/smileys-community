@@ -34,10 +34,19 @@ export async function GET(req: NextRequest) {
     // follow the same city as the numbers above it. Unset means every city,
     // which is the long-standing behaviour of this endpoint.
     const cityParam    = req.nextUrl.searchParams.get('city')
+    // Moderators fail closed to their own city, like every sibling admin
+    // list (this route treated them as admins and let a Bodrum moderator
+    // read every city's event roster). Admins see all, or one via ?city=;
+    // the param can never WIDEN a moderator's scope.
+    const cityScope: Prisma.EventWhereInput = isAdmin(session)
+      ? (cityParam ? { cityId: cityParam } : {})
+      : isModerator(session)
+        ? { cityId: session.cityId ?? '__no_city__' }
+        : {}
 
     const where: Prisma.EventWhereInput = {
       ...(clubHost ? { hostId: session.id } : {}),
-      ...(cityParam ? { cityId: cityParam } : {}),
+      ...cityScope,
       ...(!showArchived && !statusParam ? { status: { not: 'archived' } } : {}),
       ...(fromValid ? { date: { gte: fromValid } } : {}),
     }

@@ -4,6 +4,10 @@ import { CLUB_TEMPLATES, type ClubTemplate } from './clubTemplates'
 export interface SeedCityClubsResult {
   city: string
   created: number
+  // How many of the created clubs opened ACTIVE (the Bodrum-shape core trio)
+  // — the admin card's clubCount counts active only, so the client needs this
+  // to update without a refetch.
+  activeCreated: number
   skipped: number
   total: number
   createdSlugs: string[]
@@ -40,6 +44,7 @@ export async function seedCityClubs(
   if (!city) throw new Error(`City not found for slug "${citySlug}"`)
 
   let created = 0
+  let activeCreated = 0
   let skipped = 0
   const createdSlugs: string[] = []
 
@@ -64,8 +69,9 @@ export async function seedCityClubs(
       },
     })
     created++
+    if (ACTIVE_CORE.has(t.key)) activeCreated++
     createdSlugs.push(slug)
   }
 
-  return { city: city.name, created, skipped, total: templates.length, createdSlugs }
+  return { city: city.name, created, activeCreated, skipped, total: templates.length, createdSlugs }
 }

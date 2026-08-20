@@ -22,7 +22,8 @@ export default function HostNewEventPage() {
 function HostNewEventForm() {
   // "Today" is the CITY's calendar day — a member abroad, or a city in
   // another zone, must not get a different Tuesday than the community means.
-  const tz = useCurrentCity()?.timezone ?? DEFAULT_TZ
+  const city = useCurrentCity()
+  const tz = city?.timezone ?? DEFAULT_TZ
   const router       = useRouter()
   const searchParams = useSearchParams()
   const neighborhoodParam = searchParams.get('neighborhood') ?? ''
@@ -103,7 +104,12 @@ function HostNewEventForm() {
   }, [])
 
   async function geocodeAddress() {
-    const query = [form.location, form.address, 'Istanbul, Turkey'].filter(Boolean).join(', ')
+    // The host's own city, not a hardcoded Istanbul — a Bodrum host's venue
+    // otherwise geocodes to Istanbul coordinates. (Admin forms hint with the
+    // parent club's city; hosts always create in their own.) Also include the
+    // neighborhood — this was the only one of the four event forms omitting it.
+    const cityHint = city?.name ?? 'Istanbul, Turkey'
+    const query = [form.location, form.address, form.neighborhood, cityHint].filter(Boolean).join(', ')
     setGeocoding(true)
     try {
       const res  = await fetch(`/app/api/admin/geocode?q=${encodeURIComponent(query)}`, { credentials: 'include' })

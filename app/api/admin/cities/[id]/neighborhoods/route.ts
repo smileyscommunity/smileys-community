@@ -58,16 +58,26 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: `Too many at once (max ${MAX_BATCH})` }, { status: 400 })
   }
 
-  // Existing rows (by slug OR name) are skipped, not errors — re-pasting a
-  // list after adding two more names should add exactly the two.
+  // Existing ACTIVE rows are skipped, not errors — re-pasting a list after
+  // adding two more names should add exactly the two. A soft-deleted row
+  // whose name comes back is RE-ACTIVATED: delete "Foo", paste "Foo" again
+  // used to report "already present" while the picker stayed Foo-less, with
+  // no way back short of psql.
   const existing = await prisma.neighborhood.findMany({
     where:  { cityId },
-    select: { slug: true, name: true, sortOrder: true },
+    select: { id: true, slug: true, name: true, sortOrder: true, active: true },
   })
-  const existingSlugs = new Set(existing.map(n => n.slug))
+  const bySlug = new Map(existing.map(n => [n.slug, n]))
   let nextOrder = existing.reduce((m, n) => Math.max(m, n.sortOrder), 0) + 1
 
-  const toCreate = names.filter(n => !existingSlugs.has(neighborhoodToSlug(n)))
+  const toCreate:     string[] = []
+  const toReactivate: { id: string; name: string }[] = []
+  for (const n of names) {
+    const hit = bySlug.get(neighborhoodToSlug(n))
+    if (!hit) toCreate.push(n)
+    else if (hit.active === false) toReactivate.push({ id: hit.id, name: hit.name })
+  }
+
   if (toCreate.length > 0) {
     await prisma.neighborhood.createMany({
       data: toCreate.map(name => ({
@@ -78,17 +88,30 @@ export async function POST(req: NextRequest, { params }: Params) {
       })),
       skipDuplicates: true,
     })
+  }
+  if (toReactivate.length > 0) {
+    await prisma.neighborhood.updateMany({
+      where: { id: { in: toReactivate.map(r => r.id) }, cityId },
+      data:  { active: true },
+    })
+  }
+  if (toCreate.length > 0 || toReactivate.length > 0) {
     await writeAudit(session.id, session.name, 'city.neighborhoods_add', cityId, 'city',
-      { city: city.name, added: toCreate.length, names: toCreate.slice(0, 30) },
-      `Added ${toCreate.length} neighborhood${toCreate.length === 1 ? '' : 's'} to ${city.name}`,
+      { city: city.name, added: toCreate.length, reactivated: toReactivate.length, names: [...toCreate, ...toReactivate.map(r => r.name)].slice(0, 30) },
+      `Added ${toCreate.length} + reactivated ${toReactivate.length} neighborhood(s) in ${city.name}`,
     )
   }
 
+  // `total` is what the readiness meter writes into the panel — it must be
+  // the ACTIVE count (what the go-live gate checks), not all rows; counting
+  // soft-deleted rows made the meter show ✓ for a city the gate would refuse.
+  const activeTotal = await prisma.neighborhood.count({ where: { cityId, active: true } })
   return NextResponse.json({
     ok: true,
     added: toCreate.length,
-    skipped: names.length - toCreate.length,
-    total: existing.length + toCreate.length,
+    reactivated: toReactivate.length,
+    skipped: names.length - toCreate.length - toReactivate.length,
+    total: activeTotal,
   }, { status: 201 })
 }
 
@@ -99,6 +122,11 @@ export async function GET(_req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   const { id: cityId } = await params
+  // Same gate as POST/DELETE — this was the only verb without it, letting a
+  // moderator read another city's rows including soft-deleted ones.
+  if (!canActInCity(session, cityId)) {
+    return NextResponse.json({ error: 'Cross-city management is admin-only' }, { status: 403 })
+  }
   const neighborhoods = await prisma.neighborhood.findMany({
     where:   { cityId },
     orderBy: { sortOrder: 'asc' },

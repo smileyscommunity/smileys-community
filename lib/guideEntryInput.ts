@@ -109,9 +109,13 @@ export async function validateGuideEntry(
 
   // Same local-files shape the event cover validator enforces — never an
   // external URL, never a path outside the uploads pipeline.
+  // Locked to the guide/ folder: the any-folder version accepted
+  // /app/api/files/applications/... — applicant photos that 403 for every
+  // visitor (and would be a consent problem if they didn't). The editor
+  // uploads with folder='guide', so guide/ is the only legitimate home.
   const photoRaw = str(b.photo)
-  if (photoRaw && !/^\/app\/api\/files\/[a-zA-Z0-9-]+\/[a-zA-Z0-9.-]+\.(jpg|jpeg|png|webp|gif)$/.test(photoRaw)) {
-    return { ok: false, error: 'Photo must be an uploaded image' }
+  if (photoRaw && !/^\/app\/api\/files\/guide\/[a-zA-Z0-9.-]+\.(jpg|jpeg|png|webp|gif)$/.test(photoRaw)) {
+    return { ok: false, error: 'Photo must be an image uploaded through this editor' }
   }
   const photo = photoRaw || null
 

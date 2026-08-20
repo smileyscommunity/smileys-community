@@ -80,7 +80,10 @@ export default async function DashboardPage() {
   const city = await prisma.city.findUnique({
     where:  { id: cityId },
     select: { name: true, lat: true, lng: true, timezone: true, status: true },
-  }) ?? { name: 'Istanbul', lat: null, lng: null, timezone: 'Europe/Istanbul', status: CITY_STATUS.Live }
+  // ComingSoon, not Live: this fallback only fires for a cityId with no City
+  // row (stale session after a reseed). Claiming Live would walk a phantom
+  // city straight through the founding gate as "Istanbul".
+  }) ?? { name: 'Istanbul', lat: null, lng: null, timezone: 'Europe/Istanbul', status: CITY_STATUS.ComingSoon }
 
   // The member's city decides the calendar day; the row above already
   // carries its zone, and its fallback is the default city's.
@@ -154,8 +157,13 @@ export default async function DashboardPage() {
   // self-sustaining member floor (150) is never seeding, so Istanbul's
   // dashboard pays one count and skips the rest; only small cities run the
   // full maturity computation + rank query.
+  // "Members" here = community members: everyone approved except admin and
+  // partner accounts. The old role IN ['member','moderator'] filter excluded
+  // hosts — so a host-role user in a seeding city passed every gate but
+  // wasn't counted in their own rank and saw "member #0".
+  const MEMBER_ROLES = { notIn: ['admin', 'partner'] }
   const cityMemberCount = await prisma.user.count({
-    where: { cityId, status: 'approved', role: { in: ['member', 'moderator'] } },
+    where: { cityId, status: 'approved', role: MEMBER_ROLES },
   })
   let founding: { cityName: string; rank: number; total: number; firstName: string } | null = null
   // Only for a member whose OWN city is seeding, and only once that city is
@@ -173,9 +181,9 @@ export default async function DashboardPage() {
       // This member's join position in the city — count of approved members
       // who joined no later than they did.
       const rank = await prisma.user.count({
-        where: { cityId, status: 'approved', role: { in: ['member', 'moderator'] }, joinedAt: { lte: userProfile.joinedAt } },
+        where: { cityId, status: 'approved', role: MEMBER_ROLES, joinedAt: { lte: userProfile.joinedAt } },
       })
-      founding = { cityName: city.name, rank, total: cityMemberCount, firstName: session.name.split(' ')[0] }
+      founding = { cityName: city.name, rank: Math.max(1, rank), total: cityMemberCount, firstName: session.name.split(' ')[0] }
     }
   }
 

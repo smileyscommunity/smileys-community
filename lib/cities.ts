@@ -91,7 +91,12 @@ export async function getStatsFor(cityIds: string[]): Promise<Map<string, CitySt
   const [members, clubs, events, hostedClubRows, hangouts] = await Promise.all([
     prisma.user.groupBy({
       by: ['cityId'],
-      where: { cityId: { in: cityIds }, status: 'approved' },
+      // Community members only — admin and partner accounts aren't "members"
+      // on a city card, and this definition must match the dashboard's
+      // founding gate exactly: the two used to differ (this one counted
+      // everyone approved), so a city could pass one 150-member threshold
+      // and fail the other on different numbers.
+      where: { cityId: { in: cityIds }, status: 'approved', role: { notIn: ['admin', 'partner'] } },
       _count: { _all: true },
     }),
     prisma.club.groupBy({

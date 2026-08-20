@@ -54,11 +54,14 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
   const [cohosts,       setCohosts]       = useState<{ id: string; userId: string; user: { id: string; name: string; color: string; profilePhoto: string | null } }[]>([])
   const [cohostSearch,  setCohostSearch]  = useState('')
   const [cohostResults, setCohostResults] = useState<{ id: string; name: string }[]>([])
+  const city = useCurrentCity()
   const [addingCohost,  setAddingCohost]  = useState(false)
   const [seriesId,      setSeriesId]      = useState<string | null>(null)
 
   async function geocodeAddress() {
-    const query = [form.location, form.address, form.neighborhood, 'Istanbul, Turkey'].filter(Boolean).join(', ')
+    // The host's own city, not hardcoded Istanbul — see host/events/new.
+    const cityHint = city?.name ?? 'Istanbul, Turkey'
+    const query = [form.location, form.address, form.neighborhood, cityHint].filter(Boolean).join(', ')
     setGeocoding(true)
     try {
       const res  = await fetch(`/app/api/admin/geocode?q=${encodeURIComponent(query)}`, { credentials: 'include' })
@@ -89,24 +92,24 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
         return
       }
     }
-    const placeMatch = url.match(/\/maps\/place\/([^/@?]+)/)
-    if (placeMatch) {
-      const placeName = decodeURIComponent(placeMatch[1].replace(/\+/g, ' '))
-      setGeocoding(true)
-      try {
-        const res = await fetch(`/app/api/admin/geocode?q=${encodeURIComponent(placeName + ', Istanbul, Turkey')}`, { credentials: 'include' })
-        const data = await res.json()
-        if (Array.isArray(data) && data[0]) {
-          setForm(f => ({ ...f, lat: parseFloat(data[0].lat).toFixed(6), lng: parseFloat(data[0].lon).toFixed(6) }))
-          setMapsUrl('')
-          toast.success('Location found from place name')
-          return
-        }
-      } finally {
-        setGeocoding(false)
+    // Server-side redirect resolution — handles maps.app.goo.gl short links
+    // (what the mobile Share button produces) and place names. This copy was
+    // the pre-fix version, still regexing /maps/place/ with a hardcoded
+    // Istanbul; the other three event forms had already moved to ?url=.
+    setGeocoding(true)
+    try {
+      const res = await fetch(`/app/api/admin/geocode?url=${encodeURIComponent(url)}`, { credentials: 'include' })
+      const data = await res.json()
+      if (Array.isArray(data) && data[0]) {
+        setForm(f => ({ ...f, lat: parseFloat(data[0].lat).toFixed(6), lng: parseFloat(data[0].lon).toFixed(6) }))
+        setMapsUrl('')
+        toast.success('Location found')
+        return
       }
+    } finally {
+      setGeocoding(false)
     }
-    toast.error('Could not extract coordinates — try pasting a simpler Google Maps link or use the address lookup')
+    toast.error('Could not extract coordinates — try pasting a Google Maps link with a visible location pin')
   }
 
   useEffect(() => {

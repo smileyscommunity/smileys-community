@@ -947,7 +947,7 @@ function AdminApplicationsPageInner() {
                 )}
               </div>
               <div className="flex items-center gap-2">
-                {selected.status === 'pending' && !isMod && (
+                {(selected.status === 'pending' || selected.status === 'hold') && !isMod && (
                   <div className="flex gap-1.5 md:hidden">
                     <button onClick={() => decide(selected.id, 'approved')} disabled={saving}
                       className="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-bold rounded-lg disabled:opacity-50">
@@ -1222,7 +1222,12 @@ function AdminApplicationsPageInner() {
                         </button>
                       </div>
                     </div>
-                  ) : selected.status === 'pending' ? (
+                  ) : (selected.status === 'pending' || selected.status === 'hold') ? (
+                    /* 'hold' decides here too — the list row's quick buttons
+                       already allow it, but this modal (where the admin reads
+                       the applicant's reply before deciding) was still
+                       pending-only, so a held application had no decision
+                       controls on the one screen built for the decision. */
                     <div className="space-y-2">
                       {/* Welcome message draft */}
                       <div className="bg-zinc-800/60 border border-zinc-700 rounded-xl p-3 space-y-2">

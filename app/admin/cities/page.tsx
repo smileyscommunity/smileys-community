@@ -137,8 +137,15 @@ export default function AdminCitiesPage() {
       const res = await fetch(`/app/api/admin/cities/${city.id}/launch-clubs`, { method: 'POST', credentials: 'include' })
       const d = await res.json()
       if (!res.ok) { toast.error(d.error ?? 'Failed to launch clubs'); return }
-      toast.success(`${city.name}: ${d.created} clubs created, ${d.skipped} already existed`)
-      setData(prev => (prev ?? []).map(c => c.id === city.id ? { ...c, clubCount: c.clubCount + d.created } : c))
+      toast.success(`${city.name}: ${d.created} clubs created (${d.activeCreated ?? d.created} open now, rest dormant), ${d.skipped} already existed`)
+      // clubCount on this card is the ACTIVE count (matches the go-live
+      // gate); with the Bodrum-shape seeding only the core trio opens, so
+      // adding d.created here overcounted until reload — and readiness.clubs
+      // never flipped at all, leaving ✗ clubs after a successful launch.
+      const activeAdded = d.activeCreated ?? d.created
+      setData(prev => (prev ?? []).map(c => c.id === city.id
+        ? { ...c, clubCount: c.clubCount + activeAdded, readiness: { ...c.readiness, clubs: c.clubCount + activeAdded > 0 } }
+        : c))
     } finally { setLaunching(null) }
   }
 
@@ -178,7 +185,7 @@ export default function AdminCitiesPage() {
     toast.success(`${d.name} is now a city host`)
     setHostEmail(prev => ({ ...prev, [city.id]: '' }))
     setData(prev => (prev ?? []).map(c => c.id === city.id
-      ? { ...c, hosts: [...c.hosts.filter(h => h.id !== d.id), d] }
+      ? { ...c, hosts: [...c.hosts.filter(h => h.id !== d.id), d], readiness: { ...c.readiness, hosts: true } }
       : c))
   }
 
@@ -186,9 +193,11 @@ export default function AdminCitiesPage() {
     if (!(await confirmToast(`Remove ${host.name} as a host of ${city.name}?`))) return
     const res = await fetch(`/app/api/admin/cities/${city.id}/hosts?cityHostId=${host.cityHostId}`, { method: 'DELETE', credentials: 'include' })
     if (!res.ok) { toast.error('Could not remove host'); return }
-    setData(prev => (prev ?? []).map(c => c.id === city.id
-      ? { ...c, hosts: c.hosts.filter(h => h.cityHostId !== host.cityHostId) }
-      : c))
+    setData(prev => (prev ?? []).map(c => {
+      if (c.id !== city.id) return c
+      const hosts = c.hosts.filter(h => h.cityHostId !== host.cityHostId)
+      return { ...c, hosts, readiness: { ...c.readiness, hosts: hosts.length > 0 } }
+    }))
   }
 
   if (error) return <LoadErrorBanner message={error} onRetry={retry} />
