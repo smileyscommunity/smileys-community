@@ -117,10 +117,3 @@ export function eligibilityCutoff(now: Date = new Date()): Date {
 // Quick wrapper: does this user have a response for the given period?
 // Used by the form GET to decide whether to render the form or the
 // thanks state.
-export async function hasResponded(userId: string, period: string): Promise<boolean> {
-  const row = await prisma.memberNPS.findUnique({
-    where: { userId_period: { userId, period } },
-    select: { id: true },
-  })
-  return !!row
-}

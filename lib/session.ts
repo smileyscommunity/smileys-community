@@ -270,13 +270,3 @@ export async function deleteSession(reason?: SignoutReason) {
 // role demotion, account deletion). Bumps tokenVersion so every active JWT
 // fails the freshness check in getSession() AND drops every Session row
 // for the user so /settings reflects the wipe.
-export async function revokeAllSessions(userId: string) {
-  await prisma.$transaction([
-    prisma.user.update({
-      where: { id: userId },
-      data:  { tokenVersion: { increment: 1 } },
-    }),
-    prisma.session.deleteMany({ where: { userId } }),
-  ])
-  await deleteSession()
-}

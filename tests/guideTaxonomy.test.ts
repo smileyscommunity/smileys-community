@@ -152,11 +152,14 @@ describe('seeded Bodrum entries use Bodrum\'s vocabulary', () => {
     // seed script is the one write path that bypasses that validator, so the
     // check lives here instead, across every seed.
     const { readFileSync, readdirSync } = await import('fs')
-    // Every Bodrum seed, not just the first one — each new script is another
-    // write path around the editor's validator.
-    const files = readdirSync('scripts').filter(f => /^seed-bodrum-guide-.*\.ts$/.test(f))
+    // The bespoke Bodrum seeds are archived (superseded by the generic
+    // scripts/seed-city-guide.ts, which runs the panel's validateGuideEntry —
+    // closing the bypass this test existed for). The historical pin stays
+    // against the archived copies so the shipped content's vocabulary keeps
+    // a guard until those files are deleted outright.
+    const files = readdirSync('scripts/archive').filter(f => /^seed-bodrum-guide-.*\.ts$/.test(f))
     expect(files.length).toBeGreaterThan(1)
-    const src = files.map(f => readFileSync(`scripts/${f}`, 'utf8')).join('\n')
+    const src = files.map(f => readFileSync(`scripts/archive/${f}`, 'utf8')).join('\n')
     const moods = new Set(moodsFor('bodrum').map(m => m.value))
     const colls = new Set(collectionsFor('bodrum').map(c => c.value))
 

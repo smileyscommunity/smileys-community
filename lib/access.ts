@@ -103,9 +103,6 @@ export function canManagePartners(session: SessionUser): boolean {
 }
 
 // Banning (hard action — admin only)
-export function canBanUsers(session: SessionUser): boolean {
-  return session.role === Role.Admin
-}
 
 // Suspending — admin only. Moderators must escalate to an admin.
 export function canSuspendUsers(session: SessionUser): boolean {
@@ -183,9 +180,6 @@ export function canModerateEventQueue(session: SessionUser, targetCityId?: strin
 }
 
 // Escalation
-export function canEscalate(session: SessionUser): boolean {
-  return session.role === Role.Admin || session.role === Role.Moderator
-}
 
 // Moderator oversight stats
 export function canViewModStats(session: SessionUser): boolean {
@@ -301,12 +295,3 @@ export async function canHostInCity(session: SessionUser, cityId: string): Promi
  *   - Club event (clubId set): must be a club host of that club.
  *   - City event (no clubId):  must be admin / consul / city host.
  */
-export async function canCreateEvent(
-  session: SessionUser,
-  cityId: string,
-  clubId?: string | null,
-): Promise<boolean> {
-  if (session.role === Role.Admin) return true
-  if (clubId) return isClubHostFor(session.id, clubId)
-  return canHostInCity(session, cityId)
-}

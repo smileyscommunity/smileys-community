@@ -223,10 +223,6 @@ export async function loadRoutes(cityId?: string): Promise<GuideRoute[]> {
   }
 }
 
-export async function getRoute(slug: string, cityId?: string): Promise<GuideRoute | undefined> {
-  return (await loadRoutes(cityId)).find(r => r.slug === slug)
-}
-
 // Request-scoped memo: generateMetadata and the page body both call this,
 // so without cache() every detail page paid the query twice per request.
 export const getExperienceAnyCity: typeof getExperienceAnyCityUncached = reactCache(getExperienceAnyCityUncached)

@@ -501,31 +501,6 @@ export async function sendReviewRequestEmail(email: string, name: string, eventT
   })
 }
 
-export async function sendWaitlistPromotedEmail(email: string, name: string, eventTitle: string, eventDate: string, eventId: string) {
-  const url = `${APP_URL}/events/${eventId}`
-  const firstName = name.split(' ')[0]
-  await getResend().emails.send({
-    from: FROM, to: email,
-    subject: safeSubject(`A spot just opened — you're in for "${eventTitle}"`),
-    html: `
-      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
-        <div style="text-align:center;margin-bottom:28px">
-          <span style="font-size:40px">🙌</span>
-          <h1 style="font-size:24px;font-weight:800;color:#111;margin:8px 0 4px">Good news, ${esc(firstName)}!</h1>
-          <p style="color:#6b7280;font-size:14px;margin:0">A spot opened up — you've been moved off the waitlist for <strong>${esc(eventTitle)}</strong>.</p>
-        </div>
-        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:16px 20px;margin-bottom:24px">
-          <p style="color:#92400e;font-size:14px;margin:0"><strong>📅</strong> ${esc(eventDate)}</p>
-        </div>
-        <a href="${url}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:16px">
-          View event →
-        </a>
-        <p style="color:#9ca3af;font-size:12px;text-align:center">Your spot is confirmed. If plans change, please cancel so the next person can join.</p>
-      </div>
-    `,
-  })
-}
-
 // Sent to every waitlist member when an approved attendee cancels and
 // frees up a spot. First-come-first-served — whoever taps the CTA and
 // hits Join first gets in (race-safety lives in the POST /rsvp route,
@@ -599,28 +574,6 @@ export async function sendRefundEmail(email: string, name: string, eventTitle: s
         </div>
         ${noteHtml}
         <p style="color:#9ca3af;font-size:12px;text-align:center">Questions? Reply to this email or reach us at info@smileyscommunity.com</p>
-      </div>
-    `,
-  })
-}
-
-export async function sendApplicationApprovedEmail(email: string, name: string) {
-  await getResend().emails.send({
-    from: FROM, to: email,
-    subject: 'You\'re in! Welcome to Smileys 🎉',
-    html: `
-      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
-        <div style="text-align:center;margin-bottom:32px">
-          <span style="font-size:40px">😊</span>
-          <h1 style="font-size:24px;font-weight:800;color:#111;margin:8px 0 4px">Welcome to Smileys, ${esc(name)}!</h1>
-          <p style="color:#6b7280;font-size:14px;margin:0">Your application has been approved</p>
-        </div>
-        <a href="${APP_URL}/onboarding?email=${encodeURIComponent(email)}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:24px">
-          Create your account →
-        </a>
-        <p style="color:#9ca3af;font-size:12px;text-align:center">
-          Istanbul's most curated social community is waiting for you.
-        </p>
       </div>
     `,
   })

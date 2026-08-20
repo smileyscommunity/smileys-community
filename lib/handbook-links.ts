@@ -26,19 +26,3 @@ export const HANDBOOK_TO_GUIDE: Record<string, { anchor: string; label: string }
   'Everyday Life':      { anchor: 'practical-info',   label: 'Practical everyday links' },
 }
 
-// City Guide section label → Handbook category. Inverse mapping used
-// when rendering "Read the deep dive →" on /guide sections that have
-// a matching long-form article category.
-// NOTE: currently has no consumers — the "Read the deep dive →" affordance it
-// was written for was never wired up. Kept (and kept correct) as the declared
-// inverse of HANDBOOK_TO_GUIDE so the two can't silently disagree if it is.
-export const GUIDE_TO_HANDBOOK: Record<string, string> = {
-  'Visa & Residence':   'Residence & Legal',
-  'Banking & Money':    'Money & Banking',
-  'Housing':            'Home & Housing',
-  'Healthcare':         'Healthcare',
-  'Mobile & Internet':  'Mobile & Digital',
-  'Getting Around':     'Getting Around',
-  'Essential Apps':     'Getting Started',
-  'Practical Info':     'Everyday Life',
-}

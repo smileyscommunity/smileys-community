@@ -58,10 +58,6 @@ export async function isValidNeighborhoodFor(cityId: string, name: unknown): Pro
 }
 
 // Same contract as the old slugToNeighborhood, but per city.
-export async function slugToNeighborhoodFor(cityId: string, slug: string): Promise<string | undefined> {
-  const rows = await getNeighborhoodsForCity(cityId)
-  return rows.find(n => n.slug === slug)?.name
-}
 
 // Drop-in replacement for the old `ISTANBUL_NEIGHBORHOODS.includes` ternaries:
 // returns the name when it's a real neighborhood of the city, else null.

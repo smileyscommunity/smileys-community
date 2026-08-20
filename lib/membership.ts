@@ -4,7 +4,6 @@
 // digital card. Granted by admins (no self-serve payment yet).
 
 export const MEMBERSHIP_TYPES = ['free', 'premium', 'vip'] as const
-export type MembershipType = (typeof MEMBERSHIP_TYPES)[number]
 
 /** Display label for paid tiers, or null for free/standard (no badge). */
 export function membershipTierLabel(membershipType?: string | null): 'Premium' | 'VIP' | null {

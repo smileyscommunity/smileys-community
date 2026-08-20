@@ -31,7 +31,7 @@ export default function CookiePolicyPage() {
       <Section title="Cookies we use">
         <p><strong className="text-gray-800">Essential cookies</strong> — These are required for the platform to function. They include:</p>
         <ul className="list-disc pl-5 space-y-1">
-          <li><code className="text-xs bg-gray-100 px-1 py-0.5 rounded">smileys_session</code> — keeps you signed in across pages. HttpOnly, Secure, SameSite=Lax. Expires after 30 days of inactivity.</li>
+          <li><code className="text-xs bg-gray-100 px-1 py-0.5 rounded">smileys_session</code> — keeps you signed in across pages. HttpOnly, Secure, SameSite=Lax. Expires after 7 days of inactivity.</li>
         </ul>
         <p className="mt-3">You cannot opt out of essential cookies without losing access to member features.</p>
 

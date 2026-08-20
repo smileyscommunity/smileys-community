@@ -129,7 +129,7 @@ export default function PrivacyPage() {
         </Section>
 
         <Section title="9. Cookies">
-          <p>We use one essential cookie: a secure, httpOnly session cookie (<code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">smileys_session</code>) that keeps you logged in for up to 30 days. This cookie is strictly necessary for the platform to function and does not track you across other websites.</p>
+          <p>We use one essential cookie: a secure, httpOnly session cookie (<code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">smileys_session</code>) that keeps you logged in for up to 7 days (renewed while you use the site). This cookie is strictly necessary for the platform to function and does not track you across other websites.</p>
           <p>We do not use advertising cookies, social media tracking cookies, or third-party analytics cookies.</p>
         </Section>
 

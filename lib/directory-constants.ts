@@ -15,7 +15,6 @@ export const BUSINESS_CATEGORIES = [
   'Other',
 ] as const
 
-export type BusinessCategory = typeof BUSINESS_CATEGORIES[number]
 
 export const BUSINESS_CATEGORY_SET: ReadonlySet<string> = new Set(BUSINESS_CATEGORIES)
 

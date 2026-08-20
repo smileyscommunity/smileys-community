@@ -2,8 +2,6 @@
 // lib/neighborhoods.ts. The name list is derived from its keys (see there), so
 // the picker list and the directory/search can never drift — a neighborhood
 // exists iff it has a META entry. Re-exported here for the many callers that
-// import ISTANBUL_NEIGHBORHOODS from '@/lib/data'.
-export { ISTANBUL_NEIGHBORHOODS } from './neighborhoods'
 import { todayInTz, DEFAULT_TZ } from './cityTime'
 
 export const CLUB_CATEGORIES = [
@@ -12,7 +10,6 @@ export const CLUB_CATEGORIES = [
   'Travel', 'Culture', 'Language', 'Exclusive', 'Volunteering',
 ] as const
 
-export type ClubCategory = typeof CLUB_CATEGORIES[number]
 
 // Structured tags for VisitorAnnouncement (the "I'm visiting Istanbul"
 // posts on /visiting) — single-select traveler type + multi-select "what
@@ -50,10 +47,7 @@ export const VISITOR_VISIBILITY = [
   { value: 'members', label: 'Only Smileys members', hint: 'Your visit stays off the public web.' },
   { value: 'public',  label: 'Anyone browsing Smileys', hint: 'Also listed publicly — contact details stay hidden.' },
 ] as const
-export type VisitorVisibility = typeof VISITOR_VISIBILITY[number]['value']
 
-export type VisitorTravelerType = typeof VISITOR_TRAVELER_TYPES[number]['value']
-export type VisitorLookingFor   = typeof VISITOR_LOOKING_FOR[number]['value']
 
 // Tiny amber-100 SVG — used as blur placeholder for all dynamic images
 export const BLUR_PLACEHOLDER = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMCIgaGVpZ2h0PSI2Ij48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZmVmM2M3Ii8+PC9zdmc+'
@@ -186,30 +180,12 @@ export interface Event {
   attendeePreviews?: { id: string; name: string; color: string; profilePhoto?: string | null }[]
 }
 
-export type VibeGroup = 'Energy' | 'Purpose' | 'Experience'
 
 export type VibeTag =
   | 'Chill' | 'Active' | 'Party' | 'Intimate'
   | 'Social' | 'Networking' | 'Learning' | 'Creative'
   | 'Food' | 'Cultural' | 'Outdoor' | 'Wellness' | 'Adventure'
 
-export const vibeGroups: Record<VibeGroup, { emoji: string; description: string; tags: VibeTag[] }> = {
-  Energy: {
-    emoji: '⚡',
-    description: 'The energy level of the event',
-    tags: ['Chill', 'Active', 'Party', 'Intimate'],
-  },
-  Purpose: {
-    emoji: '🎯',
-    description: 'Why people come',
-    tags: ['Social', 'Networking', 'Learning', 'Creative'],
-  },
-  Experience: {
-    emoji: '✨',
-    description: 'What the event is about',
-    tags: ['Food', 'Cultural', 'Outdoor', 'Wellness', 'Adventure'],
-  },
-}
 
 export const vibeConfig: Record<VibeTag, { emoji: string; bg: string; text: string; border: string; description: string }> = {
   Chill:      { emoji: '😌', bg: 'bg-teal-100',    text: 'text-teal-700',    border: 'border-teal-400',    description: 'Low-key, relaxed atmosphere' },
