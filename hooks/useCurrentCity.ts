@@ -25,6 +25,11 @@ export interface CurrentCity {
   // city's zone, which is a wrong answer about which DAY it is the moment a
   // city sits outside it. Falls back to DEFAULT_TZ until the fetch resolves.
   timezone: string
+  // True when the view-city cookie has moved this viewer off their own city,
+  // with the city "back" returns to. Feeds render an escape hatch from these —
+  // the cookie lasts a year, so viewing another city needs a visible way home.
+  viewing:  boolean
+  homeName: string | null
   // Where a POST from this member would land, which is not always the city
   // above: a write follows membership, not the view-city cookie, so browsing
   // another city's board files your listing back home unless you've joined
@@ -53,6 +58,8 @@ function loadCity(): Promise<CurrentCity | null> {
         cached = {
           name: d.name, slug: d.slug, isDefault: !!d.isDefault,
           timezone: typeof d.timezone === 'string' && d.timezone ? d.timezone : DEFAULT_TZ,
+          viewing:  !!d.viewing,
+          homeName: typeof d.homeName === 'string' ? d.homeName : null,
           ...(d.posting?.name ? { posting: { name: d.posting.name, slug: d.posting.slug, differs: !!d.posting.differs } } : {}),
         }
         return cached

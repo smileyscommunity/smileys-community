@@ -24,6 +24,7 @@ const DESTINATIONS: Record<string, string> = {
   events:        '/events',
   clubs:         '/clubs',
   directory:     '/directory',
+  members:       '/members',
   neighborhoods: '/neighborhoods',
   guide:         '/guide',
   // The city's own page. Empty because the path is the city slug itself, filled

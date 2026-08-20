@@ -14,6 +14,8 @@ import MemberDiscovery from './MemberDiscovery'
 import EmptyState from '@/components/EmptyState'
 import MembershipBadge from '@/components/MembershipBadge'
 import { SkeletonCard } from '@/components/Skeleton'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
+import { cityBadge } from '@/lib/cityBadge'
 
 interface ConnectionUser {
   id: string; name: string; color: string
@@ -960,6 +962,7 @@ function MembersPageInner() {
   // CMS overrides land via /api/content. Default headline was a one-
   // word 'Members' file-cabinet label; 'Find your people' echoes the
   // landing-page line and reads as an invitation.
+  const city = useCurrentCity()
   const [hero, setHero] = useState({ badge: 'Members', headline: 'Meet the community.', subtitle: 'Discover people through the neighborhoods, interests and experiences you share.' })
 
   const handleConnectionChange = useCallback((updated: ConnectionRecord | null, removed?: string) => {
@@ -1158,7 +1161,22 @@ function MembersPageInner() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-0">
           <div className="flex flex-col sm:flex-row sm:items-start gap-4 mb-6">
             <div className="flex-1">
-              <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">🤝 {hero.badge}</span>
+              {/* Members was the one main feed that never named its city:
+                  events, clubs and directory all say which city they're
+                  showing, while this said just "Members" over a city-scoped
+                  list. Same shared rule, so it can't repeat the events page's
+                  "ISTANBUL · ISTANBUL". */}
+              <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">🤝 {cityBadge(hero.badge, city?.name)}</span>
+              {/* And the way back. The view-city cookie lasts a year, so a
+                  member who looked at another city needs a visible exit —
+                  events, clubs and directory each have this; members didn't. */}
+              {city?.viewing && city.homeName && (
+                // eslint-disable-next-line @next/next/no-html-link-for-pages -- route handler that must run server-side to clear the cookie; <Link> would client-navigate past it
+                <a href="/app/api/city/enter?clear=1&to=members"
+                  className="inline-flex items-center gap-1.5 ml-2 mb-3 px-3 py-1.5 rounded-full text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors">
+                  ✕ Back to {city.homeName}
+                </a>
+              )}
               <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">{hero.headline}</h1>
               {/* Was 'X members · Y hosts · Z admins' — hosts/admins are
                   subsets of members so the · merge implied parallel
