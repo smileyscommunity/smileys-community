@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import posthog from 'posthog-js'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
+import { DEFAULT_TZ } from '@/lib/cityTime'
 
 interface ClubHangout {
   id: string; title: string; neighborhood: string | null; startsAt: string
@@ -14,6 +16,8 @@ interface ClubHangout {
 // Hangout records filtered by clubId. Empty state invites members to
 // start one instead of showing a bare "no hangouts".
 export default function ClubHangouts({ slug, isMember }: { slug: string; isMember: boolean }) {
+  // Times belong to the city the content is in, not the reader's device.
+  const tz = useCurrentCity()?.timezone ?? DEFAULT_TZ
   const [clubId,   setClubId]   = useState<string | null>(null)
   const [hangouts, setHangouts] = useState<ClubHangout[]>([])
   const [loaded,   setLoaded]   = useState(false)
@@ -44,7 +48,7 @@ export default function ClubHangouts({ slug, isMember }: { slug: string; isMembe
               className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:border-amber-200 hover:shadow-md transition-all group">
               <p className="text-sm font-bold text-gray-900 group-hover:text-amber-700 transition-colors">{h.title}</p>
               <p className="text-xs text-gray-500 mt-1">
-                🕐 {new Date(h.startsAt).toLocaleString('en-GB', { weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'Europe/Istanbul' })}
+                🕐 {new Date(h.startsAt).toLocaleString('en-GB', { weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: tz })}
                 {h.neighborhood && <> · 📍 {h.neighborhood}</>}
                 {(h.joins?.length ?? 0) > 0 && <> · 👥 {h.joins!.length + 1} going</>}
               </p>

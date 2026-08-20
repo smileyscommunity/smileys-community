@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import posthog from 'posthog-js'
 import { useAuth } from '@/contexts/AuthContext'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
+import { DEFAULT_TZ } from '@/lib/cityTime'
 
 interface LiveHangout { id: string; title: string; neighborhood: string | null; startsAt: string }
 
@@ -12,6 +14,8 @@ interface LiveHangout { id: string; title: string; neighborhood: string | null; 
 // filters to the experience's neighborhoods. Same member-gated-fetch
 // pattern as BoardFeed's hangouts module.
 export default function LiveHangouts({ neighborhoods }: { neighborhoods: string[] }) {
+  // Times belong to the city the content is in, not the reader's device.
+  const tz = useCurrentCity()?.timezone ?? DEFAULT_TZ
   const { isLoggedIn } = useAuth()
   const [hangouts, setHangouts] = useState<LiveHangout[]>([])
 
@@ -39,7 +43,7 @@ export default function LiveHangouts({ neighborhoods }: { neighborhoods: string[
           <div className="flex-1 min-w-0">
             <p className="text-sm font-bold text-white truncate">{h.title}</p>
             <p className="text-xs text-gray-300 mt-0.5">
-              🕐 {new Date(h.startsAt).toLocaleString('en-GB', { weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'Europe/Istanbul' })}
+              🕐 {new Date(h.startsAt).toLocaleString('en-GB', { weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: tz })}
               {h.neighborhood && <> · 📍 {h.neighborhood}</>}
             </p>
           </div>

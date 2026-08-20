@@ -4,14 +4,16 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import posthog from 'posthog-js'
 import { useAuth } from '@/contexts/AuthContext'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
+import { DEFAULT_TZ } from '@/lib/cityTime'
 
 interface EventHangout { id: string; title: string; startsAt: string; neighborhood: string | null; eventId: string | null }
 interface EventPost { id: string; title: string; replyCount: number; user: { name: string } }
 
-function fmtTime(iso: string) {
+function fmtTime(iso: string, tz: string) {
   return new Date(iso).toLocaleString('en-GB', {
     weekday: 'short', hour: '2-digit', minute: '2-digit',
-    hourCycle: 'h23', timeZone: 'Europe/Istanbul',
+    hourCycle: 'h23', timeZone: tz,
   })
 }
 
@@ -19,6 +21,8 @@ function fmtTime(iso: string) {
 // pointing at canonical records: Hangouts owns the plans, Board owns the
 // threads. The event page surfaces them, never copies them.
 export default function EventConnections({ eventId }: { eventId: string }) {
+  // The hangout's time is in the event's city, not the reader's.
+  const tz = useCurrentCity()?.timezone ?? DEFAULT_TZ
   const { isLoggedIn } = useAuth()
   const [hangouts, setHangouts] = useState<EventHangout[]>([])
   const [posts,    setPosts]    = useState<EventPost[]>([])
@@ -57,7 +61,7 @@ export default function EventConnections({ eventId }: { eventId: string }) {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-gray-900 truncate group-hover:text-amber-700 transition-colors">{h.title}</p>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    🕐 {fmtTime(h.startsAt)}{h.neighborhood && <> · 📍 {h.neighborhood}</>}
+                    🕐 {fmtTime(h.startsAt, tz)}{h.neighborhood && <> · 📍 {h.neighborhood}</>}
                   </p>
                 </div>
                 <span className="shrink-0 text-xs font-bold text-amber-600">Join →</span>

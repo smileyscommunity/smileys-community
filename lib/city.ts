@@ -98,6 +98,13 @@ export interface ResolvedCityInfo {
   isDefault: boolean
   viewing: boolean          // true when the cookie moved this viewer off their own city
   homeName: string | null   // the city "back" returns to; null unless viewing
+  // The city's timezone, so CLIENT components can render "today", "tomorrow"
+  // and clock times in the city's terms rather than the viewer's laptop. They
+  // had no way to ask — getCityTz needs prisma — so ~30 of them hardcoded
+  // Europe/Istanbul, which is right until the first city outside Türkiye and
+  // then silently wrong about which day it is. Already loaded here:
+  // getCityConfig is on the request either way.
+  timezone: string
 }
 
 export async function describeCity(
@@ -113,6 +120,7 @@ export async function describeCity(
     isDefault: cfg.slug === DEFAULT_CITY_SLUG,
     viewing,
     homeName:  viewing ? (await getCityConfig(homeId)).name : null,
+    timezone:  cfg.timezone,
   }
 }
 

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { DEFAULT_TZ } from '@/lib/cityTime'
 
 // The city the viewer's feeds resolve to (view-city cookie → their home city →
 // default), for client components that need to NAME it.
@@ -19,6 +20,11 @@ export interface CurrentCity {
   name:     string
   slug:     string
   isDefault: boolean
+  // The CITY's timezone, not the viewer's. Client components render "today",
+  // "tomorrow" and clock times from this; they used to hardcode the founding
+  // city's zone, which is a wrong answer about which DAY it is the moment a
+  // city sits outside it. Falls back to DEFAULT_TZ until the fetch resolves.
+  timezone: string
   // Where a POST from this member would land, which is not always the city
   // above: a write follows membership, not the view-city cookie, so browsing
   // another city's board files your listing back home unless you've joined
@@ -27,17 +33,45 @@ export interface CurrentCity {
   posting?: { name: string; slug: string; differs: boolean }
 }
 
+// One fetch per page load, shared by every caller.
+//
+// Each consumer used to issue its own request, and a page can easily hold
+// several — a header, a feed, and now anything rendering a time. Once event
+// cards need the city's timezone that becomes one request per card, which is
+// silly for a value that cannot change without a navigation. The cookie only
+// changes via /api/city/enter or /api/me/view-city, both of which reload.
+let cached: CurrentCity | null = null
+let inFlight: Promise<CurrentCity | null> | null = null
+
+function loadCity(): Promise<CurrentCity | null> {
+  if (cached) return Promise.resolve(cached)
+  if (!inFlight) {
+    inFlight = fetch('/app/api/city/current', { credentials: 'include' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        if (!d?.name) return null
+        cached = {
+          name: d.name, slug: d.slug, isDefault: !!d.isDefault,
+          timezone: typeof d.timezone === 'string' && d.timezone ? d.timezone : DEFAULT_TZ,
+          ...(d.posting?.name ? { posting: { name: d.posting.name, slug: d.posting.slug, differs: !!d.posting.differs } } : {}),
+        }
+        return cached
+      })
+      // Don't cache a failure: the next component to mount should retry
+      // rather than inherit one bad network moment for the whole page.
+      .catch(() => { inFlight = null; return null })
+  }
+  return inFlight
+}
+
 export function useCurrentCity(): CurrentCity | null {
-  const [city, setCity] = useState<CurrentCity | null>(null)
+  const [city, setCity] = useState<CurrentCity | null>(cached)
 
   useEffect(() => {
+    if (cached) { setCity(cached); return }
     let cancelled = false
-    fetch('/app/api/city/current', { credentials: 'include' })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (!cancelled && d?.name) setCity({
-        name: d.name, slug: d.slug, isDefault: !!d.isDefault,
-        ...(d.posting?.name ? { posting: { name: d.posting.name, slug: d.posting.slug, differs: !!d.posting.differs } } : {}),
-      }) })
+    loadCity()
+      .then(c => { if (!cancelled && c) setCity(c) })
       .catch(() => {})
     return () => { cancelled = true }
   }, [])

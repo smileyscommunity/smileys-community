@@ -6,6 +6,8 @@ import Image from 'next/image'
 import posthog from 'posthog-js'
 import { resolveImageUrl } from '@/lib/data'
 import { isSoldOut } from '@/lib/soldOut'
+import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
 
 interface DiscoveryEvent {
   id: string; title: string; emoji: string; date: string; time: string
@@ -27,15 +29,17 @@ interface Discovery {
   viewer: { isMember: boolean; neighborhood: string | null; hasClubs?: boolean }
 }
 
-function fmtDay(date: string, time: string) {
-  const d = new Date(`${date}T12:00:00+03:00`)
-  const todayIst = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul' }).format(new Date())
-  const tomorrowIst = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul' })
-    .format(new Date(Date.now() + 86_400_000))
+// `date` is a bare 'YYYY-MM-DD' meaning a calendar day in the EVENT'S city, so
+// "today" has to be resolved there — not on the reader's laptop, and not in the
+// founding city's zone, which is what this did. The noon anchor is UTC rather
+// than a hand-built '+03:00': that offset was the thing welding this to one
+// city, and it would drift the first time a city observed DST.
+function fmtDay(date: string, time: string, tz: string) {
+  const d = new Date(`${date}T12:00:00Z`)
   const label =
-    date === todayIst ? 'Today'
-    : date === tomorrowIst ? 'Tomorrow'
-    : d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Istanbul' })
+    date === todayInTz(tz)    ? 'Today'
+    : date === todayInTz(tz, 1) ? 'Tomorrow'
+    : d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: tz })
   return `${label} · ${time.slice(0, 5)}`
 }
 
@@ -47,7 +51,7 @@ function badgeFor(e: DiscoveryEvent): { text: string; cls: string } | null {
   return null
 }
 
-function EventTile({ e, from }: { e: DiscoveryEvent; from: string }) {
+function EventTile({ e, from, tz }: { e: DiscoveryEvent; from: string; tz: string }) {
   const cover = e.coverImage ? resolveImageUrl(e.coverImage) : null
   const badge = badgeFor(e)
   return (
@@ -70,7 +74,7 @@ function EventTile({ e, from }: { e: DiscoveryEvent; from: string }) {
         )}
       </div>
       <div className="p-4">
-        <p className="text-xs font-bold text-amber-600">{fmtDay(e.date, e.time)}</p>
+        <p className="text-xs font-bold text-amber-600">{fmtDay(e.date, e.time, tz)}</p>
         <p className="font-bold text-gray-900 text-sm leading-snug mt-1 line-clamp-2 group-hover:text-amber-700 transition-colors">
           {e.title}
         </p>
@@ -90,6 +94,10 @@ function Row({ title, subtitle, events, cta, from }: {
   title: string; subtitle?: string; events: DiscoveryEvent[]
   cta?: { href: string; label: string }; from: string
 }) {
+  // Read here rather than threaded from the page: the hook caches module-wide,
+  // so every Row and the card below share one request for a value that can't
+  // change without a navigation.
+  const tz = useCurrentCity()?.timezone ?? DEFAULT_TZ
   if (events.length === 0) return null
   return (
     <div className="mb-8">
@@ -110,7 +118,7 @@ function Row({ title, subtitle, events, cta, from }: {
         {cta && <Link href={cta.href} className="text-xs font-bold text-amber-600 hover:text-amber-700 shrink-0">{cta.label}</Link>}
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pb-2">
-        {events.map(e => <EventTile key={e.id} e={e} from={from} />)}
+        {events.map(e => <EventTile key={e.id} e={e} from={from} tz={tz} />)}
       </div>
     </div>
   )
@@ -121,6 +129,7 @@ function Row({ title, subtitle, events, cta, from }: {
 // architecture; one fetch serves every row.
 export default function EventDiscovery() {
   const [d, setD] = useState<Discovery | null>(null)
+  const tz = useCurrentCity()?.timezone ?? DEFAULT_TZ
 
   useEffect(() => {
     fetch('/app/api/events/discovery', { credentials: 'include' })
@@ -149,7 +158,7 @@ export default function EventDiscovery() {
             </div>
             <div className="min-w-0">
               <p className="font-extrabold text-gray-900 leading-snug group-hover:text-amber-700 transition-colors">{going.title}</p>
-              <p className="text-sm text-gray-700 mt-0.5">{fmtDay(going.date, going.time)}</p>
+              <p className="text-sm text-gray-700 mt-0.5">{fmtDay(going.date, going.time, tz)}</p>
               <p className="text-xs text-gray-500 mt-0.5 truncate">📍 {going.location}{going.neighborhood ? ` · ${going.neighborhood}` : ''}</p>
             </div>
           </Link>

@@ -12,6 +12,8 @@ import { HANGOUT_ACTIVITIES, ACTIVITY_META, HANGOUT_CAPACITIES } from '@/lib/han
 import posthog from 'posthog-js'
 import { toast } from 'sonner'
 import { downscaleImage } from '@/lib/image-resize'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
+import { DEFAULT_TZ, dayInTz, todayInTz, atHourInTz, wallClockInTz, fromWallClockInTz } from '@/lib/cityTime'
 
 // Spontaneous hangouts — members only (real-time, contact-required). Auto-
 // expires server-side via the cron when endsAt is past.
@@ -93,8 +95,7 @@ interface HangoutMessage {
 // Hangout times are always shown in Istanbul time, never the viewer's
 // device timezone — the community is Istanbul-based, so a member abroad
 // (or with a misconfigured device clock) still sees the local meet time.
-const TZ = 'Europe/Istanbul'
-function formatWindow(startsAt: string, endsAt: string) {
+function formatWindow(startsAt: string, endsAt: string, TZ: string) {
   const s = new Date(startsAt)
   const e = new Date(endsAt)
   const now = new Date()
@@ -116,7 +117,7 @@ function formatWindow(startsAt: string, endsAt: string) {
 // Live/upcoming split + human label. Once a hangout is running, the raw
 // window stops answering the reader's actual question — "can I still make
 // it?" — so live cards say how long it's been going and when it ends.
-function timeStatus(startsAt: string, endsAt: string): { live: boolean; label: string } {
+function timeStatus(startsAt: string, endsAt: string, TZ: string): { live: boolean; label: string } {
   const s = new Date(startsAt)
   const e = new Date(endsAt)
   const now = new Date()
@@ -126,7 +127,7 @@ function timeStatus(startsAt: string, endsAt: string): { live: boolean; label: s
     const ago = m < 1 ? 'Just started' : m < 60 ? `Started ${m}m ago` : `Started ${Math.floor(m / 60)}h${m % 60 ? ` ${m % 60}m` : ''} ago`
     return { live: true, label: `${ago} · until ${fmtTime(e)}` }
   }
-  return { live: false, label: formatWindow(startsAt, endsAt) }
+  return { live: false, label: formatWindow(startsAt, endsAt, TZ) }
 }
 
 // The datetime-local input represents ISTANBUL wall-clock time (the
@@ -134,30 +135,28 @@ function timeStatus(startsAt: string, endsAt: string): { live: boolean; label: s
 // as Istanbul wall-clock so the input + the stored value stay consistent
 // regardless of where the creator's device clock is. sv-SE → "YYYY-MM-DD
 // HH:MM:SS"; swap the space for T and drop seconds.
-function toIstanbulInputValue(d: Date): string {
-  return d.toLocaleString('sv-SE', { timeZone: TZ }).replace(' ', 'T').slice(0, 16)
-}
+const toInputValue = (d: Date, tz: string) => wallClockInTz(d, tz)
 // Inverse: a datetime-local value ("YYYY-MM-DDTHH:MM") is the Istanbul
 // wall-clock meet time. Turkey is UTC+3 year-round (no DST since 2016, the
 // same assumption the event pages make), so tag it +03:00 to get the correct
 // UTC instant regardless of the creator's device timezone.
-function istanbulInputToISO(local: string): string {
-  return new Date(`${local}:00+03:00`).toISOString()
-}
-function defaultStartsAt(): string {
+const inputToISO = (local: string, tz: string) => fromWallClockInTz(local, tz).toISOString()
+function defaultStartsAt(tz: string): string {
   // 15 min from now, rounded — covers "I'm walking there"
   const d = new Date(Date.now() + 15 * 60_000)
   d.setSeconds(0, 0)
-  return toIstanbulInputValue(d) // YYYY-MM-DDTHH:MM (Istanbul)
+  return toInputValue(d, tz)
 }
-function defaultEndsAt(): string {
+function defaultEndsAt(tz: string): string {
   // 2 hours after default start — typical café hangout window
   const d = new Date(Date.now() + 2 * 60 * 60_000 + 15 * 60_000)
   d.setSeconds(0, 0)
-  return toIstanbulInputValue(d)
+  return toInputValue(d, tz)
 }
 
 export default function HangoutsPage() {
+  // Meet times are the CITY's wall clock, not the reader's device.
+  const tz = useCurrentCity()?.timezone ?? DEFAULT_TZ
   const router = useRouter()
   const { user, isLoggedIn, isLoading } = useAuth()
   const neighborhoods = useCityNeighborhoods()
@@ -229,8 +228,8 @@ export default function HangoutsPage() {
   const [myClubs,   setMyClubs]   = useState<{ id: string; slug: string; name: string; emoji: string }[]>([])
   const [shareClub, setShareClub] = useState('')
   const [description,  setDescription]  = useState('')
-  const [startsAt,     setStartsAt]     = useState(defaultStartsAt())
-  const [endsAt,       setEndsAt]       = useState(defaultEndsAt())
+  const [startsAt,     setStartsAt]     = useState(defaultStartsAt(tz))
+  const [endsAt,       setEndsAt]       = useState(defaultEndsAt(tz))
   const [meetMode,     setMeetMode]     = useState<'group' | 'solo'>('group')
   const [activity,     setActivity]     = useState('')
   const [maxPeople,    setMaxPeople]    = useState(0) // 0 = no limit
@@ -257,8 +256,8 @@ export default function HangoutsPage() {
     setDescription(p.description)
     setActivity(QUICK_START_ACTIVITY[p.label] ?? '')
     setMeetMode('group')
-    setStartsAt(defaultStartsAt())
-    setEndsAt(defaultEndsAt())
+    setStartsAt(defaultStartsAt(tz))
+    setEndsAt(defaultEndsAt(tz))
     setShowPulseForm(false)
     setShowForm(true)
   }
@@ -336,8 +335,8 @@ export default function HangoutsPage() {
           title, location, neighborhood: neighborhood || undefined,
           club: shareClub || undefined,
           description: description || undefined,
-          startsAt: istanbulInputToISO(startsAt),
-          endsAt:   istanbulInputToISO(endsAt),
+          startsAt: inputToISO(startsAt, tz),
+          endsAt:   inputToISO(endsAt, tz),
           meetMode,
           photo: photo || undefined,
           activity: activity || undefined,
@@ -351,7 +350,7 @@ export default function HangoutsPage() {
       await loadFeed()
       setShowForm(false)
       setTitle(''); setLocation(''); setNeighborhood(''); setDescription(''); setActivity(''); setMaxPeople(0); setShareClub('')
-      setStartsAt(defaultStartsAt()); setEndsAt(defaultEndsAt()); setMeetMode('group')
+      setStartsAt(defaultStartsAt(tz)); setEndsAt(defaultEndsAt(tz)); setMeetMode('group')
       setPhoto(null)
     } catch {
       toast.error('Network error')
@@ -595,17 +594,16 @@ export default function HangoutsPage() {
                   onClick={() => {
                     let s0: Date
                     if (q.start === -1) {
-                      // Tonight = 19:00 Istanbul today
+                      // Tonight = 19:00 on the CITY's clock, derived from its
+                      // current time rather than a hand-written UTC+3.
                       const nowIst = new Date()
-                      s0 = new Date(nowIst)
-                      const [y, m, d] = nowIst.toLocaleDateString('en-CA', { timeZone: 'Europe/Istanbul' }).split('-').map(Number)
-                      s0 = new Date(Date.UTC(y, m - 1, d, 19 - 3, 0)) // 19:00 UTC+3
+                      s0 = atHourInTz(19, tz, nowIst)
                       if (s0 < nowIst) s0 = new Date(nowIst.getTime() + 30 * 60_000)
                     } else {
                       s0 = new Date(Date.now() + q.start * 60_000)
                     }
-                    setStartsAt(toIstanbulInputValue(s0))
-                    setEndsAt(toIstanbulInputValue(new Date(s0.getTime() + q.dur * 60_000)))
+                    setStartsAt(toInputValue(s0, tz))
+                    setEndsAt(toInputValue(new Date(s0.getTime() + q.dur * 60_000), tz))
                   }}
                   className="text-xs font-semibold px-3 py-1.5 rounded-full border bg-white text-gray-600 border-gray-200 hover:border-amber-400 hover:bg-amber-50 transition-colors">
                   {q.label}
@@ -1186,6 +1184,8 @@ function HangoutCard({ h, currentUser, onCancel, onMutated, neighborhoods }: {
   // request per card, and /api/neighborhoods rate-limits at 60/minute.
   neighborhoods: string[]
 }) {
+  // Meet times are the CITY's wall clock, not the reader's device.
+  const tz = useCurrentCity()?.timezone ?? DEFAULT_TZ
   const isOwner = h.user.id === currentUser.id
   // Staff can moderate any hangout: the PATCH/DELETE endpoints already
   // authorize admin/moderator (a staff cancel notifies joiners as "a
@@ -1196,8 +1196,7 @@ function HangoutCard({ h, currentUser, onCancel, onMutated, neighborhoods }: {
   const canManage = isOwner || isStaff
   // Weather chip: outdoor-keyword hangouts happening today get a live temp.
   const isOutdoor = OUTDOOR_RE.test(`${h.title} ${h.description ?? ''}`)
-  const isToday   = new Date(h.startsAt).toLocaleDateString('en-CA', { timeZone: 'Europe/Istanbul' })
-                    === new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Istanbul' })
+  const isToday   = dayInTz(new Date(h.startsAt), tz) === todayInTz(tz)
   const [wx, setWx] = useState<{ temp: number; icon: string } | null>(null)
   useEffect(() => {
     if (isOutdoor && isToday) fetchWeatherOnce().then(() => setWx(_wxCache))
@@ -1222,16 +1221,16 @@ function HangoutCard({ h, currentUser, onCancel, onMutated, neighborhoods }: {
   const [eLocation,     setELocation]     = useState(h.location)
   const [eNeighborhood, setENeighborhood] = useState(h.neighborhood ?? '')
   const [eDescription,  setEDescription]  = useState(h.description ?? '')
-  const [eStartsAt,     setEStartsAt]     = useState(toIstanbulInputValue(new Date(h.startsAt)))
-  const [eEndsAt,       setEEndsAt]       = useState(toIstanbulInputValue(new Date(h.endsAt)))
+  const [eStartsAt,     setEStartsAt]     = useState(toInputValue(new Date(h.startsAt), tz))
+  const [eEndsAt,       setEEndsAt]       = useState(toInputValue(new Date(h.endsAt), tz))
   const [ePhoto,        setEPhoto]        = useState<string | null>(h.photo)
 
   function openEdit() {
     // Reseed from the live hangout so the form always reflects current data.
     setETitle(h.title); setELocation(h.location); setENeighborhood(h.neighborhood ?? '')
     setEDescription(h.description ?? '')
-    setEStartsAt(toIstanbulInputValue(new Date(h.startsAt)))
-    setEEndsAt(toIstanbulInputValue(new Date(h.endsAt)))
+    setEStartsAt(toInputValue(new Date(h.startsAt), tz))
+    setEEndsAt(toInputValue(new Date(h.endsAt), tz))
     setEPhoto(h.photo)
     setConfirmingCancel(false)
     setEditing(true)
@@ -1271,8 +1270,8 @@ function HangoutCard({ h, currentUser, onCancel, onMutated, neighborhoods }: {
           location:     eLocation,
           neighborhood: eNeighborhood || null,
           description:  eDescription || null,
-          startsAt:     istanbulInputToISO(eStartsAt),
-          endsAt:       istanbulInputToISO(eEndsAt),
+          startsAt:     inputToISO(eStartsAt, tz),
+          endsAt:       inputToISO(eEndsAt, tz),
           // null clears the photo; a URL adds/replaces it.
           photo:        ePhoto,
         }),
@@ -1368,7 +1367,7 @@ function HangoutCard({ h, currentUser, onCancel, onMutated, neighborhoods }: {
   }
 
   const photoUrl = h.photo ? resolveImageUrl(h.photo) : null
-  const status   = timeStatus(h.startsAt, h.endsAt)
+  const status   = timeStatus(h.startsAt, h.endsAt, tz)
   return (
     <div className={`bg-white border rounded-2xl overflow-hidden ${status.live ? 'border-green-200 ring-1 ring-green-100 shadow-md' : 'border-gray-100 shadow-sm'}`}>
       {/* Location photo — full-bleed at top with the title laid over a
@@ -1648,7 +1647,7 @@ function HangoutCard({ h, currentUser, onCancel, onMutated, neighborhoods }: {
                   : <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0"
                       style={{ backgroundColor: m.user.color }}>{m.user.name[0]}</div>}
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs"><span className="font-semibold text-gray-900">{m.user.name}</span> <span className="text-gray-400">· {new Date(m.createdAt).toLocaleTimeString('en-GB', { timeZone: TZ, hourCycle: 'h23', hour: '2-digit', minute: '2-digit' })}</span></p>
+                  <p className="text-xs"><span className="font-semibold text-gray-900">{m.user.name}</span> <span className="text-gray-400">· {new Date(m.createdAt).toLocaleTimeString('en-GB', { timeZone: tz, hourCycle: 'h23', hour: '2-digit', minute: '2-digit' })}</span></p>
                   <p className="text-sm text-gray-700 whitespace-pre-wrap">{m.body}</p>
                 </div>
               </div>

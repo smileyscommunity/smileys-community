@@ -90,3 +90,50 @@ export function nowInTz(tz: string = DEFAULT_TZ, now: Date = new Date()): TzNow 
     weekdayShort: get('weekday'),
   }
 }
+
+/**
+ * The instant at which `tz` reads `hour:00` on its own today.
+ *
+ * "Tonight at 19:00" is a statement about the city's clock, and the hangouts
+ * composer used to build it as `Date.UTC(y, m, d, 19 - 3)` — 19:00 minus a
+ * hand-written UTC+3. That is correct for exactly one city, and wrong twice a
+ * year for any city that observes DST.
+ *
+ * Derived from the offset between now and the city's current clock, so it
+ * needs no offset table and no assumption about which city this is. Returns a
+ * moment earlier today when `hour` has already passed; callers decide what
+ * that means (the composer pushes it to "half an hour from now").
+ */
+export function atHourInTz(hour: number, tz: string = DEFAULT_TZ, now: Date = new Date()): Date {
+  const { minutes } = nowInTz(tz, now)
+  return new Date(now.getTime() + (hour * 60 - minutes) * 60_000)
+}
+
+/**
+ * A Date rendered as a `datetime-local` value ('YYYY-MM-DDTHH:MM') on `tz`'s
+ * clock, and its inverse.
+ *
+ * A hangout's meet time is the CITY's wall clock: "18:30" means half six where
+ * the plan is, whatever the creator's laptop says. The pair used to hardcode
+ * the founding city — format via its zone, parse by tagging '+03:00' — which
+ * silently mis-files a plan by the offset difference for any other city, and
+ * breaks twice a year anywhere with DST.
+ *
+ * The inverse works by measuring what the city's clock actually reads at a
+ * first guess and correcting by the difference, so it needs no offset table.
+ * A time inside a DST spring-forward gap has no real instant; that resolves to
+ * the moment just after the jump, which is the least surprising answer.
+ */
+export function wallClockInTz(d: Date, tz: string = DEFAULT_TZ): string {
+  // sv-SE gives 'YYYY-MM-DD HH:MM:SS'; swap the space and drop seconds.
+  return d.toLocaleString('sv-SE', { timeZone: safeTz(tz) }).replace(' ', 'T').slice(0, 16)
+}
+
+export function fromWallClockInTz(value: string, tz: string = DEFAULT_TZ): Date {
+  const asIfUtc = new Date(`${value}:00Z`).getTime()
+  // What the city's clock reads at that instant, read back as if it were UTC:
+  // the gap between the two IS the city's offset at that moment.
+  const shown  = new Date(`${wallClockInTz(new Date(asIfUtc), tz)}:00Z`).getTime()
+  const offset = shown - asIfUtc
+  return new Date(asIfUtc - offset)
+}

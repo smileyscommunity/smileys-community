@@ -10,6 +10,7 @@ import AvatarImg from '@/components/AvatarImg'
 import { avatarUrl } from '@/lib/data'
 import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
+import { DEFAULT_TZ } from '@/lib/cityTime'
 import { BOARD_POST_TYPES, QUESTION_TAGS, TAG_LABEL, type BoardPostType } from '@/lib/board'
 
 interface PostUser { id: string; name: string; color: string; profilePhoto: string | null }
@@ -41,11 +42,11 @@ function fmtArrival(iso: string) {
   return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
 }
 
-function fmtHangoutTime(iso: string) {
+function fmtHangoutTime(iso: string, tz: string) {
   return new Date(iso).toLocaleString('en-GB', {
     weekday: 'short', day: 'numeric', month: 'short',
     hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-    timeZone: 'Europe/Istanbul',
+    timeZone: tz,
   })
 }
 
@@ -53,6 +54,8 @@ function fmtHangoutTime(iso: string) {
 // system of record for informal plans (times, joins, group chat) — the
 // Board surfaces them instead of running a competing plan type.
 function HangoutsModule({ hangouts }: { hangouts: FeedHangout[] }) {
+  // Hangout times belong to the city the plan is in, not the reader's laptop.
+  const tz = useCurrentCity()?.timezone ?? DEFAULT_TZ
   if (hangouts.length === 0) return null
   return (
     <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5">
@@ -64,7 +67,7 @@ function HangoutsModule({ hangouts }: { hangouts: FeedHangout[] }) {
             <div className="flex-1 min-w-0">
               <p className="text-sm font-bold text-gray-900 truncate group-hover:text-amber-700 transition-colors">{h.title}</p>
               <p className="text-xs text-gray-500 mt-0.5">
-                {h.host} · 🕐 {fmtHangoutTime(h.startsAt)}
+                {h.host} · 🕐 {fmtHangoutTime(h.startsAt, tz)}
                 {h.neighborhood && <> · 📍 {h.neighborhood}</>}
                 {h.joinCount > 0 && <> · 👥 {h.joinCount} joined</>}
               </p>

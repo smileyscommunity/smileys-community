@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { resolveImageUrl } from '@/lib/data'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
+import { DEFAULT_TZ } from '@/lib/cityTime'
 
 interface Msg {
   id: string
@@ -20,6 +22,8 @@ export default function HangoutDiscussion({ hangoutId, initialMessages, canPost,
   canPost: boolean
   isJoinable: boolean
 }) {
+  // Times belong to the city the content is in, not the reader's device.
+  const tz = useCurrentCity()?.timezone ?? DEFAULT_TZ
   const [messages, setMessages] = useState<Msg[]>(initialMessages)
   const [draft,    setDraft]    = useState('')
   const [sending,  setSending]  = useState(false)
@@ -87,7 +91,7 @@ export default function HangoutDiscussion({ hangoutId, initialMessages, canPost,
                 <div className="flex-1 min-w-0">
                   <p className="text-xs">
                     <span className="font-semibold text-gray-900">{m.user.name}</span>
-                    <span className="text-gray-400"> · {new Date(m.createdAt).toLocaleTimeString('en-GB', { timeZone: 'Europe/Istanbul', hour: '2-digit', minute: '2-digit' })}</span>
+                    <span className="text-gray-400"> · {new Date(m.createdAt).toLocaleTimeString('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit' })}</span>
                   </p>
                   <p className="text-sm text-gray-800 whitespace-pre-wrap">{m.body}</p>
                 </div>
