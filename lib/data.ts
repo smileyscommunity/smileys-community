@@ -239,28 +239,6 @@ export interface Review {
   createdAt: string
 }
 
-/**
- * "Today" in the founding city — the answer when no single city applies.
- *
- * This was once the default everywhere, on 83 call sites. Every surface that
- * HAS a city now asks that city instead: pages and routes through
- * todayInCity(cityId), client components through the timezone on
- * useCurrentCity(). What remains here is the set that genuinely spans cities:
- *
- *   app/api/cron/sweep-payment-reminders   app/api/cron/sweep-waitlists
- *   app/api/cron/sweep-review-nudges       app/api/cron/sweep-event-spots
- *   app/api/admin/cron/reminders           lib/newsletterDigest
- *
- * Those run network-wide and compute one "today" for everyone, which is
- * correct only while every city shares this zone. The fix is not a different
- * constant — it is grouping each sweep by city and asking per city, which
- * changes the shape of jobs that send email, so it wants its own change and
- * its own testing. Until then a city outside this zone gets its reminders and
- * digests on the founding city's clock: hours early or late, never silent.
- */
-export function todayIstanbul(offsetDays = 0): string {
-  return todayInTz(DEFAULT_TZ, offsetDays)
-}
 
 // Date boundaries for the homepage event tabs, in Istanbul terms.
 //

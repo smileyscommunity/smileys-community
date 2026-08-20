@@ -8,7 +8,7 @@ import { createNotification } from '@/lib/notify'
 import { sendReviewRequestEmail, sendListingExpiryEmail, recordEmailFailure } from '@/lib/email'
 import { sendPushToUser } from '@/lib/push'
 import { getSession } from '@/lib/session'
-import { todayIstanbul } from '@/lib/data'
+import { citiesByToday, type CityDay } from '@/lib/city'
 import { uploadRoot } from '@/lib/uploadRoot'
 
 export async function GET(req: NextRequest) {
@@ -30,13 +30,23 @@ export async function GET(req: NextRequest) {
   }
 
   const now          = new Date()
-  const todayStr     = todayIstanbul()
-  const tomorrowStr  = todayIstanbul(1)
-  const yesterdayStr = todayIstanbul(-1)
+  // Yesterday / today / tomorrow, per city. This sweep ARCHIVES events whose
+  // date has passed and mails their attendees, so a single network-wide
+  // "today" retires a city's events — and sends its post-event mail — while
+  // that day is still running there. Cities sharing a zone share a group, so
+  // today this is the same set of queries it has always been.
+  const [yesterdayGroups, todayGroups, tomorrowGroups] = await Promise.all([
+    citiesByToday(-1), citiesByToday(), citiesByToday(1),
+  ])
+  // `date` is a bare calendar day, so each arm pairs a day with the cities it
+  // belongs to. One arm today; a second only once a city lives elsewhere.
+  const onDay   = (gs: CityDay[]) => gs.map(({ date, cityIds }) => ({ date, cityId: { in: cityIds } }))
+  const before  = (gs: CityDay[]) => gs.map(({ date, cityIds }) => ({ date: { lt: date }, cityId: { in: cityIds } }))
+  const todayOrTomorrow = [...todayGroups, ...tomorrowGroups]
 
   // Auto-archive published events whose date has passed
   const { count: archivedCount } = await prisma.event.updateMany({
-    where: { date: { lt: todayStr }, status: 'published' },
+    where: { OR: before(todayGroups), status: 'published' },
     data:  { status: 'archived' },
   })
 
@@ -48,7 +58,10 @@ export async function GET(req: NextRequest) {
 
   // Auto-expire visitor announcements whose trip has ended
   await prisma.visitorAnnouncement.updateMany({
-    where: { endsOn: { lt: todayStr }, status: 'active' },
+    where: {
+      OR: todayGroups.map(({ date, cityIds }) => ({ endsOn: { lt: date }, cityId: { in: cityIds } })),
+      status: 'active',
+    },
     data:  { status: 'expired' },
   })
 
@@ -102,7 +115,7 @@ export async function GET(req: NextRequest) {
 
   // Post-event connection suggestions — send to attendees of events that just archived (yesterday)
   const justArchivedEvents = await prisma.event.findMany({
-    where: { date: yesterdayStr, status: 'archived' },
+    where: { OR: onDay(yesterdayGroups), status: 'archived' },
     include: {
       attendees: {
         where: { status: 'approved' },
@@ -138,11 +151,11 @@ export async function GET(req: NextRequest) {
 
   const [upcomingEvents, pastEvents] = await Promise.all([
     prisma.event.findMany({
-      where: { date: { in: [todayStr, tomorrowStr] }, status: 'published' },
+      where: { OR: onDay(todayOrTomorrow), status: 'published' },
       include: { attendees: { where: { status: 'approved' }, select: { userId: true } } },
     }),
     prisma.event.findMany({
-      where: { date: yesterdayStr, status: { in: ['published', 'archived'] } },
+      where: { OR: onDay(yesterdayGroups), status: { in: ['published', 'archived'] } },
       include: {
         attendees: {
           where: { status: 'approved' },

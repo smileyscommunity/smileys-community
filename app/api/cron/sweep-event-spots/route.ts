@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { todayIstanbul } from '@/lib/data'
+import { citiesByToday } from '@/lib/city'
 import { expectedSpotsLeft } from '@/lib/spotsLeft'
 import { recordCronRun } from '@/lib/cronHealth'
 
@@ -34,10 +34,16 @@ export const dynamic = 'force-dynamic'
 import { checkCronAuth } from '@/lib/cronAuth'
 
 async function runSweep() {
-  const events = await prisma.event.findMany({
-    where:  { status: 'published', date: { gte: todayIstanbul() } },
-    select: { id: true, title: true, totalSpots: true, spotsLeft: true },
-  })
+  // "Upcoming" is per city: one `today` for the whole network reconciles a day
+  // too many or too few wherever the calendar has already turned. Cities in one
+  // zone share a group, so this is the same single query it always was until a
+  // city sits in a different zone.
+  const events = (await Promise.all(
+    (await citiesByToday()).map(({ date, cityIds }) => prisma.event.findMany({
+      where:  { status: 'published', cityId: { in: cityIds }, date: { gte: date } },
+      select: { id: true, title: true, totalSpots: true, spotsLeft: true },
+    })),
+  )).flat()
 
   const fixes: string[] = []
   for (const e of events) {

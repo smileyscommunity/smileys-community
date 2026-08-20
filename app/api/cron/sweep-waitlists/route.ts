@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notify'
 import { recordCronRun } from '@/lib/cronHealth'
-import { todayIstanbul } from '@/lib/data'
+import { citiesByToday } from '@/lib/city'
 
 // Sweeper that closes the waitlist lifecycle. Without this cron, a member
 // who queued for a full event and never won a freed spot stays on that
@@ -32,7 +32,11 @@ export async function POST(req: NextRequest) {
   if (denied) return denied
 
   try {
-    const today = todayIstanbul()
+    // "Past" is per city: closing someone's waitlist entry — and telling them
+    // the event "came and went" — a day before that day has finished where the
+    // event is would be both wrong and unkind. Cities in one zone share a
+    // group, so this is the same pair of queries until a city sits elsewhere.
+    const [dayGroups, noteGroups] = await Promise.all([citiesByToday(), citiesByToday(-7)])
 
     // WaitlistEntry has no FK relations (bare userId/eventId columns), so
     // events are batch-fetched separately — same pattern as the admin
@@ -43,8 +47,11 @@ export async function POST(req: NextRequest) {
     const eventIds = [...new Set(entries.map(e => e.eventId))]
     const events = eventIds.length
       ? await prisma.event.findMany({
-          where:  { id: { in: eventIds }, date: { lt: today } },
-          select: { id: true, title: true, emoji: true, status: true, date: true },
+          where: {
+            id: { in: eventIds },
+            OR: dayGroups.map(({ date, cityIds }) => ({ date: { lt: date }, cityId: { in: cityIds } })),
+          },
+          select: { id: true, title: true, emoji: true, status: true, date: true, cityId: true },
         })
       : []
     const pastEvent = new Map(events.map(e => [e.id, e]))
@@ -53,14 +60,16 @@ export async function POST(req: NextRequest) {
     // Only close out RECENT misses — a "came and went" note about an event
     // from weeks ago (the pre-sweeper backlog) reads as noise. Older
     // entries purge silently.
-    const noteCutoff = todayIstanbul(-7)
+    // Each event is measured against its OWN city's seven-days-ago.
+    const noteCutoffFor = new Map(noteGroups.flatMap(g => g.cityIds.map(id => [id, g.date])))
 
     let notified = 0
     for (const entry of stale) {
       const event = pastEvent.get(entry.eventId)!
       // Cancelled/postponed events already told their people — only send
       // the "filled up" close-out when the event genuinely ran full.
-      if (event.status !== 'cancelled' && event.status !== 'postponed' && event.date >= noteCutoff) {
+      const noteCutoff = noteCutoffFor.get(event.cityId)
+      if (event.status !== 'cancelled' && event.status !== 'postponed' && noteCutoff && event.date >= noteCutoff) {
         await createNotification(
           entry.userId,
           'waitlist',

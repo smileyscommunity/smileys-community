@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notify'
 import { recordCronRun } from '@/lib/cronHealth'
-import { todayIstanbul } from '@/lib/data'
+import { citiesByToday } from '@/lib/city'
 
 // Payment-reminder sweeper for pay-in-advance events. Attendees of
 // Smileys-collected priced events starting within the next ~48h who
@@ -35,18 +35,29 @@ export const dynamic = 'force-dynamic'
 import { checkCronAuth } from '@/lib/cronAuth'
 
 async function runSweep() {
-  const today  = todayIstanbul()
-  const cutoff = todayIstanbul(2) // events today, tomorrow, or the day after
+  // "Today, tomorrow, or the day after" is a claim about the event's own city.
+  // Computed once for the network, a city an hour ahead gets its 48h window
+  // shifted by a day — members nudged about an event that is not near yet, or
+  // not nudged about one that is tonight. Cities sharing a zone share a group,
+  // so this stays one query until a city sits in a different one.
+  const [startGroups, endGroups] = await Promise.all([citiesByToday(), citiesByToday(2)])
+  const cutoffFor = new Map(endGroups.flatMap(g => g.cityIds.map(id => [id, g.date])))
+  const windows = startGroups.map(({ date, cityIds }) => ({
+    date, cityIds, cutoff: cutoffFor.get(cityIds[0]) ?? date,
+  }))
 
-  const events = await prisma.event.findMany({
-    where: {
-      payTo:  'smileys',
-      price:  { gt: 0 },
-      status: 'published',
-      date:   { gte: today, lte: cutoff },
-    },
-    select: { id: true, title: true, date: true, price: true, currency: true, hostId: true },
-  })
+  const events = (await Promise.all(
+    windows.map(w => prisma.event.findMany({
+      where: {
+        payTo:  'smileys',
+        price:  { gt: 0 },
+        status: 'published',
+        cityId: { in: w.cityIds },
+        date:   { gte: w.date, lte: w.cutoff },
+      },
+      select: { id: true, title: true, date: true, price: true, currency: true, hostId: true },
+    })),
+  )).flat()
 
   let created = 0
   let reminded = 0
@@ -110,9 +121,17 @@ async function runSweep() {
   // event means the money was never collected — close the row (history
   // stays queryable via PaymentLog; repeat no-payers become visible).
   // Not scoped to payTo: catches strays on events whose payTo changed too.
-  const staleCutoff = todayIstanbul(-3)
+  // Same per-city rule, three days back: closing a ledger row early because
+  // another city's calendar turned first would cancel a payment that is still
+  // legitimately pending where the event happened.
+  const staleGroups = await citiesByToday(-3)
   const stale = await prisma.payment.findMany({
-    where:  { status: 'pending', event: { date: { lt: staleCutoff } } },
+    where: {
+      status: 'pending',
+      OR: staleGroups.map(({ date, cityIds }) => ({
+        event: { date: { lt: date }, cityId: { in: cityIds } },
+      })),
+    },
     select: { id: true, event: { select: { title: true } } },
   })
   if (stale.length) {

@@ -1,7 +1,7 @@
 import { prisma } from './prisma'
-import { getDefaultCityId } from './city'
+import { getDefaultCityId, todayInCity } from './city'
 import { APP_URL, SITE_URL } from './env'
-import { todayIstanbul, resolveImageUrl, formatTime } from './data'
+import { resolveImageUrl, formatTime } from './data'
 
 // Server-side builder for the weekly auto-newsletter. Produces the same
 // card markup as the composer's insert buttons (events digest + 3 random
@@ -21,16 +21,19 @@ function card(inner: string, bg = '#fafafa', border = '#f3f4f6'): string {
 }
 
 export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: string; preheader: string } | null> {
-  const today = todayIstanbul()
-  const end   = todayIstanbul(7)
-
   // One digest, scoped to the default city. When a second city has real
   // activity this needs to become buildWeeklyDigest(cityId) with per-city
   // sends — until then, scoping keeps another city's rows from leaking
   // into everyone's email rather than changing who receives it.
   const cityId = await getDefaultCityId()
 
-  const weekAgoStr = todayIstanbul(-7)
+  // Dates come from THAT city, not from a constant. Identical today, since the
+  // city in question is the founding one — but it means the day the digest
+  // becomes per-city, its week already follows whichever city it is built for
+  // instead of quietly using another's calendar.
+  const [today, end, weekAgoStr] = await Promise.all([
+    todayInCity(cityId), todayInCity(cityId, 7), todayInCity(cityId, -7),
+  ])
   const weekAgoDate = new Date(Date.now() - 7 * 86_400_000)
 
   const [events, clubs, newMembers, photos, eventsHeld, checkins, newConnections, listings, articles] = await Promise.all([

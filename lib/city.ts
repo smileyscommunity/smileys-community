@@ -177,6 +177,38 @@ export async function todayInCity(cityId: string, offsetDays = 0): Promise<strin
   return todayInTz(await getCityTz(cityId), offsetDays)
 }
 
+export interface CityDay { date: string; cityIds: string[] }
+
+/**
+ * Every city grouped by what "today" currently is for it.
+ *
+ * The network-wide sweeps — reminders, waitlists, payment nudges, spot
+ * reconciliation, the digest — each computed a single `today` and applied it to
+ * every city. That is right only while all cities share a zone. The moment one
+ * doesn't, its members get reminders on another city's clock, and the reminder
+ * sweep ARCHIVES events whose date has passed, so a city behind the founding
+ * one would have its events retired while that day was still running there.
+ *
+ * Grouping rather than looping per city keeps the cost honest: cities sharing a
+ * timezone share a group, so the six Turkish cities are one group and one query
+ * — the same number of queries these sweeps ran before. A second zone costs a
+ * second pass, which is exactly the work that was missing.
+ *
+ * Includes every city, not just live ones: a paused city's rows still need
+ * maintaining, and skipping them would leave published events unarchived.
+ */
+export async function citiesByToday(offsetDays = 0): Promise<CityDay[]> {
+  const cities = await prisma.city.findMany({ select: { id: true, timezone: true } })
+  const byDate = new Map<string, string[]>()
+  for (const c of cities) {
+    const date = todayInTz(c.timezone, offsetDays)
+    const ids  = byDate.get(date)
+    if (ids) ids.push(c.id)
+    else byDate.set(date, [c.id])
+  }
+  return [...byDate.entries()].map(([date, cityIds]) => ({ date, cityIds }))
+}
+
 // ── Admin create paths: which city should a new record land in? ────────────
 // Until 2026-08, every admin create path hardcoded the creator's own city
 // (session.cityId or resolveCityId), which made standing up a second city

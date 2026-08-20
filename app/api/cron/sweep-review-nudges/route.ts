@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { todayIstanbul } from '@/lib/data'
+import { citiesByToday } from '@/lib/city'
 import { createNotification } from '@/lib/notify'
 import { recordCronRun } from '@/lib/cronHealth'
 
@@ -41,7 +41,11 @@ const ALIAS: Record<string, string> = {
 const norm = (s: string) => (ALIAS[s.replace(/\s+/g, ' ').trim()] ?? s.replace(/\s+/g, ' ').trim()).toLowerCase()
 
 async function runSweep() {
-  const today = todayIstanbul()
+  // "Already happened" is per city. An event that finished last night in one
+  // zone may still be today's in another, and nudging someone to review a
+  // dinner they have not had yet is the kind of small wrongness that reads as
+  // the product not knowing where you are.
+  const dayGroups = await citiesByToday()
 
   const businesses = await prisma.business.findMany({
     where: { isApproved: true, isActive: true },
@@ -54,7 +58,11 @@ async function runSweep() {
   const attendance = await prisma.eventAttendee.findMany({
     where: {
       status: 'approved', checkedIn: true,
-      event: { date: { lt: today }, cancelledAt: null },
+      // One OR arm per timezone group; a single group (today's reality) makes
+      // this the same query it was.
+      OR: dayGroups.map(({ date, cityIds }) => ({
+        event: { date: { lt: date }, cancelledAt: null, cityId: { in: cityIds } },
+      })),
     },
     select: { userId: true, event: { select: { location: true } } },
   })
