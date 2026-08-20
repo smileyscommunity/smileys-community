@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { formatDate, formatTime, formatPrice, resolveImageUrl, avatarUrl, BLUR_PLACEHOLDER, todayIstanbul } from '@/lib/data'
+import { formatDate, formatTime, formatPrice, resolveImageUrl, avatarUrl, BLUR_PLACEHOLDER } from '@/lib/data'
 import { articleCover } from '@/lib/articleCover'
 import { neighborhoodToSlug } from '@/lib/neighborhoods'
 import { prisma } from '@/lib/prisma'
@@ -33,6 +33,7 @@ import FoundingMemberPanel from '@/components/FoundingMemberPanel'
 import FirstEventBlock from '@/components/FirstEventBlock'
 import Image from 'next/image'
 import { categoryMeta } from '@/lib/handbook-categories'
+import { todayInTz } from '@/lib/cityTime'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,13 +41,13 @@ function getInitials(name: string) {
   return name.trim().split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
 }
 
-function getGreeting() {
+function getGreeting(tz: string) {
   // Use the IANA Europe/Istanbul zone instead of hardcoding `getUTCHours() + 3`.
   // Turkey is currently on permanent UTC+3, but a future DST change (or any
   // reader of this code wondering "why +3?") is one tzdata update away from
   // breaking the morning/afternoon/evening boundaries.
   const hour = Number(new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Europe/Istanbul',
+    timeZone: tz,
     hour:     'numeric',
     // hourCycle 'h23' — hour12:false can render midnight as "24", which
     // would fall through to "Good evening" at midnight instead of morning.
@@ -57,8 +58,8 @@ function getGreeting() {
   return 'Good evening'
 }
 
-function daysUntil(dateStr: string): number {
-  const today = todayIstanbul()
+function daysUntil(dateStr: string, tz: string): number {
+  const today = todayInTz(tz)
   const diff  = new Date(dateStr).getTime() - new Date(today).getTime()
   return Math.ceil(diff / 86400000)
 }
@@ -81,7 +82,10 @@ export default async function DashboardPage() {
     select: { name: true, lat: true, lng: true, timezone: true, status: true },
   }) ?? { name: 'Istanbul', lat: null, lng: null, timezone: 'Europe/Istanbul', status: CITY_STATUS.Live }
 
-  const today      = todayIstanbul()
+  // The member's city decides the calendar day; the row above already
+  // carries its zone, and its fallback is the default city's.
+  const tz         = city.timezone
+  const today      = todayInTz(tz)
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
   const weekAgo    = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
   const twoWeeksAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000)
@@ -789,7 +793,7 @@ export default async function DashboardPage() {
 
   const upcomingDates  = upcomingEvents.map((a) => a.event.date)
   const nextEvent      = upcomingEvents[0]
-  const daysToNext     = nextEvent ? daysUntil(nextEvent.event.date) : null
+  const daysToNext     = nextEvent ? daysUntil(nextEvent.event.date, tz) : null
   const memberSince    = userProfile?.joinedAt
     ? new Date(userProfile.joinedAt).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
     : null
@@ -843,7 +847,7 @@ export default async function DashboardPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-5 sm:pt-10 sm:pb-6 relative z-10">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <p className="text-amber-700 text-sm font-medium mb-1">{getGreeting()} 👋</p>
+              <p className="text-amber-700 text-sm font-medium mb-1">{getGreeting(tz)} 👋</p>
               <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 tracking-tight truncate">
                 {session.name.split(' ')[0]}
               </h1>
@@ -1514,7 +1518,7 @@ export default async function DashboardPage() {
                 {upcomingEvents.slice(1).length > 0 && (
                   <div className="space-y-2">
                     {upcomingEvents.slice(1).map(({ event }) => {
-                      const d = daysUntil(event.date)
+                      const d = daysUntil(event.date, tz)
                       return (
                         <Link key={event.id} href={`/events/${event.id}`}
                           className="flex items-center gap-3 bg-white rounded-2xl shadow-card p-3.5 hover:-translate-y-0.5 transition-all duration-200 group">

@@ -6,7 +6,9 @@ import { toast } from 'sonner'
 import ImageUpload from '@/components/ImageUpload'
 import RichTextEditor from '@/components/RichTextEditor'
 import VibePicker from '@/components/VibePicker'
-import { todayIstanbul } from '@/lib/data'
+import {} from '@/lib/data'
+import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import { useAuth } from '@/contexts/AuthContext'
 import { EVENT_EMOJIS as EMOJIS } from '@/lib/eventEmojis'
@@ -18,6 +20,9 @@ export default function HostNewEventPage() {
 }
 
 function HostNewEventForm() {
+  // "Today" is the CITY's calendar day — a member abroad, or a city in
+  // another zone, must not get a different Tuesday than the community means.
+  const tz = useCurrentCity()?.timezone ?? DEFAULT_TZ
   const router       = useRouter()
   const searchParams = useSearchParams()
   const neighborhoodParam = searchParams.get('neighborhood') ?? ''
@@ -203,7 +208,7 @@ function HostNewEventForm() {
     if (!form.clubId)             { setError('Please select a club for this event'); return }
     if (!form.title.trim())       { setError('Title is required'); return }
     if (!form.date)               { setError('Date is required'); return }
-    if (form.date < todayIstanbul()) { setError('Event date cannot be in the past'); return }
+    if (form.date < todayInTz(tz)) { setError('Event date cannot be in the past'); return }
     if (!form.time)               { setError('Time is required'); return }
     if (!form.location.trim())    { setError('Location name is required'); return }
     if (!form.neighborhood)       { setError('Neighborhood is required'); return }
@@ -360,7 +365,7 @@ function HostNewEventForm() {
             <input
               type="date"
               value={form.date}
-              min={todayIstanbul()}
+              min={todayInTz(tz)}
               onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
               required
               className={inputCls}

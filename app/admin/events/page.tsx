@@ -6,10 +6,12 @@ import Link from 'next/link'
 import CitySelect, { CityBadge, useAdminCities } from '@/components/admin/CitySelect'
 import { useState, useEffect, useMemo, useCallback, Suspense } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
-import { formatTime, resolveImageUrl, todayIstanbul, getInitials } from '@/lib/data'
+import {formatTime, resolveImageUrl,  getInitials} from '@/lib/data'
 import { useAdminLoad } from '@/lib/admin/useAdminLoad'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import NotifyAttendeesModal from '@/components/admin/NotifyAttendeesModal'
+import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
 
 type TabKey = 'all' | 'upcoming' | 'pending' | 'cancelled' | 'archived'
 const TAB_KEYS: TabKey[] = ['all', 'upcoming', 'pending', 'cancelled', 'archived']
@@ -160,7 +162,9 @@ export default function AdminEventsPage() {
 }
 
 function AdminEventsPageInner() {
-  const today = todayIstanbul()
+  // Admin surfaces follow the city being administered.
+  const tz = useCurrentCity()?.timezone ?? DEFAULT_TZ
+  const today = todayInTz(tz)
   const searchParams = useSearchParams()
   const router       = useRouter()
   const pathname     = usePathname()

@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator, canActInCity } from '@/lib/access'
-import { todayIstanbul } from '@/lib/data'
 import { writeAudit } from '@/lib/audit'
+import { todayInCity, resolveCityId } from '@/lib/city'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -53,7 +53,7 @@ export async function POST(_: NextRequest, { params }: Params) {
       data: {
         ...rest,
         title:        `${title} (Copy)`,
-        date:         todayIstanbul(),
+        date:         await todayInCity(await resolveCityId(session)),
         status:       'draft',
         spotsLeft:    source.totalSpots,
         seriesId:     null,

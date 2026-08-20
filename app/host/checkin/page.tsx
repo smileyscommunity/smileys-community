@@ -2,7 +2,9 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { resolveImageUrl, avatarUrl, getInitials, todayIstanbul } from '@/lib/data'
+import {resolveImageUrl, avatarUrl, getInitials} from '@/lib/data'
+import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { vibrate, useScanCheckin } from '@/lib/checkin'
 import SwipeRow from '@/components/SwipeRow'
 import ScanResultToast from '@/components/ScanResultToast'
@@ -25,6 +27,9 @@ interface Attendee {
 }
 
 function EventList() {
+  // "Today" is the CITY's calendar day — a member abroad, or a city in
+  // another zone, must not get a different Tuesday than the community means.
+  const tz = useCurrentCity()?.timezone ?? DEFAULT_TZ
   const [events,  setEvents]  = useState<HostEvent[]>([])
   const [loading, setLoading] = useState(true)
   const router = useRouter()
@@ -33,7 +38,7 @@ function EventList() {
     fetch('/app/api/host/events', { credentials: 'include' })
       .then(r => r.json())
       .then(d => {
-        const today = todayIstanbul()
+        const today = todayInTz(tz)
         setEvents(Array.isArray(d) ? d.filter((e: HostEvent) => e.date === today) : [])
       })
       .finally(() => setLoading(false))

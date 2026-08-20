@@ -12,7 +12,7 @@ import EventTabs from '@/components/EventTabs'
 import JoinCityButton from '@/components/JoinCityButton'
 import ClubCard from '@/components/ClubCard'
 import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
-import { resolveImageUrl, istanbulEventWindow, formatShortDate } from '@/lib/data'
+import { resolveImageUrl, eventWindowFor, formatShortDate } from '@/lib/data'
 import { getPublicCity, DEFAULT_CITY_SLUG } from '@/lib/cities'
 import { CITY_MATURITY } from '@/lib/cityMaturity'
 import { CITY_STATUS } from '@/lib/cityStatus'
@@ -212,7 +212,9 @@ export default async function CityPage({ params }: Params) {
     ...liveEvents.filter(e => !isSoldOut(e)),
     ...liveEvents.filter(isSoldOut),
   ]
-  const eventWindow = istanbulEventWindow()
+  // The city's own week and weekend — this page had been computing them in
+  // the founding city's terms, on a page whose entire subject is another city.
+  const eventWindow = eventWindowFor(city.timezone)
 
   // Clubs with something scheduled first — alphabetical order would fill the
   // page with dormant clubs.

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin, isClubHost } from '@/lib/access'
-import { todayIstanbul } from '@/lib/data'
+import { todayInCity, resolveCityId } from '@/lib/city'
 
 // phone + nationality power the per-row WhatsApp deep link (admin-only
 // endpoint, same fields the per-event participants API exposes).
@@ -39,7 +39,7 @@ export async function GET() {
 
     // Istanbul "today", not UTC — with UTC the 00:00–03:00 local window
     // still included yesterday's events in the future-events filter.
-    const today = todayIstanbul()
+    const today = await todayInCity(await resolveCityId(session))
 
     const [attendees, waitlistRaw] = await Promise.all([
       prisma.eventAttendee.findMany({

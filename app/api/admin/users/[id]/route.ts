@@ -8,8 +8,9 @@ import { isPremium } from '@/lib/membership'
 import { writeAudit } from '@/lib/audit'
 import { normalizeNeighborhoodInput } from '@/lib/neighborhoodsDb'
 import { computeEventSurveyRollup, aggregateRollup } from '@/lib/survey'
-import { formatName, todayIstanbul } from '@/lib/data'
+import {formatName} from '@/lib/data'
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
+import { todayInCity, resolveCityId } from '@/lib/city'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -451,7 +452,7 @@ export async function DELETE(_: NextRequest, { params }: Params) {
       where: {
         userId: id,
         status: 'approved',
-        event:  { status: 'published', date: { gte: todayIstanbul() } },
+        event:  { status: 'published', date: { gte: await todayInCity(await resolveCityId(session)) } },
       },
       select: { eventId: true, event: { select: { totalSpots: true } } },
     })

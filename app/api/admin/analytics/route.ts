@@ -4,7 +4,7 @@ import { Prisma } from '@prisma/client'
 import { getSession } from '@/lib/session'
 import { canViewAnalytics } from '@/lib/access'
 import { getCached, setCached } from '@/lib/analyticsCache'
-import { todayIstanbul } from '@/lib/data'
+import { todayInCity, resolveCityId } from '@/lib/city'
 
 const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
 
@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
     if (cached) return NextResponse.json(cached)
 
     const now   = new Date()
-    const today = todayIstanbul()
+    const today = await todayInCity(await resolveCityId(session))
     const day30 = new Date(now.getTime() - 30 * 86400000)
     const day60 = new Date(now.getTime() - 60 * 86400000)
     const day90 = new Date(now.getTime() - 90 * 86400000)

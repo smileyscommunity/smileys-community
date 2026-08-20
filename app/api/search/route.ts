@@ -2,9 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { resolveCityId } from '@/lib/city'
+import { resolveCityId, todayInCity } from '@/lib/city'
 import { rateLimit } from '@/lib/rateLimit'
-import { todayIstanbul } from '@/lib/data'
 import { restrictedSetFor } from '@/lib/memberPrivacy'
 import { categoryMeta } from '@/lib/handbook-categories'
 
@@ -21,7 +20,7 @@ export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams.get('q')?.trim()
   if (!q || q.length < 2 || q.length > 100) return NextResponse.json(EMPTY)
 
-  const today = todayIstanbul()
+  const today = await todayInCity(await resolveCityId(session))
 
   const blockRelations = await prisma.memberBlock.findMany({
     where: { OR: [{ blockerId: session.id }, { blockedId: session.id }] },

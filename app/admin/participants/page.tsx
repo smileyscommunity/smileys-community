@@ -5,9 +5,11 @@ import { confirmToast } from '@/lib/confirmToast'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import Link from 'next/link'
-import { formatShortDate, todayIstanbul } from '@/lib/data'
+import {formatShortDate} from '@/lib/data'
 import UserAvatar from '@/components/UserAvatar'
 import WhatsAppButton from '@/components/WhatsAppButton'
+import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
 
 // ─── Page contract ──────────────────────────────────────────────────
 // This page is an INBOX: everything on it either needs a decision
@@ -37,10 +39,10 @@ type View = 'pending' | 'waitlist' | 'recent'
 // Pill colors mirror /admin/events so the moderator sees the same
 // vocabulary in both places. Past/draft/archived collapse to zinc
 // because nothing needs urgent action on a closed event.
-function eventStatusPill(status: string, dateStr: string): { label: string; cls: string } {
-  // Istanbul "today", not UTC — between midnight and 3am local the UTC
+function eventStatusPill(status: string, dateStr: string, tz: string): { label: string; cls: string } {
+  // The CITY's "today", not UTC — between midnight and 3am local the UTC
   // date is still yesterday, which mislabelled tonight's events.
-  const isPast = dateStr < todayIstanbul()
+  const isPast = dateStr < todayInTz(tz)
   if (status === 'cancelled') return { label: 'Cancelled', cls: 'bg-red-500/10 text-red-400' }
   if (status === 'postponed') return { label: 'Postponed', cls: 'bg-amber-500/10 text-amber-400' }
   if (status === 'archived')  return { label: 'Archived',  cls: 'bg-zinc-700 text-zinc-400' }
@@ -87,7 +89,8 @@ function SeatsBadge({ event, demand }: { event: EventRef; demand: number }) {
 // Section header shared by the grouped views — event identity, status
 // pill, capacity, and a right-aligned meta line.
 function EventGroupHeader({ event, demand, meta }: { event: EventRef; demand: number; meta: string }) {
-  const pill = eventStatusPill(event.status, event.date)
+  const tz   = useCurrentCity()?.timezone ?? DEFAULT_TZ
+  const pill = eventStatusPill(event.status, event.date, tz)
   return (
     <div className="flex items-center gap-2 px-5 py-3 border-b border-zinc-800 bg-zinc-800/40">
       <span>{event.emoji}</span>
@@ -150,6 +153,8 @@ function ParticipantRow({
 }
 
 export default function AdminParticipantsPage() {
+  // Admin surfaces follow the city being administered.
+  const tz = useCurrentCity()?.timezone ?? DEFAULT_TZ
   const [attendees,   setAttendees]   = useState<Attendee[]>([])
   const [waitlist,    setWaitlist]    = useState<WaitlistEntry[]>([])
   const [loading,     setLoading]     = useState(true)
@@ -552,8 +557,8 @@ export default function AdminParticipantsPage() {
             ) : (
               <div className="space-y-3">
                 {approvedByDay.map(([day, rows]) => {
-                  const label = day === todayIstanbul() ? 'Today'
-                    : day === todayIstanbul(-1) ? 'Yesterday'
+                  const label = day === todayInTz(tz) ? 'Today'
+                    : day === todayInTz(tz, -1) ? 'Yesterday'
                     : formatShortDate(day)
                   return (
                     <div key={day} className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { todayIstanbul } from '@/lib/data'
+import { todayInCity, getDefaultCityId } from '@/lib/city'
 
 // GET /api/cup/watch-parties
 //
@@ -27,7 +27,7 @@ export async function GET() {
   // pinned to the static TOURNAMENT_START, so mid-tournament the "next 6" were
   // the 6 EARLIEST (already-finished) watch parties and genuinely upcoming
   // ones never surfaced.
-  const today  = todayIstanbul()
+  const today  = await todayInCity(await getDefaultCityId())
   const fromDate = today > TOURNAMENT_START ? today : TOURNAMENT_START
   const events = await prisma.event.findMany({
     where: {

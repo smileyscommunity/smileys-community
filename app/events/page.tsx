@@ -7,7 +7,9 @@ import EventCard from '@/components/EventCard'
 import EventCardSkeleton from '@/components/EventCardSkeleton'
 import Link from 'next/link'
 import type { Event } from '@/lib/data'
-import { vibeConfig, todayIstanbul } from '@/lib/data'
+import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
+import {vibeConfig} from '@/lib/data'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePullToRefresh } from '@/hooks/usePullToRefresh'
 import InviteBanner from '@/components/InviteBanner'
@@ -60,6 +62,9 @@ type Tab = 'upcoming' | 'past'
 const PAGE_SIZE = 24
 
 function AppEventsPageInner() {
+  // "Today" is the CITY's calendar day — a member abroad, or a city in
+  // another zone, must not get a different Tuesday than the community means.
+  const tz = useCurrentCity()?.timezone ?? DEFAULT_TZ
   const { user, isLoggedIn } = useAuth()
   const searchParams = useSearchParams()
   const router       = useRouter()
@@ -118,7 +123,7 @@ function AppEventsPageInner() {
   }, [tab, timeFilter, selectedTags, neighborhoodFilter, goingOnly, router, pathname])
 
   const canCreate = user.role === 'admin' || user.isClubHost
-  const today = todayIstanbul()
+  const today = todayInTz(tz)
 
   async function loadEvents(tab: Tab, reset = false) {
     const currentOffset = reset ? 0 : offset
@@ -216,12 +221,12 @@ function AppEventsPageInner() {
     let result = events
 
     if (timeFilter === 'Today') {
-      const todayStr = todayIstanbul()
+      const todayStr = todayInTz(tz)
       result = result.filter(e => e.date === todayStr)
     } else if (timeFilter === 'Tomorrow') {
-      // todayIstanbul(offsetDays) keeps this on the Istanbul calendar
+      // todayInTz(tz, offsetDays) keeps this on the CITY's calendar
       // day rather than the browser's.
-      const tomorrowStr = todayIstanbul(1)
+      const tomorrowStr = todayInTz(tz, 1)
       result = result.filter(e => e.date === tomorrowStr)
     } else if (timeFilter === 'This week') {
       const { start, end } = getWeekRange()

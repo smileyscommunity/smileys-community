@@ -4,10 +4,11 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin, isModerator, isClubHost, isClubHostFor } from '@/lib/access'
 import { createNotification, notifyNewEvent } from '@/lib/notify'
-import { todayIstanbul, splitLeadingEmoji, stripDupTrailingEmoji } from '@/lib/data'
+import {splitLeadingEmoji, stripDupTrailingEmoji} from '@/lib/data'
 import { normalizePaymentContact } from '@/lib/safeUrl'
 import { computeEventSurveyRollup } from '@/lib/survey'
 import { ensurePendingVenueBusiness } from '@/lib/venueDirectory'
+import { todayInCity, resolveCityId } from '@/lib/city'
 
 export async function GET(req: NextRequest) {
   try {
@@ -227,7 +228,7 @@ export async function POST(req: NextRequest) {
     // This covers the timing issue where a host creates their first event before
     // their club host membership is saved (form assigns host role after event creation)
     const isFree        = !parseInt(price) && !memberPrice
-    const weekOut       = todayIstanbul(7)
+    const weekOut       = await todayInCity(await resolveCityId(session), 7)
     const tooFarOut     = isFree && date > weekOut
     const needsReview   = !admin && !isModerator(session)
     const eventStatus   = needsReview ? 'pending' : (tooFarOut ? 'pending' : (status ?? 'published'))

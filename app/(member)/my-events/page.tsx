@@ -3,7 +3,9 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { formatPrice, formatShortDate, formatTime, resolveImageUrl, todayIstanbul } from '@/lib/data'
+import {formatPrice, formatShortDate, formatTime, resolveImageUrl} from '@/lib/data'
+import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { useAuth } from '@/contexts/AuthContext'
 import dynamic from 'next/dynamic'
 import EmptyState from '@/components/EmptyState'
@@ -71,6 +73,9 @@ function EventCard({ e, showQr, onQr }: { e: MyEvent; showQr?: boolean; onQr?: (
 type Tab = 'upcoming' | 'pending' | 'waitlist' | 'hosting' | 'saved' | 'past'
 
 export default function MyEventsPage() {
+  // "Today" is the CITY's calendar day — a member abroad, or a city in
+  // another zone, must not get a different Tuesday than the community means.
+  const tz = useCurrentCity()?.timezone ?? DEFAULT_TZ
   const { user }  = useAuth()
   const [events,  setEvents]  = useState<MyEvent[]>([])
   const [loading, setLoading] = useState(true)
@@ -81,7 +86,7 @@ export default function MyEventsPage() {
   const [saved,   setSaved]   = useState<MyEvent[]>([])
   const [qrEvent, setQrEvent] = useState<MyEvent | null>(null)
 
-  const today = todayIstanbul()
+  const today = todayInTz(tz)
 
   useEffect(() => {
     Promise.all([

@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { todayIstanbul } from '@/lib/data'
+import { todayInCity, resolveCityId } from '@/lib/city'
 
 export async function GET() {
   try {
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'Not logged in' }, { status: 401 })
 
-    const today = todayIstanbul()
+    const today = await todayInCity(await resolveCityId(session))
 
     const [attended, myReviews] = await Promise.all([
       prisma.eventAttendee.findMany({

@@ -3,8 +3,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
-import { resolveImageUrl, todayIstanbul, formatTime } from '@/lib/data'
+import {resolveImageUrl,  formatTime} from '@/lib/data'
 import AlertsRow, { type Alert } from '@/components/admin/AlertsRow'
+import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
 
 interface TopHost {
   id: string; name: string; color: string; profilePhoto: string | null; count: number
@@ -107,6 +109,8 @@ function Trend({ v }: { v?: number | null }) {
 }
 
 export default function AdminPage() {
+  // Admin surfaces follow the city being administered.
+  const tz = useCurrentCity()?.timezone ?? DEFAULT_TZ
   const { user } = useAuth()
   const [stats,    setStats]    = useState<Stats | null>(null)
   const [audit,    setAudit]    = useState<AuditEntry[]>([])
@@ -146,7 +150,7 @@ export default function AdminPage() {
   const load = useCallback((background = false) => {
     if (!background) setLoading(true)
     setErrorMsg(null)
-    const today = todayIstanbul()
+    const today = todayInTz(tz)
     const cityQ = cityId ? `&city=${encodeURIComponent(cityId)}` : ''
     Promise.all([
       fetch(`/app/api/admin/stats${cityId ? `?city=${encodeURIComponent(cityId)}` : ''}`, { credentials: 'include' }),

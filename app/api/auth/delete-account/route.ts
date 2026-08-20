@@ -4,9 +4,9 @@ import { getSession, deleteSession } from '@/lib/session'
 import bcrypt from 'bcryptjs'
 import { randomBytes } from 'crypto'
 import { rateLimit } from '@/lib/rateLimit'
-import { todayIstanbul } from '@/lib/data'
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 import { writeAudit } from '@/lib/audit'
+import { todayInCity, resolveCityId } from '@/lib/city'
 
 // Account deletion follows an anonymize-and-clear strategy, not hard
 // delete. The User row is preserved (with all identifying fields
@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
     // request shouldn't linger for host approval), but only approved
     // rows consumed a spot, so only those events need a recompute.
     const upcomingAttending = await tx.eventAttendee.findMany({
-      where:  { userId: id, event: { status: 'published', date: { gte: todayIstanbul() } } },
+      where:  { userId: id, event: { status: 'published', date: { gte: await todayInCity(await resolveCityId(session)) } } },
       select: { eventId: true, status: true, event: { select: { totalSpots: true } } },
     })
     if (upcomingAttending.length) {

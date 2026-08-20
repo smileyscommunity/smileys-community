@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { loadViewerFacts, sharedContextFor } from '@/lib/sharedContext'
-import { todayIstanbul } from '@/lib/data'
 import { rateLimit, getIp } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
 import { isAdminOrModerator, isClubHost } from '@/lib/access'
+import { todayInCity, resolveCityId } from '@/lib/city'
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
@@ -16,7 +16,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 
   const { id } = await params
-  const today = todayIstanbul()
+  const today = await todayInCity(await resolveCityId(session))
 
   const [user, upcomingEvents, connection, hangoutsHosted, hangoutsJoined, savedRow, activePulse, activeHangout] = await Promise.all([
     prisma.user.findFirst({

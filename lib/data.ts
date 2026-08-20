@@ -239,10 +239,25 @@ export interface Review {
   createdAt: string
 }
 
-// Delegates to the one shared implementation (lib/cityTime.ts). Call sites
-// that know their city should prefer todayInTz(await getCityTz(cityId));
-// this wrapper IS the default-city behavior and stays for the many surfaces
-// that are still Istanbul-implicit.
+/**
+ * "Today" in the founding city — the answer when no single city applies.
+ *
+ * This was once the default everywhere, on 83 call sites. Every surface that
+ * HAS a city now asks that city instead: pages and routes through
+ * todayInCity(cityId), client components through the timezone on
+ * useCurrentCity(). What remains here is the set that genuinely spans cities:
+ *
+ *   app/api/cron/sweep-payment-reminders   app/api/cron/sweep-waitlists
+ *   app/api/cron/sweep-review-nudges       app/api/cron/sweep-event-spots
+ *   app/api/admin/cron/reminders           lib/newsletterDigest
+ *
+ * Those run network-wide and compute one "today" for everyone, which is
+ * correct only while every city shares this zone. The fix is not a different
+ * constant — it is grouping each sweep by city and asking per city, which
+ * changes the shape of jobs that send email, so it wants its own change and
+ * its own testing. Until then a city outside this zone gets its reminders and
+ * digests on the founding city's clock: hours early or late, never silent.
+ */
 export function todayIstanbul(offsetDays = 0): string {
   return todayInTz(DEFAULT_TZ, offsetDays)
 }
@@ -269,8 +284,13 @@ function addDays(date: string, n: number): string {
   return d.toISOString().split('T')[0]
 }
 
-export function istanbulEventWindow(): EventWindow {
-  const today = todayIstanbul()
+/**
+ * The window in a given city's terms. A city shopfront asking "what's on this
+ * weekend" means that city's weekend — Saturday starts when Saturday starts
+ * there, not when it starts in the founding city.
+ */
+export function eventWindowFor(tz: string): EventWindow {
+  const today = todayInTz(tz)
   const dow   = new Date(`${today}T00:00:00Z`).getUTCDay()   // 0 Sun … 6 Sat
 
   // The week runs to Sunday inclusive; on a Sunday that's today.
@@ -283,6 +303,13 @@ export function istanbulEventWindow(): EventWindow {
   const weekendEnd   = dow === 0 ? today : addDays(weekendStart, 1)
 
   return { today, weekEnd, weekendStart, weekendEnd }
+}
+
+// For surfaces that genuinely have no city in scope — the global landing page,
+// which spans every city and has to pick something. Everything with a city
+// should call eventWindowFor(await getCityTz(cityId)).
+export function istanbulEventWindow(): EventWindow {
+  return eventWindowFor(DEFAULT_TZ)
 }
 
 // One rendering for money everywhere: symbol-prefixed for known currencies

@@ -1,7 +1,6 @@
 import { prisma } from './prisma'
 import type { Club, Event, VibeTag } from './data'
-import { todayIstanbul } from './data'
-import { nowInTz, DEFAULT_TZ } from './cityTime'
+import { nowInTz, todayInTz, DEFAULT_TZ } from './cityTime'
 import { getCityTz, getCityConfig } from './city'
 import { isSoldOut } from '@/lib/soldOut'
 
@@ -16,7 +15,8 @@ import { isSoldOut } from '@/lib/soldOut'
 // its own three clubs, none with a member within 700km; a new city now starts
 // with only its own and opts in once those communities have people there.
 export async function getClubs(cityId: string): Promise<Club[]> {
-  const today = todayIstanbul()
+  // "Upcoming" is decided by the city's calendar, not the founding city's.
+  const today = todayInTz(await getCityTz(cityId))
   const { showGlobalClubs } = await getCityConfig(cityId)
   // isActive:true is the public-surface gate. Admins deactivate
   // clubs via /admin/clubs (sets isActive=false on the row); those
@@ -296,7 +296,10 @@ export async function getEventById(id: string): Promise<Event | undefined> {
 }
 
 export async function getEventsByClub(clubId: string): Promise<Event[]> {
-  const today = todayIstanbul()
+  // A club can be global (no city of its own), so fall back to the default
+  // zone only when there is genuinely no city to ask.
+  const club  = await prisma.club.findUnique({ where: { id: clubId }, select: { cityId: true } })
+  const today = todayInTz(club?.cityId ? await getCityTz(club.cityId) : DEFAULT_TZ)
 
   // Show every upcoming club event, regardless of price or distance.
   // The 7-day cap that lives in the global feed (getEvents) is wrong

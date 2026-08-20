@@ -5,7 +5,9 @@ import { confirmToast } from '@/lib/confirmToast'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { resolveImageUrl, todayIstanbul } from '@/lib/data'
+import {resolveImageUrl} from '@/lib/data'
+import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
 
 interface Event {
   id: string
@@ -142,6 +144,9 @@ function EventRow({ e, saving, onDuplicate, onStatusChange, isPast }: { e: Event
 }
 
 export default function HostEventsPage() {
+  // "Today" is the CITY's calendar day — a member abroad, or a city in
+  // another zone, must not get a different Tuesday than the community means.
+  const tz = useCurrentCity()?.timezone ?? DEFAULT_TZ
   const router   = useRouter()
   const [events,       setEvents]       = useState<Event[]>([])
   const [loading,      setLoading]      = useState(true)
@@ -179,7 +184,7 @@ export default function HostEventsPage() {
     setSavingId(null)
   }
 
-  const today    = todayIstanbul()
+  const today    = todayInTz(tz)
   const pending  = events.filter(e => e.status === 'pending')
   const upcoming = events.filter(e => e.date >= today && e.status !== 'pending').sort((a, b) => a.date.localeCompare(b.date))
   const past     = events.filter(e => e.date < today && e.status !== 'pending').sort((a, b) => b.date.localeCompare(a.date))

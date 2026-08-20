@@ -4,10 +4,12 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { toast } from 'sonner'
 import { Suspense } from 'react'
-import { getInitials, todayIstanbul } from '@/lib/data'
+import {getInitials} from '@/lib/data'
 import { vibrate, useScanCheckin } from '@/lib/checkin'
 import QRScanner from '@/components/QRScanner'
 import ScanResultToast from '@/components/ScanResultToast'
+import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
 
 interface Event {
   id: string
@@ -27,6 +29,8 @@ interface Attendee {
 }
 
 function CheckInPageInner() {
+  // Admin surfaces follow the city being administered.
+  const tz = useCurrentCity()?.timezone ?? DEFAULT_TZ
   const searchParams    = useSearchParams()
   const router          = useRouter()
   const pathname        = usePathname()
@@ -104,7 +108,7 @@ function CheckInPageInner() {
         // Now we explicitly pick the first event that's today or later;
         // if none exists the dropdown shows the empty-state copy.
         // Admins fixing yesterday's data still get there via "Show all".
-        const today      = todayIstanbul()
+        const today      = todayInTz(tz)
         const fallback   = list.find((e: Event) => e.date >= today)?.id ?? ''
         const stillValid = defaultEventId && list.some((e: Event) => e.id === defaultEventId && e.date >= today)
         if (!stillValid) setSelectedId(fallback)
@@ -158,7 +162,7 @@ function CheckInPageInner() {
   // "Show all" reveals everything for admins fixing yesterday's data.
   const visibleEvents = useMemo(() => {
     if (showAllEvents) return events
-    const today = todayIstanbul()
+    const today = todayInTz(tz)
     return events.filter(e => e.date >= today)
   }, [events, showAllEvents])
   // Only surface the city in the option label when the visible events span
@@ -172,7 +176,7 @@ function CheckInPageInner() {
   // user-driven path.
   useEffect(() => {
     if (showAllEvents || !selectedId || events.length === 0) return
-    const today    = todayIstanbul()
+    const today    = todayInTz(tz)
     const current  = events.find(e => e.id === selectedId)
     if (current && current.date < today) {
       const next = events.find(e => e.date >= today)

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { canViewModStats, isAdmin } from '@/lib/access'
-import { todayIstanbul } from '@/lib/data'
+import { todayInCity, resolveCityId } from '@/lib/city'
 
 export async function GET() {
   try {
@@ -35,7 +35,7 @@ export async function GET() {
       prisma.visitorAnnouncement.count({
         where: {
           status:   'active',
-          startsOn: { gte: todayIstanbul(), lte: todayIstanbul(7) },
+          startsOn: { gte: await todayInCity(await resolveCityId(session)), lte: await todayInCity(await resolveCityId(session), 7) },
           ...inCity,
         },
       }),

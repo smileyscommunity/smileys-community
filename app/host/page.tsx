@@ -3,7 +3,9 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
-import { todayIstanbul } from '@/lib/data'
+import {} from '@/lib/data'
+import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
 import HostImpactStats from '@/components/HostImpactStats'
 import HostProfileCard from '@/components/HostProfileCard'
 
@@ -22,6 +24,9 @@ interface Event {
 
 
 export default function HostDashboard() {
+  // "Today" is the CITY's calendar day — a member abroad, or a city in
+  // another zone, must not get a different Tuesday than the community means.
+  const tz = useCurrentCity()?.timezone ?? DEFAULT_TZ
   const { user } = useAuth()
   const [events,  setEvents]  = useState<Event[]>([])
   const [loading, setLoading] = useState(true)
@@ -36,7 +41,7 @@ export default function HostDashboard() {
       .finally(() => setLoading(false))
   }, [])
 
-  const today     = todayIstanbul()
+  const today     = todayInTz(tz)
   const upcoming  = events.filter(e => e.status === 'published' && e.date >= today)
   const past      = events
     .filter(e => e.date < today && e.status !== 'cancelled' && e.status !== 'draft')

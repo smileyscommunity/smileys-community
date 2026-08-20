@@ -230,6 +230,34 @@ status field that drifts from reality.
 
 ---
 
+## 8. Cron sweeps still compute one "today" for every city
+
+**Evidence.** `todayIstanbul()` had 83 callers; every surface with a city in
+scope now asks that city. Six remain, and they are the ones that genuinely
+span cities:
+
+    api/cron/sweep-payment-reminders   api/cron/sweep-waitlists
+    api/cron/sweep-review-nudges       api/cron/sweep-event-spots
+    api/admin/cron/reminders           lib/newsletterDigest
+
+Each computes a single `today` at the top of its sweep and then queries
+network-wide. Harmless while every city shares one zone; the day one doesn't,
+that city's members get reminders and digests on the founding city's clock —
+hours early or late, and never obviously broken enough to report.
+
+**Change.** Group each sweep by city and ask per city. Not a different
+constant: the query shape changes, and these jobs send email, so a mistake is
+outbound and irreversible.
+
+**Done when.** A sweep run with two cities in different zones fires each city's
+notifications at that city's local time, and a dry-run mode shows what would go
+to whom before anything sends.
+
+**Effort.** A day, mostly testing. **Risk.** High for its size — it is the only
+item in this document whose failure mode is mail to real members.
+
+---
+
 ## Sequence
 
 1, 2, 3 are each an hour or less and should land before city three. 4 and 5 are

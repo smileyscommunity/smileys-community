@@ -1,4 +1,5 @@
 import { prisma } from './prisma'
+import { todayInTz } from './cityTime'
 import { canActInCity } from './access'
 import type { SessionUser } from './session'
 
@@ -162,6 +163,18 @@ export async function getCityConfig(cityId: string): Promise<CityConfig> {
 /** The IANA timezone a request's city runs on. */
 export async function getCityTz(cityId: string): Promise<string> {
   return (await getCityConfig(cityId)).timezone
+}
+
+/**
+ * Today's calendar date ('YYYY-MM-DD') in a given city.
+ *
+ * Event.date and friends are bare calendar days in the city the content
+ * belongs to, so "is this upcoming" has to be asked in that city's terms.
+ * Routes used todayIstanbul() for this, which is the right answer only while
+ * every city shares the founding city's zone.
+ */
+export async function todayInCity(cityId: string, offsetDays = 0): Promise<string> {
+  return todayInTz(await getCityTz(cityId), offsetDays)
 }
 
 // ── Admin create paths: which city should a new record land in? ────────────
