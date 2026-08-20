@@ -275,8 +275,8 @@ export default async function DashboardPage() {
     if (clubIds.length) conditions.push({ clubMemberships: { some: { clubId: { in: clubIds }, status: 'approved' } } })
     if (userProfile?.neighborhood) conditions.push({ neighborhood: userProfile.neighborhood })
     return conditions.length > 0
-      ? { id: { not: session.id }, status: 'approved', OR: conditions }
-      : { id: { not: session.id }, status: 'approved' }
+      ? { id: { not: session.id }, status: 'approved', cityId, OR: conditions }
+      : { id: { not: session.id }, status: 'approved', cityId }
   })()
 
   // One big parallel batch instead of two sequential ones with two
@@ -299,7 +299,10 @@ export default async function DashboardPage() {
   ] = await Promise.all([
     clubIds.length
       ? prisma.event.findMany({
-          where: { clubId: { in: clubIds }, date: { gte: today }, status: 'published', id: { notIn: joinedEventIds } },
+          // cityId as well as the club: a club you belong to can sit in
+          // another city, and a global club runs events in several, so
+          // "upcoming in your clubs" otherwise followed you across the switch.
+          where: { clubId: { in: clubIds }, cityId, date: { gte: today }, status: 'published', id: { notIn: joinedEventIds } },
           orderBy: { date: 'asc' }, take: 4,
           select: { id: true, title: true, date: true, time: true, emoji: true, neighborhood: true, price: true, currency: true, totalSpots: true, limitedSpots: true, coverImage: true, _count: { select: { attendees: { where: { status: 'approved' } } } } },
         })
@@ -382,9 +385,14 @@ export default async function DashboardPage() {
         options: { orderBy: { order: 'asc' }, include: { _count: { select: { votes: true } } } },
       },
     }),
-    // Featured events not yet joined
+    // Featured events not yet joined, in the city being viewed. Every
+    // discovery query below carries cityId for the same reason: the dashboard
+    // is a city surface — switch to another city and it must stop showing you
+    // the first one's events. Queries about the viewer's OWN activity (their
+    // attendances, their clubs' membership) deliberately do NOT filter by
+    // city: an RSVP you hold in another city is still yours.
     prisma.event.findMany({
-      where: { featured: true, date: { gte: today }, status: 'published', id: { notIn: joinedEventIds } },
+      where: { cityId, featured: true, date: { gte: today }, status: 'published', id: { notIn: joinedEventIds } },
       orderBy: { date: 'asc' }, take: 3,
       select: { id: true, title: true, date: true, time: true, emoji: true, neighborhood: true, price: true, currency: true, spotsLeft: true, limitedSpots: true, coverImage: true },
     }),
@@ -392,7 +400,7 @@ export default async function DashboardPage() {
     // joined. Ordered soonest-first (date is text 'YYYY-MM-DD', so asc = chrono)
     // so the closest event sits on top — the one you need to grab a spot for now.
     prisma.event.findMany({
-      where: { date: { gte: today }, status: 'published', limitedSpots: true, spotsLeft: { gt: 0, lte: 5 }, id: { notIn: joinedEventIds } },
+      where: { cityId, date: { gte: today }, status: 'published', limitedSpots: true, spotsLeft: { gt: 0, lte: 5 }, id: { notIn: joinedEventIds } },
       orderBy: [{ date: 'asc' }, { time: 'asc' }],
       take: 4,
       select: { id: true, title: true, date: true, emoji: true, spotsLeft: true, neighborhood: true, price: true },
@@ -408,6 +416,13 @@ export default async function DashboardPage() {
         ...(clubIds.length
           ? { clubId: { in: clubIds } }
           : { club: { isPrivate: false, isActive: true } }),
+        // Scoped like the rest of the feed. A club you belong to can sit in
+        // another city, and a global club (cityId null) runs events in every
+        // city — but its EVENT always has a city, and that's what decides
+        // whether this timeline entry belongs on the page you're looking at.
+        // Without this, switching city kept surfacing the other city's club
+        // events under "new in your clubs".
+        cityId,
         status:    'published',
         createdAt: { gte: twoWeeksAgo },
         id:        { notIn: joinedEventIds },
@@ -464,18 +479,18 @@ export default async function DashboardPage() {
       orderBy: { joinedAt: 'desc' },
     }),
     prisma.event.findMany({
-      where: { date: { gte: today, lte: weekEndStr }, status: 'published' },
+      where: { cityId, date: { gte: today, lte: weekEndStr }, status: 'published' },
       orderBy: { date: 'asc' },
       take: 20,
       select: { id: true, title: true, date: true, emoji: true, neighborhood: true, price: true, currency: true },
     }),
-    prisma.user.count({ where: { status: 'approved' } }),
-    prisma.event.count({ where: { date: { gte: today, lte: weekEndStr }, status: 'published' } }),
+    prisma.user.count({ where: { cityId, status: 'approved' } }),
+    prisma.event.count({ where: { cityId, date: { gte: today, lte: weekEndStr }, status: 'published' } }),
     userProfile?.neighborhood
-      ? prisma.event.count({ where: { neighborhood: userProfile.neighborhood, date: { gte: today }, status: 'published' } })
+      ? prisma.event.count({ where: { cityId, neighborhood: userProfile.neighborhood, date: { gte: today }, status: 'published' } })
       : Promise.resolve(0),
     prisma.user.findMany({
-      where: { status: 'approved', joinedAt: { gte: weekAgo }, id: { not: session.id } },
+      where: { cityId, status: 'approved', joinedAt: { gte: weekAgo }, id: { not: session.id } },
       select: { id: true, name: true, color: true, profilePhoto: true, neighborhood: true, joinedAt: true },
       orderBy: { joinedAt: 'desc' },
       take: 8,
@@ -724,7 +739,7 @@ export default async function DashboardPage() {
     // Community-wide events in the next 30 days — the "Events this month" stat.
     // (eventsThisMonth above is the viewer's OWN attendances; this is the whole
     // community, parallel to eventsThisWeek's next-7-days count so month ≥ week.)
-    prisma.event.count({ where: { date: { gte: today, lte: monthEndStr }, status: 'published' } }),
+    prisma.event.count({ where: { cityId, date: { gte: today, lte: monthEndStr }, status: 'published' } }),
   ])
 
   // Activity wall reuses the batch-1 recentListings (already active-only,
