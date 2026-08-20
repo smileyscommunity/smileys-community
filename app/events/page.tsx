@@ -97,13 +97,17 @@ function AppEventsPageInner() {
   const [goingOnly,    setGoingOnly]    = useState(() => searchParams.get('going') === '1')
   // CMS overrides land in this state on mount via /api/content. Defaults
   // are the fallback when the CMS hasn't been configured.
-  const [hero, setHero] = useState({ badge: 'Istanbul', headline: "Events", subtitle: 'Find your next experience in Istanbul.' })
+  // Deliberately city-free. These are the values the page actually renders —
+  // /api/content returns events:null in production, so setHero never fires —
+  // and a default of badge:'Istanbul' meant a Bodrum viewer read
+  // "ISTANBUL · BODRUM", with the subtitle naming Istanbul underneath it.
+  // The city comes from viewCity below; the CMS supplies wording, not a place.
+  const [hero, setHero] = useState({ badge: '', headline: 'Events', subtitle: '' })
   // The city this calendar resolved to, from /api/events (the view-city
   // cookie makes it vary per viewer). Separate from `hero` so the CMS
   // fetch — whose copy is default-city-flavored — can't race it back to
   // Istanbul. Only a non-default city overrides the hero.
   const [viewCity, setViewCity] = useState<{ name: string; slug: string; isDefault: boolean; viewing?: boolean; homeName?: string | null } | null>(null)
-  const cityHero = viewCity && !viewCity.isDefault ? viewCity : null
 
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
   const [showMap,         setShowMap]         = useState(false)
@@ -325,7 +329,7 @@ function AppEventsPageInner() {
                 </a>
               )}
               <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">{hero.headline}</h1>
-              <p className="text-base text-gray-600 mt-1">{cityHero ? `Find your next experience in ${cityHero.name}.` : hero.subtitle}</p>
+              <p className="text-base text-gray-600 mt-1">{viewCity ? `Find your next experience in ${viewCity.name}.` : (hero.subtitle || 'Find your next experience.')}</p>
             </div>
             <div className="flex items-center gap-3">
               {/* List / Map toggle — hidden on past-events tab since the
