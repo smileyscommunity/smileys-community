@@ -6,6 +6,14 @@ REMOTE="/root/smileys-community"
 LOCAL="/Users/nate/smileys-community"
 APP_RELEASE=$(git rev-parse --short HEAD)
 
+# Keepalives on every remote call, for the reason backup.sh documents: on
+# 2026-08-20 a dump to this same host stalled for over an hour because the TCP
+# session died silently and ssh, with no keepalive, waited forever. rsync here
+# runs over the same path and had the same hole — a deploy that hangs mid-sync
+# holds the lock, blocks the next one, and leaves you guessing whether prod is
+# half-written. Probe every 15s, give up after 4 misses.
+SSH_OPTS=(-o ServerAliveInterval=15 -o ServerAliveCountMax=4 -o ConnectTimeout=20)
+
 # ── One deploy at a time ─────────────────────────────────────────────────────
 # Two builds sharing this working directory corrupt .next for BOTH of them. The
 # failure lands minutes later as `ENOENT .next/server/pages-manifest.json` or a
@@ -81,7 +89,7 @@ fi
 # --delete path where the NEXT deploy erases them. Neither failure is visible
 # until someone reports a broken avatar, so check before we ship anything.
 echo "→ Checking upload store..."
-ssh "$SERVER" bash -s <<'CHECK_UPLOADS' || { echo "✗ Refusing to deploy — fix UPLOAD_DIR on the server first."; exit 1; }
+ssh "${SSH_OPTS[@]}" "$SERVER" bash -s <<'CHECK_UPLOADS' || { echo "✗ Refusing to deploy — fix UPLOAD_DIR on the server first."; exit 1; }
 set -e
 cd /root/smileys-community
 DIR=$(grep -m1 '^UPLOAD_DIR=' .env 2>/dev/null | cut -d= -f2- | tr -d '"' | xargs || true)
@@ -112,7 +120,7 @@ CHECK_UPLOADS
 # applied. Advisory-but-loud when the DB is unreachable rather than a hard fail:
 # a psql hiccup should not block a deploy that has nothing to do with schema.
 echo "→ Checking migrations are applied to prod..."
-APPLIED=$(ssh "$SERVER" bash -s <<'CHECK_MIGRATIONS' 2>/dev/null || true
+APPLIED=$(ssh "${SSH_OPTS[@]}" "$SERVER" bash -s <<'CHECK_MIGRATIONS' 2>/dev/null || true
 DB=$(grep -m1 '^DATABASE_URL' /root/smileys-community/.env 2>/dev/null | cut -d= -f2- | tr -d '"')
 [ -n "$DB" ] || exit 1
 psql "$DB" -At -c "SELECT migration_name FROM _prisma_migrations WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL;"
@@ -239,7 +247,7 @@ echo "→ Syncing files (server still serving)..."
 # start, so in-flight requests are unaffected by files changing under
 # them. We only restart once everything is in place — cuts deploy
 # downtime from ~45s of 502s to a single ~5s pm2 restart window.
-rsync -av --delete \
+rsync -av --delete -e "ssh ${SSH_OPTS[*]}" \
   --exclude='.env' \
   --exclude='.env.local' \
   --exclude='.next/cache/' \
@@ -271,7 +279,7 @@ rsync -av --delete \
 # deploys). Stamping server-side keeps the local file (and git) untouched;
 # the literal version in public/sw.js now only matters for local dev.
 echo "→ Stamping SW cache key (smileys-$APP_RELEASE)..."
-ssh "$SERVER" "sed -i \"s/const CACHE = 'smileys-[^']*'/const CACHE = 'smileys-$APP_RELEASE'/\" $REMOTE/public/sw.js && grep -o \"smileys-[a-z0-9]*'\" $REMOTE/public/sw.js | head -1"
+ssh "${SSH_OPTS[@]}" "$SERVER" "sed -i \"s/const CACHE = 'smileys-[^']*'/const CACHE = 'smileys-$APP_RELEASE'/\" $REMOTE/public/sw.js && grep -o \"smileys-[a-z0-9]*'\" $REMOTE/public/sw.js | head -1"
 
 echo "→ Restarting server (graceful)..."
 # Restart instead of stop+start so the gap between old and new
@@ -291,7 +299,7 @@ echo "→ Restarting server (graceful)..."
 # Exit 90 is the agreed marker for "schema push failed, everything else ok".
 SCHEMA_PUSH_FAILED=0
 RESTART_RC=0
-ssh "$SERVER" bash -s <<REMOTE_RESTART || RESTART_RC=$?
+ssh "${SSH_OPTS[@]}" "$SERVER" bash -s <<REMOTE_RESTART || RESTART_RC=$?
 set -e
 cd $REMOTE
 npm install --legacy-peer-deps
@@ -400,7 +408,7 @@ fi
 # Daily DB backup — 02:00 UTC (05:00 Istanbul), low-traffic window. Dumps to
 # /root/db-backups (outside the repo so rsync --delete can't wipe it), keeps 14.
 echo "→ Registering sweeper crontabs..."
-ssh "$SERVER" bash -s <<EOF
+ssh "${SSH_OPTS[@]}" "$SERVER" bash -s <<EOF
 set -e
 chmod +x $REMOTE/scripts/sweep-hangouts.sh
 (crontab -l 2>/dev/null | grep -v 'sweep-hangouts' ; echo '*/15 * * * * $REMOTE/scripts/sweep-hangouts.sh >> /var/log/sweep-hangouts.log 2>&1') | crontab -
@@ -467,9 +475,9 @@ EOF
 # deploy), so we stop re-running them. Re-enable for the next tournament by
 # uncommenting (and updating the season data in the scripts).
 # echo "→ Seeding Smileys Cup 2026 fixtures..."
-# ssh "$SERVER" "cd $REMOTE && npx tsx --env-file=.env scripts/seed-cup.ts"
+# ssh "${SSH_OPTS[@]}" "$SERVER" "cd $REMOTE && npx tsx --env-file=.env scripts/seed-cup.ts"
 # echo "→ Overlaying real FIFA schedule on group fixtures..."
-# ssh "$SERVER" "cd $REMOTE && npx tsx --env-file=.env scripts/fix-group-fixtures.ts"
+# ssh "${SSH_OPTS[@]}" "$SERVER" "cd $REMOTE && npx tsx --env-file=.env scripts/fix-group-fixtures.ts"
 
 # Warm the OG image route. /api/og pulls in the satori/resvg render stack
 # and its fonts on first invocation, which costs ~19s cold — long enough that
@@ -478,7 +486,7 @@ EOF
 # caches that miss). One throwaway request pays that cost for us instead.
 # Best-effort: never fail the deploy over a warmup.
 echo "→ Warming OG image route..."
-ssh "$SERVER" "curl -s -o /dev/null -m 60 -w '  og warm: HTTP %{http_code} in %{time_total}s\n' 'http://localhost:3000/app/api/og?title=warmup' || echo '  (og warmup skipped)'"
+ssh "${SSH_OPTS[@]}" "$SERVER" "curl -s -o /dev/null -m 60 -w '  og warm: HTTP %{http_code} in %{time_total}s\n' 'http://localhost:3000/app/api/og?title=warmup' || echo '  (og warmup skipped)'"
 
 if [ "$SCHEMA_PUSH_FAILED" = "1" ]; then
   echo "✗ Deployed (release: $APP_RELEASE) but the DB schema is out of sync — see the prisma db push warning above."
