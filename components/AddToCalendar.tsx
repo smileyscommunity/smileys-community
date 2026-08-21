@@ -12,10 +12,20 @@ interface Props {
   // Real end time (HH:MM) when the event has one; exports fall back to a
   // 2-hour duration otherwise.
   endTime?: string | null
+  // IANA timezone the event's wall-clock times live in. Without it the
+  // export is a floating time, which calendar apps pin to the IMPORTER's
+  // home zone — wrong the moment a visitor adds an event from abroad.
+  timeZone?: string
   compact?: boolean
 }
 
 function pad(n: number) { return String(n).padStart(2, '0') }
+
+// RFC5545 TEXT escaping — an unescaped ';' or ',' in a title truncates
+// the SUMMARY (or worse) in strict parsers.
+function icsEscape(s: string) {
+  return s.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n')
+}
 
 function toICSDate(date: string, time: string) {
   const [y, m, d] = date.split('-').map(Number)
@@ -33,7 +43,7 @@ function toICSDateEnd(date: string, time: string, endTime?: string | null) {
   return `${end.getFullYear()}${pad(end.getMonth()+1)}${pad(end.getDate())}T${pad(end.getHours())}${pad(end.getMinutes())}00`
 }
 
-export default function AddToCalendar({ title, date, time, location, description, url, endTime, compact }: Props) {
+export default function AddToCalendar({ title, date, time, location, description, url, endTime, timeZone, compact }: Props) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -52,6 +62,7 @@ export default function AddToCalendar({ title, date, time, location, description
   const googleUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE` +
     `&text=${encoded(title)}` +
     `&dates=${start}/${end}` +
+    (timeZone ? `&ctz=${encoded(timeZone)}` : '') +
     `&location=${encoded(location ?? '')}` +
     `&details=${encoded((description ?? '') + '\n\n' + url)}`
 
@@ -61,11 +72,13 @@ export default function AddToCalendar({ title, date, time, location, description
       'VERSION:2.0',
       'PRODID:-//Smileys Community//EN',
       'BEGIN:VEVENT',
-      `DTSTART:${start}`,
-      `DTEND:${end}`,
-      `SUMMARY:${title}`,
-      `LOCATION:${location ?? ''}`,
-      `DESCRIPTION:${(description ?? '').replace(/\n/g, '\\n')} ${url}`,
+      // TZID with an IANA name and no VTIMEZONE block — Google, Apple and
+      // Outlook all resolve these. No timeZone → floating, as before.
+      `DTSTART${timeZone ? `;TZID=${timeZone}` : ''}:${start}`,
+      `DTEND${timeZone ? `;TZID=${timeZone}` : ''}:${end}`,
+      `SUMMARY:${icsEscape(title)}`,
+      `LOCATION:${icsEscape(location ?? '')}`,
+      `DESCRIPTION:${icsEscape(description ?? '')} ${url}`,
       `URL:${url}`,
       'END:VEVENT',
       'END:VCALENDAR',

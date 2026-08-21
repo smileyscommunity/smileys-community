@@ -141,6 +141,7 @@ function mapEvent(e: any, spotsLeft?: number): Event {
     hostColor:        undefined,
     hostPhoto:        null,
     clubId:           e.clubId,
+    cityId:           e.cityId,
     clubName:         e.club?.name ?? '',
     attendeePreviews: e.attendees?.map((a: any) => a.user) ?? [],
     address:          e.address          ?? undefined,

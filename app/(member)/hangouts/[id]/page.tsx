@@ -233,6 +233,7 @@ export default async function HangoutPermalinkPage({ params }: PageProps) {
               <AddToCalendar
                 title={hangout.title}
                 date={startDate} time={startTime} endTime={endTime}
+                timeZone={tz}
                 location={hangout.location}
                 description={hangout.description ?? undefined}
                 url={`${APP_URL}/hangouts/${id}`}

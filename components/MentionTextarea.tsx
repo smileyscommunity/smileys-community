@@ -76,6 +76,9 @@ export default function MentionTextarea({
   const taRef   = useRef<HTMLTextAreaElement | null>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
   const timer   = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Bumped by close() so a suggestion fetch that was already dispatched
+  // can't land afterwards and reopen the dropdown over an inserted mention.
+  const fetchSeq = useRef(0)
 
   // Reset height when parent clears the value after submit
   useEffect(() => {
@@ -86,20 +89,28 @@ export default function MentionTextarea({
 
   useEffect(() => {
     function onDown(e: MouseEvent) {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setSuggestions([])
+      // Bump fetchSeq too (not just clear) — an outside click must also
+      // invalidate any suggestion fetch still in flight.
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        fetchSeq.current++
+        setSuggestions([])
+      }
     }
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
   }, [])
 
-  const close = useCallback(() => { setSuggestions([]); setActiveIdx(0) }, [])
+  const close = useCallback(() => { fetchSeq.current++; setSuggestions([]); setActiveIdx(0) }, [])
 
   function fetchSuggestions(query: string) {
     if (timer.current) clearTimeout(timer.current)
+    const seq = ++fetchSeq.current
     timer.current = setTimeout(async () => {
       try {
         const res = await fetch(`/app/api/members/search?q=${encodeURIComponent(query)}`, { credentials: 'include' })
-        if (res.ok) { setSuggestions(await res.json()); setActiveIdx(0) }
+        // seq check: close() bumps the counter, so a response that was
+        // already in flight when the dropdown closed can't reopen it.
+        if (res.ok && seq === fetchSeq.current) { setSuggestions(await res.json()); setActiveIdx(0) }
       } catch {}
     }, 200)
   }
@@ -175,23 +186,33 @@ export function MentionInput({
   const inputRef = useRef<HTMLInputElement>(null)
   const wrapRef  = useRef<HTMLDivElement>(null)
   const timer    = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Same in-flight guard as MentionTextarea above.
+  const fetchSeq = useRef(0)
 
   useEffect(() => {
     function onDown(e: MouseEvent) {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setSuggestions([])
+      // Bump fetchSeq too (not just clear) — an outside click must also
+      // invalidate any suggestion fetch still in flight.
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        fetchSeq.current++
+        setSuggestions([])
+      }
     }
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
   }, [])
 
-  const close = useCallback(() => { setSuggestions([]); setActiveIdx(0) }, [])
+  const close = useCallback(() => { fetchSeq.current++; setSuggestions([]); setActiveIdx(0) }, [])
 
   function fetchSuggestions(query: string) {
     if (timer.current) clearTimeout(timer.current)
+    const seq = ++fetchSeq.current
     timer.current = setTimeout(async () => {
       try {
         const res = await fetch(`/app/api/members/search?q=${encodeURIComponent(query)}`, { credentials: 'include' })
-        if (res.ok) { setSuggestions(await res.json()); setActiveIdx(0) }
+        // seq check: close() bumps the counter, so a response that was
+        // already in flight when the dropdown closed can't reopen it.
+        if (res.ok && seq === fetchSeq.current) { setSuggestions(await res.json()); setActiveIdx(0) }
       } catch {}
     }, 200)
   }

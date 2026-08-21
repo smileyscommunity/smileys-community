@@ -123,6 +123,10 @@ export interface Event {
   hostColor?: string
   hostPhoto?: string | null
   clubId: string
+  // The event's home city (optional so hand-built fixtures in tests don't
+  // all need it). Surfaces that need the city's timezone resolve it from
+  // this via getCityTz.
+  cityId?: string
   clubName: string
   description: string
   limitedSpots: boolean

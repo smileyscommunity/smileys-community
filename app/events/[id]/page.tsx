@@ -5,6 +5,8 @@ import Link from 'next/link'
 import Image from 'next/image'
 import type { Metadata } from 'next'
 import { getEventById } from '@/lib/db'
+import { getCityTz } from '@/lib/city'
+import { DEFAULT_TZ, todayInTz } from '@/lib/cityTime'
 import { formatDate, formatTime, formatPrice, vibeConfig, resolveImageUrl, avatarUrl, getInitials, type Event } from '@/lib/data'
 import { countryFlag } from '@/lib/countries'
 import { prisma } from '@/lib/prisma'
@@ -147,7 +149,10 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
   const event = await getEventById(id)
   if (!event) notFound()
 
-  const today  = new Date().toISOString().split('T')[0]
+  // The event's own city decides both its calendar "today" and the
+  // timezone stamped on calendar exports.
+  const eventTz = event.cityId ? await getCityTz(event.cityId) : DEFAULT_TZ
+  const today  = todayInTz(eventTz)
   const isPast = event.date < today
   // One rule for the banner, the capacity strip, the RSVP button and the
   // structured data — they contradicted each other the moment any of them
@@ -196,6 +201,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                 title={event.title}
                 date={event.date}
                 time={event.time}
+                timeZone={eventTz}
                 endTime={event.endTime}
                 location={event.location ?? event.neighborhood ?? ''}
                 description={event.description ? event.description.replace(/<[^>]+>/g, '') : ''}
@@ -508,6 +514,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
               title={event.title}
               date={event.date}
               time={event.time}
+              timeZone={eventTz}
                 endTime={event.endTime}
               location={event.location ?? event.neighborhood ?? ''}
               description={event.description ? event.description.replace(/<[^>]+>/g, '') : ''}
@@ -1125,6 +1132,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                     title={event.title}
                     date={event.date}
                     time={event.time}
+                    timeZone={eventTz}
                 endTime={event.endTime}
                     location={event.location ?? event.neighborhood ?? ''}
                     description={event.description ? event.description.replace(/<[^>]+>/g, '') : ''}

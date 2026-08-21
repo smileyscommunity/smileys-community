@@ -929,7 +929,9 @@ function BracketCard({
   const row     = bracket
   const hasRow  = row !== null
   const lockMsg = tournamentStartAt
-    ? `Locks at first kickoff · ${new Date(tournamentStartAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`
+    // Same zone as the fixture list below — device-local here put two
+    // different clock times for the same kickoff on one screen.
+    ? `Locks at first kickoff · ${new Date(tournamentStartAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Istanbul' })}`
     : 'Locks at first kickoff'
 
   return (
