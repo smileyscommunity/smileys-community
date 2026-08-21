@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 import { getSession } from '@/lib/session'
 import { createNotification } from '@/lib/notify'
 
@@ -43,17 +44,29 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ joined: false })
   }
 
-  // Capacity check + create inside one transaction so two simultaneous
-  // joins can't both squeeze into the last spot. maxPeople includes the
+  // Capacity check + create under SERIALIZABLE isolation — a plain
+  // interactive transaction runs at Read Committed, where two simultaneous
+  // joins both count N-1 and both insert (the old comment claimed the tx
+  // alone prevented that; it doesn't). Serializable makes one of them fail
+  // with P2034, which we retry: on retry it either sees the other join and
+  // reports full, or takes a genuinely free spot. maxPeople includes the
   // host, so joiners are capped at maxPeople - 1.
   try {
-    await prisma.$transaction(async tx => {
-      if (hangout.maxPeople) {
-        const count = await tx.hangoutJoin.count({ where: { hangoutId } })
-        if (count >= hangout.maxPeople - 1) throw new Error('HANGOUT_FULL')
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await prisma.$transaction(async tx => {
+          if (hangout.maxPeople) {
+            const count = await tx.hangoutJoin.count({ where: { hangoutId } })
+            if (count >= hangout.maxPeople - 1) throw new Error('HANGOUT_FULL')
+          }
+          await tx.hangoutJoin.create({ data: { hangoutId, userId: session.id } })
+        }, { isolationLevel: 'Serializable' })
+        break
+      } catch (e) {
+        const retriable = e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2034'
+        if (!retriable || attempt >= 2) throw e
       }
-      await tx.hangoutJoin.create({ data: { hangoutId, userId: session.id } })
-    })
+    }
   } catch (e) {
     if (e instanceof Error && e.message === 'HANGOUT_FULL') {
       return NextResponse.json({ error: 'This hangout is full' }, { status: 400 })

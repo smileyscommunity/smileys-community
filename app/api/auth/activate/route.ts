@@ -67,10 +67,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'This activation link is invalid or has expired.' }, { status: 400 })
     }
 
-    const existing = await prisma.user.findUnique({ where: { id: record.userId }, select: { password: true } })
+    const existing = await prisma.user.findUnique({
+      where:  { id: record.userId },
+      select: { password: true, email: true, status: true, suspendedUntil: true },
+    })
     if (!existing) return NextResponse.json({ error: 'Account not found.' }, { status: 404 })
     if (existing.password) {
       return NextResponse.json({ error: 'This account has already been activated.' }, { status: 400 })
+    }
+
+    // The token proves the email was approved WHEN IT WAS ISSUED — not that
+    // the account is still in good standing. A member banned after approval
+    // could otherwise click the 7-day link still in their inbox and write
+    // status back to 'approved' with a fresh session. Check current status
+    // and the blacklist (same rule as register) before activating.
+    if (existing.status === 'banned' || (existing.suspendedUntil && existing.suspendedUntil > new Date())) {
+      return NextResponse.json({ error: 'This activation link is invalid or has expired.' }, { status: 400 })
+    }
+    const blacklisted = await prisma.blacklist.findFirst({ where: { email: existing.email } })
+    if (blacklisted) {
+      return NextResponse.json({ error: 'This activation link is invalid or has expired.' }, { status: 400 })
     }
 
     const hashed = await bcrypt.hash(password, 10)

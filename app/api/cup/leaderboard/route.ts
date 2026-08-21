@@ -46,17 +46,7 @@ export async function GET(req: Request) {
       // meant that during the group stage (before any knockout result) new
       // players locking in never advanced the watermark, so ?since= clients
       // 304'd forever and the "N of M playing" board froze.
-      const [fx, pred, brk] = await Promise.all([
-        prisma.cupFixture.aggregate({ _max: { updatedAt: true } }),
-        prisma.cupPrediction.aggregate({ _max: { updatedAt: true } }),
-        prisma.cupBracketPick.aggregate({ _max: { updatedAt: true } }),
-      ])
-      const maxMs = Math.max(
-        fx._max.updatedAt?.getTime()   ?? 0,
-        pred._max.updatedAt?.getTime() ?? 0,
-        brk._max.updatedAt?.getTime()  ?? 0,
-      )
-      if (maxMs <= sinceMs) return new Response(null, { status: 304 })
+      if (await dataWatermarkMs() <= sinceMs) return new Response(null, { status: 304 })
     }
   }
 
@@ -158,6 +148,29 @@ export async function GET(req: Request) {
     yourScore: youRow?.score ?? null,
     total:     ranked.length,
     eligible:  eligibleCount,
-    lastUpdated: new Date().toISOString(),
+    // The data's own max-updatedAt, NOT the response time. Clients feed
+    // this back as ?since=; stamping response time meant any write landing
+    // between the reads above and this line was <= the watermark, so every
+    // later poll 304'd without that write ever shipping — permanent for
+    // the tournament's LAST write (the Final's result), which nothing
+    // after it would ever self-heal.
+    lastUpdated: new Date((await dataWatermarkMs()) || Date.now()).toISOString(),
   })
+}
+
+// Max updatedAt across the three tables the payload is built from — the
+// truthful "how fresh is this data" stamp shared by the 304 check and the
+// response. Keying on fixtures alone froze the "N playing" count during
+// the group stage; response-time stamping hid writes that raced the read.
+async function dataWatermarkMs(): Promise<number> {
+  const [fx, pred, brk] = await Promise.all([
+    prisma.cupFixture.aggregate({ _max: { updatedAt: true } }),
+    prisma.cupPrediction.aggregate({ _max: { updatedAt: true } }),
+    prisma.cupBracketPick.aggregate({ _max: { updatedAt: true } }),
+  ])
+  return Math.max(
+    fx._max.updatedAt?.getTime()   ?? 0,
+    pred._max.updatedAt?.getTime() ?? 0,
+    brk._max.updatedAt?.getTime()  ?? 0,
+  )
 }

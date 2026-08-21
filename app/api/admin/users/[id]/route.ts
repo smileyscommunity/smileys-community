@@ -28,7 +28,7 @@ export async function GET(_: NextRequest, { params }: Params) {
         color: true, emailVerified: true, joinedAt: true,
         bio: true, neighborhood: true, instagram: true,
         phone: true, profilePhoto: true, nationality: true,
-        languages: true, interests: true,
+        languages: true, interests: true, cityId: true,
         status: true, membershipType: true, lastActive: true,
         adminNotes: {
           orderBy: { createdAt: 'desc' },
@@ -44,6 +44,15 @@ export async function GET(_: NextRequest, { params }: Params) {
       },
     })
     if (!user) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+    // City scope for non-admins — the LIST route is deliberately fail-closed
+    // to the moderator's own city; without the same check here a moderator
+    // holding any member's id could read every city's rosters one detail
+    // page at a time. Same gate the PATCH applies. 404, not 403, so ids
+    // can't be used to map which cities exist.
+    if (!canViewUserList(session, user.cityId)) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    }
 
     const isAdmin = canManageUsers(session)
     let canSeePII = isAdmin
@@ -331,6 +340,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         },
         update: {},
       }).catch(err => console.error('[user PATCH ban] blacklist upsert failed', { id, email: before.email, err: String(err) }))
+      // Kill any outstanding activation / reset links. Activation tokens are
+      // passwordResetToken rows with a 7-day window — left alive, a banned
+      // member could click the link still in their inbox and reactivate
+      // (the activate route now also checks status, but the token should
+      // not survive the ban either way).
+      await prisma.passwordResetToken.deleteMany({ where: { userId: id } })
+        .catch(err => console.error('[user PATCH ban] token cleanup failed', { id, err: String(err) }))
     }
 
     if (allowed.email !== undefined) {

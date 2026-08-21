@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 import { getSession } from '@/lib/session'
 import { createNotification } from '@/lib/notify'
 
@@ -120,10 +121,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const newVibe = body.vibe as Vibe
 
   try {
-    // One transaction: upsert the reference + adjust toUser's counters by
-    // whatever delta the vibe change implies. Locks ensure we don't double-
-    // count if two clicks race.
-    const result = await prisma.$transaction(async (tx) => {
+    // One SERIALIZABLE transaction: upsert the reference + adjust toUser's
+    // counters by whatever delta the vibe change implies. The old comment
+    // said "locks ensure we don't double-count" but Read Committed takes
+    // no such locks — two racing clicks both read the old vibe and both
+    // applied the delta. Serializable makes the loser retry (below) and
+    // recompute its delta against the winner's committed vibe.
+    const runOnce = () => prisma.$transaction(async (tx) => {
       const existing = await tx.hangoutReference.findUnique({
         where: { hangoutId_fromUserId_toUserId: {
           hangoutId: id, fromUserId: session.id, toUserId: body.toUserId!,
@@ -157,7 +161,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       }
 
       return ref
-    })
+    }, { isolationLevel: 'Serializable' })
+
+    let result: Awaited<ReturnType<typeof runOnce>> | undefined
+    for (let attempt = 0; ; attempt++) {
+      try { result = await runOnce(); break } catch (e) {
+        const retriable = e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2034'
+        if (!retriable || attempt >= 2) throw e
+      }
+    }
 
     // Notify the recipient when they receive a good reference — it's the
     // primary trust signal and people love seeing it.

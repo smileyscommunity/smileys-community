@@ -114,19 +114,19 @@ export async function PUT(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 })
   }
 
-  // Update + score in one transaction. scoreFixture reads the row
-  // it's about to score, but Prisma's transaction guarantees the
-  // update lands before scoreFixture's read inside the same tx.
-  // We pass the update as a function so the transaction client is
-  // threaded through both ops.
-  await prisma.cupFixture.update({ where: { id }, data })
-
-  // If winnerTeam was in the body, score predictions for this fixture.
+  // Update + score in one ACTUAL transaction — this comment used to claim
+  // one while the code ran two bare calls, which meant a crash between
+  // them left predictions permanently mis-scored (nothing revisits a
+  // fixture whose winnerTeam is set). scoreFixture takes the tx client.
   let predScored = 0
-  if ('winnerTeam' in body) {
-    const r = await scoreFixture(id)
-    predScored = r.scored
-  }
+  await prisma.$transaction(async tx => {
+    await tx.cupFixture.update({ where: { id }, data })
+    // If winnerTeam was in the body, score predictions for this fixture.
+    if ('winnerTeam' in body) {
+      const r = await scoreFixture(id, tx)
+      predScored = r.scored
+    }
+  })
 
   // Bracket rescoring — QF/Final results move bracket scores. We
   // recompute all of them on any such write since it's only ~N

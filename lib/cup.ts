@@ -11,6 +11,12 @@
 // low signal, and the math gets boring.
 
 import { prisma } from '@/lib/prisma'
+import type { Prisma, PrismaClient } from '@prisma/client'
+
+// Same shape lib/spotsLeft.ts uses: callers inside an interactive
+// transaction pass their tx client so the scoring commits (or rolls
+// back) atomically with the fixture write that made it necessary.
+type Db = PrismaClient | Prisma.TransactionClient
 import {
   CUP_TEAMS,
   CUP_GROUPS,
@@ -85,35 +91,39 @@ export async function isApprovedMember(userId: string): Promise<boolean> {
 }
 
 // Score every prediction for one fixture against its winnerTeam.
-// Called by the admin result-entry route in a transaction with the
-// fixture write so the leaderboard never observes a fixture whose
-// winnerTeam is set but whose predictions haven't been scored.
+// The admin result-entry route passes its transaction client so the
+// fixture write and the scoring land atomically — the leaderboard
+// never observes a fixture whose winnerTeam is set but whose
+// predictions haven't been scored, and a crash between the two can't
+// leave predictions permanently mis-scored (nothing revisits a
+// fixture whose winnerTeam is already set).
 // pickedTeam === winnerTeam earns the fixture's `points`; everyone
 // else earns 0. When winnerTeam is null (admin cleared the result)
 // every pointsAwarded resets to 0 too.
-export async function scoreFixture(fixtureId: string) {
-  const fixture = await prisma.cupFixture.findUnique({
+export async function scoreFixture(fixtureId: string, db: Db = prisma) {
+  const fixture = await db.cupFixture.findUnique({
     where:  { id: fixtureId },
     select: { winnerTeam: true, points: true },
   })
   if (!fixture) return { scored: 0, points: 0 }
   if (!fixture.winnerTeam) {
-    const cleared = await prisma.cupPrediction.updateMany({
+    const cleared = await db.cupPrediction.updateMany({
       where: { fixtureId },
       data:  { pointsAwarded: 0 },
     })
     return { scored: cleared.count, points: 0 }
   }
-  const [winners, losers] = await Promise.all([
-    prisma.cupPrediction.updateMany({
-      where: { fixtureId, pickedTeam: fixture.winnerTeam },
-      data:  { pointsAwarded: fixture.points },
-    }),
-    prisma.cupPrediction.updateMany({
-      where: { fixtureId, pickedTeam: { not: fixture.winnerTeam } },
-      data:  { pointsAwarded: 0 },
-    }),
-  ])
+  // Sequential, not Promise.all — inside an interactive transaction the
+  // ops serialize on one connection anyway, and parallel awaits on a tx
+  // client are an antipattern.
+  const winners = await db.cupPrediction.updateMany({
+    where: { fixtureId, pickedTeam: fixture.winnerTeam },
+    data:  { pointsAwarded: fixture.points },
+  })
+  const losers = await db.cupPrediction.updateMany({
+    where: { fixtureId, pickedTeam: { not: fixture.winnerTeam } },
+    data:  { pointsAwarded: 0 },
+  })
   return { scored: winners.count + losers.count, points: fixture.points }
 }
 

@@ -143,7 +143,14 @@ export async function runCupResultsSweep(): Promise<SweepResult> {
     // throughout a 120-match tournament without needing 120 button
     // presses. Admin can still override any committed result via
     // the PUT /api/admin/cup/fixtures/[id] endpoint.
-    if ((m.status === 'FINISHED' || m.status === 'AWARDED') && newHomeScore !== null && newAwayScore !== null) {
+    // Knockout guard: a shootout/awarded match can arrive FINISHED with a
+    // level fullTime score and no resolvable winner (SUI–COL R16 did). A
+    // group fixture without a winner is a legitimate draw — but committing
+    // a winnerless KNOCKOUT result zeroes every prediction on the fixture
+    // and the homeScore guard above stops any later sweep from fixing it.
+    // Leave those as suggestion-only for the admin to resolve.
+    if ((m.status === 'FINISHED' || m.status === 'AWARDED') && newHomeScore !== null && newAwayScore !== null
+        && (fixture.round === 'group' || suggestedWinner !== null)) {
       const applyData: Record<string, unknown> = {
         homeScore:  newHomeScore,
         awayScore:  newAwayScore,
