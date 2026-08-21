@@ -5,7 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import type { Metadata } from 'next'
 import { getEventById } from '@/lib/db'
-import { getCityTz } from '@/lib/city'
+import { getCityConfig } from '@/lib/city'
 import { DEFAULT_TZ, todayInTz, fromWallClockInTz } from '@/lib/cityTime'
 import { formatDate, formatTime, formatPrice, vibeConfig, resolveImageUrl, avatarUrl, getInitials, type Event } from '@/lib/data'
 import { countryFlag } from '@/lib/countries'
@@ -57,15 +57,15 @@ function absoluteImageUrl(coverImage: string | null | undefined, title?: string)
 // price/status/address are exactly what Event rich results need, and the
 // visible page UI already handles what actually should stay member-only
 // (RSVP, messages, attendee list).
-function buildEventJsonLd(event: Event, eventUrl: string) {
+function buildEventJsonLd(event: Event, eventUrl: string, tz: string, cityName: string, countryCode: string) {
   return {
     '@context': 'https://schema.org',
     '@type':    'Event',
     name:        event.title,
     description: event.description
       ? event.description.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 500)
-      : `${event.emoji} ${event.title} in ${event.neighborhood}, Istanbul`,
-    startDate: `${event.date}T${event.time ?? '00:00'}:00+03:00`,
+      : `${event.emoji} ${event.title} in ${event.neighborhood}, ${cityName}`,
+    startDate: fromWallClockInTz(`${event.date}T${event.time ?? '00:00'}`, tz).toISOString(),
     eventStatus: event.status === 'cancelled'
       ? 'https://schema.org/EventCancelled'
       : 'https://schema.org/EventScheduled',
@@ -76,12 +76,12 @@ function buildEventJsonLd(event: Event, eventUrl: string) {
       ? { '@type': 'VirtualLocation', url: event.meetingUrl }
       : {
           '@type': 'Place',
-          name:    event.location || event.neighborhood || 'Istanbul',
+          name:    event.location || event.neighborhood || cityName,
           address: {
             '@type':         'PostalAddress',
             streetAddress:   event.address ?? event.location ?? '',
-            addressLocality: 'Istanbul',
-            addressCountry:  'TR',
+            addressLocality: cityName,
+            addressCountry:  countryCode,
           },
         },
     image: absoluteImageUrl(event.coverImage, event.title) || undefined,
@@ -149,9 +149,12 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
   const event = await getEventById(id)
   if (!event) notFound()
 
-  // The event's own city decides both its calendar "today" and the
-  // timezone stamped on calendar exports.
-  const eventTz = event.cityId ? await getCityTz(event.cityId) : DEFAULT_TZ
+  // The event's own city decides its calendar "today", the timezone stamped
+  // on calendar exports, and the locality named in the JSON-LD address.
+  const eventCity    = event.cityId ? await getCityConfig(event.cityId) : null
+  const eventTz      = eventCity?.timezone ?? DEFAULT_TZ
+  const cityName     = eventCity?.name ?? 'Istanbul'
+  const cityCountry  = eventCity?.country ?? 'TR'
   const today  = todayInTz(eventTz)
   const isPast = event.date < today
   // One rule for the banner, the capacity strip, the RSVP button and the
@@ -169,7 +172,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
     // attendee list, and private address/links stay member-only — the page
     // pushes the user to /apply for the unlock.
     const eventUrl = `${APP_URL}/events/${id}`
-    const guestJsonLd = buildEventJsonLd(event, eventUrl)
+    const guestJsonLd = buildEventJsonLd(event, eventUrl, eventTz, cityName, cityCountry)
 
     const goingCount = await prisma.eventAttendee.count({
       where: { eventId: id, status: 'approved' },
@@ -483,7 +486,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
 
   // Build JSON-LD Event schema
   const eventUrl = `${APP_URL}/events/${id}`
-  const jsonLd = buildEventJsonLd(event, eventUrl)
+  const jsonLd = buildEventJsonLd(event, eventUrl, eventTz, cityName, cityCountry)
 
   return (
     <div className="min-h-screen bg-warm pb-36 md:pb-28 lg:pb-10">
