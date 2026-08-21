@@ -6,7 +6,7 @@ import Image from 'next/image'
 import type { Metadata } from 'next'
 import { getEventById } from '@/lib/db'
 import { getCityTz } from '@/lib/city'
-import { DEFAULT_TZ, todayInTz } from '@/lib/cityTime'
+import { DEFAULT_TZ, todayInTz, fromWallClockInTz } from '@/lib/cityTime'
 import { formatDate, formatTime, formatPrice, vibeConfig, resolveImageUrl, avatarUrl, getInitials, type Event } from '@/lib/data'
 import { countryFlag } from '@/lib/countries'
 import { prisma } from '@/lib/prisma'
@@ -794,13 +794,13 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
 
           {/* Live Status — show from 2h before start through 4h after.
               Earlier shape was "anywhere on event day" which fired
-              "Live Now" at 6am for an 8pm event. Time-of-day gate uses
-              Istanbul as the offset (no DST in TR since 2016, so +03:00
-              is stable). Cancelled events are gated out entirely — the
-              status banner / strikethrough already tells the story. */}
+              "Live Now" at 6am for an 8pm event. Start time is the event
+              city's wall clock, resolved through its timezone. Cancelled
+              events are gated out entirely — the status banner /
+              strikethrough already tells the story. */}
           {(() => {
             if (event.status === 'cancelled') return null
-            const eventStartMs = Date.parse(`${event.date}T${event.time}:00+03:00`)
+            const eventStartMs = fromWallClockInTz(`${event.date}T${event.time}`, eventTz).getTime()
             const nowMs        = Date.now()
             const showLive     = Number.isFinite(eventStartMs)
               && nowMs >= eventStartMs - 2 * 60 * 60_000
