@@ -15,7 +15,10 @@ export async function GET(req: NextRequest, { params }: Params) {
 
     const { userId: otherId } = await params
     const { searchParams } = new URL(req.url)
-    const since = searchParams.get('since')
+    // A garbage `since` used to become Invalid Date → Prisma throw → 500;
+    // an unparseable cursor now just falls back to the full initial load.
+    const sinceRaw = searchParams.get('since')
+    const since = sinceRaw && !isNaN(new Date(sinceRaw).getTime()) ? sinceRaw : null
 
     // Block gate — a blocked user shouldn't keep reading the thread (the send
     // path already blocks; the read path didn't). Admins/moderators bypass so

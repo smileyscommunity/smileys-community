@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   // Cursor for "load more" — server returns entries strictly older than
   // this ISO timestamp. Client passes the last-visible entry's createdAt.
   const before = searchParams.get('before') ?? ''
-  const take   = Math.min(parseInt(searchParams.get('take') ?? '100'), 200)
+  const take   = Math.min(Math.max(parseInt(searchParams.get('take') ?? '100', 10) || 100, 1), 200)
 
   const createdAt: Prisma.DateTimeFilter = {}
   if (from)   createdAt.gte = new Date(from)

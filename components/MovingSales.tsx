@@ -39,7 +39,10 @@ async function copyShare(id: string): Promise<boolean> {
 // Moving & Leaving (plan §13) — one sale per departure instead of fifteen
 // separate listings. Renders inside the Marketplace when the Moving card
 // is selected.
-export default function MovingSales() {
+// cityName comes from BoardHub's useCurrentCity — empty until it resolves,
+// so both strings below fall back to city-neutral copy, never the default
+// city's name.
+export default function MovingSales({ cityName = '' }: { cityName?: string }) {
   const { user, isLoggedIn } = useAuth()
   const neighborhoods = useCityNeighborhoods()
   const [sales,   setSales]   = useState<Sale[] | null>(null)
@@ -165,7 +168,7 @@ export default function MovingSales() {
       {/* Pitch + CTA */}
       <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <p className="font-bold text-gray-900">Leaving Istanbul?</p>
+          <p className="font-bold text-gray-900">{cityName ? `Leaving ${cityName}?` : 'Moving on?'}</p>
           <p className="text-sm text-gray-600 mt-0.5">Sell or give away everything without creating fifteen separate posts.</p>
         </div>
         {isLoggedIn ? (
@@ -256,7 +259,7 @@ export default function MovingSales() {
         <div className="bg-gray-50 border border-gray-200 rounded-2xl p-8 text-center">
           <div aria-hidden="true" className="text-4xl mb-3">📦</div>
           <p className="font-bold text-gray-900">No moving sales right now</p>
-          <p className="text-sm text-gray-600 mt-1">When someone leaves Istanbul, their whole sale shows up here.</p>
+          <p className="text-sm text-gray-600 mt-1">{cityName ? `When someone leaves ${cityName}, their whole sale shows up here.` : 'When someone moves on, their whole sale shows up here.'}</p>
         </div>
       ) : sales.map(sale => {
         const isOwner = isLoggedIn && user.id === sale.user.id

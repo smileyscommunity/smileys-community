@@ -1044,6 +1044,10 @@ function MembersPageInner() {
     // role/openTo changes don't need debouncing (single click) but routing
     // through the same timer keeps the effect simple.
     const delay = trimmed ? 250 : 0
+    // Abort the in-flight fetch on filter change/clear — without it, a slow
+    // filtered response could land after "clear all" reset filteredMembers
+    // to null and re-apply the stale filtered list over the full one.
+    const ctrl = new AbortController()
     const t = setTimeout(() => {
       // §55 — search/filter usage. Debounced with the fetch so we log
       // intents, not keystrokes.
@@ -1059,13 +1063,15 @@ function MembersPageInner() {
       if (openToFilter)            params.set('openTo', openToFilter)
       if (aroundNow)               params.set('aroundNow', 'true')
       if (trimmed)                 params.set('search', trimmed)
-      fetch(`/app/api/members?${params}`, { credentials: 'include' })
+      fetch(`/app/api/members?${params}`, { credentials: 'include', signal: ctrl.signal })
         .then(r => r.json())
         .then(d => setFilteredMembers(Array.isArray(d?.members) ? d.members : []))
-        .catch(() => setFilteredMembers([]))
+        .catch((e: unknown) => {
+          if ((e as Error)?.name !== 'AbortError') setFilteredMembers([])
+        })
         .finally(() => setFilterLoading(false))
     }, delay)
-    return () => clearTimeout(t)
+    return () => { clearTimeout(t); ctrl.abort() }
   }, [roleFilter, openToFilter, aroundNow, search])
 
   async function loadMore() {

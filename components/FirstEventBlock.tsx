@@ -63,7 +63,7 @@ export default function FirstEventBlock() {
           <p className="text-2xl mb-1">🌱</p>
           <p className="font-semibold text-gray-900">Nothing open near you just yet</p>
           <p className="text-sm text-gray-600 mt-1">
-            New events pop up across Istanbul every week — the next one is often worth the trip.
+            New events pop up across the city every week — the next one is often worth the trip.
           </p>
           <Link href="/events" className="inline-block mt-3 bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold px-4 py-2 rounded-xl">
             Explore all events

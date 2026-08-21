@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback, Suspense } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import EventCard from '@/components/EventCard'
@@ -130,7 +130,15 @@ function AppEventsPageInner() {
   const canCreate = user.role === 'admin' || user.isClubHost
   const today = todayInTz(tz)
 
+  // Monotonic id per tab reset: toggling upcoming/past quickly fires
+  // overlapping fetches, and without this whichever lands LAST fills the
+  // list — the Upcoming tab showing past events. A reset starts a new
+  // generation; a load-more rides the generation it was started in and is
+  // dropped if a reset supersedes it mid-flight.
+  const loadSeq = useRef(0)
+
   async function loadEvents(tab: Tab, reset = false) {
+    const seq = reset ? ++loadSeq.current : loadSeq.current
     const currentOffset = reset ? 0 : offset
     const upcoming = tab === 'upcoming' ? '1' : '0'
     const url = `/app/api/events?upcoming=${upcoming}&limit=${PAGE_SIZE}&offset=${currentOffset}`
@@ -139,6 +147,7 @@ function AppEventsPageInner() {
     // iOS error) and leave the load-more spinner stuck. Keep the current list.
     try {
       const data = await fetch(url, { credentials: 'include' }).then(r => r.json())
+      if (seq !== loadSeq.current) return
       const evts: Event[] = Array.isArray(data.events) ? data.events : []
       setEvents(prev => reset ? evts : [...prev, ...evts])
       setHasMore(data.hasMore ?? false)
@@ -660,7 +669,7 @@ function AppEventsPageInner() {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                   {featuredFiltered.map(event => (
-                    <EventCard key={event.id} event={event} linkPrefix="/events" initialStatus={attendance[event.id] ?? null} />
+                    <EventCard key={event.id} event={event} linkPrefix="/events" initialStatus={attendance[event.id] ?? null} cityName={viewCity?.name} />
                   ))}
                 </div>
               </section>
@@ -670,7 +679,7 @@ function AppEventsPageInner() {
                 row above is visible (no duplication). */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
               {restFiltered.map(event => (
-                <EventCard key={event.id} event={event} linkPrefix="/events" initialStatus={attendance[event.id] ?? null} />
+                <EventCard key={event.id} event={event} linkPrefix="/events" initialStatus={attendance[event.id] ?? null} cityName={viewCity?.name} />
               ))}
             </div>
 

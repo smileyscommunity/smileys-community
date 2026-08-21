@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
   }
 
-  const offset    = parseInt(req.nextUrl.searchParams.get('offset') ?? '0') || 0
+  const offset    = Math.max(parseInt(req.nextUrl.searchParams.get('offset') ?? '0', 10) || 0, 0)
   const isHost    = req.nextUrl.searchParams.get('isHost') === 'true'
   const adminOnly = req.nextUrl.searchParams.get('adminOnly') === 'true'
   const savedOnly = req.nextUrl.searchParams.get('savedOnly') === 'true'

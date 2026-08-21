@@ -681,7 +681,7 @@ export default async function GuidePage({ searchParams }: { searchParams?: Promi
         {/* CTA — client island, branches on useAuth().isLoggedIn.
             Lives outside the cached server tree so the same HTML can
             be served to members and visitors. */}
-        <GuideCTA />
+        <GuideCTA cityName={city.name} />
 
         </div>
       </div>

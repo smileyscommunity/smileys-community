@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   const cityParam = searchParams.get('city') || undefined
   const status   = searchParams.get('status') || 'active'
   const search   = searchParams.get('search') || ''
-  const offset   = parseInt(searchParams.get('offset') || '0', 10)
+  const offset   = Math.max(parseInt(searchParams.get('offset') || '0', 10) || 0, 0)
   const take     = 50
 
   const where: Record<string, unknown> = {

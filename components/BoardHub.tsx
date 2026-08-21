@@ -772,7 +772,13 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
   // Throws on a non-2xx or malformed response — callers decide how to
   // surface that (full-page error state for the initial load, a toast for
   // pagination) rather than this silently leaving `listings` as `undefined`.
-  const fetchListings = useCallback(async (cat: string, nbhd: string, q: string, offset: number, append = false) => {
+  // Monotonic id per filter-driven load: rapid tab clicks fire overlapping
+  // fetches, and without this whichever response lands LAST wins — the Jobs
+  // tab showing Housing listings. Results are dropped unless their load is
+  // still the newest one.
+  const loadSeq = useRef(0)
+
+  const fetchListings = useCallback(async (cat: string, nbhd: string, q: string, offset: number, append = false, isCurrent: () => boolean = () => true) => {
     const params = new URLSearchParams({ offset: String(offset) })
     if (cat === 'SAVED') {
       params.set('saved', 'true')
@@ -786,6 +792,7 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
     const res = await fetch(`/app/api/listings?${params}`, { credentials: 'include' })
     if (!res.ok) throw new Error('Failed to load listings')
     const data = await res.json()
+    if (!isCurrent()) return
     setListings(prev => append ? [...prev, ...(data.listings ?? [])] : (data.listings ?? []))
     setSavedSet(prev => {
       const next = new Set(append ? prev : [])
@@ -797,14 +804,16 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
   }, [])
 
   const loadListings = useCallback(async () => {
+    const seq = ++loadSeq.current
+    const isCurrent = () => seq === loadSeq.current
     setLoading(true)
     setError(false)
     try {
-      await fetchListings(category, neighborhood, debouncedSearch, 0)
+      await fetchListings(category, neighborhood, debouncedSearch, 0, false, isCurrent)
     } catch {
-      setError(true)
+      if (isCurrent()) setError(true)
     } finally {
-      setLoading(false)
+      if (isCurrent()) setLoading(false)
     }
   }, [category, neighborhood, debouncedSearch, fetchListings])
 
@@ -821,9 +830,12 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
   }, [deepLinkId])
 
   async function loadMore() {
+    // Captured, not incremented: a filter change mid-flight bumps loadSeq
+    // and this page-2 append is dropped instead of landing on the new list.
+    const seq = loadSeq.current
     setLoadingMore(true)
     try {
-      await fetchListings(category, neighborhood, debouncedSearch, listings.length, true)
+      await fetchListings(category, neighborhood, debouncedSearch, listings.length, true, () => seq === loadSeq.current)
     } catch {
       toast.error('Could not load more listings')
     } finally {
@@ -852,6 +864,10 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
         wasSaved ? next.add(listingId) : next.delete(listingId)
         return next
       })
+      toast.error('Could not update — check your connection')
+      // The optimistic removal above can't be surgically undone (position
+      // and total have drifted) — refetch so the card comes back.
+      if (category === 'SAVED' && wasSaved) loadListings()
     }
   }
 
@@ -1237,7 +1253,7 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
         )}
 
         {category === 'MOVING' ? (
-          <MovingSales />
+          <MovingSales cityName={cityName} />
         ) : (<>
         {/* Active filter label */}
         {!loading && listings.length > 0 && (

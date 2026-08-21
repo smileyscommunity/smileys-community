@@ -44,7 +44,7 @@ export default function ReferralImpact({ friendCount, eventCount }: Props) {
 
       <div className="mt-4 p-2.5 bg-gray-50 rounded-xl">
         <p className="text-xs text-gray-600 leading-normal">
-          You&apos;ve helped <span className="font-bold text-gray-700">{friendCount} people</span> start their social life in Istanbul. Great job!
+          You&apos;ve helped <span className="font-bold text-gray-700">{friendCount} people</span> start their social life here. Great job!
         </p>
       </div>
     </div>

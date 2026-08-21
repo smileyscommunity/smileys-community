@@ -21,7 +21,7 @@ const BASE_LINKS: LinkItem[] = [
   { label: 'Notifications',     href: '/notifications',    icon: '🔔' },
   { label: 'Member Card',       href: '/card',             icon: '🪪' },
   { label: 'Community Board',   href: '/board',         icon: '📋' },
-  { label: 'Istanbul Guide',    href: '/guide',            icon: '🗺️' },
+  { label: 'City Guide',        href: '/guide',            icon: '🗺️' },
   { label: 'The Handbook',      href: '/handbook',         icon: '📖' },
   { label: 'Community Rules',   href: '/guidelines',       icon: '📜' },
   { label: 'Install App',       href: '#install',          icon: '📲', isAction: true },

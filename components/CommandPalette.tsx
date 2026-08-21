@@ -59,21 +59,29 @@ export default function CommandPalette() {
     }
   }, [])
 
-  // Live search on query change
+  // Live search on query change. The cleanup aborts the in-flight fetch,
+  // not just the debounce timer — otherwise a slow response for "par" can
+  // land after the fast one for "paris" and clobber it.
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     if (!query || query.length < 2) { setResults(null); return }
+    const ctrl = new AbortController()
     debounceRef.current = setTimeout(async () => {
       setSearching(true)
       try {
-        const res  = await fetch(`/app/api/search?q=${encodeURIComponent(query)}`, { credentials: 'include' })
+        const res  = await fetch(`/app/api/search?q=${encodeURIComponent(query)}`, { credentials: 'include', signal: ctrl.signal })
         const data = await res.json()
         setResults(data)
-      } finally {
         setSearching(false)
+      } catch (e) {
+        // On abort the next effect run owns the spinner — leave it alone.
+        if ((e as Error)?.name !== 'AbortError') setSearching(false)
       }
     }, 250)
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+      ctrl.abort()
+    }
   }, [query])
 
   const isAdmin = user?.role === 'admin'

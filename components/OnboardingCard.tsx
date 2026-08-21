@@ -30,7 +30,7 @@ const ITEMS: Item[] = [
   {
     emoji:       '🏢',
     title:       'Business Directory',
-    description: 'Expat-owned & expat-friendly spots across Istanbul. Add your favourites.',
+    description: 'Expat-owned & expat-friendly spots across the city. Add your favourites.',
     href:        '/directory',
   },
   {
@@ -48,7 +48,7 @@ const ITEMS: Item[] = [
   {
     emoji:       '👋',
     title:       'Visiting?',
-    description: 'See who\'s coming to Istanbul this month, or post your own trip.',
+    description: 'See who\'s coming to town this month, or post your own trip.',
     href:        '/visiting',
   },
   {
@@ -59,7 +59,7 @@ const ITEMS: Item[] = [
   },
   {
     emoji:       '🗺️',
-    title:       'Istanbul Guide',
+    title:       'City Guide',
     description: 'Visa, healthcare, banking, mobile — the basics for new arrivals.',
     href:        '/guide',
   },

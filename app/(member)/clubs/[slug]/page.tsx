@@ -118,6 +118,12 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
     }),
   ])
 
+  // Global clubs (cityId null) live in every city — say so rather than
+  // stamping the founding city's name on them.
+  const clubCity = club.cityId
+    ? await prisma.city.findUnique({ where: { id: club.cityId }, select: { name: true } })
+    : null
+
   const hosts = await prisma.clubMembership.findMany({
     where: { clubId: club.id, role: 'host', status: 'approved' },
     select: {
@@ -552,7 +558,7 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
                 )}
                 <div className="flex justify-between">
                   <dt className="text-gray-600">Location</dt>
-                  <dd className="font-medium text-gray-900">Istanbul</dd>
+                  <dd className="font-medium text-gray-900">{clubCity?.name ?? 'Every Smileys city'}</dd>
                 </div>
               </dl>
 

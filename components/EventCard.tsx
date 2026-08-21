@@ -41,9 +41,13 @@ interface EventCardProps {
   event:        Event
   linkPrefix?:  string
   initialStatus?: 'joined' | 'pending' | 'waitlisted' | null
+  // The city named on the date pill. Omitted → no city shown: callers that
+  // don't know the view city must not stamp the founding city's name on
+  // every card (a Bodrum event card used to read "· Istanbul").
+  cityName?:    string
 }
 
-export default function EventCard({ event, linkPrefix = '/events', initialStatus }: EventCardProps) {
+export default function EventCard({ event, linkPrefix = '/events', initialStatus, cityName }: EventCardProps) {
   const href        = `${linkPrefix}/${event.id}`
   const router      = useRouter()
   const goingCount  = event.totalSpots - event.spotsLeft
@@ -165,7 +169,7 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
               <svg className="w-3 h-3 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
-              {formatShortDate(event.date)} · {formatTime(event.time)} · Istanbul
+              {formatShortDate(event.date)} · {formatTime(event.time)}{cityName ? ` · ${cityName}` : ''}
             </div>
             {event.featured && (
               <div className="flex items-center gap-1 bg-amber-500 text-white text-[11px] font-bold px-2.5 py-1 rounded-full shadow-md">

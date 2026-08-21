@@ -8,7 +8,7 @@ import { useAuth } from '@/contexts/AuthContext'
 // component, which forced force-dynamic and re-ran two Prisma
 // groupBys on every request. Now the heavy data path is cached and
 // only the CTA branches per-viewer.
-export default function GuideCTA() {
+export default function GuideCTA({ cityName }: { cityName: string }) {
   const { isLoggedIn, isLoading } = useAuth()
 
   // Reserve the vertical space during auth init so the page doesn't
@@ -34,9 +34,9 @@ export default function GuideCTA() {
   return (
     <div className="mt-10 bg-gradient-to-br from-amber-500 to-orange-500 rounded-2xl p-8 text-center text-white shadow-lg">
       <div className="text-3xl mb-3">😊</div>
-      <p className="text-xl font-extrabold mb-2">Living in Istanbul?</p>
+      <p className="text-xl font-extrabold mb-2">Living in {cityName}?</p>
       <p className="text-sm text-amber-50 max-w-md mx-auto mb-5 leading-relaxed">
-        Smileys is a curated community of locals and expats hosting events across Istanbul every week. Apply to join — it&apos;s free.
+        Smileys is a curated community of locals and expats hosting events across {cityName} every week. Apply to join — it&apos;s free.
       </p>
       <Link href="/apply"
         className="inline-block px-6 py-3 bg-white text-amber-600 font-bold rounded-xl hover:bg-amber-50 transition-colors text-sm">

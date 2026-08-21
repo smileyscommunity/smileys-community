@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
     const saved        = searchParams.get('saved') === 'true'
     const mine         = searchParams.get('mine') === 'true'
     const q            = searchParams.get('q')?.trim() || undefined
-    const offset       = parseInt(searchParams.get('offset') || '0', 10)
+    const offset       = Math.max(parseInt(searchParams.get('offset') || '0', 10) || 0, 0)
 
     // ?saved=true requires a logged-in user; for anonymous, force the filter
     // to match nothing instead of querying without it (which would return everything).

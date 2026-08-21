@@ -10,8 +10,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
   }
   const { searchParams } = req.nextUrl
-  const limit    = Math.min(parseInt(searchParams.get('limit')  ?? '24'), 100)
-  const offset   = Math.max(parseInt(searchParams.get('offset') ?? '0'),  0)
+  // `|| fallback` catches NaN from garbage input — Math.min(NaN, 100) is
+  // NaN, which reaches Prisma as take: NaN and 500s the whole feed.
+  const limit    = Math.min(Math.max(parseInt(searchParams.get('limit') ?? '24', 10) || 24, 1), 100)
+  const offset   = Math.max(parseInt(searchParams.get('offset') ?? '0', 10) || 0, 0)
   const upParam  = searchParams.get('upcoming')
   const upcoming = upParam === '1' ? true : upParam === '0' ? false : undefined
 
