@@ -24,6 +24,9 @@ export default function TwoFactorSection({ show }: Props) {
   const [error,       setError]       = useState<string | null>(null)
   const [backupCodes, setBackupCodes] = useState<string[] | null>(null)
   const [remaining,   setRemaining]   = useState<number | null>(null)
+  // Regenerate/disable need a fresh TOTP code. This must be an inline input,
+  // not window.prompt — native dialogs silently no-op in the installed PWA.
+  const [confirmAction, setConfirmAction] = useState<'regen' | 'disable' | null>(null)
 
   // Determine current state. There's no dedicated "is 2FA enabled" GET, so we
   // probe the backup-codes endpoint — it returns 400 when 2FA is off and a
@@ -80,8 +83,6 @@ export default function TwoFactorSection({ show }: Props) {
   }
 
   async function regenerate() {
-    const totp = window.prompt('Enter a current 6-digit code from your authenticator app to regenerate your backup codes:')
-    if (!totp) return
     setBusy(true)
     setError(null)
     try {
@@ -89,33 +90,36 @@ export default function TwoFactorSection({ show }: Props) {
         method:      'POST',
         credentials: 'include',
         headers:     { 'Content-Type': 'application/json' },
-        body:        JSON.stringify({ code: totp }),
+        body:        JSON.stringify({ code }),
       })
       const d = await res.json()
       if (!res.ok) { toast.error(d.error ?? 'Could not regenerate codes'); return }
       setBackupCodes(d.backupCodes ?? [])
       setMode('codes')
+      setConfirmAction(null)
+      setCode('')
     } finally {
       setBusy(false)
     }
   }
 
   async function disable() {
-    const totp = window.prompt('Enter a current 6-digit code from your authenticator app to disable 2FA:')
-    if (!totp) return
     setBusy(true)
+    setError(null)
     try {
       const res = await fetch('/app/api/auth/2fa/setup', {
         method:      'DELETE',
         credentials: 'include',
         headers:     { 'Content-Type': 'application/json' },
-        body:        JSON.stringify({ code: totp }),
+        body:        JSON.stringify({ code }),
       })
       const d = await res.json()
       if (!res.ok) { toast.error(d.error ?? 'Could not disable 2FA'); return }
       toast.success('2FA disabled')
       setMode('disabled')
       setRemaining(null)
+      setConfirmAction(null)
+      setCode('')
     } finally {
       setBusy(false)
     }
@@ -267,22 +271,61 @@ export default function TwoFactorSection({ show }: Props) {
           <span className="text-amber-600 font-semibold"> Generate more before you run out.</span>
         )}
       </p>
-      <div className="flex gap-2">
-        <button
-          onClick={regenerate}
-          disabled={busy}
-          className="flex-1 py-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-sm font-semibold disabled:opacity-50"
-        >
-          Regenerate recovery codes
-        </button>
-        <button
-          onClick={disable}
-          disabled={busy}
-          className="flex-1 py-2 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-sm font-semibold disabled:opacity-50"
-        >
-          Disable 2FA
-        </button>
-      </div>
+      {confirmAction ? (
+        <div className="space-y-2">
+          <p className="text-xs text-gray-600">
+            Enter a current 6-digit code from your authenticator app to
+            {confirmAction === 'regen' ? ' regenerate your recovery codes.' : ' disable 2FA.'}
+          </p>
+          <input
+            type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={6}
+            value={code}
+            onChange={e => setCode(e.target.value.replace(/\D/g, ''))}
+            placeholder="123456"
+            className="input text-center tracking-widest text-lg"
+          />
+          {error && <p className="text-xs text-red-500">{error}</p>}
+          <div className="flex gap-2">
+            <button
+              onClick={() => { setConfirmAction(null); setCode(''); setError(null) }}
+              disabled={busy}
+              className="flex-1 py-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-sm font-semibold disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={confirmAction === 'regen' ? regenerate : disable}
+              disabled={busy || code.length !== 6}
+              className={`flex-1 py-2 rounded-xl text-sm font-semibold disabled:opacity-50 ${
+                confirmAction === 'regen'
+                  ? 'bg-amber-500 hover:bg-amber-600 text-white'
+                  : 'bg-red-600 hover:bg-red-700 text-white'}`}
+            >
+              {busy ? 'Verifying…' : confirmAction === 'regen' ? 'Regenerate' : 'Disable 2FA'}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex gap-2">
+          <button
+            onClick={() => { setConfirmAction('regen'); setCode(''); setError(null) }}
+            disabled={busy}
+            className="flex-1 py-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-sm font-semibold disabled:opacity-50"
+          >
+            Regenerate recovery codes
+          </button>
+          <button
+            onClick={() => { setConfirmAction('disable'); setCode(''); setError(null) }}
+            disabled={busy}
+            className="flex-1 py-2 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-sm font-semibold disabled:opacity-50"
+          >
+            Disable 2FA
+          </button>
+        </div>
+      )}
     </div>
   )
 }

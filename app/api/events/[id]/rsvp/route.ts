@@ -547,16 +547,15 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       }
     }
 
-    // The spot is now genuinely open until someone claims it — bump
+    // The spot is now genuinely open until someone claims it — recompute
     // spotsLeft so the event page accurately shows availability. The
     // POST handler will atomically decrement again when a waitlist
-    // member (or any RSVP) takes it.
-    if (wasApproved) {
-      if (eventRow?.approvalRequired) {
-        await recomputeSpotsLeft(eventId, eventRow.totalSpots)
-      } else {
-        await prisma.event.update({ where: { id: eventId }, data: { spotsLeft: { increment: 1 } } })
-      }
+    // member (or any RSVP) takes it. Recompute, never a blind +1: the
+    // host and co-hosts join without consuming a spot, so their cancel
+    // must not mint one — and the derived value can't creep past
+    // totalSpots on repeated join/cancel cycles.
+    if (wasApproved && eventRow) {
+      await recomputeSpotsLeft(eventId, eventRow.totalSpots)
     }
 
     return NextResponse.json({ ok: true })

@@ -3,7 +3,7 @@ import { resolvePublicCityIdFromSlug } from '@/lib/cities'
 import { revalidateTag } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { resolveCityId } from '@/lib/city'
+import { resolveCityId, todayInCity } from '@/lib/city'
 import { rateLimit, getIp } from '@/lib/rateLimit'
 import { verifyTurnstile } from '@/lib/turnstile'
 import { createNotification } from '@/lib/notify'
@@ -17,7 +17,6 @@ import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const neighborhood = searchParams.get('neighborhood') || undefined
-  const today        = new Date().toISOString().split('T')[0]
 
   const session = await getSession()
   // ?city=<slug> browses another city's visitors (the /[city] pages use
@@ -36,7 +35,9 @@ export async function GET(req: NextRequest) {
     where: {
       status: 'active',
       cityId,
-      endsOn: { gte: today },
+      // "Still ongoing" is judged on the visited city's calendar, not UTC —
+      // a visit "ends today" until that city's midnight, not three hours early.
+      endsOn: { gte: await todayInCity(cityId) },
       // Visibility is enforced here as well as on the page — otherwise a
       // guest could read members-only visits straight off the API while
       // the rendered page correctly hid them.
@@ -93,10 +94,6 @@ export async function POST(req: NextRequest) {
     if (endsOn < startsOn) {
       return NextResponse.json({ error: 'End date must be after start' }, { status: 400 })
     }
-    const today = new Date().toISOString().split('T')[0]
-    if (endsOn < today) {
-      return NextResponse.json({ error: 'Trip ends in the past' }, { status: 400 })
-    }
 
     // Destination city — the city being VISITED, chosen on the form. Only
     // LIVE cities accept visits: a visit needs a community that can see it
@@ -112,6 +109,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'That city is not open for visits yet' }, { status: 400 })
     }
     const destCityId = dest.id
+
+    // "Ends in the past" is judged on the DESTINATION city's calendar —
+    // the trip happens on that city's clock, not UTC's.
+    if (endsOn < await todayInCity(destCityId)) {
+      return NextResponse.json({ error: 'Trip ends in the past' }, { status: 400 })
+    }
 
     const safeNeighborhood = await safeNeighborhoodFor(destCityId, neighborhood)
 

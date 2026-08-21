@@ -3,7 +3,8 @@ import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { getClubs } from '@/lib/db'
 import { getSession } from '@/lib/session'
-import { resolveCityId } from '@/lib/city'
+import { resolveCityId, getCityTz } from '@/lib/city'
+import { todayInTz } from '@/lib/cityTime'
 import { classifyClubs } from '@/lib/clubHealth'
 
 // Discovery payload (Clubs brief phase 3): the base club list enriched
@@ -80,10 +81,16 @@ const getDiscoveryClubs = unstable_cache(
 )
 
 export async function GET() {
-  const today = new Date().toISOString().split('T')[0]
-  const weekOut = new Date(Date.now() + 7 * 86_400_000).toISOString().split('T')[0]
   const session = await getSession()
-  const clubs = await getDiscoveryClubs(today, weekOut, await resolveCityId(session))
+  const cityId = await resolveCityId(session)
+  // The city's own calendar decides "upcoming" and "this week" — a UTC
+  // today undercounted upcoming events by a day for the first hours of
+  // the city's morning. Both dates are cache-key args, so each city day
+  // gets its own cached grid, same as before.
+  const tz = await getCityTz(cityId)
+  const today = todayInTz(tz)
+  const weekOut = todayInTz(tz, 7)
+  const clubs = await getDiscoveryClubs(today, weekOut, cityId)
   // The cached entry is viewer-independent by design, so the guest
   // projection is applied after retrieval: the club's WhatsApp invite
   // link is the payoff of joining — withheld from logged-out viewers,

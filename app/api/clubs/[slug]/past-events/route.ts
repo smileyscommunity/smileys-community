@@ -1,15 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getCityTz } from '@/lib/city'
+import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
 
 type Params = { params: Promise<{ slug: string }> }
 
 export async function GET(_req: NextRequest, { params }: Params) {
   try {
     const { slug } = await params
-    const club = await prisma.club.findUnique({ where: { slug }, select: { id: true } })
+    const club = await prisma.club.findUnique({ where: { slug }, select: { id: true, cityId: true } })
     if (!club) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-    const today = new Date().toISOString().split('T')[0]
+    // The club city's calendar, same as getEventsByClub — a UTC "today"
+    // here made events fall out of BOTH the upcoming and past lists
+    // between midnight and 03:00 on the city's clock.
+    const today = todayInTz(club.cityId ? await getCityTz(club.cityId) : DEFAULT_TZ)
 
     const events = await prisma.event.findMany({
       where: {

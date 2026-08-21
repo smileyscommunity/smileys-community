@@ -1,5 +1,7 @@
 import { prisma } from './prisma'
 import { sendPushToUser } from './push'
+import { getCityTz } from './city'
+import { nowInTz, DEFAULT_TZ } from './cityTime'
 
 // Which preference field gates each type. null = always send (transactional).
 const PREF_KEY: Record<string, 'newEvents' | 'reminders' | 'eventUpdates' | 'joinedEvents' | 'wallPosts' | 'wallReplies' | null> = {
@@ -78,12 +80,12 @@ const PREF_KEY: Record<string, 'newEvents' | 'reminders' | 'eventUpdates' | 'joi
   nps_survey:         null,
 }
 
-function istanbulHour(): number {
-  return (new Date().getUTCHours() + 3) % 24
-}
-
-function inQuietWindow(from: number, to: number): boolean {
-  const h = istanbulHour()
+// Quiet hours are the MEMBER's evening, so the hour is read on their home
+// city's clock — not the founding city's. Hand-built UTC offsets are how
+// this used to work and exactly what lib/cityTime.ts warns against.
+async function inQuietWindow(userId: string, from: number, to: number): Promise<boolean> {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { cityId: true } })
+  const h = nowInTz(user?.cityId ? await getCityTz(user.cityId) : DEFAULT_TZ).hour
   return from > to ? (h >= from || h < to) : (h >= from && h < to)
 }
 
@@ -106,7 +108,7 @@ export async function createNotification(
       const prefs = await prisma.notificationPreference.findUnique({ where: { userId } })
       if (prefs) {
         if (!prefs[prefKey]) return
-        if (prefs.quietHours && inQuietWindow(prefs.quietFrom, prefs.quietTo)) suppressPush = true
+        if (prefs.quietHours && await inQuietWindow(userId, prefs.quietFrom, prefs.quietTo)) suppressPush = true
       }
     }
 
