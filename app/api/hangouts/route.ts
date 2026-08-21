@@ -19,12 +19,22 @@ export async function GET(req: NextRequest) {
   const neighborhood = searchParams.get('neighborhood') || undefined
   const now = new Date()
 
+  // Blocks hide the whole card, both directions — a blocked member must not
+  // see the blocker's live location/time (the fan-out already skips them;
+  // the list has to as well or the ping was the only thing suppressed).
+  const blockRows = await prisma.memberBlock.findMany({
+    where:  { OR: [{ blockerId: session.id }, { blockedId: session.id }] },
+    select: { blockerId: true, blockedId: true },
+  })
+  const blockedHostIds = blockRows.map(b => b.blockerId === session.id ? b.blockedId : b.blockerId)
+
   const hangouts = await prisma.hangout.findMany({
     where: {
       status: 'active',
       cityId: await resolveCityId(session),
       endsAt: { gte: now },
       ...(neighborhood ? { neighborhood } : {}),
+      ...(blockedHostIds.length ? { userId: { notIn: blockedHostIds } } : {}),
     },
     orderBy: { startsAt: 'asc' },
     take: 100,
@@ -237,14 +247,17 @@ export async function POST(req: NextRequest) {
         // people who've joined hangouts there before ("would be interested
         // again").
         if (safeNeighborhood) {
+          // Both queries scope to the hangout's CITY — neighborhood names are
+          // only unique per city (same rule the visitors fan-out follows), so
+          // a shared name must not cross-ping another city's members.
           const [locals, pastJoiners] = await Promise.all([
             prisma.user.findMany({
-              where:  { neighborhood: safeNeighborhood, status: 'approved', id: { not: session.id } },
+              where:  { neighborhood: safeNeighborhood, cityId: created.cityId, status: 'approved', id: { not: session.id } },
               select: { id: true },
             }),
             prisma.hangoutJoin.findMany({
               where:    {
-                hangout:  { neighborhood: safeNeighborhood },
+                hangout:  { neighborhood: safeNeighborhood, cityId: created.cityId },
                 userId:   { not: session.id },
                 user:     { status: 'approved' },
               },
@@ -257,6 +270,17 @@ export async function POST(req: NextRequest) {
         }
 
         audience.delete(session.id)
+
+        // A block in either direction drops the pair from the fan-out. The
+        // safety-critical half: a person the host blocked must not be told
+        // where the host will be and when.
+        const blocks = await prisma.memberBlock.findMany({
+          where:  { OR: [{ blockerId: session.id }, { blockedId: session.id }] },
+          select: { blockerId: true, blockedId: true },
+        })
+        for (const b of blocks) {
+          audience.delete(b.blockerId === session.id ? b.blockedId : b.blockerId)
+        }
         const heading = safeNeighborhood ? `☕ Hangout in ${safeNeighborhood}` : `☕ ${created.title}`
         for (const userId of audience) {
           createNotification(

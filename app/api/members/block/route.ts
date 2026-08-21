@@ -25,13 +25,41 @@ export async function POST(req: NextRequest) {
   }
 
   const { userId } = await req.json()
-  if (!userId || userId === session.id) return NextResponse.json({ error: 'Invalid' }, { status: 400 })
+  if (!userId || typeof userId !== 'string' || userId === session.id) {
+    return NextResponse.json({ error: 'Invalid' }, { status: 400 })
+  }
+  // Validate the target exists first — a garbage id used to hit the FK
+  // constraint and 500.
+  const target = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } })
+  if (!target) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  await prisma.memberBlock.upsert({
-    where: { blockerId_blockedId: { blockerId: session.id, blockedId: userId } },
-    create: { blockerId: session.id, blockedId: userId },
-    update: {},
-  })
+  await prisma.$transaction([
+    prisma.memberBlock.upsert({
+      where: { blockerId_blockedId: { blockerId: session.id, blockedId: userId } },
+      create: { blockerId: session.id, blockedId: userId },
+      update: {},
+    }),
+    // Sever the connection (any status, both directions) in the same stroke.
+    // An accepted connection that survived a block kept the blocked person
+    // in the blocker's hangout fan-out and in both connection lists; a
+    // pending one could even be accepted post-block. Re-requests after an
+    // unblock stay controlled: the connections POST refuses blocked pairs
+    // while the block stands.
+    prisma.memberConnection.deleteMany({
+      where: { OR: [
+        { requesterId: session.id, receiverId: userId },
+        { requesterId: userId,     receiverId: session.id },
+      ] },
+    }),
+    // Unseat the pair from each other's live hangouts too — a pre-block
+    // joiner would otherwise stay in the party and keep getting its chat.
+    prisma.hangoutJoin.deleteMany({
+      where: { OR: [
+        { userId,             hangout: { userId: session.id, status: 'active' } },
+        { userId: session.id, hangout: { userId,             status: 'active' } },
+      ] },
+    }),
+  ])
   return NextResponse.json({ ok: true })
 }
 

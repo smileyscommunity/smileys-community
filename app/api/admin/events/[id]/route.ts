@@ -40,7 +40,29 @@ export async function DELETE(_: NextRequest, { params }: Params) {
     // "who deleted an event with 40 RSVPs" has to be captured before the row
     // is gone (PUT was audited; DELETE wasn't).
     const attendeeCount = await prisma.eventAttendee.count({ where: { eventId: id } })
+    // Payment.event has no onDelete (→ Restrict), so any priced event that
+    // ever had an RSVP was undeletable — P2003 rolled the whole transaction
+    // back as a generic 500. Snapshot the ledger rows into PaymentLog
+    // (paymentId is a bare string, so the log outlives the row) and delete
+    // them with the event, same as the admin user-delete route.
+    const payments = await prisma.payment.findMany({
+      where:  { eventId: id },
+      select: { id: true, amount: true, currency: true, status: true },
+    })
     await prisma.$transaction([
+      ...(payments.length > 0 ? [
+        prisma.paymentLog.createMany({
+          data: payments.map(p => ({
+            paymentId:  p.id,
+            adminId:    session.id,
+            adminName:  session.name,
+            fromStatus: p.status,
+            toStatus:   'deleted',
+            note:       `Payment deleted as part of event removal (${p.amount} ${p.currency}, was ${p.status})`,
+          })),
+        }),
+      ] : []),
+      prisma.payment.deleteMany({ where: { eventId: id } }),
       prisma.eventAttendee.deleteMany({ where: { eventId: id } }),
       prisma.waitlistEntry.deleteMany({ where: { eventId: id } }),
       prisma.review.deleteMany({ where: { eventId: id } }),

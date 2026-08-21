@@ -20,6 +20,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'Already handled' }, { status: 400 })
   }
 
+  // Blocking now severs pending rows, but belt-and-braces for requests that
+  // predate that change (or race it): a blocked pair must not be able to
+  // become connected. Same 404 as a missing row so nothing is probed.
+  const blocked = await prisma.memberBlock.findFirst({
+    where: { OR: [
+      { blockerId: session.id,              blockedId: connection.requesterId },
+      { blockerId: connection.requesterId,  blockedId: session.id },
+    ] },
+    select: { id: true },
+  })
+  if (blocked) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
   if (action === 'accept') {
     const updated = await prisma.memberConnection.update({
       where: { id },

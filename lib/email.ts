@@ -1,5 +1,5 @@
 import { Resend } from 'resend'
-import { unsubscribeUrl } from '@/lib/unsubscribe'
+import { unsubscribeUrl, oneClickUnsubscribeUrl } from '@/lib/unsubscribe'
 import { APP_URL as ENV_APP_URL } from '@/lib/env'
 import { prisma } from '@/lib/prisma'
 import type { Prisma } from '@prisma/client'
@@ -887,7 +887,14 @@ function buildNewsletterPayload(userId: string, email: string, name: string, sub
       </div>
     `,
     text:    `Hi ${firstName},\n\n${stripHtml(bodyHtml)}\n\nBrowse upcoming events: ${APP_URL}/events\n\nUnsubscribe: ${unsub}`,
-    headers: { 'List-Unsubscribe': unsub },
+    // RFC 2369 wants the URL in angle brackets (the bare form is ignored),
+    // and RFC 8058's Post header is what makes Gmail/Yahoo's one-click
+    // button work — it POSTs to the API route, which acts on the HMAC
+    // token alone.
+    headers: {
+      'List-Unsubscribe':      `<${oneClickUnsubscribeUrl(userId)}>`,
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+    },
   }
 }
 

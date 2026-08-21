@@ -33,8 +33,17 @@ export async function POST(req: NextRequest) {
   let totalSent = 0
 
   for (const nl of due) {
-    // Mark as sending so concurrent sweeper runs don't double-send
-    await prisma.newsletter.update({ where: { id: nl.id }, data: { status: 'sending' } })
+    // Atomic claim: the conditional updateMany means only ONE of two
+    // overlapping sweeper runs flips scheduled → sending; the loser sees
+    // count 0 and skips. The previous unconditional update let both runs
+    // read the row as 'scheduled' and both blast the full recipient list
+    // (the batch send takes 15s+ per 1k recipients, so overlap is real).
+    // Same pattern as sweep-cup-reminders' reminderSentAt claim.
+    const claimed = await prisma.newsletter.updateMany({
+      where: { id: nl.id, status: 'scheduled' },
+      data:  { status: 'sending' },
+    })
+    if (claimed.count === 0) continue
 
     const recipients = await prisma.user.findMany({
       where:  recipientWhere(nl.segment as Segment),

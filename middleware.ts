@@ -33,6 +33,10 @@ function checkOrigin(req: NextRequest): NextResponse | null {
   // CSRF gate would 403 them. They carry no session cookie and are authenticated
   // by svix HMAC signature in the handler instead — skip the Origin check here.
   if (req.nextUrl.pathname === '/api/webhooks/resend') return null
+  // RFC 8058 one-click unsubscribe: mail providers POST server-to-server
+  // with no Origin header. No session cookie is involved — the HMAC token
+  // in the URL is the authorization — so the Origin check adds nothing.
+  if (req.nextUrl.pathname === '/api/unsubscribe') return null
 
   const host = req.headers.get('host')
   if (!host) {

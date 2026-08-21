@@ -23,6 +23,18 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'You are the host' }, { status: 400 })
   }
 
+  // A block in either direction closes this surface: joining would fire a
+  // notification across the blocked pair and seat them in the same party.
+  // Same 404 shape as a missing hangout so nothing is probed.
+  const blocked = await prisma.memberBlock.findFirst({
+    where: { OR: [
+      { blockerId: hangout.userId, blockedId: session.id },
+      { blockerId: session.id,     blockedId: hangout.userId },
+    ] },
+    select: { id: true },
+  })
+  if (blocked) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
   const existing = await prisma.hangoutJoin.findUnique({
     where: { hangoutId_userId: { hangoutId, userId: session.id } },
   })

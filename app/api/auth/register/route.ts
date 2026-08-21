@@ -67,22 +67,28 @@ export async function POST(req: NextRequest) {
           })
         return NextResponse.json({ pending: true, checkEmail: true })
       }
-      // The previous registration never verified the email, so we can't tell whether
-      // it was the real applicant or a squatter who guessed an approved email. The
-      // squatter can't log in (verification gate blocks them), but their row would
-      // otherwise block the real applicant from claiming the slot. Wipe the
-      // incomplete row so the real applicant can register fresh.
-      const oldMemberships = await prisma.clubMembership.findMany({
-        where: { userId: existing.id, status: 'approved' },
-        select: { clubId: true },
+      // The previous registration never verified the email, so we can't tell
+      // whether it was the real applicant or a squatter. We used to WIPE the
+      // row and let the new registrant recreate it with THEIR password — an
+      // account-takeover primitive: a squatter re-registers the approved
+      // email, the real owner receives the second (perfectly legitimate)
+      // verification email, clicks it, and the squatter's password is live
+      // on a verified account. Keep the existing row and its password
+      // untouched; just re-send a fresh verification link to the inbox
+      // owner. A real applicant who no longer knows the original password
+      // can use forgot-password once verified. Response shape matches the
+      // verified-duplicate branch above so nothing enumerates.
+      const reToken    = randomBytes(32).toString('hex')
+      const reExpires  = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7)
+      await prisma.emailVerificationToken.deleteMany({ where: { userId: existing.id } })
+      await prisma.emailVerificationToken.create({
+        data: { userId: existing.id, token: hashToken(reToken), expiresAt: reExpires },
       })
-      await prisma.$transaction([
-        ...oldMemberships.map(m =>
-          prisma.club.update({ where: { id: m.clubId }, data: { memberCount: { decrement: 1 } } })
-        ),
-        // Cascade-deletes ClubMembership, EmailVerificationToken, etc. via onDelete: Cascade.
-        prisma.user.delete({ where: { id: existing.id } }),
-      ])
+      sendVerificationEmail(existing.email, existing.name, reToken).catch(async err => {
+        console.error('[auth register] re-send sendVerificationEmail failed', { userId: existing.id, err: String(err) })
+        await recordEmailFailure({ helper: 'sendVerificationEmail', recipient: existing.email, error: err, context: { userId: existing.id } })
+      })
+      return NextResponse.json({ pending: true, checkEmail: true })
     }
 
     const application = await prisma.memberApplication.findFirst({
