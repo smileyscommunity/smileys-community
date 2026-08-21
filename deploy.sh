@@ -242,15 +242,30 @@ fi
 echo "→ Running smoke test..."
 "$LOCAL/scripts/smoke.sh" "$LOCAL"
 
+echo "→ Syncing static chunks (additive — previous builds' chunks stay live)..."
+# Content-hashed chunks are immutable, so letting builds accumulate is safe —
+# and necessary: every tab opened before a deploy still lazy-loads chunks by
+# the OLD hashes, and the --delete sync below used to wipe those, throwing
+# ChunkLoadError (and an error.tsx forced reload) at every open tab on every
+# deploy. Old builds are pruned after the restart, and only when a file is
+# both aged out AND absent from the build we just shipped — a vendor chunk
+# can keep the same hash across many builds, so age alone would delete
+# files current HTML still references.
+rsync -a -e "ssh ${SSH_OPTS[*]}" --exclude='*.map' \
+  "$LOCAL/.next/static/" "$SERVER:$REMOTE/.next/static/"
+
 echo "→ Syncing files (server still serving)..."
 # Leave pm2 running through the rsync. Next.js loads chunks at process
 # start, so in-flight requests are unaffected by files changing under
 # them. We only restart once everything is in place — cuts deploy
 # downtime from ~45s of 502s to a single ~5s pm2 restart window.
+# .next/static is excluded: it was synced additively above, and --delete
+# here would defeat that by removing the retained old-build chunks.
 rsync -av --delete -e "ssh ${SSH_OPTS[*]}" \
   --exclude='.env' \
   --exclude='.env.local' \
   --exclude='.next/cache/' \
+  --exclude='.next/static/' \
   --exclude='.env.production' \
   --exclude='*.map' \
   --exclude='backups/' \
@@ -322,6 +337,17 @@ elif [ "$RESTART_RC" != "0" ]; then
   echo "✗ Restart step failed (exit $RESTART_RC) — the server may still be on the old build."
   exit "$RESTART_RC"
 fi
+
+echo "→ Pruning retained chunks from old builds..."
+# The additive static sync above lets old builds' chunks accumulate. Trim
+# ones that are BOTH >14 days old AND absent from the build just shipped —
+# never age alone: an unchanged vendor chunk keeps its content hash across
+# builds (and rsync preserves its old mtime), so it can be weeks old while
+# current HTML still references it. Non-fatal: a failed prune just leaves
+# extra files until the next deploy.
+( cd "$LOCAL/.next/static" && find . -type f ! -name '*.map' ) | \
+  ssh "${SSH_OPTS[@]}" "$SERVER" "cat > /tmp/smileys-current-static.list && cd $REMOTE/.next/static && { find . -type f -mtime +14 | grep -vxFf /tmp/smileys-current-static.list | xargs -r rm -f; find . -type d -empty -delete; }" \
+  || echo "  (prune skipped — nothing old to trim or transient error; retained chunks are harmless)"
 
 # All sweeper crontabs registered in ONE ssh session instead of 14 separate
 # connections (each paying its own SSH handshake — a real chunk of deploy
