@@ -174,8 +174,8 @@ self.addEventListener('push', e => {
   const title   = payload.title ?? 'Smileys'
   const options = {
     body:    payload.body  ?? '',
-    icon:    '/icons/icon-192.png',
-    badge:   '/icons/icon-192.png',
+    icon:    '/app/icons/icon-192.png',
+    badge:   '/app/icons/icon-192.png',
     data:    { link: payload.link ?? '/app' },
     vibrate: [100, 50, 100],
   }

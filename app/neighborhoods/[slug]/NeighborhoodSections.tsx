@@ -444,10 +444,10 @@ export default async function NeighborhoodSections({
             <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">
               Local members ({totalLocals})
             </h2>
-            <a href={`/members?neighborhood=${encodeURIComponent(name)}`}
+            <Link href={`/members?neighborhood=${encodeURIComponent(name)}`}
               className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
               See all →
-            </a>
+            </Link>
           </div>
           <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
             <div className="flex flex-wrap gap-4">
@@ -497,10 +497,10 @@ export default async function NeighborhoodSections({
         <div>
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest">Upcoming events</h2>
-            <a href={`/members?neighborhood=${encodeURIComponent(name)}`}
+            <Link href={`/members?neighborhood=${encodeURIComponent(name)}`}
               className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
               {totalLocals} local member{totalLocals !== 1 ? 's' : ''} →
-            </a>
+            </Link>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {upcomingRaw.slice(0, 3).map((event, idx) => {

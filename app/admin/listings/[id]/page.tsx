@@ -183,7 +183,7 @@ export default function AdminListingDetailPage() {
           </p>
         </div>
         <Link
-          href={`/listings/${listing.id}`}
+          href={`/board/${listing.id}`}
           target="_blank"
           className="shrink-0 px-3 py-2 text-xs font-semibold rounded-xl bg-zinc-800 border border-zinc-700 text-zinc-300 hover:border-zinc-500 transition-colors"
         >

@@ -174,7 +174,7 @@ export default function AdminPostsPage() {
               <div className="flex items-center gap-2 shrink-0">
                 {post.status === 'published' && (
                   <a
-                    href={`/posts/${post.slug}`}
+                    href={`/app/posts/${post.slug}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="px-3 py-2 rounded-lg text-xs font-semibold text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 transition-colors"

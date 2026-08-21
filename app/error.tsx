@@ -53,7 +53,7 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
               a full document load is what actually recovers the app. */}
           {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
           <a
-            href="/"
+            href="/app"
             className="px-6 py-3 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 font-semibold text-sm transition-colors"
           >
             Go home

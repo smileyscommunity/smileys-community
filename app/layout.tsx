@@ -168,11 +168,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en">
       <head>
-        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+        <link rel="icon" href="/app/favicon.svg" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="/app/icons/icon-192.png" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link rel="manifest" href="/manifest.json" />
+        <link rel="manifest" href="/app/manifest.json" />
         <script
           type="application/ld+json"
           nonce={nonce}

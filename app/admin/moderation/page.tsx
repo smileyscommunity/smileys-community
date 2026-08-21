@@ -575,7 +575,8 @@ function ModerationPageInner() {
                     </div>
                     <div className="text-sm font-medium text-zinc-300 mb-0.5">{REASON_LABELS[r.reason] ?? r.reason}</div>
                     {r.event && (
-                      <Link href={`/admin/events/${r.event.id}`} className="text-xs text-amber-500 hover:underline mb-1 block">
+                      <Link href={`/events/${r.event.id}`} target="_blank" rel="noopener noreferrer"
+                        className="text-xs text-amber-500 hover:underline mb-1 block">
                         📅 {r.event.title}
                       </Link>
                     )}

@@ -152,7 +152,7 @@ export default function AdminSecurityPage() {
       await loadOverview()
       if (codes.length === 0) {
         toast.success('Two-factor authentication enabled')
-        if (require2fa) window.location.replace('/admin')
+        if (require2fa) window.location.replace('/app/admin')
       }
     } catch {
       toast.error('Network error — could not enable 2FA')
@@ -386,7 +386,7 @@ export default function AdminSecurityPage() {
                 onClick={() => {
                   setShownCodes([])
                   setStep('idle')
-                  if (require2fa) window.location.replace('/admin')
+                  if (require2fa) window.location.replace('/app/admin')
                 }}
                 className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors"
               >
