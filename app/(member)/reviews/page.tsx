@@ -66,7 +66,7 @@ function ReviewCard({ event, onSubmit }: { event: EventStub; onSubmit: (eventId:
         <div className="min-w-0">
           <h3 className="font-semibold text-gray-900 text-sm leading-tight truncate">{event.title}</h3>
           <p className="text-xs text-gray-400 mt-0.5">
-            {new Date(event.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+            {new Date(event.date + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
         </div>
       </div>
@@ -124,7 +124,7 @@ function SubmittedCard({ review, onEdit, onDelete }: {
             {review.event.title}
           </Link>
           <p className="text-xs text-gray-400 mt-0.5">
-            {new Date(review.event.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+            {new Date(review.event.date + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
         </div>
         <span className="text-xs text-gray-400 shrink-0">

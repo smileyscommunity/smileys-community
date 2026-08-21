@@ -273,11 +273,14 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
     if (!form.date) return []
     const days = repeat === 'weekly' ? 7 : repeat === 'biweekly' ? 14 : 0
     const dates: string[] = []
-    const base = new Date(form.date)
+    // Pure-UTC calendar math — see buildDates in ../new/page.tsx: local
+    // setDate() shifted a series day across a DST boundary in the host's
+    // browser timezone.
+    const base = new Date(form.date + 'T00:00:00Z')
     for (let i = 1; i <= occurrences; i++) {
       const d = new Date(base)
-      if (repeat === 'monthly') d.setMonth(d.getMonth() + i)
-      else d.setDate(d.getDate() + days * i)
+      if (repeat === 'monthly') d.setUTCMonth(d.getUTCMonth() + i)
+      else d.setUTCDate(d.getUTCDate() + days * i)
       dates.push(d.toISOString().split('T')[0])
     }
     return dates

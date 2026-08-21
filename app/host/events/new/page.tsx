@@ -176,11 +176,14 @@ function HostNewEventForm() {
     if (repeat === 'none' || !form.date) return [form.date]
     const days = repeat === 'weekly' ? 7 : repeat === 'biweekly' ? 14 : 0
     const dates: string[] = []
-    const base = new Date(form.date)
+    // Pure-UTC calendar math: parsing at UTC midnight but stepping with
+    // local setDate() shifted a series day across a DST boundary in the
+    // host's browser timezone. setUTCDate keeps it timezone-free.
+    const base = new Date(form.date + 'T00:00:00Z')
     for (let i = 0; i < occurrences; i++) {
       const d = new Date(base)
-      if (repeat === 'monthly') d.setMonth(d.getMonth() + i)
-      else d.setDate(d.getDate() + days * i)
+      if (repeat === 'monthly') d.setUTCMonth(d.getUTCMonth() + i)
+      else d.setUTCDate(d.getUTCDate() + days * i)
       dates.push(d.toISOString().split('T')[0])
     }
     return dates

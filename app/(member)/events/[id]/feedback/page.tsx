@@ -143,7 +143,7 @@ export default function FeedbackPage({ params }: { params: Promise<{ id: string 
     <Shell>
       <div className="text-xs text-zinc-500 uppercase tracking-widest mb-2">Quick feedback</div>
       <h1 className="text-xl font-bold text-white">{ctx.event.emoji} {ctx.event.title}</h1>
-      <p className="text-xs text-zinc-500 mt-0.5">{new Date(ctx.event.date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+      <p className="text-xs text-zinc-500 mt-0.5">{new Date(ctx.event.date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
       <p className="text-xs text-zinc-500 mt-2">Two questions. Your name isn't shared with the host.</p>
 
       {/* Q1 — anomaly */}

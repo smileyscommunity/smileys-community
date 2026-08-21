@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { resolveImageUrl, getInitials } from '@/lib/data'
 import { downscaleImage } from '@/lib/image-resize'
 import ReportButton from '@/components/ReportButton'
+import { toast } from 'sonner'
 
 interface Reaction { userId: string; emoji: string }
 
@@ -163,7 +164,13 @@ export default function ThreadPage({ params }: { params: Promise<{ userId: strin
         }),
       })
       if (res.status === 403) { setNotConnected(true); return }
-      if (!res.ok) return
+      if (!res.ok) {
+        // Surface the reason (rate limit, server error) — a silent return
+        // ended the spinner with the text still in the box and no clue why.
+        const d = await res.json().catch(() => null)
+        toast.error(d?.error ?? 'Message not sent — try again')
+        return
+      }
       const msg = await res.json()
       setMessages(prev => [...prev, msg])
       lastMsgRef.current = msg.createdAt
@@ -173,6 +180,7 @@ export default function ThreadPage({ params }: { params: Promise<{ userId: strin
       textareaRef.current?.focus()
     } catch {
       // Network blip — keep the composed text/image so the user can retry.
+      toast.error('Message not sent — check your connection')
     } finally {
       setSending(false)
     }

@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
+import { getCityTz } from '@/lib/city'
+import { todayInTz } from '@/lib/cityTime'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -58,11 +60,14 @@ export async function POST(req: NextRequest, { params }: Params) {
     const { id: eventId } = await params
 
     // Discussion auto-locks 14 days post-event (UI hides the input;
-    // this is the server-side guard for the same window).
-    const event = await prisma.event.findUnique({ where: { id: eventId }, select: { date: true, hostId: true, title: true } })
+    // this is the server-side guard for the same window). The cutoff is
+    // judged on the event city's calendar — new Date('YYYY-MM-DD') is UTC
+    // midnight, which closed the window hours early on the city's clock.
+    const event = await prisma.event.findUnique({ where: { id: eventId }, select: { date: true, cityId: true, hostId: true, title: true } })
     if (!event) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    const lockedAt = new Date(event.date); lockedAt.setDate(lockedAt.getDate() + 15)
-    if (Date.now() >= lockedAt.getTime()) {
+    const lockFrom = new Date(event.date + 'T00:00:00Z')
+    lockFrom.setUTCDate(lockFrom.getUTCDate() + 15)
+    if (todayInTz(await getCityTz(event.cityId)) >= lockFrom.toISOString().split('T')[0]) {
       return NextResponse.json({ error: 'Discussion closed for this event' }, { status: 403 })
     }
 

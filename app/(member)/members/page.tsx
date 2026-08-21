@@ -1076,12 +1076,19 @@ function MembersPageInner() {
 
   async function loadMore() {
     setLoadingMore(true)
-    const data = await fetch(`/app/api/members?offset=${members.length}`, { credentials: 'include' }).then(r => r.json())
-    if (data?.members) {
-      setMembers(prev => [...prev, ...data.members])
-      setHasMore(data.hasMore)
+    try {
+      const data = await fetch(`/app/api/members?offset=${members.length}`, { credentials: 'include' }).then(r => r.json())
+      if (data?.members) {
+        setMembers(prev => [...prev, ...data.members])
+        setHasMore(data.hasMore)
+      }
+    } catch {
+      // A network blip used to throw past setLoadingMore and freeze the
+      // button in its loading state until a full reload.
+      toast.error('Could not load more members')
+    } finally {
+      setLoadingMore(false)
     }
-    setLoadingMore(false)
   }
 
   const activeMembers  = filteredMembers ?? members
