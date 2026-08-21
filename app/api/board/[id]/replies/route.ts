@@ -8,6 +8,24 @@ type Params = { params: Promise<{ id: string }> }
 
 export async function GET(req: NextRequest, { params }: Params) {
   const { id } = await params
+  // Same gates as the board feed's deep-link path (app/api/board/route.ts):
+  // a removed post's thread, a banned author's post, and a private club's
+  // conversation must not be readable straight off this endpoint either.
+  const session = await getSession()
+  const post = await prisma.boardPost.findFirst({
+    where: {
+      id, status: 'active',
+      user: { status: 'approved' },
+      OR: [
+        { clubId: null },
+        { club: { isPrivate: false } },
+        ...(session ? [{ club: { memberships: { some: { userId: session.id, status: 'approved' } } } }] : []),
+      ],
+    },
+    select: { id: true },
+  })
+  if (!post) return NextResponse.json({ error: 'Post not found' }, { status: 404 })
+
   const replies = await prisma.boardReply.findMany({
     where:   { postId: id, user: { status: 'approved' } },
     orderBy: { createdAt: 'asc' },
@@ -30,9 +48,25 @@ export async function POST(req: NextRequest, { params }: Params) {
   const { id } = await params
   const post = await prisma.boardPost.findUnique({
     where:  { id },
-    select: { id: true, userId: true, status: true, title: true },
+    select: { id: true, userId: true, status: true, title: true, clubId: true, club: { select: { isPrivate: true } } },
   })
   if (!post || post.status !== 'active') return NextResponse.json({ error: 'Post not found' }, { status: 404 })
+
+  // A private club's thread accepts replies only from its approved members —
+  // same gate the feed applies to reading it. (Public-club posts surface in
+  // the general feed, so any member may reply to those, matching the post
+  // route's read semantics.)
+  if (post.clubId && post.club?.isPrivate) {
+    const member = await prisma.clubMembership.findUnique({
+      where:  { userId_clubId: { userId: session.id, clubId: post.clubId } },
+      select: { status: true },
+    })
+    if (member?.status !== 'approved') {
+      // 404, not 403 — same as the GET above, so a non-member can't
+      // use either method to confirm a private post's id exists.
+      return NextResponse.json({ error: 'Post not found' }, { status: 404 })
+    }
+  }
 
   const raw = await req.json()
   const body = typeof raw.body === 'string' ? raw.body.trim().slice(0, 500) : ''

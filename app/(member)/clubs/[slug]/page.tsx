@@ -4,7 +4,7 @@ import { CLUB_FILTER_GROUPS, HEALTH_RANK } from '@/lib/clubDiscovery'
 import Link from 'next/link'
 import Image from 'next/image'
 import type { Metadata } from 'next'
-import { getClubBySlug, getEventsByClub } from '@/lib/db'
+import { getClubBySlug, getEventsByClub, redactEventForGuest } from '@/lib/db'
 import RichText from '@/components/RichText'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
@@ -163,6 +163,11 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
         })
       : Promise.resolve(null),
     (async () => {
+      // Logged-out request: the (member) layout only redirects client-side,
+      // so this server component still runs — and every prop handed to the
+      // client components below is serialized into the flight payload
+      // whether or not it renders. Don't even fetch attendee identities.
+      if (!session) return {}
       const eventIds = clubEvents.map(e => e.id)
       if (!eventIds.length) return {}
       const memberIds = (await prisma.clubMembership.findMany({
@@ -430,7 +435,7 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
 
             <ClubTabs
               slug={club.slug}
-              clubEvents={clubEvents}
+              clubEvents={session ? clubEvents : clubEvents.map(redactEventForGuest)}
               canPost={canPost}
               currentUserId={session?.id}
               isAdmin={isPrivileged}
@@ -461,7 +466,7 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
 
             <ClubSpotlight
               slug={club.slug}
-              initialSpotlight={spotlightUser}
+              initialSpotlight={session ? spotlightUser : null}
               canEdit={canPin}
             />
 
@@ -474,7 +479,7 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
 
             <ClubResources
               slug={club.slug}
-              initialResources={resources}
+              initialResources={session ? resources : []}
               canEdit={canPin}
             />
 

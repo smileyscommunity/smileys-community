@@ -84,5 +84,9 @@ export async function GET() {
   const weekOut = new Date(Date.now() + 7 * 86_400_000).toISOString().split('T')[0]
   const session = await getSession()
   const clubs = await getDiscoveryClubs(today, weekOut, await resolveCityId(session))
-  return NextResponse.json(clubs)
+  // The cached entry is viewer-independent by design, so the guest
+  // projection is applied after retrieval: the club's WhatsApp invite
+  // link is the payoff of joining — withheld from logged-out viewers,
+  // matching /api/clubs/[slug].
+  return NextResponse.json(session ? clubs : clubs.map(c => ({ ...c, whatsappUrl: null })))
 }

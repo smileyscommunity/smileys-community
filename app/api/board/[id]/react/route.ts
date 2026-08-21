@@ -24,9 +24,21 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const post = await prisma.boardPost.findUnique({
     where:  { id },
-    select: { id: true, userId: true, status: true, title: true },
+    select: { id: true, userId: true, status: true, title: true, clubId: true, club: { select: { isPrivate: true } } },
   })
   if (!post || post.status !== 'active') return NextResponse.json({ error: 'Post not found' }, { status: 404 })
+
+  // Same private-club gate as replies: a non-member with a private post's id
+  // must not be able to ping its author (or confirm the post exists).
+  if (post.clubId && post.club?.isPrivate) {
+    const member = await prisma.clubMembership.findUnique({
+      where:  { userId_clubId: { userId: session.id, clubId: post.clubId } },
+      select: { status: true },
+    })
+    if (member?.status !== 'approved') {
+      return NextResponse.json({ error: 'Post not found' }, { status: 404 })
+    }
+  }
 
   const where = { postId_userId: { postId: id, userId: session.id } }
 

@@ -7,6 +7,11 @@ import { rateLimit } from '@/lib/rateLimit'
 type Params = { params: Promise<{ slug: string }> }
 
 export async function GET(_: NextRequest, { params }: Params) {
+  // Member-only: exposes a member's bio beyond card-level data, and
+  // profileVisibility isn't consulted here — don't serve it to guests.
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const { slug } = await params
   const club = await prisma.club.findUnique({
     where: { slug },

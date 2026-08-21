@@ -7,6 +7,11 @@ import { rateLimit } from '@/lib/rateLimit'
 type Params = { params: Promise<{ slug: string }> }
 
 export async function GET(_: NextRequest, { params }: Params) {
+  // Member-only: event-photo uploaders attended those events, so the
+  // author list is a de-facto attendance list — same rule as reviews.
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const { slug } = await params
   const club = await prisma.club.findUnique({ where: { slug }, select: { id: true } })
   if (!club) return NextResponse.json({ error: 'Not found' }, { status: 404 })

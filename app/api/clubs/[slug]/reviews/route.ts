@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getSession } from '@/lib/session'
 
 type Params = { params: Promise<{ slug: string }> }
 
 export async function GET(_req: NextRequest, { params }: Params) {
   try {
+    // Member-only, same as /api/events/[id]/reviews: only past attendees can
+    // review, so the reviewer list is a de-facto attendance list — don't
+    // expose it to unauthenticated callers.
+    const session = await getSession()
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
     const { slug } = await params
     const club = await prisma.club.findUnique({ where: { slug }, select: { id: true } })
     if (!club) return NextResponse.json({ error: 'Not found' }, { status: 404 })
