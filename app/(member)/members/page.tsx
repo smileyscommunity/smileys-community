@@ -16,6 +16,7 @@ import MembershipBadge from '@/components/MembershipBadge'
 import { SkeletonCard } from '@/components/Skeleton'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { cityBadge } from '@/lib/cityBadge'
+import { LOOKING_FOR_OPTIONS } from '@/lib/profileOptions'
 
 interface ConnectionUser {
   id: string; name: string; color: string
@@ -38,6 +39,9 @@ interface MemberClub {
   slug: string
   isHost: boolean
 }
+
+const LOOKING_FOR_LABELS: Record<string, string> =
+  Object.fromEntries(LOOKING_FOR_OPTIONS.map(o => [o.id, o.label]))
 
 const SOCIAL_STYLE_MAP: Record<string, string> = {
   deep_talker:      '🗣️ Deep Talker',
@@ -70,6 +74,7 @@ interface Member {
   interests: string[]
   languages: string[]
   socialStyles: string[]
+  lookingFor?: string[]
   profilePhoto: string | null
   joinedAt: string
   role: string
@@ -565,6 +570,16 @@ function MemberModal({ m, onClose, currentUserId, currentUserRole, viewerPrivile
                   </div>
                 )}
 
+                {(m.lookingFor?.length ?? 0) > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {m.lookingFor!.map(lf => (
+                      <span key={lf} className="px-2.5 py-1 bg-sky-50 text-sky-700 border border-sky-100 rounded-full text-xs font-medium">
+                        🔎 {LOOKING_FOR_LABELS[lf] ?? lf}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
                 {m.instagram && (
                   <a
                     href={`https://instagram.com/${m.instagram.replace('@', '')}`}
@@ -947,6 +962,8 @@ function MembersPageInner() {
   const [openToFilter, setOpenToFilter] = useState<'' | 'coffee' | 'language' | 'hosting'>('')
   // "Around now" — only members with a live availability pulse.
   const [aroundNow,    setAroundNow]    = useState(false)
+  const [speaksMyLang, setSpeaksMyLang] = useState(false)
+  const [lookingForFilter, setLookingForFilter] = useState('')
   const [sort,         setSort]         = useState<SortOption>('newest')
   // Mobile-only view mode: the classic grid or the one-at-a-time flash-card
   // deck. Desktop always renders the grid regardless of this state.
@@ -1038,7 +1055,7 @@ function MembersPageInner() {
   useEffect(() => {
     const trimmed = search.trim()
     // No active filters at all → fall back to the initial member list.
-    if (roleFilter === 'All' && !openToFilter && !aroundNow && !trimmed) { setFilteredMembers(null); return }
+    if (roleFilter === 'All' && !openToFilter && !aroundNow && !speaksMyLang && !lookingForFilter && !trimmed) { setFilteredMembers(null); return }
 
     // Debounce search input so typing "yasemin" fires one fetch, not seven.
     // role/openTo changes don't need debouncing (single click) but routing
@@ -1052,8 +1069,8 @@ function MembersPageInner() {
       // §55 — search/filter usage. Debounced with the fetch so we log
       // intents, not keystrokes.
       if (trimmed) posthog.capture('member_search', { length: trimmed.length })
-      if (roleFilter !== 'All' || openToFilter || aroundNow) {
-        posthog.capture('member_filter_used', { role: roleFilter, openTo: openToFilter || null, aroundNow })
+      if (roleFilter !== 'All' || openToFilter || aroundNow || speaksMyLang || lookingForFilter) {
+        posthog.capture('member_filter_used', { role: roleFilter, openTo: openToFilter || null, aroundNow, speaksMyLang, lookingFor: lookingForFilter || null })
       }
       setFilterLoading(true)
       const params = new URLSearchParams()
@@ -1062,6 +1079,8 @@ function MembersPageInner() {
       if (roleFilter === 'Saved')  params.set('savedOnly', 'true')
       if (openToFilter)            params.set('openTo', openToFilter)
       if (aroundNow)               params.set('aroundNow', 'true')
+      if (speaksMyLang)            params.set('speaksMyLang', 'true')
+      if (lookingForFilter)        params.set('lookingFor', lookingForFilter)
       if (trimmed)                 params.set('search', trimmed)
       fetch(`/app/api/members?${params}`, { credentials: 'include', signal: ctrl.signal })
         .then(r => r.json())
@@ -1072,7 +1091,7 @@ function MembersPageInner() {
         .finally(() => setFilterLoading(false))
     }, delay)
     return () => { clearTimeout(t); ctrl.abort() }
-  }, [roleFilter, openToFilter, aroundNow, search])
+  }, [roleFilter, openToFilter, aroundNow, speaksMyLang, lookingForFilter, search])
 
   async function loadMore() {
     setLoadingMore(true)
@@ -1330,6 +1349,33 @@ function MembersPageInner() {
               )
             })}
 
+            {/* "Speaks my language" — same filter the hangouts feed has. */}
+            <button
+              onClick={() => setSpeaksMyLang(v => !v)}
+              aria-pressed={speaksMyLang}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold border whitespace-nowrap transition-all ${
+                speaksMyLang
+                  ? 'bg-amber-50 text-amber-700 border-amber-300'
+                  : 'bg-white text-gray-600 border-gray-200 hover:border-amber-200'
+              }`}
+              title="Members who share a language with you"
+            >
+              <span>💬</span> My language
+            </button>
+
+            {/* "Looking for" — the registration answer, finally filterable. */}
+            <select
+              value={lookingForFilter}
+              onChange={e => setLookingForFilter(e.target.value)}
+              aria-label="Filter by what members are looking for"
+              className={`px-3 py-2 rounded-full text-xs font-bold border whitespace-nowrap transition-all bg-white ${
+                lookingForFilter ? 'text-amber-700 border-amber-300 bg-amber-50' : 'text-gray-600 border-gray-200'
+              }`}
+            >
+              <option value="">Looking for…</option>
+              {LOOKING_FOR_OPTIONS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+            </select>
+
             {/* Mobile-only flash-card view toggle — desktop always shows the grid */}
             <div className="w-px bg-gray-200 my-1.5 shrink-0 sm:hidden" />
             <button
@@ -1355,13 +1401,13 @@ function MembersPageInner() {
             full directory is demoted below. Hidden while a search or
             filter is active — the member is looking for someone specific
             then, not browsing. */}
-        {!search && roleFilter === 'All' && !openToFilter && !aroundNow && (
+        {!search && roleFilter === 'All' && !openToFilter && !aroundNow && !speaksMyLang && !lookingForFilter && (
           <MemberDiscovery />
         )}
 
         {/* §43 — the full directory, explicitly framed as the layer below
             contextual discovery. */}
-        {!search && roleFilter === 'All' && !openToFilter && !aroundNow && (
+        {!search && roleFilter === 'All' && !openToFilter && !aroundNow && !speaksMyLang && !lookingForFilter && (
           <div className="mb-4 pt-2 border-t border-gray-100">
             <h2 className="text-lg sm:text-xl font-extrabold tracking-tight text-gray-900 mt-6">Explore the community</h2>
             <p className="text-sm text-gray-600 mt-0.5">Everyone on Smileys — search, filter, browse.</p>

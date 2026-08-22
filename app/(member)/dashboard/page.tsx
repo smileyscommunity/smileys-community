@@ -114,7 +114,7 @@ export default async function DashboardPage() {
     }),
     prisma.user.findUnique({
       where: { id: session.id },
-      select: { referralCode: true, profilePhoto: true, bio: true, neighborhood: true, joinedAt: true, color: true, membershipType: true, interests: true, instagram: true, gender: true },
+      select: { referralCode: true, profilePhoto: true, bio: true, neighborhood: true, joinedAt: true, color: true, membershipType: true, interests: true, instagram: true, gender: true, socialStyles: true },
     }),
     prisma.notification.count({ where: { userId: session.id, isRead: false } }),
     prisma.eventAttendee.findMany({
@@ -297,7 +297,7 @@ export default async function DashboardPage() {
   // arrays are small), so all 25 queries can run as a single fan-out.
   const [
     // formerly batch 2
-    recommendedEvents, recentActivity, waitlisted, wallActivity, whosGoingRaw, spotlightUser, activePoll, featuredEvents, runningLow, recentClubEvents, referralStats,
+    recommendedCandidates, recentActivity, waitlisted, wallActivity, whosGoingRaw, spotlightUser, activePoll, featuredEvents, runningLow, recentClubEvents, referralStats,
     // formerly standalone awaits
     upcomingVisitors, latestHandbook,
     // formerly batch 3 — trendingEventsRaw is deduped against featuredEvents post-fetch
@@ -306,26 +306,19 @@ export default async function DashboardPage() {
     recentEventReviews, recentPlaceReviews, recentHangoutJoins, recentHoodPosts, recentResources, recentTestimonials, recentCupPicks, recentCupDonations,
     recentArticles, communityEventsThisMonth,
   ] = await Promise.all([
-    clubIds.length
-      ? prisma.event.findMany({
-          // cityId as well as the club: a club you belong to can sit in
-          // another city, and a global club runs events in several, so
-          // "upcoming in your clubs" otherwise followed you across the switch.
-          where: { clubId: { in: clubIds }, cityId, date: { gte: today }, status: 'published', id: { notIn: joinedEventIds } },
-          orderBy: { date: 'asc' }, take: 4,
-          select: { id: true, title: true, date: true, time: true, emoji: true, neighborhood: true, price: true, currency: true, totalSpots: true, limitedSpots: true, coverImage: true, _count: { select: { attendees: { where: { status: 'approved' } } } } },
-        })
-      : userProfile?.neighborhood
-        ? prisma.event.findMany({
-            where: { neighborhood: userProfile.neighborhood, cityId, date: { gte: today }, status: 'published', id: { notIn: joinedEventIds } },
-            orderBy: { date: 'asc' }, take: 4,
-            select: { id: true, title: true, date: true, time: true, emoji: true, neighborhood: true, price: true, currency: true, totalSpots: true, limitedSpots: true, coverImage: true, _count: { select: { attendees: { where: { status: 'approved' } } } } },
-          })
-        : prisma.event.findMany({
-            where: { cityId, date: { gte: today }, status: 'published', id: { notIn: joinedEventIds } },
-            orderBy: { date: 'asc' }, take: 4,
-            select: { id: true, title: true, date: true, time: true, emoji: true, neighborhood: true, price: true, currency: true, totalSpots: true, limitedSpots: true, coverImage: true, _count: { select: { attendees: { where: { status: 'approved' } } } } },
-          }),
+    // Wide candidate pool for "recommended" — scored AFTER the batch by
+    // club membership, interest-tag overlap, and neighborhood (see
+    // recommendedEvents below). The old shape was a hard fallback chain
+    // (clubs → neighborhood → city) that never looked at interests, so
+    // the answers members give at registration ranked nothing here.
+    prisma.event.findMany({
+      // cityId as well as the club filter downstream: a club you belong to
+      // can sit in another city, and a global club runs events in several,
+      // so recommendations otherwise followed you across the switch.
+      where: { cityId, date: { gte: today }, status: 'published', id: { notIn: joinedEventIds } },
+      orderBy: { date: 'asc' }, take: 24,
+      select: { id: true, title: true, date: true, time: true, emoji: true, neighborhood: true, price: true, currency: true, totalSpots: true, limitedSpots: true, coverImage: true, clubId: true, tags: { select: { tagId: true } }, _count: { select: { attendees: { where: { status: 'approved' } } } } },
+    }),
     // Club joins for the activity wall. Members of clubs see their own
     // clubs' joins; members of none fall back to community-wide joins
     // (public clubs only) so newcomers — the people who most need to
@@ -750,6 +743,32 @@ export default async function DashboardPage() {
     // community, parallel to eventsThisWeek's next-7-days count so month ≥ week.)
     prisma.event.count({ where: { cityId, date: { gte: today, lte: monthEndStr }, status: 'published' } }),
   ])
+
+  // Score the recommendation candidates by what the member actually told
+  // us: their clubs (strongest signal — same weight family as
+  // lib/firstEvent), their interests via interest_tag_map, and their
+  // neighborhood. Ties fall back to soonest-first, which also means a
+  // member with no signals gets exactly the old city-wide list.
+  const wantedTagIds = new Set(
+    (userProfile?.interests?.length
+      ? await prisma.interestTagMap.findMany({
+          where:  { interest: { in: userProfile.interests } },
+          select: { tagId: true },
+        })
+      : []).map(r => r.tagId),
+  )
+  const clubIdSet = new Set(clubIds)
+  const recommendedEvents = recommendedCandidates
+    .map(e => ({
+      e,
+      score:
+        (e.clubId && clubIdSet.has(e.clubId) ? 5 : 0) +
+        Math.min(e.tags.filter(t => wantedTagIds.has(t.tagId)).length, 3) * 3 +
+        (userProfile?.neighborhood && e.neighborhood === userProfile.neighborhood ? 2 : 0),
+    }))
+    .sort((a, b) => b.score - a.score || (a.e.date < b.e.date ? -1 : a.e.date > b.e.date ? 1 : 0))
+    .slice(0, 4)
+    .map(({ e }) => e)
 
   // Activity wall reuses the batch-1 recentListings (already active-only,
   // own excluded) — just narrowed to the wall's 7-day freshness window so
@@ -1193,7 +1212,13 @@ export default async function DashboardPage() {
             {/* Newcomer activation: members who have never RSVP'd lead with a
                 hand-picked first event — signed-in→first-RSVP is the biggest
                 funnel leak. Self-hides the moment they join one. */}
-            {myAttendances.length === 0 && <FirstEventBlock />}
+            {/* First-event help for anyone who hasn't RSVP'd yet — and for
+                self-declared newcomers in their first two months even if
+                they've already been to something (being new lasts longer
+                than one RSVP). */}
+            {(myAttendances.length === 0 ||
+              (userProfile?.socialStyles?.includes('new_in_town') &&
+                userProfile.joinedAt > new Date(Date.now() - 60 * 86_400_000))) && <FirstEventBlock />}
 
             {/* Urgent-first: system announcement + pending connection
                 requests (action items) used to live in the left rail,

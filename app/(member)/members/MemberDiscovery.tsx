@@ -19,6 +19,7 @@ interface Discovery {
   eventMates: DiscoveryMember[]
   newcomers: DiscoveryMember[]
   hosts: DiscoveryMember[]
+  sharedGoals?: DiscoveryMember[]
   viewer: { neighborhood: string | null; hasClubs: boolean }
 }
 
@@ -114,7 +115,7 @@ export default function MemberDiscovery() {
           <div className="mb-8 bg-amber-50 border border-amber-100 rounded-2xl p-5 flex items-center justify-between gap-4 flex-wrap">
             <div>
               <p className="font-bold text-gray-900">Find people around you</p>
-              <p className="text-sm text-gray-600 mt-0.5">Choose your Istanbul neighborhood to discover your local community.</p>
+              <p className="text-sm text-gray-600 mt-0.5">Choose your neighborhood to discover your local community.</p>
             </div>
             <Link href="/profile" className="shrink-0 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
               Choose neighborhood
@@ -128,6 +129,10 @@ export default function MemberDiscovery() {
         cta={{ href: '/events', label: 'See events →' }} onOpen={onOpen} />
 
       <Section title="Say hello to someone new 👋" members={d.newcomers} onOpen={onOpen} />
+
+      <Section title="Looking for the same things"
+        subtitle="Members who joined for the same reasons you did."
+        members={d.sharedGoals ?? []} onOpen={onOpen} />
 
       <Section title="Meet the people making things happen" members={d.hosts} onOpen={onOpen} />
 

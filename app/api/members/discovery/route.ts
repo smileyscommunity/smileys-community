@@ -90,7 +90,12 @@ export async function GET() {
   // Pass 1 — candidate ids per section. Cheap (one indexed column), so
   // each pool can be the whole eligible set rather than the 8 the section
   // happens to render.
-  const [clubPool, hoodPool, eventPool, newPool, hostPool] = await Promise.all([
+  // The viewer's "looking for" answers — the registration question that was
+  // write-only until phase B. Feeds the shared-goals section below.
+  const viewerLookingFor =
+    (await prisma.user.findUnique({ where: { id: session.id }, select: { lookingFor: true } }))?.lookingFor ?? []
+
+  const [clubPool, hoodPool, eventPool, newPool, hostPool, goalsPool] = await Promise.all([
     // §12 — people in your clubs
     clubIds.length > 0
       ? prisma.user.findMany({
@@ -140,6 +145,15 @@ export async function GET() {
       select: { id: true },
       take:   POOL,
     }),
+    // Looking for the same things — lookingFor overlap with the viewer
+    // (the same matching idea the visitors feature already uses).
+    viewerLookingFor.length > 0
+      ? prisma.user.findMany({
+          where:  { ...visibleWhere, lookingFor: { hasSome: viewerLookingFor } },
+          select: { id: true },
+          take:   POOL,
+        })
+      : Promise.resolve([]),
   ])
 
   // Rotate each pool, then keep a sample big enough to both fill the
@@ -152,10 +166,11 @@ export async function GET() {
   const eventSample = rotate(eventPool, 'events')
   const newSample   = rotate(newPool,   'new')
   const hostSample  = rotate(hostPool,  'hosts')
+  const goalsSample = rotate(goalsPool, 'goals')
 
   // Pass 2 — one card fetch + one context pass over everyone who can
   // appear anywhere on the page.
-  const unionIds = [...new Set([...clubSample, ...hoodSample, ...eventSample, ...newSample, ...hostSample])]
+  const unionIds = [...new Set([...clubSample, ...hoodSample, ...eventSample, ...newSample, ...hostSample, ...goalsSample])]
   const [cardRows, ctx] = await Promise.all([
     unionIds.length > 0
       ? prisma.user.findMany({ where: { id: { in: unionIds } }, select: CARD_SELECT })
@@ -196,6 +211,7 @@ export async function GET() {
     eventMates: section(eventSample),
     newcomers:  section(newSample),
     hosts:      section(hostSample),
+    sharedGoals: section(goalsSample),
     viewer: { neighborhood: viewer.neighborhood, hasClubs: clubIds.length > 0 },
   })
 }

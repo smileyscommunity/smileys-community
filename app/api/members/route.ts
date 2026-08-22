@@ -5,6 +5,7 @@ import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
 import { isAdminOrModerator, isClubHost } from '@/lib/access'
 import { resolveCityId } from '@/lib/city'
+import { LOOKING_FOR_VALUES } from '@/lib/profileOptions'
 
 const PAGE_SIZE = 100
 
@@ -22,6 +23,8 @@ export async function GET(req: NextRequest) {
   const savedOnly = req.nextUrl.searchParams.get('savedOnly') === 'true'
   const aroundNow = req.nextUrl.searchParams.get('aroundNow') === 'true'
   const openTo    = req.nextUrl.searchParams.get('openTo')
+  const lookingFor   = req.nextUrl.searchParams.get('lookingFor')
+  const speaksMyLang = req.nextUrl.searchParams.get('speaksMyLang') === 'true'
   const search    = req.nextUrl.searchParams.get('search')?.trim() ?? ''
 
   const openFilter: Prisma.UserWhereInput =
@@ -29,6 +32,19 @@ export async function GET(req: NextRequest) {
     openTo === 'language' ? { openToLanguage: true } :
     openTo === 'hosting'  ? { openToHosting:  true } :
     {}
+
+  // "Looking for" — the registration answer, filterable the same way the
+  // openTo flags are (it was a write-only column until phase B).
+  const lookingForFilter: Prisma.UserWhereInput =
+    lookingFor && LOOKING_FOR_VALUES.has(lookingFor) ? { lookingFor: { has: lookingFor } } : {}
+
+  // Language overlap with the VIEWER — mirrors the hangouts feed's
+  // "Speaks my language" filter. No languages on the viewer → no-op.
+  let langFilter: Prisma.UserWhereInput = {}
+  if (speaksMyLang) {
+    const viewer = await prisma.user.findUnique({ where: { id: session.id }, select: { languages: true } })
+    if (viewer?.languages?.length) langFilter = { languages: { hasSome: viewer.languages } }
+  }
 
   const searchFilter: Prisma.UserWhereInput = search ? {
     OR: [
@@ -97,6 +113,8 @@ export async function GET(req: NextRequest) {
       // appear in the directory, for any viewer.
       { hiddenFromMembers: false },
       openFilter,
+      lookingForFilter,
+      langFilter,
       searchFilter,
       // "Around now" — members available to meet right now: either a live
       // (non-expired) availability pulse OR an active hangout they're hosting.
@@ -127,7 +145,7 @@ export async function GET(req: NextRequest) {
         id: true, name: true, color: true, bio: true,
         neighborhood: true, nationality: true, interests: true,
         languages: true, profilePhoto: true, joinedAt: true, role: true,
-        instagram: true, linkedin: true, lastActive: true, socialStyles: true,
+        instagram: true, linkedin: true, lastActive: true, socialStyles: true, lookingFor: true,
         profileVisibility: true, membershipType: true,
         openToCoffee: true, openToLanguage: true, openToHosting: true,
         clubMemberships: {
@@ -182,7 +200,7 @@ export async function GET(req: NextRequest) {
         id: m.id, name: m.name, color: m.color, bio: null,
         neighborhood: m.neighborhood, nationality: null,
         interests: [] as string[], languages: [] as string[],
-        socialStyles: [] as string[],
+        socialStyles: [] as string[], lookingFor: [] as string[],
         profilePhoto: m.profilePhoto, joinedAt: m.joinedAt,
         role: m.role, instagram: null, linkedin: null, lastActive: null,
         membershipType: m.membershipType,
@@ -197,7 +215,7 @@ export async function GET(req: NextRequest) {
       id: m.id, name: m.name, color: m.color, bio: m.bio,
       neighborhood: m.neighborhood, nationality: m.nationality,
       interests: m.interests, languages: m.languages,
-      socialStyles: m.socialStyles,
+      socialStyles: m.socialStyles, lookingFor: m.lookingFor,
       profilePhoto: m.profilePhoto, joinedAt: m.joinedAt,
       role: m.role, instagram: m.instagram, linkedin: m.linkedin, lastActive: m.lastActive,
       membershipType: m.membershipType,
