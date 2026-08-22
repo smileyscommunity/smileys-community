@@ -18,6 +18,11 @@ export const INTERESTS = [
   { value: 'languages',  label: 'Language Exchange',     emoji: '🌍' },
   { value: 'games',      label: 'Games / Trivia',        emoji: '🎲' },
   { value: 'outdoor',    label: 'Outdoor Activities',    emoji: '🚶' },
+  // Added 2026-08-22: the interests backfill showed ~300 members whose
+  // free-text answers clustered creative (Film, Art, Photography, Theatre,
+  // Writing, Reading, Music…) with no canonical home. Maps to the
+  // Creative/Cultural/Film/Music/Books event tags.
+  { value: 'creative',   label: 'Arts & Creative',       emoji: '🎨' },
 ] as const
 
 export const INTEREST_VALUES = new Set<string>(INTERESTS.map(i => i.value))

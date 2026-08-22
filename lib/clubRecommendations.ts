@@ -15,6 +15,7 @@ const INTEREST_TO_CATEGORIES: Record<string, string[]> = {
   languages:  ['Language'],
   games:      ['Social'],
   outdoor:    ['Outdoor', 'Sports', 'Travel'],
+  creative:   ['Creative', 'Culture'],
 }
 
 /**

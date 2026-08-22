@@ -23,7 +23,9 @@ const SYNONYMS: Record<string, string> = {
   'cooking': 'dining', 'coffee': 'dining', 'wine': 'dining',
   'language learning': 'languages', 'language exchange': 'languages',
   'business': 'networking', 'startups': 'networking', 'entrepreneurship': 'networking',
-  'parties': 'social', 'nightlife': 'social', 'meetups': 'social', 'music': 'social',
+  // 'music' moved social → creative when the 9th slug landed; members the
+  // first run mapped to social keep it, and the recovery adds creative.
+  'parties': 'social', 'nightlife': 'social', 'meetups': 'social',
   'board games': 'games', 'trivia': 'games', 'chess': 'games',
   'boats': 'sailing', 'boating': 'sailing', 'sea': 'sailing',
   'cycling': 'outdoor', 'swimming': 'outdoor', 'running': 'outdoor',
@@ -31,6 +33,13 @@ const SYNONYMS: Record<string, string> = {
   'pilates': 'wellness', 'taichi': 'wellness', 'tai chi': 'wellness',
   'live music': 'social', 'socializing': 'social',
   'natural wine': 'dining',
+  // 2026-08-22: 'creative' became the 9th canonical slug — these terms were
+  // dropped by the first backfill run and recovered from the pre-run dump
+  // (scripts/recover-creative-interests.py).
+  'film': 'creative', 'art': 'creative', 'arts': 'creative', 'photography': 'creative',
+  'theatre': 'creative', 'theater': 'creative', 'writing': 'creative', 'reading': 'creative',
+  'music': 'creative', 'design': 'creative', 'fashion': 'creative',
+  'painting': 'creative', 'drawing': 'creative', 'crochet': 'creative',
 }
 
 async function main() {
