@@ -10,6 +10,7 @@ import EventTabs from '@/components/EventTabs'
 import CityCard from '@/components/CityCard'
 import { resolveImageUrl, istanbulEventWindow } from '@/lib/data'
 import { getPublicCities, getDefaultCityId, CITY_STATUS } from '@/lib/cities'
+import { CITY_MATURITY } from '@/lib/cityMaturity'
 import { APP_URL } from '@/lib/env'
 import { loadContent } from '@/lib/content'
 import { absoluteOgImage } from '@/lib/og'
@@ -36,7 +37,7 @@ import { isSoldOut } from '@/lib/soldOut'
 export async function generateMetadata(): Promise<Metadata> {
   const home    = loadContent().home ?? {}
   const ogImage = absoluteOgImage(home.heroImage)
-  const title   = 'Smileys — the social infrastructure for modern international life'
+  const title   = 'Smileys — your people, in every city you land in'
   const description =
     'Meet people, join clubs and discover experiences wherever your international life takes you. Smileys is a network of local communities, growing city by city.'
 
@@ -120,8 +121,18 @@ export default async function HomePage() {
     getLandingData(),
   ])
 
-  const liveCities  = cities.filter(c => c.status === CITY_STATUS.Live)
-  const otherCities = cities.filter(c => c.status !== CITY_STATUS.Live)
+  // "Live" on the hero is a promise about the EXPERIENCE, not the ops flag:
+  // a status-live city whose community is still seeding can't deliver
+  // events-and-people yet, and counting it reads as a false claim ("LIVE IN
+  // 2 CITIES" while the second had one member). Only self-sustaining live
+  // cities count; founding-stage live cities ride the "on the way" number,
+  // which corrects itself as each city matures — no flag to remember to
+  // flip. Falls back to raw status if no city qualifies, so the hero never
+  // says "Live in 0 cities".
+  const statusLive  = cities.filter(c => c.status === CITY_STATUS.Live)
+  const mature      = statusLive.filter(c => c.stats?.maturity === CITY_MATURITY.SelfSustaining)
+  const liveCities  = mature.length > 0 ? mature : statusLive
+  const otherCities = cities.filter(c => !liveCities.includes(c))
   const flagship    = liveCities[0] ?? null
 
   // Cancelled events break trust in a showcase slot; sold-out ones sink to the
@@ -172,11 +183,11 @@ export default async function HomePage() {
               )}
 
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight text-gray-900 leading-[1.08] mb-6">
-                {home.headline || 'The social infrastructure for modern international life.'}
+                {home.headline || 'Your people, in every city you land in.'}
               </h1>
 
               <p className="text-lg md:text-xl text-gray-600 max-w-2xl leading-relaxed mb-10">
-                {home.subtitle || 'Meet people. Join communities. Discover experiences. Build your social life wherever you are.'}
+                {home.subtitle || 'Meet people, join local communities, and make real plans in the cities you call home.'}
               </p>
 
               <div className="lg:hidden relative aspect-[3/2] rounded-2xl overflow-hidden shadow-xl mb-10">

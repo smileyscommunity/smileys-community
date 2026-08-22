@@ -147,7 +147,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     name:         'Smileys Community',
     url:          siteUrl,
     logo:         `${siteUrl}/icons/icon-512.png`,
-    description:  'The social infrastructure for modern international life — curated city communities with events, clubs, and genuine connections for expats, nomads, travelers, and locals.',
+    description:  'Your people, in every city you land in — curated city communities with events, clubs, and genuine connections for expats, nomads, travelers, and locals. The social infrastructure for modern international life.',
     // Derived from the same cached list the nav uses, so it costs no extra
     // query — the reason it was a hardcoded ['Istanbul'] before. Static was
     // the real risk: every visible mention of which cities are live corrects

@@ -196,6 +196,35 @@ export async function sendEmailChangedNotice(oldEmail: string, name: string, new
   })
 }
 
+// Sent when someone re-registers an email that has an UNVERIFIED account.
+// Rides the reset flow on purpose: clicking proves inbox ownership, and
+// setting a password REPLACES whatever password sits on the row — so if a
+// squatter registered this email first, their password dies the moment the
+// real owner finishes. A plain "verify" link couldn't do that (it would
+// have activated the squatter's password).
+export async function sendFinishRegistrationEmail(email: string, name: string, token: string) {
+  const url = `${APP_URL}/reset-password?token=${token}`
+  await getResend().emails.send({
+    from: FROM, to: email,
+    subject: 'Finish setting up your Smileys account',
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <div style="text-align:center;margin-bottom:24px">
+          <span style="font-size:40px">😊</span>
+          <h1 style="font-size:22px;font-weight:800;color:#111;margin:8px 0 4px">Hi ${esc(name)},</h1>
+          <p style="color:#6b7280;font-size:14px;margin:0">Your Smileys account is one step from ready — choose your password to finish and verify this email.</p>
+        </div>
+        <a href="${url}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:12px">
+          Choose password &amp; finish
+        </a>
+        <p style="color:#9ca3af;font-size:12px;text-align:center">
+          The link is valid for 7 days. If you didn't try to register, you can safely ignore this email.
+        </p>
+      </div>
+    `,
+  })
+}
+
 export async function sendPasswordResetEmail(email: string, name: string, token: string) {
   const url = `${APP_URL}/reset-password?token=${token}`
   await getResend().emails.send({
