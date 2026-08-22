@@ -27,11 +27,9 @@ export async function POST(req: NextRequest) {
     if (!name || !name.trim() || !email || !password || !phone || !nationality || !languages?.length || !interests?.length) {
       return NextResponse.json({ error: 'All fields are required' }, { status: 400 })
     }
-    // A4 fix: 12-char min. NIST + modern guidance moved past 8
-    // years ago — rate limit + lockout protect the online attack
-    // surface, but the DB-dump bcrypt-cracking risk falls fast
-    // past the 12-char threshold. Existing users untouched; only
-    // new + reset passwords pay this.
+    // 8-char minimum (owner's call, 2026-08-22 — friction over the
+    // marginal bcrypt-cracking risk). Rate limit + lockout protect
+    // the online attack surface.
     if (password.length < 8) {
       return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 })
     }

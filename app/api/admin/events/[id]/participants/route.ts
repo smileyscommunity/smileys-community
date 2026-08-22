@@ -314,8 +314,18 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         })
         if (turkishMaleCount >= event.turkishMaleQuota) {
           // Move to waitlist instead
-          await prisma.eventAttendee.delete({ where: { userId_eventId: { userId, eventId } } })
-          await prisma.waitlistEntry.create({ data: { userId, eventId } })
+          // Transactional + upsert, same as the toWaitlist action below: a
+          // plain create throws P2002 when they already sit on the waitlist
+          // from an earlier round — AFTER the delete committed, silently
+          // removing them from the event entirely.
+          await prisma.$transaction([
+            prisma.eventAttendee.delete({ where: { userId_eventId: { userId, eventId } } }),
+            prisma.waitlistEntry.upsert({
+              where:  { userId_eventId: { userId, eventId } },
+              create: { userId, eventId },
+              update: {},
+            }),
+          ])
           createNotification(userId, 'waitlist', 'Added to waitlist 📋',
             `Turkish male spots for "${event.title}" are full — you're on the waitlist.`, `/events/${eventId}`)
           return NextResponse.json({ ok: true, status: 'waitlisted', reason: 'turkish_male_quota' })
@@ -329,8 +339,18 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           where: { eventId, status: 'approved', user: { gender: { in: MALE_VARIANTS } } },
         })
         if (maleCount >= maleQuota) {
-          await prisma.eventAttendee.delete({ where: { userId_eventId: { userId, eventId } } })
-          await prisma.waitlistEntry.create({ data: { userId, eventId } })
+          // Transactional + upsert, same as the toWaitlist action below: a
+          // plain create throws P2002 when they already sit on the waitlist
+          // from an earlier round — AFTER the delete committed, silently
+          // removing them from the event entirely.
+          await prisma.$transaction([
+            prisma.eventAttendee.delete({ where: { userId_eventId: { userId, eventId } } }),
+            prisma.waitlistEntry.upsert({
+              where:  { userId_eventId: { userId, eventId } },
+              create: { userId, eventId },
+              update: {},
+            }),
+          ])
           createNotification(userId, 'waitlist', 'Added to waitlist 📋',
             `Male spots for "${event.title}" are full — you're on the waitlist.`, `/events/${eventId}`)
           return NextResponse.json({ ok: true, status: 'waitlisted', reason: 'male_quota' })
@@ -346,8 +366,18 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           where: { eventId, status: 'approved', user: { gender: { in: FEMALE_VARIANTS } } },
         })
         if (femaleCount >= femaleQuota) {
-          await prisma.eventAttendee.delete({ where: { userId_eventId: { userId, eventId } } })
-          await prisma.waitlistEntry.create({ data: { userId, eventId } })
+          // Transactional + upsert, same as the toWaitlist action below: a
+          // plain create throws P2002 when they already sit on the waitlist
+          // from an earlier round — AFTER the delete committed, silently
+          // removing them from the event entirely.
+          await prisma.$transaction([
+            prisma.eventAttendee.delete({ where: { userId_eventId: { userId, eventId } } }),
+            prisma.waitlistEntry.upsert({
+              where:  { userId_eventId: { userId, eventId } },
+              create: { userId, eventId },
+              update: {},
+            }),
+          ])
           createNotification(userId, 'waitlist', 'Added to waitlist 📋',
             `Female spots for "${event.title}" are full — you're on the waitlist.`, `/events/${eventId}`)
           return NextResponse.json({ ok: true, status: 'waitlisted', reason: 'female_quota' })

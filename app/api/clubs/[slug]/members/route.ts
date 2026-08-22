@@ -135,12 +135,20 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 
   if (action === 'approve') {
-    const { count } = await prisma.clubMembership.updateMany({
-      where: { userId, clubId: club.id, status: 'pending' },
-      data: { status: 'approved' },
+    // Status flip + counter in one transaction — and the increment only
+    // fires when the flip actually landed (count > 0), so a double-click
+    // can't bump the counter twice.
+    const count = await prisma.$transaction(async tx => {
+      const r = await tx.clubMembership.updateMany({
+        where: { userId, clubId: club.id, status: 'pending' },
+        data: { status: 'approved' },
+      })
+      if (r.count > 0) {
+        await tx.club.update({ where: { id: club.id }, data: { memberCount: { increment: 1 } } })
+      }
+      return r.count
     })
     if (count === 0) return NextResponse.json({ error: 'No pending request found' }, { status: 404 })
-    await prisma.club.update({ where: { id: club.id }, data: { memberCount: { increment: 1 } } })
     await createNotification(
       userId, 'club_approved', 'Club request approved',
       `Your request to join "${club.name}" was approved! 🎉`, `/clubs/${club.slug}`

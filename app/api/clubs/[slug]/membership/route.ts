@@ -26,17 +26,19 @@ export async function POST(_: NextRequest, { params }: Params) {
 
     const status = club.isPrivate ? 'pending' : 'approved'
 
-    const membership = await prisma.clubMembership.create({
-      data: { userId: session.id, clubId: club.id, status },
-    })
-
-    // Only increment memberCount for approved (public) clubs
-    if (!club.isPrivate) {
-      await prisma.club.update({
+    // Membership write + counter in one transaction (the admin memberships
+    // route's rule) — a crash between them left memberCount drifted with
+    // nothing but the manual recount button to notice. Counter moves only
+    // for approved (public-club) joins.
+    const [membership] = await prisma.$transaction([
+      prisma.clubMembership.create({
+        data: { userId: session.id, clubId: club.id, status },
+      }),
+      ...(!club.isPrivate ? [prisma.club.update({
         where: { id: club.id },
         data: { memberCount: { increment: 1 } },
-      })
-    }
+      })] : []),
+    ])
 
     // Notify the club's hosts when someone requests to join a private club
     if (club.isPrivate) {
@@ -128,17 +130,16 @@ export async function DELETE(_: NextRequest, { params }: Params) {
       }
     }
 
-    await prisma.clubMembership.delete({
-      where: { userId_clubId: { userId: session.id, clubId: club.id } },
-    })
-
-    // Only decrement if they were an approved member
-    if (membership.status === 'approved') {
-      await prisma.club.update({
+    // Delete + counter atomically; decrement only if they were approved.
+    await prisma.$transaction([
+      prisma.clubMembership.delete({
+        where: { userId_clubId: { userId: session.id, clubId: club.id } },
+      }),
+      ...(membership.status === 'approved' ? [prisma.club.update({
         where: { id: club.id },
         data: { memberCount: { decrement: 1 } },
-      })
-    }
+      })] : []),
+    ])
 
     return NextResponse.json({ ok: true })
   } catch (e) {

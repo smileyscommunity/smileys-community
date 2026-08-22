@@ -57,7 +57,31 @@ async function runSweep() {
   }
 
   if (fixes.length) console.log('[cron sweep-event-spots]', fixes.join('; '))
-  return { scanned: events.length, fixed: fixes.length, fixes }
+
+  // Club.memberCount reconciliation rides the same nightly sweep. The
+  // member-facing join/leave/approve paths pair the write and the counter
+  // in a transaction now, but bulk flows can still drift it (same story as
+  // spotsLeft) — and unlike spotsLeft this counter previously had no
+  // safety net beyond the manual admin recount button. Guarded per-row on
+  // the current value so a concurrent join/leave wins.
+  const [clubs, approvedByClub] = await Promise.all([
+    prisma.club.findMany({ select: { id: true, name: true, memberCount: true } }),
+    prisma.clubMembership.groupBy({ by: ['clubId'], where: { status: 'approved' }, _count: { _all: true } }),
+  ])
+  const trueCounts = new Map(approvedByClub.map(g => [g.clubId, g._count._all]))
+  const clubFixes: string[] = []
+  for (const c of clubs) {
+    const expected = trueCounts.get(c.id) ?? 0
+    if (expected === c.memberCount) continue
+    const res = await prisma.club.updateMany({
+      where: { id: c.id, memberCount: c.memberCount },
+      data:  { memberCount: expected },
+    })
+    if (res.count) clubFixes.push(`${c.name}: ${c.memberCount} → ${expected}`)
+  }
+  if (clubFixes.length) console.log('[cron sweep-event-spots] club recounts:', clubFixes.join('; '))
+
+  return { scanned: events.length, fixed: fixes.length, fixes, clubsScanned: clubs.length, clubsFixed: clubFixes.length, clubFixes }
 }
 
 export async function POST(req: NextRequest) {
@@ -75,30 +99,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// GET allowed for easy manual testing from a browser when CRON_SECRET is
-// passed as ?key=. Keeps prod debugging painless without exposing anything
-// the POST doesn't.
-export async function GET(req: NextRequest) {
-  const expected = process.env.CRON_SECRET
-  if (!expected) {
-    return NextResponse.json(
-      { error: 'CRON_SECRET not configured on server' },
-      { status: 503 },
-    )
-  }
-  const key = req.nextUrl.searchParams.get('key') ?? ''
-  // Constant-time comparison — see lib/cronAuth.ts.
-  const a = Buffer.from(key)
-  const b = Buffer.from(expected)
-  const { timingSafeEqual } = await import('crypto')
-  if (a.length !== b.length || !timingSafeEqual(a, b)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-  try {
-    const result = await runSweep()
-    return NextResponse.json({ ok: true, ...result })
-  } catch (e) {
-    console.error('[cron sweep-event-spots]', e)
-    return NextResponse.json({ error: 'Sweep failed' }, { status: 500 })
-  }
-}
+// No GET handler: the old "?key=<CRON_SECRET>" browser-testing path put
+// the secret in query strings (nginx access logs, browser history) — the
+// same class as the 2026-08 DB-password-in-crontab incident. Test with:
+//   curl -X POST -H "x-cron-secret: $CRON_SECRET" <url>

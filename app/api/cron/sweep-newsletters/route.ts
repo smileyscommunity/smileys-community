@@ -112,7 +112,9 @@ async function runAutoDigest(): Promise<string> {
   if (!admin) return 'no-admin-account'
 
   const recipients = await prisma.user.findMany({
-    where:  recipientWhere('all'),
+    // Scoped to the city the digest was built for — its content is one
+    // city's week, so members of other cities must not receive it.
+    where:  { ...recipientWhere('all'), cityId: digest.cityId },
     select: { id: true, email: true, name: true },
   })
   if (recipients.length === 0) return 'no-recipients'

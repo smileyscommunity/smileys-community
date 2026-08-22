@@ -2239,12 +2239,17 @@ model GuideTip {
   id        String         @id @default(cuid())
   userId    String
   slug      String
+  // Guide entry slugs are unique only per (cityId, kind) — a bare-slug tip
+  // would surface one city's tips on another city's page at the first slug
+  // collision (GuideSave grew this column for the identical bug). Nullable
+  // for schema-sync safety; the tips route always writes it.
+  cityId    String?
   body      String
   createdAt DateTime       @default(now())
   user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   likes     GuideTipLike[]
 
-  @@index([slug, createdAt])
+  @@index([slug, cityId, createdAt])
   @@map("guide_tips")
 }
 

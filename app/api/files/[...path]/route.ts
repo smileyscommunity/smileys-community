@@ -105,16 +105,21 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
     }
   }
 
-  // Profile photos are semi-public (shown on member/event pages). Cache aggressively.
-  // Applications folder is more conservative since it can include rejected applicants.
-  const maxAge = folder === 'applications' ? 3600 : 86400 * 7
+  // Profile photos are semi-public (shown on member/event pages). Cache
+  // aggressively. Applicant photos are admin/moderator-gated above —
+  // `public` would let any shared cache (nginx proxy_cache, corporate
+  // proxy, shared-machine browser) store the body and re-serve it to
+  // viewers the route itself would 403.
+  const cacheControl = folder === 'applications'
+    ? 'private, no-store'
+    : `public, max-age=${86400 * 7}, immutable`
 
   // Cast to Uint8Array — Buffer<ArrayBufferLike> no longer
   // satisfies BodyInit under TS 5.x's stricter Buffer typing.
   return new NextResponse(new Uint8Array(body), {
     headers: {
       'Content-Type': mime,
-      'Cache-Control': `public, max-age=${maxAge}, immutable`,
+      'Cache-Control': cacheControl,
     },
   })
 }

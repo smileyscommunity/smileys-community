@@ -20,11 +20,13 @@ function card(inner: string, bg = '#fafafa', border = '#f3f4f6'): string {
   return `<div style="border:1px solid ${border};border-radius:12px;padding:12px 16px;margin:0 0 8px;background:${bg}">${inner}</div>`
 }
 
-export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: string; preheader: string } | null> {
+export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: string; preheader: string; cityId: string } | null> {
   // One digest, scoped to the default city. When a second city has real
   // activity this needs to become buildWeeklyDigest(cityId) with per-city
-  // sends — until then, scoping keeps another city's rows from leaking
-  // into everyone's email rather than changing who receives it.
+  // sends. cityId rides along in the return so the SEND side can scope
+  // recipients to the same city the content was built for — an Istanbul
+  // digest mailed to every city's members is the "hardcoded Istanbul"
+  // class wearing a newsletter costume.
   const cityId = await getDefaultCityId()
 
   // Dates come from THAT city, not from a constant. Identical today, since the
@@ -72,7 +74,9 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
     // New reads — handbook + community articles published this week, so
     // editorial content gets a weekly nudge (it's otherwise pull-only).
     prisma.post.findMany({
-      where:   { status: 'published', kind: { in: ['handbook', 'community'] }, publishedAt: { gte: weekAgoDate } },
+      // Global posts (cityId null) plus this city's own — the one digest
+      // query that previously had no city filter.
+      where:   { status: 'published', kind: { in: ['handbook', 'community'] }, publishedAt: { gte: weekAgoDate }, OR: [{ cityId: null }, { cityId }] },
       orderBy: { publishedAt: 'desc' },
       take:    4,
       select:  { slug: true, title: true, excerpt: true, kind: true },
@@ -235,8 +239,10 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
   // Content-derived subject — identical subjects make Gmail thread the
   // issues together and readers tune them out. Lead with the soonest event.
   const lead = events[0].title.length > 40 ? `${events[0].title.slice(0, 39)}…` : events[0].title
+  // Name the city the digest was BUILT for, not a constant.
+  const cityName = (await prisma.city.findUnique({ where: { id: cityId }, select: { name: true } }))?.name ?? 'your city'
   const subject = events.length > 1
-    ? `This week in Istanbul: ${lead} + ${events.length - 1} more 📅`
-    : `This week in Istanbul: ${lead} 📅`
-  return { subject, bodyHtml: body, preheader: preheaderParts.join(' · ') }
+    ? `This week in ${cityName}: ${lead} + ${events.length - 1} more 📅`
+    : `This week in ${cityName}: ${lead} 📅`
+  return { subject, bodyHtml: body, preheader: preheaderParts.join(' · '), cityId }
 }

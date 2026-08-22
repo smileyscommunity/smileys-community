@@ -494,6 +494,17 @@ echo '  ✓ payment-reminders'
 chmod +x $REMOTE/scripts/db-backup.sh
 (crontab -l 2>/dev/null | grep -v 'db-backup' ; echo '0 2 * * * $REMOTE/scripts/db-backup.sh >> /var/log/db-backup.log 2>&1') | crontab -
 echo '  ✓ db-backup'
+
+# Hourly reminders dispatch — replaces the hand-added crontab line that
+# embedded CRON_SECRET as a literal curl argument (visible in crontab -l,
+# /var/spool/cron, and ps during every run; the 2026-08 DB-password
+# incident's class). The script reads the secret from .env at runtime like
+# every other sweeper. The grep strips BOTH the new line (idempotent
+# reinstall) and the legacy literal-secret line (matched on x-cron-secret,
+# which only that line contains).
+chmod +x $REMOTE/scripts/sweep-reminders.sh
+(crontab -l 2>/dev/null | grep -v 'sweep-reminders' | grep -v 'x-cron-secret' ; echo '0 * * * * $REMOTE/scripts/sweep-reminders.sh >> /var/log/sweep-reminders.log 2>&1') | crontab -
+echo '  ✓ reminders'
 EOF
 
 # DISABLED 2026-07-27 — Smileys Cup 2026 is over. The fixtures are already

@@ -26,16 +26,20 @@ export async function autoJoinClub(userId: string, eventId: string): Promise<voi
 
   const status = club.isPrivate ? 'pending' : 'approved'
 
-  await prisma.clubMembership.create({
-    data: { userId, clubId: event.clubId, status },
-  })
-
-  if (!club.isPrivate) {
-    await prisma.club.update({
+  // Create + counter atomically — this helper is called fire-and-forget
+  // from the RSVP path, so a failed increment after a committed create
+  // used to vanish into the caller's .catch(() => {}).
+  await prisma.$transaction([
+    prisma.clubMembership.create({
+      data: { userId, clubId: event.clubId, status },
+    }),
+    ...(!club.isPrivate ? [prisma.club.update({
       where: { id: event.clubId },
       data: { memberCount: { increment: 1 } },
-    })
-  } else {
+    })] : []),
+  ])
+
+  if (club.isPrivate) {
     const [requester, hosts] = await Promise.all([
       prisma.user.findUnique({ where: { id: userId }, select: { name: true } }),
       prisma.clubMembership.findMany({

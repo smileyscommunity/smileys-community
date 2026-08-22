@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
 import { rateLimit } from '@/lib/rateLimit'
-import { getExperience } from '@/lib/guideContent'
+import { getExperienceAnyCity } from '@/lib/guideContent'
 
 type Params = { params: Promise<{ slug: string }> }
 
@@ -12,13 +12,18 @@ type Params = { params: Promise<{ slug: string }> }
 // listing cards already show), member-only writes.
 export async function GET(_req: NextRequest, { params }: Params) {
   const { slug } = await params
-  if (!await getExperience(slug)) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  // Resolve the slug's OWNING city the same way the detail page does
+  // (default city wins a collision) and scope tips to it — a bare-slug
+  // query would show one city's tips on another city's page the first
+  // time two cities reuse a slug.
+  const owner = await getExperienceAnyCity(slug)
+  if (!owner) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const session = await getSession()
   const tips = await prisma.guideTip.findMany({
     // §48 (Members brief): deactivated/banned authors drop out of
     // discovery surfaces — their tips hide rather than showing a ghost.
-    where:   { slug, user: { status: 'approved' } },
+    where:   { slug, cityId: owner.cityId, user: { status: 'approved' } },
     orderBy: [{ likes: { _count: 'desc' } }, { createdAt: 'desc' }],
     take:    30,
     select: {
@@ -49,7 +54,8 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   const { slug } = await params
-  if (!await getExperience(slug)) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  const owner = await getExperienceAnyCity(slug)
+  if (!owner) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const raw = await req.json().catch(() => ({}))
   // Plain text, short, and link-free — tips are advice, not ads.
@@ -59,7 +65,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (body.length < 10) return NextResponse.json({ error: 'Give the tip a little more detail' }, { status: 400 })
 
   const created = await prisma.guideTip.create({
-    data:   { userId: session.id, slug, body },
+    data:   { userId: session.id, slug, cityId: owner.cityId, body },
     select: {
       id: true, body: true, createdAt: true,
       user: { select: { id: true, name: true, color: true, profilePhoto: true } },

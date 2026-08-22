@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
     if (!currentPassword || !newPassword) {
       return NextResponse.json({ error: 'All fields are required' }, { status: 400 })
     }
-    // A4 fix: 12-char min — mirror the register route.
+    // 8-char minimum — mirror the register route (owner's call, 2026-08-22).
     if (newPassword.length < 8) {
       return NextResponse.json({ error: 'New password must be at least 8 characters' }, { status: 400 })
     }

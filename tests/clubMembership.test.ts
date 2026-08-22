@@ -6,6 +6,11 @@ vi.mock('@/lib/prisma', () => ({
   prisma: {
     club:           { findUnique: vi.fn(), update: vi.fn() },
     clubMembership: { findUnique: vi.fn(), count: vi.fn(), update: vi.fn(), delete: vi.fn() },
+    // The join/leave paths pair the membership write with the memberCount
+    // update in a $transaction([...]) — the array form resolves each op's
+    // promise, which the individual mocks above already produce.
+    $transaction:   vi.fn(async (ops: unknown) =>
+      Array.isArray(ops) ? Promise.all(ops) : (ops as (tx: unknown) => unknown)(undefined)),
   },
 }))
 vi.mock('@/lib/notify', () => ({ createNotification: vi.fn() }))

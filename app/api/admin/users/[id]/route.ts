@@ -457,6 +457,34 @@ export async function DELETE(_: NextRequest, { params }: Params) {
       select: { clubId: true },
     })
 
+    // Post.authorId and Newsletter.sentById are required Restrict FKs, so
+    // the delete threw P2003 for exactly the accounts most likely to be
+    // removed — ex-staff who authored handbook posts or sent newsletters.
+    // Reassign authorship to the house admin account (oldest admin, the
+    // same account the auto-digest attributes to). Event.hostId is a bare
+    // string with no FK, so without the same reassignment a deleted host's
+    // events pointed at a nonexistent user forever.
+    const [authoredPosts, sentNewsletters, hostedEvents] = await Promise.all([
+      prisma.post.count({ where: { authorId: id } }),
+      prisma.newsletter.count({ where: { sentById: id } }),
+      prisma.event.count({ where: { hostId: id } }),
+    ])
+    let houseAdminId: string | null = null
+    if (authoredPosts > 0 || sentNewsletters > 0 || hostedEvents > 0) {
+      const houseAdmin = await prisma.user.findFirst({
+        where:   { role: 'admin', id: { not: id } },
+        orderBy: { joinedAt: 'asc' },
+        select:  { id: true },
+      })
+      if (!houseAdmin) {
+        return NextResponse.json(
+          { error: 'This account authored posts, newsletters or events and no other admin exists to inherit them.' },
+          { status: 400 },
+        )
+      }
+      houseAdminId = houseAdmin.id
+    }
+
     // Same drift problem for events: the eventAttendee.deleteMany below
     // removes rows that back the cached Event.spotsLeft counter (it was
     // decremented when the user joined), so upcoming events would keep
@@ -506,6 +534,11 @@ export async function DELETE(_: NextRequest, { params }: Params) {
       prisma.waitlistEntry.deleteMany({ where: { userId: id } }),
       prisma.emailVerificationToken.deleteMany({ where: { userId: id } }),
       prisma.passwordResetToken.deleteMany({ where: { userId: id } }),
+      ...(houseAdminId ? [
+        prisma.post.updateMany({ where: { authorId: id }, data: { authorId: houseAdminId } }),
+        prisma.newsletter.updateMany({ where: { sentById: id }, data: { sentById: houseAdminId } }),
+        prisma.event.updateMany({ where: { hostId: id }, data: { hostId: houseAdminId } }),
+      ] : []),
       prisma.user.delete({ where: { id } }),
     ])
 

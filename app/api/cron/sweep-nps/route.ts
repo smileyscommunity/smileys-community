@@ -131,28 +131,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// GET allowed for easy manual testing in a browser.
-export async function GET(req: NextRequest) {
-  const expected = process.env.CRON_SECRET
-  if (!expected) {
-    return NextResponse.json(
-      { error: 'CRON_SECRET not configured on server' },
-      { status: 503 },
-    )
-  }
-  const key = req.nextUrl.searchParams.get('key') ?? ''
-  // Constant-time comparison — see lib/cronAuth.ts.
-  const a = Buffer.from(key)
-  const b = Buffer.from(expected)
-  const { timingSafeEqual } = await import('crypto')
-  if (a.length !== b.length || !timingSafeEqual(a, b)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-  try {
-    const result = await runSweep()
-    return NextResponse.json({ ok: true, ...result })
-  } catch (e) {
-    console.error('[cron sweep-nps]', e)
-    return NextResponse.json({ error: 'Sweep failed' }, { status: 500 })
-  }
-}
+// No GET handler: the old "?key=<CRON_SECRET>" browser-testing path put
+// the secret in query strings (nginx access logs, browser history) — the
+// same class as the 2026-08 DB-password-in-crontab incident. Test with:
+//   curl -X POST -H "x-cron-secret: $CRON_SECRET" <url>
