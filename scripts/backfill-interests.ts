@@ -26,6 +26,11 @@ const SYNONYMS: Record<string, string> = {
   'parties': 'social', 'nightlife': 'social', 'meetups': 'social', 'music': 'social',
   'board games': 'games', 'trivia': 'games', 'chess': 'games',
   'boats': 'sailing', 'boating': 'sailing', 'sea': 'sailing',
+  'cycling': 'outdoor', 'swimming': 'outdoor', 'running': 'outdoor',
+  'gaming': 'games', 'pingpong': 'games', 'ping pong': 'games',
+  'pilates': 'wellness', 'taichi': 'wellness', 'tai chi': 'wellness',
+  'live music': 'social', 'socializing': 'social',
+  'natural wine': 'dining',
 }
 
 async function main() {
@@ -41,7 +46,10 @@ async function main() {
   for (const u of users) {
     const next = [...new Set(u.interests.map(raw => {
       if (INTEREST_VALUES.has(raw)) return raw
-      const mapped = SYNONYMS[raw.trim().toLowerCase()]
+      const lower = raw.trim().toLowerCase()
+      // Capitalized canonical ("Sailing") folds to its own slug.
+      if (INTEREST_VALUES.has(lower)) return lower
+      const mapped = SYNONYMS[lower]
       if (mapped) return mapped
       droppedTally.set(raw, (droppedTally.get(raw) ?? 0) + 1)
       return null
