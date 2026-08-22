@@ -10,6 +10,8 @@ import { COUNTRIES } from '@/lib/countries'
 import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import FingerprintJS from '@fingerprintjs/fingerprintjs'
 import posthog from 'posthog-js'
+import { INTERESTS as INTERESTS_LIST, COMMON_LANGUAGES } from '@/lib/profileOptions'
+import { ONBOARDING_NEIGHBORHOODS } from '@/lib/onboarding-neighborhoods'
 import { downscaleImage, ImageUploadError } from '@/lib/image-resize'
 
 const step0Schema = z.object({
@@ -54,24 +56,9 @@ const SOCIAL_STYLES = [
   { id: 'up_for_anything',  label: '🎭 Up for Anything',   desc: 'Spontaneous and adventurous' },
 ]
 
-// Common languages on apply — matches the list shown in /profile edit.
-// (Could be hoisted to lib/data later if anywhere else needs it.)
-const COMMON_LANGUAGES = [
-  'English', 'Turkish', 'Arabic', 'Russian', 'German', 'French',
-  'Spanish', 'Italian', 'Persian', 'Portuguese', 'Chinese', 'Japanese',
-  'Korean', 'Hindi', 'Ukrainian', 'Dutch', 'Greek', 'Hebrew',
-]
-
-const INTERESTS_LIST = [
-  { value: 'sailing',    label: 'Sailing',               emoji: '⛵' },
-  { value: 'dining',     label: 'Dining',                emoji: '🍽️' },
-  { value: 'social',     label: 'Social / Parties',      emoji: '🎉' },
-  { value: 'wellness',   label: 'Wellness',              emoji: '🧘' },
-  { value: 'networking', label: 'Networking / Business',  emoji: '🧠' },
-  { value: 'languages',  label: 'Language Exchange',     emoji: '🌍' },
-  { value: 'games',      label: 'Games / Trivia',        emoji: '🎲' },
-  { value: 'outdoor',    label: 'Outdoor Activities',    emoji: '🚶' },
-]
+// INTERESTS_LIST + COMMON_LANGUAGES hoisted to lib/profileOptions — one
+// vocabulary shared with registration and /profile, matched to
+// interest_tag_map so personalization works.
 
 export default function ApplyClient() {
   return (
@@ -219,8 +206,11 @@ function ApplyForm() {
           if (mapped.length) setInterests(prev => [...new Set([...prev, ...mapped])])
         }
         if (Array.isArray(h.neighborhoods) && h.neighborhoods[0]) {
-          const hood = h.neighborhoods[0]
-          setForm(f => f.neighborhood ? f : { ...f, neighborhood: hood })
+          // The teaser hands over neighborhood IDs ('kadikoy'); the select's
+          // options are display names ('Kadıköy') — without the mapping the
+          // prefill silently no-oped on a value no option matched.
+          const hood = ONBOARDING_NEIGHBORHOODS.find(n => n.id === h.neighborhoods[0])?.label
+          if (hood) setForm(f => f.neighborhood ? f : { ...f, neighborhood: hood })
         }
       }
     } catch {}

@@ -10,6 +10,7 @@ import { z } from 'zod'
 import { vibeConfig, formatShortDate, formatTime } from '@/lib/data'
 import type { VibeTag, Club, Event } from '@/lib/data'
 import { ONBOARDING_NEIGHBORHOODS as NEIGHBORHOODS } from '@/lib/onboarding-neighborhoods'
+import { INTERESTS, COMMON_LANGUAGES, LOOKING_FOR_OPTIONS } from '@/lib/profileOptions'
 import { useAuth } from '@/contexts/AuthContext'
 import Turnstile from '@/components/Turnstile'
 
@@ -19,8 +20,10 @@ const accountSchema = z.object({
   password:    z.string().min(8, 'Password must be at least 8 characters'),
   phone:       z.string().min(6, 'Phone number is required'),
   nationality: z.string().min(1, 'Nationality is required'),
-  languages:   z.string().min(1, 'At least one language is required'),
-  interests:   z.string().min(1, 'At least one interest is required'),
+  // languages + interests moved out of the zod schema: they're chip
+  // selections now (state below), not free text. Free-text interests
+  // ("Travel", "Coffee") matched zero interest_tag_map rows, so the one
+  // field meant to drive personalization was writing junk.
   industry:           z.string().optional(),
   professionalRole:   z.string().optional(),
   professionalStatus: z.string().optional(),
@@ -233,6 +236,13 @@ function OnboardingInner() {
   // Bumped after a failed submit — Turnstile tokens are single-use, so retries need a fresh one
   const [turnstileReset,         setTurnstileReset]         = useState(0)
   const [accountStatus,          setAccountStatus]          = useState<'approved' | 'pending'>('pending')
+  // The five-questions chips (see lib/profileOptions — one vocabulary,
+  // shared with /apply and /profile, matched to interest_tag_map).
+  const [selectedLangs,          setSelectedLangs]          = useState<string[]>([])
+  const [selectedInterests,      setSelectedInterests]      = useState<string[]>([])
+  const [regLookingFor,          setRegLookingFor]          = useState<string[]>([])
+  const [newInTown,              setNewInTown]              = useState(false)
+  const [chipsError,             setChipsError]             = useState('')
   const [clubs,                  setClubs]                  = useState<Club[]>([])
   const [events,                 setEvents]                 = useState<Event[]>([])
   // Flips true after the initial /api/clubs + /api/events fetch
@@ -306,7 +316,7 @@ function OnboardingInner() {
         setValue('name',        app.fullName    ?? '')
         setValue('phone',       app.phone       ?? '')
         setValue('nationality', app.country ?? '')
-        setValue('interests',   Array.isArray(app.interests) ? app.interests.join(', ') : '')
+        if (Array.isArray(app.interests)) setSelectedInterests(app.interests)
         setEmailLocked(true)
         setStep(6)
       })
@@ -357,6 +367,10 @@ function OnboardingInner() {
   const displayEvents = (recommended.length > 0 ? recommended : events).slice(0, 5)
 
   async function onAccountSubmit(values: AccountValues) {
+    // Chip validation lives outside zod (the chips aren't form fields).
+    if (selectedInterests.length === 0) { setChipsError('Pick at least one interest'); return }
+    if (selectedLangs.length === 0)     { setChipsError('Pick at least one language'); return }
+    setChipsError('')
     try {
       const primaryNeighborhood = selectedNeighborhoods.length > 0
         ? (NEIGHBORHOODS.find(n => n.id === selectedNeighborhoods[0])?.label ?? null)
@@ -371,8 +385,10 @@ function OnboardingInner() {
           password:     values.password,
           phone:        values.phone.trim(),
           nationality:  values.nationality.trim(),
-          languages:    values.languages.split(',').map((s: string) => s.trim()).filter(Boolean),
-          interests:    values.interests.split(',').map((s: string) => s.trim()).filter(Boolean),
+          languages:    selectedLangs,
+          interests:    selectedInterests,
+          lookingFor:   regLookingFor,
+          newInTown,
           clubIds:      selectedClubIds,
           neighborhood: primaryNeighborhood,
           industry:           values.industry,
@@ -787,17 +803,69 @@ function OnboardingInner() {
                       </div>
                     </div>
 
+                    {/* The five-questions chips. One tap each, one shared
+                        vocabulary (lib/profileOptions) — the interests values
+                        are the ones personalization actually understands. */}
                     <div>
-                      <label htmlFor="ob-languages" className="block text-xs font-semibold text-gray-600 mb-1.5">Languages <span className="font-normal text-gray-400">comma separated</span></label>
-                      <input id="ob-languages" type="text" placeholder="e.g. English, Turkish" {...register('languages')} className={cls('languages')} />
-                      {errors.languages && <p className="text-xs text-red-500 mt-1">{errors.languages.message}</p>}
+                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">What are you interested in?</label>
+                      <div className="flex flex-wrap gap-2">
+                        {INTERESTS.map(item => {
+                          const active = selectedInterests.includes(item.value)
+                          return (
+                            <button key={item.value} type="button" aria-pressed={active}
+                              onClick={() => setSelectedInterests(prev => active ? prev.filter(v => v !== item.value) : [...prev, item.value])}
+                              className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${active ? 'bg-amber-500 border-amber-500 text-white' : 'bg-white border-gray-200 text-gray-600 hover:border-amber-300'}`}>
+                              {item.emoji} {item.label}
+                            </button>
+                          )
+                        })}
+                      </div>
                     </div>
 
                     <div>
-                      <label htmlFor="ob-interests" className="block text-xs font-semibold text-gray-600 mb-1.5">Interests <span className="font-normal text-gray-400">comma separated</span></label>
-                      <input id="ob-interests" type="text" placeholder="e.g. Sailing, Photography, Food" {...register('interests')} className={cls('interests')} />
-                      {errors.interests && <p className="text-xs text-red-500 mt-1">{errors.interests.message}</p>}
+                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">Which languages do you speak?</label>
+                      <div className="flex flex-wrap gap-2">
+                        {COMMON_LANGUAGES.map(lang => {
+                          const active = selectedLangs.includes(lang)
+                          return (
+                            <button key={lang} type="button" aria-pressed={active}
+                              onClick={() => setSelectedLangs(prev => active ? prev.filter(v => v !== lang) : [...prev, lang])}
+                              className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${active ? 'bg-amber-500 border-amber-500 text-white' : 'bg-white border-gray-200 text-gray-600 hover:border-amber-300'}`}>
+                              {lang}
+                            </button>
+                          )
+                        })}
+                      </div>
                     </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">What are you looking for? <span className="font-normal text-gray-400">optional</span></label>
+                      <div className="flex flex-wrap gap-2">
+                        {LOOKING_FOR_OPTIONS.map(opt => {
+                          const active = regLookingFor.includes(opt.id)
+                          return (
+                            <button key={opt.id} type="button" aria-pressed={active}
+                              onClick={() => setRegLookingFor(prev => active ? prev.filter(v => v !== opt.id) : [...prev, opt.id])}
+                              className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${active ? 'bg-amber-500 border-amber-500 text-white' : 'bg-white border-gray-200 text-gray-600 hover:border-amber-300'}`}>
+                              {opt.label}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    <button type="button" aria-pressed={newInTown}
+                      onClick={() => setNewInTown(v => !v)}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-colors ${newInTown ? 'bg-amber-50 border-amber-300' : 'bg-white border-gray-200 hover:border-amber-200'}`}>
+                      <span className="text-xl" aria-hidden="true">🌱</span>
+                      <span>
+                        <span className="block text-sm font-semibold text-gray-900">I&apos;m new in town</span>
+                        <span className="block text-xs text-gray-500">We&apos;ll point you at first-timer-friendly events and fellow newcomers.</span>
+                      </span>
+                      <span className={`ml-auto w-5 h-5 rounded-full border-2 shrink-0 ${newInTown ? 'bg-amber-500 border-amber-500' : 'border-gray-300'}`} aria-hidden="true" />
+                    </button>
+
+                    {chipsError && <p className="text-xs text-red-500">{chipsError}</p>}
 
                     <div className="pt-4 border-t border-gray-100">
                       <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-3 flex items-center gap-1.5">

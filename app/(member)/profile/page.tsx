@@ -16,11 +16,9 @@ const AVATAR_COLORS = [
   '#e879f9', '#34d399', '#a78bfa', '#22d3ee', '#4ade80',
 ]
 
-const COMMON_LANGUAGES = [
-  'English', 'Turkish', 'Spanish', 'French', 'German', 'Italian',
-  'Portuguese', 'Arabic', 'Russian', 'Japanese', 'Korean', 'Chinese',
-  'Dutch', 'Swedish', 'Polish', 'Greek', 'Hebrew', 'Persian',
-]
+// Hoisted to lib/profileOptions — this copy had already drifted from the
+// apply form's (different ordering and membership).
+import { COMMON_LANGUAGES, LOOKING_FOR_OPTIONS as SHARED_LOOKING_FOR } from '@/lib/profileOptions'
 
 const COMMON_INTERESTS = [
   'Travel', 'Photography', 'Hiking', 'Yoga', 'Cooking', 'Music',
@@ -41,14 +39,7 @@ const SOCIAL_STYLES = [
   { id: 'up_for_anything',   label: '🎭 Up for Anything',    desc: 'Spontaneous and adventurous' },
 ]
 
-const LOOKING_FOR_OPTIONS = [
-  { id: 'friendship',        label: 'Friendship'         },
-  { id: 'networking',        label: 'Networking'          },
-  { id: 'language_exchange', label: 'Language exchange'   },
-  { id: 'collaboration',     label: 'Collaboration'       },
-  { id: 'mentorship',        label: 'Mentorship'          },
-  { id: 'activities',        label: 'Activity partners'   },
-]
+const LOOKING_FOR_OPTIONS = SHARED_LOOKING_FOR
 
 const INDUSTRIES = [
   'Tech', 'Finance', 'Real Estate', 'Creative & Design', 'Marketing',

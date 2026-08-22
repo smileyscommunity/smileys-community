@@ -10,6 +10,7 @@ import { coerceNeighborhoodFor } from '@/lib/neighborhoodsDb'
 import { hashToken } from '@/lib/tokenHash'
 import { getPostHogClient, trackServer } from '@/lib/posthog-server'
 import { formatName } from '@/lib/data'
+import { INTEREST_VALUES, LOOKING_FOR_VALUES } from '@/lib/profileOptions'
 
 const COLORS = ['#f472b6','#60a5fa','#fbbf24','#f87171','#fb923c','#e879f9','#34d399','#a78bfa','#22d3ee','#4ade80']
 
@@ -18,7 +19,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Too many attempts. Try again later.' }, { status: 429 })
   }
   try {
-    const { name, email, password, phone, nationality, languages, interests, clubIds, neighborhood, _cf } = await req.json()
+    const { name, email, password, phone, nationality, languages, interests, lookingFor, newInTown, clubIds, neighborhood, _cf } = await req.json()
 
     if (!(await verifyTurnstile(_cf ?? '', getIp(req)))) {
       return NextResponse.json({ error: 'Human verification failed. Please try again.' }, { status: 400 })
@@ -111,6 +112,22 @@ export async function POST(req: NextRequest) {
     // so the new member lands discoverable in /members filters on day 1.
     // Registration form values take priority; fall back to application values.
     const langsFromReg = Array.isArray(languages) ? languages : []
+    // Interests keep ONLY canonical vocabulary values (interest_tag_map's
+    // keys) — free-text entries matched zero tags and personalized nothing,
+    // and a stale client could still send them.
+    const safeInterests = Array.isArray(interests)
+      ? [...new Set(interests.filter((v: unknown): v is string => typeof v === 'string' && INTEREST_VALUES.has(v)))]
+      : []
+    const safeLookingFor = Array.isArray(lookingFor)
+      ? [...new Set(lookingFor.filter((v: unknown): v is string => typeof v === 'string' && LOOKING_FOR_VALUES.has(v)))]
+      : []
+    // socialStyles carry over from the application (previously dropped at
+    // this boundary), with the registration's new-in-town answer
+    // authoritative — someone who applied months ago may not be new anymore.
+    const appStyles = (application?.socialStyles ?? []).filter((s: string) => s !== 'new_in_town')
+    const safeStyles = typeof newInTown === 'boolean'
+      ? (newInTown ? [...appStyles, 'new_in_town'] : appStyles)
+      : (application?.socialStyles ?? [])
     const user = await prisma.user.create({
       data: {
         name:         formatName(name),
@@ -129,7 +146,9 @@ export async function POST(req: NextRequest) {
         // reason a paid-for, approved application can't finish registering.
         neighborhood: await coerceNeighborhoodFor(application.targetCityId, neighborhood, 'register'),
         languages:    langsFromReg.length > 0 ? langsFromReg : (application?.languages ?? []),
-        interests:    Array.isArray(interests)  ? interests  : [],
+        interests:    safeInterests.length > 0 ? safeInterests : (application?.interests ?? []),
+        lookingFor:   safeLookingFor,
+        socialStyles: safeStyles,
         openToCoffee:   application?.openToCoffee   ?? false,
         openToLanguage: application?.openToLanguage ?? false,
         openToHosting:  application?.openToHosting  ?? false,

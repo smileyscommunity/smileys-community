@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { resolveCityId } from '@/lib/city'
 import { loadViewerFacts, sharedContextFor, contextLabel } from '@/lib/sharedContext'
 import { rotationSeed, seededShuffle } from '@/lib/rotation'
 
@@ -61,6 +62,10 @@ export async function GET() {
 
   const visibleWhere = {
     status: 'approved' as const,
+    // Discovery is "people near you" — without the city scope every one of
+    // its sections mixed all cities' members (the last unscoped member
+    // surface after the multi-city pass).
+    cityId: await resolveCityId(session),
     id: { notIn: [...excluded] },
     OR: [
       { profileVisibility: 'everyone' },
