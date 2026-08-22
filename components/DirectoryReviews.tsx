@@ -318,7 +318,7 @@ export default function DirectoryReviews({
                       ) : (
                         <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
                           style={{ backgroundColor: r.author.color }}>
-                          {r.author.name.split(' ').map(w => w[0]).join('').slice(0, 2)}
+                          {r.author.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)}
                         </div>
                       )}
                       <div className="flex-1 min-w-0">

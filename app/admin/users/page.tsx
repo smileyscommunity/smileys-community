@@ -266,6 +266,9 @@ function AdminUsersPageInner() {
   }
 
   async function suspendUser(u: DBUser, days: number) {
+    // Every other destructive action here confirms; suspend was the one
+    // that fired on a single (mis)click.
+    if (!(await confirmToast(`Suspend ${u.name} for ${days} day${days === 1 ? '' : 's'}? They will be signed out until it expires.`))) return
     const until = new Date(Date.now() + days * 86400000).toISOString()
     const res = await fetch(`/app/api/admin/users/${u.id}`, {
       method: 'PATCH', credentials: 'include',
@@ -352,6 +355,11 @@ function AdminUsersPageInner() {
     if (res.ok) {
       setUsers(prev => prev.filter(x => x.id !== u.id))
       toast(`${u.name} removed`)
+    } else {
+      // A failed DELETE used to show nothing at all — surface the reason
+      // (e.g. "no other admin exists to inherit their posts").
+      const d = await res.json().catch(() => ({}))
+      toast.error(d.error ?? 'Failed to remove user')
     }
   }
 

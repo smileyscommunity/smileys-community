@@ -304,6 +304,9 @@ model ClubMembership {
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, clubId])
+  // clubId-first lookups (member lists, host counts, recounts, the
+  // discovery faces window query) can't use the userId-led unique above.
+  @@index([clubId, status])
   @@map("club_memberships")
 }
 

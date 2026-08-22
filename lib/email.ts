@@ -171,6 +171,31 @@ export async function sendAlreadyRegisteredEmail(email: string, name: string) {
   })
 }
 
+// Sent to the OLD address when the login email changes. The one signal the
+// legitimate owner gets if a hijacked session rotates them out — without it
+// their only clue was suddenly being logged out.
+export async function sendEmailChangedNotice(oldEmail: string, name: string, newEmail: string) {
+  await getResend().emails.send({
+    from: FROM, to: oldEmail,
+    subject: 'Your Smileys login email was changed',
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <div style="text-align:center;margin-bottom:24px">
+          <span style="font-size:40px">😊</span>
+          <h1 style="font-size:22px;font-weight:800;color:#111;margin:8px 0 4px">Hi ${esc(name)},</h1>
+          <p style="color:#6b7280;font-size:14px;margin:0">The login email on your Smileys account was just changed to <strong>${esc(newEmail)}</strong>.</p>
+        </div>
+        <p style="color:#6b7280;font-size:13px;text-align:center;margin:0 0 24px">
+          If this was you, no action is needed.
+        </p>
+        <p style="color:#b91c1c;font-size:13px;text-align:center;font-weight:600">
+          If this was NOT you, reply to this email immediately so we can secure your account.
+        </p>
+      </div>
+    `,
+  })
+}
+
 export async function sendPasswordResetEmail(email: string, name: string, token: string) {
   const url = `${APP_URL}/reset-password?token=${token}`
   await getResend().emails.send({

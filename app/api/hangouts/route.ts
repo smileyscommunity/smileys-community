@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { isUploadedImageUrl } from '@/lib/uploadedImageUrl'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { resolveCityId } from '@/lib/city'
+import { resolveCityId, getCityTz } from '@/lib/city'
+import { todayInTz } from '@/lib/cityTime'
 import { rateLimit } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
 import { HANGOUT_ACTIVITIES } from '@/lib/hangoutActivities'
@@ -93,7 +94,9 @@ export async function GET(req: NextRequest) {
   // ✈️ Visitor-host badge (§20): hosts with an active visit get flagged so
   // their hangouts carry the "Visiting Istanbul" treatment. One batch query
   // for the whole feed, not per row.
-  const today = new Date().toISOString().slice(0, 10)
+  // The visited city's calendar decides whether a visit "ends today" —
+  // UTC flipped the badge off 3h early on Istanbul's clock.
+  const today = todayInTz(await getCityTz(await resolveCityId(session)))
   const visitorHosts = new Set((await prisma.visitorAnnouncement.findMany({
     where:  { userId: { in: [...new Set(hangouts.map(h => h.userId))], not: null }, status: 'active', endsOn: { gte: today } },
     select: { userId: true },

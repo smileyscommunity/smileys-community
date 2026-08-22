@@ -73,13 +73,10 @@ async function getClubBySlugUncached(slug: string): Promise<Club | undefined> {
 }
 
 // ── Events ────────────────────────────────────────────────────────────────
-
-export async function getAvailableSpots(eventId: string, totalSpots: number): Promise<number> {
-  const approved = await prisma.eventAttendee.count({
-    where: { eventId, status: 'approved' },
-  })
-  return Math.max(0, totalSpots - approved)
-}
+// (getAvailableSpots was deleted here: its one reference was an unused
+// import, and its formula counted host/co-host rows that the canonical
+// lib/spotsLeft.expectedSpotsLeft excludes — reviving it would have put
+// two disagreeing counts in play.)
 
 const eventInclude = {
   club: true,

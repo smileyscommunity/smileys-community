@@ -61,7 +61,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid code — check your authenticator app' }, { status: 400 })
     }
     // Block replay of the same TOTP code within its 30s validity window.
-    if (user.lastUsedTotpStep !== null && currentStep <= user.lastUsedTotpStep) {
+    // Atomic claim (guard-in-WHERE), same pattern as the backup-code path
+    // below — the old read-check with the bump deferred to the end of the
+    // handler let two concurrent verifies replaying one observed code both
+    // pass the check before either bumped the step.
+    const stepClaim = await prisma.user.updateMany({
+      where: { id: user.id, OR: [{ lastUsedTotpStep: null }, { lastUsedTotpStep: { lt: currentStep } }] },
+      data:  { lastUsedTotpStep: currentStep },
+    })
+    if (stepClaim.count !== 1) {
       return NextResponse.json({ error: 'This code was already used — wait for the next one.' }, { status: 400 })
     }
   } else {
@@ -87,11 +95,10 @@ export async function POST(req: NextRequest) {
 
   const initials = user.name.trim().split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
 
-  // Only bump lastUsedTotpStep if a TOTP code was actually used — otherwise
-  // a backup-code login would block the user's next legitimate TOTP code.
-  const userUpdate = usedBackupCode
-    ? { lastActive: new Date() }
-    : { lastActive: new Date(), lastUsedTotpStep: currentStep }
+  // lastUsedTotpStep was already claimed atomically above for the TOTP
+  // path (and deliberately untouched for backup codes — bumping it there
+  // would block the user's next legitimate TOTP code).
+  const userUpdate = { lastActive: new Date() }
 
   const [, , remainingBackupCodes] = await Promise.all([
     createSession(

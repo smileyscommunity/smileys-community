@@ -93,7 +93,16 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
-  await prisma.memberConnection.delete({ where: { id } })
+  // The RECEIVER removing a pending request is a decline, and declines are
+  // permanent — hard-deleting here erased the decline-memory the PATCH
+  // carefully keeps, letting the requester re-request and re-notify.
+  // Withdraw (requester deletes own pending) and unfriend (either party
+  // deletes an accepted connection) still hard-delete.
+  if (connection.status === 'pending' && connection.receiverId === session.id) {
+    await prisma.memberConnection.update({ where: { id }, data: { status: 'declined' } })
+  } else {
+    await prisma.memberConnection.delete({ where: { id } })
+  }
   // One event covers withdraw (requester deletes own pending request),
   // decline-via-DELETE (receiver deletes pending request), and unfriend
   // (either party deletes an accepted connection). Properties differentiate.

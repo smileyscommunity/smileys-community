@@ -516,7 +516,7 @@ export async function DELETE(_: NextRequest, { params }: Params) {
             adminName:  session.name,
             fromStatus: p.status,
             toStatus:   'deleted',
-            note:       `Payment deleted as part of user removal (₺${p.amount}, ${p.currency}, was ${p.status})`,
+            note:       `Payment deleted as part of user removal (${p.amount} ${p.currency}, was ${p.status})`,
           })),
         }),
       ] : []),

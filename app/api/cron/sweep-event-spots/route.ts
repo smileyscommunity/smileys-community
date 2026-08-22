@@ -81,7 +81,15 @@ async function runSweep() {
   }
   if (clubFixes.length) console.log('[cron sweep-event-spots] club recounts:', clubFixes.join('; '))
 
-  return { scanned: events.length, fixed: fixes.length, fixes, clubsScanned: clubs.length, clubsFixed: clubFixes.length, clubFixes }
+  // Expired rate_limits rows have no other cleanup path — lib/rateLimit
+  // only upserts, so per-IP and per-user-pair keys accumulate forever
+  // (slow bloat on the hot upsert index). A day past resetAt nothing can
+  // read them: every lookup treats an expired row as a fresh window.
+  const staleLimits = await prisma.rateLimit.deleteMany({
+    where: { resetAt: { lt: new Date(Date.now() - 86_400_000) } },
+  })
+
+  return { scanned: events.length, fixed: fixes.length, fixes, clubsScanned: clubs.length, clubsFixed: clubFixes.length, clubFixes, staleRateLimitsPruned: staleLimits.count }
 }
 
 export async function POST(req: NextRequest) {

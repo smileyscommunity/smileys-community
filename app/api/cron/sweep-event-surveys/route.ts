@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notify'
 import { recordCronRun } from '@/lib/cronHealth'
+import { todayInTz, fromWallClockInTz, DEFAULT_TZ } from '@/lib/cityTime'
 
 // Post-event survey dispatch sweeper. Picks up events that ended
 // between 24h and 7 days ago and haven't been surveyed yet, then
@@ -30,25 +31,31 @@ async function runSweep() {
   const now            = new Date()
   const oneDayAgo      = new Date(now.getTime() - 24 * 60 * 60 * 1000)
   const twoDaysAgo     = new Date(now.getTime() - 48 * 60 * 60 * 1000)
-  const sevenDaysAgo   = new Date(now.getTime() - 7  * 24 * 60 * 60 * 1000)
-  const todayStr       = now.toISOString().slice(0, 10)
+
+  // Day bounds and end-of-event instants are questions about the EVENT
+  // CITY's calendar and clock — this sweep was the last one still using
+  // UTC "today" (commit 6b6e54d's class) plus a hardcoded +03:00 offset,
+  // both wrong for any future city outside UTC+3.
+  const cities = await prisma.city.findMany({ select: { id: true, timezone: true } })
+  const tzByCity = new Map(cities.map(c => [c.id, c.timezone]))
 
   let dispatchedEvents   = 0
   let dispatchedNotices  = 0
 
   // ── Pass 1: first dispatch ───────────────────────────────────────────────
   // Events that ended 24h–7 days ago and have never had a survey sent.
-  const firstPass = await prisma.event.findMany({
+  const firstPass = (await Promise.all(cities.map(c => prisma.event.findMany({
     where: {
       status:             { in: ['published', 'archived'] },
       surveyDispatchedAt: null,
-      date:               { lt: todayStr, gte: sevenDaysAgo.toISOString().slice(0, 10) },
+      cityId:             c.id,
+      date:               { lt: todayInTz(c.timezone), gte: todayInTz(c.timezone, -7) },
     },
-    select: { id: true, title: true, emoji: true, date: true, endTime: true, hostId: true },
-  })
+    select: { id: true, title: true, emoji: true, date: true, endTime: true, hostId: true, cityId: true },
+  })))).flat()
 
   for (const event of firstPass) {
-    const endedAt = endTimestamp(event.date, event.endTime)
+    const endedAt = endTimestamp(event.date, event.endTime, tzByCity.get(event.cityId) ?? DEFAULT_TZ)
     if (endedAt > oneDayAgo.getTime()) continue
 
     const targets = await eligibleTargets(event.id, event.hostId)
@@ -73,19 +80,20 @@ async function runSweep() {
   // ── Pass 2: 48-hour follow-up nudge ─────────────────────────────────────
   // Events where the first dispatch happened 48h+ ago, the reminder
   // hasn't been sent yet, and the event is still within the 7-day window.
-  const reminderPass = await prisma.event.findMany({
+  const reminderPass = (await Promise.all(cities.map(c => prisma.event.findMany({
     where: {
       status:             { in: ['published', 'archived'] },
       surveyDispatchedAt: { lte: twoDaysAgo },
       surveyReminderAt:   null,
-      date:               { gte: sevenDaysAgo.toISOString().slice(0, 10) },
+      cityId:             c.id,
+      date:               { gte: todayInTz(c.timezone, -7) },
     },
     select: {
       id: true, title: true, emoji: true, date: true, endTime: true,
       hostId: true,
       surveys: { select: { userId: true } },
     },
-  })
+  })))).flat()
 
   for (const event of reminderPass) {
     const respondedIds = new Set(event.surveys.map(s => s.userId))
@@ -132,9 +140,12 @@ async function eligibleTargets(eventId: string, hostId: string): Promise<string[
     .filter(uid => uid !== hostId && !cohostIds.has(uid))
 }
 
-function endTimestamp(date: string, endTime: string | null): number {
+function endTimestamp(date: string, endTime: string | null, tz: string): number {
   const time = endTime?.match(/^(\d{1,2}):(\d{2})/) ? endTime : '23:59'
-  return new Date(`${date}T${time}:00+03:00`).getTime()
+  // Pad a single-digit hour — fromWallClockInTz builds an ISO string, and
+  // '9:30' would parse as Invalid Date.
+  const [h, m] = time.split(':')
+  return fromWallClockInTz(`${date}T${h.padStart(2, '0')}:${m.slice(0, 2)}`, tz).getTime()
 }
 
 export async function POST(req: NextRequest) {

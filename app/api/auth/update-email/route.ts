@@ -3,9 +3,11 @@ import { randomBytes } from 'crypto'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 import { getSession, createSession } from '@/lib/session'
-import { sendVerificationEmail } from '@/lib/email'
+import { sendVerificationEmail, sendEmailChangedNotice, recordEmailFailure } from '@/lib/email'
 import { rateLimit, getIp } from '@/lib/rateLimit'
 import { hashToken } from '@/lib/tokenHash'
+import { verifySync } from 'otplib/functional'
+import { decryptTotpSecret } from '@/lib/totpCrypto'
 
 export async function POST(req: NextRequest) {
   try {
@@ -16,7 +18,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Too many attempts. Try again later.' }, { status: 429 })
     }
 
-    const { email, password } = await req.json()
+    const { email, password, code } = await req.json()
     if (!email?.trim()) return NextResponse.json({ error: 'Email is required' }, { status: 400 })
     if (!password) return NextResponse.json({ error: 'Password confirmation is required' }, { status: 400 })
 
@@ -26,6 +28,24 @@ export async function POST(req: NextRequest) {
 
     const valid = await bcrypt.compare(password, user.password)
     if (!valid) return NextResponse.json({ error: 'Password is incorrect' }, { status: 401 })
+
+    // 2FA-enrolled accounts must also present a fresh TOTP code — a stolen
+    // session plus the password alone must not be able to rotate the login
+    // email out from under the owner. 'code_required' is a machine-readable
+    // marker: the settings form reveals its code input on seeing it.
+    if (user.totpEnabled && user.totpSecret) {
+      const codeStr = String(code ?? '').trim()
+      if (!/^\d{6}$/.test(codeStr)) {
+        return NextResponse.json({ error: 'code_required' }, { status: 400 })
+      }
+      const secret = decryptTotpSecret(user.totpSecret)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const result = verifySync({ token: codeStr, secret, strategy: 'totp' } as any)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (!(result as any).valid) {
+        return NextResponse.json({ error: 'Invalid code — check your authenticator app' }, { status: 400 })
+      }
+    }
 
     const newEmail = email.toLowerCase().trim()
     if (newEmail === session.email) return NextResponse.json({ error: 'That is already your email' }, { status: 400 })
@@ -62,14 +82,21 @@ export async function POST(req: NextRequest) {
       })
       return { tokenVersion: u.tokenVersion, newSessionId: row.id }
     })
-    // Fire-and-forget mail send AFTER the tx commits — slow SMTP shouldn't
-    // hold a DB transaction open.
+    // Fire-and-forget mail sends AFTER the tx commits — slow SMTP shouldn't
+    // hold a DB transaction open. The OLD address gets a change notice: it's
+    // the owner's only signal if a hijacked session rotated their email.
     sendVerificationEmail(newEmail, session.name, token).catch(console.error)
+    sendEmailChangedNotice(user.email, session.name, newEmail).catch(async err => {
+      console.error('[update-email] change notice failed', { userId: session.id, err: String(err) })
+      await recordEmailFailure({ helper: 'sendEmailChangedNotice', recipient: user.email, error: err, context: { userId: session.id } })
+    })
 
     // Re-issue the JWT cookie pointing at the freshly-created Session row.
+    // totpVerified carries forward — minting it as false here would demote a
+    // 2FA-verified session on every email change (isAdminStrict's signal).
     await createSession(
       { ...session, email: newEmail, emailVerified: false, tokenVersion },
-      { reuseSessionId: newSessionId },
+      { reuseSessionId: newSessionId, totpVerified: session.totpVerified },
     )
 
     return NextResponse.json({ ok: true })

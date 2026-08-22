@@ -4,7 +4,6 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
-import { getAvailableSpots } from '@/lib/db'
 import { sendRsvpConfirmationEmail, sendSpotOpenedEmail, recordEmailFailure } from '@/lib/email'
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 import { autoJoinClub } from '@/lib/autoJoinClub'
@@ -440,7 +439,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
             adminName:  session.name,
             fromStatus: 'pending',
             toStatus:   'cancelled',
-            note:       `Member self-cancel via RSVP cancellation (₺${p.amount} ${p.currency})`,
+            note:       `Member self-cancel via RSVP cancellation (${p.amount} ${p.currency})`,
           })),
         }),
       ] : []),
@@ -472,7 +471,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
           adminName:  session.name,
           fromStatus: null,
           toStatus:   null,
-          note:       `Member cancelled RSVP — payment still 'paid', refund pending admin review (₺${p.amount} ${p.currency})`,
+          note:       `Member cancelled RSVP — payment still 'paid', refund pending admin review (${p.amount} ${p.currency})`,
         })),
       })
       // Notifications fire-and-forget — a transient notify failure

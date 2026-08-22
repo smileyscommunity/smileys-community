@@ -158,6 +158,8 @@ export default function SettingsPage() {
   // Email address change (moved here from /profile so account security
   // lives in one place)
   const [newEmail,       setNewEmail]       = useState('')
+  const [emailTotp,      setEmailTotp]      = useState('')
+  const [emailNeedsTotp, setEmailNeedsTotp] = useState(false)
   const [emailPassword,  setEmailPassword]  = useState('')
   const [showEmailPw,    setShowEmailPw]    = useState(false)
   const [emailChangeErr, setEmailChangeErr] = useState('')
@@ -231,11 +233,22 @@ export default function SettingsPage() {
       const res = await fetch('/app/api/auth/update-email', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: newEmail, password: emailPassword }),
+        body: JSON.stringify({ email: newEmail, password: emailPassword, code: emailTotp || undefined }),
       })
       const data = await res.json()
-      if (!res.ok) { setEmailChangeErr(data.error ?? 'Failed'); return }
-      setNewEmail(''); setEmailPassword('')
+      if (!res.ok) {
+        // 2FA-enrolled accounts must also confirm with a TOTP code — the API
+        // signals this with the machine-readable 'code_required' marker and
+        // we reveal the input rather than showing it to everyone up front.
+        if (data.error === 'code_required') {
+          setEmailNeedsTotp(true)
+          setEmailChangeErr('Enter a 6-digit code from your authenticator app to confirm.')
+          return
+        }
+        setEmailChangeErr(data.error ?? 'Failed')
+        return
+      }
+      setNewEmail(''); setEmailPassword(''); setEmailTotp(''); setEmailNeedsTotp(false)
       toast.success('Email updated — check your inbox to verify')
     } catch { setEmailChangeErr('Something went wrong') }
     finally { setEmailChanging(false) }
@@ -479,7 +492,13 @@ export default function SettingsPage() {
                   className="w-full px-4 py-2.5 pr-12 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
                 <PasswordToggle visible={showEmailPw} onToggle={() => setShowEmailPw(p => !p)} />
               </div>
-              <button onClick={handleEmailChange} disabled={emailChanging || !newEmail.trim() || !emailPassword}
+              {emailNeedsTotp && (
+                <input type="text" inputMode="numeric" autoComplete="one-time-code" maxLength={6}
+                  value={emailTotp} onChange={e => setEmailTotp(e.target.value.replace(/\D/g, ''))}
+                  placeholder="123456"
+                  className="w-full sm:w-32 px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-amber-400" />
+              )}
+              <button onClick={handleEmailChange} disabled={emailChanging || !newEmail.trim() || !emailPassword || (emailNeedsTotp && emailTotp.length !== 6)}
                 className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-colors">
                 {emailChanging ? 'Saving…' : 'Update email'}
               </button>

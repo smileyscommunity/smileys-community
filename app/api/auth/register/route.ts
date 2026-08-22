@@ -100,9 +100,8 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const hashed   = await bcrypt.hash(password, 10)
-    const color    = COLORS[Math.floor(Math.random() * COLORS.length)]
-    const initials = name.trim().split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
+    const hashed = await bcrypt.hash(password, 10)
+    const color  = COLORS[Math.floor(Math.random() * COLORS.length)]
 
     // Carry the openTo flags + languages forward from the approved application
     // so the new member lands discoverable in /members filters on day 1.

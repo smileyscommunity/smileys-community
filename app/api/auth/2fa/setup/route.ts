@@ -142,12 +142,17 @@ export async function DELETE(req: NextRequest) {
 
   // Replay protection — same window as /verify. Without this, an attacker
   // with a stolen session cookie who shoulder-surfed one fresh TOTP code at
-  // the user's screen could call /verify (which bumps lastUsedTotpStep)
+  // the user's screen could call /verify (which claims lastUsedTotpStep)
   // and then within the same 30s call DELETE with the SAME code to disable
-  // 2FA entirely. lastUsedTotpStep is bumped in the same transaction as
-  // the disable so concurrent attacker requests can't race the check.
+  // 2FA entirely. Claimed atomically (guard-in-WHERE) — the old read-check
+  // ran OUTSIDE the transaction below despite its comment, so two
+  // concurrent requests could both pass it.
   const currentStep = Math.floor(Date.now() / 30000)
-  if (user.lastUsedTotpStep !== null && currentStep <= user.lastUsedTotpStep) {
+  const stepClaim = await prisma.user.updateMany({
+    where: { id: session.id, OR: [{ lastUsedTotpStep: null }, { lastUsedTotpStep: { lt: currentStep } }] },
+    data:  { lastUsedTotpStep: currentStep },
+  })
+  if (stepClaim.count !== 1) {
     return NextResponse.json({ error: 'This code was already used — wait for the next one.' }, { status: 400 })
   }
 

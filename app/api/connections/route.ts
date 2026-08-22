@@ -126,7 +126,9 @@ export async function POST(req: NextRequest) {
   try {
     connection = await prisma.memberConnection.create({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      data: { requesterId: session.id, receiverId, pairKey, note: note?.trim() || null } as any,
+      // note is capped like every other free-text field — it previously went
+      // to the DB unbounded, so a multi-MB string was accepted verbatim.
+      data: { requesterId: session.id, receiverId, pairKey, note: note?.trim().slice(0, 500) || null } as any,
     })
   } catch (e: unknown) {
     // P2002 = unique-constraint violation — concurrent request won the race.

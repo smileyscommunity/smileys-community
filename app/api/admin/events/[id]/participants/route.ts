@@ -58,7 +58,7 @@ async function auditAttendeeRemoval(opts: {
           adminName:  session.name,
           fromStatus: 'pending',
           toStatus:   'cancelled',
-          note:       `${reasonLabel} (₺${p.amount} ${p.currency})`,
+          note:       `${reasonLabel} (${p.amount} ${p.currency})`,
         })),
       }),
     ])
@@ -72,7 +72,7 @@ async function auditAttendeeRemoval(opts: {
         adminName:  session.name,
         fromStatus: null,
         toStatus:   null,
-        note:       `${reasonLabel} — payment still 'paid', refund pending review (₺${p.amount} ${p.currency})`,
+        note:       `${reasonLabel} — payment still 'paid', refund pending review (${p.amount} ${p.currency})`,
       })),
     })
   }
@@ -204,11 +204,9 @@ export async function DELETE(req: NextRequest, { params }: Params) {
         createNotification(next.userId, 'waitlist_promoted', 'Spot available! 🎉',
           `A spot opened up for "${eventRow?.title}" — you're in!`, `/events/${eventId}`)
       }
-      if (eventRow?.approvalRequired) {
-        await recomputeSpotsLeft(eventId, eventRow.totalSpots)
-      } else if (!next) {
-        await prisma.event.update({ where: { id: eventId }, data: { spotsLeft: { increment: 1 } } })
-      }
+      // Recompute in every branch — the blind increment could creep past
+      // totalSpots on repeated remove cycles; recompute clamps both ends.
+      if (eventRow) await recomputeSpotsLeft(eventId, eventRow.totalSpots)
     }
 
     return NextResponse.json({ ok: true })
@@ -388,11 +386,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         where: { userId_eventId: { userId, eventId } },
         data: { status: 'approved' },
       })
-      if (event?.approvalRequired) {
-        await recomputeSpotsLeft(eventId, event.totalSpots)
-      } else {
-        await prisma.event.update({ where: { id: eventId }, data: { spotsLeft: { decrement: 1 } } })
-      }
+      // Recompute, never a blind decrement — approving into a full event
+      // used to push spotsLeft negative until the nightly sweep clamped it.
+      if (event) await recomputeSpotsLeft(eventId, event.totalSpots)
       autoJoinClub(userId, eventId).catch(() => {})
       createNotification(userId, 'rsvp', 'You\'re in! 🎉', `Your request for "${event?.title}" has been approved.`, `/events/${eventId}`)
       if (user?.email && event) {
@@ -512,11 +508,11 @@ export async function PUT(req: NextRequest, { params }: Params) {
     await prisma.$transaction([
       prisma.waitlistEntry.deleteMany({ where: { eventId, userId } }),
       prisma.eventAttendee.create({ data: { userId, eventId, status: 'approved' } }),
-      ...(event.approvalRequired ? [] : [prisma.event.update({ where: { id: eventId }, data: { spotsLeft: { decrement: 1 } } })]),
     ])
-    if (event.approvalRequired) {
-      await recomputeSpotsLeft(eventId, event.totalSpots)
-    }
+    // Recompute, never a blind decrement: an admin adding to an already-full
+    // event used to push spotsLeft negative until the nightly sweep clamped
+    // it. Recompute derives from the rows just written and clamps at 0.
+    await recomputeSpotsLeft(eventId, event.totalSpots)
 
     autoJoinClub(userId, eventId).catch(() => {})
     createNotification(userId, 'rsvp', 'You\'re in! 🎉',
@@ -548,11 +544,9 @@ export async function POST(req: NextRequest, { params }: Params) {
     await prisma.$transaction([
       prisma.waitlistEntry.deleteMany({ where: { eventId, userId } }),
       prisma.eventAttendee.create({ data: { userId, eventId, status: 'approved' } }),
-      ...(eventMeta?.approvalRequired ? [] : [prisma.event.update({ where: { id: eventId }, data: { spotsLeft: { decrement: 1 } } })]),
     ])
-    if (eventMeta?.approvalRequired) {
-      await recomputeSpotsLeft(eventId, eventMeta.totalSpots)
-    }
+    // Recompute, never a blind decrement — see the PUT add-attendee path.
+    if (eventMeta) await recomputeSpotsLeft(eventId, eventMeta.totalSpots)
     autoJoinClub(userId, eventId).catch(() => {})
 
     return NextResponse.json({ ok: true })

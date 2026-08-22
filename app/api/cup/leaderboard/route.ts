@@ -28,7 +28,7 @@ const DEFAULT_TAKE = 50
 export async function GET(req: Request) {
   const session = await getSession()
   const url     = new URL(req.url)
-  const take    = Math.min(Math.max(parseInt(url.searchParams.get('take') ?? `${DEFAULT_TAKE}`), 1), 200)
+  const take    = Math.min(Math.max(parseInt(url.searchParams.get('take') ?? `${DEFAULT_TAKE}`, 10) || DEFAULT_TAKE, 1), 200)
 
   // Cheap short-circuit: the leaderboard only changes when an
   // admin records a fixture result (which updates CupFixture +

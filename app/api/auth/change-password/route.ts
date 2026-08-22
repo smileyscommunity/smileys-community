@@ -67,9 +67,11 @@ export async function POST(req: NextRequest) {
       return { tokenVersion: u.tokenVersion, newSessionId: row.id }
     })
     // Re-issue the JWT/cookie pointing at the freshly-created Session row.
+    // totpVerified carries forward — minting it as false here would demote a
+    // 2FA-verified session on every password change (isAdminStrict's signal).
     await createSession(
       { ...session, tokenVersion },
-      { reuseSessionId: newSessionId },
+      { reuseSessionId: newSessionId, totpVerified: session.totpVerified },
     )
 
     return NextResponse.json({ ok: true })
