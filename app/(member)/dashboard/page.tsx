@@ -31,6 +31,8 @@ import PartnersBanner from '@/components/PartnersBanner'
 import GetStartedChecklist from '@/components/GetStartedChecklist'
 import FoundingMemberPanel from '@/components/FoundingMemberPanel'
 import FirstEventBlock from '@/components/FirstEventBlock'
+import RecommendedClubs from '@/components/RecommendedClubs'
+import { recommendedClubsFor } from '@/lib/clubRecommendations'
 import Image from 'next/image'
 import { categoryMeta } from '@/lib/handbook-categories'
 import { todayInTz } from '@/lib/cityTime'
@@ -758,6 +760,19 @@ export default async function DashboardPage() {
       : []).map(r => r.tagId),
   )
   const clubIdSet = new Set(clubIds)
+
+  // "Your lineup" — club picks for the member's first three weeks, from
+  // their registration interests + new-in-town answer. After the window
+  // the block retires on its own; no dismissal state to store.
+  const lineupClubs = userProfile && userProfile.joinedAt > new Date(Date.now() - 21 * 86_400_000)
+    ? await recommendedClubsFor({
+        cityId,
+        interests:      userProfile.interests ?? [],
+        newInTown:      userProfile.socialStyles?.includes('new_in_town') ?? false,
+        excludeClubIds: clubIds,
+      })
+    : []
+
   const recommendedEvents = recommendedCandidates
     .map(e => ({
       e,
@@ -1219,6 +1234,8 @@ export default async function DashboardPage() {
             {(myAttendances.length === 0 ||
               (userProfile?.socialStyles?.includes('new_in_town') &&
                 userProfile.joinedAt > new Date(Date.now() - 60 * 86_400_000))) && <FirstEventBlock />}
+
+            {lineupClubs.length > 0 && <RecommendedClubs clubs={lineupClubs} />}
 
             {/* Urgent-first: system announcement + pending connection
                 requests (action items) used to live in the left rail,
