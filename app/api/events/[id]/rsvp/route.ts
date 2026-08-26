@@ -9,6 +9,7 @@ import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 import { autoJoinClub } from '@/lib/autoJoinClub'
 import { stampFirstEventRsvp } from '@/lib/firstEvent'
 import { sendPushToUser } from '@/lib/push'
+import { trackServer } from '@/lib/posthog-server'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -22,6 +23,12 @@ export async function POST(req: NextRequest, { params }: Params) {
     }
 
     const { id: eventId } = await params
+
+    // The platform's core conversion, previously untracked — every success
+    // path reports its outcome so funnels (registration → first RSVP) and
+    // the recommendation surfaces can be measured.
+    const trackRsvp = (status: string, extra: Record<string, unknown> = {}) =>
+      trackServer(session, 'event_rsvp', { event_id: eventId, status, ...extra })
 
     const body = await req.json().catch(() => ({}))
     const stealth = body?.stealth === true
@@ -51,6 +58,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       autoJoinClub(session.id, eventId).catch(() => {})
       stampFirstEventRsvp(session.id, eventId).catch(() => {})
       createNotification(session.id, 'rsvp', 'You\'re in! 🎉', `Your spot for "${event.title}" is confirmed.`, `/events/${eventId}`)
+      trackRsvp('approved', { via: 'cohost' })
       return NextResponse.json({ ok: true, status: 'approved' })
     }
 
@@ -111,6 +119,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         autoJoinClub(session.id, eventId).catch(() => {})
         stampFirstEventRsvp(session.id, eventId).catch(() => {})
         createNotification(session.id, 'rsvp', "You're in! 🎉", `You claimed the open spot for "${event.title}".`, `/events/${eventId}`)
+        trackRsvp('approved', { via: 'waitlist_claim' })
         return NextResponse.json({ ok: true, status: 'approved' })
       }
       // No open spot — they're still on the waitlist. Tell them so the
@@ -178,7 +187,8 @@ export async function POST(req: NextRequest, { params }: Params) {
             `/host/events/${eventId}/participants`,
           ).catch(() => {})
         }
-        return NextResponse.json({ ok: true, status: 'waitlisted', position })
+        trackRsvp('waitlisted', { via: 'quota_pool' })
+      return NextResponse.json({ ok: true, status: 'waitlisted', position })
       }
 
       // Checked before the capacity maths: someone who has said the event is
@@ -255,6 +265,7 @@ export async function POST(req: NextRequest, { params }: Params) {
           `Someone just requested to join "${event.title}".`,
           `/host/events/${eventId}/participants`)
       }
+      trackRsvp('pending')
       return NextResponse.json({ ok: true, status: 'pending' })
     }
 
@@ -338,6 +349,7 @@ export async function POST(req: NextRequest, { params }: Params) {
           `/host/events/${eventId}/participants`,
         ).catch(() => {})
       }
+      trackRsvp('waitlisted', { via: 'full' })
       return NextResponse.json({ ok: true, status: 'waitlisted', position })
     }
 
@@ -371,6 +383,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       }
     })()
 
+    trackRsvp('approved')
     return NextResponse.json({ ok: true, status: 'approved' })
 
   } catch (e) {

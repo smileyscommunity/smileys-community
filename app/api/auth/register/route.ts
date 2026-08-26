@@ -227,6 +227,11 @@ export async function POST(req: NextRequest) {
       neighborhood:   user.neighborhood,
       nationality:    user.nationality,
       clubs_enrolled: (application?.assignedClubs?.length ?? 0) + (Array.isArray(clubIds) ? clubIds.length : 0),
+      // Five-questions coverage — how completely new members answer, and
+      // the newcomer flag the dashboard branches on.
+      looking_for:     safeLookingFor,
+      new_in_town:     safeStyles.includes('new_in_town'),
+      interests_count: user.interests.length,
     })
 
     return NextResponse.json({
