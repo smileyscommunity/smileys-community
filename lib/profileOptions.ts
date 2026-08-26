@@ -23,6 +23,11 @@ export const INTERESTS = [
   // Writing, Reading, Music…) with no canonical home. Maps to the
   // Creative/Cultural/Film/Music/Books event tags.
   { value: 'creative',   label: 'Arts & Creative',       emoji: '🎨' },
+  // Added 2026-08-26: 'Travel' was the largest homeless free-text term
+  // (191 members) and the platform already had Travel-category clubs
+  // (City Breaks, Weekend Getaways, Solo Travel, Road Trips) and the
+  // Adventure event tag with nothing pointing at them.
+  { value: 'travel',     label: 'Travel & Trips',        emoji: '✈️' },
 ] as const
 
 export const INTEREST_VALUES = new Set<string>(INTERESTS.map(i => i.value))

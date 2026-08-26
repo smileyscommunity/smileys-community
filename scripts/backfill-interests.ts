@@ -40,6 +40,10 @@ const SYNONYMS: Record<string, string> = {
   'theatre': 'creative', 'theater': 'creative', 'writing': 'creative', 'reading': 'creative',
   'music': 'creative', 'design': 'creative', 'fashion': 'creative',
   'painting': 'creative', 'drawing': 'creative', 'crochet': 'creative',
+  // 2026-08-26: 'travel' became the 10th slug; dancing joins creative
+  // (performance arts — the Dance event tag maps under creative).
+  'travel': 'travel', 'traveling': 'travel', 'travelling': 'travel', 'trips': 'travel',
+  'dancing': 'creative', 'dance': 'creative',
 }
 
 async function main() {

@@ -16,9 +16,17 @@ Run on the server:
 """
 import os, re, subprocess, sys
 
-CREATIVE_TERMS = {
-    'film', 'art', 'arts', 'photography', 'theatre', 'theater', 'writing',
-    'reading', 'music', 'design', 'fashion', 'painting', 'drawing', 'crochet',
+# term (lowercase) -> canonical slug to append. Round 1 (2026-08-22)
+# recovered 'creative'; round 2 (2026-08-26) adds 'travel' and folds
+# dancing into creative. Idempotent: the SQL guard skips members who
+# already carry the slug, so re-running past rounds is a no-op.
+RECOVER_MAP = {
+    **{t: 'creative' for t in (
+        'film', 'art', 'arts', 'photography', 'theatre', 'theater', 'writing',
+        'reading', 'music', 'design', 'fashion', 'painting', 'drawing', 'crochet',
+        'dancing', 'dance',
+    )},
+    **{t: 'travel' for t in ('travel', 'traveling', 'travelling', 'trips')},
 }
 
 def db_url():
@@ -53,30 +61,33 @@ def main():
             cols = line.rstrip('\n').split('\t')
             row = dict(zip(header, cols))
             old = parse_pg_array(row.get('interests', ''))
-            if any(t.strip().lower() in CREATIVE_TERMS for t in old):
-                candidates.append((row['id'], [t for t in old if t.strip().lower() in CREATIVE_TERMS]))
+            slugs = sorted({RECOVER_MAP[t.strip().lower()] for t in old if t.strip().lower() in RECOVER_MAP})
+            if slugs:
+                candidates.append((row['id'], slugs, [t for t in old if t.strip().lower() in RECOVER_MAP]))
 
-    print(f'{len(candidates)} members had creative-tail terms in the pre-backfill dump')
+    by_slug = {}
+    for uid, slugs, _terms in candidates:
+        for slug in slugs:
+            by_slug.setdefault(slug, []).append(uid)
+    for slug, uids in sorted(by_slug.items()):
+        print(f'{len(uids)} members recoverable for {slug!r}')
     if not candidates:
         return
 
     url = db_url()
-    ids = [c[0] for c in candidates]
-    applied = 0
     if apply:
-        # One statement, guarded per-row: only rows still missing 'creative'.
-        id_list = ','.join(f"'{i}'" for i in ids if re.fullmatch(r'[a-z0-9]+', i))
-        sql = (
-            'UPDATE users SET interests = array_append(interests, \'creative\') '
-            f"WHERE id IN ({id_list}) AND NOT ('creative' = ANY(interests)) AND status <> 'banned';"
-        )
-        out = subprocess.run(['psql', url, '-At', '-c', sql], capture_output=True, text=True)
-        if out.returncode != 0:
-            raise SystemExit(f'psql failed: {out.stderr}')
-        print(f'APPLIED: {out.stdout.strip()}')
-        applied = 1
-    if not applied:
-        sample = ', '.join(f'{i[:8]}…({"/".join(terms)})' for i, terms in candidates[:8])
+        for slug, uids in sorted(by_slug.items()):
+            id_list = ','.join(f"'{i}'" for i in uids if re.fullmatch(r'[a-z0-9]+', i))
+            sql = (
+                f"UPDATE users SET interests = array_append(interests, '{slug}') "
+                f"WHERE id IN ({id_list}) AND NOT ('{slug}' = ANY(interests)) AND status <> 'banned';"
+            )
+            out = subprocess.run(['psql', url, '-At', '-c', sql], capture_output=True, text=True)
+            if out.returncode != 0:
+                raise SystemExit(f'psql failed: {out.stderr}')
+            print(f'APPLIED {slug}: {out.stdout.strip()}')
+    else:
+        sample = ', '.join(f'{i[:8]}…({"/".join(terms)}→{"+".join(slugs)})' for i, slugs, terms in candidates[:6])
         print(f'DRY RUN — sample: {sample}')
         print('Re-run with APPLY=1 to write.')
 
