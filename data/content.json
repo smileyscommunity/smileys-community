@@ -40,8 +40,8 @@
     "subtitle": "Smileys is shaped by its members. The best events, the most active clubs, the warmest atmosphere — they all start with someone deciding to show up and contribute."
   },
   "advertise": {
-    "headline": "Reach Istanbul's most engaged internationals",
-    "subtitle": "Smileys is a curated community of expats and global professionals actively building their life in Istanbul. Advertise where trust is already built in."
+    "headline": "Reach Türkiye's most engaged internationals",
+    "subtitle": "Smileys is a curated community of expats and global professionals actively building their lives in our cities — Istanbul first, and growing. Advertise where trust is already built in."
   },
   "week": [
     {
@@ -102,11 +102,11 @@
       "items": [
         {
           "q": "What is Smileys Community?",
-          "a": "Smileys is an application-based social community in Istanbul. We bring together expats, locals, and globally-minded people through curated events, interest-based clubs, and genuine connections — across neighbourhoods on both sides of the city."
+          "a": "Smileys is an application-based social community, live in Istanbul and growing city by city. We bring together expats, locals, and globally-minded people through curated events, interest-based clubs, and genuine connections — one account, every Smileys city."
         },
         {
           "q": "Who can join?",
-          "a": "Anyone living in or frequently visiting Istanbul who is open-minded, social, and looking to build real connections. We welcome all nationalities, backgrounds, and lifestyles. The one requirement is that you apply and are approved by our team."
+          "a": "Anyone living in or frequently visiting a Smileys city who is open-minded, social, and looking to build real connections. We welcome all nationalities, backgrounds, and lifestyles. The one requirement is that you apply and are approved by our team."
         },
         {
           "q": "Is Smileys free to join?",
@@ -125,7 +125,7 @@
       "items": [
         {
           "q": "How do I apply?",
-          "a": "Fill in the application form at smileyscommunity.com/apply. It takes about 5 minutes. Tell us about yourself, why you are in Istanbul, and what you are looking for in a community."
+          "a": "Fill in the application form at smileyscommunity.com/apply. It takes about 5 minutes. Tell us about yourself, what brought you to your city, and what you're looking for in a community."
         },
         {
           "q": "What happens after I apply?",
@@ -249,5 +249,12 @@
         }
       ]
     }
-  ]
+  ],
+  "digestSpotlight": {
+    "title": "⛵ Spending September in Bodrum?",
+    "body": "Smileys is open in Bodrum — founding-stage, which means the first twenty members get to shape it. The guides (18 of them), neighborhoods, and clubs are ready; what is missing is you. If you summer on the peninsula, know someone who lives there year-round, or you are the kind of person who would rather start a table than find one — this is your moment. One account works in every Smileys city.",
+    "ctaLabel": "See Bodrum",
+    "ctaHref": "/bodrum",
+    "until": "2026-09-01"
+  }
 }
