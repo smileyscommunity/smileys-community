@@ -57,11 +57,8 @@ import { loadContent } from '@/lib/content'
 
 export const revalidate = 3600
 
-const STATS_FALLBACK = [
-  { value: '40+',  label: 'Active hosts' },
-  { value: '70+',  label: 'Interest clubs' },
-  { value: '500+', label: 'Experiences hosted' },
-]
+// (No local stat fallback — see app/about/page.tsx: resolveStats measures
+// defaults from the DB; typed arrays drift.)
 
 export default async function GetInvolvedPage() {
   const c          = loadContent()

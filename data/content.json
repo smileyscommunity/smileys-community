@@ -10,8 +10,7 @@
     },
     {
       "label": "Active clubs",
-      "metric": "clubs",
-      "value": "120+"
+      "metric": "clubs"
     },
     {
       "value": "Weekly",

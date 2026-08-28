@@ -60,11 +60,10 @@ const VALUES = [
   },
 ]
 
-const DEFAULT_STATS = [
-  { value: '4,000+', label: 'Community members'  },
-  { value: '500+',   label: 'Experiences hosted' },
-  { value: '70+',    label: 'Interest clubs'      },
-]
+// (No local stat fallback: resolveStats measures its own defaults from the
+// DB when the CMS supplies none — a typed array here is exactly the kind of
+// number that drifts from every other page's, which is how this site once
+// published three different club counts.)
 
 const HOW_IT_WORKS = [
   {
