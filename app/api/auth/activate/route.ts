@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { createSession } from '@/lib/session'
 import { rateLimit, getIp } from '@/lib/rateLimit'
 import { hashToken } from '@/lib/tokenHash'
+import { trackServer } from '@/lib/posthog-server'
 
 // A1 fix: every other auth route is rate-limited; activate was
 // the lone exception. Token is 256-bit so brute force is
@@ -114,6 +115,21 @@ export async function POST(req: NextRequest) {
       instagram:     user.instagram ?? undefined,
       emailVerified: user.emailVerified,
     }, { userAgent: req.headers.get('user-agent'), ip: getIp(req) })
+
+    // The registration event, from the path most members ACTUALLY join by.
+    // The register route has tracked member_registered since day one — and
+    // it had never fired once, because approved applicants activate here
+    // instead. Every funnel starting at registration was reading zero.
+    trackServer({ id: user.id, role: user.role }, 'member_registered', {
+      via:             'activation',
+      interests:       user.interests,
+      languages:       user.languages,
+      neighborhood:    user.neighborhood,
+      nationality:     user.nationality,
+      looking_for:     user.lookingFor,
+      new_in_town:     user.socialStyles?.includes('new_in_town') ?? false,
+      interests_count: user.interests.length,
+    })
 
     const initials = user.name.trim().split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
 

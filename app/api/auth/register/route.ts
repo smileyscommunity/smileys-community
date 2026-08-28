@@ -222,6 +222,7 @@ export async function POST(req: NextRequest) {
       properties: { role: user.role, neighborhood: user.neighborhood },
     })
     trackServer({ id: user.id, role: user.role }, 'member_registered', {
+      via:            'register',
       interests:      user.interests,
       languages:      user.languages,
       neighborhood:   user.neighborhood,
