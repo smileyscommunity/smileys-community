@@ -402,6 +402,13 @@ function ApplyForm() {
           <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">Application</span>
           <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight mb-1">Apply to join</h1>
           <p className="text-gray-600 text-sm">Smileys is a curated community in {targetCityName}.</p>
+          {/* The deal, before the form: free to join, pay-per-event. This
+              lived only in the FAQ, so applicants assumed a subscription. */}
+          <ul className="mt-3 space-y-1 text-xs text-gray-500">
+            <li>🆓 Joining is free — no subscription, no membership fee.</li>
+            <li>✍️ Every application is reviewed by hand within 24–48 hours.</li>
+            <li>🎟️ You only pay for events you choose — prices shown before you RSVP.</li>
+          </ul>
         </div>
 
         {/* Progress bar */}

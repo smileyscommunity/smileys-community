@@ -298,6 +298,45 @@ export default async function HomePage() {
         </div>
       </section>
 
+      {/* ── How membership works ───────────────────────────────────────── */}
+      {/* Pricing up front: free-to-join / pay-per-event lived only in the
+          FAQ and a tagline, so visitors assumed a subscription. */}
+      <section className="py-14 sm:py-20 bg-white border-t border-gray-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mb-10">
+            <h2 className="section-title">How membership works</h2>
+            <p className="section-subtitle max-w-2xl">
+              No subscription, no membership fee. Here&apos;s the whole deal.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[
+              {
+                emoji: '🆓',
+                title: 'Joining is free',
+                body:  'Apply in about five minutes. We review every application by hand within 24–48 hours — we look for vibe alignment, not credentials.',
+              },
+              {
+                emoji: '🎟️',
+                title: 'You only pay for events you choose',
+                body:  'Many hangouts are free. Some curated events and experiences have a ticket price set by the host, shown clearly before you RSVP.',
+              },
+              {
+                emoji: '🔑',
+                title: 'Everything opens up once you’re in',
+                body:  'Browse clubs, RSVP to events, join club walls, and use your city’s guide, handbook, and community boards.',
+              },
+            ].map(w => (
+              <div key={w.title} className="bg-gray-50 rounded-2xl border border-gray-100 shadow-sm p-6">
+                <div className="text-3xl mb-4">{w.emoji}</div>
+                <h3 className="font-bold text-gray-900 mb-2">{w.title}</h3>
+                <p className="text-sm text-gray-600 leading-relaxed">{w.body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ── What's happening ───────────────────────────────────────────── */}
       {tabEvents.length > 0 && (
         <section className="py-14 sm:py-20 bg-gray-50 border-t border-gray-100">
