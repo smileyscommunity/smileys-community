@@ -1,0 +1,18 @@
+[
+  { "name": "Alsancak",   "emoji": "🌊", "vibe": "Kordon seafront, bars, long evenings",        "area": "Central",     "cost": 3, "lat": 38.4370, "lng": 27.1428 },
+  { "name": "Konak",      "emoji": "🕰️", "vibe": "Clock tower, Kemeraltı bazaar, the city's front door", "area": "Central", "cost": 2, "lat": 38.4189, "lng": 27.1287 },
+  { "name": "Karşıyaka",  "emoji": "⛴️", "vibe": "The other side of the bay, families, ferry commute", "area": "North Bay", "cost": 2, "lat": 38.4600, "lng": 27.1200 },
+  { "name": "Bostanlı",   "emoji": "🌅", "vibe": "Sunset steps, waterfront cafés, evening runs", "area": "North Bay",   "cost": 2, "lat": 38.4664, "lng": 27.0985 },
+  { "name": "Mavişehir",  "emoji": "🏙️", "vibe": "Modern blocks, malls, marina",                "area": "North Bay",   "cost": 3, "lat": 38.4770, "lng": 27.0750 },
+  { "name": "Bornova",    "emoji": "🎓", "vibe": "University energy, students, cheap eats",      "area": "East",        "cost": 1, "lat": 38.4622, "lng": 27.2169 },
+  { "name": "Buca",       "emoji": "🏘️", "vibe": "Big, residential, affordable",                "area": "East",        "cost": 1, "lat": 38.3880, "lng": 27.1750 },
+  { "name": "Göztepe",    "emoji": "🚋", "vibe": "Old-İzmir charm along the coast road",         "area": "South Coast", "cost": 2, "lat": 38.4050, "lng": 27.1080 },
+  { "name": "Güzelyalı",  "emoji": "☕", "vibe": "Laid-back seafront, neighbourhood cafés",      "area": "South Coast", "cost": 2, "lat": 38.4000, "lng": 27.0900 },
+  { "name": "Balçova",    "emoji": "♨️", "vibe": "Thermal springs, cable car, big malls",        "area": "South Coast", "cost": 1, "lat": 38.3890, "lng": 27.0530 },
+  { "name": "Narlıdere",  "emoji": "🌲", "vibe": "Green and quiet, end of the coast line",       "area": "South Coast", "cost": 2, "lat": 38.3960, "lng": 27.0000 },
+  { "name": "Urla",       "emoji": "🍇", "vibe": "Vineyards, art street, slow weekends",         "area": "Peninsula",   "cost": 2, "lat": 38.3226, "lng": 26.7646 },
+  { "name": "Çeşme",      "emoji": "⛵", "vibe": "Marina town, beaches, summer crowd",           "area": "Peninsula",   "cost": 3, "lat": 38.3230, "lng": 26.3060 },
+  { "name": "Alaçatı",    "emoji": "🌬️", "vibe": "Stone houses, windsurf, boutique everything",  "area": "Peninsula",   "cost": 3, "lat": 38.2820, "lng": 26.3750 },
+  { "name": "Sığacık",    "emoji": "🐟", "vibe": "Cittaslow harbour, Sunday producer market",    "area": "Peninsula",   "cost": 2, "lat": 38.1946, "lng": 26.7847 },
+  { "name": "Foça",       "emoji": "⚓", "vibe": "Fishing town, weekend escape",                 "area": "North Coast", "cost": 2, "lat": 38.6700, "lng": 26.7570 }
+]
