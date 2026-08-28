@@ -46,8 +46,9 @@ export async function recordCronRun(name: string, success: boolean, error?: unkn
 // Keep this in sync with the crontab entries in
 // scripts/sweep-*.sh and the install logic in deploy.sh.
 export const SWEEPER_INTERVAL_MIN: Record<string, number> = {
-  'sweep-cup-reminders':  5,
-  'sweep-cup-results':    60,
+  // sweep-cup-reminders / sweep-cup-results retired 2026-07-27 with the
+  // Cup (deploy.sh removes their crontab lines) — listing them here made
+  // the staleness check cry wolf forever. Re-add for the next tournament.
   'sweep-event-surveys':  60,
   'sweep-hangouts':       60,
   'sweep-nps':            24 * 60,
