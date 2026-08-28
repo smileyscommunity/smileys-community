@@ -41,7 +41,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const title       = `${club.name} — Smileys Community`
   const description = club.description
     ? club.description.slice(0, 155)
-    : `Join ${club.name} on Smileys Community. Istanbul's curated social life platform.`
+    : `Join ${club.name} on Smileys Community — curated social life, real friends.`
   const imageUrl    = absoluteImageUrl(club.coverImage)
   const pageUrl     = `${APP_URL}/clubs/${slug}`
 

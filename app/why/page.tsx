@@ -23,24 +23,24 @@ const getWhyPageData = unstable_cache(
 // no preview at all on WhatsApp/iMessage/Twitter until this was added.
 const ogImage = `${APP_URL}/api/og?${new URLSearchParams({
   title:   'Why Smileys?',
-  eyebrow: 'Find your people in Istanbul',
+  eyebrow: 'Find your people',
   cta:     'Apply to join',
 }).toString()}`
 
 export const metadata = {
   alternates: { canonical: `${APP_URL}/why` },
-  title: 'Why Smileys? — Find Your People in Istanbul',
-  description: 'Istanbul can feel crowded and still lonely. Smileys is the curated social community for globally minded people building a real social life in the city.',
+  title: 'Why Smileys? — Find Your People',
+  description: 'A new city can feel crowded and still lonely. Smileys is the curated social community for globally minded people building a real social life.',
   openGraph: {
-    title: 'Why Smileys? — Find Your People in Istanbul',
-    description: 'A curated real-life social ecosystem for globally minded people in Istanbul.',
+    title: 'Why Smileys? — Find Your People',
+    description: 'A curated real-life social ecosystem for globally minded people.',
     url: `${APP_URL}/why`,
-    images: [{ url: ogImage, width: 1200, height: 630, alt: 'Why Smileys? — Find Your People in Istanbul' }],
+    images: [{ url: ogImage, width: 1200, height: 630, alt: 'Why Smileys? — Find Your People' }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Why Smileys? — Find Your People in Istanbul',
-    description: 'A curated real-life social ecosystem for globally minded people in Istanbul.',
+    title: 'Why Smileys? — Find Your People',
+    description: 'A curated real-life social ecosystem for globally minded people.',
     images: [ogImage],
   },
 }
@@ -56,7 +56,7 @@ const CAT_PILL: Record<string, string> = {
 const CAT_LABEL: Record<string, string> = {
   general:  'Member',
   friends:  'Made close friends',
-  expat:    'New to Istanbul',
+  expat:    'New in town',
   business: 'Found business partners',
   travel:   'Found travel buddies',
 }
@@ -117,10 +117,10 @@ export default async function WhyPage() {
             😊 Smileys Community
           </div>
           <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 tracking-tight leading-tight mb-4">
-            {why.headline ?? 'Istanbul can feel crowded — and still lonely.'}
+            {why.headline ?? 'A new city can feel crowded — and still lonely.'}
           </h1>
           <p className="text-base font-semibold text-amber-600 mb-6">
-            {why.tagline ?? 'A curated real-life social ecosystem for globally minded people in Istanbul.'}
+            {why.tagline ?? 'A curated real-life social ecosystem for globally minded people.'}
           </p>
           <p className="text-base text-gray-600 max-w-2xl leading-relaxed mb-5">
             {why.subtitle ?? 'Thousands of people arrive here every month looking for connection, friendship, and a circle they actually belong to. But most platforms feel random, transactional, or exhausting.'}
@@ -229,7 +229,7 @@ export default async function WhyPage() {
                 {[
                   'Finding your people in a new city',
                   'Building friendships that last beyond one meeting',
-                  'Discovering Istanbul\'s hidden sides with locals',
+                  'Discovering the city\'s hidden sides with locals',
                   'Feeling like you actually belong somewhere',
                   'Creating a social life that grows with you',
                 ].map(item => (
@@ -466,7 +466,7 @@ export default async function WhyPage() {
         <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <p className="text-amber-200 text-sm font-bold tracking-widest uppercase mb-4">The feeling you're looking for</p>
           <h2 className="text-4xl sm:text-5xl font-extrabold text-white tracking-tight mb-5">
-            😊 Ready to feel at home in Istanbul?
+            😊 Ready to feel at home?
           </h2>
           <p className="text-amber-100 text-lg mb-3 max-w-xl mx-auto leading-relaxed">
             Not another endless group chat.<br />

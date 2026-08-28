@@ -15,24 +15,24 @@ export const revalidate = 3600
 // title-card generator as the homepage default instead of the raw photo.
 const ogImage = `${APP_URL}/api/og?${new URLSearchParams({
   title:   'About Smileys Community',
-  eyebrow: "Istanbul's curated social community",
+  eyebrow: "Curated city communities",
   cta:     'Apply to join',
 }).toString()}`
 
 export const metadata = {
   alternates: { canonical: `${APP_URL}/about` },
   title: 'About Us — Smileys Community',
-  description: "Learn about Smileys — Istanbul's curated social community bringing together expats and locals through events, clubs, and genuine connection.",
+  description: "Learn about Smileys — curated city communities bringing together expats and locals through events, clubs, and genuine connection.",
   openGraph: {
     title: 'About Smileys Community',
-    description: "Istanbul's curated social community for expats and globally minded people.",
+    description: "Curated city communities for expats and globally minded people.",
     url: `${APP_URL}/about`,
     images: [{ url: ogImage, width: 1200, height: 630, alt: 'About Smileys Community' }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'About Smileys Community',
-    description: "Istanbul's curated social community for expats and globally minded people.",
+    description: "Curated city communities for expats and globally minded people.",
     images: [ogImage],
   },
 }
@@ -51,7 +51,7 @@ const VALUES = [
   {
     icon: '🌍',
     title: 'Global minds, local roots',
-    body: 'Our members come from dozens of countries. What unites them is Istanbul — and a genuine curiosity about the world. You\'ll feel at home whether you arrived last week or last decade.',
+    body: 'Our members come from dozens of countries. What unites them is the city they share — and a genuine curiosity about the world. You\'ll feel at home whether you arrived last week or last decade.',
   },
   {
     icon: '⚖️',
@@ -70,7 +70,7 @@ const HOW_IT_WORKS = [
     step: '01',
     icon: '📝',
     title: 'Apply',
-    body: 'Tell us about yourself, what draws you to Istanbul, and what you\'re looking for in a community. Applications take about 5 minutes.',
+    body: 'Tell us about yourself, what draws you to your city, and what you\'re looking for in a community. Applications take about 5 minutes.',
   },
   {
     step: '02',
@@ -110,7 +110,7 @@ export default async function AboutPage() {
                 About us
               </div>
               <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 tracking-tight leading-tight mb-5">
-                {about.headline ?? "Istanbul's curated social community"}
+                {about.headline ?? "Curated city communities, born in Istanbul"}
               </h1>
               <p className="text-base text-gray-600 max-w-xl leading-relaxed">
                 {about.subtitle ?? 'We bring together curious, open-minded people through handpicked events, interest-based clubs, and a community that actually feels like one.'}

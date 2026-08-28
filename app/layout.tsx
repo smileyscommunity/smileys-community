@@ -29,8 +29,8 @@ const defaultImage = `${siteUrl}/api/og`
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
-  title: 'Smileys Community — The Social Life Platform of Istanbul',
-  description: `Join Istanbul's most vibrant social community. Discover events, join clubs, and meet amazing people.`,
+  title: 'Smileys Community — The Social Life Platform',
+  description: 'Curated city communities for expats, nomads, travelers, and locals. Discover events, join clubs, and meet amazing people — city by city.',
   // Google Search Console verification (URL-prefix property for /app). Renders
   // <meta name="google-site-verification" ...> on every page.
   verification: { google: '213P-rY3PKV2WP2lkdeg8RcPgbUsXHF5G7xfR6yzODM' },

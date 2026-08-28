@@ -292,7 +292,9 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
             &copy; {new Date().getFullYear()} Smileys Community. All rights reserved.
           </p>
           <p className="text-xs text-gray-600">
-            Made with ❤️ in Istanbul 🇹🇷
+            {/* Origin lives in the "Founded in Istanbul" band above — this
+                line speaks for the whole network. */}
+            Made with ❤️ across Türkiye 🇹🇷
           </p>
         </div>
       </div>
