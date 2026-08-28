@@ -25,10 +25,11 @@ card. A single card works across the metro, the tram, İZBAN (the commuter rail
 that runs the length of the bay), the ferries, ESHOT city buses and the Balçova
 cable car. There is no separate ticket to buy for any of them.
 
-**Where to get one.** Cards and tickets are sold at Konak and Karşıyaka ferry
-terminals, at the central metro stations — Konak, Fahrettin Altay, Bornova,
-Halkapınar and Şirinyer — at the airport stations, and at designated 24-hour
-booths around the city.
+**Where to get one.** Cards and tickets are sold at all seven ferry terminals —
+Konak, Bostanlı, Karşıyaka, Alsancak, Göztepe, Üçkuyular and Pasaport — at the
+central metro stations — Konak, Fahrettin Altay, Bornova, Halkapınar and
+Şirinyer — at the airport stations, at the Intercity Bus Terminal, and at two
+designated 24-hour booths.
 
 **Topping up.** Every station has charging machines, and all ferry terminals
 have both machines and staffed booths during office hours. You can also top up
@@ -40,10 +41,11 @@ you board by QR code.
 > this takes effect after one hour. If you top up online on the way to the stop,
 > assume it will not be there when you tap. Load at a machine if you need it now.
 
-**The 90-minute transfer is the part people miss.** On the metro, tram, İZBAN
-and the ferries, the second and any subsequent rides within 90 minutes of your
-first are **free**. A ferry across the bay followed by a metro ride is one fare,
-not two — so long as you tap within the window.
+**The 90-minute transfer is the part people miss.** The second and any
+subsequent rides within 90 minutes of your first are **free** — and the rule
+covers the whole network: metro, tram, İZBAN, the ferries and city buses alike.
+A ferry across the bay followed by a metro ride is one fare, not two — so long
+as you tap within the window.
 
 The exception matters: this transfer benefit does **not** apply to the bus routes
 serving the outlying İzmir districts. Those are charged separately.
