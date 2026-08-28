@@ -86,9 +86,11 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { slug } = await params
   const post = await getHandbookArticle(slug)
   if (!post || post.kind !== 'handbook' || post.status !== 'published') return { title: 'Handbook — Smileys Community' }
-  // The viewer's city names the Handbook. A crawler sends no cookie, so it
-  // resolves to the default city and the indexed titles are unchanged.
-  const cityName    = (await getCityConfig(await resolveCityId(await getSession()))).name
+  // A city-local article is named by ITS city — an Istanbul viewer reading
+  // İzmir's transport guide is not reading the "Istanbul Handbook". Global
+  // articles take the viewer's city; a crawler sends no cookie, so those
+  // resolve to the default city and the indexed titles are unchanged.
+  const cityName    = (await getCityConfig(post.cityId ?? await resolveCityId(await getSession()))).name
   const title       = `${post.title} — ${cityName} Handbook | Smileys Community`
   const description = post.excerpt ?? `Smileys Community handbook: ${post.title}`
   const pageUrl     = `${APP_URL}/handbook/${slug}`
@@ -144,7 +146,10 @@ export default async function HandbookArticlePage({ params }: Params) {
   const catKey    = canonical ?? post.category
 
   const cityId   = await resolveCityId(await getSession())
-  const cityName = (await getCityConfig(cityId)).name
+  // Naming follows the article's own city when city-local (matches
+  // generateMetadata); related-article scoping deliberately stays on the
+  // VIEWER's city — see getHandbookRelated.
+  const cityName = (await getCityConfig(post.cityId ?? cityId)).name
 
   const related = await getHandbookRelated(
     canonical ? storedKeysFor(canonical) : [post.category],
