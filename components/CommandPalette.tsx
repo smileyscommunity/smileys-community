@@ -98,11 +98,16 @@ export default function CommandPalette() {
     { id: 'board',         label: 'Community Board', hint: 'Ask, share & discuss',      icon: '📋', group: 'Navigate', action: () => go('/board')      },
     { id: 'marketplace',   label: 'Marketplace',    hint: 'Rooms, jobs, buy & sell',    icon: '🛍️', group: 'Navigate', action: () => go('/marketplace')   },
     { id: 'directory',     label: 'Directory',      hint: 'Local businesses & services', icon: '🏢', group: 'Navigate', action: () => go('/directory')     },
+    { id: 'handbook',      label: 'Handbook',       hint: 'How-tos for life here',      icon: '📖', group: 'Navigate', action: () => go('/handbook')      },
+    { id: 'guide',         label: 'City Guide',     hint: 'Curated local experiences',  icon: '🗺️', group: 'Navigate', action: () => go('/guide')         },
+    { id: 'cities',        label: 'Cities',         hint: 'All Smileys cities',         icon: '🌍', group: 'Navigate', action: () => go('/cities')        },
     { id: 'dashboard',     label: 'Dashboard',      hint: 'Your personal dashboard',    icon: '⬛', group: 'You', action: () => go('/dashboard')     },
     { id: 'my-events',     label: 'My Events',      hint: 'Your events & QR codes',     icon: '🎟️', group: 'You', action: () => go('/my-events')     },
     { id: 'messages',      label: 'Messages',       hint: 'Direct messages',            icon: '💬', group: 'You', action: () => go('/messages')      },
     { id: 'notifications', label: 'Notifications',  hint: 'Your notifications',         icon: '🔔', group: 'You', action: () => go('/notifications') },
     { id: 'profile',       label: 'Profile',        hint: 'Edit your profile',          icon: '👤', group: 'You', action: () => go('/profile')       },
+    { id: 'connections',   label: 'Connections',    hint: 'People you’ve connected with', icon: '🤝', group: 'You', action: () => go('/contacts')      },
+    { id: 'settings',      label: 'Settings',       hint: 'Account & notifications',    icon: '⚙️', group: 'You', action: () => go('/settings')      },
 
     ...(isAdmin ? [
       { id: 'a-dash',         label: 'Admin Dashboard',  hint: 'Overview & stats',           icon: '⬛', group: 'Admin', action: () => go('/admin')                      },
