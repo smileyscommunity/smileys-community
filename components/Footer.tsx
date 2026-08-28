@@ -80,7 +80,7 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
             ))}
             <span className="text-gray-200 hidden sm:block">|</span>
             <span className="flex items-center gap-2">
-              🇹🇷 <span>Founded in Istanbul</span>
+              <span>Founded in Istanbul</span>
             </span>
           </div>
         </div>
