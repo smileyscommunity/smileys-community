@@ -1,5 +1,6 @@
 import { prisma } from './prisma'
 import { getDefaultCityId, todayInCity } from './city'
+import { loadContent } from './content'
 import { APP_URL, SITE_URL } from './env'
 import { resolveImageUrl, formatTime } from './data'
 
@@ -111,6 +112,24 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
   }).join('')
   // Warm opener — the wrapper contributes "Hi <FirstName>," — this follows it.
   let body = `<p style="color:#374151;font-size:14px;line-height:1.6;margin:0 0 16px">Happy Monday! Here are the latest activities we think you'll enjoy — our amazing hosts are ready to welcome you. Have a wonderful week 💛</p>`
+
+  // One-off spotlight block (CMS: content.json digestSpotlight) — used for
+  // campaign moments like a new city's founding push. `until` (YYYY-MM-DD,
+  // default-city calendar) bounds it: a spotlight nobody remembers to clear
+  // must not run forever. Absent/expired → the digest is exactly as before.
+  const spotlight = loadContent().digestSpotlight as
+    { title?: string; body?: string; ctaLabel?: string; ctaHref?: string; until?: string } | undefined
+  if (spotlight?.title && spotlight.body && (!spotlight.until || today <= spotlight.until)) {
+    const href = spotlight.ctaHref
+      ? (spotlight.ctaHref.startsWith('http') ? spotlight.ctaHref : `${APP_URL}${spotlight.ctaHref}`)
+      : null
+    body += card(
+      `<p style="color:#b45309;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin:0 0 6px">${esc(spotlight.title)}</p>` +
+      `<p style="color:#374151;font-size:14px;line-height:1.6;margin:0">${esc(spotlight.body)}</p>` +
+      (href ? `<a href="${href}?${UTM}" style="display:inline-block;margin-top:8px;color:#b45309;font-weight:700;font-size:13px;text-decoration:none">${esc(spotlight.ctaLabel ?? 'Learn more')} →</a>` : ''),
+      '#fffbeb', '#fde68a',
+    ) + DIVIDER
+  }
 
   // Photo of the week — the most recent upload from the best-attended event
   // of the past 7 days. One image turns the digest from a listing into a
