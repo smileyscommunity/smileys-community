@@ -1,20 +1,20 @@
 {
   "stats": [
     {
+      "metric": "members",
+      "label": "Members across all cities"
+    },
+    {
+      "metric": "events",
+      "label": "Events hosted on Smileys"
+    },
+    {
+      "metric": "clubs",
+      "label": "Active clubs"
+    },
+    {
       "value": "4,000+",
-      "label": "in our WhatsApp groups"
-    },
-    {
-      "value": "1,000+",
-      "label": "Events hosted"
-    },
-    {
-      "label": "Active clubs",
-      "metric": "clubs"
-    },
-    {
-      "value": "Weekly",
-      "label": "Curated events"
+      "label": "in our WhatsApp community"
     }
   ],
   "home": {
