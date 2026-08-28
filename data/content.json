@@ -250,11 +250,21 @@
       ]
     }
   ],
-  "digestSpotlight": {
-    "title": "⛵ Spending September in Bodrum?",
-    "body": "Smileys is open in Bodrum — founding-stage, which means the first twenty members get to shape it. The guides (18 of them), neighborhoods, and clubs are ready; what is missing is you. If you summer on the peninsula, know someone who lives there year-round, or you are the kind of person who would rather start a table than find one — this is your moment. One account works in every Smileys city.",
-    "ctaLabel": "See Bodrum",
-    "ctaHref": "/bodrum",
-    "until": "2026-09-01"
-  }
+  "digestSpotlight": [
+    {
+      "title": "⛵ Spending September in Bodrum?",
+      "body": "Smileys is open in Bodrum — founding-stage, which means the first twenty members get to shape it. The guides (18 of them), neighborhoods, and clubs are ready; what is missing is you. If you summer on the peninsula, know someone who lives there year-round, or you are the kind of person who would rather start a table than find one — this is your moment. One account works in every Smileys city.",
+      "ctaLabel": "See Bodrum",
+      "ctaHref": "/bodrum",
+      "until": "2026-09-01"
+    },
+    {
+      "title": "🌊 Smileys İzmir is open",
+      "body": "Our third city went live this week — founding-stage, which means the first twenty members get to shape it. The neighborhoods are mapped from Alsancak to Alaçatı, three clubs are forming, and the city guide is being written right now. If you live on the bay, know someone who does, or you are the kind of person who would rather start a table than find one — this is your moment. One account works in every Smileys city.",
+      "ctaLabel": "See İzmir",
+      "ctaHref": "/izmir",
+      "from": "2026-09-02",
+      "until": "2026-09-08"
+    }
+  ]
 }

@@ -116,10 +116,18 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
   // One-off spotlight block (CMS: content.json digestSpotlight) — used for
   // campaign moments like a new city's founding push. `until` (YYYY-MM-DD,
   // default-city calendar) bounds it: a spotlight nobody remembers to clear
-  // must not run forever. Absent/expired → the digest is exactly as before.
-  const spotlight = loadContent().digestSpotlight as
-    { title?: string; body?: string; ctaLabel?: string; ctaHref?: string; until?: string } | undefined
-  if (spotlight?.title && spotlight.body && (!spotlight.until || today <= spotlight.until)) {
+  // must not run forever, and `from` (same format) holds a block back until
+  // its window opens. A single object or an array both work — the array form
+  // exists so the NEXT campaign can be staged while the current one still
+  // has a send left (Izmir's block was written while Bodrum's awaited its
+  // final Monday); the first block whose window contains today wins. No
+  // active block → the digest is exactly as before.
+  type Spotlight = { title?: string; body?: string; ctaLabel?: string; ctaHref?: string; from?: string; until?: string }
+  const spotlightRaw = loadContent().digestSpotlight as Spotlight | Spotlight[] | undefined
+  const spotlight = (Array.isArray(spotlightRaw) ? spotlightRaw : [spotlightRaw]).find(
+    (s): s is Spotlight & { title: string; body: string } =>
+      !!(s?.title && s.body && (!s.from || today >= s.from) && (!s.until || today <= s.until)))
+  if (spotlight) {
     const href = spotlight.ctaHref
       ? (spotlight.ctaHref.startsWith('http') ? spotlight.ctaHref : `${APP_URL}${spotlight.ctaHref}`)
       : null
