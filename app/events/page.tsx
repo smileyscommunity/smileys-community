@@ -95,6 +95,7 @@ function AppEventsPageInner() {
   })
   const [neighborhoodFilter, setNeighborhoodFilter] = useState<string>(() => searchParams.get('neighborhood') ?? '')
   const [goingOnly,    setGoingOnly]    = useState(() => searchParams.get('going') === '1')
+  const [loadFailed,   setLoadFailed]   = useState(false)
   // CMS overrides land in this state on mount via /api/content. Defaults
   // are the fallback when the CMS hasn't been configured.
   // Deliberately city-free. These are the values the page actually renders —
@@ -144,7 +145,10 @@ function AppEventsPageInner() {
     const url = `/app/api/events?upcoming=${upcoming}&limit=${PAGE_SIZE}&offset=${currentOffset}`
     // Fail soft: a dropped fetch on a flaky mobile connection would otherwise
     // reject the caller's Promise.all with an uncaught "Load failed" (the #1
-    // iOS error) and leave the load-more spinner stuck. Keep the current list.
+    // iOS error) and leave the load-more spinner stuck. Keep the current list —
+    // but REMEMBER the failure: silently swallowing it left visitors staring
+    // at an empty grid captioned "No events match your filters" when the real
+    // story was a dead fetch.
     try {
       const data = await fetch(url, { credentials: 'include' }).then(r => r.json())
       if (seq !== loadSeq.current) return
@@ -153,7 +157,10 @@ function AppEventsPageInner() {
       setHasMore(data.hasMore ?? false)
       setOffset(currentOffset + evts.length)
       if (data.city) setViewCity(data.city)
-    } catch { /* transient — user can pull-to-refresh or retry load-more */ }
+      setLoadFailed(false)
+    } catch {
+      if (seq === loadSeq.current && reset) setLoadFailed(true)
+    }
   }
 
   // One-shot mount fetches that don't depend on tab: hero copy from the
@@ -339,6 +346,18 @@ function AppEventsPageInner() {
               )}
               <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">{hero.headline}</h1>
               <p className="text-base text-gray-600 mt-1">{viewCity ? `Find your next experience in ${viewCity.name}.` : (hero.subtitle || 'Find your next experience.')}</p>
+              {/* Guests can browse everything — say so, and say what signing
+                  in adds. Without this the page read as broken to visitors:
+                  a full filter/map shell with no hint that the list is the
+                  public teaser and RSVP is the members' part. */}
+              {!isLoggedIn && (
+                <p className="text-sm text-gray-500 mt-2">
+                  You&apos;re browsing as a guest — every event is open to view.{' '}
+                  <Link href="/login" className="font-semibold text-amber-600 hover:text-amber-700">Sign in to RSVP</Link>
+                  {' '}or{' '}
+                  <Link href="/apply" className="font-semibold text-amber-600 hover:text-amber-700">apply to join</Link>.
+                </p>
+              )}
             </div>
             <div className="flex items-center gap-3">
               {/* List / Map toggle — hidden on past-events tab since the
@@ -578,6 +597,18 @@ function AppEventsPageInner() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {Array.from({ length: 8 }).map((_, i) => <EventCardSkeleton key={i} />)}
           </div>
+        ) : loadFailed && events.length === 0 ? (
+          <div className="text-center py-20 max-w-sm mx-auto">
+            <div className="text-6xl mb-4">📡</div>
+            <h2 className="text-lg font-bold text-gray-900 mb-2">Couldn&apos;t load events</h2>
+            <p className="text-sm text-gray-600 mb-5">Check your connection and try again.</p>
+            <button
+              onClick={() => { setLoading(true); loadEvents(tab, true).finally(() => setLoading(false)) }}
+              className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors"
+            >
+              Retry
+            </button>
+          </div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-20 max-w-sm mx-auto">
             <div className="text-6xl mb-4">{neighborhoodFilter && !selectedTags.length && timeFilter === 'All' ? '📍' : '🔍'}</div>
@@ -586,7 +617,9 @@ function AppEventsPageInner() {
                 ? `Nothing scheduled ${timeFilter.toLowerCase()}.`
                 : neighborhoodFilter && !selectedTags.length && timeFilter === 'All'
                 ? `No events in ${neighborhoodFilter} right now`
-                : 'No events match your filters'}
+                : hasActiveFilters
+                ? 'No events match your filters'
+                : 'No upcoming events right now'}
             </h2>
             {/* §61 — an empty day isn't a dead end: the city isn't standing
                 still, and Hangouts is the spontaneous layer. */}
