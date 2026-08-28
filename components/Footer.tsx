@@ -198,7 +198,11 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
                 { href: '/visiting', label: 'Visiting? 👋'    },
                 { href: '/members',  label: 'Members 👥'      },
                 { href: '/posts',    label: 'Stories 📰'      },
-                { href: '/cup',      label: 'Smileys Cup ⚽'  },
+                // The Cup is seasonal and currently dormant — /cup is
+                // member-gated, so this used to dead-end visitors at the
+                // login wall. Point at the public recap until the next
+                // tournament; swap back to /cup when one is live.
+                { href: '/posts/smileys-cup-2026-how-it-finished', label: 'Smileys Cup 🏆' },
               ].map(l => (
                 <li key={l.href}>
                   <Link href={l.href} className="text-sm text-gray-600 hover:text-amber-600 transition-colors">

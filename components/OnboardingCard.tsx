@@ -33,12 +33,9 @@ const ITEMS: Item[] = [
     description: 'Expat-owned & expat-friendly spots across the city. Add your favourites.',
     href:        '/directory',
   },
-  {
-    emoji:       '⚽',
-    title:       'Smileys World Cup 2026',
-    description: 'Predict every match. Prizes for top finishers. Free to play.',
-    href:        '/cup',
-  },
+  // Cup 2026 entry removed 2026-08-28 — the tournament ended Jul 19 and
+  // "predict every match, free to play" was inviting new members into a
+  // finished game. Re-add (and bump DISMISS_KEY) for the next tournament.
   {
     emoji:       '☕',
     title:       'Hangouts',
