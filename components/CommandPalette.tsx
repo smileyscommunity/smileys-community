@@ -105,8 +105,8 @@ export default function CommandPalette() {
     { id: 'my-events',     label: 'My Events',      hint: 'Your events & QR codes',     icon: '🎟️', group: 'You', action: () => go('/my-events')     },
     { id: 'messages',      label: 'Messages',       hint: 'Direct messages',            icon: '💬', group: 'You', action: () => go('/messages')      },
     { id: 'notifications', label: 'Notifications',  hint: 'Your notifications',         icon: '🔔', group: 'You', action: () => go('/notifications') },
-    { id: 'profile',       label: 'Profile',        hint: 'Edit your profile',          icon: '👤', group: 'You', action: () => go('/profile')       },
     { id: 'connections',   label: 'Connections',    hint: 'People you’ve connected with', icon: '🤝', group: 'You', action: () => go('/contacts')      },
+    { id: 'profile',       label: 'Profile',        hint: 'Edit your profile',          icon: '👤', group: 'You', action: () => go('/profile')       },
     { id: 'settings',      label: 'Settings',       hint: 'Account & notifications',    icon: '⚙️', group: 'You', action: () => go('/settings')      },
 
     ...(isAdmin ? [
