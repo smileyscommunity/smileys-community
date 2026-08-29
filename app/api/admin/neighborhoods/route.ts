@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
 import { NEIGHBORHOOD_META, neighborhoodToSlug } from '@/lib/neighborhoods'
-import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
+import { getNeighborhoodsForCity } from '@/lib/neighborhoodsDb'
 import { guideFileFor, resolveAdminCity } from '@/lib/neighborhoodGuideFiles'
 import { uploadRoot } from '@/lib/uploadRoot'
 import { existsSync, readdirSync } from 'fs'
@@ -36,11 +36,19 @@ export async function GET(req: NextRequest) {
   let uploaded: string[] = []
   try { uploaded = readdirSync(join(uploadRoot(), 'neighborhoods')) } catch { /* no uploads yet */ }
 
-  const views = await getNeighborhoodViews(city.id)
-  const neighborhoods = views.map(v => ({
+  // Raw rows rather than getNeighborhoodViews: same values for a non-default
+  // city (no editorial overlay applies), but with the row id + attributes the
+  // inline editor needs. The default branch above deliberately omits these —
+  // its attributes live in code, and offering them for edit would lie.
+  const rows = await getNeighborhoodsForCity(city.id)
+  const neighborhoods = rows.map(v => ({
+    id: v.id,
     name: v.name,
     slug: v.slug,
-    meta: { emoji: v.emoji, vibe: v.vibe, side: v.area },
+    meta: { emoji: v.emoji, vibe: v.vibe ?? '', side: v.area ?? '' },
+    cost: v.cost,
+    lat: v.lat,
+    lng: v.lng,
     hasGuide: existsSync(guideFileFor(city.slug, false, v.slug)),
     hasImage: uploaded.some(f => f.startsWith(`${city.slug}--${v.slug}-`)),
   }))

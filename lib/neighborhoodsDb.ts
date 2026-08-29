@@ -36,6 +36,13 @@ export interface CityNeighborhood {
 const CACHE_TTL_MS = 60_000
 const cityCache = new Map<string, { rows: CityNeighborhood[]; expires: number }>()
 
+// Admin writes call this so the edit is visible on the very next read — the
+// admin list refetches right after a save, and 60s of stale cache there looks
+// exactly like a save that didn't take.
+export function invalidateNeighborhoodCache(cityId: string): void {
+  cityCache.delete(cityId)
+}
+
 export async function getNeighborhoodsForCity(cityId: string): Promise<CityNeighborhood[]> {
   const hit = cityCache.get(cityId)
   if (hit && hit.expires > Date.now()) return hit.rows

@@ -6,6 +6,7 @@
 // lib/seedCityClubs.ts.
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { toast } from 'sonner'
 import { confirmToast } from '@/lib/confirmToast'
 import { downscaleImage } from '@/lib/image-resize'
@@ -18,6 +19,9 @@ import { CITY_MATURITY, type CityMaturity } from '@/lib/cityMaturity'
 interface CityHost { cityHostId: string; id: string; name: string; email: string }
 interface City {
   id: string; name: string; slug: string; country: string; timezone: string
+  // Default city's neighborhoods link stays param-free — its list page URL
+  // predates multi-city and bookmarks rely on it.
+  isDefault: boolean
   currency: string; defaultLang: string; status: string; clubCount: number; hosts: CityHost[]
   neighborhoodCount: number
   // Derived from the same counts the go-live gate checks — the panel shows
@@ -434,7 +438,15 @@ export default function AdminCitiesPage() {
                   separated); slug and defaults are derived. Enrichment
                   (emoji, vibe, coords) can come later per city. */}
               <div className="mt-4 pt-4 border-t border-zinc-800">
-                <p className={label}>Neighborhoods <span className="normal-case font-normal text-zinc-600">· {city.neighborhoodCount} active</span></p>
+                <div className="flex items-baseline justify-between gap-2">
+                  <p className={label}>Neighborhoods <span className="normal-case font-normal text-zinc-600">· {city.neighborhoodCount} active</span></p>
+                  <Link
+                    href={`/admin/neighborhoods${city.isDefault ? '' : `?city=${encodeURIComponent(city.slug)}`}`}
+                    className="text-[11px] text-amber-400 hover:underline shrink-0"
+                  >
+                    View &amp; edit →
+                  </Link>
+                </div>
                 <div className="flex items-start gap-2">
                   <textarea className={`${input} min-h-[38px] resize-y`} rows={1}
                     placeholder="Paste names — comma or newline separated"
