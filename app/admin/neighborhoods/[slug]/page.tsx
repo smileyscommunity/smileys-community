@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useRef, use } from 'react'
+import { useState, useEffect, useRef, use, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { slugToNeighborhood } from '@/lib/neighborhoods'
@@ -40,9 +41,21 @@ const textareaCls = `${inputCls} resize-none`
 function emptyItem(): PlaceItem { return { name: '', description: '', address: '', tip: '', badge: '' } }
 function emptyCategory(): PlaceCategory { return { category: '', emoji: '📍', items: [emptyItem()] } }
 
+// Suspense wrapper because useSearchParams forces it. Mirrors the
+// pattern on /admin/payments.
 export default function EditNeighborhoodPage({ params }: { params: Promise<{ slug: string }> }) {
+  return <Suspense><EditNeighborhoodPageInner params={params} /></Suspense>
+}
+
+function EditNeighborhoodPageInner({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params)
   const name = slugToNeighborhood(slug) ?? slug
+  // Non-default cities arrive with ?city=<slug> from the list page; the
+  // param is threaded onto every API call so the routes edit THAT city's
+  // guide. Absent means the default city — URLs stay byte-identical.
+  const citySlug = useSearchParams().get('city') ?? ''
+  const cityQs = citySlug ? `?city=${encodeURIComponent(citySlug)}` : ''
+  const [cityName, setCityName] = useState('')
 
   const [guide,   setGuide]   = useState<Guide>({ tagline: '', transport: [], languages: [], places: [], tips: [] })
   const [loading, setLoading] = useState(true)
@@ -60,8 +73,21 @@ export default function EditNeighborhoodPage({ params }: { params: Promise<{ slu
   const dirty = JSON.stringify(guide) !== baseline
   const fileRef = useRef<HTMLInputElement>(null)
 
+  // Resolve the city slug to its display name for the header. Only worth a
+  // request off the default city — the default header never shows one.
   useEffect(() => {
-    fetch(`/app/api/admin/neighborhoods/${slug}`, { credentials: 'include' })
+    if (!citySlug) return
+    fetch('/app/api/admin/cities', { credentials: 'include' })
+      .then(async r => (r.ok ? r.json() : []))
+      .then(d => {
+        const c = Array.isArray(d) ? d.find((x: { slug: string }) => x.slug === citySlug) : null
+        if (c) setCityName(c.name)
+      })
+      .catch(() => { /* header falls back to the slug */ })
+  }, [citySlug])
+
+  useEffect(() => {
+    fetch(`/app/api/admin/neighborhoods/${slug}${cityQs}`, { credentials: 'include' })
       .then(async r => {
         if (!r.ok) {
           const d = await r.json().catch(() => ({}))
@@ -99,13 +125,13 @@ export default function EditNeighborhoodPage({ params }: { params: Promise<{ slu
       })
       .catch(() => toast.error('Network error — could not load guide'))
       .finally(() => setLoading(false))
-  }, [slug])
+  }, [slug, cityQs])
 
   async function save() {
     if (!dirty) return
     setSaving(true)
     try {
-      const res = await fetch(`/app/api/admin/neighborhoods/${slug}`, {
+      const res = await fetch(`/app/api/admin/neighborhoods/${slug}${cityQs}`, {
         method: 'PUT', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(guide),
@@ -143,7 +169,7 @@ export default function EditNeighborhoodPage({ params }: { params: Promise<{ slu
     try {
       const fd = new FormData()
       fd.append('file', file)
-      const res = await fetch(`/app/api/admin/neighborhoods/${slug}/image`, {
+      const res = await fetch(`/app/api/admin/neighborhoods/${slug}/image${cityQs}`, {
         method: 'POST', credentials: 'include', body: fd,
       })
       const data = await res.json()
@@ -234,14 +260,14 @@ export default function EditNeighborhoodPage({ params }: { params: Promise<{ slu
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <Link href="/admin/neighborhoods" className="text-zinc-500 hover:text-white transition-colors">
+          <Link href={`/admin/neighborhoods${cityQs}`} className="text-zinc-500 hover:text-white transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </Link>
           <div>
             <h1 className="text-lg font-bold text-white">{name}</h1>
-            <p className="text-xs text-zinc-500">Neighborhood guide editor</p>
+            <p className="text-xs text-zinc-500">Neighborhood guide editor{citySlug ? ` · ${cityName || citySlug}` : ''}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">

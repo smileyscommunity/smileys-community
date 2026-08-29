@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
 import { slugToNeighborhood } from '@/lib/neighborhoods'
+import { getNeighborhoodView } from '@/lib/neighborhoodsDb'
+import { guideFileFor, resolveAdminCity, type AdminGuideCity } from '@/lib/neighborhoodGuideFiles'
 import { canActInCity } from '@/lib/access'
-import { getDefaultCityId } from '@/lib/city'
 import { writeAudit } from '@/lib/audit'
 import { readFileSync, writeFileSync, mkdirSync, renameSync } from 'fs'
-import { join } from 'path'
+import { dirname } from 'path'
 
 export const runtime = 'nodejs'
 
@@ -164,17 +165,24 @@ function normalize(body: unknown): { ok: true; value: GuideShape } | { ok: false
   return { ok: true, value }
 }
 
-function getFile(slug: string) {
-  return join(process.cwd(), 'data', 'neighborhoods', `${slug}.json`)
+// The slug must name a real neighborhood of the resolved city — the default
+// city's registry is the hardcoded NEIGHBORHOOD_META (slugToNeighborhood),
+// every other city's is its DB rows. Returns the display name, null when the
+// slug isn't the city's.
+async function neighborhoodNameFor(city: AdminGuideCity, slug: string): Promise<string | null> {
+  if (city.isDefault) return slugToNeighborhood(slug) ?? null
+  return (await getNeighborhoodView(city.id, slug))?.name ?? null
 }
 
-export async function GET(_: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const session = await getSession()
   if (!session || !isAdminOrModerator(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const city = await resolveAdminCity(req.nextUrl.searchParams.get('city'))
+  if (!city) return NextResponse.json({ error: 'Unknown city' }, { status: 404 })
   const { slug } = await params
-  if (!slugToNeighborhood(slug)) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!(await neighborhoodNameFor(city, slug))) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   try {
-    return NextResponse.json(JSON.parse(readFileSync(getFile(slug), 'utf8')))
+    return NextResponse.json(JSON.parse(readFileSync(guideFileFor(city.slug, city.isDefault, slug), 'utf8')))
   } catch {
     return NextResponse.json({ tagline: '', places: [], tips: [] })
   }
@@ -183,15 +191,18 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ slug: 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const session = await getSession()
   if (!session || !isAdminOrModerator(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  // These guides are the default city's editorial content — slugToNeighborhood
-  // only resolves Istanbul slugs, so an edit here is an edit to Istanbul's
-  // pages. Cross-city rule as everywhere: admins yes, other cities' moderators
-  // no. (Reads stay open to all moderators; the content is public anyway.)
-  if (!canActInCity(session, await getDefaultCityId())) {
+  const city = await resolveAdminCity(req.nextUrl.searchParams.get('city'))
+  if (!city) return NextResponse.json({ error: 'Unknown city' }, { status: 404 })
+  // A guide edit is an edit to that city's public pages, so the cross-city
+  // rule applies as everywhere: a city's own moderators edit their own city's
+  // guides, admins edit any. (Reads stay open to all moderators; the content
+  // is public anyway.)
+  if (!canActInCity(session, city.id)) {
     return NextResponse.json({ error: "Editing another city's guides is admin-only" }, { status: 403 })
   }
   const { slug } = await params
-  if (!slugToNeighborhood(slug)) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  const neighborhoodName = await neighborhoodNameFor(city, slug)
+  if (!neighborhoodName) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const body = await req.json().catch(() => null)
   const result = normalize(body)
@@ -215,15 +226,15 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ slug
 
   // Atomic write via tmp+rename so a concurrent GET can never read a
   // half-written file.
-  mkdirSync(join(process.cwd(), 'data', 'neighborhoods'), { recursive: true })
-  const target = getFile(slug)
+  const target = guideFileFor(city.slug, city.isDefault, slug)
+  mkdirSync(dirname(target), { recursive: true })
   const tmp    = `${target}.tmp`
   writeFileSync(tmp, serialized)
   renameSync(tmp, target)
 
   writeAudit(session.id, session.name, 'neighborhood.update', slug, 'neighborhood',
     { slug, categoryCount: stamped.places?.length ?? 0, tipCount: stamped.tips?.length ?? 0 },
-    `Updated neighborhood guide for ${slugToNeighborhood(slug) ?? slug}`,
+    `Updated neighborhood guide for ${neighborhoodName}${city.isDefault ? '' : ` (${city.name})`}`,
   )
 
   return NextResponse.json({ ok: true, updatedAt: stamped.updatedAt, updatedBy: stamped.updatedBy })
