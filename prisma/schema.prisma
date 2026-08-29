@@ -268,14 +268,21 @@ model Report {
   listingId          String?
   boardPostId        String?
   neighborhoodPostId String?
-  reported           User      @relation("ReportsReceived", fields: [reportedId], references: [id], onDelete: Cascade)
-  reporter           User      @relation("ReportsMade", fields: [reporterId], references: [id], onDelete: Cascade)
+  // Set on reports auto-filed from a post-event survey (reason
+  // 'post_event_survey') so dismissing the report can clear the survey's
+  // anomaly flag. Null for all other reports and for legacy survey
+  // reports created before the column existed.
+  surveyId           String?
+  reported           User         @relation("ReportsReceived", fields: [reportedId], references: [id], onDelete: Cascade)
+  reporter           User         @relation("ReportsMade", fields: [reporterId], references: [id], onDelete: Cascade)
+  survey             EventSurvey? @relation(fields: [surveyId], references: [id], onDelete: SetNull)
 
   @@index([reportedId])
   @@index([status])
   @@index([listingId])
   @@index([neighborhoodPostId])
   @@index([boardPostId])
+  @@index([surveyId])
   @@map("reports")
 }
 
@@ -711,6 +718,7 @@ model EventSurvey {
   createdAt   DateTime @default(now())
   event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reports     Report[]
 
   @@unique([eventId, userId])
   @@index([eventId])

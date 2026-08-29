@@ -162,7 +162,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   // upsert so a network retry from the client doesn't 409 — second
   // submit overwrites the first within the window. Comments-only
   // edit is the same shape.
-  await prisma.eventSurvey.upsert({
+  const survey = await prisma.eventSurvey.upsert({
     where:  { eventId_userId: { eventId: id, userId: session.id } },
     create: {
       eventId:     id,
@@ -224,6 +224,10 @@ export async function POST(req: NextRequest, { params }: Params) {
         reason:     'post_event_survey',
         details:    `Survey response on "${event.title}" (${event.date}): ${anomalyNote || '(no details provided)'}`,
         status:     'pending',
+        // Link back to the survey so dismissing this report can clear
+        // the survey's anomaly flag (keeps the admin anomaly rate
+        // honest after moderation).
+        surveyId:   survey.id,
       },
     })
 

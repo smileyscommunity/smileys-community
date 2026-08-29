@@ -36,7 +36,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Cross-city moderation is admin-only' }, { status: 403 })
     }
 
-    await prisma.report.update({
+    const updateReport = prisma.report.update({
       where: { id },
       data: {
         status:     action === 'dismiss' ? 'dismissed' : 'actioned',
@@ -45,6 +45,26 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         reviewedAt: new Date(),
       },
     })
+
+    // Dismissing a survey-sourced report means the admin judged the
+    // flagged anomaly not real — clear the survey's anomaly flag in the
+    // same transaction, or the dashboard anomaly rate keeps counting it
+    // for the rest of the 30-day window. Reports created before surveyId
+    // existed fall back to the survey's eventId+userId unique key (the
+    // reporter is the survey responder).
+    if (action === 'dismiss' && report.reason === 'post_event_survey' && (report.surveyId || report.eventId)) {
+      await prisma.$transaction([
+        updateReport,
+        prisma.eventSurvey.updateMany({
+          where: report.surveyId
+            ? { id: report.surveyId }
+            : { eventId: report.eventId!, userId: report.reporterId },
+          data: { anomaly: false },
+        }),
+      ])
+    } else {
+      await updateReport
+    }
 
     if (action === 'dismiss') {
       writeAudit(session.id, session.name, 'report.dismiss', id, 'report',
