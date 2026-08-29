@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
   const allTags = tagGroups.flatMap(g => g.tags)
   const tagList = allTags.map(t => `${t.id}: ${t.emoji} ${t.name}`).join('\n')
 
-  const prompt = `You are tagging a social event for Smileys community in Istanbul. Pick the most relevant tags from the list below. Choose 2–5 tags maximum. Return only a JSON array of tag IDs, nothing else.
+  const prompt = `You are tagging a social event for the Smileys community. Pick the most relevant tags from the list below. Choose 2–5 tags maximum. Return only a JSON array of tag IDs, nothing else.
 
 Available tags:
 ${tagList}

@@ -106,6 +106,10 @@ export interface ResolvedCityInfo {
   // then silently wrong about which day it is. Already loaded here:
   // getCityConfig is on the request either way.
   timezone: string
+  // City centre for the map surfaces' default view — nullable like the DB
+  // column, and null means "fall back to your own constant".
+  lat: number | null
+  lng: number | null
 }
 
 export async function describeCity(
@@ -122,6 +126,8 @@ export async function describeCity(
     viewing,
     homeName:  viewing ? (await getCityConfig(homeId)).name : null,
     timezone:  cfg.timezone,
+    lat:       cfg.lat,
+    lng:       cfg.lng,
   }
 }
 
@@ -139,7 +145,10 @@ export async function describeCity(
 // `heroImage` is here for the same reason: shared surfaces (/neighborhoods and
 // friends) hardcoded Istanbul's photo, which is a leak on every other city's
 // page, and they already hold a CityConfig.
-export interface CityConfig { timezone: string; currency: string; slug: string; name: string; country: string; showGlobalClubs: boolean; heroImage: string | null }
+// `lat`/`lng` (the city centre, nullable like the DB column) ride along for
+// the same reason as heroImage: the map surfaces fell back to Istanbul's
+// coordinates for every pinless city, and they already hold a CityConfig.
+export interface CityConfig { timezone: string; currency: string; slug: string; name: string; country: string; showGlobalClubs: boolean; heroImage: string | null; lat: number | null; lng: number | null }
 
 const CONFIG_TTL_MS = 5 * 60_000
 const configCache = new Map<string, { cfg: CityConfig; expires: number }>()
@@ -149,13 +158,13 @@ export async function getCityConfig(cityId: string): Promise<CityConfig> {
   if (hit && hit.expires > Date.now()) return hit.cfg
   const city = await prisma.city.findUnique({
     where:  { id: cityId },
-    select: { timezone: true, currency: true, slug: true, name: true, country: true, showGlobalClubs: true, heroImage: true },
+    select: { timezone: true, currency: true, slug: true, name: true, country: true, showGlobalClubs: true, heroImage: true, lat: true, lng: true },
   })
   // Unknown id falls back to the default city's zone rather than throwing —
   // a stale cityId must degrade to Istanbul behavior, not a 500. That includes
   // showGlobalClubs: Istanbul shows them, so a stale id doesn't silently strip
   // the Culture and Language clubs out of the grid.
-  const cfg: CityConfig = city ?? { timezone: 'Europe/Istanbul', currency: 'TRY', slug: DEFAULT_CITY_SLUG, name: 'Istanbul', country: 'TR', showGlobalClubs: true, heroImage: null }
+  const cfg: CityConfig = city ?? { timezone: 'Europe/Istanbul', currency: 'TRY', slug: DEFAULT_CITY_SLUG, name: 'Istanbul', country: 'TR', showGlobalClubs: true, heroImage: null, lat: null, lng: null }
   configCache.set(cityId, { cfg, expires: Date.now() + CONFIG_TTL_MS })
   return cfg
 }

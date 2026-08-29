@@ -183,7 +183,7 @@ function CoffeeInviteModal({ target, onClose }: { target: VisitorUser; onClose: 
 
         <label className="block text-xs font-bold text-gray-700 mb-1">Neighborhood</label>
         <input value={neighborhood} onChange={e => setNeighborhood(e.target.value)}
-          placeholder="e.g. Kadıköy"
+          placeholder="e.g. a neighborhood you like"
           className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-amber-400" />
 
         <label className="block text-xs font-bold text-gray-700 mb-1">Message <span className="font-normal text-gray-400">(optional)</span></label>

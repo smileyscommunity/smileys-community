@@ -32,6 +32,10 @@ export interface MapBusiness {
 interface Props {
   businesses:   MapBusiness[]
   onPinClick?:  (id: string) => void
+  // Where the map opens when no pins are visible — the viewed city's centre.
+  // Optional: without it (or with a city missing coordinates) the map falls
+  // back to the Istanbul-wide default view below.
+  defaultCenter?: [number, number] | null
 }
 
 // Deterministic per-id jitter in roughly ±300m at Istanbul's latitude.
@@ -68,7 +72,7 @@ function resolvePosition(b: MapBusiness): [number, number] | null {
 const DEFAULT_CENTER: [number, number] = [41.0245, 29.0083]
 const DEFAULT_ZOOM = 11
 
-export default function DirectoryMap({ businesses, onPinClick }: Props) {
+export default function DirectoryMap({ businesses, onPinClick, defaultCenter }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef       = useRef<Map | null>(null)
   const markersRef   = useRef<Marker[]>([])
@@ -90,7 +94,7 @@ export default function DirectoryMap({ businesses, onPinClick }: Props) {
       })
 
       const map = L.map(containerRef.current, {
-        center:          DEFAULT_CENTER,
+        center:          defaultCenter ?? DEFAULT_CENTER,
         zoom:            DEFAULT_ZOOM,
         zoomControl:     true,
         scrollWheelZoom: true,
@@ -169,12 +173,12 @@ export default function DirectoryMap({ businesses, onPinClick }: Props) {
       } else if (bounds.length > 1) {
         map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 })
       } else {
-        map.setView(DEFAULT_CENTER, DEFAULT_ZOOM)
+        map.setView(defaultCenter ?? DEFAULT_CENTER, DEFAULT_ZOOM)
       }
     })
 
     return () => { cancelled = true }
-  }, [businesses, onPinClick])
+  }, [businesses, onPinClick, defaultCenter])
 
   return (
     <div className="relative w-full h-[60vh] sm:h-[70vh] rounded-2xl overflow-hidden border border-gray-200 bg-gray-100">

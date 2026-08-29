@@ -6,7 +6,7 @@ import type { Metadata } from 'next'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { resolveCityId, getCityConfig } from '@/lib/city'
+import { resolveCityId, getCityConfig, DEFAULT_CITY_SLUG } from '@/lib/city'
 import { sanitizeArticle } from '@/lib/sanitize'
 import { resolveImageUrl } from '@/lib/data'
 import { firstBodyImage } from '@/lib/articleCover'
@@ -150,6 +150,11 @@ export default async function HandbookArticlePage({ params }: Params) {
   // generateMetadata); related-article scoping deliberately stays on the
   // VIEWER's city — see getHandbookRelated.
   const cityName = (await getCityConfig(post.cityId ?? cityId)).name
+  // The "Quick links for this topic" callout deep-links into /handbook's
+  // quick-reference block — Istanbul's link pack, rendered on the default
+  // city's index only — so the callout follows the same gate (same rule as
+  // handbookCity() on the index; per-city quick reference is the follow-up).
+  const viewerCityIsDefault = (await getCityConfig(cityId)).slug === DEFAULT_CITY_SLUG
 
   const related = await getHandbookRelated(
     canonical ? storedKeysFor(canonical) : [post.category],
@@ -312,7 +317,7 @@ export default async function HandbookArticlePage({ params }: Params) {
             to bookmark*. Showing both right at the end of the article
             answers the natural next question ("OK, now what app do I
             use?") without sending members away to search. */}
-        {HANDBOOK_TO_GUIDE[catKey] && (
+        {viewerCityIsDefault && HANDBOOK_TO_GUIDE[catKey] && (
           <section className="mt-12 pt-8 border-t border-gray-100">
             <Link href={`/handbook#${HANDBOOK_TO_GUIDE[catKey].anchor}`}
               className="block bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-2xl px-5 py-4 transition-colors group">

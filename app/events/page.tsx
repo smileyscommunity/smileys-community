@@ -108,7 +108,7 @@ function AppEventsPageInner() {
   // cookie makes it vary per viewer). Separate from `hero` so the CMS
   // fetch — whose copy is default-city-flavored — can't race it back to
   // Istanbul. Only a non-default city overrides the hero.
-  const [viewCity, setViewCity] = useState<{ name: string; slug: string; isDefault: boolean; viewing?: boolean; homeName?: string | null } | null>(null)
+  const [viewCity, setViewCity] = useState<{ name: string; slug: string; isDefault: boolean; viewing?: boolean; homeName?: string | null; lat?: number | null; lng?: number | null } | null>(null)
 
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
   const [showMap,         setShowMap]         = useState(false)
@@ -684,6 +684,7 @@ function AppEventsPageInner() {
                   selectedId={selectedEventId}
                   onSelect={id => setSelectedEventId(prev => prev === id ? null : id)}
                   attendance={attendance}
+                  defaultCenter={viewCity?.lat != null && viewCity?.lng != null ? { lat: viewCity.lat, lng: viewCity.lng } : null}
                 />
               </div>
             )}

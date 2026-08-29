@@ -681,7 +681,7 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
   const [neighborhood, setNeighborhood] = useState(searchParams.get('neighborhood') ?? '')
   // Rotating search examples (brief §2) — teaches the search's range
   // without a wall of copy.
-  const SEARCH_HINTS = ['Room in Kadıköy', 'English teacher', 'Desk', 'Cat sitter', 'Photographer', 'Moving boxes']
+  const SEARCH_HINTS = ['Room for rent', 'English teacher', 'Desk', 'Cat sitter', 'Photographer', 'Moving boxes']
   const [hintIdx, setHintIdx] = useState(0)
   useEffect(() => {
     const t = setInterval(() => setHintIdx(i => (i + 1) % SEARCH_HINTS.length), 3500)

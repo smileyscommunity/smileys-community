@@ -360,12 +360,15 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     // Confirmation email + host notification (fire-and-forget)
     ;(async () => {
-      const user = await prisma.user.findUnique({ where: { id: session.id }, select: { email: true, name: true } })
+      const [user, city] = await Promise.all([
+        prisma.user.findUnique({ where: { id: session.id }, select: { email: true, name: true } }),
+        prisma.city.findUnique({ where: { id: event.cityId }, select: { name: true } }),
+      ])
       if (user) {
         sendRsvpConfirmationEmail(
           user.email, user.name ?? 'Member',
           event.title, event.date,
-          event.location ?? event.neighborhood ?? 'Istanbul',
+          event.location ?? event.neighborhood ?? city?.name ?? 'your city',
           eventId,
         ).catch(async err => {
           console.error('[rsvp POST] sendRsvpConfirmationEmail failed', { userId: session.id, eventId, err: String(err) })

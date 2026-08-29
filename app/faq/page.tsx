@@ -22,14 +22,14 @@ export const metadata = {
   description: 'Everything you need to know about Smileys — membership, events, clubs, applications, and more.',
   openGraph: {
     title: 'Smileys Community FAQ',
-    description: 'Everything you need to know about joining and using Smileys Community in Istanbul.',
+    description: 'Everything you need to know about joining and using Smileys Community.',
     url: `${APP_URL}/faq`,
     images: [{ url: ogImage, width: 1200, height: 630, alt: 'Smileys Community FAQ' }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Smileys Community FAQ',
-    description: 'Everything you need to know about joining and using Smileys Community in Istanbul.',
+    description: 'Everything you need to know about joining and using Smileys Community.',
     images: [ogImage],
   },
 }

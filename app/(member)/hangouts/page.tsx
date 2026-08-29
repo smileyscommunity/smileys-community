@@ -1406,7 +1406,7 @@ function HangoutCard({ h, currentUser, onCancel, onMutated, neighborhoods }: {
             )}
             {h.hostIsVisitor && (
               <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-700 text-[10px] font-semibold border border-sky-200 shrink-0">
-                ✈️ Visiting Istanbul
+                ✈️ Visiting
               </span>
             )}
             {h.activity && ACTIVITY_META[h.activity] && (

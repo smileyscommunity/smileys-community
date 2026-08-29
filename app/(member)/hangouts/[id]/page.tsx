@@ -12,7 +12,7 @@ import HangoutJoinButton from '@/components/HangoutJoinButton'
 import HangoutDiscussion from '@/components/HangoutDiscussion'
 import AddToCalendar from '@/components/AddToCalendar'
 import ReportButton from '@/components/ReportButton'
-import { getCityTz } from '@/lib/city'
+import { getCityConfig } from '@/lib/city'
 
 // Read-only permalink for a single hangout. Designed so stale push
 // notifications (cancellation, recap from days ago, third-party links)
@@ -73,7 +73,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   // The hangout's OWN city decides the clock — a plan in another city reads
   // in that city's time even to a reader sitting elsewhere. This is a crawler
   // path too, which has no viewer at all.
-  const when  = hangout.startsAt.toLocaleString('en-GB', { timeZone: await getCityTz(hangout.cityId), weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+  const when  = hangout.startsAt.toLocaleString('en-GB', { timeZone: (await getCityConfig(hangout.cityId)).timezone, weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
   const where = [hangout.location, hangout.neighborhood].filter(Boolean).join(' · ')
   const title = `${hangout.title} · Smileys hangout`
   const desc  = hangout.status === 'cancelled'
@@ -132,14 +132,17 @@ export default async function HangoutPermalinkPage({ params }: PageProps) {
   const joinedByMe = hangout.joins.some((j: any) => j.user.id === session.id)
   const isJoinable = hangout.status === 'active' && hangout.endsAt >= new Date()
 
+  // The hangout's own city scopes the Maps search and the calendar timezone.
+  const city = await getCityConfig(hangout.cityId)
+
   // Directions — hangouts store only a text location, so open Maps with a
   // place search (opens the native maps app on mobile).
-  const mapsQuery = [hangout.location, hangout.neighborhood, 'Istanbul'].filter(Boolean).join(', ')
+  const mapsQuery = [hangout.location, hangout.neighborhood, city.name].filter(Boolean).join(', ')
   const mapsUrl   = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapsQuery)}`
 
-  // Istanbul wall-clock start + end time for Add-to-Calendar (h23 per the ICU
+  // City wall-clock start + end time for Add-to-Calendar (h23 per the ICU
   // gotcha). AddToCalendar rolls the end to the next day if it's before start.
-  const tz = await getCityTz(hangout.cityId)
+  const tz = city.timezone
   const startDate = hangout.startsAt.toLocaleDateString('en-CA', { timeZone: tz })
   const startTime = hangout.startsAt.toLocaleTimeString('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
   const endTime   = hangout.endsAt.toLocaleTimeString('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })

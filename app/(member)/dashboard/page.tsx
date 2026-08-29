@@ -325,11 +325,17 @@ export default async function DashboardPage() {
     // clubs' joins; members of none fall back to community-wide joins
     // (public clubs only) so newcomers — the people who most need to
     // see a lively wall — don't get an empty club section.
+    //
+    // The wall/social-proof queries below all carry the same constraint as
+    // the discovery queries: the dashboard is a city surface, so the wall
+    // must follow the viewer's city too — an İzmir member's wall is İzmir's
+    // activity, not Istanbul's. Models where NULL cityId means "global"
+    // (posts, clubs) use the city-or-null OR, like latestHandbook.
     prisma.clubMembership.findMany({
       where: {
         ...(clubIds.length
           ? { clubId: { in: clubIds } }
-          : { club: { isPrivate: false, isActive: true } }),
+          : { club: { isPrivate: false, isActive: true, OR: [{ cityId }, { cityId: null }] } }),
         userId: { not: session.id }, status: 'approved', joinedAt: { gte: weekAgo },
       },
       include: { user: { select: { name: true, color: true } }, club: { select: { name: true, emoji: true, slug: true } } },
@@ -347,7 +353,7 @@ export default async function DashboardPage() {
       where: {
         ...(clubIds.length
           ? { clubId: { in: clubIds } }
-          : { club: { isPrivate: false, isActive: true } }),
+          : { club: { isPrivate: false, isActive: true, OR: [{ cityId }, { cityId: null }] } }),
         type: { in: ['post', 'announcement'] },
       },
       orderBy: { createdAt: 'desc' }, take: 4,
@@ -363,7 +369,7 @@ export default async function DashboardPage() {
           where: {
             status: 'approved',
             userId: { not: session.id },
-            event: { date: { gte: today }, status: 'published', id: { notIn: joinedEventIds } },
+            event: { cityId, date: { gte: today }, status: 'published', id: { notIn: joinedEventIds } },
             user: { joinedEvents: { some: { eventId: { in: pastEventIds }, status: 'approved' } } },
           },
           include: {
@@ -457,6 +463,7 @@ export default async function DashboardPage() {
     // excludes the current user.
     prisma.visitorAnnouncement.findMany({
       where: {
+        cityId,
         status:   'active',
         userId:   { not: session.id },
         endsOn:   { gte: today },
@@ -504,11 +511,13 @@ export default async function DashboardPage() {
     // Over-fetch from each pool, then trim to 9 after a unified sort.
     Promise.all([
       prisma.eventPhoto.findMany({
+        where: { event: { cityId } },
         orderBy: { createdAt: 'desc' },
         take: 9,
         select: { id: true, url: true, caption: true, createdAt: true, eventId: true, event: { select: { title: true } }, user: { select: { name: true, color: true } } },
       }),
       prisma.clubPhoto.findMany({
+        where: { club: { OR: [{ cityId }, { cityId: null }] } },
         orderBy: { createdAt: 'desc' },
         take: 9,
         select: { id: true, url: true, caption: true, createdAt: true, club: { select: { slug: true, name: true } }, user: { select: { name: true, color: true } } },
@@ -547,7 +556,7 @@ export default async function DashboardPage() {
     // handbook articles get their own surface via `latestHandbook` so
     // the "From Smileys" strip doesn't mix the two editorial voices.
     prisma.post.findMany({
-      where: { status: 'published', kind: 'community' },
+      where: { status: 'published', kind: 'community', OR: [{ cityId }, { cityId: null }] },
       orderBy: { publishedAt: 'desc' },
       take: 3,
       select: { id: true, title: true, slug: true, excerpt: true, coverImage: true, body: true, category: true, publishedAt: true },
@@ -589,6 +598,8 @@ export default async function DashboardPage() {
       where: {
         status:    'accepted',
         updatedAt: { gte: weekAgo },
+        requester: { cityId },
+        receiver:  { cityId },
         NOT: { OR: [{ requesterId: session.id }, { receiverId: session.id }] },
       },
       orderBy: { updatedAt: 'desc' },
@@ -606,6 +617,7 @@ export default async function DashboardPage() {
         vibe:       'good',
         createdAt:  { gte: weekAgo },
         fromUserId: { not: session.id },
+        hangout:    { cityId },
       },
       orderBy: { createdAt: 'desc' },
       take: 5,
@@ -622,7 +634,7 @@ export default async function DashboardPage() {
         status:    'approved',
         userId:    { not: session.id },
         joinedAt:  { gte: weekAgo },
-        event:     { status: 'published', date: { gte: today } },
+        event:     { cityId, status: 'published', date: { gte: today } },
       },
       orderBy: { joinedAt: 'desc' },
       take: 8,
@@ -651,7 +663,7 @@ export default async function DashboardPage() {
     // Event reviews — 4★+ only, mirroring the 'good'-vibes filter on
     // hangout references so the wall stays celebratory, not gripey.
     prisma.review.findMany({
-      where:   { rating: { gte: 4 }, createdAt: { gte: weekAgo }, userId: { not: session.id } },
+      where:   { rating: { gte: 4 }, createdAt: { gte: weekAgo }, userId: { not: session.id }, event: { cityId } },
       orderBy: { createdAt: 'desc' },
       take: 4,
       select: {
@@ -667,7 +679,7 @@ export default async function DashboardPage() {
         isHidden:  false,
         createdAt: { gte: weekAgo },
         authorId:  { not: session.id },
-        business:  { isApproved: true, isActive: true },
+        business:  { isApproved: true, isActive: true, cityId },
       },
       orderBy: { createdAt: 'desc' },
       take: 3,
@@ -679,7 +691,7 @@ export default async function DashboardPage() {
     }),
     // Hangout joins — joining is as strong a social signal as posting.
     prisma.hangoutJoin.findMany({
-      where:   { createdAt: { gte: weekAgo }, userId: { not: session.id }, hangout: { status: 'active' } },
+      where:   { createdAt: { gte: weekAgo }, userId: { not: session.id }, hangout: { status: 'active', cityId } },
       orderBy: { createdAt: 'desc' },
       take: 4,
       select: {
@@ -690,7 +702,7 @@ export default async function DashboardPage() {
     }),
     // Neighborhood wall posts.
     prisma.neighborhoodPost.findMany({
-      where:   { createdAt: { gte: weekAgo }, userId: { not: session.id } },
+      where:   { cityId, createdAt: { gte: weekAgo }, userId: { not: session.id } },
       orderBy: { createdAt: 'desc' },
       take: 4,
       select: {
@@ -709,7 +721,7 @@ export default async function DashboardPage() {
       : Promise.resolve([]),
     // Fresh member testimonials (admin-curated, active only).
     prisma.testimonial.findMany({
-      where:   { active: true, createdAt: { gte: twoWeeksAgo } },
+      where:   { active: true, createdAt: { gte: twoWeeksAgo }, OR: [{ cityId }, { cityId: null }] },
       orderBy: { createdAt: 'desc' },
       take: 2,
       select: { id: true, memberName: true, quote: true, createdAt: true },
@@ -735,7 +747,7 @@ export default async function DashboardPage() {
     // rolls off as newer activity — and newer articles — take its place. The
     // dedicated "From Smileys" / "From the Handbook" strips carry the full list.
     prisma.post.findMany({
-      where:   { status: 'published', kind: { in: ['handbook', 'community'] }, publishedAt: { gte: monthAgo } },
+      where:   { status: 'published', kind: { in: ['handbook', 'community'] }, publishedAt: { gte: monthAgo }, OR: [{ cityId }, { cityId: null }] },
       orderBy: { publishedAt: 'desc' },
       take: 5,
       select: { id: true, title: true, slug: true, kind: true, publishedAt: true },
@@ -1105,7 +1117,7 @@ export default async function DashboardPage() {
                 )}
                 {spotlightData.topSpots.some((s) => s) && (
                   <div>
-                    <p className="text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">Top Istanbul spots</p>
+                    <p className="text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">Top spots</p>
                     <div className="space-y-1">
                       {spotlightData.topSpots.filter((s) => s).map((spot, i) => (
                         <div key={i} className="flex items-center gap-1.5 text-xs text-gray-600">
@@ -1370,7 +1382,7 @@ export default async function DashboardPage() {
                 mobile and desktop. Center column renders on every
                 viewport, so a single placement replaces the previous
                 two (mobile-only + right-rail) renders. */}
-            <ClubActivityTimeline members={recentActivity} posts={wallActivity} events={recentClubEvents} photos={recentPhotos} rsvps={recentRsvps} newMembers={newMembers} hangouts={recentHangouts} pulses={recentPulses} connections={recentConnections} references={recentReferences} newClubs={recentlyCreatedClubs} listings={wallListings} businesses={recentBusinesses} eventReviews={recentEventReviews} placeReviews={recentPlaceReviews} visitors={wallVisitors} hangoutJoins={recentHangoutJoins} hoodPosts={wallHoodPosts} resources={recentResources} testimonials={recentTestimonials} cupPicks={recentCupPicks} cupDonations={recentCupDonations} articles={recentArticles} cap={12} />
+            <ClubActivityTimeline members={recentActivity} posts={wallActivity} events={recentClubEvents} photos={recentPhotos} rsvps={recentRsvps} newMembers={newMembers} hangouts={recentHangouts} pulses={recentPulses} connections={recentConnections} references={recentReferences} newClubs={recentlyCreatedClubs} listings={wallListings} businesses={recentBusinesses} eventReviews={recentEventReviews} placeReviews={recentPlaceReviews} visitors={wallVisitors} hangoutJoins={recentHangoutJoins} hoodPosts={wallHoodPosts} resources={recentResources} testimonials={recentTestimonials} cupPicks={recentCupPicks} cupDonations={recentCupDonations} articles={recentArticles} cityName={city.name} cap={12} />
 
             {/* Upcoming visitors — surfaces /visiting + the new wave
                 action on the dashboard. Component renders nothing when
@@ -1381,7 +1393,7 @@ export default async function DashboardPage() {
               startsOn: typeof v.startsOn === 'string' ? v.startsOn : new Date(v.startsOn).toISOString().split('T')[0],
               endsOn:   typeof v.endsOn   === 'string' ? v.endsOn   : new Date(v.endsOn).toISOString().split('T')[0],
               user:     v.user ?? null,
-            }))} />
+            }))} cityName={city.name} />
 
             {/* Spots running low — urgent, time-sensitive */}
             {runningLow.length > 0 && (
@@ -1482,7 +1494,7 @@ export default async function DashboardPage() {
                 <div className="flex items-center justify-between mb-3">
                   <div>
                     <h2 className="text-xl font-bold text-gray-900">From The Handbook</h2>
-                    <p className="text-xs text-gray-400 mt-0.5">Living in Istanbul, decoded by members</p>
+                    <p className="text-xs text-gray-400 mt-0.5">Living in {city.name}, decoded by members</p>
                   </div>
                   <Link href="/handbook" className="text-sm text-amber-600 font-semibold hover:underline">All →</Link>
                 </div>
@@ -1762,12 +1774,12 @@ export default async function DashboardPage() {
               </div>
             )}
 
-            {/* This week in Istanbul — full calendar browse */}
+            {/* This week in the city — full calendar browse */}
             {thisWeekEvents.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <div>
-                    <h2 className="text-lg font-bold text-gray-900">This week in Istanbul</h2>
+                    <h2 className="text-lg font-bold text-gray-900">This week in {city.name}</h2>
                     <p className="text-xs text-gray-400 mt-0.5">{thisWeekEvents.length} event{thisWeekEvents.length !== 1 ? 's' : ''} coming up</p>
                   </div>
                   <Link href="/events" className="text-sm text-amber-600 font-semibold hover:underline">All →</Link>

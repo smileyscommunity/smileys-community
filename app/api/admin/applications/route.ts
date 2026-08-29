@@ -164,7 +164,8 @@ export async function PATCH(req: NextRequest) {
             const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
             // Email plaintext, store hash — see lib/tokenHash.ts.
             await prisma.passwordResetToken.create({ data: { userId: user.id, token: hashToken(token), expiresAt } })
-            await sendActivationEmail(application.email, application.fullName, token, welcomeMessage || undefined)
+            const targetCity = await prisma.city.findUnique({ where: { id: application.targetCityId }, select: { name: true } })
+            await sendActivationEmail(application.email, application.fullName, token, welcomeMessage || undefined, targetCity?.name)
           } else {
             // User already exists — fill in any missing profile fields from the application
             const updates: Record<string, unknown> = {}

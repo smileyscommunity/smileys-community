@@ -25,7 +25,7 @@ function timeAgo(iso: string) {
 }
 
 // Club conversations (Clubs brief §18/§19) — canonical Board posts tagged
-// to the club: the same thread appears on the Istanbul Board (public clubs)
+// to the club: the same thread appears on the community Board (public clubs)
 // and here. Replaces the legacy club wall; full threads open on the Board
 // via the ?post= deep link.
 export default function ClubConversations({ slug, isMember }: { slug: string; isMember: boolean }) {
@@ -57,7 +57,7 @@ export default function ClubConversations({ slug, isMember }: { slug: string; is
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) { toast.error(data.error ?? 'Could not post'); return }
-      toast.success('Posted — it also appears on the Istanbul Board')
+      toast.success('Posted — it also appears on the community Board')
       posthog.capture('club_conversation_created', { club: slug })
       setTitle(''); setBody(''); setOpen(false)
       // Refresh the list to include the new post with its server shape.

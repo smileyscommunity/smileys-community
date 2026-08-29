@@ -23,7 +23,7 @@ export const VISITOR_TRAVELER_TYPES = [
   { value: 'nomad',            label: 'Digital nomad'      },
   { value: 'business',         label: 'Business'           },
   { value: 'visiting_friends', label: 'Visiting friends'   },
-  { value: 'relocating',       label: 'Moving to Istanbul' },
+  { value: 'relocating',       label: 'Relocating'         },
   { value: 'exploring',        label: 'Just exploring'     },
 ] as const
 

@@ -137,6 +137,13 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // The Newsletter row has no cityId column, so a scheduled send can't carry
+  // the city scope — the sweeper would fire it to every city. Refuse the combo
+  // until a Newsletter.cityId migration makes scheduling city-aware.
+  if (sendCityId && scheduledFor && scheduledFor > new Date()) {
+    return NextResponse.json({ error: "City-scoped newsletters can't be scheduled yet — send now, or schedule without a city scope." }, { status: 400 })
+  }
+
   // For scheduled sends, persist and return early — the sweeper will fire it
   if (scheduledFor && scheduledFor > new Date()) {
     const newsletter = await prisma.newsletter.create({

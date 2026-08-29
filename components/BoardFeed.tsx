@@ -152,7 +152,7 @@ function Composer({ onPosted, prefillNeighborhood }: { onPosted: () => void; pre
 
   const PLACEHOLDER: Record<BoardPostType, string> = {
     question: 'What would you like help with?',
-    reco:     'Found a great quiet café for working in Kadıköy…',
+    reco:     'Found a great quiet café for working…',
     share:    'Share something useful with the community',
   }
 

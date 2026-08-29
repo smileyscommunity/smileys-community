@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
+import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
 
@@ -13,7 +14,11 @@ export async function POST(req: NextRequest) {
   const { title, location, vibes, clubName, notes } = await req.json()
   if (!title) return NextResponse.json({ error: 'Title is required' }, { status: 400 })
 
-  const prompt = `You are writing an event description for Smileys, a curated social community in Istanbul. Members are international and local, English-speaking, social, and looking for genuine connection through shared experiences.
+  // The generated copy is public — name the host's own city, not Istanbul.
+  const host = await prisma.user.findUnique({ where: { id: session.id }, select: { city: { select: { name: true } } } })
+  const cityName = host?.city.name
+
+  const prompt = `You are writing an event description for Smileys, a curated social community${cityName ? ` in ${cityName}` : ''}. Members are international and local, English-speaking, social, and looking for genuine connection through shared experiences.
 
 Write a compelling, warm event description in 3–4 short paragraphs (no headers, no bullet points). Use a friendly, energetic tone — not corporate, not cheesy. Mention specific details when given. End with a clear call to action like "Grab your spot" or "See you there".
 

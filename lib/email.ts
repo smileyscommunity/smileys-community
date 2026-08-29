@@ -388,7 +388,7 @@ export async function sendRequestMoreInfoEmail(email: string, name: string, mess
   })
 }
 
-export async function sendActivationEmail(email: string, name: string, token: string, welcomeMessage?: string) {
+export async function sendActivationEmail(email: string, name: string, token: string, welcomeMessage?: string, cityName?: string) {
   const url        = `${APP_URL}/activate?token=${token}`
   const firstName  = name.split(' ')[0]
   // Escape user-supplied welcomeMessage FIRST, then convert newlines to <br>.
@@ -414,7 +414,7 @@ export async function sendActivationEmail(email: string, name: string, token: st
           Set your password &amp; join →
         </a>
         <p style="color:#9ca3af;font-size:12px;text-align:center">
-          This link expires in 7 days. Istanbul's most curated community is waiting for you.
+          This link expires in 7 days. ${cityName ? `${esc(cityName)}'s` : "Your city's"} most curated community is waiting for you.
         </p>
       </div>
     `,
@@ -653,7 +653,7 @@ export async function sendNewDeviceLoginEmail(email: string, name: string, ip: s
         <a href="${APP_URL}/settings" style="display:block;text-align:center;background:#ef4444;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-top:20px">
           Secure my account →
         </a>
-        <p style="color:#9ca3af;font-size:12px;text-align:center;margin-top:16px">Smileys Community · Istanbul</p>
+        <p style="color:#9ca3af;font-size:12px;text-align:center;margin-top:16px">Smileys Community</p>
       </div>
     `,
   })
@@ -737,7 +737,7 @@ export async function sendBroadcastEmail(
     html: `
       <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto;background:#fff;border-radius:16px;padding:40px 32px;border:1px solid #e5e7eb">
         <div style="margin-bottom:28px">
-          <p style="margin:0;font-size:14px;color:#6b7280;white-space:nowrap"><span style="font-size:26px;vertical-align:-5px">😊</span>&nbsp;<strong style="color:#374151">Smileys&nbsp;Community</strong>&nbsp;·&nbsp;Istanbul</p>
+          <p style="margin:0;font-size:14px;color:#6b7280;white-space:nowrap"><span style="font-size:26px;vertical-align:-5px">😊</span>&nbsp;<strong style="color:#374151">Smileys&nbsp;Community</strong></p>
         </div>
         <h2 style="font-size:20px;font-weight:800;color:#111827;margin:0 0 20px">${esc(title)}</h2>
         <p style="margin:0 0 16px;color:#374151;font-size:14px">Hi ${esc(firstName)},</p>
@@ -775,6 +775,7 @@ export async function sendFirstEventNudgeEmail(
   email: string,
   name: string,
   ev: { id: string; title: string; date: string; time: string | null; neighborhood: string | null; emoji: string | null; attendees: number; isFirstTimerFriendly: boolean },
+  cityName?: string,
 ) {
   const unsub     = unsubscribeUrl(userId)
   const firstName = name.split(' ')[0]
@@ -786,7 +787,7 @@ export async function sendFirstEventNudgeEmail(
     subject: `${ev.emoji ? ev.emoji + ' ' : ''}${ev.title} — your first Smileys event?`,
     html: `
       <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto;background:#fff;border-radius:16px;padding:40px 32px;border:1px solid #e5e7eb">
-        <p style="margin:0 0 28px;font-size:14px;color:#6b7280"><span style="font-size:26px;vertical-align:-5px">😊</span>&nbsp;<strong style="color:#374151">Smileys&nbsp;Community</strong>&nbsp;·&nbsp;Istanbul</p>
+        <p style="margin:0 0 28px;font-size:14px;color:#6b7280"><span style="font-size:26px;vertical-align:-5px">😊</span>&nbsp;<strong style="color:#374151">Smileys&nbsp;Community</strong>${cityName ? `&nbsp;·&nbsp;${esc(cityName)}` : ''}</p>
         <h2 style="font-size:20px;font-weight:800;color:#111827;margin:0 0 16px">Your first Smileys event? 👋</h2>
         <p style="margin:0 0 8px;color:#374151;font-size:14px">Hi ${esc(firstName)},</p>
         <p style="margin:0 0 20px;color:#374151;font-size:14px;line-height:1.6">You joined Smileys but haven't been to an event yet — no pressure at all. Here's one we think would make a lovely first, close to you:</p>
@@ -915,7 +916,7 @@ function buildNewsletterPayload(userId: string, email: string, name: string, sub
       ${preheaderHtml}
       <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto;background:#fff;border-radius:16px;padding:40px 32px;border:1px solid #e5e7eb">
         <div style="margin-bottom:28px">
-          <p style="margin:0;font-size:14px;color:#6b7280;white-space:nowrap"><span style="font-size:26px;vertical-align:-5px">😊</span>&nbsp;<strong style="color:#374151">Smileys&nbsp;Community</strong>&nbsp;·&nbsp;Istanbul</p>
+          <p style="margin:0;font-size:14px;color:#6b7280;white-space:nowrap"><span style="font-size:26px;vertical-align:-5px">😊</span>&nbsp;<strong style="color:#374151">Smileys&nbsp;Community</strong></p>
         </div>
         <p style="margin:0 0 16px;color:#374151;font-size:14px">Hi ${firstName},</p>
         <div style="color:#374151;font-size:14px;line-height:1.6">${bodyHtml}</div>

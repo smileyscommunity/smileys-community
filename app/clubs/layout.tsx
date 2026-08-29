@@ -1,8 +1,10 @@
 import { headers } from 'next/headers'
+import type { Metadata } from 'next'
 import { jsonLdHtml } from '@/lib/jsonLd'
 import { APP_URL, SITE_URL } from '@/lib/env'
 import { prisma } from '@/lib/prisma'
-import { getDefaultCityId } from '@/lib/city'
+import { getSession } from '@/lib/session'
+import { getDefaultCityId, resolveCityId, getCityConfig, DEFAULT_CITY_SLUG } from '@/lib/city'
 import { resolveImageUrl } from '@/lib/data'
 
 // See app/about/page.tsx — a page-level `openGraph` block loses the root
@@ -14,22 +16,44 @@ import { resolveImageUrl } from '@/lib/data'
 // would letterbox it.
 const ogImage = `${APP_URL}/images/clubs-og.jpg`
 
-export const metadata = {
-  alternates: { canonical: `${APP_URL}/clubs` },
-  title: 'Clubs in Istanbul — Smileys Community',
-  description: 'Join interest-based clubs in Istanbul — hiking, photography, French conversation, sailing, book clubs and more. Find your people at Smileys.',
-  openGraph: {
-    title: 'Smileys Clubs — Find your people.',
-    description: "Whatever you're into, there's probably someone in Istanbul who's into it too.",
-    url: `${APP_URL}/clubs`,
-    images: [{ url: ogImage, width: 1200, height: 1200, alt: 'Smileys Clubs — do more, meet more, live more' }],
-  },
-  twitter: {
-    card: 'summary',
-    title: 'Smileys Clubs — Find your people.',
-    description: "Whatever you're into, there's probably someone in Istanbul who's into it too.",
-    images: [ogImage],
-  },
+// Names the city whose clubs you're actually being shown (same pattern as
+// app/directory/layout.tsx): the clubs grid scopes per city, so an Izmir
+// member browsing here shouldn't do it under a title reading "in Istanbul".
+//
+// The DEFAULT city keeps its exact indexed strings — this page is indexed
+// under "clubs in Istanbul", and rewording a title Google already has costs
+// something for nothing. Crawlers carry no cookie, so they resolve to the
+// default city and see precisely what they see today. (The JSON-LD below
+// deliberately stays default-city — see the comment in ClubsLayout.)
+export async function generateMetadata(): Promise<Metadata> {
+  const cfg       = await getCityConfig(await resolveCityId(await getSession()))
+  const name      = cfg.name
+  const isDefault = cfg.slug === DEFAULT_CITY_SLUG
+  const title     = `Clubs in ${name} — Smileys Community`
+  const desc      = isDefault
+    ? 'Join interest-based clubs in Istanbul — hiking, photography, French conversation, sailing, book clubs and more. Find your people at Smileys.'
+    : `Join interest-based clubs in ${name} — hiking, photography, language conversation, book clubs and more. Find your people at Smileys.`
+  const ogDesc    = isDefault
+    ? "Whatever you're into, there's probably someone in Istanbul who's into it too."
+    : `Whatever you're into, there's probably someone in ${name} who's into it too.`
+
+  return {
+    alternates: { canonical: `${APP_URL}/clubs` },
+    title,
+    description: desc,
+    openGraph: {
+      title: 'Smileys Clubs — Find your people.',
+      description: ogDesc,
+      url: `${APP_URL}/clubs`,
+      images: [{ url: ogImage, width: 1200, height: 1200, alt: 'Smileys Clubs — do more, meet more, live more' }],
+    },
+    twitter: {
+      card: 'summary',
+      title: 'Smileys Clubs — Find your people.',
+      description: ogDesc,
+      images: [ogImage],
+    },
+  }
 }
 
 // Same script-tag escaping used by every other JSON-LD block in the app.

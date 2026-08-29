@@ -1,4 +1,7 @@
+import type { Metadata } from 'next'
 import { APP_URL } from '@/lib/env'
+import { getSession } from '@/lib/session'
+import { resolveCityId, getCityConfig, DEFAULT_CITY_SLUG } from '@/lib/city'
 
 // See app/about/page.tsx for why this is needed — a page-level `openGraph`
 // block loses the root layout's default og:image, so /events shared with
@@ -10,23 +13,44 @@ import { APP_URL } from '@/lib/env'
 // where 'summary_large_image' would letterbox it.
 const ogImage = `${APP_URL}/images/events-og.jpg`
 
-export const metadata = {
-  // Safe now that events/[id] sets its own canonical (overrides this one).
-  alternates: { canonical: `${APP_URL}/events` },
-  title: 'Events in Istanbul — Smileys Community',
-  description: 'Discover curated social events in Istanbul — dinners, photowalks, sailing trips, language meetups and more. Join Smileys and find your next experience.',
-  openGraph: {
-    title: 'Smileys Events — Find something worth showing up for.',
-    description: 'Meet people, try something new and experience Istanbul together.',
-    url: `${APP_URL}/events`,
-    images: [{ url: ogImage, width: 1200, height: 1200, alt: 'Smileys Events — every week, new experiences, lasting memories' }],
-  },
-  twitter: {
-    card: 'summary',
-    title: 'Smileys Events — Find something worth showing up for.',
-    description: 'Meet people, try something new and experience Istanbul together.',
-    images: [ogImage],
-  },
+// Names the city whose events you're actually being shown (same pattern as
+// app/directory/layout.tsx): the events list scopes per city, so an Izmir
+// member browsing here shouldn't do it under a title reading "in Istanbul".
+//
+// The DEFAULT city keeps its exact indexed strings — this page is indexed
+// under "events in Istanbul", and rewording a title Google already has costs
+// something for nothing. Crawlers carry no cookie, so they resolve to the
+// default city and see precisely what they see today.
+export async function generateMetadata(): Promise<Metadata> {
+  const cfg       = await getCityConfig(await resolveCityId(await getSession()))
+  const name      = cfg.name
+  const isDefault = cfg.slug === DEFAULT_CITY_SLUG
+  const title     = `Events in ${name} — Smileys Community`
+  const desc      = isDefault
+    ? 'Discover curated social events in Istanbul — dinners, photowalks, sailing trips, language meetups and more. Join Smileys and find your next experience.'
+    : `Discover curated social events in ${name} — dinners, photowalks, language meetups and more. Join Smileys and find your next experience.`
+  const ogDesc    = isDefault
+    ? 'Meet people, try something new and experience Istanbul together.'
+    : `Meet people, try something new and experience ${name} together.`
+
+  return {
+    // Safe now that events/[id] sets its own canonical (overrides this one).
+    alternates: { canonical: `${APP_URL}/events` },
+    title,
+    description: desc,
+    openGraph: {
+      title: 'Smileys Events — Find something worth showing up for.',
+      description: ogDesc,
+      url: `${APP_URL}/events`,
+      images: [{ url: ogImage, width: 1200, height: 1200, alt: 'Smileys Events — every week, new experiences, lasting memories' }],
+    },
+    twitter: {
+      card: 'summary',
+      title: 'Smileys Events — Find something worth showing up for.',
+      description: ogDesc,
+      images: [ogImage],
+    },
+  }
 }
 
 export default function EventsLayout({ children }: { children: React.ReactNode }) {

@@ -115,7 +115,9 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const when        = `📅 ${formatDate(event.date)} · ${formatTime(event.time)}${event.neighborhood ? ` · ${event.neighborhood}` : ''}`
   const plainDesc   = event.description
     ? event.description.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
-    : `Join us at Smileys Community Istanbul`
+    // City-fetch only on the fallback path — described events (the vast
+    // majority) never pay for it.
+    : `Join us at Smileys Community ${event.cityId ? (await getCityConfig(event.cityId)).name : 'Istanbul'}`
   const description = `${when} — ${plainDesc}`.slice(0, 155)
   const imageUrl    = absoluteImageUrl(event.coverImage, event.title)
   const pageUrl     = `${APP_URL}/events/${id}`
@@ -242,7 +244,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
               <div className="space-y-2 text-sm text-gray-600">
                 <div className="flex items-center gap-2.5">
                   <span className="text-base">📅</span>
-                  <span className="font-medium">{formatDate(event.date)} · {formatTime(event.time)} · Istanbul time</span>
+                  <span className="font-medium">{formatDate(event.date)} · {formatTime(event.time)} · {cityName} time</span>
                 </div>
                 <div className="flex items-center gap-2.5">
                   <span className="text-base">📍</span>
@@ -410,10 +412,10 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
   // neighborhood (same fallback hangouts use).
   const mapsHref      = event.meetingUrl
     ?? (event.address
-      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.address + ', Istanbul')}`
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.address + ', ' + cityName)}`
       : hasCoords
       ? `https://www.google.com/maps/search/?api=1&query=${event.lat},${event.lng}`
-      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([event.location, event.neighborhood, 'Istanbul'].filter(Boolean).join(', '))}`)
+      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([event.location, event.neighborhood, cityName].filter(Boolean).join(', '))}`)
 
   const fillPercent = event.totalSpots > 0 ? (totalAttendeeCount / event.totalSpots) * 100 : 0
   const canSeeLocation = true
@@ -586,7 +588,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
             <div className="space-y-2.5">
               <div className="flex items-center gap-2.5 text-sm text-gray-600">
                 <span className="text-base">📅</span>
-                <span className="font-medium">{formatDate(event.date)} · {formatTime(event.time)} · Istanbul time</span>
+                <span className="font-medium">{formatDate(event.date)} · {formatTime(event.time)} · {cityName} time</span>
               </div>
               {event.price > 0 && (
                 <div className="flex items-center gap-2.5 text-sm text-gray-600">
@@ -1064,7 +1066,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
           {/* Similar events — placed after member-generated content
               so "you might also like…" doesn't interrupt the
               Reviews → Discussion flow. */}
-          <SimilarEvents eventId={event.id} vibes={event.vibes ?? []} neighborhood={event.neighborhood} date={event.date} />
+          {event.cityId && <SimilarEvents eventId={event.id} vibes={event.vibes ?? []} neighborhood={event.neighborhood} date={event.date} cityId={event.cityId} />}
 
           {/* Report */}
           <div className="flex justify-center pt-2 pb-6">

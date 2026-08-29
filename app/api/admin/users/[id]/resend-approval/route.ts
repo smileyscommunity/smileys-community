@@ -18,7 +18,7 @@ export async function POST(_: NextRequest, { params }: Params) {
     const { id } = await params
     const user = await prisma.user.findUnique({
       where: { id },
-      select: { id: true, name: true, email: true, password: true, status: true },
+      select: { id: true, name: true, email: true, password: true, status: true, city: { select: { name: true } } },
     })
 
     if (!user) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -34,7 +34,7 @@ export async function POST(_: NextRequest, { params }: Params) {
     // Email plaintext, store hash — see lib/tokenHash.ts.
     await prisma.passwordResetToken.create({ data: { userId: id, token: hashToken(token), expiresAt } })
 
-    await sendActivationEmail(user.email, user.name ?? 'Member', token)
+    await sendActivationEmail(user.email, user.name ?? 'Member', token, undefined, user.city.name)
 
     return NextResponse.json({ ok: true })
   } catch (e) {

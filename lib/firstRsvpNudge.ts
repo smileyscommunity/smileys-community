@@ -10,7 +10,7 @@ import { sendFirstEventNudgeEmail } from './email'
 
 type Candidate = {
   id: string; title: string; date: string; time: string | null; neighborhood: string | null
-  emoji: string | null; isFirstTimerFriendly: boolean; isPremium: boolean
+  cityId: string; emoji: string | null; isFirstTimerFriendly: boolean; isPremium: boolean
   limitedSpots: boolean; spotsLeft: number; attendees: number
 }
 
@@ -142,7 +142,7 @@ export async function runFirstRsvpNudge(opts: { dryRun?: boolean; limit?: number
   const to   = istanbulDateStr(21)
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000)
 
-  const [members, rawEvents] = await Promise.all([
+  const [members, rawEvents, cities] = await Promise.all([
     prisma.user.findMany({
       where: {
         status: 'approved',
@@ -151,22 +151,24 @@ export async function runFirstRsvpNudge(opts: { dryRun?: boolean; limit?: number
         joinedEvents: { none: {} },                                              // never RSVP'd
         OR: [{ firstRsvpNudgedAt: null }, { firstRsvpNudgedAt: { lt: thirtyDaysAgo } }], // not nudged in 30d
       },
-      select: { id: true, name: true, neighborhood: true, email: true, interests: true },
+      select: { id: true, name: true, neighborhood: true, cityId: true, email: true, interests: true },
     }),
     prisma.event.findMany({
       where: { status: 'published', date: { gte: from, lte: to } },
       select: {
-        id: true, title: true, date: true, time: true, neighborhood: true, emoji: true,
+        id: true, title: true, date: true, time: true, neighborhood: true, cityId: true, emoji: true,
         isFirstTimerFriendly: true, isPremium: true, limitedSpots: true, spotsLeft: true,
         _count: { select: { attendees: { where: { status: 'approved' } } } },
       },
     }),
+    prisma.city.findMany({ select: { id: true, name: true } }),
   ])
+  const cityName = new Map(cities.map(c => [c.id, c.name]))
 
   const candidates: Candidate[] = rawEvents
     .map(e => ({
       id: e.id, title: e.title, date: e.date, time: e.time, neighborhood: e.neighborhood,
-      emoji: e.emoji, isFirstTimerFriendly: e.isFirstTimerFriendly, isPremium: e.isPremium,
+      cityId: e.cityId, emoji: e.emoji, isFirstTimerFriendly: e.isFirstTimerFriendly, isPremium: e.isPremium,
       limitedSpots: e.limitedSpots, spotsLeft: e.spotsLeft, attendees: e._count.attendees,
     }))
     .filter(e => (!e.limitedSpots || e.spotsLeft > 0) && e.attendees >= 1)   // room + ≥1 going
@@ -178,6 +180,7 @@ export async function runFirstRsvpNudge(opts: { dryRun?: boolean; limit?: number
   const matches: { member: typeof members[number]; ev: Candidate; sameHood: boolean }[] = []
   for (const m of members) {
     const ranked = candidates
+      .filter(ev => ev.cityId === m.cityId)     // never suggest another city's event
       .map(ev => {
         const base = score(ev, m.neighborhood, dayIndex(ev.date))
         return { ev, sc: base === null ? null : base + interestBoost(m.interests, ev.title) }
@@ -240,7 +243,7 @@ export async function runFirstRsvpNudge(opts: { dryRun?: boolean; limit?: number
       await sendFirstEventNudgeEmail(x.member.id, x.member.email!, x.member.name, {
         id: x.ev.id, title: x.ev.title, date: x.ev.date, time: x.ev.time, neighborhood: x.ev.neighborhood,
         emoji: x.ev.emoji, attendees: x.ev.attendees, isFirstTimerFriendly: x.ev.isFirstTimerFriendly,
-      })
+      }, cityName.get(x.member.cityId))
       await prisma.user.update({ where: { id: x.member.id }, data: { firstRsvpNudgedAt: new Date() } })
       result.emailed++
     } catch {

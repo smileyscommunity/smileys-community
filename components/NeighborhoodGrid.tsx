@@ -207,7 +207,7 @@ function NeighborhoodCard({ n, cardBg, cardBorder }: { n: NeighborhoodItem; card
 }
 
 // ── Main grid ─────────────────────────────────────────────────────────────────
-export default function NeighborhoodGrid({ groups, userNeighborhood }: { groups: Group[]; userNeighborhood?: string | null }) {
+export default function NeighborhoodGrid({ groups, userNeighborhood, mapCenter }: { groups: Group[]; userNeighborhood?: string | null; mapCenter?: [number, number] | null }) {
   const [query,      setQuery]      = useState('')
   const [activeSide, setActiveSide] = useState<string | null>(null)
   const [view,       setView]       = useState<'cards' | 'map'>('cards')
@@ -354,7 +354,7 @@ export default function NeighborhoodGrid({ groups, userNeighborhood }: { groups:
           switch, not an extra panel to scroll past. */}
       {view === 'map' ? (
         <div>
-          <NeighborhoodsMapView points={mapPoints} />
+          <NeighborhoodsMapView points={mapPoints} center={mapCenter} />
           <p className="text-xs text-gray-400 mt-3">
             Showing {mapPoints.length} neighborhoods with members or upcoming events.
             Markers are neighborhood centres — never a member&apos;s location.

@@ -26,7 +26,7 @@ export async function generateMetadata(
   const { id } = await params
   const member = await prisma.user.findUnique({
     where:  { id, status: 'approved' },
-    select: { name: true, bio: true, neighborhood: true, profilePhoto: true },
+    select: { name: true, bio: true, neighborhood: true, profilePhoto: true, city: { select: { name: true } } },
   })
   if (!member) return {}
 
@@ -34,8 +34,8 @@ export async function generateMetadata(
   const description = member.bio
     ? member.bio.slice(0, 155)
     : member.neighborhood
-    ? `${member.name} is a Smileys member in ${member.neighborhood}, Istanbul.`
-    : `${member.name} is a member of Smileys Community Istanbul.`
+    ? `${member.name} is a Smileys member in ${member.neighborhood}, ${member.city.name}.`
+    : `${member.name} is a member of Smileys Community ${member.city.name}.`
   const imageUrl = absoluteOgImage(member.profilePhoto) ?? `${APP_URL}/api/og`
   const pageUrl  = `${APP_URL}/members/${id}`
 

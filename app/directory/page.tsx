@@ -312,7 +312,7 @@ function DirectoryPageInner() {
   // The city this directory resolved to (the API follows the view-city
   // cookie). Drives the header copy and the "back to my city" switch —
   // same pattern as the clubs page.
-  const [viewCity, setViewCity] = useState<{ name: string; slug: string; isDefault: boolean; viewing?: boolean; homeName?: string | null } | null>(null)
+  const [viewCity, setViewCity] = useState<{ name: string; slug: string; isDefault: boolean; viewing?: boolean; homeName?: string | null; lat?: number | null; lng?: number | null } | null>(null)
   useEffect(() => {
     fetch('/app/api/city/current', { credentials: 'include' })
       .then(r => r.json())
@@ -568,6 +568,7 @@ function DirectoryPageInner() {
               avgRating: b.avgRating, reviewCount: b.reviewCount,
             }))}
             onPinClick={onPinClick}
+            defaultCenter={viewCity?.lat != null && viewCity?.lng != null ? [viewCity.lat, viewCity.lng] : null}
           />
         ) : (
           <>

@@ -405,6 +405,10 @@ export default async function HandbookPage() {
         </section>
       )}
       {(() => {
+        // DEFAULT-CITY ONLY, same rule as startHere above: city-guide.json
+        // is Istanbul's link pack, so rendering it under "functioning in
+        // İzmir" would be a lie. Per-city quick reference is the follow-up.
+        if (!city.isDefault) return null
         const quickRef = loadQuickReference()
         if (quickRef.length === 0) return null
         return (

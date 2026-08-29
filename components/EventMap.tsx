@@ -12,6 +12,10 @@ interface Props {
   selectedId: string | null
   onSelect: (id: string) => void
   attendance: Record<string, 'joined' | 'pending' | 'waitlisted'>
+  // Where the map opens when there are no pins to frame — the viewed city's
+  // centre. Optional: without it (or with a city missing coordinates) the
+  // map falls back to Istanbul, the pre-multi-city behavior.
+  defaultCenter?: { lat: number; lng: number } | null
 }
 
 interface HoveredPin {
@@ -20,7 +24,7 @@ interface HoveredPin {
   y: number
 }
 
-export default function EventMap({ events, selectedId, onSelect, attendance }: Props) {
+export default function EventMap({ events, selectedId, onSelect, attendance, defaultCenter }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef       = useRef<any>(null)
   const markersRef   = useRef<any[]>([])
@@ -38,8 +42,9 @@ export default function EventMap({ events, selectedId, onSelect, attendance }: P
     async function init() {
       L = await import('leaflet')
 
+      const center = defaultCenter ?? ISTANBUL
       map = L.map(containerRef.current!, {
-        center: [ISTANBUL.lat, ISTANBUL.lng],
+        center: [center.lat, center.lng],
         zoom: 12,
         zoomControl: true,
         attributionControl: true,
@@ -70,6 +75,14 @@ export default function EventMap({ events, selectedId, onSelect, attendance }: P
       }
     }
   }, [])
+
+  // The city (and its centre) arrives from an async fetch, usually after the
+  // map has initialised — recenter a pinless map when it lands. A map with
+  // pins keeps its fitBounds frame.
+  useEffect(() => {
+    if (!ready || !mapRef.current || !defaultCenter || mappable.length > 0) return
+    mapRef.current.setView([defaultCenter.lat, defaultCenter.lng], 12)
+  }, [ready, defaultCenter, mappable.length])
 
   // Sync markers when events or selected changes
   useEffect(() => {

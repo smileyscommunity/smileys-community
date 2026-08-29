@@ -7,13 +7,17 @@ interface Props {
   vibes: string[]
   neighborhood: string
   date: string
+  cityId: string
 }
 
-export default async function SimilarEvents({ eventId, vibes, neighborhood, date }: Props) {
+export default async function SimilarEvents({ eventId, vibes, neighborhood, date, cityId }: Props) {
   const events = await prisma.event.findMany({
     where: {
       id:     { not: eventId },
       status: 'published',
+      // Same city only — neighborhood/vibe matches are meaningless (and
+      // confusing) across cities.
+      cityId,
       date:   { gte: date },
       OR: [
         { neighborhood },

@@ -213,14 +213,14 @@ function NewListingPageInner() {
               onChange={e => setTitle(e.target.value)}
               maxLength={120}
               placeholder={
-                category === 'ROOMS'    ? 'e.g. Furnished room in Kadıköy, €400/mo' :
+                category === 'ROOMS'    ? 'e.g. Furnished room near the centre, €400/mo' :
                 category === 'JOBS'     ? 'e.g. Looking for a React developer' :
                 category === 'SERVICES' ? 'e.g. English/Spanish tutoring, photography, design...' :
-                category === 'FREE'     ? 'e.g. IKEA desk — free, pick up in Beşiktaş' :
-                category === 'RECO'     ? 'e.g. Best English-speaking dentist in Kadıköy?' :
+                category === 'FREE'     ? 'e.g. IKEA desk — free, pick up from my place' :
+                category === 'RECO'     ? 'e.g. Best English-speaking dentist in town?' :
                 category === 'PETS'        ? 'e.g. 2-year-old tabby cat looking for a loving home' :
-                category === 'LOST_FOUND'  ? 'e.g. Lost black wallet near Kadıköy market on Saturday' :
-                category === 'EXPERIENCES' ? 'e.g. Spare ticket to Coldplay Istanbul, selling at face value' :
+                category === 'LOST_FOUND'  ? 'e.g. Lost black wallet at the market on Saturday' :
+                category === 'EXPERIENCES' ? 'e.g. Spare concert ticket, selling at face value' :
                 'e.g. iPhone 13 Pro — great condition'
               }
               className="input"

@@ -20,6 +20,7 @@ interface Visitor {
 
 interface Props {
   visitors: Visitor[]
+  cityName: string
 }
 
 function formatRange(startsOn: string, endsOn: string) {
@@ -49,7 +50,7 @@ function ViewProfileLink({ targetUserId }: { targetUserId: string }) {
 // Visitors this week — surfaces /visiting on the dashboard. Renders nothing
 // when there are no upcoming visitors so empty days don't get a
 // hollow widget; the strip earns its real estate by content alone.
-export default function DashboardVisitorsStrip({ visitors }: Props) {
+export default function DashboardVisitorsStrip({ visitors, cityName }: Props) {
   if (visitors.length === 0) return null
 
   return (
@@ -57,7 +58,7 @@ export default function DashboardVisitorsStrip({ visitors }: Props) {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-sm font-bold text-gray-900">Visitors this week 👋</h2>
-          <p className="text-xs text-gray-400 mt-0.5">Members passing through Istanbul — say hello before they arrive.</p>
+          <p className="text-xs text-gray-400 mt-0.5">Members passing through {cityName} — say hello before they arrive.</p>
         </div>
         <Link href="/visiting" className="text-xs font-bold text-amber-600 hover:underline shrink-0">View all →</Link>
       </div>

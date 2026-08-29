@@ -148,7 +148,7 @@ export async function POST(req: NextRequest) {
       const loginTime = new Date().toLocaleString('en-GB', { timeZone: 'Europe/Istanbul', dateStyle: 'medium', timeStyle: 'short' })
       // EM5 fix: new-device email is a security signal — silent
       // SMTP failure means a compromised login goes un-noticed.
-      sendNewDeviceLoginEmail(user.email, user.name, loginIp, `${loginTime} Istanbul`)
+      sendNewDeviceLoginEmail(user.email, user.name, loginIp, `${loginTime} (Türkiye)`)
         .catch(async err => {
           console.error('[auth login] sendNewDeviceLoginEmail failed', { userId: user.id, loginIp, err: String(err) })
           await recordEmailFailure({ helper: 'sendNewDeviceLoginEmail', recipient: user.email, error: err, context: { userId: user.id, loginIp } })

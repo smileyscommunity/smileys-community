@@ -143,7 +143,7 @@ export async function GET(req: Request) {
               marginBottom: '40px',
             }}
           >
-            Istanbul&apos;s curated social community
+            Curated city communities
           </div>
           <div
             style={{

@@ -677,7 +677,8 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
         <section id="explore" className="scroll-mt-20">
           <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900">Explore {city.name}</h2>
           <p className="text-gray-600 mt-1.5 mb-6">Every neighborhood has its own rhythm. Find yours.</p>
-          <NeighborhoodGrid groups={groups} userNeighborhood={userNeighborhood} />
+          <NeighborhoodGrid groups={groups} userNeighborhood={userNeighborhood}
+            mapCenter={city.lat != null && city.lng != null ? [city.lat, city.lng] : null} />
         </section>
 
         {/* ── Local favorites (§8) ── */}

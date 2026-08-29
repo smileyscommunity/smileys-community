@@ -42,7 +42,7 @@ export default function PrivacyPage() {
         </div>
 
         <Section title="1. Who we are">
-          <p>Smileys Community ("Smileys", "we", "us", "our") is a company incorporated in New Jersey, United States. We operate a curated social platform that organises events, interest-based clubs, and community experiences for expats and global professionals in cities around the world. We currently operate in Istanbul, Turkey, with plans to expand to additional cities.</p>
+          <p>Smileys Community ("Smileys", "we", "us", "our") is a company incorporated in New Jersey, United States. We operate a curated social platform that organises events, interest-based clubs, and community experiences for expats and global professionals in cities around the world. We currently operate in Türkiye (Istanbul, Bodrum and İzmir), with plans to expand to additional cities.</p>
           <p>Our members come from over 45 countries, including European Union member states. Because we actively serve EU residents, we are subject to the EU General Data Protection Regulation (GDPR) in addition to applicable US law.</p>
           <p>You can reach us through our <Link href="/contact" className="text-amber-600 hover:underline">contact page</Link>.</p>
         </Section>

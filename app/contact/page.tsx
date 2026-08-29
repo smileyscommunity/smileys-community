@@ -226,7 +226,7 @@ export default function ContactPage() {
                 <div className="text-2xl mb-3">🎉</div>
                 <h3 className="font-bold mb-2">Not a member yet?</h3>
                 <p className="text-sm text-gray-400 mb-4">
-                  Join Istanbul's most vibrant social community. Apply today.
+                  Join the most vibrant social community in your city. Apply today.
                 </p>
                 <Link href="/apply"
                   className="block text-center py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors">

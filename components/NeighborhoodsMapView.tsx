@@ -18,7 +18,11 @@ export interface MapPoint {
 // member record. No member position is plotted, derived or approximated,
 // which is the whole reason this takes MapPoint rather than a user list:
 // there is no shape of data reaching this component that could leak one.
-export default function NeighborhoodsMapView({ points }: { points: MapPoint[] }) {
+//
+// `center` (the viewed city's centre) decides where a pointless map opens;
+// without it — or for a city missing coordinates — the Istanbul default
+// below stands. Pins always win: fitBounds overrides the initial view.
+export default function NeighborhoodsMapView({ points, center }: { points: MapPoint[]; center?: [number, number] | null }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef       = useRef<Map | null>(null)
 
@@ -38,7 +42,7 @@ export default function NeighborhoodsMapView({ points }: { points: MapPoint[] })
         shadowUrl:     'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
       })
 
-      const map = L.map(containerRef.current).setView([41.02, 28.98], 11)
+      const map = L.map(containerRef.current).setView(center ?? [41.02, 28.98], 11)
       mapRef.current = map
 
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -73,7 +77,7 @@ export default function NeighborhoodsMapView({ points }: { points: MapPoint[] })
     })
 
     return () => { mapRef.current?.remove(); mapRef.current = null }
-  }, [points])
+  }, [points, center])
 
   return <div ref={containerRef} className="w-full h-[420px] sm:h-[520px] rounded-2xl overflow-hidden z-0" />
 }

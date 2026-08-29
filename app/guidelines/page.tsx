@@ -63,7 +63,7 @@ export default function GuidelinesPage() {
         <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5 mb-10 text-sm text-amber-800 leading-relaxed">
           <p className="font-semibold mb-1">The short version</p>
           <p>
-            Smileys is a curated community for people building real friendships in Istanbul.
+            Smileys is a curated community for people building real friendships in our cities.
             Be kind, be honest, show up when you say you will, and treat every member like
             someone you might meet for coffee tomorrow — because you probably will. These
             guidelines exist so the rare bad actor doesn't ruin it for everyone else.

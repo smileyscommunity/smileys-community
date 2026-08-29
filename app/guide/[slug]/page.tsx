@@ -11,6 +11,8 @@ import { notFound } from 'next/navigation'
 import { collectionsFor } from '@/lib/guide'
 import { loadExperiences, getExperienceAnyCity } from '@/lib/guideContent'
 import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
+import { getCityConfig } from '@/lib/city'
+import { todayInTz } from '@/lib/cityTime'
 import { APP_URL } from '@/lib/env'
 import { prisma } from '@/lib/prisma'
 import ExperienceActions from './ExperienceActions'
@@ -64,17 +66,28 @@ export default async function ExperiencePage({ params }: { params: Promise<{ slu
 
   // §15 — upcoming events in this experience's neighborhoods. Public
   // data, refreshed with the page's ISR window; empty renders nothing.
-  const today = new Date().toISOString().split('T')[0]
+  // Scoped to the owning city: neighborhood names repeat across cities
+  // (Göztepe exists in both Istanbul and İzmir), and "today" is the owning
+  // city's calendar day, not UTC's.
+  const cityCfg = await getCityConfig(cityId)
+  const today = todayInTz(cityCfg.timezone)
   const matchedEvents = nearby.length > 0 ? await prisma.event.findMany({
-    where:   { status: 'published', date: { gte: today }, neighborhood: { in: nearby } },
+    where:   { status: 'published', cityId, date: { gte: today }, neighborhood: { in: nearby } },
     select:  { id: true, title: true, emoji: true, date: true, neighborhood: true },
     orderBy: { date: 'asc' },
     take:    3,
   }) : []
   // §19 — clubs relevant to this experience, validated against the DB so
-  // a renamed club silently drops instead of 404ing.
+  // a renamed club silently drops instead of 404ing. Active clubs of the
+  // owning city only (global clubs included per its showGlobalClubs, same
+  // rule as lib/db.ts) — the slug list alone would happily link another
+  // city's club.
   const matchedClubs = exp.clubs?.length ? await prisma.club.findMany({
-    where:  { slug: { in: exp.clubs } },
+    where:  {
+      slug:     { in: exp.clubs },
+      isActive: true,
+      ...(cityCfg.showGlobalClubs ? { OR: [{ cityId }, { cityId: null }] } : { cityId }),
+    },
     select: { slug: true, name: true, emoji: true, memberCount: true },
   }) : []
 

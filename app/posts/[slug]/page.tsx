@@ -282,7 +282,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
         {/* CTA */}
         <div className="mt-16 p-8 bg-amber-500 rounded-2xl text-center">
           <p className="text-white font-extrabold text-xl mb-2">Ready to experience this?</p>
-          <p className="text-amber-100 text-sm mb-5">Join Smileys and become part of Istanbul's most vibrant social community.</p>
+          <p className="text-amber-100 text-sm mb-5">Join Smileys and become part of the most vibrant social community in your city.</p>
           <div className="flex items-center justify-center gap-3 flex-wrap">
             <Link href="/apply" className="px-6 py-2.5 rounded-xl bg-white text-amber-600 font-bold text-sm hover:bg-amber-50 transition-colors">
               Apply to join

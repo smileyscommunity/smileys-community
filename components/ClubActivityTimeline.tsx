@@ -207,6 +207,7 @@ interface Props {
   cupPicks?:     CupPick[]
   cupDonations?: CupDonation[]
   articles?:     NewArticle[]
+  cityName:      string
   cap?:          number
 }
 
@@ -260,7 +261,7 @@ function Avatar({ name, color }: { name: string; color: string }) {
   )
 }
 
-export default function ClubActivityTimeline({ members, posts, events, photos = [], rsvps = [], newMembers = [], hangouts = [], pulses = [], connections = [], references = [], newClubs = [], listings = [], businesses = [], eventReviews = [], placeReviews = [], visitors = [], hangoutJoins = [], hoodPosts = [], resources = [], testimonials = [], cupPicks = [], cupDonations = [], articles = [], cap = 6 }: Props) {
+export default function ClubActivityTimeline({ members, posts, events, photos = [], rsvps = [], newMembers = [], hangouts = [], pulses = [], connections = [], references = [], newClubs = [], listings = [], businesses = [], eventReviews = [], placeReviews = [], visitors = [], hangoutJoins = [], hoodPosts = [], resources = [], testimonials = [], cupPicks = [], cupDonations = [], articles = [], cityName, cap = 6 }: Props) {
   const merged: TimelineItem[] = [
     ...members    .map(m => ({ kind: 'member'     as const, ts: new Date(m.joinedAt).getTime(),   data: m })),
     ...posts      .map(p => ({ kind: 'post'       as const, ts: new Date(p.createdAt).getTime(),  data: p })),
@@ -519,7 +520,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                 </div>
                 <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
                   <span className="font-semibold">{name.split(' ')[0]}</span>
-                  {' is visiting Istanbul'}
+                  {' is visiting ' + cityName}
                   {fromCity && <span className="text-gray-500"> · from {fromCity}</span>}
                 </p>
                 <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
