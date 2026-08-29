@@ -14,17 +14,22 @@ import { searchHandbook, type HandbookSearchItem } from '@/lib/handbook-search'
 // Handbook can't answer yet are supposed to go.
 
 // Suggestion chips double as example queries (what CAN I search for?) and as
-// one-tap searches on mobile. Kept to terms that actually hit today's corpus.
-const SUGGESTIONS = ['Istanbulkart', 'Residence permit', 'Bank account', 'Doctor', 'Rent', 'Scams']
+// one-tap searches on mobile. The Handbook is per-city now, so "hits today's
+// corpus" is enforced rather than hoped: each candidate is run against the
+// index this city actually passed down, and a chip that would land on the
+// empty state never renders — Istanbulkart doesn't appear on İzmir's
+// handbook, İzmirim Kart doesn't appear on Istanbul's.
+const CHIP_CANDIDATES = ['Istanbulkart', 'İzmirim Kart', 'Residence permit', 'Bank account', 'Doctor', 'Rent', 'Scams']
 
 export default function HandbookSearch({ items }: { items: HandbookSearchItem[] }) {
   const [query, setQuery] = useState('')
   const results = useMemo(() => searchHandbook(items, query), [items, query])
+  const suggestions = useMemo(() => CHIP_CANDIDATES.filter(s => searchHandbook(items, s).length > 0), [items])
   const showEmpty = query.trim().length > 0 && results.length === 0
 
   return (
     <div>
-      <label htmlFor="handbook-search" className="sr-only">Search the Istanbul Handbook</label>
+      <label htmlFor="handbook-search" className="sr-only">Search the Handbook</label>
       <div className="relative">
         <span aria-hidden="true" className="absolute left-4 top-1/2 -translate-y-1/2 text-lg">🔍</span>
         <input
@@ -41,7 +46,7 @@ export default function HandbookSearch({ items }: { items: HandbookSearchItem[] 
       {/* Chips stay visible while typing so a dead-end query has an obvious
           recovery path one tap away. */}
       <div className="flex flex-wrap gap-1.5 mt-3">
-        {SUGGESTIONS.map(s => (
+        {suggestions.map(s => (
           <button key={s} type="button" onClick={() => setQuery(s)}
             className="px-3 py-1 rounded-full bg-gray-100 hover:bg-amber-100 text-xs font-semibold text-gray-600 hover:text-amber-700 transition-colors">
             {s}
