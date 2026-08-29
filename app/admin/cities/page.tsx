@@ -24,6 +24,10 @@ interface City {
   isDefault: boolean
   currency: string; defaultLang: string; status: string; clubCount: number; hosts: CityHost[]
   neighborhoodCount: number
+  // Launch inventory — what the city's shopfront actually holds. Zeroes are
+  // the signal: a live city with 0 upcoming events needs a person's attention.
+  memberCount: number; upcomingEventCount: number
+  guidePublished: number; guideDraft: number; handbookCount: number
   // Derived from the same counts the go-live gate checks — the panel shows
   // the path to live instead of the gate's rejection being the first signal.
   readiness: { clubs: boolean; hosts: boolean; neighborhoods: boolean }
@@ -408,6 +412,21 @@ export default function AdminCitiesPage() {
                   className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-amber-400 transition-colors disabled:opacity-40">
                   {launching === city.id ? 'Launching…' : 'Launch starter clubs'}
                 </button>
+              </div>
+
+              {/* Launch inventory — what the shopfront actually holds, beyond
+                  the gate's three booleans. Zeros render amber: a live city
+                  with 0 upcoming events needs a person's attention. */}
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-zinc-500">
+                <span>👥 <strong className={city.memberCount === 0 ? 'text-amber-400' : 'text-zinc-200'}>{city.memberCount.toLocaleString()}</strong> members</span>
+                <Link href="/admin/events" className="hover:text-zinc-300 transition-colors">
+                  📅 <strong className={city.upcomingEventCount === 0 ? 'text-amber-400' : 'text-zinc-200'}>{city.upcomingEventCount}</strong> upcoming
+                </Link>
+                <Link href={`/admin/guide-entries?city=${city.slug}`} className="hover:text-zinc-300 transition-colors">
+                  🗺️ <strong className={city.guidePublished === 0 ? 'text-amber-400' : 'text-zinc-200'}>{city.guidePublished}</strong> guide
+                  {city.guideDraft > 0 && <span className="text-amber-400"> ({city.guideDraft} drafts)</span>}
+                </Link>
+                <span>📖 <strong className={city.handbookCount === 0 ? 'text-amber-400' : 'text-zinc-200'}>{city.handbookCount}</strong> handbook</span>
               </div>
 
               {/* Hosts */}

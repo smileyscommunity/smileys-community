@@ -106,7 +106,14 @@ export default function AdminGuideEntriesPage() {
     }
   }, [citySlug])
 
-  useEffect(() => { load() }, [])                             // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    // Deep links from the Cities panel land on a specific city's list
+    // (?city=<slug>). Setting citySlug lets the effect below do the load,
+    // so the param path and the picker path stay one code path.
+    const p = new URLSearchParams(window.location.search).get('city')
+    if (p) setCitySlug(p)
+    else load()
+  }, [])                                                      // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (citySlug) load(citySlug) }, [citySlug]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Neighborhood options come from the city's registry — the same list the

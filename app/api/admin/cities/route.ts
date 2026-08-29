@@ -7,6 +7,7 @@ import { slugify } from '@/lib/slug'
 import { toCountryCode } from '@/lib/country'
 import { DEFAULT_CITY_SLUG } from '@/lib/city'
 import { getStatsFor } from '@/lib/cities'
+import { todayInTz } from '@/lib/cityTime'
 
 // GET /api/admin/cities — list every city with its club count + hosts, so the
 // admin Cities page can show launch status at a glance.
@@ -39,6 +40,48 @@ export async function GET() {
   const liveIds = cities.filter(c => c.status === CITY_STATUS.Live).map(c => c.id)
   const stats   = liveIds.length ? await getStatsFor(liveIds) : new Map()
 
+  // Launch inventory — what each city's shopfront actually holds (members,
+  // upcoming events, guide entries, city-local handbook). Grouped counts over
+  // all cities at once, same as getStatsFor — never a query per city.
+  const cityIds = cities.map(c => c.id)
+
+  // "Upcoming" means the city's own calendar day (Event.date is text
+  // 'YYYY-MM-DD', compared as strings). Cities sharing a today batch into one
+  // grouped count — one query per distinct calendar day, not per city.
+  const idsByToday = new Map<string, string[]>()
+  for (const c of cities) {
+    const today = todayInTz(c.timezone)
+    idsByToday.set(today, [...(idsByToday.get(today) ?? []), c.id])
+  }
+
+  const [memberRows, guideRows, handbookRows, eventRowGroups] = await Promise.all([
+    prisma.user.groupBy({
+      by: ['cityId'],
+      where: { cityId: { in: cityIds }, status: 'approved' },
+      _count: { _all: true },
+    }),
+    prisma.guideEntry.groupBy({
+      by: ['cityId', 'status'],
+      where: { cityId: { in: cityIds } },
+      _count: { _all: true },
+    }),
+    // City-local handbook only (cityId non-null) — global articles apply to
+    // every city and would inflate every card by the same number.
+    prisma.post.groupBy({
+      by: ['cityId'],
+      where: { cityId: { in: cityIds }, kind: 'handbook', status: 'published' },
+      _count: { _all: true },
+    }),
+    Promise.all([...idsByToday].map(([today, ids]) =>
+      prisma.event.groupBy({
+        by: ['cityId'],
+        where: { cityId: { in: ids }, status: 'published', date: { gte: today } },
+        _count: { _all: true },
+      }),
+    )),
+  ])
+  const eventRows = eventRowGroups.flat()
+
   return NextResponse.json(cities.map(c => ({
     id: c.id, name: c.name, slug: c.slug, country: c.country, timezone: c.timezone,
     // Lets list UIs badge only non-default-city rows without hardcoding
@@ -49,6 +92,12 @@ export async function GET() {
     tagline: c.tagline, description: c.description, heroImage: c.heroImage,
     clubCount: c._count.clubs,
     neighborhoodCount: c._count.neighborhoods,
+    // Launch inventory (see the grouped counts above).
+    memberCount:        memberRows.find(r => r.cityId === c.id)?._count._all ?? 0,
+    upcomingEventCount: eventRows.find(r => r.cityId === c.id)?._count._all ?? 0,
+    guidePublished:     guideRows.find(r => r.cityId === c.id && r.status === 'published')?._count._all ?? 0,
+    guideDraft:         guideRows.find(r => r.cityId === c.id && r.status === 'draft')?._count._all ?? 0,
+    handbookCount:      handbookRows.find(r => r.cityId === c.id)?._count._all ?? 0,
     // Launch readiness, derived from the SAME three counts the go-live gate
     // checks (clubs, hosts, neighborhoods) — so the panel shows the path to
     // live instead of the gate's rejection being the first time an admin
