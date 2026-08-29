@@ -60,6 +60,28 @@ function isDeletedAccount(u: { email: string }): boolean {
   return u.email.endsWith('@deleted.smileys')
 }
 
+// One row of /api/admin/users/connection-flags — a member whose outbound
+// connection requests over the report window look like directory-trawling
+// (high volume + low acceptance, big ignored backlog, and/or heavy
+// cross-gender receiver skew). Same heuristics as the weekly
+// scan-connection-abuse cron, surfaced live instead of by email.
+interface ConnectionFlag {
+  id: string
+  name: string
+  email: string
+  role: string
+  color: string
+  status: string
+  warningCount: number
+  sent: number
+  accepted: number
+  pending: number
+  toFemale: number
+  toMale: number
+  reasons: string[]  // 'low-acceptance' | 'high-ignore' | 'gender-skew'
+  city?: { name: string; slug: string } | null
+}
+
 type SortKey = 'recent' | 'active' | 'warnings' | 'noshows'
 
 const ROLE_BADGE_FALLBACK = 'bg-zinc-700 text-zinc-400'
@@ -137,6 +159,11 @@ function AdminUsersPageInner() {
   const [bulkSaving,  setBulkSaving]  = useState(false)
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
   const [, setTick] = useState(0)  // forces re-render so the "Updated Xs ago" label ages
+  // Connection-abuse report — fetched once on mount (it aggregates 60 days
+  // of data, so the 30s roster poll would be wasted work). Panel renders
+  // only when something is flagged.
+  const [connFlags,      setConnFlags]      = useState<ConnectionFlag[]>([])
+  const [connWindowDays, setConnWindowDays] = useState(60)
 
   // load() runs the initial fetch and the auto-refresh poll. background=true
   // skips the skeleton flicker so the 30s refresh doesn't blank the page.
@@ -171,6 +198,18 @@ function AdminUsersPageInner() {
   }, [cityFilter])
 
   useEffect(() => { load(false) }, [load])
+
+  useEffect(() => {
+    fetch('/app/api/admin/users/connection-flags', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d && Array.isArray(d.flagged)) {
+          setConnFlags(d.flagged)
+          setConnWindowDays(d.windowDays ?? 60)
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   // Background auto-refresh every 30s, paused via the Page Visibility API
   // when the tab is hidden (matches the applications page pattern) and
@@ -611,6 +650,65 @@ function AdminUsersPageInner() {
               : <><span className="text-white font-bold">{searchFiltered.length}</span> of {users.length} members match filters</>}
         </p>
       </div>
+
+      {/* Connection-abuse signals — read-only report of members whose
+          outbound connection requests look like directory-trawling. Only
+          renders when the report flags someone, so healthy communities
+          never see it. Acting on a flag stays a human decision via the
+          normal warn/suspend/ban tools on the row / user detail page. */}
+      {connFlags.length > 0 && (
+        <div className="bg-rose-500/5 border border-rose-500/20 rounded-2xl p-4 space-y-3">
+          <div>
+            <h2 className="text-sm font-bold text-rose-300 flex items-center gap-2">
+              ⚠ Connection request signals
+              <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-rose-500/10 text-rose-400">{connFlags.length}</span>
+            </h2>
+            <p className="text-xs text-zinc-500 mt-0.5">
+              High outbound request volume in the last {connWindowDays} days with low acceptance, a big ignored backlog, or heavy gender skew.
+              Declined requests are deleted, so real volume may be higher. Review only — nothing automatic happens.
+            </p>
+          </div>
+          <div className="divide-y divide-rose-500/10">
+            {connFlags.map(f => {
+              const genderKnown = f.toFemale + f.toMale
+              const skewPct = genderKnown > 0 ? Math.round(Math.max(f.toFemale, f.toMale) / genderKnown * 100) : 0
+              const skewWho = f.toFemale >= f.toMale ? 'women' : 'men'
+              const acceptPct = Math.round(f.accepted / f.sent * 100)
+              const ignorePct = Math.round(f.pending / f.sent * 100)
+              return (
+                <div key={f.id} className="py-2.5 first:pt-0 last:pb-0 flex items-center gap-3">
+                  <Link href={`/admin/users/${f.id}`} className="shrink-0">
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold" style={{ backgroundColor: f.color }}>{getInitials(f.name)}</div>
+                  </Link>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <Link href={`/admin/users/${f.id}`} className="font-semibold text-sm text-white truncate hover:text-amber-400 transition-colors">{f.name}</Link>
+                      <CityBadge city={f.city} cities={cities} />
+                      {f.reasons.includes('gender-skew') && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20">{skewPct}% to {skewWho}</span>
+                      )}
+                      {f.reasons.includes('low-acceptance') && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20">{acceptPct}% accepted</span>
+                      )}
+                      {f.reasons.includes('high-ignore') && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20">{ignorePct}% ignored</span>
+                      )}
+                      {f.status === 'banned' && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">banned</span>}
+                      {f.warningCount > 0 && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20">⚠ {f.warningCount}</span>}
+                    </div>
+                    <div className="text-xs text-zinc-500">
+                      {f.sent} requests · {f.accepted} accepted · {f.pending} still pending
+                    </div>
+                  </div>
+                  <Link href={`/admin/users/${f.id}`} className="shrink-0 px-3 py-1.5 text-xs font-semibold rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 transition-colors">
+                    Review
+                  </Link>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Top Bar */}
       <div className="space-y-3">
