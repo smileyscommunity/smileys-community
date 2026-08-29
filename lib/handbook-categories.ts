@@ -40,8 +40,11 @@ export const HANDBOOK_CATEGORIES: Record<string, CategoryMeta> = {
     emoji: '🚀', label: 'Getting Started', tagline: 'Your first 24 hours, first week, first month.',
     volatility: 'medium',
   },
+  // Tagline names no city-specific mode (Marmaray is Istanbul's alone) — the
+  // same rule as the 'Living in Istanbul' rename below: this copy renders on
+  // every city's handbook.
   'Getting Around': {
-    emoji: '🚇', label: 'Getting Around', tagline: 'Metro, ferries, Marmaray, taxis, airports — the city is big, the answers are simple.',
+    emoji: '🚇', label: 'Getting Around', tagline: 'Transport cards, buses, ferries, taxis, airports — however your city moves, the answers are simple.',
     image: { src: '/app/images/handbook-getting-around.jpeg', alt: 'Getting Around — Smileys Handbook' },
     volatility: 'high',
   },
