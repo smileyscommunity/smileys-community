@@ -8,10 +8,10 @@ Antalya before publishing those lines as fact. Publish with `lastReviewedAt`
 
 ## Metadata
 
-- **Title:** Antalyakart: One Card for the Bus, the Tram and the Old Tram Too
+- **Title:** Antalyakart: One Card for the Bus and the Tram
 - **Kind:** handbook · **Category:** Getting Around · **City:** Antalya (city-local)
 - **Tags:** `antalyakart`, `antray`, `tramvay`, `otobüs`, `ulaşım`, `toplu taşıma`, `nostaljik tramvay`
-- **Excerpt:** One card covers Antalya's municipal buses, the AntRay tram and the nostalgic tram — with free transfers inside the window that most newcomers never realise they're entitled to, and a phone-as-card trick that only works on Android.
+- **Excerpt:** One card covers Antalya's municipal buses and the AntRay tram — with free transfers inside the window that most newcomers never realise they're entitled to, and a phone-as-card trick that only works on Android.
 - **officialSources:**
   - Antalyakart — official site: https://www.antalyakart.com.tr/
   - Antalyakart — how-to: https://www.antalyakart.com.tr/Page/NasilYapilir
@@ -22,9 +22,10 @@ Antalya before publishing those lines as fact. Publish with `lastReviewedAt`
 
 **One card, the whole municipal network.** The Antalyakart is Antalya's
 contactless transport card. A single card works on the municipal buses, the
-AntRay tram that runs the length of the city, the nostalgic tram along the
-seafront, and the rest of the municipality's vehicles. Tap the validator as
-you board.
+AntRay tram that runs the length of the city, and the rest of the
+municipality's vehicles. Tap the validator as you board. (The nostalgic
+seafront tram is suspended after a June 2026 fire — the line is staying, the
+municipality says, but don't plan around it for now.)
 
 **Where to get one.** Cards are sold at the card centres, at the top-up
 machines that also sell cards, and at many kiosks and corner shops around the
@@ -69,5 +70,8 @@ student discounts; the official pages describe the Turkish-ID path.
 
 1. Transfer pricing right now — free vs. a small fee within the hour (sources
    conflict; the FAQ says free, third-party guides say a nominal fee).
-2. Nostalgic tram — confirm it's currently running and accepts the card.
-3. Foreigner personalisation documents (residence permit? passport?).
+2. Foreigner personalisation documents (residence permit? passport?).
+
+(Resolved remotely 2026-08-31: nostalgic tram suspended since the June 2026
+fire — body states it; Tünektepe cable car permanently closed/dismantling —
+its guide entry was deleted.)
