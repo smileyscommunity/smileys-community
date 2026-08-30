@@ -202,6 +202,34 @@ export default async function AboutPage() {
         </div>
       </section>
 
+      {/* ── What makes Smileys different (owner-authored, 2026-08-30) ── */}
+      <section className="bg-white border-t border-gray-100">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
+          <div className="mb-10">
+            <h2 className="section-title mb-3">What makes Smileys different?</h2>
+            <p className="text-gray-600 max-w-xl">Not another meetup. Not another app.</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            {[
+              { icon: '🤝', title: 'Curated people',
+                body: 'We review every application because the people in the room matter as much as the event itself.' },
+              { icon: '🎙️', title: 'Hosted experiences',
+                body: "You don't have to arrive knowing anyone. Our hosts make introductions and help the room come alive." },
+              { icon: '💛', title: 'Designed for friendship',
+                body: "We're not optimizing for matches, followers, or business cards. We're creating opportunities for genuine friendships." },
+              { icon: '🌱', title: 'Community beyond events',
+                body: 'Events are where you meet. Clubs, hangouts and recurring activities are where friendships grow.' },
+            ].map(d => (
+              <div key={d.title} className="bg-gray-50 rounded-2xl p-7 border border-gray-100">
+                <div aria-hidden="true" className="text-2xl mb-4">{d.icon}</div>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">{d.title}</h3>
+                <p className="text-gray-600 text-sm leading-relaxed">{d.body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ── Values ── */}
       <section className="bg-gray-50 border-t border-gray-100">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
