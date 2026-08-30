@@ -874,6 +874,29 @@ function ApplyForm() {
           Already a member?{' '}
           <Link href="/login" className="text-amber-600 font-semibold hover:underline">Sign in</Link>
         </p>
+
+        {/* What to expect — moved here from /about (2026-08-30): first-event
+            reassurance belongs where someone is actually deciding to apply. */}
+        <div className="mt-10 pt-8 border-t border-gray-100">
+          <h2 className="text-base font-extrabold text-gray-900 mb-1">What to expect at your first event</h2>
+          <p className="text-sm text-gray-500 mb-6">First events can feel daunting. Here&rsquo;s what actually happens.</p>
+          <ul className="space-y-5">
+            {[
+              { icon: '👋', title: 'A warm welcome', body: 'Every event has a host whose job is to make introductions. You will never have to walk into a room and figure it out alone.' },
+              { icon: '👥', title: 'Small, balanced groups', body: 'We keep guest lists tight — typically 20 to 60 people — and gender-balanced by default. It feels more like a dinner party than a conference.' },
+              { icon: '🌍', title: 'Instant common ground', body: 'Everyone in the room chose to be here. That shared curiosity about the city is the icebreaker. The conversations start easily.' },
+              { icon: '🔁', title: 'Familiar faces, fast', body: 'Members attend regularly. Within two or three events, you start recognising people. That\'s when it starts feeling like a community.' },
+            ].map(item => (
+              <li key={item.title} className="flex gap-4">
+                <span aria-hidden="true" className="text-2xl mt-0.5 shrink-0">{item.icon}</span>
+                <div>
+                  <div className="font-bold text-gray-900 mb-1 text-sm">{item.title}</div>
+                  <div className="text-sm text-gray-600 leading-relaxed">{item.body}</div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
     </div>
   )

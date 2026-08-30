@@ -37,29 +37,6 @@ export const metadata = {
   },
 }
 
-const VALUES = [
-  {
-    icon: '✦',
-    title: 'Curated, not crowded',
-    body: 'Every member is personally reviewed. We keep the community intentionally small so that every event feels like a gathering of like-minded people — not a networking circus.',
-  },
-  {
-    icon: '🤝',
-    title: 'Real connections',
-    body: 'We design events for conversation, not just attendance. Smaller guest lists, shared interests, and recurring faces mean friendships that actually last.',
-  },
-  {
-    icon: '🌍',
-    title: 'Global minds, local roots',
-    body: 'Our members come from dozens of countries. What unites them is the city they share — and a genuine curiosity about the world. You\'ll feel at home whether you arrived last week or last decade.',
-  },
-  {
-    icon: '⚖️',
-    title: 'Balanced by design',
-    body: 'Many of our events are gender-balanced by default. We believe the best social dynamics happen when everyone feels equally welcome.',
-  },
-]
-
 // (No local stat fallback: resolveStats measures its own defaults from the
 // DB when the CMS supplies none — a typed array here is exactly the kind of
 // number that drifts from every other page's, which is how this site once
@@ -193,11 +170,6 @@ export default async function AboutPage() {
             <h3 className="text-lg font-bold text-gray-900 pt-4">Why &ldquo;Smileys&rdquo;?</h3>
             <p>Because that&rsquo;s what connection looks like. Walk into any of our events and you&rsquo;ll see it: a room full of people smiling, talking, meeting someone new. We named the community after the thing we&rsquo;re actually building.</p>
 
-            <h3 className="text-lg font-bold text-gray-900 pt-4">From one city to everywhere</h3>
-            <p>Smileys started in Istanbul, but it was never meant to stay in one city. We&rsquo;re expanding to new cities with one ambition: a global community where you can find your people wherever you are in the world.</p>
-            <p>Whether you just moved, you&rsquo;re traveling, studying, working abroad, or you&rsquo;re a local who wants to meet people beyond your circle, Smileys is where you start.</p>
-            <p>Belonging shouldn&rsquo;t depend on where you were born, who you already know, or how long you&rsquo;ve lived somewhere. Everyone deserves a place where they can walk in, feel welcome, and find their people.</p>
-            <p className="text-gray-800 font-semibold">We&rsquo;re not just helping people meet. We&rsquo;re helping people find their people.</p>
           </div>
         </div>
       </section>
@@ -230,23 +202,27 @@ export default async function AboutPage() {
         </div>
       </section>
 
-      {/* ── Values ── */}
+      {/* ── Our community ── */}
       <section className="bg-gray-50 border-t border-gray-100">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
-          <div className="mb-10">
-            <h2 className="section-title mb-3">What we stand for</h2>
-            <p className="text-gray-600 max-w-xl">
-              Four principles that shape everything we do — from who we approve to how we design events.
-            </p>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            {VALUES.map(v => (
-              <div key={v.title} className="bg-white rounded-2xl p-7 border border-gray-100 shadow-sm">
-                <div aria-hidden="true" className="text-2xl mb-4">{v.icon}</div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2">{v.title}</h3>
-                <p className="text-gray-600 text-sm leading-relaxed">{v.body}</p>
-              </div>
-            ))}
+          <h2 className="section-title mb-3">Our community</h2>
+          <p className="text-gray-600 max-w-xl mb-6">
+            Locals, expats, students, founders, people three weeks in and people born here — from
+            dozens of countries, curious about each other. Events are where you meet them; our clubs,
+            hangouts and recurring tables are where the friendships grow.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4">
+            <Link href="/clubs"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl border border-gray-200 hover:bg-white text-gray-700 font-semibold text-sm transition-colors">
+              Explore clubs
+              <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+              </svg>
+            </Link>
+            <Link href="/hosts"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl border border-gray-200 hover:bg-white text-gray-700 font-semibold text-sm transition-colors">
+              Meet our hosts
+            </Link>
           </div>
         </div>
       </section>
@@ -280,59 +256,19 @@ export default async function AboutPage() {
         </div>
       </section>
 
-      {/* ── What to expect ── */}
+      {/* ── Global vision (the story's closing chapter, promoted to its own
+          beat — "where is this going?" deserves to stand alone) ── */}
       <section className="bg-white border-t border-gray-100">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            <div>
-              <h2 className="section-title mb-4">What to expect</h2>
-              <p className="text-gray-600 leading-relaxed mb-8">
-                First events can feel daunting. Here's what actually happens when you show up to a Smileys event.
-              </p>
-              <ul className="space-y-5">
-                {[
-                  { icon: '👋', title: 'A warm welcome', body: 'Every event has a host whose job is to make introductions. You will never have to walk into a room and figure it out alone.' },
-                  { icon: '👥', title: 'Small, balanced groups', body: 'We keep guest lists tight — typically 20 to 60 people — and gender-balanced by default. It feels more like a dinner party than a conference.' },
-                  { icon: '🌍', title: 'Instant common ground', body: 'Everyone in the room chose to be here. That shared curiosity about Istanbul is the icebreaker. The conversations start easily.' },
-                  { icon: '🔁', title: 'Familiar faces, fast', body: 'Members attend regularly. Within two or three events, you start recognising people. That\'s when it starts feeling like a community.' },
-                ].map(item => (
-                  <li key={item.title} className="flex gap-4">
-                    <span aria-hidden="true" className="text-2xl mt-0.5 shrink-0">{item.icon}</span>
-                    <div>
-                      <div className="font-bold text-gray-900 mb-1">{item.title}</div>
-                      <div className="text-sm text-gray-600 leading-relaxed">{item.body}</div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div className="bg-amber-50 border border-amber-100 rounded-2xl p-8 text-center">
-              <div aria-hidden="true" className="text-5xl mb-5">🎉</div>
-              <h3 className="text-xl font-extrabold text-gray-900 mb-3">Still on the fence?</h3>
-              <p className="text-gray-600 text-sm leading-relaxed mb-6">
-                The most common thing members say after their first event: "I wish I'd come sooner."
-                Apply takes 5 minutes. You can always say no to events until you find the right one.
-              </p>
-              <Link href="/apply"
-                className="inline-block px-6 py-3 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm transition-colors">
-                Apply to join
-              </Link>
-            </div>
+          <h2 className="section-title mb-6">From one city to everywhere</h2>
+          <div className="prose prose-gray max-w-none text-gray-600 leading-relaxed space-y-5">
+            <p>Smileys started in Istanbul, but it was never meant to stay in one city. We&rsquo;re expanding to new cities with one ambition: a global community where you can find your people wherever you are in the world.</p>
+            <p>Whether you just moved, you&rsquo;re traveling, studying, working abroad, or you&rsquo;re a local who wants to meet people beyond your circle, Smileys is where you start.</p>
+            <p>Belonging shouldn&rsquo;t depend on where you were born, who you already know, or how long you&rsquo;ve lived somewhere. Everyone deserves a place where they can walk in, feel welcome, and find their people.</p>
+            <p className="text-gray-800 font-semibold">We&rsquo;re not just helping people meet. We&rsquo;re helping people find their people.</p>
           </div>
-        </div>
-      </section>
-
-      {/* ── Clubs preview ── */}
-      <section className="bg-gray-50 border-t border-gray-100">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
-          <h2 className="section-title mb-3">Find your people</h2>
-          <p className="text-gray-600 max-w-xl mb-10">
-            From sailing and wine tasting to book clubs and language exchange — our clubs are built
-            around shared passions, not just shared geography.
-          </p>
-          <Link href="/clubs"
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl border border-gray-200 hover:bg-white text-gray-700 font-semibold text-sm transition-colors">
-            Explore clubs
+          <Link href="/cities" className="inline-flex items-center gap-2 mt-8 text-amber-600 font-bold text-sm hover:underline">
+            See all Smileys cities
             <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
             </svg>
@@ -344,7 +280,7 @@ export default async function AboutPage() {
       <section className="bg-amber-500">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
           <h2 className="text-3xl sm:text-4xl font-extrabold text-white mb-4">
-            😊 Ready to feel at home in Istanbul?
+            😊 Ready to find your people?
           </h2>
           <p className="text-amber-100 mb-10 text-lg">
             Join a community of people who came from all over the world and found their people here.
