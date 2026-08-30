@@ -13,11 +13,11 @@ export const revalidate = 3600
 // render a card). The static hero photo (about-hero.jpg, 570KB) is over
 // WhatsApp's ~300KB silent-drop threshold, so this uses the same dynamic
 // title-card generator as the homepage default instead of the raw photo.
-const ogImage = `${APP_URL}/api/og?${new URLSearchParams({
-  title:   'About Smileys Community',
-  eyebrow: "Curated city communities",
-  cta:     'Apply to join',
-}).toString()}`
+// The hero photo, pre-cropped to 1200×630 at ~220KB (public/images/
+// about-hero-og.jpg) — under WhatsApp's ~300KB silent-drop threshold, so the
+// share card can finally show the actual page image instead of the generic
+// title card. Regenerate the crop if the hero photo changes.
+const ogImage = `${APP_URL}/images/about-hero-og.jpg`
 
 export const metadata = {
   alternates: { canonical: `${APP_URL}/about` },
