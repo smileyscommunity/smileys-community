@@ -97,3 +97,48 @@ describe('global clubs are listed only where the city opts in', () => {
     expect(where.OR).toBeUndefined()
   })
 })
+
+// The "Next: …" line on the clubs grid has the same two failure modes the
+// counts had, and had both: a global club's next event was looked up across
+// every city (Bodrum's grid advertised an Istanbul gathering), and with no
+// status filter an unpublished event was announced publicly (Istanbul's Book
+// Club had three drafts). Both are filtered in the DB, so this pins the query.
+describe('club next event', () => {
+  const eventsWhere = () => (prisma.club.findMany as any).mock.calls[0][0].include.events.where
+
+  it('asks only for this city’s events', async () => {
+    ;(prisma.club.findMany as any).mockResolvedValue([])
+    await getClubs('c-bodrum')
+    expect(eventsWhere()).toEqual(expect.objectContaining({ cityId: 'c-bodrum' }))
+  })
+
+  it('asks only for published events', async () => {
+    ;(prisma.club.findMany as any).mockResolvedValue([])
+    await getClubs('c-bodrum')
+    expect(eventsWhere()).toEqual(expect.objectContaining({ status: 'published' }))
+  })
+
+  it('still filters out events that have already happened', async () => {
+    ;(prisma.club.findMany as any).mockResolvedValue([])
+    await getClubs('c-bodrum')
+    expect(eventsWhere().date).toEqual({ gte: expect.any(String) })
+  })
+
+  it('reports no next event for a club the query returned none for', async () => {
+    ;(prisma.club.findMany as any).mockResolvedValue([{
+      ...base, cityId: null, _count: { memberships: 95 }, memberships: [], events: [],
+    }])
+    const [club] = await getClubs('c-bodrum')
+    expect(club.nextEvent).toBeNull()
+  })
+
+  it('surfaces the one event the query returned', async () => {
+    ;(prisma.club.findMany as any).mockResolvedValue([{
+      ...base,
+      cityId: null, _count: { memberships: 95 }, memberships: [],
+      events: [{ title: 'Bodrum Sunset Meetup 🌅', date: '2026-08-22' }],
+    }])
+    const [club] = await getClubs('c-bodrum')
+    expect(club.nextEvent).toEqual({ title: 'Bodrum Sunset Meetup 🌅', date: '2026-08-22' })
+  })
+})

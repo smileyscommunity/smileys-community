@@ -84,7 +84,9 @@ async function relatedClubsFor(club: { id: string; category: string; cityId?: st
     take: 12,
     select: { id: true, name: true, slug: true, emoji: true, memberCount: true },
   })
-  const health = await classifyClubs(candidates.map(c => c.id))
+  // Same scope as the candidate query above — health has to describe the
+  // clubs actually being ranked, so a global club's list stays network-wide.
+  const health = await classifyClubs(candidates.map(c => c.id), club.cityId ?? null)
   return [...candidates]
     .sort((a, b) => (HEALTH_RANK[health.get(a.id) ?? 'quiet'] - HEALTH_RANK[health.get(b.id) ?? 'quiet']) || (b.memberCount - a.memberCount))
     .slice(0, 4)

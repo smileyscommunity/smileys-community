@@ -20,40 +20,54 @@ const getDiscoveryClubs = unstable_cache(
     const ids = clubs.map(c => c.id)
     const weekCutoff = new Date(Date.now() - 7 * 86_400_000)
 
+    // Every signal below is city-scoped, for the same reason the two member
+    // counts in getClubs are: a global club (Club.cityId null) is listed in
+    // every opted-in city's grid, so a network-wide count describes a
+    // community the viewer can't reach. Unscoped, Bodrum's grid credited the
+    // Iranian club with Istanbul's two upcoming events, ranked the Language
+    // clubs "Active this week" on Istanbul's board posts, and showed four
+    // Istanbul faces as if they were the local members. For a city-scoped
+    // club the filter is a no-op — its events, posts and hangouts are all in
+    // its own city.
     const [health, upcoming, weekEvents, weekPosts, weekHangs, faces] = await Promise.all([
-      classifyClubs(ids),
+      classifyClubs(ids, cityId),
       prisma.event.groupBy({
         by: ['clubId'],
-        where: { clubId: { in: ids }, status: 'published', date: { gte: today } },
+        where: { clubId: { in: ids }, status: 'published', date: { gte: today }, cityId },
         _count: { _all: true },
       }),
       prisma.event.groupBy({
         by: ['clubId'],
-        where: { clubId: { in: ids }, status: 'published', date: { gte: today, lte: weekOut } },
+        where: { clubId: { in: ids }, status: 'published', date: { gte: today, lte: weekOut }, cityId },
         _count: { _all: true },
       }),
       prisma.boardPost.groupBy({
         by: ['clubId'],
-        where: { clubId: { in: ids }, status: 'active', createdAt: { gte: weekCutoff } },
+        where: { clubId: { in: ids }, status: 'active', createdAt: { gte: weekCutoff }, cityId },
         _count: { _all: true },
       }),
       prisma.hangout.groupBy({
         by: ['clubId'],
-        where: { clubId: { in: ids }, createdAt: { gte: weekCutoff } },
+        where: { clubId: { in: ids }, createdAt: { gte: weekCutoff }, cityId },
         _count: { _all: true },
       }),
       // Four newest member faces per club in one window query — a
       // per-club take isn't expressible in the Prisma query API.
+      //
+      // The city filter has to sit INSIDE the window, not after it: ranking
+      // every member and then dropping the non-local ones would leave a
+      // global club faceless in Bodrum whenever its four newest joins are
+      // Istanbul's, even with local members further down the list.
       prisma.$queryRaw<{ clubId: string; name: string; color: string; profilePhoto: string | null }[]>`
-        SELECT x."clubId", u.name, u.color, u."profilePhoto"
+        SELECT x."clubId", x.name, x.color, x."profilePhoto"
         FROM (
-          SELECT cm."clubId", cm."userId",
+          SELECT cm."clubId", u.name, u.color, u."profilePhoto",
                  ROW_NUMBER() OVER (PARTITION BY cm."clubId" ORDER BY cm."joinedAt" DESC) AS rn
           FROM club_memberships cm
-          WHERE cm.status = 'approved'
+          JOIN users u ON u.id = cm."userId"
+          WHERE cm.status = 'approved' AND u.status = 'approved' AND u."cityId" = ${cityId}
         ) x
-        JOIN users u ON u.id = x."userId"
-        WHERE x.rn <= 4 AND u.status = 'approved'
+        WHERE x.rn <= 4
       `,
     ])
 

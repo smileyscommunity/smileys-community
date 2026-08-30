@@ -42,8 +42,20 @@ export async function getClubs(cityId: string): Promise<Club[]> {
         where:  { status: 'approved', user: { cityId } },
         select: { id: true },
       },
+      // The club's next event *in this city*, and only if it's public.
+      // Both filters matter here in ways they don't elsewhere:
+      //   - cityId: a global club can be listed in any city that opts in
+      //     (showGlobalClubs above), so an unscoped lookup advertised
+      //     Istanbul's Iranian Weekend Gathering as the next event on
+      //     Bodrum's grid. Same reasoning as the two member counts above.
+      //   - status: 'published' — without it a draft was shown publicly as
+      //     "Next: …" (Istanbul's Book Club had three). Matches how every
+      //     other public event read filters; see the neighbourhood counts
+      //     on app/[city]/page.tsx.
+      // For a city-scoped club the cityId filter is a no-op: events inherit
+      // their city from the parent club at creation.
       events: {
-        where: { date: { gte: today } },
+        where: { date: { gte: today }, cityId, status: 'published' },
         orderBy: { date: 'asc' },
         take: 1,
         select: { title: true, date: true },

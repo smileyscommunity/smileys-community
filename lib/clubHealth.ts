@@ -30,32 +30,45 @@ export function classifyClub(s: ClubHealthSignals, now = new Date()): ClubHealth
 
 // Batch signals for a set of clubs in three grouped queries (not N+1).
 // Returns a map clubId -> health.
-export async function classifyClubs(clubIds: string[], now = new Date()): Promise<Map<string, ClubHealth>> {
+//
+// `cityId` scopes the activity signals to one city. It matters for global
+// clubs (Club.cityId null), which are listed in every opted-in city's grid:
+// unscoped, Istanbul's events and board posts made the Language clubs read
+// as "Active" on Bodrum's grid, where nothing has ever happened. Pass the
+// city whose grid is being ranked. Omit it only when the candidate set
+// itself isn't city-scoped (a global club's related-clubs list), so the
+// health matches what's being ranked.
+export async function classifyClubs(
+  clubIds: string[],
+  cityId?: string | null,
+  now = new Date(),
+): Promise<Map<string, ClubHealth>> {
   if (clubIds.length === 0) return new Map()
   const today = now.toISOString().split('T')[0]
   const cutoff = new Date(now.getTime() - 60 * 86_400_000)
   const cutoffDay = cutoff.toISOString().split('T')[0]
+  const inCity = cityId ? { cityId } : {}
 
   const [clubs, upcoming, recent, convos, hangs] = await Promise.all([
     prisma.club.findMany({ where: { id: { in: clubIds } }, select: { id: true, isActive: true, createdAt: true } }),
     prisma.event.groupBy({
       by: ['clubId'],
-      where: { clubId: { in: clubIds }, status: 'published', date: { gte: today } },
+      where: { clubId: { in: clubIds }, status: 'published', date: { gte: today }, ...inCity },
       _count: { _all: true },
     }),
     prisma.event.groupBy({
       by: ['clubId'],
-      where: { clubId: { in: clubIds }, date: { gte: cutoffDay, lt: today } },
+      where: { clubId: { in: clubIds }, date: { gte: cutoffDay, lt: today }, ...inCity },
       _count: { _all: true },
     }),
     prisma.boardPost.groupBy({
       by: ['clubId'],
-      where: { clubId: { in: clubIds }, status: 'active', createdAt: { gte: cutoff } },
+      where: { clubId: { in: clubIds }, status: 'active', createdAt: { gte: cutoff }, ...inCity },
       _count: { _all: true },
     }),
     prisma.hangout.groupBy({
       by: ['clubId'],
-      where: { clubId: { in: clubIds }, createdAt: { gte: cutoff } },
+      where: { clubId: { in: clubIds }, createdAt: { gte: cutoff }, ...inCity },
       _count: { _all: true },
     }),
   ])
