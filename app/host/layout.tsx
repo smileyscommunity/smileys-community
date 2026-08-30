@@ -5,15 +5,14 @@ import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
+import { canEnterHostPanel, canHostEvents, canHostClubs } from '@/lib/auth'
 
 function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const pathname = usePathname()
   const { user, logout } = useAuth()
 
-  const isAdmin   = user.role === 'admin'
-  const isHost    = user.isClubHost
-  const canEvents = isHost || isAdmin
-  const canClubs  = isHost || isAdmin
+  const canEvents = canHostEvents(user)
+  const canClubs  = canHostClubs(user)
 
   const navItems = [
     { label: 'Dashboard', href: '/host',          exact: true,  show: true       },
@@ -108,12 +107,17 @@ export default function HostLayout({ children }: { children: ReactNode }) {
   const { user, isLoading, isLoggedIn } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
+  // Club hosts, city-level hosts (consul / city-host grant), admins and
+  // moderators. canEnterHostPanel is shared with the dashboard's own gates so
+  // the two can't drift — they did, and the city roles reached neither.
+  const mayEnter = isLoggedIn && canEnterHostPanel(user)
+
   useEffect(() => {
     if (isLoading) return
-    if (!isLoggedIn || (!user.isClubHost && user.role !== 'admin' && user.role !== 'moderator')) router.replace('/login')
-  }, [user, isLoading, isLoggedIn, router])
+    if (!mayEnter) router.replace('/login')
+  }, [mayEnter, isLoading, router])
 
-  if (isLoading || !isLoggedIn || (!user.isClubHost && user.role !== 'admin' && user.role !== 'moderator')) return null
+  if (isLoading || !mayEnter) return null
 
   return (
     <div className="flex h-screen bg-black overflow-hidden">

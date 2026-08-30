@@ -5,7 +5,10 @@ vi.mock('@/lib/session', () => ({
   createSession: vi.fn(async () => {}),
   deleteSession: vi.fn(),
 }))
-vi.mock('@/lib/access', () => ({ isClubHost: vi.fn(async () => false) }))
+vi.mock('@/lib/access', () => ({
+  isClubHost:  vi.fn(async () => false),
+  hostCityIds: vi.fn(async () => []),   // used by GET, not by the PATCH under test
+}))
 vi.mock('@/lib/prisma', () => ({ prisma: { user: { update: vi.fn() } } }))
 
 import { PATCH } from '@/app/api/auth/me/route'

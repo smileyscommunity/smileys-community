@@ -6,6 +6,7 @@ import { rateLimit, getIp } from '@/lib/rateLimit'
 import { verifyTurnstile } from '@/lib/turnstile'
 import { sendNewDeviceLoginEmail, sendAccountLockedEmail, recordEmailFailure } from '@/lib/email'
 import { sendPushToUser } from '@/lib/push'
+import { hostCityIds } from '@/lib/access'
 import { SignJWT } from 'jose'
 
 if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET environment variable is not set')
@@ -129,9 +130,14 @@ export async function POST(req: NextRequest) {
 
     const initials = user.name.trim().split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
 
-    const isClubHost = await prisma.clubMembership.count({
-      where: { userId: user.id, status: 'approved', role: 'host' },
-    }) > 0
+    const [isClubHost, cityIds] = await Promise.all([
+      prisma.clubMembership.count({
+        where: { userId: user.id, status: 'approved', role: 'host' },
+      }).then(c => c > 0),
+      // City-level hosting authority — the /host panel gates read this, and
+      // the post-login redirect sends city hosts there too.
+      hostCityIds(user.id),
+    ])
 
     // New device / IP detection. A5 fix: also maintain a rolling
     // `fingerprints` history (last 50, deduped) so admins
@@ -194,7 +200,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       id: user.id, name: user.name, email: user.email, role: user.role, color: user.color, initials,
       bio: user.bio, neighborhood: user.neighborhood, instagram: user.instagram,
-      emailVerified: user.emailVerified, isClubHost, partnerId: user.partnerId,
+      emailVerified: user.emailVerified, isClubHost, hostCityIds: cityIds, partnerId: user.partnerId,
     })
   } catch (e) {
     console.error(e)

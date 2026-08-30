@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Turnstile from '@/components/Turnstile'
 import { useAuth } from '@/contexts/AuthContext'
 import { safeReturnPath } from '@/lib/safeUrl'
-import type { AppUser } from '@/lib/auth'
+import { isCityHostSomewhere, type AppUser } from '@/lib/auth'
 import posthog from 'posthog-js'
 // Same FingerprintJS library the apply form uses — collects a stable
 // visitorId so the login endpoint can stamp User.lastFingerprint, giving
@@ -185,6 +185,7 @@ function LoginPageInner() {
       neighborhood:  data.neighborhood,
       instagram:     data.instagram,
       isClubHost:    data.isClubHost,
+      hostCityIds:   data.hostCityIds,
       emailVerified: data.emailVerified,
       totpEnabled:   data.totpEnabled,
     })
@@ -213,7 +214,7 @@ function LoginPageInner() {
     // who clicked "Renew" in an email wants the renew page, not /admin.
     if (returnTo) router.push(returnTo)
     else if (data.role === 'admin') router.push('/admin')
-    else if (data.isClubHost) router.push('/host')
+    else if (data.isClubHost || isCityHostSomewhere(data)) router.push('/host')
     else router.push('/dashboard')
   }
 

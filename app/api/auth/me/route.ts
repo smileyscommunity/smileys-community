@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { getSession, createSession, deleteSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
-import { isClubHost } from '@/lib/access'
+import { isClubHost, hostCityIds } from '@/lib/access'
 import { formatName } from '@/lib/data'
 import { getDefaultCityId } from '@/lib/city'
 import { normalizeNeighborhoodInput } from '@/lib/neighborhoodsDb'
@@ -25,7 +25,7 @@ export async function GET() {
   if (!session) return NextResponse.json(null)
   try {
     const FIFTEEN_MINUTES = 15 * 60 * 1000
-    const [user, clubHostCount] = await Promise.all([
+    const [user, clubHostCount, cityIds] = await Promise.all([
       prisma.user.findUnique({
         where: { id: session.id },
         select: {
@@ -42,6 +42,11 @@ export async function GET() {
       prisma.clubMembership.count({
         where: { userId: session.id, status: 'approved', role: 'host' },
       }),
+      // City-level hosting authority (consul / city-host grant). The /host
+      // panel gates read this — without it the panel is unreachable for
+      // anyone whose only authority is city-level. Recomputed on every call,
+      // so a revoked grant stops counting on the next /me fetch.
+      hostCityIds(session.id),
     ])
     const stale = !user?.lastActive || (Date.now() - new Date(user.lastActive).getTime()) > FIFTEEN_MINUTES
     if (stale) {
@@ -77,7 +82,7 @@ export async function GET() {
     }
     if (!user) { await deleteSession(); return NextResponse.json(null) }
     const isClubHost = clubHostCount > 0
-    return NextResponse.json({ ...user, isClubHost })
+    return NextResponse.json({ ...user, isClubHost, hostCityIds: cityIds })
   } catch {
     await deleteSession()
     return NextResponse.json(null)

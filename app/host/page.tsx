@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
+import { canHostEvents, canHostClubs } from '@/lib/auth'
 import {} from '@/lib/data'
 import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
@@ -31,8 +32,8 @@ export default function HostDashboard() {
   const [events,  setEvents]  = useState<Event[]>([])
   const [loading, setLoading] = useState(true)
 
-  const canEvents = user.isClubHost || user.role === 'admin'
-  const canClubs  = canEvents
+  const canEvents = canHostEvents(user)
+  const canClubs  = canHostClubs(user)
 
   useEffect(() => {
     if (!canEvents) { setLoading(false); return }

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdmin, isClubHost } from '@/lib/access'
+import { isAdmin, isClubHost, hostCityIds } from '@/lib/access'
 
 export async function GET() {
   try {
@@ -9,7 +9,11 @@ export async function GET() {
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const admin = isAdmin(session)
-    const host  = !admin && await isClubHost(session.id)
+    // Own-impact card, scoped to the caller's own (co-)hosted events below.
+    // City-level hosts see theirs too — same reasoning as /api/host/events.
+    const host  = !admin && (
+      await isClubHost(session.id) || (await hostCityIds(session.id)).length > 0
+    )
 
     if (!admin && !host) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })

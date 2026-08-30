@@ -6,6 +6,7 @@ import { verifySync } from 'otplib/functional'
 import { rateLimit, getIp } from '@/lib/rateLimit'
 import { decryptTotpSecret } from '@/lib/totpCrypto'
 import { hashCode as hashBackupCode } from '@/lib/totpBackupCodes'
+import { hostCityIds } from '@/lib/access'
 
 if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET environment variable is not set')
 const SECRET = new TextEncoder().encode(process.env.JWT_SECRET)
@@ -89,9 +90,13 @@ export async function POST(req: NextRequest) {
     usedBackupCode = true
   }
 
-  const isClubHost = await prisma.clubMembership.count({
-    where: { userId: user.id, status: 'approved', role: 'host' },
-  }) > 0
+  const [isClubHost, cityIds] = await Promise.all([
+    prisma.clubMembership.count({
+      where: { userId: user.id, status: 'approved', role: 'host' },
+    }).then(c => c > 0),
+    // City-level hosting authority — same payload field the /host gates read.
+    hostCityIds(user.id),
+  ])
 
   const initials = user.name.trim().split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
 
@@ -113,7 +118,7 @@ export async function POST(req: NextRequest) {
   const res = NextResponse.json({
     id: user.id, name: user.name, email: user.email, role: user.role,
     color: user.color, initials, bio: user.bio, neighborhood: user.neighborhood,
-    instagram: user.instagram, emailVerified: user.emailVerified, isClubHost,
+    instagram: user.instagram, emailVerified: user.emailVerified, isClubHost, hostCityIds: cityIds,
     partnerId: user.partnerId, totpEnabled: true,
     // UI uses these to warn after a backup-code login: "You just used a
     // recovery code. N remain. Regenerate at /settings/2fa."

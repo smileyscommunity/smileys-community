@@ -257,13 +257,48 @@ export async function isCityConsul(userId: string, cityId: string): Promise<bool
   return city?.consulUserId === userId
 }
 
-/** Has `userId` been granted city-host status (approved) for `cityId`? */
+/**
+ * Has `userId` been granted city-host status for `cityId`?
+ *
+ * Revocation (DELETE /api/admin/cities/[id]/hosts) stamps `revokedAt` and
+ * leaves `status` as 'approved' — the row is kept as a record of the grant.
+ * So the status check alone is not enough: it has to be an approved grant
+ * that hasn't been revoked, which is the same pair every other read of this
+ * table filters on (/hosts, the admin cities list).
+ */
 export async function isCityHost(userId: string, cityId: string): Promise<boolean> {
   const row = await prisma.cityHost.findUnique({
     where:  { userId_cityId: { userId, cityId } },
-    select: { status: true },
+    select: { status: true, revokedAt: true },
   })
-  return row?.status === MembershipStatus.Approved
+  return row?.status === MembershipStatus.Approved && row.revokedAt === null
+}
+
+/**
+ * Every city where `userId` holds city-level hosting authority — consul of
+ * the city, or a live city-host grant for it. Union of the two lower layers
+ * of canHostInCity (admin is deliberately absent: an admin holds authority
+ * everywhere, which is a role check, not a list of cities).
+ *
+ * Exists because the /host panel gates are global — "may this person reach
+ * the host tools at all" — while canHostInCity answers a per-resource
+ * question. Callers that have a specific city in hand should keep using
+ * canHostInCity; this is for deciding whether the panel has anything to
+ * show. Club hosting is a separate axis and is not included (see the note
+ * on canHostInCity).
+ */
+export async function hostCityIds(userId: string): Promise<string[]> {
+  const [consulOf, grants] = await Promise.all([
+    prisma.city.findMany({
+      where:  { consulUserId: userId },
+      select: { id: true },
+    }),
+    prisma.cityHost.findMany({
+      where:  { userId, status: MembershipStatus.Approved, revokedAt: null },
+      select: { cityId: true },
+    }),
+  ])
+  return [...new Set([...consulOf.map(c => c.id), ...grants.map(g => g.cityId)])]
 }
 
 /**
@@ -285,13 +320,3 @@ export async function canHostInCity(session: SessionUser, cityId: string): Promi
   if (await isCityHost(session.id, cityId))   return true
   return false
 }
-
-/**
- * Top-level event-creation authority. The caller passes the proposed
- * event's cityId (always required now) and clubId (optional — null/
- * undefined for city-level events).
- *
- *   - Admin: yes.
- *   - Club event (clubId set): must be a club host of that club.
- *   - City event (no clubId):  must be admin / consul / city host.
- */

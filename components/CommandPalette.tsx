@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Command } from 'cmdk'
 import { useAuth } from '@/contexts/AuthContext'
 import { resolveImageUrl } from '@/lib/data'
+import { hasHostAuthority } from '@/lib/auth'
 
 interface Cmd {
   id: string; label: string; hint?: string; icon: string; action: () => void; group: string
@@ -86,7 +87,7 @@ export default function CommandPalette() {
 
   const isAdmin = user?.role === 'admin'
   const isMod   = user?.role === 'moderator'
-  const isHost  = user?.isClubHost === true
+  const isHost  = !!user && hasHostAuthority(user)
 
   const staticCommands: Cmd[] = [
     // Two visible clusters: "Navigate" is discovery (browse the
