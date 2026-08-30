@@ -2,7 +2,7 @@
   "stats": [
     {
       "metric": "members",
-      "label": "Members across all cities"
+      "label": "Vetted members across all cities"
     },
     {
       "value": "1,000+",
@@ -14,7 +14,7 @@
     },
     {
       "value": "4,000+",
-      "label": "in our WhatsApp community"
+      "label": "total WhatsApp reach"
     }
   ],
   "home": {

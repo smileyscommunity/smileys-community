@@ -77,7 +77,9 @@ const FORMATS = [
       'Dedicated section in our weekly member newsletter',
       'Custom copy written by the Smileys team',
       'Direct link to your offer, page, or booking',
-      'Avg. 45%+ open rate',
+      // A measured-sounding number a partner can ask to see (Resend dashboard),
+      // not a marketing "+".
+      '45% average open rate',
     ],
     highlight: true,
   },
