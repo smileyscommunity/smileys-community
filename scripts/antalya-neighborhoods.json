@@ -1,0 +1,16 @@
+[
+  { "name": "Kaleiçi",     "emoji": "🏛️", "vibe": "Ottoman lanes, the old harbour, pension courtyards",  "area": "Old Town",    "cost": 2, "lat": 36.8841, "lng": 30.7056 },
+  { "name": "Muratpaşa",   "emoji": "🏙️", "vibe": "The working centre — markets, tramline, real life",   "area": "Center",      "cost": 2, "lat": 36.8890, "lng": 30.7100 },
+  { "name": "Konyaaltı",   "emoji": "🏖️", "vibe": "Beach promenade, mountain backdrop, expat hub",       "area": "West",        "cost": 2, "lat": 36.8600, "lng": 30.6400 },
+  { "name": "Hurma",       "emoji": "🌊", "vibe": "Konyaaltı's quiet west end, new blocks near the sea",  "area": "West",        "cost": 2, "lat": 36.8500, "lng": 30.6000 },
+  { "name": "Liman",       "emoji": "⚓", "vibe": "Marina-side, sunset walks to the free beaches",        "area": "West",        "cost": 2, "lat": 36.8420, "lng": 30.6060 },
+  { "name": "Lara",        "emoji": "🌅", "vibe": "Long sand, cliff parks, the east side's good life",    "area": "East",        "cost": 3, "lat": 36.8560, "lng": 30.7850 },
+  { "name": "Güzeloba",    "emoji": "✈️", "vibe": "Residential Lara, close to the airport",               "area": "East",        "cost": 2, "lat": 36.8620, "lng": 30.8000 },
+  { "name": "Kundu",       "emoji": "🏨", "vibe": "The resort strip — big hotels, big pools",             "area": "East",        "cost": 3, "lat": 36.8520, "lng": 30.8500 },
+  { "name": "Kepez",       "emoji": "🏘️", "vibe": "Big, uphill, affordable",                              "area": "Inland",      "cost": 1, "lat": 36.9330, "lng": 30.6980 },
+  { "name": "Döşemealtı",  "emoji": "🌲", "vibe": "Green plateau living, cooler air, gardens",            "area": "Inland",      "cost": 1, "lat": 37.0100, "lng": 30.6100 },
+  { "name": "Kemer",       "emoji": "⛵", "vibe": "Pine coast, marina town under the Taurus",             "area": "West Coast",  "cost": 2, "lat": 36.6020, "lng": 30.5600 },
+  { "name": "Belek",       "emoji": "⛳", "vibe": "Golf courses and five-star quiet",                     "area": "East Coast",  "cost": 3, "lat": 36.8620, "lng": 31.0560 },
+  { "name": "Side",        "emoji": "🏺", "vibe": "Ancient harbour town, columns on the beach",           "area": "East Coast",  "cost": 2, "lat": 36.7670, "lng": 31.3890 },
+  { "name": "Olympos",     "emoji": "🌿", "vibe": "Treehouse coast, ruins in the forest, the Chimaera",   "area": "West Coast",  "cost": 1, "lat": 36.3960, "lng": 30.4710 }
+]
