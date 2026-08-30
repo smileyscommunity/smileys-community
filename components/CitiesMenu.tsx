@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 
 // The nav's one city control. Populated from /api/cities at runtime — never a
@@ -48,7 +47,6 @@ export default function CitiesMenu({
   homeSlug?: string
   viewingSlug?: string
 }) {
-  const router = useRouter()
   const [cities, setCities] = useState<City[]>(initial)
   const [open, setOpen]     = useState(false)
   const [busy, setBusy]     = useState(false)
@@ -105,12 +103,13 @@ export default function CitiesMenu({
       if (!res.ok) { toast.error(d.error ?? 'Could not switch city'); return }
       setOpen(false)
       onNavigate?.()
-      // Land on the city you just switched to. Refreshing in place left members
-      // on whatever page they happened to be on with silently different data —
-      // switching city is a destination change, so it should look like one.
-      // The refresh still matters: server components hold the city-scoped data.
-      router.push(`/${slug ?? homeSlug ?? ''}`)
-      router.refresh()
+      // Land on the city you just switched to — with a FULL page load, not a
+      // client-side push. useCurrentCity (and anything else cached per page
+      // load) holds the old city's name/timezone across soft navigations, so
+      // router.push left every client heading saying the previous city while
+      // the server data underneath switched. A document load resets all of it,
+      // and switching city is a destination change — it should look like one.
+      window.location.assign(`/app/${slug ?? homeSlug ?? ''}`)
     } catch {
       toast.error('Could not switch city')
     } finally { setBusy(false) }
