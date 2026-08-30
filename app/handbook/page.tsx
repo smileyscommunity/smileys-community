@@ -119,13 +119,15 @@ const START_HERE: { slug: string; emoji: string; label: string }[] = [
 // question to answer, and saying so out loud is what keeps the surfaces from
 // bleeding into each other.
 //
-// The Guide tile is DEFAULT-CITY ONLY, matching the rule app/[city]/page.tsx
-// already follows: /guide holds the default city's experiences, so offering
-// "Experience Izmir" and landing on Istanbul's entries breaks the promise on
-// click. Directory, Neighborhoods and Board all resolve per city already.
-function otherSurfaces(cityName: string, isDefault: boolean) {
+// The Guide tile shows when the city HAS a guide (published entries) — the
+// old default-city-only gate assumed /guide held only Istanbul's experiences,
+// which the per-city guide made false; İzmir and Antalya launched with full
+// guides this tile was hiding. Counting entries keeps it honest for a city
+// that hasn't written its guide yet. Directory, Neighborhoods and Board all
+// resolve per city already.
+function otherSurfaces(cityName: string, hasGuide: boolean) {
   return [
-    ...(isDefault ? [{ href: '/guide', emoji: '🗺️', label: 'Guide', job: `Experience ${cityName}` }] : []),
+    ...(hasGuide ? [{ href: '/guide', emoji: '🗺️', label: 'Guide', job: `Experience ${cityName}` }] : []),
     { href: '/directory',     emoji: '🏪', label: 'Directory',     job: 'Find a business or service' },
     { href: '/neighborhoods', emoji: '🏘️', label: 'Neighborhoods', job: 'Find your part of the city' },
     { href: '/board',         emoji: '💬', label: 'Board',         job: 'Ask the community' },
@@ -168,7 +170,13 @@ function loadQuickReference(): Category[] {
 
 export default async function HandbookPage() {
   const city = await handbookCity()
-  const articles = await getHandbookArticles(city.id)
+  const [articles, guideEntryCount] = await Promise.all([
+    getHandbookArticles(city.id),
+    // Gates the Guide tile below on the city actually having a guide —
+    // the old isDefault gate assumed /guide only held Istanbul's entries,
+    // which stopped being true when the guide went per-city.
+    prisma.guideEntry.count({ where: { cityId: city.id, status: 'published' } }),
+  ])
 
   // Group by CANONICAL category so legacy-keyed rows land in the new IA
   // without a data migration. Dev-only: warn when an article's category
@@ -356,7 +364,7 @@ export default async function HandbookPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-6">Need something else?</h2>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            {otherSurfaces(city.name, city.isDefault).map(s => (
+            {otherSurfaces(city.name, guideEntryCount > 0).map(s => (
               <Link key={s.href} href={s.href}
                 className="bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-2xl px-4 py-4 transition-colors group">
                 <div className="flex items-center gap-3">
