@@ -197,7 +197,10 @@ export default async function AdvertisePage() {
                   { label: 'Age range',  value: 'Primarily 25–55'                            },
                   { label: 'Profile',    value: 'Professionals, entrepreneurs, creatives'     },
                   { label: 'Location',   value: '80% Istanbul-based'                          },
-                  { label: 'Engagement', value: 'Members attend 3+ events/week on average'   },
+                  // A media buyer will do the math on any per-member average
+                  // (1,600 members × 3/week would dwarf our event volume) —
+                  // claim only what the most active cohort actually does.
+                  { label: 'Engagement', value: 'Our most active members attend multiple events per week' },
                   { label: 'Hosts',      value: '40+ activity hosts across clubs & events'   },
                   { label: 'Membership', value: 'Application-only, personally reviewed'       },
                 ].map(r => (
