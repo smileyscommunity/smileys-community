@@ -231,6 +231,30 @@ export default async function AdvertisePage() {
         </div>
       </section>
 
+      {/* Proof — no partner logos yet (partners table is empty), so the
+          strongest available evidence is the rooms themselves: real event
+          photos, member-consent-sensitive, swap via public/images/advertise. */}
+      <section className="bg-white border-t border-gray-100">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+          <div className="mb-10">
+            <h2 className="text-3xl font-extrabold text-gray-900 mb-3">The rooms your brand joins</h2>
+            <p className="text-gray-600 max-w-xl">
+              No stock photos — these are our events. Full rooms, real attention, people who showed up
+              to be there.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map(n => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img key={n} src={`/app/images/advertise/event-${n}.jpg`}
+                alt="A Smileys community event"
+                loading="lazy"
+                className="aspect-[3/4] w-full object-cover rounded-2xl border border-gray-100 shadow-sm" />
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Formats */}
       <section id="formats" className="bg-gray-50 border-t border-gray-100">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
@@ -297,6 +321,21 @@ export default async function AdvertisePage() {
             </p>
           </div>
           <AdvertiseFormClient />
+        </div>
+      </section>
+
+      {/* Partner-focused close — the global footer's member CTA band is
+          suppressed on this page (see components/Footer.tsx): an advertiser
+          page must not end by pitching membership. */}
+      <section className="bg-amber-500">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
+          <h2 className="text-3xl sm:text-4xl font-extrabold text-white mb-4">
+            Let&rsquo;s build something for your brand.
+          </h2>
+          <p className="text-amber-100 mb-10 text-lg">
+            Tell us what you&rsquo;re trying to reach — we&rsquo;ll design the format around it.
+          </p>
+          <a href="#contact" className="btn-white inline-block">Get in touch</a>
         </div>
       </section>
 

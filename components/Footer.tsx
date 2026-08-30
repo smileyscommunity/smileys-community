@@ -2,6 +2,7 @@
 
 import { Fragment } from 'react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 
 interface FooterProps {
@@ -22,7 +23,11 @@ const DEFAULT_STATS: { value: string; label: string }[] = []
 
 export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods = true }: FooterProps) {
   const { isLoggedIn } = useAuth()
+  const pathname = usePathname()
   const footerStats = stats?.slice(0, 3) ?? DEFAULT_STATS
+  // The member pitch has no business closing the advertiser page — /advertise
+  // ends with its own partner CTA band instead.
+  const showMemberCta = !isLoggedIn && !pathname?.startsWith('/advertise')
 
   return (
     <footer className="bg-white border-t border-gray-100">
@@ -33,7 +38,7 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
           rest of the footer (worst on short-content mobile screens like
           the members page after "Load more"). Hide it once someone's in
           the app; they have the bottom nav for navigation. */}
-      {!isLoggedIn && (
+      {showMemberCta && (
         <div className="bg-amber-500">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 flex flex-col sm:flex-row items-center justify-between gap-6">
             <div>
