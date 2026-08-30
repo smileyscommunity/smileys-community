@@ -92,8 +92,8 @@ interface HangoutMessage {
   user:      JoinerSummary
 }
 
-// Hangout times are always shown in Istanbul time, never the viewer's
-// device timezone — the community is Istanbul-based, so a member abroad
+// Hangout times are always shown in the CITY's timezone (the TZ param comes
+// from useCurrentCity), never the viewer's device timezone — a member abroad
 // (or with a misconfigured device clock) still sees the local meet time.
 function formatWindow(startsAt: string, endsAt: string, TZ: string) {
   const s = new Date(startsAt)
@@ -102,7 +102,7 @@ function formatWindow(startsAt: string, endsAt: string, TZ: string) {
   const minsToStart = Math.round((s.getTime() - now.getTime()) / 60_000)
 
   const fmtTime = (d: Date) => d.toLocaleTimeString('en-GB', { timeZone: TZ, hourCycle: 'h23', hour: '2-digit', minute: '2-digit' })
-  // Day comparisons in Istanbul, not the device tz.
+  // Day comparisons in the city's tz, not the device tz.
   const istDay = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: TZ })
 
   let prefix = ''
@@ -130,13 +130,13 @@ function timeStatus(startsAt: string, endsAt: string, TZ: string): { live: boole
   return { live: false, label: formatWindow(startsAt, endsAt, TZ) }
 }
 
-// The datetime-local input represents ISTANBUL wall-clock time (the
+// The datetime-local input represents the CITY's wall-clock time (the
 // hangout's meet time), not the creator's device time. Format the default
-// as Istanbul wall-clock so the input + the stored value stay consistent
+// as city wall-clock so the input + the stored value stay consistent
 // regardless of where the creator's device clock is. sv-SE → "YYYY-MM-DD
 // HH:MM:SS"; swap the space for T and drop seconds.
 const toInputValue = (d: Date, tz: string) => wallClockInTz(d, tz)
-// Inverse: a datetime-local value ("YYYY-MM-DDTHH:MM") is the Istanbul
+// Inverse: a datetime-local value ("YYYY-MM-DDTHH:MM") is the city's
 // wall-clock meet time. Turkey is UTC+3 year-round (no DST since 2016, the
 // same assumption the event pages make), so tag it +03:00 to get the correct
 // UTC instant regardless of the creator's device timezone.
