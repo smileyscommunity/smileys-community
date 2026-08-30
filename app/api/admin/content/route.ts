@@ -132,14 +132,12 @@ function normalizeSection(key: string, raw: unknown):
   }
 
   // Hero-style sections — headline/subtitle/badge with per-section
-  // additions for `about` (story paragraphs) and `why` (tagline/closing).
+  // additions for `why` (tagline/closing). The about story paragraphs
+  // moved into app/about/page.tsx as owner-authored JSX (2026-08-30).
   if (key === 'about') {
     return { ok: true, value: {
       headline: str(r.headline, HEADLINE_MAX),
       subtitle: str(r.subtitle, SUBTITLE_MAX),
-      story_p1: str(r.story_p1, STORY_MAX),
-      story_p2: str(r.story_p2, STORY_MAX),
-      story_p3: str(r.story_p3, STORY_MAX),
     } }
   }
   if (key === 'why') {

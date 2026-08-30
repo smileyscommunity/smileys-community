@@ -328,18 +328,9 @@ export default function ContentPage() {
             <label className={labelCls}>Subtitle</label>
             <textarea value={content.about.subtitle} onChange={e => set('about', { ...content.about, subtitle: e.target.value })} rows={2} className={`${inputCls} resize-none`} />
           </div>
-          <div>
-            <label className={labelCls}>Our Story — Paragraph 1</label>
-            <textarea value={content.about.story_p1} onChange={e => set('about', { ...content.about, story_p1: e.target.value })} rows={4} className={`${inputCls} resize-none`} />
-          </div>
-          <div>
-            <label className={labelCls}>Our Story — Paragraph 2</label>
-            <textarea value={content.about.story_p2} onChange={e => set('about', { ...content.about, story_p2: e.target.value })} rows={4} className={`${inputCls} resize-none`} />
-          </div>
-          <div>
-            <label className={labelCls}>Our Story — Paragraph 3</label>
-            <textarea value={content.about.story_p3} onChange={e => set('about', { ...content.about, story_p3: e.target.value })} rows={3} className={`${inputCls} resize-none`} />
-          </div>
+          {/* The "Our story" narrative moved into app/about/page.tsx as
+              owner-authored JSX (2026-08-30) — it's four titled chapters now,
+              beyond what flat paragraph fields can hold. */}
           <SaveButton onClick={() => save('about', content.about)} saving={saving} />
         </div>
       )}

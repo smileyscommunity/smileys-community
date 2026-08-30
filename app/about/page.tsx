@@ -169,13 +169,35 @@ export default async function AboutPage() {
           narrower sections sat visibly inset from the Hero above them,
           reading as "centered" by comparison even though the text itself
           was always left-aligned. */}
+      {/* Owner-authored narrative (2026-08-30) — four titled chapters, so it
+          lives here as JSX rather than in the CMS's flat story_p1..p3 keys,
+          which this section no longer reads. */}
       <section className="bg-white">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
           <h2 className="section-title mb-6">Our story</h2>
           <div className="prose prose-gray max-w-none text-gray-600 leading-relaxed space-y-5">
-            <p>{about.story_p1 ?? "Smileys started from a frustration most people moving to Istanbul share: the city is magnificent, full of energy and culture — but breaking into it socially is surprisingly hard. Existing expat groups felt impersonal. Dating apps weren't the answer. And showing up to a random \"networking event\" felt like the opposite of fun."}</p>
-            <p>{about.story_p2 ?? "We built Smileys to fix that. Not another app where you swipe through strangers, but a real community where every face you see at an event has been thoughtfully welcomed. Where the host knows your name. Where the guest list is balanced, the venue is handpicked, and the atmosphere is warm from the moment you walk in."}</p>
-            <p>{about.story_p3 ?? "Istanbul deserves a social scene that matches its character — vibrant, layered, and genuinely welcoming. That's what we're building, one event at a time."}</p>
+            <p className="text-lg font-semibold text-gray-800">Moving to a new city is exciting. Finding your people is the hard part.</p>
+            <p>Our founder knows this firsthand. He spent 20 years in New York City, building a life far from home.</p>
+            <p>In the days after September 11, being far from home suddenly felt very different. New York was grieving, tense, and for many immigrants, lonelier than ever. He felt that Turkish New Yorkers needed each other more than they ever had. So he started NYCTurk, a community to bring them together.</p>
+            <p>What began as a response to a difficult moment grew into something lasting. For 15 years, thousands of people came to NYCTurk events. They met friends, celebrated culture, and found belonging in a city that can feel enormous and anonymous.</p>
+            <p>Fifteen years of hosting taught him one thing:</p>
+            <p className="border-l-4 border-amber-400 pl-4 text-gray-800 font-semibold">People don&rsquo;t need more ways to connect. They need better opportunities to connect in real life.</p>
+            <p>Smileys is the next chapter.</p>
+
+            <h3 className="text-lg font-bold text-gray-900 pt-4">A new city, the same question</h3>
+            <p>We started in Istanbul with a simple question: how do you make a new city feel like home?</p>
+            <p>Istanbul is vibrant, international, and full of people from everywhere. Yet real friendship is still hard to find. Big meetup groups feel impersonal. Dating apps aren&rsquo;t built for friendship. Networking events are about business cards, not people.</p>
+            <p>So we built Smileys: a real-life social community designed around genuine connection. Not an app where you swipe through strangers, but a place where people actually meet. Our events are hosted, the venues are chosen with care, the groups are balanced, and it always feels natural to walk in alone.</p>
+            <p>The goal was never one great night. The people you meet become familiar faces. Familiar faces become friends. Friends become your community. And a city that felt unfamiliar starts to feel like home.</p>
+
+            <h3 className="text-lg font-bold text-gray-900 pt-4">Why &ldquo;Smileys&rdquo;?</h3>
+            <p>Because that&rsquo;s what connection looks like. Walk into any of our events and you&rsquo;ll see it: a room full of people smiling, talking, meeting someone new. We named the community after the thing we&rsquo;re actually building.</p>
+
+            <h3 className="text-lg font-bold text-gray-900 pt-4">From one city to everywhere</h3>
+            <p>Smileys started in Istanbul, but it was never meant to stay in one city. We&rsquo;re expanding to new cities with one ambition: a global community where you can find your people wherever you are in the world.</p>
+            <p>Whether you just moved, you&rsquo;re traveling, studying, working abroad, or you&rsquo;re a local who wants to meet people beyond your circle, Smileys is where you start.</p>
+            <p>Belonging shouldn&rsquo;t depend on where you were born, who you already know, or how long you&rsquo;ve lived somewhere. Everyone deserves a place where they can walk in, feel welcome, and find their people.</p>
+            <p className="text-gray-800 font-semibold">We&rsquo;re not just helping people meet. We&rsquo;re helping people find their people.</p>
           </div>
         </div>
       </section>
