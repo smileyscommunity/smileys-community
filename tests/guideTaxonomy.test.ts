@@ -29,12 +29,21 @@ describe('per-city guide vocabulary', () => {
     }
   })
 
+  it("gives İzmir the bay's verbs, not Istanbul's", () => {
+    const values = moodsFor('izmir').map(m => m.value)
+    expect(values).toContain('bay')
+    expect(values).toContain('sunset')
+    expect(values).toContain('peninsula')
+    expect(values).not.toContain('bosphorus')
+    expect(collectionsFor('izmir').map(c => c.label)).toContain('Layers of Smyrna')
+  })
+
   it('falls back to a geography-free vocabulary for a city with none of its own', () => {
     // A launch must read as itself, so the generic set names no place at all.
-    expect(hasOwnGuideTaxonomy('izmir')).toBe(false)
-    const labels = [...moodsFor('izmir'), ...collectionsFor('izmir')].map(t => t.label)
+    expect(hasOwnGuideTaxonomy('ankara')).toBe(false)
+    const labels = [...moodsFor('ankara'), ...collectionsFor('ankara')].map(t => t.label)
     expect(labels.length).toBeGreaterThan(4)
-    for (const l of labels) expect(l).not.toMatch(/Bodrum|Istanbul/i)
+    for (const l of labels) expect(l).not.toMatch(/Bodrum|Istanbul|İzmir|Izmir/i)
   })
 
   it('keeps every value unique per city — duplicates would double a shelf', () => {

@@ -41,6 +41,22 @@ const BODRUM_MOODS: GuideTaxon[] = [
   { value: 'summer',    label: 'Make the Most of Summer', emoji: '☀️' },
 ]
 
+// İzmir faces west across its own gulf: the ferry crossing is a daily ritual,
+// the whole city watches the sunset, and the weekend move is the peninsula
+// (Urla, Alaçatı, Sığacık). Its verbs come from that geography.
+const IZMIR_MOODS: GuideTaxon[] = [
+  { value: 'bay',       label: 'Cross the Bay',                emoji: '⛴️' },
+  { value: 'eat',       label: 'Eat Something Great',          emoji: '🍽️' },
+  { value: 'sunset',    label: 'Watch the Sunset',             emoji: '🌅' },
+  { value: 'iconic',    label: 'See Something Iconic',         emoji: '🏛️' },
+  { value: 'night-out', label: 'Go Out Tonight',               emoji: '🍸' },
+  { value: 'peninsula', label: 'Head to the Peninsula',        emoji: '🍇' },
+  { value: 'escape',    label: 'Escape the City',              emoji: '🌿' },
+  { value: 'free',      label: 'Do Something Free',            emoji: '💸' },
+  { value: 'different', label: 'Discover Something Different', emoji: '🎨' },
+  { value: 'people',    label: 'Meet People',                  emoji: '👥' },
+]
+
 // A city with no vocabulary of its own gets verbs that name no geography, so a
 // new launch reads as itself rather than as a copy of Istanbul. Whoever writes
 // that city's guide replaces this with its own list.
@@ -75,6 +91,18 @@ const BODRUM_COLLECTIONS: GuideTaxon[] = [
   { value: 'day-trips', label: 'Day Trips',              emoji: '🏝️' },
 ]
 
+// Six shelves like Istanbul's; no "for free" shelf — free stays a mood chip,
+// and İzmir's ancient layers (Agora, Kadifekale, the Asansör, Konak) earn a
+// history shelf of their own instead of hiding under "different".
+const IZMIR_COLLECTIONS: GuideTaxon[] = [
+  { value: 'bay',       label: 'Life on the Bay',    emoji: '⛴️' },
+  { value: 'eat',       label: 'Eat İzmir',          emoji: '🍽️' },
+  { value: 'night',     label: 'İzmir After Dark',   emoji: '🌙' },
+  { value: 'history',   label: 'Layers of Smyrna',   emoji: '🏛️' },
+  { value: 'peninsula', label: 'Peninsula Weekends', emoji: '🍇' },
+  { value: 'escape',    label: 'Escape the City',    emoji: '🌿' },
+]
+
 const GENERIC_COLLECTIONS: GuideTaxon[] = [
   { value: 'eat',       label: 'Eat Well',            emoji: '🍽️' },
   { value: 'night',     label: 'After Dark',          emoji: '🌙' },
@@ -85,8 +113,8 @@ const GENERIC_COLLECTIONS: GuideTaxon[] = [
 
 // Keyed by city SLUG, not id: these are editorial vocabularies that live with
 // the code, and a slug is what a reader of this file recognises.
-const CITY_MOODS:       Record<string, GuideTaxon[]> = { istanbul: ISTANBUL_MOODS, bodrum: BODRUM_MOODS }
-const CITY_COLLECTIONS: Record<string, GuideTaxon[]> = { istanbul: ISTANBUL_COLLECTIONS, bodrum: BODRUM_COLLECTIONS }
+const CITY_MOODS:       Record<string, GuideTaxon[]> = { istanbul: ISTANBUL_MOODS, bodrum: BODRUM_MOODS, izmir: IZMIR_MOODS }
+const CITY_COLLECTIONS: Record<string, GuideTaxon[]> = { istanbul: ISTANBUL_COLLECTIONS, bodrum: BODRUM_COLLECTIONS, izmir: IZMIR_COLLECTIONS }
 
 export function moodsFor(citySlug: string): GuideTaxon[] {
   return CITY_MOODS[citySlug] ?? GENERIC_MOODS
