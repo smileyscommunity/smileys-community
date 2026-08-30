@@ -229,7 +229,7 @@ export default async function CityPage({ params }: Params) {
   // cookie before landing — so "See what's on" from /izmir shows İzmir's
   // events, not the default city's. Plain <a> targets (route handler, not a
   // page), hence the explicit /app basePath.
-  const enter = (to: 'events' | 'clubs' | 'directory' | 'neighborhoods' | 'guide', n?: string) =>
+  const enter = (to: 'events' | 'clubs' | 'directory' | 'neighborhoods' | 'guide' | 'handbook', n?: string) =>
     `/app/api/city/enter?city=${city.slug}&to=${to}${n ? `&n=${encodeURIComponent(n)}` : ''}`
 
   const isDefaultCity = city.slug === DEFAULT_CITY_SLUG
@@ -490,6 +490,11 @@ export default async function CityPage({ params }: Params) {
                     landing: /guide reads the viewer's city, so a plain link would
                     show a cookie-less visitor Istanbul's guide from Bodrum's page. */}
                 <a href={enter('guide')} className="btn-primary">Read the {city.name} guide</a>
+                {/* The Handbook (how the city works: transport cards, permits,
+                    banking) is the practical sibling of the guide — the four
+                    national articles apply to every city from day one, so this
+                    link never lands on an empty shelf. */}
+                <a href={enter('handbook')} className="btn-secondary">The {city.name} Handbook</a>
                 <a href={enter('directory')} className="btn-secondary">Browse places</a>
               </div>
             </div>

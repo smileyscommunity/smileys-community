@@ -27,6 +27,7 @@ const DESTINATIONS: Record<string, string> = {
   members:       '/members',
   neighborhoods: '/neighborhoods',
   guide:         '/guide',
+  handbook:      '/handbook',
   // The city's own page. Empty because the path is the city slug itself, filled
   // in below once the slug has been checked against a real live city — the
   // whole point of this map is that a redirect target is never caller-shaped.
