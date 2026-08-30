@@ -156,7 +156,8 @@ function defaultEndsAt(tz: string): string {
 
 export default function HangoutsPage() {
   // Meet times are the CITY's wall clock, not the reader's device.
-  const tz = useCurrentCity()?.timezone ?? DEFAULT_TZ
+  const city = useCurrentCity()
+  const tz = city?.timezone ?? DEFAULT_TZ
   const router = useRouter()
   const { user, isLoggedIn, isLoading } = useAuth()
   const neighborhoods = useCityNeighborhoods()
@@ -449,7 +450,12 @@ export default function HangoutsPage() {
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-3 mb-1">
             <div>
               <span className="hidden sm:inline-block bg-amber-100 text-amber-700 text-xs font-bold tracking-widest uppercase rounded-full px-4 py-1.5 mb-3">☕ Hangouts</span>
-              <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-gray-900">Who&apos;s around?</h1>
+              {/* City-named so a member browsing another city's hangouts
+                  (the city switcher) always knows whose "around" this is;
+                  the name loads async, so the bare question renders first. */}
+              <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-gray-900">
+                Who&apos;s around{city?.name ? <> in <span className="text-amber-600">{city.name}</span></> : ''}?
+              </h1>
               <p className="text-sm sm:text-base text-gray-600 mt-1">See what Smileys members are doing nearby — or start something yourself.</p>
               <p className="hidden sm:block text-xs text-gray-400 mt-1.5">Spontaneous plans · Real people · Right now</p>
             </div>
