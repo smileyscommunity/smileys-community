@@ -23,6 +23,7 @@ import { cityCandidatesFromUrl, contentCitySlugPath } from '@/lib/pathCitySlug'
 import { cityIdForContent } from '@/lib/contentCity'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
+import type { UserRole } from '@/lib/auth'
 
 const siteUrl = APP_URL
 const defaultImage = `${siteUrl}/api/og`
@@ -186,7 +187,25 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         />
       </head>
       <body className="min-h-screen flex flex-col bg-white">
-        <AuthProvider>
+        {/* Seeded with the session this layout already resolved, so a member's
+            first paint is signed-in instead of flashing the guest navbar and
+            footer on every full page load. Slim on purpose — /api/auth/me
+            still fills in the full profile after hydration. */}
+        <AuthProvider initialUser={session ? {
+          id:       session.id,
+          name:     session.name,
+          initials: session.name.trim().split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2),
+          color:    session.color,
+          role:     session.role as UserRole,
+          email:    session.email,
+          bio:           session.bio,
+          neighborhood:  session.neighborhood,
+          instagram:     session.instagram,
+          emailVerified: session.emailVerified,
+          partnerId:     session.partnerId ?? null,
+          totpEnabled:   session.totpEnabled,
+          joinedEvents:  [],
+        } : null}>
           <Navbar cities={navCities} homeSlug={homeSlug} viewingSlug={viewingSlug} />
           <VerifyEmailBanner />
           <PendingApprovalBanner />

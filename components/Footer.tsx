@@ -93,21 +93,16 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
 
       {/* Main footer */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
-        {/* 4 cols at lg (small laptops) so the 6-col layout doesn't crush each
-            column to ~140px; 6 cols at xl+ where there's room to fit everything
-            on one row. */}
-        {/* Brand takes its own row, then five link columns. The old
-            xl:grid-cols-6 wrapped ragged on a laptop and left the city column —
-            now ten items — towering over four short ones. */}
-        {/* xl gets six true columns so Legal sits in the first row beside
-            Company — at five columns it wrapped to a second row far below,
-            pushed down by the tall city column, leaving dead space under
-            three columns. lg (laptops) keeps five columns + stacked Legal:
-            six wouldn't fit without crushing. */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-x-8 gap-y-10">
+        {/* Brand takes its own row, then five link columns side by side at
+            lg+: the city column as ONE tall stack, and Across / Membership /
+            Company / Legal next to it. The earlier six-column layout gave the
+            city section two sub-columns and pushed Legal around with col-start
+            hacks; one stack per section reads cleaner and every heading sits
+            on the same row. */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-x-8 gap-y-10">
 
-          {/* Brand — wider until xl so the social row breathes */}
-          <div className="col-span-2 sm:col-span-3 lg:col-span-5 xl:col-span-6">
+          {/* Brand — its own full row so the social row breathes */}
+          <div className="col-span-2 sm:col-span-3 lg:col-span-5">
             <Link href="/" className="flex items-center gap-2 mb-4 group">
               <span className="text-2xl">😊</span>
               <span className="font-extrabold text-gray-900 group-hover:text-amber-600 transition-colors text-lg">
@@ -161,16 +156,17 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
               so nothing has to smuggle "Istanbul" into a label and then go
               stale when a second city opens. The heading follows the viewer's
               city, so it reads IN IZMIR for someone viewing Izmir. */}
-          <div className="col-span-2 sm:col-span-3 lg:col-span-2">
+          <div className="col-span-2 sm:col-span-3 lg:col-span-1">
             <h3 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-4">
               In {cityName}
             </h3>
-            {/* Two sub-columns everywhere: at thirteen links the single phone
-                stack became a full screen of scrolling (the towering this
-                split exists to prevent). At 375px each column gets ~160px, so
-                "Community Board" wraps to two snug lines — a far smaller cost
-                than thirteen full-width rows. */}
-            <ul className="grid grid-cols-2 gap-x-6 gap-y-2.5">
+            {/* Two sub-columns on phones/tablets: at twelve links the single
+                stack became a full screen of scrolling. At 375px each column
+                gets ~160px, so "Community Board" wraps to two snug lines — a
+                far smaller cost than twelve full-width rows. On desktop the
+                section is one ordinary column like its neighbours, so it
+                collapses back to a single stack. */}
+            <ul className="grid grid-cols-2 gap-x-6 gap-y-2.5 lg:grid-cols-1 lg:gap-y-3">
               {[
                 { href: '/events',        label: 'Events 🎉'          },
                 { href: '/clubs',         label: 'Clubs 🏠'           },
@@ -277,9 +273,9 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
 
           {/* Legal — its own grid cell so the phone's 2-col grid pairs it
               beside Company (nested-under-Company left the right half of that
-              row empty on mobile). The explicit col-starts park it back under
-              Company at sm/lg, so the wider layouts keep their five columns. */}
-          <div className="sm:col-start-3 lg:col-start-5 xl:col-start-auto xl:row-start-auto">
+              row empty on mobile). sm parks it under Company; at lg+ it flows
+              naturally into the fifth column of the single row. */}
+          <div className="sm:col-start-3 lg:col-start-auto">
             <h3 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-4">Legal</h3>
             <ul className="space-y-3">
               {[

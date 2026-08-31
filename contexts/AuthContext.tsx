@@ -24,13 +24,22 @@ const GUEST: AppUser = {
   role:     'member',
 }
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+export function AuthProvider({ children, initialUser = null }: { children: ReactNode; initialUser?: AppUser | null }) {
   const router = useRouter()
-  const [user,      setUser]      = useState<AppUser>(GUEST)
-  const [isLoading, setIsLoading] = useState(true)
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  // The layout hands over the session it already resolved server-side, so a
+  // signed-in member's first paint is signed-in — every full page load (and
+  // city switches are full loads by design) used to flash the guest navbar
+  // and the amber "Apply to join" footer band until /api/auth/me resolved.
+  // Only a POSITIVE identification is trusted: a null can be baked into a
+  // statically prerendered page (build time has no cookies), so null keeps
+  // the old behavior — stay "loading" until /me answers.
+  const [user,      setUser]      = useState<AppUser>(initialUser ?? GUEST)
+  const [isLoading, setIsLoading] = useState(!initialUser)
+  const [isLoggedIn, setIsLoggedIn] = useState(!!initialUser)
 
   useEffect(() => {
+    // Still refreshed even when the server seeded us: /me carries the full
+    // profile (club-host flags, joined events…) the slim session doesn't.
     fetch('/app/api/auth/me')
       .then(res => res.json())
       .then(data => {
@@ -38,6 +47,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const initials = data.name.trim().split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
           setUser({ ...data, initials, joinedEvents: [] })
           setIsLoggedIn(true)
+        } else {
+          // Definitive "no session" from the server (revoked/expired between
+          // SSR and now) — downgrade, so gated pages bounce instead of
+          // showing a member shell that every API call will 401 under.
+          // Network failures land in .catch and change nothing.
+          setUser(GUEST)
+          setIsLoggedIn(false)
         }
       })
       .catch(() => {})

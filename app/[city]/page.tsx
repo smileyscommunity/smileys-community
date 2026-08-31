@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import type { Metadata } from 'next'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -71,7 +72,7 @@ const getCityPageData = unstable_cache(
     const today        = todayInTz(tz)
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
 
-    const [{ events }, clubs, neighborhoodCounts, testimonials, newMembersThisWeek, guideEntries] = await Promise.all([
+    const [{ events }, clubs, neighborhoodCounts, testimonials, newMembersThisWeek, guideEntries, latestStories] = await Promise.all([
       getEvents({ limit: 24, upcoming: true, cityId }),
       getClubs(cityId),
       prisma.event.groupBy({
@@ -100,9 +101,18 @@ const getCityPageData = unstable_cache(
       // Does this city have a guide worth linking to? Published entries only —
       // a city whose guide is still all drafts has nothing to read yet.
       prisma.guideEntry.count({ where: { cityId, status: 'published' } }),
+      // Latest city-relevant community writing — same null-means-global rule
+      // as /posts and the Guide's strip, so İzmir's page surfaces "Smileys is
+      // coming to İzmir" without borrowing another city's stories.
+      prisma.post.findMany({
+        where:   { kind: 'community', status: 'published', OR: [{ cityId }, { cityId: null }] },
+        orderBy: { publishedAt: 'desc' },
+        take:    2,
+        select:  { slug: true, title: true },
+      }),
     ])
 
-    return { events, clubs, neighborhoodCounts, testimonials, newMembersThisWeek, guideEntries }
+    return { events, clubs, neighborhoodCounts, testimonials, newMembersThisWeek, guideEntries, latestStories }
   },
   ['city-page-data'],
   { revalidate: 60, tags: ['home'] },
@@ -155,7 +165,7 @@ export default async function CityPage({ params }: Params) {
     )
   }
 
-  const { events: cachedEvents, clubs, neighborhoodCounts, testimonials, newMembersThisWeek, guideEntries } = await getCityPageData(city.id, city.timezone)
+  const { events: cachedEvents, clubs, neighborhoodCounts, testimonials, newMembersThisWeek, guideEntries, latestStories } = await getCityPageData(city.id, city.timezone)
   const hasGuide = guideEntries > 0
 
   // Guest redaction happens per-request, OUTSIDE the shared cache entry —
@@ -553,6 +563,28 @@ export default async function CityPage({ params }: Params) {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Stories strip — same shelf-front as the Guide's, not a full section:
+          the city page's job stays "what's here?"; the writing lives at
+          /posts. Self-hiding when the city has nothing relevant yet. */}
+      {latestStories.length > 0 && (
+        <section className="py-8 bg-white border-t border-gray-100">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 flex-wrap">
+              <span className="text-sm font-bold text-gray-900 shrink-0">📰 Stories from Smileys</span>
+              <span className="flex-1 min-w-0 text-sm text-gray-600 truncate">
+                {latestStories.map((s, i) => (
+                  <Fragment key={s.slug}>
+                    {i > 0 && <span className="text-gray-300"> · </span>}
+                    <Link href={`/posts/${s.slug}`} className="hover:text-amber-600 hover:underline">{s.title}</Link>
+                  </Fragment>
+                ))}
+              </span>
+              <Link href="/posts" className="text-sm font-bold text-amber-600 hover:underline shrink-0">All stories →</Link>
             </div>
           </div>
         </section>
