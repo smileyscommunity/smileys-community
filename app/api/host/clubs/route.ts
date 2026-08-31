@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdmin } from '@/lib/access'
+import { isAdmin, hostCityIds } from '@/lib/access'
 
 export async function GET() {
   const session = await getSession()
@@ -22,5 +22,20 @@ export async function GET() {
     select: { club: { select: { id: true, name: true, emoji: true, slug: true, memberCount: true } } },
     orderBy: { club: { name: 'asc' } },
   })
-  return NextResponse.json(memberships.map(m => m.club))
+  const clubs = memberships.map(m => m.club)
+
+  // A city host (consul) runs events across their city without per-club host
+  // grants — the create form was unusable for them (empty club list, then a
+  // 403 at submit). They may file events under any active club in a city
+  // they host; the admin events POST enforces the same boundary server-side.
+  const cities = await hostCityIds(session.id)
+  if (cities.length > 0) {
+    const cityClubs = await prisma.club.findMany({
+      where:  { cityId: { in: cities }, isActive: true, id: { notIn: clubs.map(c => c.id) } },
+      select: { id: true, name: true, emoji: true, slug: true, memberCount: true },
+      orderBy: { name: 'asc' },
+    })
+    clubs.push(...cityClubs)
+  }
+  return NextResponse.json(clubs)
 }

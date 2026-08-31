@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdmin, isAdminOrModerator, isClubHost, isClubHostFor } from '@/lib/access'
+import { isAdmin, isAdminOrModerator, isClubHost, isClubHostFor, hostCityIds } from '@/lib/access'
 import { createNotification, notifyNewEvent } from '@/lib/notify'
 import { writeAudit, getDiff } from '@/lib/audit'
 import { normalizePaymentContact } from '@/lib/safeUrl'
@@ -18,7 +18,10 @@ export async function DELETE(_: NextRequest, { params }: Params) {
 
     const admin    = isAdminOrModerator(session)
     const clubHost = !admin && await isClubHost(session.id)
-    if (!admin && !clubHost) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    // City hosts manage their OWN events in cities they host — same shape as
+    // the create gate. Check-in already worked for them; delete answered 403.
+    const cityHostOf = (!admin && !clubHost) ? await hostCityIds(session.id) : []
+    if (!admin && !clubHost && cityHostOf.length === 0) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     const { id } = await params
 
@@ -28,11 +31,16 @@ export async function DELETE(_: NextRequest, { params }: Params) {
     const eventScope = await prisma.event.findUnique({ where: { id }, select: { hostId: true, cityId: true, title: true, date: true } })
     if (!eventScope) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-    if (clubHost && eventScope.hostId !== session.id) {
+    if ((clubHost || cityHostOf.length > 0) && eventScope.hostId !== session.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
-    if (!isAdmin(session) && session.cityId !== eventScope.cityId) {
-      return NextResponse.json({ error: 'Cross-city moderation is admin-only' }, { status: 403 })
+    // Moderators are pinned to their home city; city hosts to their grants —
+    // a consul living in Istanbul can manage the İzmir they were appointed to.
+    if (!isAdmin(session)) {
+      const cityOk = cityHostOf.length > 0
+        ? cityHostOf.includes(eventScope.cityId)
+        : session.cityId === eventScope.cityId
+      if (!cityOk) return NextResponse.json({ error: 'Cross-city moderation is admin-only' }, { status: 403 })
     }
 
     // Count what the cascade will erase, for the audit snapshot — a hard
@@ -86,7 +94,9 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
     const admin    = isAdminOrModerator(session)
     const clubHost = !admin && await isClubHost(session.id)
-    if (!admin && !clubHost) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    // City hosts edit their OWN events in cities they host — mirrors DELETE.
+    const cityHostOf = (!admin && !clubHost) ? await hostCityIds(session.id) : []
+    if (!admin && !clubHost && cityHostOf.length === 0) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     const { id } = await params
 
@@ -101,14 +111,17 @@ export async function PUT(req: NextRequest, { params }: Params) {
     })
     if (!before) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-    if (clubHost && before.hostId !== session.id) {
+    if ((clubHost || cityHostOf.length > 0) && before.hostId !== session.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
     // City-scope check for non-admins. Previously a moderator could edit
     // events in any city — including emailing cancellation notices to
-    // every attendee. Admins act globally.
-    if (!isAdmin(session) && session.cityId !== before.cityId) {
-      return NextResponse.json({ error: 'Cross-city moderation is admin-only' }, { status: 403 })
+    // every attendee. Admins act globally; city hosts follow their grants.
+    if (!isAdmin(session)) {
+      const cityOk = cityHostOf.length > 0
+        ? cityHostOf.includes(before.cityId)
+        : session.cityId === before.cityId
+      if (!cityOk) return NextResponse.json({ error: 'Cross-city moderation is admin-only' }, { status: 403 })
     }
 
     const body = await req.json()

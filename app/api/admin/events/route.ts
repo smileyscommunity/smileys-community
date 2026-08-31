@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdmin, isModerator, isClubHost, isClubHostFor, failClosedCityId } from '@/lib/access'
+import { isAdmin, isModerator, isClubHost, isClubHostFor, failClosedCityId, hostCityIds } from '@/lib/access'
 import { createNotification, notifyNewEvent } from '@/lib/notify'
 import {splitLeadingEmoji, stripDupTrailingEmoji} from '@/lib/data'
 import { normalizePaymentContact } from '@/lib/safeUrl'
@@ -99,7 +99,14 @@ export async function POST(req: NextRequest) {
 
     const admin    = isAdmin(session)
     const clubHost = !admin && await isClubHost(session.id)
-    const canCreate = admin || clubHost || isModerator(session)
+    // City hosts (consuls) run their city's events without per-club host
+    // grants — until now the panel advertised "+ New Event" to them and this
+    // gate answered 403. Bounded like club hosts: own hostId only, clubs of a
+    // city they host only (checked below once the parent club resolves), and
+    // their events still land in the review queue like any non-staff host's.
+    const cityHostOf = (!admin && !clubHost && !isModerator(session)) ? await hostCityIds(session.id) : []
+    const cityHost   = cityHostOf.length > 0
+    const canCreate = admin || clubHost || isModerator(session) || cityHost
     if (!canCreate) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     const body = await req.json()
@@ -146,6 +153,11 @@ export async function POST(req: NextRequest) {
       if (!await isClubHostFor(session.id, clubId)) {
         return NextResponse.json({ error: 'You must be assigned as a host of this club to create events for it' }, { status: 403 })
       }
+    }
+    // City hosts likewise host only their own events; the club-belongs-to-
+    // their-city check runs below, where the parent club's city resolves.
+    if (cityHost && hostId !== session.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     // #3 fix: numeric + range validation. P6 in the payment audit
@@ -255,6 +267,11 @@ export async function POST(req: NextRequest) {
     // already constrained to their own clubs via isClubHostFor above).
     if (!admin && isModerator(session) && session.cityId !== parentClub.cityId) {
       return NextResponse.json({ error: 'Cross-city event creation is admin-only' }, { status: 403 })
+    }
+    // City hosts are scoped by their grants, not their home city — a consul
+    // living in Istanbul can host the İzmir they were appointed to.
+    if (cityHost && !cityHostOf.includes(parentClub.cityId)) {
+      return NextResponse.json({ error: 'You can only create events in a city you host' }, { status: 403 })
     }
 
     const event = await prisma.event.create({
