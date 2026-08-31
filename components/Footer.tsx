@@ -42,14 +42,12 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
         <div className="bg-amber-500">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 flex flex-col sm:flex-row items-center justify-between gap-6">
             <div>
-              {/* Network copy, deliberately — this band once hardcoded
-                  Istanbul, then followed the viewer's city, and both aged
-                  badly: the network's closing pitch shouldn't shrink to one
-                  city. City-specific conversion lives on the city pages'
-                  own CTAs; this line matches the About hero and OG card. */}
-              <p className="text-amber-950/60 text-sm font-medium mb-1">Curated city communities</p>
+              {/* Follows the viewer's city, like the "In {cityName}" column
+                  below it — this band hardcoded Istanbul, so Bodrum's footer
+                  pitched Istanbul to every prospect who landed there. */}
+              <p className="text-amber-950/60 text-sm font-medium mb-1">{cityName}&apos;s curated social community</p>
               <h2 className="text-2xl sm:text-3xl font-extrabold text-white leading-tight">
-                Find your people, wherever you are.
+                Find your people in {cityName}.
               </h2>
             </div>
             <div className="flex flex-col items-center sm:items-end gap-2 shrink-0">
