@@ -126,7 +126,7 @@ export default function Navbar({
   viewingSlug?: string
 }) {
   const pathname  = usePathname()
-  const { user, logout, isLoggedIn } = useAuth()
+  const { user, logout, isLoggedIn, isLoading } = useAuth()
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [discoverOpen, setDiscoverOpen] = useState(false)
   const [mobileOpen, setMobileOpen]     = useState(false)
@@ -281,7 +281,13 @@ export default function Navbar({
                 browsing + Join instead (mobile already made this call). */}
             {isLoggedIn && <SearchButton />}
 
-            {!isLoggedIn ? (
+            {/* Auth hydrates client-side and starts logged-out, so a full
+                page load (e.g. every city switch) flashed the Log in / Join
+                pair at members for a beat. Hold a same-size placeholder
+                until auth resolves. */}
+            {isLoading ? (
+              <div className="h-9 w-44" aria-hidden="true" />
+            ) : !isLoggedIn ? (
               <div className="flex items-center gap-2">
                 <Link href="/login" className="px-4 py-2 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-100 transition-colors">
                   Log in
@@ -334,7 +340,10 @@ export default function Navbar({
 
           {/* Mobile right */}
           <div className="flex md:hidden items-center gap-0.5 z-10">
-            {isLoggedIn ? (
+            {/* Same hydration hold as the desktop side — no guest flash. */}
+            {isLoading ? (
+              <div className="h-11 w-24" aria-hidden="true" />
+            ) : isLoggedIn ? (
               <>
                 <button
                   onClick={() => window.dispatchEvent(new CustomEvent('open-command-palette'))}
