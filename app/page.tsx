@@ -303,7 +303,7 @@ export default async function HomePage() {
       <section className="py-14 sm:py-20 bg-gray-50 border-t border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="mb-10">
-            <h2 className="section-title">More than a community. Your social infrastructure.</h2>
+            <h2 className="section-title">Everything a new city should come with.</h2>
             <p className="section-subtitle max-w-2xl">
               Moving somewhere new shouldn't mean starting your social life from zero every time.
             </p>
