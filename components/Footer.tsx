@@ -160,13 +160,12 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
             <h3 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-4">
               In {cityName}
             </h3>
-            {/* Two sub-columns: ten links in one stack made this column twice
-                the height of its neighbours. */}
-            {/* Single stack on phones. Two columns at 375px leaves ~160px each,
-                which wraps "Community Board" and "Marketplace" — the split
-                exists to stop this column towering on desktop, a problem phones
-                don't have. */}
-            <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+            {/* Two sub-columns everywhere: at thirteen links the single phone
+                stack became a full screen of scrolling (the towering this
+                split exists to prevent). At 375px each column gets ~160px, so
+                "Community Board" wraps to two snug lines — a far smaller cost
+                than thirteen full-width rows. */}
+            <ul className="grid grid-cols-2 gap-x-6 gap-y-2.5">
               {[
                 { href: '/events',        label: 'Events 🎉'          },
                 { href: '/clubs',         label: 'Clubs 🏠'           },
@@ -190,7 +189,7 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
                 { href: '/marketplace',   label: 'Marketplace 🛍️'     },
               ].map(l => (
                 <li key={l.href}>
-                  <Link href={l.href} className="text-sm text-gray-600 hover:text-amber-600 transition-colors">
+                  <Link href={l.href} className="text-sm leading-snug text-gray-600 hover:text-amber-600 transition-colors">
                     {l.label}
                   </Link>
                 </li>
