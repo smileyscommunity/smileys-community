@@ -4,6 +4,7 @@ import { CITY_STATUS, CITY_STATUS_META, type PublicCity } from '@/lib/cityStatus
 import { CITY_MATURITY } from '@/lib/cityMaturity'
 import { resolveImageUrl } from '@/lib/data'
 import { countryName } from '@/lib/country'
+import CityNotifyChip from '@/components/CityNotifyChip'
 
 // One card, every city, every stage. A city moves coming_soon → preparing →
 // live by an admin changing a dropdown; this component is what makes that flip
@@ -130,12 +131,17 @@ export default function CityCard({
               <span aria-hidden="true">→</span>
             </span>
           ) : (
-            // The notify action lives on the city's page, not here: a button
-            // inside a link is a nested interactive element, and that page can
-            // tell a guest from a member properly.
-            <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-700 group-hover:gap-2.5 transition-all">
-              About {city.name}
-              <span aria-hidden="true">→</span>
+            // "Get notified" sits right on the card (one tap converts the
+            // demand); the nested-interactive problem is solved by the
+            // stretched-link wrapper below — the chip renders above it.
+            <span className="flex items-center justify-between gap-3">
+              <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-700 group-hover:gap-2.5 transition-all">
+                About {city.name}
+                <span aria-hidden="true">→</span>
+              </span>
+              <span className="relative z-10">
+                <CityNotifyChip slug={city.slug} name={city.name} />
+              </span>
             </span>
           )}
         </div>
@@ -156,5 +162,14 @@ export default function CityCard({
   // client-side prefetch of a mutating endpoint is not something to invite.
   return city.status === 'live'
     ? <a href={`/app/api/city/enter?city=${city.slug}&to=city`} className="group block h-full">{body}</a>
-    : <Link href={`/${city.slug}`} className="group block h-full">{body}</Link>
+    : (
+      // Stretched link, not a wrapping <Link>: the coming-soon card carries a
+      // real button (CityNotifyChip), and interactive elements can't nest.
+      // The overlay link keeps the whole card clickable; the chip sits above
+      // it on z-10.
+      <div className="group block h-full relative">
+        <Link href={`/${city.slug}`} aria-label={`About ${city.name}`} className="absolute inset-0 z-0" />
+        {body}
+      </div>
+    )
 }
