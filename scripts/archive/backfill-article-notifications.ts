@@ -19,7 +19,7 @@ async function main() {
   const posts = await prisma.post.findMany({
     where:   { status: 'published', kind: { in: ['handbook', 'community'] } },
     orderBy: { publishedAt: 'asc' },
-    select:  { id: true, title: true, slug: true, kind: true, authorId: true },
+    select:  { id: true, title: true, slug: true, kind: true, authorId: true, cityId: true },
   })
 
   const audience = await prisma.user.count({ where: { status: 'approved' } })

@@ -177,6 +177,7 @@ export async function notifyNewArticle(post: {
   slug: string
   kind: string | null
   authorId: string | null
+  cityId: string | null
 }) {
   // Atomically claim the broadcast: only the caller that flips notifiedAt from
   // null proceeds. Closes the double-submit race (two concurrent publishes),
@@ -194,7 +195,14 @@ export async function notifyNewArticle(post: {
   const title = isHandbook ? '📖 New in the Handbook' : '📰 New from Smileys'
 
   const members = await prisma.user.findMany({
-    where: { status: 'approved', ...(post.authorId ? { id: { not: post.authorId } } : {}) },
+    // City-local articles ping their city only; global (cityId null) pings
+    // everyone — same null-means-global rule the read paths follow. Without
+    // this, an İzmir-only article belled all 1,600 Istanbul members.
+    where: {
+      status: 'approved',
+      ...(post.cityId ? { cityId: post.cityId } : {}),
+      ...(post.authorId ? { id: { not: post.authorId } } : {}),
+    },
     select: { id: true },
   })
 
