@@ -268,9 +268,13 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
                 </li>
               ))}
             </ul>
-          {/* Legal — stacked under Company rather than taking a column of its
-              own: four short links each, and it keeps the row at five. */}
-            <div className="mt-8">
+          </div>
+
+          {/* Legal — its own grid cell so the phone's 2-col grid pairs it
+              beside Company (nested-under-Company left the right half of that
+              row empty on mobile). The explicit col-starts park it back under
+              Company at sm/lg, so the wider layouts keep their five columns. */}
+          <div className="sm:col-start-3 lg:col-start-5">
             <h3 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-4">Legal</h3>
             <ul className="space-y-3">
               {[
@@ -287,8 +291,6 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
               ))}
             </ul>
           </div>
-        </div>
-
         </div>
       </div>
 

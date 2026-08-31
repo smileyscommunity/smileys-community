@@ -222,21 +222,15 @@ export default function BottomNav({
           <div className="w-10 h-1 rounded-full bg-gray-300" />
         </div>
 
-        {/* Switching city is only possible through /api/city/enter, and
-            CitiesMenu is the only thing that calls it. It lived in the desktop
-            bar and in the Navbar's mobile menu — which renders for GUESTS
-            only, since members get search and messages in that header slot
-            instead. So a signed-in member on a phone had no way to switch at
-            all: tapping Cities reaches /cities, whose cards link to the city
-            shopfront, and a shopfront doesn't move you. The page then says
-            "Bodrum" everywhere while /guide, /events and the board keep
-            serving your old city, which is what "changing city doesn't work"
-            looks like from the outside.
+        <AccountMenu onItemClick={() => setSheetOpen(false)} />
 
-            It goes above the account links because it changes what every one
-            of them will show. */}
+        {/* City switcher BELOW the account links: the sheet is the Me sheet,
+            so it opens on "Signed in as" — identity first, then tools. The
+            switcher stays in the sheet (rather than relying on /cities'
+            enter-links alone) because it's still the fastest switch on a
+            phone; it just doesn't lead any more. */}
         {isLoggedIn && cities.length > 1 && (
-          <div className="px-3 pt-1 pb-2 border-b border-gray-100">
+          <div className="px-3 pt-2 pb-2 border-t border-gray-100">
             <CitiesMenu
               initial={cities}
               variant="inline"
@@ -246,8 +240,6 @@ export default function BottomNav({
             />
           </div>
         )}
-
-        <AccountMenu onItemClick={() => setSheetOpen(false)} />
       </div>
     </>
   )
