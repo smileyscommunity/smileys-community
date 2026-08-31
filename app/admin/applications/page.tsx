@@ -35,7 +35,17 @@ interface Application {
   escalated?: boolean; escalatedNote?: string | null
   // Which Smileys city they applied to — NOT the free-text `city` above,
   // which is the applicant's self-described hometown.
+  targetCityId?: string
   targetCity?: { name: string; slug: string } | null
+}
+
+// Club rows as the two club endpoints return them (both spread the full
+// Prisma row, so slug/cityId/isActive ride along): /api/clubs for the
+// viewer-city list, /api/admin/clubs?city= for a target city's list.
+// cityId null = global club, assignable from any city.
+interface ClubOption {
+  id: string; name: string; emoji: string
+  slug?: string; cityId?: string | null; isActive?: boolean
 }
 
 const STATUS: Record<string, string> = {
@@ -123,7 +133,11 @@ function AdminApplicationsPageInner() {
   const pathname     = usePathname()
 
   const [apps,          setApps]          = useState<Application[]>([])
-  const [clubs,         setClubs]         = useState<{ id: string; name: string; emoji: string }[]>([])
+  const [clubs,         setClubs]         = useState<ClubOption[]>([])
+  // Club list rendered in the review modal. null = the viewer-city `clubs`
+  // list above; set per-application when the review target is another city,
+  // so the chips show THAT city's clubs instead of the viewer's.
+  const [modalClubs,    setModalClubs]    = useState<ClubOption[] | null>(null)
   const [loading,       setLoading]       = useState(true)
   const [selected,      setSelected]      = useState<Application | null>(null)
   // 'hold' status (API-side) folds INTO the Pending tab as a badge rather
@@ -281,14 +295,84 @@ function AdminApplicationsPageInner() {
     if (fresh && fresh !== selected) setSelected(fresh)
   }, [apps, selected])
 
+  // ── Cross-city club resolution ──────────────────────────────────────────
+  // The settings default club is one specific city's club, and `clubs` above
+  // is the VIEWER's city list — so approving an application targeting another
+  // city used to enroll the member in the default city's social club (three
+  // Antalya approvals landed in the default city's club before this). The
+  // helpers below resolve clubs per application: target-city club lists are
+  // fetched on demand from /app/api/admin/clubs?city= and cached as promises
+  // so a bulk approve spanning one city fetches once, not once per row.
+  const cityClubsRef = useRef<Map<string, Promise<ClubOption[]>>>(new Map())
+
+  function clubsForCity(cityId: string): Promise<ClubOption[]> {
+    const cached = cityClubsRef.current.get(cityId)
+    if (cached) return cached
+    const p = fetch(`/app/api/admin/clubs?city=${encodeURIComponent(cityId)}`, { credentials: 'include', cache: 'no-store' })
+      .then(r => r.ok ? r.json() : [])
+      .then(rows => Array.isArray(rows) ? rows as ClubOption[] : [])
+      .catch(() => {
+        // Don't cache a network failure — the next open retries.
+        cityClubsRef.current.delete(cityId)
+        return []
+      })
+    cityClubsRef.current.set(cityId, p)
+    return p
+  }
+
+  // The clubs an approval should pre-fill with, per application. The settings
+  // default applies as-is when it's a global club or belongs to the
+  // application's target city; otherwise the target city's own
+  // `social-<citySlug>` starter club stands in (or nothing, if that club is
+  // missing/inactive). Mirrors the server-side backstop in
+  // /api/admin/applications, which re-checks whatever the client sends.
+  async function defaultClubsFor(app: Application | undefined): Promise<string[]> {
+    if (!defaultClubId) return []
+    const targetCityId = app?.targetCityId
+    const targetSlug   = app?.targetCity?.slug
+    const defaultClub  = clubs.find(c => c.id === defaultClubId)
+    if (!targetCityId || !targetSlug || !defaultClub || defaultClub.cityId == null || defaultClub.cityId === targetCityId) {
+      return [defaultClubId]
+    }
+    const cityClubs = clubs.some(c => c.cityId === targetCityId) ? clubs : await clubsForCity(targetCityId)
+    const social = cityClubs.find(c => c.slug === `social-${targetSlug}` && c.cityId === targetCityId && c.isActive !== false)
+    return social ? [social.id] : []
+  }
+
+  // Guards the async parts of open() — if the admin has moved on to another
+  // application (or closed the modal) before a target-city fetch lands, the
+  // stale result must not overwrite the newer modal's state.
+  const openIdRef = useRef<string | null>(null)
+
   function open(app: Application) {
+    openIdRef.current = app.id
     setSelected(app)
     setReviewNote(app.reviewNote ?? '')
     setRejectMsg('')
     setMoreInfoMsg('')
-    setAssignedClubs(defaultClubId ? [defaultClubId] : [])
     setAiResult(null)
     setWelcomeMsg('')
+    // Per-application club list + pre-fill (cross-city aware). The common
+    // case — target city covered by the viewer list — resolves without a
+    // fetch; the modal just renders a fraction later, imperceptibly.
+    const covered = !app.targetCityId || clubs.some(c => c.cityId === app.targetCityId)
+    setModalClubs(covered ? null : [])  // [] = hide chips while the target city's list loads
+    setAssignedClubs([])
+    ;(async () => {
+      const [prefill, list] = await Promise.all([
+        defaultClubsFor(app),
+        covered || !app.targetCityId
+          ? Promise.resolve(null)
+          : clubsForCity(app.targetCityId).then(cityClubs => [
+              ...cityClubs.filter(c => c.isActive !== false),
+              // Global clubs (cityId null) are assignable from any city.
+              ...clubs.filter(c => c.cityId === null),
+            ]),
+      ])
+      if (openIdRef.current !== app.id) return
+      setModalClubs(list)
+      setAssignedClubs(prefill)
+    })()
   }
 
   async function draftWelcome(id: string) {
@@ -417,13 +501,16 @@ function AdminApplicationsPageInner() {
     }
     setDeciding(prev => { const s = new Set(prev); s.add(id); return s })
     try {
+      // Resolved per application, not the raw global default — an approval
+      // targeting another city enrolls into that city's social club.
+      const clubsForApp = status === 'approved' ? await defaultClubsFor(apps.find(a => a.id === id)) : []
       const res = await fetch('/app/api/admin/applications', {
         method: 'PATCH', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         // Breadcrumb note so a rejected row is never wholly unexplained —
         // "quick reject" tells future reviewers it was a deliberate one-tap
         // decision from the queue, not a batch sweep or a detailed review.
-        body: JSON.stringify({ id, status, reviewNote: status === 'rejected' ? 'Quick-rejected from queue (no note left)' : '', assignedClubs: status === 'approved' && defaultClubId ? [defaultClubId] : [] }),
+        body: JSON.stringify({ id, status, reviewNote: status === 'rejected' ? 'Quick-rejected from queue (no note left)' : '', assignedClubs: clubsForApp }),
       })
       if (res.ok) {
         setApps(prev => prev.map(a => a.id === id ? { ...a, status } : a))
@@ -452,11 +539,16 @@ function AdminApplicationsPageInner() {
     // every PATCH errored.
     const results = await Promise.all(ids.map(async id => ({
       id,
-      ok: await fetch('/app/api/admin/applications', {
-        method: 'PATCH', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, status, reviewNote: status === 'rejected' ? 'Bulk-rejected from queue' : '', assignedClubs: status === 'approved' && defaultClubId ? [defaultClubId] : [] }),
-      }).then(r => r.ok).catch(() => false),
+      // A bulk selection can span cities, so the default club resolves per
+      // application (the promise-cached city lists make this one fetch per
+      // distinct city, not per row).
+      ok: await (status === 'approved' ? defaultClubsFor(apps.find(a => a.id === id)) : Promise.resolve([]))
+        .then(clubsForApp => fetch('/app/api/admin/applications', {
+          method: 'PATCH', credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, status, reviewNote: status === 'rejected' ? 'Bulk-rejected from queue' : '', assignedClubs: clubsForApp }),
+        }))
+        .then(r => r.ok).catch(() => false),
     })))
     const ok = new Set(results.filter(r => r.ok).map(r => r.id))
     const fail = results.length - ok.size
@@ -714,10 +806,14 @@ function AdminApplicationsPageInner() {
         </div>
       )}
 
-      {/* Default club */}
+      {/* Default club — applies to applications for the club's own city;
+          approvals targeting another city auto-resolve to that city's own
+          social club instead (defaultClubsFor + the API backstop). */}
       {clubs.length > 0 && (
         <div className="flex items-center gap-2 text-xs text-zinc-500">
-          <span>Auto-assign on approval:</span>
+          <span title="Applies to applications for this club's own city — approvals for other cities auto-enroll in that city's social club instead.">
+            Auto-assign on approval{cities.length > 1 ? ' (other cities get their own social club)' : ''}:
+          </span>
           <select value={defaultClubId}
             onChange={async e => {
               const val  = e.target.value
@@ -1171,12 +1267,16 @@ function AdminApplicationsPageInner() {
                     </div>
                   )}
 
-                  {/* Assign clubs (pending only) */}
-                  {selected.status === 'pending' && clubs.length > 0 && (
+                  {/* Assign clubs (pending only) — the target city's clubs
+                      when the applicant applied to another city (modalClubs,
+                      loaded in open()), the viewer-city list otherwise. */}
+                  {selected.status === 'pending' && (modalClubs ?? clubs).length > 0 && (
                     <div className="border-t border-zinc-800 pt-4">
-                      <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">Assign to clubs on approval</p>
+                      <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">
+                        Assign to clubs on approval{modalClubs && selected.targetCity ? ` · ${selected.targetCity.name}` : ''}
+                      </p>
                       <div className="flex flex-wrap gap-1.5">
-                        {clubs.map(c => {
+                        {(modalClubs ?? clubs).map(c => {
                           const active = assignedClubs.includes(c.id)
                           return (
                             <button key={c.id} type="button"

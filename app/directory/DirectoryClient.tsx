@@ -244,10 +244,14 @@ function BusinessCard({
 
 type TypeFilter = 'all' | 'expat-owned' | 'expat-friendly'
 
+// Renamed from page.tsx: the browsing UI (filters, map, drawers) is a client
+// component, and the route needed a server page.tsx to append the shared
+// ExploreMore cross-link grid — the same split as app/apply/ApplyClient.tsx.
+//
 // Suspense wrapper is required by Next 15 when useSearchParams is read
 // from a client component — without it the static-paths optimizer bails
 // out on the whole page tree at build time.
-export default function DirectoryPage() {
+export default function DirectoryClient() {
   return (
     <Suspense fallback={null}>
       <DirectoryPageInner />
@@ -369,7 +373,10 @@ function DirectoryPageInner() {
   })
 
   return (
-    <div className="min-h-screen bg-warm pb-20 md:pb-0">
+    // The bottom-nav clearance (pb-20 md:pb-0) moved to the server page.tsx
+    // wrapper — the cross-link grid renders below this component, and the
+    // padding belongs under the true last thing on the page.
+    <div className="min-h-screen bg-warm">
       {/* Page header — matches members page style */}
       <div className="bg-white border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-0">

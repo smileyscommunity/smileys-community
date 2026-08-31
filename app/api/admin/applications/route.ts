@@ -4,6 +4,7 @@ import { coerceNeighborhoodFor } from '@/lib/neighborhoodsDb'
 import { Prisma } from '@prisma/client'
 import { getSession } from '@/lib/session'
 import { isAdmin, isAdminOrModerator, failClosedCityId } from '@/lib/access'
+import { loadCommunitySettings } from '@/lib/communitySettings'
 import { sendActivationEmail, sendApplicationRejectedEmail, sendRequestMoreInfoEmail } from '@/lib/email'
 import { createNotification } from '@/lib/notify'
 import { writeAudit } from '@/lib/audit'
@@ -65,7 +66,7 @@ export async function PATCH(req: NextRequest) {
     // application by hitting the API directly. Admins act globally.
     const target = await prisma.memberApplication.findUnique({
       where:  { id },
-      select: { targetCityId: true },
+      select: { targetCityId: true, targetCity: { select: { slug: true } } },
     })
     if (!target) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     if (!isAdmin(session) && session.cityId !== target.targetCityId) {
@@ -86,13 +87,45 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json(application)
     }
 
+    // Cross-city default-club backstop. The client pre-fills approvals with
+    // the settings-wide default club (quick + bulk approve send it blind), and
+    // that default is a single city's club — so an Antalya applicant approved
+    // from the queue landed in the default city's social club. When the
+    // default club is city-scoped to a city OTHER than the application's
+    // target, swap it for the target city's own `social-<citySlug>` starter
+    // club (see lib/seedCityClubs — every seeded city has one), or drop it if
+    // that club is missing/inactive. Only the settings default is touched:
+    // an admin deliberately assigning some other city's club, or a global
+    // club (cityId null), passes through untouched.
+    let clubsToAssign: string[] | undefined = Array.isArray(assignedClubs) ? assignedClubs : undefined
+    if (clubsToAssign?.length) {
+      const defaultClubId = loadCommunitySettings().defaultClubId
+      if (defaultClubId && clubsToAssign.includes(defaultClubId)) {
+        const defaultClub = await prisma.club.findUnique({ where: { id: defaultClubId }, select: { cityId: true } })
+        if (defaultClub?.cityId && defaultClub.cityId !== target.targetCityId) {
+          const socialSlug = `social-${target.targetCity.slug}`
+          const social = await prisma.club.findFirst({
+            where:  { slug: socialSlug, cityId: target.targetCityId, isActive: true },
+            select: { id: true },
+          })
+          clubsToAssign = clubsToAssign.filter(clubId => clubId !== defaultClubId)
+          if (social) {
+            if (!clubsToAssign.includes(social.id)) clubsToAssign.push(social.id)
+            console.log(`[applications] application ${id}: default club ${defaultClubId} is another city's — substituted ${socialSlug} (${social.id})`)
+          } else {
+            console.warn(`[applications] application ${id}: default club ${defaultClubId} is another city's and no active ${socialSlug} exists — dropped`)
+          }
+        }
+      }
+    }
+
     // Admin full update
     const application = await prisma.memberApplication.update({
       where: { id },
       data: {
         status,
         reviewNote:    reviewNote    || null,
-        assignedClubs: Array.isArray(assignedClubs) ? assignedClubs : undefined,
+        assignedClubs: clubsToAssign,
         reviewedBy:    session.id,
         reviewedAt:    new Date(),
       },

@@ -17,6 +17,7 @@ import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
 import { restrictedSetFor } from '@/lib/memberPrivacy'
 import SayHiButton from '@/components/SayHiButton'
 import LocalFavorites, { type LocalPick } from '@/components/LocalFavorites'
+import ExploreMore from '@/components/ExploreMore'
 
 // Same script-tag escaping as the neighborhood detail page's JSON-LD
 // (handbook article / event detail / FAQ / neighborhood Place all match).
@@ -767,6 +768,11 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
             </a>
           </div>
         </section>
+
+        {/* Cross-links — the shared surface grid (components/ExploreMore). */}
+        <div className="mt-12">
+          <ExploreMore current="neighborhoods" cityId={cityId} cityName={city.name} />
+        </div>
       </div>
     </main>
   )

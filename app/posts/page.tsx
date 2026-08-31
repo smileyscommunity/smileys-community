@@ -7,6 +7,7 @@ import { resolveCityId, getCityConfig } from '@/lib/city'
 import { avatarUrl } from '@/lib/data'
 import { articleCover } from '@/lib/articleCover'
 import { readingTime } from '@/lib/handbook-review'
+import ExploreMore from '@/components/ExploreMore'
 
 // Scoped to the viewer's city, same contract as the Handbook index: a null
 // cityId means global (most community stories are), so those show everywhere;
@@ -235,6 +236,11 @@ export default async function PostsPage() {
             )}
           </>
         )}
+
+        {/* Cross-links — the shared surface grid (components/ExploreMore). */}
+        <div className="mt-14 pt-10 border-t border-gray-100">
+          <ExploreMore current="stories" cityId={cityId} cityName={city.name} />
+        </div>
       </div>
     </main>
   )

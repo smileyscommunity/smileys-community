@@ -3,6 +3,7 @@ import { readFileSync } from 'fs'
 import { join } from 'path'
 import TransitLinks, { type Category } from '@/components/TransitLinks'
 import HandbookSearch from '@/components/HandbookSearch'
+import ExploreMore from '@/components/ExploreMore'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import type { Metadata } from 'next'
@@ -114,26 +115,6 @@ const START_HERE: { slug: string; emoji: string; label: string }[] = [
   { slug: 'family-life-in-istanbul-raising-children-with-confidence',                  emoji: '👨‍👩‍👧', label: 'Move with children' },
 ]
 
-// The other surfaces and their jobs, in the site's own vocabulary (brief §2).
-// The Handbook explains how the city works; everything else has a different
-// question to answer, and saying so out loud is what keeps the surfaces from
-// bleeding into each other.
-//
-// The Guide tile shows when the city HAS a guide (published entries) — the
-// old default-city-only gate assumed /guide held only Istanbul's experiences,
-// which the per-city guide made false; İzmir and Antalya launched with full
-// guides this tile was hiding. Counting entries keeps it honest for a city
-// that hasn't written its guide yet. Directory, Neighborhoods and Board all
-// resolve per city already.
-function otherSurfaces(cityName: string, hasGuide: boolean) {
-  return [
-    ...(hasGuide ? [{ href: '/guide', emoji: '🗺️', label: 'Guide', job: `Experience ${cityName}` }] : []),
-    { href: '/directory',     emoji: '🏪', label: 'Directory',     job: 'Find a business or service' },
-    { href: '/neighborhoods', emoji: '🏘️', label: 'Neighborhoods', job: 'Find your part of the city' },
-    { href: '/board',         emoji: '💬', label: 'Board',         job: 'Ask the community' },
-  ]
-}
-
 function formatReviewedShort(d: Date | string) {
   return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 }
@@ -170,13 +151,7 @@ function loadQuickReference(): Category[] {
 
 export default async function HandbookPage() {
   const city = await handbookCity()
-  const [articles, guideEntryCount] = await Promise.all([
-    getHandbookArticles(city.id),
-    // Gates the Guide tile below on the city actually having a guide —
-    // the old isDefault gate assumed /guide only held Istanbul's entries,
-    // which stopped being true when the guide went per-city.
-    prisma.guideEntry.count({ where: { cityId: city.id, status: 'published' } }),
-  ])
+  const articles = await getHandbookArticles(city.id)
 
   // Group by CANONICAL category so legacy-keyed rows land in the new IA
   // without a data migration. Dev-only: warn when an article's category
@@ -358,25 +333,13 @@ export default async function HandbookPage() {
         </section>
       )}
 
-      {/* Need something else? — each surface has one job; naming the jobs is
-          what keeps them from duplicating each other (brief §2/§50). */}
+      {/* Need something else? — the shared cross-link grid this page's
+          bespoke section grew into (components/ExploreMore); each surface has
+          one job, and naming the jobs is what keeps them from duplicating
+          each other (brief §2/§50). */}
       <section className="bg-white border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-6">Need something else?</h2>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            {otherSurfaces(city.name, guideEntryCount > 0).map(s => (
-              <Link key={s.href} href={s.href}
-                className="bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-2xl px-4 py-4 transition-colors group">
-                <div className="flex items-center gap-3">
-                  <span aria-hidden="true" className="text-2xl shrink-0">{s.emoji}</span>
-                  <div className="min-w-0">
-                    <p className="text-sm font-extrabold text-gray-900 group-hover:text-amber-600 transition-colors">{s.label}</p>
-                    <p className="text-xs text-gray-600">{s.job}</p>
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
+          <ExploreMore current="handbook" cityId={city.id} cityName={city.name} />
         </div>
       </section>
 

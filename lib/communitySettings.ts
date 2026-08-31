@@ -29,6 +29,12 @@ export interface CommunitySettings {
   // so the renderer can do something better than a wall of text.
   // Capped at 12 rules — past that, nobody reads.
   communityRules?: CommunityRule[]
+  // Club auto-assigned when an application is approved, picked on
+  // /admin/applications. It's one specific city's club (usually the default
+  // city's social club), so approvals targeting OTHER cities resolve to that
+  // city's own `social-<citySlug>` club instead — see the backstop in
+  // app/api/admin/applications/route.ts.
+  defaultClubId?: string
   // Membership intake switch. false = applications paused (apply page shows a
   // closed notice, the submit API rejects). Undefined/true = open (default).
   applicationsOpen?: boolean

@@ -22,6 +22,7 @@ import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import { resolveImageUrl } from '@/lib/data'
 import GuideCTA from './GuideCTA'
+import ExploreMore from '@/components/ExploreMore'
 import GuideStickyNav from './GuideStickyNav'
 import ExperienceExplorer from './ExperienceExplorer'
 import MySaved from './MySaved'
@@ -591,13 +592,13 @@ export default async function GuidePage({ searchParams }: { searchParams?: Promi
           )
         })()}
 
-        {/* Two cross-links sit side-by-side on tablet+ (one row, less
-            vertical noise) and stack on mobile. Both lead to a different
+        {/* Cross-links sit side-by-side on tablet+ (one row, less
+            vertical noise) and stack on mobile. Each leads to a different
             shape of help — Visiting for newcomers passing through,
-            Handbook for the deep how-to reads. Single grid replaces the
-            two stacked banner cards that previously dominated the top
-            of the page. */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
+            Handbook for the deep how-to reads, Experiences for seasonal
+            programming (this card is /experiences' only inbound link, so
+            it stays even though the surface isn't in the shared grid). */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
           <Link href="/visiting"
             className="bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-2xl px-4 py-3.5 transition-colors group">
             <div className="flex items-center gap-3">
@@ -616,6 +617,17 @@ export default async function GuidePage({ searchParams }: { searchParams?: Promi
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-bold text-gray-900 leading-tight">Settling in?</p>
                 <p className="text-xs text-gray-600 mt-0.5 line-clamp-1">The Handbook — long-form how-tos.</p>
+              </div>
+              <span className="text-sm font-bold text-gray-700 shrink-0 group-hover:translate-x-0.5 transition-transform">→</span>
+            </div>
+          </Link>
+          <Link href="/experiences"
+            className="bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-2xl px-4 py-3.5 transition-colors group">
+            <div className="flex items-center gap-3">
+              <div className="text-xl shrink-0">🎟️</div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-gray-900 leading-tight">Planning a season?</p>
+                <p className="text-xs text-gray-600 mt-0.5 line-clamp-1">Experiences — seasonal picks &amp; series.</p>
               </div>
               <span className="text-sm font-bold text-gray-700 shrink-0 group-hover:translate-x-0.5 transition-transform">→</span>
             </div>
@@ -707,6 +719,11 @@ export default async function GuidePage({ searchParams }: { searchParams?: Promi
             </div>
           </div>
         )}
+
+        {/* Cross-links — the shared surface grid (components/ExploreMore). */}
+        <div className="border-t border-gray-100 pt-8 mt-10">
+          <ExploreMore current="guide" cityId={cityId} cityName={city.name} />
+        </div>
 
         {/* CTA — client island, branches on useAuth().isLoggedIn.
             Lives outside the cached server tree so the same HTML can
