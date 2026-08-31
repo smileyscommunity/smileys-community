@@ -43,12 +43,26 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 flex flex-col sm:flex-row items-center justify-between gap-6">
             <div>
               {/* Follows the viewer's city, like the "In {cityName}" column
-                  below it — this band hardcoded Istanbul, so Bodrum's footer
-                  pitched Istanbul to every prospect who landed there. */}
-              <p className="text-amber-950/60 text-sm font-medium mb-1">{cityName}&apos;s curated social community</p>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-white leading-tight">
-                Find your people in {cityName}.
-              </h2>
+                  below it — this band once hardcoded the flagship, so every
+                  city's footer pitched the flagship to its prospects. The one
+                  exception is the network homepage: it opens city-agnostic,
+                  so it must not close flagship-only for a guest who has no
+                  city yet. */}
+              {pathname === '/' ? (
+                <>
+                  <p className="text-amber-950/60 text-sm font-medium mb-1">A curated social community, city by city</p>
+                  <h2 className="text-2xl sm:text-3xl font-extrabold text-white leading-tight">
+                    Find your people, wherever you are.
+                  </h2>
+                </>
+              ) : (
+                <>
+                  <p className="text-amber-950/60 text-sm font-medium mb-1">{cityName}&apos;s curated social community</p>
+                  <h2 className="text-2xl sm:text-3xl font-extrabold text-white leading-tight">
+                    Find your people in {cityName}.
+                  </h2>
+                </>
+              )}
             </div>
             <div className="flex flex-col items-center sm:items-end gap-2 shrink-0">
               <div className="flex items-center gap-3">

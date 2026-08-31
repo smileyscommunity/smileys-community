@@ -15,9 +15,10 @@ import CityNotifyChip from '@/components/CityNotifyChip'
 // one, and an explore link into an empty city is worse than no link at all.
 
 const TONE: Record<string, string> = {
-  live:   'bg-emerald-500 text-white',
-  soon:   'bg-white/90 text-gray-700 ring-1 ring-gray-200',
-  muted:  'bg-gray-200 text-gray-600',
+  live:     'bg-emerald-500 text-white',
+  founding: 'bg-amber-500 text-white',
+  soon:     'bg-white/90 text-gray-700 ring-1 ring-gray-200',
+  muted:    'bg-gray-200 text-gray-600',
 }
 
 function Stat({ value, label }: { value: number; label: string }) {
@@ -45,6 +46,12 @@ export default function CityCard({
 }) {
   const isLive = city.status === CITY_STATUS.Live
   const meta   = CITY_STATUS_META[city.status]
+  // A seeding city IS live operationally, but badging it "Live" while its own
+  // card says "Founding stage" (and the homepage files it under "On the way")
+  // made one card speak two vocabularies. "Live" is reserved for cities whose
+  // community carries itself; the badge follows the same derived maturity the
+  // card body already uses.
+  const founding = isLive && city.stats?.maturity === CITY_MATURITY.Seeding
 
   // Falls back rather than blocking: a city created two minutes ago with no
   // marketing copy yet still renders as a real card.
@@ -77,9 +84,9 @@ export default function CityCard({
         )}
 
         <div className="absolute top-3 left-3 flex items-center gap-1.5">
-          <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${TONE[meta.tone]}`}>
+          <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${founding ? TONE.founding : TONE[meta.tone]}`}>
             {isLive && <span aria-hidden="true" className="inline-block w-1.5 h-1.5 rounded-full bg-white mr-1.5 align-middle" />}
-            {meta.label}
+            {founding ? 'Founding' : meta.label}
           </span>
           {/* Only one of the two: "Viewing" already implies this is where you
               are, and stacking a second chip beside it turns a status corner

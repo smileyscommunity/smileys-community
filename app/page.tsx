@@ -13,6 +13,7 @@ import { getPublicCities, CITY_STATUS } from '@/lib/cities'
 import { CITY_MATURITY } from '@/lib/cityMaturity'
 import { APP_URL } from '@/lib/env'
 import { loadContent } from '@/lib/content'
+import { approx } from '@/lib/communityStats'
 import { absoluteOgImage } from '@/lib/og'
 import { isSoldOut } from '@/lib/soldOut'
 
@@ -503,7 +504,11 @@ export default async function HomePage() {
             ))}
           </div>
           <p className="mt-6 text-sm text-gray-500">
-            {memberCount.toLocaleString('en-US')} members and counting.
+            {/* Same rounded-down figure the footer's stat row shows — an exact
+                1,622 here beside the footer's "1,600+" read as two different
+                member counts on one scroll. approx() never rounds up, so the
+                claim stays true; "and counting" already says it's growing. */}
+            {approx(memberCount)} members and counting.
           </p>
         </div>
       </section>
@@ -515,9 +520,12 @@ export default async function HomePage() {
             Ready to find your people?
           </h2>
           <p className="text-lg text-gray-600 mb-8">
-            {singleCity
-              ? `Join Smileys and start building your social life in ${flagship.name}.`
-              : 'Join Smileys and start building your social life wherever you are.'}
+            {/* Network framing regardless of maturity — this page opens
+                city-agnostic, and a visitor bound for a founding city must not
+                close on "…in <flagship>" as the final impression. The maturity
+                gate still governs the hero and the secondary button; the
+                closing PITCH is about Smileys, not the flagship. */}
+            Join Smileys and start building your social life, wherever you are.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/apply" className="btn-primary text-base px-8 py-4">Join Smileys</Link>
