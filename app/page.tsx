@@ -240,6 +240,28 @@ export default async function HomePage() {
         </div>
       </section>
 
+      {/* ── Happening this week ────────────────────────────────────────── */}
+      {/* Directly under the hero on purpose: people don't join "social
+          infrastructure", they join a dinner next Thursday. The concrete
+          product goes first; the philosophy sections now argue for something
+          the visitor has already seen. */}
+      {tabEvents.length > 0 && (
+        <section className="py-14 sm:py-20 bg-gray-50 border-t border-gray-100">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="mb-6">
+              <h2 className="section-title">
+                {singleCity ? `Happening in ${flagship.name} this week` : 'Happening this week'}
+              </h2>
+              <p className="section-subtitle">
+                {singleCity ? 'Real plans, real people — walk into any of them.' : 'Coming up across the network.'}
+              </p>
+            </div>
+            {/* A city filter joins these tabs once a second city is live. */}
+            <EventTabs events={tabEvents} window={eventWindow} />
+          </div>
+        </section>
+      )}
+
       {/* ── Choose your city ───────────────────────────────────────────── */}
       <section id="cities" className="py-14 sm:py-20 bg-white scroll-mt-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -336,22 +358,6 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
-
-      {/* ── What's happening ───────────────────────────────────────────── */}
-      {tabEvents.length > 0 && (
-        <section className="py-14 sm:py-20 bg-gray-50 border-t border-gray-100">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="mb-6">
-              <h2 className="section-title">What's happening</h2>
-              <p className="section-subtitle">
-                {singleCity ? `Coming up in ${flagship.name}.` : 'Coming up across the network.'}
-              </p>
-            </div>
-            {/* A city filter joins these tabs once a second city is live. */}
-            <EventTabs events={tabEvents} window={eventWindow} />
-          </div>
-        </section>
-      )}
 
       {/* ── Visiting ───────────────────────────────────────────────────── */}
       <section className="py-14 sm:py-20 bg-gray-900 text-white">
