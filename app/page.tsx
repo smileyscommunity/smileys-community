@@ -9,7 +9,7 @@ import { getSession } from '@/lib/session'
 import EventTabs from '@/components/EventTabs'
 import CityCard from '@/components/CityCard'
 import { resolveImageUrl, istanbulEventWindow } from '@/lib/data'
-import { getPublicCities, getDefaultCityId, CITY_STATUS } from '@/lib/cities'
+import { getPublicCities, CITY_STATUS } from '@/lib/cities'
 import { CITY_MATURITY } from '@/lib/cityMaturity'
 import { APP_URL } from '@/lib/env'
 import { loadContent } from '@/lib/content'
@@ -55,15 +55,19 @@ export async function generateMetadata(): Promise<Metadata> {
 
 const getLandingData = unstable_cache(
   async () => {
-    // Events on the global page come from the default city today, because it's
-    // the only live one. When a second city goes live this becomes a city
-    // filter rather than a different query — the shape already supports it.
-    const cityId = await getDefaultCityId()
+    // Events come from EVERY live city — the front page shows the network
+    // being real, and each card names its city, so a founding city's first
+    // event lands here automatically the day it's posted.
+    const liveCityRows = await prisma.city.findMany({
+      where: { status: 'live' }, select: { id: true, name: true },
+    })
+    const cityNameById = Object.fromEntries(liveCityRows.map(c => [c.id, c.name]))
 
     const [{ events: rawEvents }, testimonials, memberCount, stories] = await Promise.all([
       // Wide enough for the tabs to filter across a month; the page is
-      // cached for 60s, so one fetch beats a request per tab.
-      getEvents({ limit: 24, upcoming: true, cityId }),
+      // cached for 60s, so one fetch beats a request per tab. No cityId:
+      // the cross-city view getEvents was designed to serve.
+      getEvents({ limit: 24, upcoming: true }),
       prisma.testimonial.findMany({ where: { active: true }, orderBy: [{ order: 'asc' }], take: 3 }),
       prisma.user.count({ where: { status: 'approved' } }),
       // Community write-ups — member and host stories, already public at
@@ -81,7 +85,7 @@ const getLandingData = unstable_cache(
     // is a guest BY CONSTRUCTION — redact inside the cache, unconditionally.
     // Same projection as GET /api/events: no exact address/GPS, no chat or
     // meeting links, no payment contact, no attendee identities.
-    const events = rawEvents.map(redactEventForGuest)
+    const events = rawEvents.map(e => ({ ...redactEventForGuest(e), cityName: e.cityId ? cityNameById[e.cityId] : undefined }))
     return { events, testimonials, memberCount, stories }
   },
   ['global-landing-data'],
@@ -249,12 +253,11 @@ export default async function HomePage() {
         <section className="py-14 sm:py-20 bg-gray-50 border-t border-gray-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="mb-6">
-              <h2 className="section-title">
-                {singleCity ? `Happening in ${flagship.name} this week` : 'Happening this week'}
-              </h2>
-              <p className="section-subtitle">
-                {singleCity ? 'Real plans, real people — walk into any of them.' : 'Coming up across the network.'}
-              </p>
+              {/* No city in the title: the events span every live city and
+                  each card wears its own city name — multi-city truth by
+                  construction, not by label. */}
+              <h2 className="section-title">Happening this week</h2>
+              <p className="section-subtitle">Real plans, real people — walk into any of them.</p>
             </div>
             {/* A city filter joins these tabs once a second city is live. */}
             <EventTabs events={tabEvents} window={eventWindow} />

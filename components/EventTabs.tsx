@@ -48,7 +48,9 @@ export default function EventTabs({
   linkPrefix = '/events',
   limit = 3,
 }: {
-  events: Event[]
+  // cityName rides each event when the caller mixes cities (the global
+  // landing page) so every card names where its dinner actually is.
+  events: (Event & { cityName?: string })[]
   window: EventWindow
   linkPrefix?: string
   limit?: number
@@ -92,7 +94,7 @@ export default function EventTabs({
 
       {shown.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {shown.map(e => <EventCard key={e.id} event={e} linkPrefix={linkPrefix} />)}
+          {shown.map(e => <EventCard key={e.id} event={e} linkPrefix={linkPrefix} cityName={e.cityName} />)}
         </div>
       ) : (
         <div className="rounded-2xl border border-dashed border-gray-200 bg-white p-10 text-center">
