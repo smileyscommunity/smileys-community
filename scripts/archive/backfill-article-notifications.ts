@@ -12,8 +12,8 @@
 // Oldest-first so the newest article ends up on top of each member's feed.
 // Run on the server (needs localhost DB + VAPID keys from .env.local):
 //   npx tsx --env-file=.env --env-file=.env.local scripts/backfill-article-notifications.ts
-import { prisma } from '../lib/prisma'
-import { notifyNewArticle } from '../lib/notify'
+import { prisma } from '../../lib/prisma'
+import { notifyNewArticle } from '../../lib/notify'
 
 async function main() {
   const posts = await prisma.post.findMany({

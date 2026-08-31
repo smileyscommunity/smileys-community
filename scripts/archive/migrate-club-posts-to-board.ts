@@ -12,7 +12,7 @@
 // Usage (server):
 //   DRY_RUN=1 npx tsx --env-file=.env --env-file=.env.local scripts/migrate-club-posts-to-board.ts
 //   npx tsx --env-file=.env --env-file=.env.local scripts/migrate-club-posts-to-board.ts
-import { prisma } from '../lib/prisma'
+import { prisma } from '../../lib/prisma'
 
 const DRY_RUN = process.env.DRY_RUN === '1'
 

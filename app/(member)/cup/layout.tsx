@@ -11,8 +11,11 @@ import { APP_URL, SITE_URL } from '@/lib/env'
 // Lives in a layout because the page itself is a client component
 // (`'use client'`) and can't export metadata directly.
 
-const TITLE       = 'Smileys World Cup 2026 — predict every match'
-const DESCRIPTION = 'Pick your champion. Pick every knockout. Climb the leaderboard. Free to play, members only. Jun 11 → Jul 19.'
+// Tournament wrapped Jul 19, 2026 — the page now serves as the archive of
+// the final standings, so the share copy reads past-tense instead of
+// inviting predictions for a competition that's over.
+const TITLE       = 'Smileys World Cup 2026 — final standings'
+const DESCRIPTION = 'How the community predicted World Cup 2026 — every pick, every knockout, and the final leaderboard. Jun 11 → Jul 19, 2026.'
 const IMAGE_URL   = `${SITE_URL}/app/images/cup-banner.svg`
 
 export const metadata: Metadata = {

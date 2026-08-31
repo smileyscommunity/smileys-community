@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // value that isn't in their city's registry keeps a filled-in profile while
 // being excluded from their own neighborhood page, "members near you" and
 // neighborhood event matching. Nobody reports it. 33 prod rows had to be
-// repaired by hand before this existed (scripts/fix-member-neighborhoods.ts).
+// repaired by hand before this existed (scripts/archive/fix-member-neighborhoods.ts).
 
 vi.mock('@/lib/prisma', () => ({ prisma: { neighborhood: { findMany: vi.fn() } } }))
 vi.mock('@/lib/city', () => ({

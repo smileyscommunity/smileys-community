@@ -278,12 +278,10 @@ rsync -av --delete -e "ssh ${SSH_OPTS[*]}" \
   --exclude='data/member-spotlight.json' \
   --exclude='data/settings.json' \
   --exclude='data/neighborhoods/' \
-  --exclude='data/banner.json' \
   --exclude='data/banners.json' \
   --exclude='data/why-content.json' \
   --exclude='data/content.json' \
   --exclude='data/city-guide.json' \
-  --exclude='data/handbook-heroes.json' \
   "$LOCAL/" "$SERVER:$REMOTE/" || { CODE=$?; [ "$CODE" = "23" ] || [ "$CODE" = "24" ] || exit $CODE; }
 
 # Stamp the service-worker cache key with this release, ON THE SERVER after
@@ -399,13 +397,17 @@ echo "→ Pruning retained chunks from old builds..."
 #
 # Daily nudge for approved members who never logged in. 10 AM Istanbul (07:00 UTC).
 #
+# Weekly connection-abuse scan — Mondays 06:00 UTC (09:00 Istanbul). Read-only:
+# runs scripts/scan-connection-abuse.ts directly (no HTTP endpoint) and emails
+# the ranked report to ADMIN_EMAIL. See scripts/sweep-connection-abuse.sh.
+#
 # Weekly neighborhood-hygiene scan — Mondays 06:20 UTC, 20 min after the
 # connection-abuse scan so two tsx processes don't start together. Read-only:
 # it emails ADMIN_EMAIL a report of member neighborhoods that don't match their
 # city's registry. Unlike names there is no auto-fix in the cron — two of the
 # four write paths coerce a bad value to NULL rather than reject it (a bad
 # district must never block an approved registration), so that loss is silent
-# by design and this is what surfaces it. Fix with scripts/fix-member-neighborhoods.ts.
+# by design and this is what surfaces it. Fix with scripts/archive/fix-member-neighborhoods.ts.
 #
 # Nightly name-hygiene sweep — re-cases member names (ALL-CAPS + lowercase
 # first letters) using each member's nationality for the Turkish-i rules.
@@ -471,6 +473,10 @@ chmod +x $REMOTE/scripts/sweep-name-hygiene.sh
 (crontab -l 2>/dev/null | grep -v 'sweep-name-hygiene' ; echo '20 3 * * * $REMOTE/scripts/sweep-name-hygiene.sh >> /var/log/sweep-name-hygiene.log 2>&1') | crontab -
 echo '  ✓ name-hygiene'
 
+chmod +x $REMOTE/scripts/sweep-connection-abuse.sh
+(crontab -l 2>/dev/null | grep -v 'sweep-connection-abuse' ; echo '0 6 * * 1 $REMOTE/scripts/sweep-connection-abuse.sh >> /var/log/sweep-connection-abuse.log 2>&1') | crontab -
+echo '  ✓ connection-abuse'
+
 chmod +x $REMOTE/scripts/sweep-neighborhood-hygiene.sh
 (crontab -l 2>/dev/null | grep -v 'sweep-neighborhood-hygiene' ; echo '20 6 * * 1 $REMOTE/scripts/sweep-neighborhood-hygiene.sh >> /var/log/sweep-neighborhood-hygiene.log 2>&1') | crontab -
 echo '  ✓ neighborhood-hygiene'
@@ -512,9 +518,9 @@ EOF
 # deploy), so we stop re-running them. Re-enable for the next tournament by
 # uncommenting (and updating the season data in the scripts).
 # echo "→ Seeding Smileys Cup 2026 fixtures..."
-# ssh "${SSH_OPTS[@]}" "$SERVER" "cd $REMOTE && npx tsx --env-file=.env scripts/seed-cup.ts"
+# ssh "${SSH_OPTS[@]}" "$SERVER" "cd $REMOTE && npx tsx --env-file=.env scripts/archive/cup-2026/seed-cup.ts"
 # echo "→ Overlaying real FIFA schedule on group fixtures..."
-# ssh "${SSH_OPTS[@]}" "$SERVER" "cd $REMOTE && npx tsx --env-file=.env scripts/fix-group-fixtures.ts"
+# ssh "${SSH_OPTS[@]}" "$SERVER" "cd $REMOTE && npx tsx --env-file=.env scripts/archive/cup-2026/fix-group-fixtures.ts"
 
 # Warm the OG image route. /api/og pulls in the satori/resvg render stack
 # and its fonts on first invocation, which costs ~19s cold — long enough that

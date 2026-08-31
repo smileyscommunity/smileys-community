@@ -305,7 +305,7 @@ export default async function DashboardPage() {
     // formerly batch 3 — trendingEventsRaw is deduped against featuredEvents post-fetch
     suggestedMembers, thisWeekEvents, totalMembers, eventsThisWeek, neighborhoodEventCount, newMembers, recentPhotos, trendingEventsRaw, nearbyMembers, newClubs, latestPosts, activeHangouts, recentHangouts, recentPulses, recentConnections, recentReferences, recentRsvps, recentlyCreatedClubs, recentBusinesses,
     // activity-wall extras
-    recentEventReviews, recentPlaceReviews, recentHangoutJoins, recentHoodPosts, recentResources, recentTestimonials, recentCupPicks, recentCupDonations,
+    recentEventReviews, recentPlaceReviews, recentHangoutJoins, recentHoodPosts, recentResources, recentTestimonials,
     recentArticles, communityEventsThisMonth,
   ] = await Promise.all([
     // Wide candidate pool for "recommended" — scored AFTER the batch by
@@ -725,21 +725,6 @@ export default async function DashboardPage() {
       orderBy: { createdAt: 'desc' },
       take: 2,
       select: { id: true, memberName: true, quote: true, createdAt: true },
-    }),
-    // Cup predictions — seasonal banter while the campaign runs.
-    prisma.cupPrediction.findMany({
-      where:   { submittedAt: { gte: weekAgo }, userId: { not: session.id } },
-      orderBy: { submittedAt: 'desc' },
-      take: 3,
-      select: { pickedTeam: true, submittedAt: true, user: { select: { name: true, color: true } } },
-    }),
-    // Approved Cup prize donations — celebrate sponsors; pending ones
-    // stay hidden until an admin reviews them.
-    prisma.cupPrizeDonation.findMany({
-      where:   { status: 'approved', createdAt: { gte: twoWeeksAgo } },
-      orderBy: { createdAt: 'desc' },
-      take: 2,
-      select: { id: true, donorName: true, donorOrganization: true, prizeTitle: true, createdAt: true },
     }),
     // Recently published articles (handbook + community) for the activity wall.
     // Windowed to the last 30 days and ranked by recency like every other wall
@@ -1382,7 +1367,7 @@ export default async function DashboardPage() {
                 mobile and desktop. Center column renders on every
                 viewport, so a single placement replaces the previous
                 two (mobile-only + right-rail) renders. */}
-            <ClubActivityTimeline members={recentActivity} posts={wallActivity} events={recentClubEvents} photos={recentPhotos} rsvps={recentRsvps} newMembers={newMembers} hangouts={recentHangouts} pulses={recentPulses} connections={recentConnections} references={recentReferences} newClubs={recentlyCreatedClubs} listings={wallListings} businesses={recentBusinesses} eventReviews={recentEventReviews} placeReviews={recentPlaceReviews} visitors={wallVisitors} hangoutJoins={recentHangoutJoins} hoodPosts={wallHoodPosts} resources={recentResources} testimonials={recentTestimonials} cupPicks={recentCupPicks} cupDonations={recentCupDonations} articles={recentArticles} cityName={city.name} cap={12} />
+            <ClubActivityTimeline members={recentActivity} posts={wallActivity} events={recentClubEvents} photos={recentPhotos} rsvps={recentRsvps} newMembers={newMembers} hangouts={recentHangouts} pulses={recentPulses} connections={recentConnections} references={recentReferences} newClubs={recentlyCreatedClubs} listings={wallListings} businesses={recentBusinesses} eventReviews={recentEventReviews} placeReviews={recentPlaceReviews} visitors={wallVisitors} hangoutJoins={recentHangoutJoins} hoodPosts={wallHoodPosts} resources={recentResources} testimonials={recentTestimonials} articles={recentArticles} cityName={city.name} cap={12} />
 
             {/* Upcoming visitors — surfaces /visiting + the new wave
                 action on the dashboard. Component renders nothing when

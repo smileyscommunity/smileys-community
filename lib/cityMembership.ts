@@ -183,7 +183,7 @@ export async function setHomeCity(userId: string, slug: string): Promise<MoveRes
     // nothing can ever match — the member would keep a neighborhood on their
     // profile while being invisible to every neighborhood feature, which is
     // exactly the state 33 rows had to be repaired out of
-    // (scripts/fix-member-neighborhoods.ts). Clearing it prompts them to pick
+    // (scripts/archive/fix-member-neighborhoods.ts). Clearing it prompts them to pick
     // one that exists where they now live.
     prisma.user.update({ where: { id: userId }, data: { cityId: city.id, neighborhood: null } }),
   ])

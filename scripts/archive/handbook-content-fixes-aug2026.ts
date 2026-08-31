@@ -31,7 +31,7 @@
 //   npx tsx --env-file=.env --env-file=.env.local scripts/handbook-content-fixes-aug2026.ts
 // Apply:
 //   APPLY=1 npx tsx --env-file=.env --env-file=.env.local scripts/handbook-content-fixes-aug2026.ts
-import { prisma } from '../lib/prisma'
+import { prisma } from '../../lib/prisma'
 
 const APPLY = process.env.APPLY === '1'
 

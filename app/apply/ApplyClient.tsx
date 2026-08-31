@@ -11,7 +11,6 @@ import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import FingerprintJS from '@fingerprintjs/fingerprintjs'
 import posthog from 'posthog-js'
 import { INTERESTS as INTERESTS_LIST, COMMON_LANGUAGES } from '@/lib/profileOptions'
-import { ONBOARDING_NEIGHBORHOODS } from '@/lib/onboarding-neighborhoods'
 import { downscaleImage, ImageUploadError } from '@/lib/image-resize'
 
 const step0Schema = z.object({
@@ -186,32 +185,6 @@ function ApplyForm() {
         if (d.socialStyles) setSocialStyles(d.socialStyles)
         if (d.languages)    setLanguages(d.languages)
         if (typeof d.step === 'number') setStep(d.step)
-      }
-    } catch {}
-    // One-shot handoff from /onboarding: a visitor who did the preference
-    // steps there arrives with vibes + neighborhoods we can prefill, so
-    // those five steps aren't wasted. Draft (above) wins where both exist.
-    try {
-      const rawHandoff = sessionStorage.getItem('smileys_apply_handoff')
-      if (rawHandoff) {
-        sessionStorage.removeItem('smileys_apply_handoff')
-        const h = JSON.parse(rawHandoff)
-        const VIBE_TO_INTEREST: Record<string, string> = {
-          Social: 'social', Party: 'social', Networking: 'networking',
-          Food: 'dining', Wellness: 'wellness', Outdoor: 'outdoor',
-          Active: 'outdoor', Adventure: 'outdoor',
-        }
-        if (Array.isArray(h.vibes)) {
-          const mapped = h.vibes.map((v: string) => VIBE_TO_INTEREST[v]).filter(Boolean)
-          if (mapped.length) setInterests(prev => [...new Set([...prev, ...mapped])])
-        }
-        if (Array.isArray(h.neighborhoods) && h.neighborhoods[0]) {
-          // The teaser hands over neighborhood IDs ('kadikoy'); the select's
-          // options are display names ('Kadıköy') — without the mapping the
-          // prefill silently no-oped on a value no option matched.
-          const hood = ONBOARDING_NEIGHBORHOODS.find(n => n.id === h.neighborhoods[0])?.label
-          if (hood) setForm(f => f.neighborhood ? f : { ...f, neighborhood: hood })
-        }
       }
     } catch {}
     setDraftHydrated(true)

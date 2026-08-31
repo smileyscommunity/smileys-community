@@ -32,7 +32,7 @@ import {
 } from '@/lib/cup-data'
 
 // Re-export the client-safe constants so existing server-side
-// callers (e.g. scripts/seed-cup.ts, /api/admin/cup, /api/cup/*)
+// callers (e.g. scripts/archive/cup-2026/seed-cup.ts, /api/admin/cup, /api/cup/*)
 // don't need to change their imports.
 export {
   CUP_TEAMS,

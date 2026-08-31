@@ -1,7 +1,7 @@
 // One-off: fix the users whose profilePhoto still points into the gated
 // applications/ folder after the 33df1e6 lockdown.
 //
-// Who these rows are: scripts/backfill-avatars (run 2026-08-14) migrated every
+// Who these rows are: scripts/archive/backfill-avatars (run 2026-08-14) migrated every
 // APPROVED member off applications/. The rows it left behind are members whose
 // application was later rejected — the rejection flow demotes their user row to
 // status='pending' (access revoked) — so the backfill skipped them on purpose:

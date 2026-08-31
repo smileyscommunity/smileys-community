@@ -1,3 +1,5 @@
+> **HISTORICAL** — published to prod (see `scripts/publish-*`); the DB is authoritative; prod has since been corrected/edited independently. Do not re-publish from this file.
+
 # Antalyakart — publish-ready draft (Aug 31, 2026)
 
 Antalya's transport-card article in the İzmirim Kart pattern: facts from the

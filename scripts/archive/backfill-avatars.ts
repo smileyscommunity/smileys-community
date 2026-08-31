@@ -23,8 +23,8 @@
 //   npx tsx --env-file=.env --env-file=.env.local scripts/backfill-avatars.ts
 // Apply:
 //   APPLY=1 npx tsx --env-file=.env --env-file=.env.local scripts/backfill-avatars.ts
-import { prisma } from '../lib/prisma'
-import { promoteApplicationPhoto } from '../lib/promotePhoto'
+import { prisma } from '../../lib/prisma'
+import { promoteApplicationPhoto } from '../../lib/promotePhoto'
 
 const APPLY = process.env.APPLY === '1'
 

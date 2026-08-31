@@ -1,3 +1,5 @@
+> **HISTORICAL** — published to prod (see `scripts/publish-*`); the DB is authoritative; prod has since been corrected/edited independently. Do not re-publish from this file.
+
 # İzmirim Kart — publish-ready version (Aug 28, 2026)
 
 Prepared from `docs/izmir-handbook-drafts.md`. The two ⚠ VERIFY blocks are

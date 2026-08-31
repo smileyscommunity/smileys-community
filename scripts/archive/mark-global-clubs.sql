@@ -1,3 +1,4 @@
+-- EXECUTED 2026-08 (see git log) — archived one-off, do not re-run.
 -- Mark the owner-classified global clubs (2026-08-16): every Language club
 -- and every Culture club EXCEPT Architecture (categorized Culture in the DB
 -- but an activity club, kept Istanbul-local — see

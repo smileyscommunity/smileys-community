@@ -3,8 +3,8 @@
 // new_event notification). Uses the shared notifyNewEvent helper, so it's
 // batched and idempotency-guarded — safe to run once; a second run is a no-op.
 //   npx tsx --env-file=.env --env-file=.env.local scripts/announce-besiktas-event.ts
-import { prisma } from '../lib/prisma'
-import { notifyNewEvent } from '../lib/notify'
+import { prisma } from '../../lib/prisma'
+import { notifyNewEvent } from '../../lib/notify'
 
 async function main() {
   const id = 'cms0b5nja000mci6fi3mbuk0o'

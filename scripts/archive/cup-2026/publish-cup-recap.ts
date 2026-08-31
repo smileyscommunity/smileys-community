@@ -3,7 +3,7 @@
 // fires — a deliberate "gentle" publish with no member push. notifiedAt is
 // pre-set so a future admin edit can't trigger the broadcast either.
 //   npx tsx --env-file=.env --env-file=.env.local scripts/publish-cup-recap.ts
-import { prisma } from '../lib/prisma'
+import { prisma } from '../../../lib/prisma'
 
 const body = `
 <p>What a tournament. The Smileys Cup 2026 is officially in the books — here's how it all finished.</p>

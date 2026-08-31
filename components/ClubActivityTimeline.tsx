@@ -157,20 +157,6 @@ type TestimonialItem = {
   createdAt: Date | string
 }
 
-type CupPick = {
-  pickedTeam: string
-  submittedAt: Date | string
-  user: { name: string; color: string }
-}
-
-type CupDonation = {
-  id: string
-  donorName: string
-  donorOrganization: string | null
-  prizeTitle: string
-  createdAt: Date | string
-}
-
 type NewConnection = {
   updatedAt:  Date | string
   requester:  { name: string; color: string }
@@ -204,8 +190,6 @@ interface Props {
   hoodPosts?:    HoodPost[]
   resources?:    ClubResourceItem[]
   testimonials?: TestimonialItem[]
-  cupPicks?:     CupPick[]
-  cupDonations?: CupDonation[]
   articles?:     NewArticle[]
   cityName:      string
   cap?:          number
@@ -232,8 +216,6 @@ type TimelineItem =
   | { kind: 'hoodpost';     ts: number; data: HoodPost         }
   | { kind: 'resource';     ts: number; data: ClubResourceItem }
   | { kind: 'testimonial';  ts: number; data: TestimonialItem  }
-  | { kind: 'cuppick';      ts: number; data: CupPick          }
-  | { kind: 'cupdonation';  ts: number; data: CupDonation      }
   | { kind: 'article';      ts: number; data: NewArticle       }
 
 // "2h", "3d", "Just now". Tighter than a full sentence — the card is
@@ -261,7 +243,7 @@ function Avatar({ name, color }: { name: string; color: string }) {
   )
 }
 
-export default function ClubActivityTimeline({ members, posts, events, photos = [], rsvps = [], newMembers = [], hangouts = [], pulses = [], connections = [], references = [], newClubs = [], listings = [], businesses = [], eventReviews = [], placeReviews = [], visitors = [], hangoutJoins = [], hoodPosts = [], resources = [], testimonials = [], cupPicks = [], cupDonations = [], articles = [], cityName, cap = 6 }: Props) {
+export default function ClubActivityTimeline({ members, posts, events, photos = [], rsvps = [], newMembers = [], hangouts = [], pulses = [], connections = [], references = [], newClubs = [], listings = [], businesses = [], eventReviews = [], placeReviews = [], visitors = [], hangoutJoins = [], hoodPosts = [], resources = [], testimonials = [], articles = [], cityName, cap = 6 }: Props) {
   const merged: TimelineItem[] = [
     ...members    .map(m => ({ kind: 'member'     as const, ts: new Date(m.joinedAt).getTime(),   data: m })),
     ...posts      .map(p => ({ kind: 'post'       as const, ts: new Date(p.createdAt).getTime(),  data: p })),
@@ -283,8 +265,6 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
     ...hoodPosts   .map(p => ({ kind: 'hoodpost'    as const, ts: new Date(p.createdAt).getTime(),   data: p })),
     ...resources   .map(r => ({ kind: 'resource'    as const, ts: new Date(r.createdAt).getTime(),   data: r })),
     ...testimonials.map(t => ({ kind: 'testimonial' as const, ts: new Date(t.createdAt).getTime(),   data: t })),
-    ...cupPicks    .map(p => ({ kind: 'cuppick'     as const, ts: new Date(p.submittedAt).getTime(), data: p })),
-    ...cupDonations.map(d => ({ kind: 'cupdonation' as const, ts: new Date(d.createdAt).getTime(),   data: d })),
     ...articles    .map(a => ({ kind: 'article'     as const, ts: new Date(a.publishedAt ?? 0).getTime(), data: a })),
   ].sort((a, b) => b.ts - a.ts)
 
@@ -594,39 +574,6 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                 </div>
                 <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
               </div>
-            )
-          }
-          if (it.kind === 'cuppick') {
-            const { user, pickedTeam } = it.data
-            return (
-              <Link key={`cp-${i}`} href="/cup"
-                    className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
-                <Avatar name={user.name} color={user.color} />
-                <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
-                  <span className="font-semibold">{user.name.split(' ')[0]}</span>
-                  {' predicted '}
-                  <span className="font-semibold text-amber-600">{pickedTeam}</span>
-                  {' to win ⚽'}
-                </p>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
-              </Link>
-            )
-          }
-          if (it.kind === 'cupdonation') {
-            const { donorName, donorOrganization, prizeTitle } = it.data
-            return (
-              <Link key={`cd-${i}`} href="/cup"
-                    className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
-                <div className="w-7 h-7 rounded-xl bg-amber-50 flex items-center justify-center text-base shrink-0">
-                  🎁
-                </div>
-                <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
-                  <span className="font-semibold">{donorOrganization || donorName}</span>
-                  {' donated a Cup prize — '}
-                  <span className="font-semibold text-amber-600">{prizeTitle}</span>
-                </p>
-                <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
-              </Link>
             )
           }
           if (it.kind === 'listing') {

@@ -7,8 +7,8 @@
 //   npx tsx --env-file=.env --env-file=.env.local scripts/migrate-handbook-headings.ts
 // Apply for real:
 //   APPLY=1 npx tsx --env-file=.env --env-file=.env.local scripts/migrate-handbook-headings.ts
-import { prisma } from '../lib/prisma'
-import { migrateHeadings } from '../lib/handbook-headings'
+import { prisma } from '../../lib/prisma'
+import { migrateHeadings } from '../../lib/handbook-headings'
 
 const APPLY = process.env.APPLY === '1'
 

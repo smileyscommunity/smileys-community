@@ -49,12 +49,24 @@ export const SWEEPER_INTERVAL_MIN: Record<string, number> = {
   // sweep-cup-reminders / sweep-cup-results retired 2026-07-27 with the
   // Cup (deploy.sh removes their crontab lines) — listing them here made
   // the staleness check cry wolf forever. Re-add for the next tournament.
-  'sweep-event-surveys':  60,
-  'sweep-hangouts':       60,
-  'sweep-nps':            24 * 60,
-  'sweep-event-spots':    24 * 60,
-  'sweep-waitlists':      24 * 60,
-  'sweep-review-nudges':  7 * 24 * 60,
+  //
+  // Deliberately unmonitored (no HTTP route, so nothing calls
+  // recordCronRun — they run tsx/pg_dump directly from their shell
+  // scripts and surface via /var/log/<name>.log + emailed reports):
+  //   db-backup, sweep-connection-abuse, sweep-neighborhood-hygiene.
+  'sweep-newsletters':      5,
+  'sweep-event-surveys':    60,
+  'sweep-hangouts':         60,
+  'sweep-payment-reminders': 60,
+  'sweep-reminders':        60,
+  'sweep-nps':              24 * 60,
+  'sweep-event-spots':      24 * 60,
+  'sweep-waitlists':        24 * 60,
+  'sweep-availability-pulses': 24 * 60,
+  'sweep-login-nudge':      24 * 60,
+  'sweep-name-hygiene':     24 * 60,
+  'sweep-review-nudges':    7 * 24 * 60,
+  'sweep-first-rsvp-nudge': 7 * 24 * 60,
 }
 
 // Returns names of sweepers whose lastSuccessAt is missing OR

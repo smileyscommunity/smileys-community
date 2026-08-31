@@ -15,7 +15,7 @@
 // Usage (on the server, from /root/smileys-community):
 //   DRY_RUN=1 npx tsx --env-file=.env --env-file=.env.local scripts/strip-event-title-emoji.ts
 //   npx tsx --env-file=.env --env-file=.env.local scripts/strip-event-title-emoji.ts
-import { prisma } from '../lib/prisma'
+import { prisma } from '../../lib/prisma'
 
 // Inlined copy of splitLeadingEmoji from lib/data.ts — the script must be
 // runnable on the server via scp before the code carrying the helper is

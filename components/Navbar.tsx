@@ -100,7 +100,6 @@ const pageTitles: [string, string][] = [
   ['/my-events',     'My Events'],
   ['/invite',        'Invite'],
   ['/dashboard',     'Dashboard'],
-  ['/onboarding',    'Onboarding'],
   ['/reviews',       'Reviews'],
   ['/perks',         'Perks'],
   ['/apply',         'Apply'],

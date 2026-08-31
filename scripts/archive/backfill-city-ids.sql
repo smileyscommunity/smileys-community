@@ -1,3 +1,4 @@
+-- EXECUTED 2026-08 (see git log) — archived one-off, do not re-run.
 -- Multi-city phase 1: add and backfill "cityId" on the nine tables that become
 -- city-scoped, so `prisma db push` can finish the job.
 --

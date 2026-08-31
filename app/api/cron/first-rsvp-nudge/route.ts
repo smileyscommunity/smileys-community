@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { checkCronAuth } from '@/lib/cronAuth'
+import { recordCronRun } from '@/lib/cronHealth'
 import { runFirstRsvpNudge } from '@/lib/firstRsvpNudge'
 import { sendNudgeReportEmail } from '@/lib/email'
 
@@ -12,14 +13,21 @@ export async function POST(req: NextRequest) {
   const denied = checkCronAuth(req)
   if (denied) return denied
 
-  const result = await runFirstRsvpNudge()
-  console.log('[first-rsvp-nudge]', JSON.stringify(result))
+  try {
+    const result = await runFirstRsvpNudge()
+    console.log('[first-rsvp-nudge]', JSON.stringify(result))
 
-  // Self-report to admins so the loop surfaces its own volume + conversion.
-  const admins = await prisma.user.findMany({ where: { role: 'admin' }, select: { email: true } })
-  await Promise.allSettled(
-    admins.filter(a => a.email).map(a => sendNudgeReportEmail(a.email!, result)),
-  )
+    // Self-report to admins so the loop surfaces its own volume + conversion.
+    const admins = await prisma.user.findMany({ where: { role: 'admin' }, select: { email: true } })
+    await Promise.allSettled(
+      admins.filter(a => a.email).map(a => sendNudgeReportEmail(a.email!, result)),
+    )
 
-  return NextResponse.json({ ok: true, ...result })
+    await recordCronRun('sweep-first-rsvp-nudge', true)
+    return NextResponse.json({ ok: true, ...result })
+  } catch (e) {
+    console.error('[first-rsvp-nudge]', e)
+    await recordCronRun('sweep-first-rsvp-nudge', false, e)
+    return NextResponse.json({ error: 'Sweep failed' }, { status: 500 })
+  }
 }

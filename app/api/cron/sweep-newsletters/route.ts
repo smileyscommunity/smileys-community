@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { sendNewsletterBatch, recordEmailFailure } from '@/lib/email'
 import { checkCronAuth } from '@/lib/cronAuth'
+import { recordCronRun } from '@/lib/cronHealth'
 import { buildWeeklyDigest } from '@/lib/newsletterDigest'
 
 type Segment = 'all' | 'new' | 'active' | 'inactive'
@@ -24,6 +25,21 @@ export async function POST(req: NextRequest) {
   const denied = checkCronAuth(req)
   if (denied) return denied
 
+  // recordCronRun stamps the run either way so the admin-dashboard
+  // staleness check (lib/cronHealth) notices when this sweeper stops
+  // firing — same shape as sweep-event-spots.
+  try {
+    const result = await runSweep()
+    await recordCronRun('sweep-newsletters', true)
+    return NextResponse.json({ ok: true, ...result })
+  } catch (e) {
+    console.error('[cron sweep-newsletters]', e)
+    await recordCronRun('sweep-newsletters', false, e)
+    return NextResponse.json({ error: 'Sweep failed' }, { status: 500 })
+  }
+}
+
+async function runSweep() {
   // Find newsletters scheduled for now or earlier that haven't been sent yet
   const due = await prisma.newsletter.findMany({
     where: { status: 'scheduled', scheduledFor: { lte: new Date() } },
@@ -70,7 +86,7 @@ export async function POST(req: NextRequest) {
 
   const auto = await runAutoDigest()
 
-  return NextResponse.json({ ok: true, processed: due.length, totalSent, auto })
+  return { processed: due.length, totalSent, auto }
 }
 
 // Weekly auto-newsletter: when the admin toggle (app_settings key

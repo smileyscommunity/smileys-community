@@ -8,6 +8,7 @@ import { createNotification } from '@/lib/notify'
 import { sendReviewRequestEmail, sendListingExpiryEmail, recordEmailFailure } from '@/lib/email'
 import { sendPushToUser } from '@/lib/push'
 import { getSession } from '@/lib/session'
+import { recordCronRun } from '@/lib/cronHealth'
 import { citiesByToday, type CityDay } from '@/lib/city'
 import { uploadRoot } from '@/lib/uploadRoot'
 
@@ -41,6 +42,21 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // recordCronRun stamps the run either way so the admin-dashboard
+  // staleness check (lib/cronHealth) notices when the hourly dispatch
+  // stops firing — same shape as sweep-event-spots.
+  try {
+    const result = await runSweep()
+    await recordCronRun('sweep-reminders', true)
+    return NextResponse.json({ ok: true, ...result })
+  } catch (e) {
+    console.error('[cron reminders]', e)
+    await recordCronRun('sweep-reminders', false, e)
+    return NextResponse.json({ error: 'Sweep failed' }, { status: 500 })
+  }
+}
+
+async function runSweep() {
   const now          = new Date()
   // Yesterday / today / tomorrow, per city. This sweep ARCHIVES events whose
   // date has passed and mails their attendees, so a single network-wide
@@ -281,5 +297,5 @@ export async function GET(req: NextRequest) {
     }
   } catch {}
 
-  return NextResponse.json({ ok: true, sent24h, sent2h, sentReviews, archivedCount, sentConnections, checkedEvents: upcomingEvents.length + pastEvents.length, expiringListings: expiringListings.length, purgedPhotos })
+  return { sent24h, sent2h, sentReviews, archivedCount, sentConnections, checkedEvents: upcomingEvents.length + pastEvents.length, expiringListings: expiringListings.length, purgedPhotos }
 }

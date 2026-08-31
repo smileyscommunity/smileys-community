@@ -229,7 +229,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // be able to save an Istanbul district onto them. An unrecognised value is
     // rejected rather than stored, because a stored one silently drops that
     // member out of every neighborhood feature (see
-    // scripts/fix-member-neighborhoods.ts for the 33 rows this produced).
+    // scripts/archive/fix-member-neighborhoods.ts for the 33 rows this produced).
     if ('neighborhood' in allowed) {
       const parsed = await normalizeNeighborhoodInput(target.cityId, allowed.neighborhood)
       if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })

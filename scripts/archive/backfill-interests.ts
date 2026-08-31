@@ -10,8 +10,8 @@
 //
 // Idempotent: a second run finds nothing to change.
 
-import { prisma } from '../lib/prisma'
-import { INTEREST_VALUES } from '../lib/profileOptions'
+import { prisma } from '../../lib/prisma'
+import { INTEREST_VALUES } from '../../lib/profileOptions'
 
 // Case-insensitive synonym → canonical slug. Anything not canonical and not
 // mapped here is dropped. Deliberately conservative — an ambiguous term

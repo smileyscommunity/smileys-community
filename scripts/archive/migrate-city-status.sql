@@ -1,3 +1,4 @@
+-- EXECUTED 2026-08 (see git log) — archived one-off, do not re-run.
 -- Multi-city phase 1, step 5: move the city status vocabulary to the one the
 -- public site uses (lib/cities.ts): coming_soon | preparing | live | paused.
 --

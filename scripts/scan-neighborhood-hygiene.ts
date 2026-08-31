@@ -6,7 +6,7 @@
 // With EMAIL_REPORT=1 (and .env.local for RESEND_API_KEY) the report is emailed
 // to ADMIN_EMAIL — how the weekly cron delivers it (scripts/sweep-neighborhood-
 // hygiene.sh, Mondays 06:20 UTC). Read-only: it never writes. The fix is
-// scripts/fix-member-neighborhoods.ts, which shares this scan's classifier so
+// scripts/archive/fix-member-neighborhoods.ts, which shares this scan's classifier so
 // "fixable" means the same thing in both.
 //
 // Why a scan when the write paths now validate: two of the four writers coerce
@@ -76,7 +76,7 @@ async function main() {
     log()
   }
 
-  section('FIXABLE ⚠️  — run scripts/fix-member-neighborhoods.ts', fixable)
+  section('FIXABLE ⚠️  — run scripts/archive/fix-member-neighborhoods.ts', fixable)
   section('ORPHANED ⚠️  — no neighborhood of that city matches; CLEAR_UNMATCHED=1 nulls them', orphaned)
   section('AMBIGUOUS ⚠️  — decide by hand', ambiguous)
 

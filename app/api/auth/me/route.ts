@@ -150,7 +150,7 @@ export async function PATCH(req: NextRequest) {
     // an unrecognised one silently excludes the member from all of them while
     // the profile looks complete — this route is where 21 empty strings and a
     // set of hand-typed, diacritic-stripped names got in (see
-    // scripts/fix-member-neighborhoods.ts). Blank clears it; anything else has
+    // scripts/archive/fix-member-neighborhoods.ts). Blank clears it; anything else has
     // to be real, and the picker only ever offers real ones.
     if ('neighborhood' in data) {
       const homeCityId = session.cityId ?? await getDefaultCityId()

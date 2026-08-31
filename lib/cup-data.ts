@@ -126,7 +126,7 @@ export function isFixtureLocked(kickoffAt: Date | string | number, now: Date = n
 
 // Group-stage assignments from the draw on Dec 5, 2025. Each entry
 // is ordered [seed1, seed2, seed3, seed4] following FIFA's pot
-// allocation (Pot 1 → Pot 4). Used by scripts/seed-cup.ts for the
+// allocation (Pot 1 → Pot 4). Used by scripts/archive/cup-2026/seed-cup.ts for the
 // bootstrap rows; scripts/fix-group-fixtures.ts overlays the real
 // FIFA schedule on top.
 export const CUP_GROUPS: Record<string, [string, string, string, string]> = {

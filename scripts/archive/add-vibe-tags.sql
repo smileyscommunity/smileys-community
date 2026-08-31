@@ -1,3 +1,4 @@
+-- EXECUTED 2026-08 (see git log) — archived one-off, do not re-run.
 -- Expand the vibe-tag taxonomy (2026-08-16, approved by Nate):
 --   Experience +8: Music, Sports, Games, Nightlife, Dance, Film, On the water, Books
 --   Purpose    +4: Language exchange, Giving back, Celebration, Support

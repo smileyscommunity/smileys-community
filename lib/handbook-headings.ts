@@ -12,7 +12,7 @@
 // ambiguous case is left alone for a human editor.
 //
 // Pure and side-effect free so it can be tested against the real corpus before
-// it is ever pointed at the database (see scripts/migrate-handbook-headings.ts).
+// it is ever pointed at the database (see scripts/archive/migrate-handbook-headings.ts).
 
 // A whole paragraph that is nothing but one <strong>. The inner group refuses
 // to cross a </strong>, <p> or <strong> boundary so two adjacent paragraphs

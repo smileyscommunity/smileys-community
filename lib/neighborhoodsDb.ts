@@ -159,7 +159,7 @@ export type NeighborhoodInput =
  * failure never gets reported, because nothing looks broken.
  *
  * Prod had 33 such rows before this existed (repaired by
- * scripts/fix-member-neighborhoods.ts): empty strings stored as values,
+ * scripts/archive/fix-member-neighborhoods.ts): empty strings stored as values,
  * diacritics stripped by hand-typed input, and members holding another city's
  * district. This closes the door those came through.
  *

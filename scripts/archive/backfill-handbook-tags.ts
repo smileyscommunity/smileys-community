@@ -13,7 +13,7 @@
 //   npx tsx --env-file=.env --env-file=.env.local scripts/backfill-handbook-tags.ts
 // Apply:
 //   APPLY=1 npx tsx --env-file=.env --env-file=.env.local scripts/backfill-handbook-tags.ts
-import { prisma } from '../lib/prisma'
+import { prisma } from '../../lib/prisma'
 
 const APPLY = process.env.APPLY === '1'
 

@@ -29,9 +29,9 @@
 //   DRY_RUN:  npx tsx --env-file=.env --env-file=.env.local scripts/backfill-knockout-results.ts
 //   APPLY:    APPLY=1 npx tsx --env-file=.env --env-file=.env.local scripts/backfill-knockout-results.ts
 
-import { prisma } from '../lib/prisma'
-import { scoreFixture, rescoreAllBrackets } from '../lib/cup'
-import { fetchCupMatches, fdTlaToCupCode, fdWinnerCode, fdStageToCupRound, type FdMatch } from '../lib/cup-external-results'
+import { prisma } from '../../../lib/prisma'
+import { scoreFixture, rescoreAllBrackets } from '../../../lib/cup'
+import { fetchCupMatches, fdTlaToCupCode, fdWinnerCode, fdStageToCupRound, type FdMatch } from '../../../lib/cup-external-results'
 
 const APPLY = process.env.APPLY === '1'
 
