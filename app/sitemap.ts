@@ -109,6 +109,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const newestEvent    = newest(events.map(e => e.updatedAt))
   const newestClub     = newest(clubs.map(c => c.createdAt))
   const newestPost     = newest(posts.map(p => p.publishedAt))
+  // /posts (Stories) lists community-kind posts only — handbook articles have
+  // their own index — so its lastmod tracks just those.
+  const newestStory    = newest(posts.filter(p => p.kind !== 'handbook').map(p => p.publishedAt))
   const newestListing  = newest(listings.map(l => l.updatedAt))
   const newestBusiness = newest(businesses.map(b => b.updatedAt))
   const newestMovingSale = newest(movingSales.map(s => s.createdAt))
@@ -139,6 +142,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE}/contact`,       priority: 0.5, changeFrequency: 'monthly' },
     { url: `${BASE}/neighborhoods`, priority: 0.6, changeFrequency: 'monthly', lastModified: newest([...neighborhoodMtimes.values()]) },
     { url: `${BASE}/directory`,     priority: 0.8, changeFrequency: 'weekly',  lastModified: newestBusiness },
+    { url: `${BASE}/posts`,         priority: 0.6, changeFrequency: 'weekly',  lastModified: newestStory },
     // Cup 2026 wrapped Jul 19 — the page stays up as an archive of the
     // final standings, so keep it crawlable but stop advertising it.
     { url: `${BASE}/cup`,           priority: 0.1, changeFrequency: 'yearly'  },

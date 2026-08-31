@@ -98,6 +98,7 @@ export default function CommandPalette() {
     { id: 'hangouts',      label: 'Hangouts',       hint: 'Live meetups happening now',  icon: '🤝', group: 'Navigate', action: () => go('/hangouts')      },
     { id: 'guide',         label: 'City Guide',     hint: 'Curated local experiences',  icon: '🗺️', group: 'Navigate', action: () => go('/guide')         },
     { id: 'handbook',      label: 'Handbook',       hint: 'How-tos for life here',      icon: '📖', group: 'Navigate', action: () => go('/handbook')      },
+    { id: 'stories',       label: 'Stories',        hint: 'Articles from the community', icon: '📰', group: 'Navigate', action: () => go('/posts')        },
     { id: 'board',         label: 'Community Board', hint: 'Ask, share & discuss',      icon: '📋', group: 'Navigate', action: () => go('/board')      },
     { id: 'marketplace',   label: 'Marketplace',    hint: 'Rooms, jobs, buy & sell',    icon: '🛍️', group: 'Navigate', action: () => go('/marketplace')   },
     { id: 'directory',     label: 'Directory',      hint: 'Local businesses & services', icon: '🏢', group: 'Navigate', action: () => go('/directory')     },

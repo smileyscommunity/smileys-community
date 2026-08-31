@@ -179,6 +179,10 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
                 // handbook serves all of them. A non-Turkish city is what
                 // forces real country scoping.
                 { href: '/handbook',      label: 'Handbook 📖'        },
+                // City-scoped like the Handbook: the index shows global
+                // stories plus the viewer city's own, so it belongs in the
+                // city column, not "Across Smileys".
+                { href: '/posts',         label: 'Stories 📰'         },
                 { href: '/directory',     label: 'Directory 🏢'       },
                 { href: '/hosts',         label: 'Hosts 🎤'           },
                 { href: '/hangouts',      label: 'Hangouts ☕'        },
@@ -202,7 +206,6 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
                 { href: '/cities',   label: 'All cities 🌍'   },
                 { href: '/visiting', label: 'Visiting? 👋'    },
                 { href: '/members',  label: 'Members 👥'      },
-                { href: '/posts',    label: 'Stories 📰'      },
                 // The Cup is seasonal and currently dormant — /cup is
                 // member-gated, so this used to dead-end visitors at the
                 // login wall. Point at the public recap until the next

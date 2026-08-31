@@ -60,6 +60,7 @@ describe('a route has one name', () => {
     expect(code).not.toMatch(/Stories &amp; Guides|Stories & Guides/)
     expect(code).not.toMatch(/Articles & Stories/)
     expect(code).not.toMatch(/Community Articles/)
-    expect(code).toMatch(/Stories — Smileys Community/)
+    // The page's own long form — title, eyebrow and share cards all use it.
+    expect(code).toMatch(/Stories from Smileys/)
   })
 })
