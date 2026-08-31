@@ -99,10 +99,15 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
         {/* Brand takes its own row, then five link columns. The old
             xl:grid-cols-6 wrapped ragged on a laptop and left the city column —
             now ten items — towering over four short ones. */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-x-8 gap-y-10">
+        {/* xl gets six true columns so Legal sits in the first row beside
+            Company — at five columns it wrapped to a second row far below,
+            pushed down by the tall city column, leaving dead space under
+            three columns. lg (laptops) keeps five columns + stacked Legal:
+            six wouldn't fit without crushing. */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-x-8 gap-y-10">
 
           {/* Brand — wider until xl so the social row breathes */}
-          <div className="col-span-2 sm:col-span-3 lg:col-span-5">
+          <div className="col-span-2 sm:col-span-3 lg:col-span-5 xl:col-span-6">
             <Link href="/" className="flex items-center gap-2 mb-4 group">
               <span className="text-2xl">😊</span>
               <span className="font-extrabold text-gray-900 group-hover:text-amber-600 transition-colors text-lg">
@@ -274,7 +279,7 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
               beside Company (nested-under-Company left the right half of that
               row empty on mobile). The explicit col-starts park it back under
               Company at sm/lg, so the wider layouts keep their five columns. */}
-          <div className="sm:col-start-3 lg:col-start-5">
+          <div className="sm:col-start-3 lg:col-start-5 xl:col-start-auto xl:row-start-auto">
             <h3 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-4">Legal</h3>
             <ul className="space-y-3">
               {[
@@ -284,7 +289,7 @@ export default function Footer({ stats, cityName = 'Istanbul', hasNeighborhoods 
                 { href: '/guidelines',  label: 'Community guidelines 🤝' },
               ].map(l => (
                 <li key={l.href}>
-                  <Link href={l.href} className="text-sm text-gray-600 hover:text-amber-600 transition-colors whitespace-nowrap">
+                  <Link href={l.href} className="text-sm leading-snug text-gray-600 hover:text-amber-600 transition-colors">
                     {l.label}
                   </Link>
                 </li>
