@@ -124,12 +124,15 @@ export default function CitiesMenu({
   // a city is running — the most specific true thing wins the space.
   function badge(c: City) {
     if (current?.slug === c.slug) {
+      // Being in your own city isn't "viewing" — it's home. The Viewing
+      // badge appears only when the cookie has moved you somewhere else.
+      const label = c.slug === homeSlug ? 'Home' : 'Viewing'
       return (
         <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-amber-600">
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
-          Viewing
+          {label}
         </span>
       )
     }
