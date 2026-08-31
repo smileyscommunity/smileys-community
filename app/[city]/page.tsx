@@ -1,4 +1,3 @@
-import { Fragment } from 'react'
 import type { Metadata } from 'next'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -72,7 +71,7 @@ const getCityPageData = unstable_cache(
     const today        = todayInTz(tz)
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
 
-    const [{ events }, clubs, neighborhoodCounts, testimonials, newMembersThisWeek, guideEntries, latestStories] = await Promise.all([
+    const [{ events }, clubs, neighborhoodCounts, testimonials, newMembersThisWeek, guideEntries, rawStories] = await Promise.all([
       getEvents({ limit: 24, upcoming: true, cityId }),
       getClubs(cityId),
       prisma.event.groupBy({
@@ -103,14 +102,21 @@ const getCityPageData = unstable_cache(
       prisma.guideEntry.count({ where: { cityId, status: 'published' } }),
       // Latest city-relevant community writing — same null-means-global rule
       // as /posts and the Guide's strip, so İzmir's page surfaces "Smileys is
-      // coming to İzmir" without borrowing another city's stories.
+      // coming to İzmir" without borrowing another city's stories. Over-fetch
+      // so the city's OWN pieces can be ranked ahead of global ones below.
       prisma.post.findMany({
         where:   { kind: 'community', status: 'published', OR: [{ cityId }, { cityId: null }] },
         orderBy: { publishedAt: 'desc' },
-        take:    2,
-        select:  { slug: true, title: true },
+        take:    6,
+        select:  { id: true, slug: true, title: true, excerpt: true, coverImage: true, cityId: true },
       }),
     ])
+
+    // The city's own voice leads: city-tagged stories first, global fill the
+    // rest. sort() is stable, so each group keeps its newest-first order.
+    const latestStories = rawStories
+      .sort((a, b) => Number(b.cityId === cityId) - Number(a.cityId === cityId))
+      .slice(0, 3)
 
     return { events, clubs, neighborhoodCounts, testimonials, newMembersThisWeek, guideEntries, latestStories }
   },
@@ -568,23 +574,35 @@ export default async function CityPage({ params }: Params) {
         </section>
       )}
 
-      {/* Stories strip — same shelf-front as the Guide's, not a full section:
-          the city page's job stays "what's here?"; the writing lives at
-          /posts. Self-hiding when the city has nothing relevant yet. */}
+      {/* Stories — the homepage's card treatment, not a text strip: on the
+          shopfront these ARE the social proof, and for a city too young for
+          member quotes they're the only voice the page has. The city's own
+          pieces lead (see the sort in getCityPageData); self-hiding when
+          nothing is relevant yet. */}
       {latestStories.length > 0 && (
-        <section className="py-8 bg-white border-t border-gray-100">
+        <section className="py-12 sm:py-16 bg-white border-t border-gray-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 flex-wrap">
-              <span className="text-sm font-bold text-gray-900 shrink-0">📰 Stories from Smileys</span>
-              <span className="flex-1 min-w-0 text-sm text-gray-600 truncate">
-                {latestStories.map((s, i) => (
-                  <Fragment key={s.slug}>
-                    {i > 0 && <span className="text-gray-300"> · </span>}
-                    <Link href={`/posts/${s.slug}`} className="hover:text-amber-600 hover:underline">{s.title}</Link>
-                  </Fragment>
-                ))}
-              </span>
+            <div className="mb-8 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
+              <div>
+                <h2 className="section-title">Stories from Smileys</h2>
+                <p className="section-subtitle">Real writing from the community.</p>
+              </div>
               <Link href="/posts" className="text-sm font-bold text-amber-600 hover:underline shrink-0">All stories →</Link>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              {latestStories.map(p => (
+                <Link key={p.id} href={`/posts/${p.slug}`} className="group card overflow-hidden hover:-translate-y-1 transition-transform duration-300">
+                  {p.coverImage && (
+                    <div className="relative aspect-[16/9]">
+                      <Image src={resolveImageUrl(p.coverImage)} alt="" fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover" />
+                    </div>
+                  )}
+                  <div className="p-5">
+                    <h3 className="font-bold text-gray-900 mb-1.5 group-hover:text-amber-600 transition-colors line-clamp-2">{p.title}</h3>
+                    {p.excerpt && <p className="text-sm text-gray-600 leading-relaxed line-clamp-3">{p.excerpt}</p>}
+                  </div>
+                </Link>
+              ))}
             </div>
           </div>
         </section>
