@@ -42,7 +42,8 @@ async function main() {
 
   // Articles carry the owner's byline, not the system account's — the three
   // 2026-08 posts published as "Smileys Admin" had to be reassigned by hand.
-  const author = await prisma.user.findFirst({ where: { name: 'Nate G.' }, select: { id: true, name: true } })
+  // Display names are member-editable; the role constraint stops byline spoofing.
+  const author = await prisma.user.findFirst({ where: { name: 'Nate G.', role: { in: ['admin', 'moderator'] } }, select: { id: true, name: true } })
   if (!author) throw new Error('Author "Nate G." not found')
 
   const city = await prisma.city.findUnique({ where: { slug: 'izmir' }, select: { id: true, name: true } })

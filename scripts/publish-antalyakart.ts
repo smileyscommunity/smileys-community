@@ -34,7 +34,8 @@ async function main() {
   const existing = await prisma.post.findUnique({ where: { slug: SLUG }, select: { id: true, status: true } })
   if (existing) { console.log(`✓ already exists (${existing.status}) — nothing to do`); return }
 
-  const author = await prisma.user.findFirst({ where: { name: 'Nate G.' }, select: { id: true, name: true } })
+  // Display names are member-editable; the role constraint stops byline spoofing.
+  const author = await prisma.user.findFirst({ where: { name: 'Nate G.', role: { in: ['admin', 'moderator'] } }, select: { id: true, name: true } })
   if (!author) throw new Error('Author "Nate G." not found')
   const city = await prisma.city.findUnique({ where: { slug: 'antalya' }, select: { id: true, name: true } })
   if (!city) throw new Error('City not found: antalya')

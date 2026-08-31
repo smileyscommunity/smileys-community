@@ -125,7 +125,7 @@ export async function POST(req: NextRequest) {
       interests:       user.interests,
       languages:       user.languages,
       neighborhood:    user.neighborhood,
-      nationality:     user.nationality,
+      // nationality is deliberately not exported to analytics.
       looking_for:     user.lookingFor,
       new_in_town:     user.socialStyles?.includes('new_in_town') ?? false,
       interests_count: user.interests.length,

@@ -476,7 +476,7 @@ export default async function CityPage({ params }: Params) {
           Counting entries rather than naming a city also keeps it honest for
           city #3, which has none on day one and shouldn't be offered an empty
           guide. */}
-      {hasGuide && (
+      {hasGuide ? (
         <section className="py-12 sm:py-16 bg-white border-t border-gray-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="rounded-3xl bg-gradient-to-br from-amber-50 to-white border border-amber-100 p-8 sm:p-12">
@@ -495,6 +495,26 @@ export default async function CityPage({ params }: Params) {
                     national articles apply to every city from day one, so this
                     link never lands on an empty shelf. */}
                 <a href={enter('handbook')} className="btn-secondary">The {city.name} Handbook</a>
+                <a href={enter('directory')} className="btn-secondary">Browse places</a>
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : (
+        /* No guide entries yet (city #3 on day one) — but the Handbook's
+           national articles apply everywhere from day one, so that link must
+           not disappear with the guide. Same visual language, minus the guide
+           button, with the handbook promoted to the primary slot. */
+        <section className="py-12 sm:py-16 bg-white border-t border-gray-100">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="rounded-3xl bg-gradient-to-br from-amber-50 to-white border border-amber-100 p-8 sm:p-12">
+              <h2 className="section-title">Get to know <span className="text-amber-600">{city.name}</span></h2>
+              <p className="section-subtitle max-w-2xl mb-8">
+                How the city works: transport cards, permits, banking and the practical
+                tips that take newcomers months to work out.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4">
+                <a href={enter('handbook')} className="btn-primary">The {city.name} Handbook</a>
                 <a href={enter('directory')} className="btn-secondary">Browse places</a>
               </div>
             </div>

@@ -226,7 +226,7 @@ export async function POST(req: NextRequest) {
       interests:      user.interests,
       languages:      user.languages,
       neighborhood:   user.neighborhood,
-      nationality:    user.nationality,
+      // nationality is deliberately not exported to analytics.
       clubs_enrolled: (application?.assignedClubs?.length ?? 0) + (Array.isArray(clubIds) ? clubIds.length : 0),
       // Five-questions coverage — how completely new members answer, and
       // the newcomer flag the dashboard branches on.

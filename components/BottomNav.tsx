@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
+import { hasHostAuthority } from '@/lib/auth'
 import { resolveImageUrl } from '@/lib/data'
 import { isBottomNavRoute } from '@/lib/bottomNav'
 import { usePendingConnections } from '@/hooks/usePendingConnections'
@@ -76,7 +77,7 @@ export default function BottomNav({
   // rather than daily navigation — an admin was seeing seven tabs, which makes
   // every target narrower for everyone. Hangouts stays for members with no
   // portal, since it's genuinely time-sensitive (live, expiring windows).
-  const portalTabs = user.role === 'admin' || user.role === 'moderator' || user.role === 'partner' || user.isClubHost
+  const portalTabs = user.role === 'admin' || user.role === 'moderator' || user.role === 'partner' || hasHostAuthority(user)
     ? []
     : [{
         href: '/hangouts', label: 'Hangouts',

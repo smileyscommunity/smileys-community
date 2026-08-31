@@ -100,7 +100,7 @@ export default function CitiesMenu({
           })
         : await fetch('/app/api/me/view-city', { method: 'DELETE', credentials: 'include' })
       const d = await res.json().catch(() => ({}))
-      if (!res.ok) { toast.error(d.error ?? 'Could not switch city'); return }
+      if (!res.ok) { toast.error(d.error ?? 'Could not switch city'); setBusy(false); return }
       setOpen(false)
       onNavigate?.()
       // Land on the city you just switched to — with a FULL page load, not a
@@ -109,10 +109,14 @@ export default function CitiesMenu({
       // router.push left every client heading saying the previous city while
       // the server data underneath switched. A document load resets all of it,
       // and switching city is a destination change — it should look like one.
+      // busy stays true here on purpose: assign() only STARTS the navigation,
+      // and re-enabling the rows in the gap invited a second switch mid-load.
+      // The document load discards this component's state anyway.
       window.location.assign(`/app/${slug ?? homeSlug ?? ''}`)
     } catch {
       toast.error('Could not switch city')
-    } finally { setBusy(false) }
+      setBusy(false)
+    }
   }
 
   // The right-hand slot on a live row. Precedence is deliberate: what you're
