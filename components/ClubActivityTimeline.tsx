@@ -659,7 +659,9 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                     </>
                   )}
                 </p>
-                <p className="text-xs text-gray-900 font-semibold mt-0.5 line-clamp-1">{title}</p>
+                {/* Amber, not black — a fresh event is the wall's most
+                    actionable item and should read as one. */}
+                <p className="text-xs text-amber-600 font-semibold mt-0.5 line-clamp-1">{title}</p>
               </div>
               <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
             </Link>
