@@ -18,6 +18,7 @@ import QuickLinks from '@/components/QuickLinks'
 import CityWeather from '@/components/CityWeather'
 import ReviewReminder from '@/components/ReviewReminder'
 import VenueReviewPrompt from '@/components/VenueReviewPrompt'
+import TestimonialPrompt from '@/components/TestimonialPrompt'
 import ReferralImpact from '@/components/ReferralImpact'
 import InviteBanner from '@/components/InviteBanner'
 import AnnouncementBanner from '@/components/AnnouncementBanner'
@@ -239,6 +240,20 @@ export default async function DashboardPage() {
           break
         }
       }
+    }
+  }
+
+  // Testimonial ask: three real show-ups (checked in, the strict signal) and
+  // no quote from them yet — the member whose one line belongs on the wall.
+  // The prompt itself is dismissible client-side; this is only eligibility.
+  let askTestimonial = false
+  {
+    const attended = await prisma.eventAttendee.count({
+      where: { userId: session.id, status: 'approved', checkedIn: true, event: { cancelledAt: null } },
+    })
+    if (attended >= 3) {
+      const given = await prisma.testimonial.count({ where: { userId: session.id } })
+      askTestimonial = given === 0
     }
   }
 
@@ -1267,6 +1282,9 @@ export default async function DashboardPage() {
             {/* Post-visit venue review — inline one-tap rating for the most
                 recent checked-in venue the member hasn't reviewed. */}
             {venueToReview && <VenueReviewPrompt {...venueToReview} />}
+            {/* Never both at once — two asks stacked reads as a survey wall.
+                The venue review wins (it's time-sensitive; this one isn't). */}
+            {!venueToReview && askTestimonial && <TestimonialPrompt cityName={city.name} />}
 
             {/* Live hangouts strip */}
             {activeHangouts.length > 0 && (

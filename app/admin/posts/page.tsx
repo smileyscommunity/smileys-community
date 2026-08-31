@@ -44,7 +44,7 @@ function timeAgo(iso: string): string {
 export default function AdminPostsPage() {
   const [posts,   setPosts]   = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter,  setFilter]  = useState<'all' | 'published' | 'draft'>('all')
+  const [filter,  setFilter]  = useState<'all' | 'published' | 'draft' | 'submitted'>('all')
   const [deleting, setDeleting] = useState<string | null>(null)
   // Inline-confirm replaces window.confirm — misclick doesn't nuke
   // the post immediately.
@@ -110,7 +110,9 @@ export default function AdminPostsPage() {
 
       {/* Filter tabs */}
       <div className="flex gap-1 mb-5">
-        {(['all', 'published', 'draft'] as const).map(f => (
+        {/* 'submitted' = member-written stories awaiting review (the
+            /share-story flow) — edit, then publish like any draft. */}
+        {(['all', 'published', 'draft', 'submitted'] as const).map(f => (
           <button
             key={f}
             onClick={() => setFilter(f)}
@@ -146,7 +148,9 @@ export default function AdminPostsPage() {
                     {post.category}
                   </span>
                   <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                    post.status === 'published' ? 'bg-green-900/50 text-green-400' : 'bg-zinc-700 text-zinc-400'
+                    post.status === 'published' ? 'bg-green-900/50 text-green-400'
+                      : post.status === 'submitted' ? 'bg-amber-900/50 text-amber-400'
+                      : 'bg-zinc-700 text-zinc-400'
                   }`}>
                     {post.status}
                   </span>

@@ -11,6 +11,8 @@ import { writeAudit } from '@/lib/audit'
 import { randomBytes } from 'crypto'
 import { hashToken } from '@/lib/tokenHash'
 import { promoteApplicationPhoto } from '@/lib/promotePhoto'
+import { getStatsFor } from '@/lib/cities'
+import { CITY_MATURITY } from '@/lib/cityMaturity'
 
 function normalizeName(name: string): string {
   if (!name) return name
@@ -137,6 +139,18 @@ export async function PATCH(req: NextRequest) {
         try {
           // Use findUnique + create inside a check — P2002 guard handles dual-admin race
           const existing = await prisma.user.findUnique({ where: { email: application.email } })
+          // Approved while the city is still seeding = founding member, a
+          // permanent stored fact (see the schema note). Derived HERE, at the
+          // moment of approval — the flag must reflect what the city was when
+          // they joined, not what it later became. A stats failure must never
+          // block an approval, so this degrades to false.
+          let isFoundingCity = false
+          try {
+            const cityStats = (await getStatsFor([application.targetCityId])).get(application.targetCityId)
+            isFoundingCity = cityStats?.maturity === CITY_MATURITY.Seeding
+          } catch (e) {
+            console.error('Founding-stage check failed (approving anyway):', e)
+          }
           if (!existing) {
             const COLORS = ['#f472b6','#60a5fa','#fbbf24','#f87171','#fb923c','#e879f9','#34d399','#a78bfa']
             const color  = COLORS[Math.floor(Math.random() * COLORS.length)]
@@ -172,6 +186,7 @@ export async function PATCH(req: NextRequest) {
                   neighborhood: await coerceNeighborhoodFor(application.targetCityId, application.neighborhood, `approve application ${application.id}`),
                   // User joins the city they applied to.
                   cityId:       application.targetCityId,
+                  foundingMember: isFoundingCity,
                 },
               })
             } catch (e) {
@@ -198,7 +213,29 @@ export async function PATCH(req: NextRequest) {
             // Email plaintext, store hash — see lib/tokenHash.ts.
             await prisma.passwordResetToken.create({ data: { userId: user.id, token: hashToken(token), expiresAt } })
             const targetCity = await prisma.city.findUnique({ where: { id: application.targetCityId }, select: { name: true } })
-            await sendActivationEmail(application.email, application.fullName, token, welcomeMessage || undefined, targetCity?.name)
+            // Founding members get their rank and the first names of the
+            // people already in — joining a five-person city should feel like
+            // being let into something, not like arriving at an empty room.
+            let founding: { rank: number; others: string[] } | undefined
+            if (isFoundingCity) {
+              const MEMBER_ROLES = { notIn: ['admin', 'partner'] }
+              const [rank, fellows] = await Promise.all([
+                prisma.user.count({
+                  where: { cityId: application.targetCityId, status: 'approved', role: MEMBER_ROLES, joinedAt: { lte: user.joinedAt } },
+                }),
+                prisma.user.findMany({
+                  where: {
+                    cityId: application.targetCityId, status: 'approved', role: MEMBER_ROLES,
+                    foundingMember: true, id: { not: user.id }, hiddenFromMembers: false,
+                  },
+                  orderBy: { joinedAt: 'asc' },
+                  take: 3,
+                  select: { name: true },
+                }),
+              ])
+              founding = { rank: Math.max(1, rank), others: fellows.map(f => f.name.split(' ')[0]) }
+            }
+            await sendActivationEmail(application.email, application.fullName, token, welcomeMessage || undefined, targetCity?.name, founding)
           } else {
             // User already exists — fill in any missing profile fields from the application
             const updates: Record<string, unknown> = {}
@@ -213,9 +250,14 @@ export async function PATCH(req: NextRequest) {
             if (Object.keys(updates).length > 0) {
               await prisma.user.update({ where: { id: existing.id }, data: updates })
             }
-            // Also approve their status if pending
+            // Also approve their status if pending. A pending account being
+            // approved into a seeding city is a founding member exactly like
+            // the fresh-account path above.
             if (existing.status === 'pending') {
-              await prisma.user.update({ where: { id: existing.id }, data: { status: 'approved' } })
+              await prisma.user.update({
+                where: { id: existing.id },
+                data: { status: 'approved', ...(isFoundingCity ? { foundingMember: true } : {}) },
+              })
             }
           }
         } catch (e) {

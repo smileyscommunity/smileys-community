@@ -388,7 +388,14 @@ export async function sendRequestMoreInfoEmail(email: string, name: string, mess
   })
 }
 
-export async function sendActivationEmail(email: string, name: string, token: string, welcomeMessage?: string, cityName?: string) {
+export async function sendActivationEmail(
+  email: string, name: string, token: string, welcomeMessage?: string, cityName?: string,
+  // Approval into a seeding city: rank plus the first names of the founders
+  // already in, so a five-person city reads as an inner circle rather than an
+  // empty room. Names are first names only — same disclosure the weekly
+  // digest already makes — and each is escaped individually.
+  founding?: { rank: number; others: string[] },
+) {
   const url        = `${APP_URL}/activate?token=${token}`
   const firstName  = name.split(' ')[0]
   // Escape user-supplied welcomeMessage FIRST, then convert newlines to <br>.
@@ -399,6 +406,19 @@ export async function sendActivationEmail(email: string, name: string, token: st
         <p style="color:#92400e;font-size:14px;margin:0;line-height:1.6">${esc(welcomeMessage).replace(/\n/g, '<br>')}</p>
        </div>`
     : ''
+  let foundingPanel = ''
+  if (founding && cityName) {
+    const names = founding.others.map(n => esc(n))
+    const who = names.length > 1
+      ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]} are already building it with you`
+      : names.length === 1
+        ? `${names[0]} is already building it with you`
+        : `You're among the very first`
+    foundingPanel = `<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:16px 20px;margin-bottom:24px">
+        <p style="color:#9a3412;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin:0 0 6px">⭐ Founding member #${founding.rank}</p>
+        <p style="color:#7c2d12;font-size:14px;margin:0;line-height:1.6">Smileys ${esc(cityName)} is just getting started, and you're founding member #${founding.rank}. ${who} — the first clubs and events take their shape from the people in this room.</p>
+       </div>`
+  }
   await getResend().emails.send({
     from: FROM, to: email,
     subject: safeSubject(`You're in, ${firstName}! Activate your Smileys account`),
@@ -410,6 +430,7 @@ export async function sendActivationEmail(email: string, name: string, token: st
           <p style="color:#6b7280;font-size:14px;margin:0">Your application has been approved.</p>
         </div>
         ${personalNote}
+        ${foundingPanel}
         <a href="${url}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:24px">
           Set your password &amp; join →
         </a>

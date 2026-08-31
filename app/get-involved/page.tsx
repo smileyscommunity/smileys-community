@@ -51,6 +51,20 @@ const WAYS = [
     href: '/invite',
     accent: false,
   },
+  {
+    emoji: '📰',
+    title: 'Share your story',
+    subtitle: 'Your words on the Stories wall',
+    body: 'The pages that convince someone to join aren\'t written by us — they\'re written by members. How you found your people, a club that changed your week, a night that turned strangers into friends. We review every story and publish the best under your name.',
+    perks: [
+      'Published with your real byline in Stories',
+      'Featured on your city\'s page and the homepage',
+      'We polish the formatting — the voice stays yours',
+    ],
+    cta: 'Write your story',
+    href: '/share-story',
+    accent: false,
+  },
 ]
 
 import { loadContent } from '@/lib/content'

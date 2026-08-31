@@ -93,6 +93,7 @@ interface Member {
   // full profile is gated until they connect.
   restricted?: boolean
   membershipType?: string | null
+  foundingMember?: boolean
   // True while the member has a live availability pulse — drives the
   // "🟢 free now" card badge and the "Around now" filter.
   activePulse?: boolean
@@ -464,6 +465,9 @@ function MemberModal({ m, onClose, currentUserId, currentUserRole, viewerPrivile
                     {(isConnected || m.id === currentUserId) && flag && <span className="ml-1.5 text-base font-normal">{flag}</span>}
                   </h2>
                   <MembershipBadge membershipType={m.membershipType} className="shrink-0 text-[10px] px-2 py-0.5" />
+                  {m.foundingMember && (
+                    <span className="shrink-0 text-[10px] font-semibold bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">⭐ Founding</span>
+                  )}
                   {/* Role badge only when it carries information — plain
                       'Member' is the default and just eats space. */}
                   {(m.isHost || m.role === 'admin' || m.role === 'moderator') && roleBadge}
@@ -759,6 +763,9 @@ const MemberCard = memo(function MemberCard({ m, onSelect, connectionStatus, han
               {displayName}
             </p>
             <MembershipBadge membershipType={m.membershipType} className="shrink-0 text-[10px] px-1.5 py-0.5" />
+            {m.foundingMember && (
+              <span className="shrink-0 text-[10px] font-semibold bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full">⭐ Founding</span>
+            )}
           </div>
           {isConnected && m.neighborhood && (
             <p className="text-[11px] text-gray-400 truncate mt-0.5">📍 {m.neighborhood}</p>

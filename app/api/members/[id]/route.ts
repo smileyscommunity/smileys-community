@@ -26,6 +26,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         neighborhood: true, nationality: true, interests: true,
         languages: true, profilePhoto: true, joinedAt: true, role: true,
         instagram: true, linkedin: true, socialStyles: true, lastActive: true, profileVisibility: true, membershipType: true,
+        foundingMember: true,
         referralCode: true,
         goodHangouts: true,
         industry: true, professionalRole: true, professionalStatus: true,
@@ -187,6 +188,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     joinedAt:     user.joinedAt,
     role:         user.role,
     membershipType: user.membershipType,
+    foundingMember: user.foundingMember,
     instagram:    fullAccess ? user.instagram : null,
     linkedin:     fullAccess ? user.linkedin : null,
     // Professional fields surfaced only when the member opted in to a

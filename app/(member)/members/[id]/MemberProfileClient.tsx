@@ -50,6 +50,7 @@ interface MemberProfile {
   joinedAt: string | null
   role: string
   membershipType?: string | null
+  foundingMember?: boolean
   instagram: string | null
   linkedin: string | null
   industry: string | null
@@ -414,6 +415,11 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
                 <span className="text-xs font-semibold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">Mod</span>
               )}
               <MembershipBadge membershipType={member.membershipType} className="text-xs px-2 py-0.5" />
+              {/* Permanent: earned by joining a city in its seeding stage,
+                  kept after the city outgrows it — that's the point. */}
+              {member.foundingMember && (
+                <span className="text-xs font-semibold bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">⭐ Founding</span>
+              )}
               {member.clubs.length > 0 && (
                 <span className="text-xs font-semibold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Host</span>
               )}

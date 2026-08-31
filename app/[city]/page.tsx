@@ -298,6 +298,11 @@ export default async function CityPage({ params }: Params) {
                       ? <>{stats.clubs} club{stats.clubs === 1 ? '' : 's'} forming and the first events going on the calendar — the founding members shape everything here.</>
                       : <>The first clubs and events are being set up now — the founding members shape everything here.</>}
                   </p>
+                  {/* The scarcity that's actually true: joining now carries a
+                      rank, and the rank is permanent (users.foundingMember). */}
+                  <p className="mt-1.5 text-sm font-semibold text-amber-800">
+                    Join now and you're founding member #{stats.members + 1}.
+                  </p>
                 </div>
               ) : (
                 <div className="grid grid-cols-3 gap-x-6">

@@ -34,6 +34,11 @@ model User {
   // member was last emailed a "your first event?" suggestion, so the cron never
   // re-nudges someone within 30 days.
   firstRsvpNudgedAt          DateTime?
+  // Approved into a city while it was still in the seeding maturity stage.
+  // Stored, not derived: "founding member" is a historical fact that must
+  // survive the city growing past seeding. Set at approval time; backfilled
+  // for the cities that were seeding when the column shipped.
+  foundingMember             Boolean                 @default(false)
   membershipType             String                  @default("free")
   nationality                String?
   phone                      String?
@@ -162,6 +167,7 @@ model User {
   savedListings              SavedListing[]
   sessions                   Session[]
   totpBackupCodes            TotpBackupCode[]
+  testimonials               Testimonial[]           @relation("MemberTestimonials")
   city                       City                    @relation(fields: [cityId], references: [id])
   // Cities joined or awaited beyond `city` above. See model CityRelationship.
   cityRelationships          CityRelationship[]
@@ -1449,9 +1455,16 @@ model Testimonial {
   // deliberate choice; existing rows were backfilled to Istanbul.
   cityId     String?
   city       City?    @relation(fields: [cityId], references: [id], onDelete: SetNull)
+  // Set when the quote came through the member self-submit flow (dashboard
+  // nudge) rather than being typed by an admin: dedupes the nudge ("asked
+  // and answered"), and lets a member's quote be cleaned up if they leave.
+  // Admin-authored quotes keep this null.
+  userId     String?
+  user       User?    @relation("MemberTestimonials", fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([active, order])
   @@index([cityId, active, order])
+  @@index([userId])
   @@map("testimonials")
 }
 
