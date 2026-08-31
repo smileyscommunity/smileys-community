@@ -1,119 +1,132 @@
-# Launching a city
+# City launch checklist
 
-Written the night Bodrum became the second live city (2026-08-17), from what
-that launch actually needed and what it broke. Istanbul is the default city, so
-anything not done here tends to fall back to Istanbul rather than fail — which
-is why these steps are a list rather than a thing you'd notice.
+Written the night Bodrum became the second live city (2026-08-17); rewritten
+after İzmir (2026-08-28) and Antalya (2026-08-31) — Antalya took one
+afternoon end to end. Istanbul is the default city, so anything not done here
+tends to fall back to Istanbul rather than fail, which is why these steps are
+a list rather than a thing you'd notice.
 
-The city's card in `/admin/cities` now shows a **readiness meter** ("2/3 to
-launch · ✓ clubs · ✓ host · ✗ neighborhoods"), derived from the same three
-counts the go-live gate checks — so what's missing is visible before the gate
-rejects the flip, not after.
+The city's card in `/admin/cities` shows a **readiness meter** ("2/3 to
+launch") and a **launch-inventory row** (members / upcoming / guide /
+handbook) — amber numbers are the to-do list. Everything below should be done
+while the city is still `preparing`/`coming_soon` (holding page); once it's
+`live`, every gap is public.
 
-The order matters: **everything under "Before `live`" should be done while the
-city is still `preparing`.** A `coming_soon` or `preparing` city renders a
-holding page, so nothing below is visible to members until you flip it. Once
-it's `live`, every gap is public.
+## 0. Sequencing rules learned the hard way
 
----
+- **Seed clubs BEFORE approving any member.** Both enrolment moments
+  (application review, onboarding) pass silently when the club shelf is
+  empty, and nothing retro-enrols — Antalya's first two members sat club-less
+  for two weeks. If members already exist, re-run the register-route enrol
+  pattern (membership upsert + memberCount increment) after seeding.
+- **Flip status via the ADMIN PANEL, not SQL.** The API's live-flip runs
+  `notifyCityLaunch` (interest-list emails + bells, `notifiedAt`-deduped).
+  Both weekend launches flipped via SQL and orphaned 3 waiting people until
+  a manual repair.
+- The admin **default club** setting applies only to default-city approvals;
+  other cities' approvals auto-resolve to their own `social-<slug>` club
+  (server-side backstop since 2026-08-31).
 
-## Before `live`
+## 1. The city row
 
-### 1. The city row
-`name`, `slug`, `country`, `timezone`, `tagline`, `description`, `heroImage`.
+`name`, `slug`, `country`, `timezone`, `currency`, `tagline`, `description`,
+`heroImage` — all in the panel.
 
-- **`timezone` is load-bearing**, not decoration. It decides "today" for that
-  city's events, visit windows and neighborhood counts. It's non-null on the
-  model, so it can't be forgotten — but it can be wrong.
-- **`heroImage`** is the city's share preview. Without one, a shared link falls
-  back to a cover shot of Istanbul.
+- **`timezone` is load-bearing**, not decoration: it decides "today" for the
+  city's events, visit windows and neighborhood counts.
+- **`heroImage`** is the city's share preview; without one a shared link
+  falls back to a shared photo.
 
-### 2. Neighborhoods — *this one is a launch blocker*
-Every neighborhood picker in the product reads this table: profile, apply,
-board post, hangout, directory submit. A city with no rows gets an **empty
-dropdown** in all of them, and `safeNeighborhoodFor` silently nulls anything
-submitted — the field looks saved and comes back blank.
+## 2. Neighborhoods — *the hard launch blocker*
 
-**As of 2026-08-20 this is self-serve: paste names into the Neighborhoods box
-on the city's card in /admin/cities** (comma- or newline-separated). Slugs are
-derived with the same `neighborhoodToSlug` the seed scripts use, duplicates
-(including Turkish-fold collisions like `karsiyaka` vs `Karşıyaka`) are
-skipped, re-pasting a grown list adds exactly the new rows, and `sortOrder`
-appends after the existing max. Name is all a launch needs — emoji, vibe,
-area and map coordinates are enrichment you can add later.
+Every picker in the product reads this table (profile, apply, board,
+hangout, directory submit); a city with no rows gets empty dropdowns and
+`safeNeighborhoodFor` silently nulls submissions. ~14–16 entries: the city's
+districts plus the escape towns people actually go to. Seed via the panel's
+paste box or `scripts/seed-neighborhoods.ts <slug> <file.json>` (DRY_RUN
+first; shape in `scripts/neighborhoods.example.json`, prior lists in
+`scripts/*-neighborhoods.json`). Enrich (emoji/vibe/area/cost/pins) later in
+/admin/neighborhoods with the city selected. Traps the tooling exists for:
 
-The rest of this section is the script path, kept for cities that want the
-full metadata treatment up front. Copy `scripts/seed-neighborhoods-bodrum.ts`.
+- **Check what's already there first** — live names win; member rows may
+  reference them (Bodrum: `Bodrum Merkez` vs `Bodrum Town`).
+- **`sortOrder` appends** after the existing max, never from list index.
+- **Emoji unique within the city** — it's the row's visual handle.
+- **Never write coordinates from memory** (three of Bodrum's seven were
+  4–6 km out). Verify against Nominatim: trust `place=village`/`suburb`;
+  a `highway=` hit is a street, `boundary=administrative` a mahalle centroid.
+- **`area` is per-city free text** — use vocabulary that's true for this
+  city (Bodrum groups by coast; İzmir by bay/peninsula), never Istanbul's.
+- Resort strips can get map pins without guide entries — a dot isn't an
+  endorsement.
 
-**Starter clubs open in Bodrum's shape (2026-08-20):** the launch button seeds
-the full template lineup but only the social flagship, the newcomers club and
-coffee start ACTIVE — the rest are dormant until a host appears. Activate a
-club from /admin/clubs when someone volunteers to run it.
-It's idempotent and takes `DRY_RUN=1`. Four traps it exists because of:
+## 3. Clubs and hosts
 
-- **Check what's already there first.** Bodrum had 8 rows seeded under
-  different names (`Bodrum Merkez`, not `Bodrum Town`; `Türkbükü`, not
-  `Göltürkbükü`). Seeding blind puts two picker entries on one place. The live
-  names win — member rows may already reference them.
-- **`sortOrder` must append**, not come from the new list's index, or new rows
-  claim numbers the existing ones hold and the picker order scrambles.
-- **Emoji must be unique within the city.** It's the row's visual handle, so a
-  repeat reads as a duplicate entry. Two seeding passes collided on four.
-- **Never write coordinates from memory.** Three of seven were 4–6 km out.
-  Verify against Nominatim — no key needed, and it's the same source
-  `app/api/admin/geocode/route.ts` uses. Trust `place=village` / `place=suburb`
-  hits; a `highway=` hit is a *street of the same name*, and
-  `boundary=administrative` is a *mahalle* centroid that can legitimately sit
-  ~2 km from the settlement.
+"Launch starter clubs" on the city card (or `scripts/launch-city-clubs.ts`):
+full template lineup, **Bodrum shape** — social flagship + newcomers +
+coffee open, the rest dormant until a host volunteers (activate in
+/admin/clubs). Assign the city host in the panel (Nate G. is standing
+default host everywhere; add the local consul when found — since 2026-08-31
+grants are real: hosts run their own events through /host, review-queued).
+The go-live gate enforces ≥1 active club + ≥1 host + ≥1 neighborhood.
 
-`area` is per-city free text. Istanbul's `Central / European / Asian / Coastal
-/ Emerging / Islands` describes a city split by a strait — use the vocabulary
-that fits (Bodrum groups by coast). Don't reuse Istanbul's words unless they're
-true, since some copy still keys off them.
+## 4. Guide (~12–15 experiences)
 
-### 3. Clubs and hosts
-`PATCH /api/admin/cities/[id]` **refuses to go live** without at least one
-active club and one host. This is the only step the system enforces for you.
+Draft with the community-growth agent (İzmir/Antalya prompts are the
+template; `docs/*-guide-entries.draft.json` show the bar). New cities use
+the GENERIC vocabulary until a custom list earns its deploy — **if
+lib/guide.ts later gains a city list, remap the existing entries in the same
+change** (`scripts/scan-guide-vocabulary.ts` catches drift). Seed as drafts
+(`scripts/seed-city-guide.ts`), fact-check flagged items against official
+sources (this killed a fatal-accident cable car and a suspended tram from
+Antalya's set), then publish. `lastReviewedAt` stays null until a human on
+the ground checks.
 
-### 4. Editorial (optional, but visible)
-`data/neighborhoods/<city-slug>/<slug>.json` gives a neighborhood page its
-tagline and places. Without it the page falls back to a generated paragraph
-built from vibe, area, cost and nearest neighbors — true, but thin. Istanbul
-has 89 hand-authored guides behind its 103 neighborhoods.
+## 5. Handbook + neighborhood editorial
 
----
+The four national articles apply automatically. Write the transport-card
+article (İzmirim Kart / Antalyakart pattern: official municipality sources,
+fares deliberately absent, ⚠ VERIFY resolved or hedged) and publish via
+`scripts/publish-handbook-article.ts <content.json>`. City-local gaps
+(renting, healthcare, daily life, family) wait for local knowledge — the
+host's job. Neighborhood guides (`data/neighborhoods/<city-slug>/<slug>.json`,
+edited in /admin/neighborhoods) are optional enrichment; pages fall back to a
+generated paragraph.
 
-## After `live` — check these by eye
+## 6. Go live
 
-Each of these was a real bug found on Bodrum's launch night, all now fixed. If
-one reappears, it's a regression, not a new city's setup:
+Gate green → flip **in the panel** (rule 0). Founding-stage framing,
+founding-member dashboard, and honest homepage counts (maturity-derived — a
+2-member city never inflates "live in N cities") engage automatically.
 
-- **The city page hero** names the city, and the **footer band** names the same
-  city (it used to follow the session, so a visitor from search got an Istanbul
-  footer under a Bodrum hero).
-- **A neighborhood page opened in a private window** — not just while logged
-  in. `/neighborhoods/<slug>` used to 404 for anyone without that city's
-  cookie, which is every crawler and every shared link.
-- **`/neighborhoods` shared from the address bar.** A non-default city should
-  redirect to `?city=<slug>`, so the URL you copy names the city.
-- **The board heading** reads "<City> Board", not Istanbul's.
-- **A shared link previewed in WhatsApp.** The title, description and image
-  should all name the city.
+## 7. First people
 
----
+- Personal founding-member email to anyone waiting (Antalya template,
+  2026-08-31; Resend with replyTo → owner).
+- Stage the city's digest-spotlight card in the CMS `digestSpotlight` array
+  (`from`/`until` windows queue behind the current one).
+- Watch replies — whoever names the first gathering is your host candidate.
 
-## Known gaps a third city will hit
+## After `live` — check by eye
 
-Honest list, still open as of 2026-08-17:
+Each was a real bug on a launch night; a reappearance is a regression:
 
-- **`/visiting`** is Istanbul copy end to end and hard-scoped to the default
-  city. A second city's visitors are unreachable from it.
-- **`/why`, `/about`, `/advertise`** carry Istanbul copy and OG metadata.
-- **41 `Europe/Istanbul` literals.** Harmless while every city is in Türkiye;
-  the first city outside it breaks time-of-day maths in ~29 files.
-- **`/board` and `/marketplace` share cards** can't name a city for a crawler.
-  Layouts get no `searchParams` and both index pages are client components, so
-  there's no city in the URL to read. Needs a city-bearing route.
-- **`tests/cityHardcoding.test.ts`** ratchets the count of hardcoded city names
-  (242 across 85 files at launch). It stops new ones; it doesn't clean up the
-  existing ones. When a file reaches zero, delete its line.
+- City page hero and footer band name the SAME city.
+- A neighborhood page opens in a private window (no cookie), and
+  `/neighborhoods` shared from the address bar carries `?city=<slug>`.
+- Board heading reads "<City> Board"; hangouts asks "Who's around in
+  <City>?".
+- A shared link previews in WhatsApp with the city's own title/image.
+- The new members appear in the city's Social club (rule 0).
+
+## Known gaps at every launch (deliberate, revisit on schedule)
+
+- Non-default cities receive **no weekly digest** (decide at ~50 members).
+- City-scoped newsletters can't be **scheduled** (Newsletter.cityId
+  migration pending); send-now works.
+- Handbook Quick Reference + "Start here" shelf are default-city-only.
+- Community polls are network-wide (no city dimension).
+- First **non-Turkish** city is a named project: the
+  `tests/timezoneHardcoding.test.ts` baseline must reach ~zero, the
+  "national" handbook articles need country scoping, currency/language
+  defaults need work.

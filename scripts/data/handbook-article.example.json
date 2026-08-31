@@ -1,0 +1,12 @@
+{
+  "title": "Exampleville Transit Card: How the Buses Work",
+  "slug": "exampleville-transit-card-how-the-buses-work",
+  "excerpt": "One contactless card covers Exampleville's buses and the harbour ferry — a placeholder excerpt showing the shape, not real content.",
+  "bodyHtml": "<h2>One card, the whole network</h2><p>Placeholder body. Real articles are the handbook's HTML format: h2 sections, p paragraphs, blockquote for warnings.</p><blockquote><p><strong>The trap worth flagging.</strong> Put the one thing that catches newcomers out in a blockquote like this.</p></blockquote>",
+  "category": "Getting Around",
+  "citySlug": "exampleville",
+  "tags": ["transit card", "buses", "ferry"],
+  "officialSources": [
+    { "label": "Exampleville Municipality — Transport", "url": "https://example.com/transport" }
+  ]
+}
