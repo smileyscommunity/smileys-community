@@ -275,7 +275,11 @@ export default function Navbar({
 
           {/* Right side */}
           <div className="hidden md:flex items-center gap-2 z-10">
-            <SearchButton />
+            {/* Members only — the palette's live search calls /api/search,
+                which 401s without a session, so for a guest this button opened
+                a search that silently finds nothing. Guests get guided
+                browsing + Join instead (mobile already made this call). */}
+            {isLoggedIn && <SearchButton />}
 
             {!isLoggedIn ? (
               <div className="flex items-center gap-2">
