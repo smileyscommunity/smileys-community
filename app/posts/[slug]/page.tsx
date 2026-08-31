@@ -68,8 +68,10 @@ const BODY_PROSE = [
   'prose-h2:text-2xl prose-h2:font-extrabold prose-h2:mt-10 prose-h2:mb-4',
   'prose-h3:text-xl prose-h3:font-bold prose-h3:text-gray-800 prose-h3:mt-8 prose-h3:mb-3',
   'prose-h4:text-lg prose-h4:font-bold prose-h4:text-gray-800 prose-h4:mt-6 prose-h4:mb-2',
-  'prose-p:text-[17px] prose-p:text-gray-600 prose-p:leading-relaxed prose-p:my-5',
-  'prose-ul:my-5 prose-ol:my-5 prose-li:text-[17px] prose-li:text-gray-600 prose-li:my-1',
+  // gray-700 body, matching the handbook article — gray-600 passes AA but
+  // runs faint over long-form reading.
+  'prose-p:text-[17px] prose-p:text-gray-700 prose-p:leading-relaxed prose-p:my-5',
+  'prose-ul:my-5 prose-ol:my-5 prose-li:text-[17px] prose-li:text-gray-700 prose-li:my-1',
   '[&_li::marker]:text-amber-500',
   'prose-strong:font-bold prose-strong:text-gray-900',
   // A colour picked in the editor lands as `<span style="color: …">`, and a
@@ -202,7 +204,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
     <main className="min-h-screen bg-warm">
       {/* Back */}
       <div className="bg-white border-b border-gray-100">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center gap-3">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center gap-3">
           <Link href="/posts" className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-amber-600 transition-colors font-medium">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -224,7 +226,9 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
       )}
 
       {/* Article */}
-      <article className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      {/* max-w-2xl (~65ch at 17px) — the handbook's reading measure, now
+          shared so both long-form surfaces read identically. */}
+      <article className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
        <ArticleInlineEditor
          postId={post.id}
          initial={{
