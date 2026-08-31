@@ -9,6 +9,7 @@ export const revalidate = 300
 
 import { readFileSync } from 'fs'
 import { join } from 'path'
+import { Fragment } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { prisma } from '@/lib/prisma'
@@ -145,6 +146,15 @@ export default async function GuidePage({ searchParams }: { searchParams?: Promi
 
   const allExperiences = await loadExperiences(cityId)
   const routes = await loadRoutes(cityId)
+
+  // The Stories strip at the page foot — latest city-relevant community
+  // writing, global posts included, same null-means-global rule as /posts.
+  const latestStories = await prisma.post.findMany({
+    where:   { kind: 'community', status: 'published', OR: [{ cityId }, { cityId: null }] },
+    orderBy: { publishedAt: 'desc' },
+    take:    2,
+    select:  { slug: true, title: true },
+  })
 
   // §14 — audience curation. `?for=` narrows the whole catalog to one kind of
   // visitor; the audiences themselves are saved queries over this city's own
@@ -675,6 +685,26 @@ export default async function GuidePage({ searchParams }: { searchParams?: Promi
               Sorted by upcoming events ·{' '}
               <Link href="/neighborhoods" className="text-amber-600 hover:underline">See all neighborhoods</Link>
             </p>
+          </div>
+        )}
+
+        {/* Stories strip — a shelf-front, not a corner: the Guide's job stays
+            "what should I experience?"; stories live at /posts. One or two
+            latest city-relevant titles, self-hiding when there are none. */}
+        {latestStories.length > 0 && (
+          <div className="border-t border-gray-100 pt-8 mt-10">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 flex-wrap">
+              <span className="text-sm font-bold text-gray-900 shrink-0">📰 Stories from Smileys</span>
+              <span className="flex-1 min-w-0 text-sm text-gray-600 truncate">
+                {latestStories.map((s, i) => (
+                  <Fragment key={s.slug}>
+                    {i > 0 && <span className="text-gray-300"> · </span>}
+                    <Link href={`/posts/${s.slug}`} className="hover:text-amber-600 hover:underline">{s.title}</Link>
+                  </Fragment>
+                ))}
+              </span>
+              <Link href="/posts" className="text-sm font-bold text-amber-600 hover:underline shrink-0">All stories →</Link>
+            </div>
           </div>
         )}
 
