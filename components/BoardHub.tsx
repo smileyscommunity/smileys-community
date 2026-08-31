@@ -984,7 +984,13 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
                   : (cityName ? `🛍️ ${cityName} Marketplace` : '🛍️ Smileys Marketplace')}
               </span>
               <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-gray-900">
-                {view === 'community' ? (cityName ? `What's happening, ${cityName}?` : "What's happening?") : 'Find it. Offer it. Pass it on.'}
+                {/* City name in brand amber — the same treatment as the
+                    hangouts, handbook and city-page headings. */}
+                {view === 'community'
+                  ? (cityName
+                      ? <>What&apos;s happening, <span className="text-amber-600">{cityName}</span>?</>
+                      : "What's happening?")
+                  : 'Find it. Offer it. Pass it on.'}
               </h1>
               <p className="text-base text-gray-600 mt-1 max-w-xl">
                 {view === 'community'
