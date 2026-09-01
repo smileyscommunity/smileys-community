@@ -93,6 +93,29 @@ host's job. Neighborhood guides (`data/neighborhoods/<city-slug>/<slug>.json`,
 edited in /admin/neighborhoods) are optional enrichment; pages fall back to a
 generated paragraph.
 
+## 5b. Directory seed (optional, needs a Places key)
+
+A new city launches with zero venues, and that is the emptiest column on the
+city page. `scripts/seed-city-places.ts` fills it from Google Places, anchored
+to the neighborhood coordinates seeded in §2 — so §2 really is the blocker for
+this too.
+
+```
+GOOGLE_PLACES_API_KEY=… CITY=<slug> npx tsx --env-file=.env --env-file=.env.local \
+  scripts/seed-city-places.ts          # dry run: prints, writes nothing
+… APPLY=1 …                            # write
+```
+
+Facts (name, address, coords, phone, hours) are mirrored from Places and never
+invented; `placeId` is stored as the durable re-fetch key, `verifiedAt` stamped
+at fetch. Rows land **unapproved** with a placeholder description — someone
+writes the real line and approves in /admin/directory, same queue as member
+submissions. Defaults keep ≤4 per neighborhood above 4.2★/40 reviews: a curated
+directory, not a scrape. Re-runs skip any `placeId` already stored.
+
+Not yet built: the scheduled re-verification that re-hits Places and sets
+`closedAt`. Until it exists, `verifiedAt` only ever means "as of the seed".
+
 ## 6. Go live
 
 Gate green → flip **in the panel** (rule 0). Founding-stage framing,
