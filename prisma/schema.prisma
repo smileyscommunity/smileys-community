@@ -1925,6 +1925,33 @@ model Business {
   memberDiscount  String?
   tags            String[]         @default([])
   cityId          String
+  // ── Provenance & freshness ────────────────────────────────────────────
+  // A directory row makes a factual promise: this place exists, here, and is
+  // open. A member who shows up at a bar that closed two years ago blames
+  // Smileys, not the source — so the columns below record where each row's
+  // facts came from and when they were last confirmed.
+  //
+  // Google's Place ID: the one field their terms allow us to keep
+  // indefinitely, so it — not the address — is the durable key for
+  // re-fetching. Globally unique, and unique here so a re-seed upserts
+  // rather than duplicating a venue. Null for rows never matched to Places
+  // (member submissions, hand-entered venues).
+  placeId         String?          @unique
+  // Where this row came from: 'manual' (staff typed it) | 'member' (public
+  // submission via /api/directory) | 'places' (seeded from Google Places) |
+  // 'generated' (model-written row awaiting review). Deliberately a string,
+  // matching how status/kind are handled everywhere else in this schema.
+  source          String           @default("manual")
+  // When the FACTS were last confirmed against the source of truth — not to
+  // be confused with `reviewedAt`, which is when an admin made an approval
+  // decision. A row can be long-approved and badly stale; only this column
+  // can tell you that.
+  verifiedAt      DateTime?
+  // Set when a verification pass finds the place permanently closed. Kept
+  // separate from `isActive` (an admin's editorial hide) so the two reasons
+  // a venue disappears stay distinguishable — and so re-opening is a matter
+  // of clearing one field rather than guessing why it was hidden.
+  closedAt        DateTime?
   city            City             @relation(fields: [cityId], references: [id])
   claims          BusinessClaim[]
   reports         BusinessReport[]
@@ -1938,6 +1965,10 @@ model Business {
   @@index([category])
   @@index([neighborhood])
   @@index([cityId, isApproved, isActive])
+  // The re-verification sweep's query: stalest live rows first, per city.
+  // NULLs sort last on ASC in Postgres, so a never-verified row needs
+  // `verifiedAt: null` handled explicitly by the caller — see the sweep.
+  @@index([cityId, verifiedAt])
   @@map("businesses")
 }
 
