@@ -70,6 +70,27 @@ default host everywhere; add the local consul when found — since 2026-08-31
 grants are real: hosts run their own events through /host, review-queued).
 The go-live gate enforces ≥1 active club + ≥1 host + ≥1 neighborhood.
 
+**Then attach that host to the clubs themselves — the gate does not check
+this.** "Host" means two separate things: a `city_hosts` grant (city-wide
+authority) and a `club_memberships` row with `role='host'` (who runs this
+club). The panel gives the first; only the second lets anyone create an
+event in a club, and `classifyCityMaturity` counts hosted clubs, so a city
+with zero of them is stuck in the seeding stage no matter how many members
+it gains. Antalya launched, ran for two days with ten members and three
+hosted-by-nobody clubs, and could not have held an event.
+
+```
+CITY=<slug> HOST_EMAIL=nate@smileyscommunity.com \
+  npx tsx --env-file=.env --env-file=.env.local scripts/ensure-city-host.ts
+… APPLY=1 …   # writes; idempotent, safe to re-run
+```
+
+Dry run prints every club it would touch. It promotes an existing membership
+in place and moves `memberCount` only when it creates a row — that column
+counts approved memberships *including* hosts. Adding a second host later
+(the local lead) is the same command with their email; it never removes
+anyone.
+
 ## 4. Guide (~12–15 experiences)
 
 Draft with the community-growth agent (İzmir/Antalya prompts are the
@@ -144,6 +165,14 @@ Each was a real bug on a launch night; a reappearance is a regression:
 
 ## Known gaps at every launch (deliberate, revisit on schedule)
 
+- A launched city has **no venues** in the directory until someone fills it;
+  `scripts/seed-city-places.ts` (§5b) needs a Google Places key that does not
+  exist yet, and the re-verification cron that would set `closedAt` is unbuilt.
+- **Zero events** is the real cold-start problem, and no gate catches it: a
+  city can sit live, badged Founding, with members and no reason to show up.
+  Antalya reached ten members with none. Members follow events, not the
+  reverse — the first small dinner or hangout is the launch step nothing in
+  this checklist can do for you.
 - Non-default cities receive **no weekly digest** (decide at ~50 members).
 - City-scoped newsletters can't be **scheduled** (Newsletter.cityId
   migration pending); send-now works.
