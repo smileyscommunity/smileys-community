@@ -61,7 +61,9 @@
     "fast-uri": "4.1.2",
     "sharp": "$sharp",
     "postcss": "$postcss",
-    "deepmerge-ts": "^8"
+    "deepmerge-ts": "^8",
+    "mysql2": "^3.24.2",
+    "browserslist": "^4.28.8"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.6",
