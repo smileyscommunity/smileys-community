@@ -95,7 +95,24 @@ function buildCsp(nonce: string): string {
   ].join('; ')
 }
 
+// This app has no Server Actions — no `'use server'` module anywhere, and
+// nothing in next.config enables them. So a request carrying `Next-Action`
+// is always a scanner fingerprinting the framework, and letting it through
+// costs a thrown "Server Reference ID did not match the expected format"
+// per probe, which floods the PM2 error log and buries real errors.
+//
+// Answer at the edge instead: cheaper than a render, and the log stays
+// readable. If a Server Action is ever introduced, delete this — it would
+// break every one of them, which is exactly the loud failure you'd want.
+function rejectServerActionProbe(req: NextRequest): NextResponse | null {
+  if (!req.headers.get('next-action')) return null
+  return new NextResponse(null, { status: 404 })
+}
+
 export function middleware(req: NextRequest) {
+  const actionProbe = rejectServerActionProbe(req)
+  if (actionProbe) return actionProbe
+
   const csrfFail = checkOrigin(req)
   if (csrfFail) return csrfFail
 
