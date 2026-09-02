@@ -9,6 +9,11 @@ import { autoJoinClub } from '@/lib/autoJoinClub'
 
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 import { writeAudit } from '@/lib/audit'
+import { activateAttendee, activeAttendeeWhere, cancelAttendeeOp, isActiveAttendee, type CancelActor } from '@/lib/attendance'
+
+// Who is taking the member off the event, for the soft-cancel stamp.
+// Everyone past canManageEventOps who isn't an admin is some kind of host.
+const cancelActor = (session: { role: string }): CancelActor => session.role === 'admin' ? 'admin' : 'host'
 
 // AD2 helper: when an admin removes an attendee, handle their
 // payments the same way the member-cancel flow does. Pending
@@ -109,7 +114,7 @@ export async function GET(_: NextRequest, { params }: Params) {
 
     const [attendeesRaw, waitlistRaw, cohosts, eventRow, payments] = await Promise.all([
       prisma.eventAttendee.findMany({
-        where: { eventId },
+        where: { eventId, ...activeAttendeeWhere },
         include: { user: { select: userSelect } },
         orderBy: { joinedAt: 'asc' },
       }),
@@ -173,7 +178,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       prisma.eventAttendee.findUnique({ where: { userId_eventId: { userId, eventId } } }),
       prisma.event.findUnique({ where: { id: eventId }, select: { title: true, approvalRequired: true, ...quotaEventSelect } }),
     ])
-    await prisma.eventAttendee.deleteMany({ where: { eventId, userId } })
+    await cancelAttendeeOp(prisma, { userId, eventId, by: cancelActor(session) })
 
     // AD2 fix: handle the member's payments + write an audit row.
     // Previously the admin path silently deleted attendees and
@@ -197,10 +202,10 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       // first; the quota decides who is eligible.
       const next = eventRow ? await findPromotableFromWaitlist(eventId, eventRow) : null
       if (next) {
-        await prisma.$transaction([
-          prisma.waitlistEntry.delete({ where: { id: next.id } }),
-          prisma.eventAttendee.create({ data: { userId: next.userId, eventId, status: 'approved' } }),
-        ])
+        await prisma.$transaction(async (tx) => {
+          await tx.waitlistEntry.delete({ where: { id: next.id } })
+          await activateAttendee(tx, { userId: next.userId, eventId, status: 'approved' })
+        })
         createNotification(next.userId, 'waitlist_promoted', 'Spot available! 🎉',
           `A spot opened up for "${eventRow?.title}" — you're in!`, `/events/${eventId}`)
       }
@@ -280,10 +285,19 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return NextResponse.json({ ok: true, payment })
     }
 
-    const [event, user] = await Promise.all([
+    const [event, user, current] = await Promise.all([
       prisma.event.findUnique({ where: { id: eventId }, select: { title: true, status: true, spotsLeft: true, date: true, neighborhood: true, turkishMaleQuota: true, genderBalance: true, maleQuota: true, femaleQuota: true, totalSpots: true, approvalRequired: true } }),
       prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true, gender: true, nationality: true } }),
+      prisma.eventAttendee.findUnique({ where: { userId_eventId: { userId, eventId } }, select: { status: true } }),
     ])
+
+    // Approve / reject act on a LIVE request. The row of a member who
+    // already withdrew stays in the table now (soft-cancel), so without
+    // this a stale participants tab could approve someone into a spot they
+    // gave up — or email a rejection for a request they cancelled.
+    if ((action === 'approve' || action === 'reject') && !isActiveAttendee(current)) {
+      return NextResponse.json({ error: 'Not an attendee of this event' }, { status: 404 })
+    }
 
     // Normalize so 'Male' / 'MALE' / 'male' and 'Türkiye' / 'Turkey' / 'TR'
     // all compare equal — same approach as the RSVP route.
@@ -317,7 +331,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           // from an earlier round — AFTER the delete committed, silently
           // removing them from the event entirely.
           await prisma.$transaction([
-            prisma.eventAttendee.delete({ where: { userId_eventId: { userId, eventId } } }),
+            cancelAttendeeOp(prisma, { userId, eventId, by: cancelActor(session) }),
             prisma.waitlistEntry.upsert({
               where:  { userId_eventId: { userId, eventId } },
               create: { userId, eventId },
@@ -342,7 +356,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           // from an earlier round — AFTER the delete committed, silently
           // removing them from the event entirely.
           await prisma.$transaction([
-            prisma.eventAttendee.delete({ where: { userId_eventId: { userId, eventId } } }),
+            cancelAttendeeOp(prisma, { userId, eventId, by: cancelActor(session) }),
             prisma.waitlistEntry.upsert({
               where:  { userId_eventId: { userId, eventId } },
               create: { userId, eventId },
@@ -369,7 +383,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           // from an earlier round — AFTER the delete committed, silently
           // removing them from the event entirely.
           await prisma.$transaction([
-            prisma.eventAttendee.delete({ where: { userId_eventId: { userId, eventId } } }),
+            cancelAttendeeOp(prisma, { userId, eventId, by: cancelActor(session) }),
             prisma.waitlistEntry.upsert({
               where:  { userId_eventId: { userId, eventId } },
               create: { userId, eventId },
@@ -416,11 +430,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         where:  { userId_eventId: { userId, eventId } },
         select: { status: true },
       })
-      if (!existing) {
+      if (!isActiveAttendee(existing)) {
         return NextResponse.json({ error: 'Not an attendee of this event' }, { status: 404 })
       }
       const [, waitlisted] = await prisma.$transaction([
-        prisma.eventAttendee.delete({ where: { userId_eventId: { userId, eventId } } }),
+        cancelAttendeeOp(prisma, { userId, eventId, by: cancelActor(session) }),
         // They may already sit on the waitlist from an earlier round; the
         // unique (userId, eventId) makes a plain create throw there.
         prisma.waitlistEntry.upsert({
@@ -451,7 +465,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       // what the database actually holds.
       return NextResponse.json({ ok: true, waitlisted })
     } else if (action === 'reject') {
-      await prisma.eventAttendee.delete({ where: { userId_eventId: { userId, eventId } } })
+      await cancelAttendeeOp(prisma, { userId, eventId, by: cancelActor(session) })
       // AD2 fix: reject path needs the same payment-aware audit
       // as DELETE. A rejected RSVP is functionally identical to
       // an admin-removed attendee from the payment side — pending
@@ -503,12 +517,12 @@ export async function PUT(req: NextRequest, { params }: Params) {
     const existing = await prisma.eventAttendee.findUnique({
       where: { userId_eventId: { userId, eventId } },
     })
-    if (existing) return NextResponse.json({ error: 'Already attending' }, { status: 409 })
+    if (isActiveAttendee(existing)) return NextResponse.json({ error: 'Already attending' }, { status: 409 })
 
-    await prisma.$transaction([
-      prisma.waitlistEntry.deleteMany({ where: { eventId, userId } }),
-      prisma.eventAttendee.create({ data: { userId, eventId, status: 'approved' } }),
-    ])
+    await prisma.$transaction(async (tx) => {
+      await tx.waitlistEntry.deleteMany({ where: { eventId, userId } })
+      await activateAttendee(tx, { userId, eventId, status: 'approved' })
+    })
     // Recompute, never a blind decrement: an admin adding to an already-full
     // event used to push spotsLeft negative until the nightly sweep clamped
     // it. Recompute derives from the rows just written and clamps at 0.
@@ -541,10 +555,10 @@ export async function POST(req: NextRequest, { params }: Params) {
       select: { approvalRequired: true, totalSpots: true },
     })
 
-    await prisma.$transaction([
-      prisma.waitlistEntry.deleteMany({ where: { eventId, userId } }),
-      prisma.eventAttendee.create({ data: { userId, eventId, status: 'approved' } }),
-    ])
+    await prisma.$transaction(async (tx) => {
+      await tx.waitlistEntry.deleteMany({ where: { eventId, userId } })
+      await activateAttendee(tx, { userId, eventId, status: 'approved' })
+    })
     // Recompute, never a blind decrement — see the PUT add-attendee path.
     if (eventMeta) await recomputeSpotsLeft(eventId, eventMeta.totalSpots)
     autoJoinClub(userId, eventId).catch(() => {})

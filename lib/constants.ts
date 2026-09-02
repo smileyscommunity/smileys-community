@@ -58,12 +58,27 @@ export const EventStatus = {
 } as const
 export type EventStatus = typeof EventStatus[keyof typeof EventStatus]
 
+// EventAttendee.status. Rows are never deleted on cancel any more: the
+// two soft-cancel values keep the row (and the moment it happened) so the
+// no-show policy can tell a timely cancel from a late one. ('waitlisted'
+// used to be listed here but was never stored — the waitlist is its own
+// table.)
 export const AttendeeStatus = {
-  Approved:   'approved',
-  Waitlisted: 'waitlisted',
-  Cancelled:  'cancelled',
+  Approved:  'approved',
+  Pending:   'pending',
+  Cancelled: 'cancelled',   // withdrawn by the member
+  Removed:   'removed',     // taken off by a host or admin
 } as const
 export type AttendeeStatus = typeof AttendeeStatus[keyof typeof AttendeeStatus]
+
+// EventAttendee.attendance — the settled outcome, separate from the
+// door-side checkedIn toggle so a later cancel/removal can't erase it.
+export const Attendance = {
+  Unknown:  'unknown',
+  Attended: 'attended',
+  NoShow:   'no_show',
+} as const
+export type Attendance = typeof Attendance[keyof typeof Attendance]
 
 // City status lives in lib/cities.ts (CITY_STATUS), next to the query helpers
 // that enforce which statuses are public and which get statistics. The version

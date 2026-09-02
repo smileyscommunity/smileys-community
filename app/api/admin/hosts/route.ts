@@ -86,7 +86,7 @@ export async function GET() {
         hostId: true,
         date:   true,
         time:   true,
-        _count: { select: { attendees: true } },
+        _count: { select: { attendees: { where: { status: 'approved' } } } },
       },
     })
 

@@ -4,6 +4,7 @@ import { getSession } from '@/lib/session'
 import { isAdmin, canManageEventOps } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
 import { rateLimit } from '@/lib/rateLimit'
+import { Attendance } from '@/lib/constants'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -66,9 +67,19 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'checkedIn must be a boolean' }, { status: 400 })
     }
 
-    const updated = await prisma.eventAttendee.update({
+    // Only a live, approved RSVP can be checked in — a cancelled row is
+    // history and a pending one hasn't been let in yet. `attendance`
+    // follows the toggle so the settled record and the door agree; the
+    // post-event pass is what later turns an un-checked row into no_show.
+    const { count } = await prisma.eventAttendee.updateMany({
+      where: { userId, eventId, status: 'approved' },
+      data:  { checkedIn, attendance: checkedIn ? Attendance.Attended : Attendance.Unknown },
+    })
+    if (count === 0) {
+      return NextResponse.json({ error: 'Not an approved attendee of this event' }, { status: 404 })
+    }
+    const updated = await prisma.eventAttendee.findUnique({
       where: { userId_eventId: { userId, eventId } },
-      data: { checkedIn },
     })
 
     if (checkedIn) {
@@ -78,7 +89,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           select: { title: true, emoji: true, hostId: true },
         }),
         prisma.user.findUnique({ where: { id: userId }, select: { name: true } }),
-        prisma.eventAttendee.count({ where: { eventId, checkedIn: true } }),
+        prisma.eventAttendee.count({ where: { eventId, status: 'approved', checkedIn: true } }),
         prisma.eventAttendee.count({ where: { eventId, status: 'approved' } }),
       ])
 

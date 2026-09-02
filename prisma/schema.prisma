@@ -978,8 +978,18 @@ model EventAttendee {
   eventId   String
   checkedIn Boolean  @default(false)
   joinedAt  DateTime @default(now())
+  // 'approved' | 'pending' hold or ask for a spot. 'cancelled' (by the
+  // member) and 'removed' (by a host/admin) are soft-cancels: the row stays
+  // so "did they give the spot back, and how late" stays answerable. Every
+  // read that means "is attending" filters on status — lib/attendance.ts.
   status    String   @default("approved")
   stealth   Boolean  @default(false)
+  // Settled outcome, distinct from the door-side `checkedIn` toggle:
+  // 'unknown' until something decides it, 'attended' once checked in,
+  // 'no_show' when post-event processing says so.
+  attendance  String    @default("unknown")
+  cancelledAt DateTime?
+  cancelledBy String?   // 'member' | 'host' | 'admin'
   event     Event    @relation(fields: [eventId], references: [id])
   user      User     @relation(fields: [userId], references: [id])
 
@@ -988,6 +998,7 @@ model EventAttendee {
   @@index([userId])
   @@index([status])
   @@index([eventId, status])
+  @@index([userId, status])
   @@map("event_attendees")
 }
 

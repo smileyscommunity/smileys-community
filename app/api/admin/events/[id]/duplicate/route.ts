@@ -65,7 +65,7 @@ export async function POST(_: NextRequest, { params }: Params) {
         // host isn't a relation on Event (see schema — only `club`),
         // so the list API attaches it via a separate query. Mirror that
         // shape here so the prepended row renders identically.
-        _count: { select: { attendees: true } },
+        _count: { select: { attendees: { where: { status: 'approved' } } } },
       },
     })
 

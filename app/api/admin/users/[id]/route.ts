@@ -1,6 +1,7 @@
 import { canManageUsers, canViewUserList, canSuspendUsers, canActInCity } from '@/lib/access'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { activeAttendeeWhere } from '@/lib/attendance'
 import { getSession } from '@/lib/session'
 import { createNotification } from '@/lib/notify'
 import { sendPremiumUpgradeEmail } from '@/lib/email'
@@ -34,6 +35,8 @@ export async function GET(_: NextRequest, { params }: Params) {
           orderBy: { createdAt: 'desc' },
         },
         joinedEvents: {
+          // Live RSVPs only — a cancelled row would read as a no-show below.
+          where:   activeAttendeeWhere,
           include: { event: { select: { id: true, title: true, emoji: true, date: true, neighborhood: true, price: true } } },
           orderBy: { joinedAt: 'desc' },
         },

@@ -1,6 +1,7 @@
 import { todayInTz, DEFAULT_TZ } from './cityTime'
 import { createHash } from 'crypto'
 import { prisma } from './prisma'
+import { activeAttendeeWhere } from './attendance'
 import { sendFirstEventNudgeEmail } from './email'
 
 // Deterministic "first RSVP" matcher + weekly email nudge. Targets approved
@@ -148,7 +149,7 @@ export async function runFirstRsvpNudge(opts: { dryRun?: boolean; limit?: number
         status: 'approved',
         lastActive: { not: null },
         emailMarketing: true,
-        joinedEvents: { none: {} },                                              // never RSVP'd
+        joinedEvents: { none: activeAttendeeWhere },                                              // never RSVP'd
         OR: [{ firstRsvpNudgedAt: null }, { firstRsvpNudgedAt: { lt: thirtyDaysAgo } }], // not nudged in 30d
       },
       select: { id: true, name: true, neighborhood: true, cityId: true, email: true, interests: true },
@@ -198,12 +199,12 @@ export async function runFirstRsvpNudge(opts: { dryRun?: boolean; limit?: number
   const threeDaysAgo = new Date(Date.now() - 3 * 86_400_000)
   const [priorNudged, priorConverted, assigned] = await Promise.all([
     prisma.user.count({ where: { firstRsvpNudgedAt: { not: null, lt: threeDaysAgo } } }),
-    prisma.user.count({ where: { firstRsvpNudgedAt: { not: null, lt: threeDaysAgo }, joinedEvents: { some: {} } } }),
+    prisma.user.count({ where: { firstRsvpNudgedAt: { not: null, lt: threeDaysAgo }, joinedEvents: { some: activeAttendeeWhere } } }),
     // Arm-split conversion. Fetched as rows rather than counted in SQL because
     // the arm lives in a hash of the id, not in a column.
     prisma.user.findMany({
       where:  { firstRsvpNudgedAt: { gte: HOLDOUT_START, lt: threeDaysAgo } },
-      select: { id: true, _count: { select: { joinedEvents: true } } },
+      select: { id: true, _count: { select: { joinedEvents: { where: activeAttendeeWhere } } } },
     }),
   ])
 

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { createNotification } from '@/lib/notify'
+import { eventEndsAt } from '@/lib/eventTime'
+import { DEFAULT_TZ } from '@/lib/cityTime'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -31,7 +33,7 @@ export async function GET(_: NextRequest, { params }: Params) {
   const { id } = await params
   const event = await prisma.event.findUnique({
     where:  { id },
-    select: { id: true, title: true, emoji: true, date: true, endTime: true, location: true },
+    select: { id: true, title: true, emoji: true, date: true, time: true, endTime: true, location: true, city: { select: { timezone: true } } },
   })
   if (!event) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
@@ -46,10 +48,8 @@ export async function GET(_: NextRequest, { params }: Params) {
     return NextResponse.json({ event, eligible: false, reason: 'not-attendee' })
   }
 
-  // "Event ended" check — use endTime if set, otherwise treat the
-  // event's date as ended at midnight local. todayIstanbul-style
-  // comparison works because Event.date is a yyyy-mm-dd string.
-  const eventEndedAt = endTimestamp(event.date, event.endTime)
+  // "Event ended" check, on the event city's clock (see lib/eventTime).
+  const eventEndedAt = eventEndsAt(event, event.city?.timezone ?? DEFAULT_TZ).getTime()
   const now = Date.now()
   if (now < eventEndedAt) {
     return NextResponse.json({ event, eligible: false, reason: 'too-early' })
@@ -125,7 +125,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const event = await prisma.event.findUnique({
     where:  { id },
-    select: { id: true, title: true, date: true, endTime: true, hostId: true, location: true },
+    select: { id: true, title: true, date: true, time: true, endTime: true, hostId: true, location: true, city: { select: { timezone: true } } },
   })
   if (!event) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
@@ -148,7 +148,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'You were not registered for this event' }, { status: 403 })
   }
 
-  const eventEndedAt = endTimestamp(event.date, event.endTime)
+  const eventEndedAt = eventEndsAt(event, event.city?.timezone ?? DEFAULT_TZ).getTime()
   const now = Date.now()
   if (now < eventEndedAt) {
     return NextResponse.json({ error: "The event hasn't ended yet" }, { status: 400 })
@@ -261,11 +261,3 @@ async function matchDirectoryVenue(location: string | null) {
   })
 }
 
-// Best-guess "when did this event end" timestamp. Event.endTime is
-// optional ("HH:MM"). When missing, treat the event as ending at
-// 23:59 on its date so the survey doesn't fire prematurely on
-// late-evening events that didn't set an end time.
-function endTimestamp(date: string, endTime: string | null): number {
-  const time = endTime?.match(/^(\d{1,2}):(\d{2})/) ? endTime : '23:59'
-  return new Date(`${date}T${time}:00+03:00`).getTime()  // Istanbul timezone
-}

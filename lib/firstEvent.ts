@@ -1,5 +1,6 @@
 import { dayInTz, DEFAULT_TZ } from './cityTime'
 import { prisma } from '@/lib/prisma'
+import { activeAttendeeWhere } from '@/lib/attendance'
 
 // "Your First Event" matcher — a deterministic recommender aimed at the
 // biggest funnel leak (signed-in → first RSVP, ~45% as of July 2026).
@@ -148,7 +149,7 @@ export async function getFirstEventRecommendations(userId: string, limit = 3): P
       status: 'published',
       date: { gte: todayStr },          // Event.date is text 'YYYY-MM-DD'
       spotsLeft: { gt: 0 },
-      attendees: { none: { userId } },  // exclude already RSVP'd
+      attendees: { none: { userId, ...activeAttendeeWhere } },  // exclude already RSVP'd (a cancelled row is not an RSVP)
     },
     select: {
       id: true, title: true, date: true, time: true, neighborhood: true,

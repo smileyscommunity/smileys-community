@@ -59,7 +59,7 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
       where:   { createdAt: { gte: weekAgoDate }, event: { cityId } },
       orderBy: { createdAt: 'desc' },
       take:    30,
-      select:  { url: true, event: { select: { id: true, title: true, emoji: true, _count: { select: { attendees: true } } } } },
+      select:  { url: true, event: { select: { id: true, title: true, emoji: true, _count: { select: { attendees: { where: { status: 'approved' } } } } } } },
     }),
     // Week-in-review counters.
     prisma.event.count({ where: { status: 'published', cityId, date: { gte: weekAgoStr, lt: today } } }),

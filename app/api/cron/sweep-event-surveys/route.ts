@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notify'
 import { recordCronRun } from '@/lib/cronHealth'
-import { todayInTz, fromWallClockInTz, DEFAULT_TZ } from '@/lib/cityTime'
+import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
+import { eventEndsAt } from '@/lib/eventTime'
 
 // Post-event survey dispatch sweeper. Picks up events that ended
 // between 24h and 7 days ago and haven't been surveyed yet, then
@@ -51,11 +52,11 @@ async function runSweep() {
       cityId:             c.id,
       date:               { lt: todayInTz(c.timezone), gte: todayInTz(c.timezone, -7) },
     },
-    select: { id: true, title: true, emoji: true, date: true, endTime: true, hostId: true, cityId: true },
+    select: { id: true, title: true, emoji: true, date: true, time: true, endTime: true, hostId: true, cityId: true },
   })))).flat()
 
   for (const event of firstPass) {
-    const endedAt = endTimestamp(event.date, event.endTime, tzByCity.get(event.cityId) ?? DEFAULT_TZ)
+    const endedAt = eventEndsAt(event, tzByCity.get(event.cityId) ?? DEFAULT_TZ).getTime()
     if (endedAt > oneDayAgo.getTime()) continue
 
     const targets = await eligibleTargets(event.id, event.hostId)
@@ -138,14 +139,6 @@ async function eligibleTargets(eventId: string, hostId: string): Promise<string[
   return attendees
     .map(a => a.userId)
     .filter(uid => uid !== hostId && !cohostIds.has(uid))
-}
-
-function endTimestamp(date: string, endTime: string | null, tz: string): number {
-  const time = endTime?.match(/^(\d{1,2}):(\d{2})/) ? endTime : '23:59'
-  // Pad a single-digit hour — fromWallClockInTz builds an ISO string, and
-  // '9:30' would parse as Invalid Date.
-  const [h, m] = time.split(':')
-  return fromWallClockInTz(`${date}T${h.padStart(2, '0')}:${m.slice(0, 2)}`, tz).getTime()
 }
 
 export async function POST(req: NextRequest) {

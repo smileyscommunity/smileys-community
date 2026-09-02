@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { activeAttendeeWhere } from '@/lib/attendance'
 import { getSession } from '@/lib/session'
 import { isAdmin, isClubHost } from '@/lib/access'
 import { todayInCity, resolveCityId } from '@/lib/city'
@@ -45,6 +46,7 @@ export async function GET() {
       prisma.eventAttendee.findMany({
         where: {
           ...(eventIdFilter ? { eventId: eventIdFilter } : {}),
+          ...activeAttendeeWhere,
           event: { date: { gte: today } },
         },
         include: {

@@ -10,6 +10,7 @@ import { autoJoinClub } from '@/lib/autoJoinClub'
 import { stampFirstEventRsvp } from '@/lib/firstEvent'
 import { sendPushToUser } from '@/lib/push'
 import { trackServer } from '@/lib/posthog-server'
+import { activateAttendee, cancelAttendeeOp, isActiveAttendee } from '@/lib/attendance'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -53,8 +54,8 @@ export async function POST(req: NextRequest, { params }: Params) {
       const existing = await prisma.eventAttendee.findUnique({
         where: { userId_eventId: { userId: session.id, eventId } },
       })
-      if (existing) return NextResponse.json({ error: 'Already joined' }, { status: 400 })
-      await prisma.eventAttendee.create({ data: { userId: session.id, eventId, status: 'approved', stealth } })
+      if (isActiveAttendee(existing)) return NextResponse.json({ error: 'Already joined' }, { status: 400 })
+      await activateAttendee(prisma, { userId: session.id, eventId, status: 'approved', stealth })
       autoJoinClub(session.id, eventId).catch(() => {})
       stampFirstEventRsvp(session.id, eventId).catch(() => {})
       createNotification(session.id, 'rsvp', 'You\'re in! 🎉', `Your spot for "${event.title}" is confirmed.`, `/events/${eventId}`)
@@ -62,11 +63,12 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ ok: true, status: 'approved' })
     }
 
-    // Check if already attending or pending
+    // Check if already attending or pending. A cancelled/removed row is
+    // history, not a seat — the join paths below revive it.
     const existing = await prisma.eventAttendee.findUnique({
       where: { userId_eventId: { userId: session.id, eventId } },
     })
-    if (existing) return NextResponse.json({ error: 'Already joined' }, { status: 400 })
+    if (isActiveAttendee(existing)) return NextResponse.json({ error: 'Already joined' }, { status: 400 })
 
     // Check if already on waitlist
     const onWaitlist = await prisma.waitlistEntry.findUnique({
@@ -112,7 +114,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         })
         if (claimed.count === 0) return { ok: false as const }
         await tx.waitlistEntry.delete({ where: { id: onWaitlist.id } })
-        await tx.eventAttendee.create({ data: { userId: session.id, eventId, status: 'approved', stealth } })
+        await activateAttendee(tx, { userId: session.id, eventId, status: 'approved', stealth })
         return { ok: true as const }
       })
       if (outcome.ok) {
@@ -247,16 +249,14 @@ export async function POST(req: NextRequest, { params }: Params) {
       // venue-paid events (payTo='venue') otherwise pile up phantom
       // pendings that nobody ever reconciles.
       const weCollect = event.payTo === 'smileys'
-      await prisma.$transaction([
-        prisma.eventAttendee.create({
-          data: { userId: session.id, eventId, status: 'pending', stealth },
-        }),
-        ...(safeAmount > 0 && weCollect ? [
-          prisma.payment.create({
+      await prisma.$transaction(async (tx) => {
+        await activateAttendee(tx, { userId: session.id, eventId, status: 'pending', stealth })
+        if (safeAmount > 0 && weCollect) {
+          await tx.payment.create({
             data: { userId: session.id, eventId, amount: safeAmount, currency: event.currency ?? 'TRY', status: 'pending' },
-          }),
-        ] : []),
-      ])
+          })
+        }
+      })
       createNotification(session.id, 'rsvp_pending', 'RSVP submitted ⏳',
         `Your request to join "${event.title}" is waiting on the host. You'll be notified once it's reviewed.`,
         `/events/${eventId}`)
@@ -313,7 +313,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       })
       if (claimed.count === 0) return { kind: 'full' as const }
 
-      await tx.eventAttendee.create({ data: { userId: session.id, eventId, status: 'approved', stealth } })
+      await activateAttendee(tx, { userId: session.id, eventId, status: 'approved', stealth })
 
       // P6 defense-in-depth: clamp amount non-negative. Mirrors the
       // approval-required path above so a misconfigured event.price
@@ -420,7 +420,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     const existing = await prisma.eventAttendee.findUnique({
       where: { userId_eventId: { userId: session.id, eventId } },
     })
-    if (!existing) return NextResponse.json({ error: 'Not attending' }, { status: 400 })
+    if (!isActiveAttendee(existing)) return NextResponse.json({ error: 'Not attending' }, { status: 400 })
 
     const wasApproved = existing.status === 'approved'
 
@@ -436,7 +436,10 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     })
 
     await prisma.$transaction([
-      prisma.eventAttendee.delete({ where: { userId_eventId: { userId: session.id, eventId } } }),
+      // Soft-cancel: the row stays, stamped with when the member gave the
+      // spot back. "Cancelled in time" vs "didn't come" is a question the
+      // post-event no-show pass needs answered from this timestamp.
+      cancelAttendeeOp(prisma, { userId: session.id, eventId, by: 'member' }),
       // Void any pending payment so no orphaned records remain
       prisma.payment.updateMany({
         where: { userId: session.id, eventId, status: 'pending' },

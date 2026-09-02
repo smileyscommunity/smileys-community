@@ -523,11 +523,13 @@ export async function GET(req: NextRequest) {
           EXISTS (
             SELECT 1 FROM event_attendees a
             WHERE a."userId" = s."userId" AND a."joinedAt" >= s.t0
+              AND a.status IN ('approved', 'pending')
           ) AS rsvp_any,
           EXISTS (
             SELECT 1 FROM event_attendees a
             WHERE a."userId" = s."userId"
               AND a."joinedAt" >= s.t0 AND a."joinedAt" < s.t0 + interval '14 days'
+              AND a.status IN ('approved', 'pending')
           ) AS rsvp_14d
         FROM shown s
       )
@@ -552,6 +554,7 @@ export async function GET(req: NextRequest) {
           WHERE a."userId" = u.id
             AND a."joinedAt" >= u."joinedAt"
             AND a."joinedAt" <  u."joinedAt" + interval '14 days'
+            AND a.status IN ('approved', 'pending')
         )) AS converted
       FROM users u
       WHERE u.status = 'approved'
