@@ -35,7 +35,10 @@ export async function generateMetadata(): Promise<Metadata> {
 
   return {
     // Safe now that events/[id] sets its own canonical (overrides this one).
-    alternates: { canonical: `${APP_URL}/events` },
+    // A viewer pinned to another city sees that city's list here, whose
+    // canonical home is its crawlable hub (/[city]/events); the default
+    // city's remains this URL, which Google already has.
+    alternates: { canonical: isDefault ? `${APP_URL}/events` : `${APP_URL}/${cfg.slug}/events` },
     title,
     description: desc,
     openGraph: {

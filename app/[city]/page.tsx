@@ -6,7 +6,7 @@ import CityPageTracker from '@/components/CityPageTracker'
 import { eventWindowFor } from '@/lib/data'
 import { getPublicCity, DEFAULT_CITY_SLUG } from '@/lib/cities'
 import { CITY_STATUS } from '@/lib/cityStatus'
-import { cityMetadata, getCityPageData, getVisitors, getTopNeighborhoods, arrangeEvents, featureClubs, enterLinkFor } from './data'
+import { cityMetadata, getCityPageData, getVisitors, getTopNeighborhoods, arrangeEvents, featureClubs, enterLinkFor, publicLinkFor } from './data'
 import PreLaunch from './sections/PreLaunch'
 import Hero from './sections/Hero'
 import Events from './sections/Events'
@@ -68,7 +68,9 @@ export default async function CityPage({ params }: Params) {
   // the founding city's terms, on a page whose entire subject is another city.
   const eventWindow   = eventWindowFor(city.timezone)
   const featuredClubs = featureClubs(clubs)
-  const enter         = enterLinkFor(city.slug)
+  // Members enter the interactive, cookie-scoped views; guests (and crawlers)
+  // get the crawlable per-city hubs for events and clubs — see publicLinkFor.
+  const enter         = session ? enterLinkFor(city.slug) : publicLinkFor(city.slug, enterLinkFor(city.slug))
   const isDefaultCity = city.slug === DEFAULT_CITY_SLUG
 
   return (

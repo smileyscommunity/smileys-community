@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { todayInTz } from '@/lib/cityTime'
 import { getEvents, getClubs } from '@/lib/db'
 import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
-import { getPublicCity } from '@/lib/cities'
+import { getPublicCity, DEFAULT_CITY_SLUG } from '@/lib/cities'
 import { CITY_STATUS } from '@/lib/cityStatus'
 import { APP_URL } from '@/lib/env'
 import { absoluteOgImage } from '@/lib/og'
@@ -195,3 +195,72 @@ export type EnterLink   = (to: EnterTarget, n?: string) => string
 export function enterLinkFor(slug: string): EnterLink {
   return (to, n) => `/app/api/city/enter?city=${slug}&to=${to}${n ? `&n=${encodeURIComponent(n)}` : ''}`
 }
+
+// ── Per-city hub pages (/[city]/events, /[city]/clubs) ──────────────────────
+//
+// The global /events and /clubs are the members' interactive views: client
+// rendered, scoped by the view-city cookie. A crawler carries no cookie, so
+// it only ever saw the default city's lists. These hubs are the crawlable
+// listing layer for every other live city: server-rendered, city fixed by
+// the URL, one canonical each.
+//
+// The default city keeps its already-indexed /events and /clubs as the
+// canonical URLs (rewording a URL Google ranks costs something for nothing),
+// so its hubs point back there; every other city's hub is canonical to itself.
+
+export type HubKind = 'events' | 'clubs'
+
+export function isDefaultCitySlug(slug: string): boolean {
+  return slug === DEFAULT_CITY_SLUG
+}
+
+/** The canonical URL for a city's hub — absolute, for <link rel=canonical>. */
+export function hubCanonical(slug: string, kind: HubKind): string {
+  return isDefaultCitySlug(slug) ? `${APP_URL}/${kind}` : `${APP_URL}/${slug}/${kind}`
+}
+
+/**
+ * Where a GUEST on a city page goes for its events or clubs: the crawlable
+ * hub (or the global list for the default city, which is the same page in
+ * canonical terms). Members keep the cookie-setting entry link, which lands
+ * them in the interactive view scoped to that city. Paths carry the /app
+ * basePath because they are plain <a> targets, like the entry link.
+ */
+export function publicLinkFor(slug: string, enter: EnterLink): EnterLink {
+  return (to, n) => {
+    if (to === 'events' || to === 'clubs') {
+      return isDefaultCitySlug(slug) ? `/app/${to}` : `/app/${slug}/${to}`
+    }
+    return enter(to, n)
+  }
+}
+
+// A hub is a crawlable page, not the whole catalogue: the founding city has
+// 140+ clubs, and rendering every card put 1.3 MB of HTML on one page. The
+// first HUB_LIMIT (scheduled/soonest first) plus an honest "and N more" link
+// into the interactive list covers both the crawler and the reader.
+export const HUB_LIMIT = 48
+
+/** A city's soonest upcoming events for the hub, and how many there are. */
+export const getCityEventsHub = unstable_cache(
+  async (cityId: string) => {
+    const { events, total } = await getEvents({ limit: HUB_LIMIT, upcoming: true, cityId })
+    return { events, total }
+  },
+  ['city-events-hub'],
+  { revalidate: 60, tags: ['home'] },
+)
+
+/** A city's clubs for the hub, scheduled ones first, and how many there are. */
+export const getCityClubsHub = unstable_cache(
+  async (cityId: string) => {
+    const all = await getClubs(cityId)
+    const clubs = [
+      ...all.filter(c => c.nextEvent).sort((a, b) => a.nextEvent!.date.localeCompare(b.nextEvent!.date)),
+      ...all.filter(c => !c.nextEvent).sort((a, b) => b.memberCount - a.memberCount),
+    ].slice(0, HUB_LIMIT)
+    return { clubs, total: all.length }
+  },
+  ['city-clubs-hub'],
+  { revalidate: 60, tags: ['home'] },
+)

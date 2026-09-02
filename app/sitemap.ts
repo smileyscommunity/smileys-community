@@ -3,7 +3,7 @@ import { statSync } from 'fs'
 import { join } from 'path'
 import { prisma } from '@/lib/prisma'
 import { loadExperiences, loadRoutes } from '@/lib/guideContent'
-import { getDefaultCityId, getPublicCities, CITY_STATUS } from '@/lib/cities'
+import { getDefaultCityId, getPublicCities, CITY_STATUS, DEFAULT_CITY_SLUG } from '@/lib/cities'
 import { NEIGHBORHOOD_META, neighborhoodToSlug } from '@/lib/neighborhoods'
 
 export const dynamic = 'force-dynamic'
@@ -127,6 +127,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       ? { url: `${BASE}/${c.slug}`, priority: 0.95, changeFrequency: 'daily' as const, lastModified: newest([newestEvent, newestClub]) }
       : { url: `${BASE}/${c.slug}`, priority: 0.4,  changeFrequency: 'monthly' as const }
   ))
+  // The crawlable listing layer per city (/[city]/events, /[city]/clubs).
+  // The default city's hubs are canonicalised to the global /events and
+  // /clubs listed below, so only the other live cities are advertised here.
+  const cityHubRoutes: MetadataRoute.Sitemap = cities
+    .filter(c => c.status === CITY_STATUS.Live && c.slug !== DEFAULT_CITY_SLUG)
+    .flatMap(c => [
+      { url: `${BASE}/${c.slug}/events`, priority: 0.85, changeFrequency: 'daily'  as const, lastModified: newestEvent },
+      { url: `${BASE}/${c.slug}/clubs`,  priority: 0.75, changeFrequency: 'weekly' as const, lastModified: newestClub },
+    ])
 
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: BASE,                    priority: 1.0, changeFrequency: 'daily',   lastModified: newest([newestEvent, newestPost, newestClub]) },
@@ -244,6 +253,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   return [
     ...staticRoutes,
     ...cityRoutes,
+    ...cityHubRoutes,
     ...neighborhoodRoutes,
     ...guideRoutes,
     ...eventRoutes,

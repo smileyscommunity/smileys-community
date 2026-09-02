@@ -38,7 +38,9 @@ export async function generateMetadata(): Promise<Metadata> {
     : `Whatever you're into, there's probably someone in ${name} who's into it too.`
 
   return {
-    alternates: { canonical: `${APP_URL}/clubs` },
+    // Same rule as app/events/layout.tsx: another city's grid is canonical
+    // at its hub (/[city]/clubs); the default city's stays here.
+    alternates: { canonical: isDefault ? `${APP_URL}/clubs` : `${APP_URL}/${cfg.slug}/clubs` },
     title,
     description: desc,
     openGraph: {
