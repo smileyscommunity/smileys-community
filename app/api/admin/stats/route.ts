@@ -5,6 +5,7 @@ import { canViewAnalytics } from '@/lib/access'
 import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
 import { getCityTz } from '@/lib/city'
 import { listStaleSweepers } from '@/lib/cronHealth'
+import { stalledLiveCities, stalledSeverity, describeStalled } from '@/lib/cityOps'
 
 export async function GET(req: Request) {
   const session = await getSession()
@@ -205,11 +206,17 @@ export async function GET(req: Request) {
   // sweeper names and returns any whose lastSuccessAt is older
   // than 2× their expected cadence (or never recorded). Tiny
   // table, so the read is cheap.
-  const [emailFailures24h, staleSweepers] = await Promise.all([
+  //
+  // Liquidity signal (multi-city item 7): a live city with no upcoming
+  // event is a city where a new member can join and find nothing to do —
+  // the one failure mode the status flag cannot see. Scoped to ?city= when
+  // the dashboard is; otherwise every live city.
+  const [emailFailures24h, staleSweepers, stalled] = await Promise.all([
     prisma.emailFailure.count({
       where: { createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
     }),
     listStaleSweepers(),
+    stalledLiveCities(new Date(), cityId ? [cityId] : undefined),
   ])
 
   return NextResponse.json({
@@ -229,6 +236,13 @@ export async function GET(req: Request) {
         checkedIn: e.attendees.filter(a => a.checkedIn).length,
       })),
     staleSweepers: staleSweepers.map(s => s.name),
+    // Live cities with nothing on the calendar, oldest-live first. `label`
+    // is the one-line description the pill shows; `severity` turns red past
+    // STALLED_RED_AFTER_DAYS so a fresh launch reads as a nudge, not a fire.
+    stalledCities: stalled.map(c => ({
+      id: c.id, slug: c.slug, name: c.name, members: c.members, daysLive: c.daysLive,
+      severity: stalledSeverity(c.daysLive), label: describeStalled(c),
+    })),
     trends: {
       members: calcTrend(newMembersThisMonth, prevMembersMonth),
       rsvps:   calcTrend(rsvpsThisMonth, prevRsvpsMonth),

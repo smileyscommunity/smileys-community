@@ -16,6 +16,13 @@ vi.mock('@/lib/session', () => ({ getSession: vi.fn() }))
 vi.mock('@/lib/access',  () => ({ canViewAnalytics: () => true }))
 vi.mock('@/lib/city',    () => ({ getCityTz: vi.fn(async () => 'Europe/Istanbul') }))
 vi.mock('@/lib/cronHealth', () => ({ listStaleSweepers: vi.fn(async () => []) }))
+// The stalled-city scan has its own prisma reads (lib/cityOps, covered by
+// tests/cityOps.test.ts); here only the scope it is asked for and the shape it
+// comes back as matter, so the reader is stubbed and the pure helpers kept.
+vi.mock('@/lib/cityOps', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/cityOps')>()),
+  stalledLiveCities: vi.fn(async () => []),
+}))
 
 // Built inside the factory: vi.mock is hoisted above every top-level const,
 // so helpers declared out here are still in the temporal dead zone when it runs.
@@ -41,6 +48,7 @@ vi.mock('@/lib/prisma', () => {
 })
 
 import { GET } from '@/app/api/admin/stats/route'
+import { stalledLiveCities } from '@/lib/cityOps'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 
@@ -111,6 +119,28 @@ describe('admin dashboard stats — city scope', () => {
     // Nothing counted — a bad id must not fall through to a network-wide read
     // that the UI would then label "Bodrum".
     expect(prisma.user.count).not.toHaveBeenCalled()
+  })
+
+  it('asks the stalled-city scan about the same city as everything else', async () => {
+    await GET(new Request('https://x/app/api/admin/stats?city=c-bodrum'))
+    expect((stalledLiveCities as any).mock.calls[0][1]).toEqual(['c-bodrum'])
+
+    vi.clearAllMocks()
+    ;(getSession as any).mockResolvedValue({ id: 'u1', role: 'admin', cityId: 'c-istanbul' })
+    await GET(new Request('https://x/app/api/admin/stats'))
+    expect((stalledLiveCities as any).mock.calls[0][1]).toBeUndefined()
+  })
+
+  it('renders a stalled city as one pill-ready line, red only once it has been live a while', async () => {
+    ;(stalledLiveCities as any).mockResolvedValue([
+      { id: 'c-izmir',   slug: 'izmir',   name: 'Izmir',   members: 3,  upcomingEvents: 0, daysLive: 6,  maturity: 'seeding' },
+      { id: 'c-antalya', slug: 'antalya', name: 'Antalya', members: 10, upcomingEvents: 0, daysLive: 45, maturity: 'seeding' },
+    ])
+    const body = await (await GET(new Request('https://x/app/api/admin/stats'))).json()
+    expect(body.stalledCities.map((c: any) => [c.slug, c.severity, c.label])).toEqual([
+      ['izmir',   'amber', 'Izmir (3 members · no upcoming event · live 6d)'],
+      ['antalya', 'red',   'Antalya (10 members · no upcoming event · live 45d)'],
+    ])
   })
 
   it('reports which city the numbers describe', async () => {

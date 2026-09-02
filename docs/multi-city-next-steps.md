@@ -157,7 +157,7 @@ panel. 27 tests, `tests/cityHostAccess.test.ts` among them.
 
 ---
 
-## 7. Liquidity, not status — the part that is not a code problem
+## 7. Liquidity, not status — signal wired 2026-09-03; the rest is ops
 
 Production on 2026-09-03 (`SELECT … FROM cities` joined to approved members,
 active clubs and upcoming published events):
@@ -176,6 +176,33 @@ has events. No further code changes this. What does: a host, a first
 recurring event, and the founding members that follow it. That is an
 operations decision per city, and the maturity stage exists so the ops
 signal ("in `seeding` past ~90 days") is visible rather than felt.
+
+**The signal is now on the dashboard (2026-09-03).** `lib/cityOps.ts`
+lists live cities with no upcoming event, with how long each has been live
+(from the `city.status_change → live` audit row, falling back to the city's
+`createdAt`). `/api/admin/stats` returns them as `stalledCities`, scoped to
+`?city=` like every other number there, and the admin dashboard shows one
+pill: "3 live cities with no upcoming event: Antalya (10 members · no
+upcoming event · live 3d) · …", amber for the first thirty days live and
+red after (`STALLED_RED_AFTER_DAYS`). It links to the cities page, where the
+city's hosts are. Guarded by `tests/cityOps.test.ts` and the two stalled
+cases in `tests/adminStatsCityScope.test.ts`.
+
+**The ops plan per city, as of 2026-09-03.** Antalya has one city host and
+two members who marked interest; the first move is that host publishing one
+recurring free event (a weekly coffee or walk — free, so the no-show cards
+and reconfirmation apply). Izmir has two city hosts and fifteen unpublished
+guide drafts; a small first meetup plus publishing the drafts gives the
+city both a calendar and a reason to be found. Bodrum has two members but
+nine Istanbul members who marked interest; the lever is a weekend event
+aimed at them, hosted from Istanbul until a local host emerges. None of the
+three has a consul. The pill stays red until each has one event up — that
+is the whole point of it.
+
+**Possible next code step, not started.** A weekly nudge to the hosts of a
+stalled live city ("your city has nothing coming up — here is the event
+form"), built on the login-nudge pattern. Worth it only if the pill goes
+ignored for a month; a human message from Nate does more the first time.
 
 ---
 

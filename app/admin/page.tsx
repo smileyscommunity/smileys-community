@@ -35,6 +35,12 @@ interface Stats {
   // Empty array when everything's healthy. Surfaced as a red
   // alert pill so silent cron failures don't go un-noticed.
   staleSweepers:    string[]
+  // Multi-city liquidity signal — live cities with no upcoming event
+  // (see lib/cityOps). Empty when every live city has something on the
+  // calendar. `label` is pre-rendered by the API; `severity` is red once
+  // the city has been live long enough that "just launched" no longer
+  // explains the empty calendar.
+  stalledCities:    { id: string; slug: string; name: string; members: number; daysLive: number; severity: 'amber' | 'red'; label: string }[]
   trends: { members: number; rsvps: number; revenue: number }
   hangouts:   {
     active: number; today: number; referencesWeek: number
@@ -266,6 +272,18 @@ export default function AdminPage() {
     stats.staleSweepers && stats.staleSweepers.length > 0 && {
       icon: '⏱️', label: `${stats.staleSweepers.length} stale cron${stats.staleSweepers.length !== 1 ? 's' : ''}: ${stats.staleSweepers.join(', ')}`,
       color: 'border-red-500/30 bg-red-500/5 text-red-400',  // no href — the label names the stale sweepers; fix is server-side
+    },
+    // Stalled-city pill — a live city with nothing on the calendar is the
+    // one thing the city status flag cannot see. Amber for a fresh launch,
+    // red once it has been live long enough that the empty calendar is the
+    // problem. Links to the cities page, where the city's hosts are listed.
+    stats.stalledCities && stats.stalledCities.length > 0 && {
+      icon: '🌱',
+      label: `${stats.stalledCities.length} live ${stats.stalledCities.length !== 1 ? 'cities' : 'city'} with no upcoming event: ${stats.stalledCities.map(c => c.label).join(' · ')}`,
+      href: '/admin/cities',
+      color: stats.stalledCities.some(c => c.severity === 'red')
+        ? 'border-red-500/30 bg-red-500/5 text-red-400'
+        : 'border-amber-500/30 bg-amber-500/5 text-amber-400',
     },
     // Visitors pill — soft signal, not a "do something" alert. Sits in the
     // same row so admins see "what's happening" + "what needs me" together.
