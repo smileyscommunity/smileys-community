@@ -169,8 +169,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en">
       <head>
+        {/* The app icon (amber square, white face) everywhere a browser can
+            show it. The SVG is what Chrome/Firefox use; Safari, Windows
+            pinned sites, bookmarks and search results read the ICO/PNGs. */}
+        <link rel="icon" href="/app/favicon.ico" sizes="48x48" />
         <link rel="icon" href="/app/favicon.svg" type="image/svg+xml" />
-        <link rel="apple-touch-icon" href="/app/icons/icon-192.png" />
+        <link rel="icon" href="/app/favicon-32.png" type="image/png" sizes="32x32" />
+        <link rel="icon" href="/app/favicon-16.png" type="image/png" sizes="16x16" />
+        <link rel="apple-touch-icon" href="/app/apple-touch-icon.png" sizes="180x180" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link rel="manifest" href="/app/manifest.json" />
