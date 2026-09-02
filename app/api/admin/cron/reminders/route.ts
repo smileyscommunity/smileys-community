@@ -6,6 +6,7 @@ import { join } from 'path'
 import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notify'
 import { sendReviewRequestEmail, sendListingExpiryEmail, recordEmailFailure } from '@/lib/email'
+import { isFreeEvent, NO_SHOW_CANCELLATION_CUTOFF_HOURS } from '@/lib/noShowPolicy'
 import { sendPushToUser } from '@/lib/push'
 import { getSession } from '@/lib/session'
 import { recordCronRun } from '@/lib/cronHealth'
@@ -230,8 +231,12 @@ async function runSweep() {
     for (const { userId } of event.attendees) {
       if (is24h) {
         if (!sent24Set.has(`${userId}:/events/${event.id}`)) {
-          await createNotification(userId, 'reminder_24h', 'Event tomorrow ⏰', `"${event.title}" is tomorrow at ${event.time}`, `/events/${event.id}`)
-          sendPushToUser(userId, { title: 'Event tomorrow ⏰', body: `"${event.title}" is tomorrow at ${event.time}`, link: `/events/${event.id}` }).catch(() => {})
+          // Free events carry the no-show policy; the day-before reminder is
+          // the last moment a cancel is still comfortably inside the cutoff.
+          const body = `"${event.title}" is tomorrow at ${event.time}` + (isFreeEvent(event)
+            ? `. Can't make it? Cancel at least ${NO_SHOW_CANCELLATION_CUTOFF_HOURS}h before so your spot goes to the waitlist.` : '')
+          await createNotification(userId, 'reminder_24h', 'Event tomorrow ⏰', body, `/events/${event.id}`)
+          sendPushToUser(userId, { title: 'Event tomorrow ⏰', body, link: `/events/${event.id}` }).catch(() => {})
           sent24h++
         }
       }

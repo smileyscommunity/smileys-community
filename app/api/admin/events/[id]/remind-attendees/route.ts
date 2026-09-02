@@ -4,6 +4,7 @@ import { getSession } from '@/lib/session'
 import { isAdmin, canModerateReports } from '@/lib/access'
 import { rateLimit } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
+import { isFreeEvent } from '@/lib/noShowPolicy'
 import { sendEventReminderEmail } from '@/lib/email'
 import { formatDate } from '@/lib/data'
 
@@ -18,7 +19,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
     const event = await prisma.event.findUnique({
       where: { id },
-      select: { id: true, title: true, emoji: true, date: true, location: true, cityId: true },
+      select: { id: true, title: true, emoji: true, date: true, location: true, cityId: true, price: true, memberPrice: true },
     })
     if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
 
@@ -53,7 +54,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     await Promise.all(attendees.map(async (a) => {
       const { user } = a
       await Promise.allSettled([
-        sendEventReminderEmail(user.id, user.email, user.name, event.title, emoji, eventDate, eventLocation, event.id)
+        sendEventReminderEmail(user.id, user.email, user.name, event.title, emoji, eventDate, eventLocation, event.id, { free: isFreeEvent(event) })
           .then(() => { emailed++ }),
         createNotification(
           user.id,

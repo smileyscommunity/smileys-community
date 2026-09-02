@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notify'
-import { sendYellowCardEmail, sendRedCardEmail, recordEmailFailure } from '@/lib/email'
+import { sendYellowCardEmail, sendRedCardEmail, sendHostNoShowCardsEmail, sendAdminNoShowAppealEmail, recordEmailFailure } from '@/lib/email'
 import { writeAudit } from '@/lib/audit'
 import { eventStartsAt, eventEndsAt } from '@/lib/eventTime'
 import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
@@ -217,7 +217,7 @@ async function candidateEvents(now: Date) {
 export async function notifyIssuedCards(): Promise<number> {
   const cards = await prisma.noShowCard.findMany({
     where:   { notifiedAt: null, status: { in: [CardStatus.Active, CardStatus.AppealPending] } },
-    include: { user: { select: { id: true, name: true, email: true } }, event: { select: { title: true, emoji: true } } },
+    include: { user: { select: { id: true, name: true, email: true } }, event: { select: { id: true, title: true, emoji: true, hostId: true } } },
   })
   for (const c of cards) {
     const emoji = c.event.emoji ?? '📅'
@@ -245,7 +245,42 @@ export async function notifyIssuedCards(): Promise<number> {
     }
     await prisma.noShowCard.update({ where: { id: c.id }, data: { notifiedAt: new Date() } })
   }
+  await notifyHosts(cards)
   return cards.length
+}
+
+/**
+ * One bell and one email per event to its host (and co-hosts): they are the
+ * ones who know whether the door was run properly, and "clear" is one tap
+ * on their participants page. Grouped from the batch just sent to members,
+ * so it rides on the same notifiedAt stamp.
+ */
+async function notifyHosts(cards: { kind: string; event: { id: string; title: string; emoji: string | null; hostId: string } }[]) {
+  const byEvent = new Map<string, { title: string; emoji: string; hostId: string; yellow: number; red: number }>()
+  for (const c of cards) {
+    const e = byEvent.get(c.event.id) ?? { title: c.event.title, emoji: c.event.emoji ?? '📅', hostId: c.event.hostId, yellow: 0, red: 0 }
+    if (c.kind === CardKind.Red) e.red++; else e.yellow++
+    byEvent.set(c.event.id, e)
+  }
+  for (const [eventId, e] of byEvent) {
+    const cohosts = await prisma.eventCoHost.findMany({ where: { eventId }, select: { userId: true } })
+    const staff   = await prisma.user.findMany({
+      where:  { id: { in: [...new Set([e.hostId, ...cohosts.map(c => c.userId)])] } },
+      select: { id: true, name: true, email: true },
+    })
+    const total = e.yellow + e.red
+    for (const s of staff) {
+      await createNotification(s.id, 'no_show_cards_issued',
+        `${e.emoji} ${total} no-show${total === 1 ? '' : 's'} recorded for ${e.title}`,
+        `${e.yellow ? `${e.yellow} warning${e.yellow === 1 ? '' : 's'}` : ''}${e.yellow && e.red ? ', ' : ''}${e.red ? `${e.red} paused` : ''}. Was anyone actually there? Clear a missed scan in one tap.`,
+        `/host/events/${eventId}/participants`)
+      sendHostNoShowCardsEmail(s.email, s.name ?? 'Host', e.title, e.emoji, { yellow: e.yellow, red: e.red }, eventId)
+        .catch(async err => {
+          console.error('[no-show] sendHostNoShowCardsEmail failed', { eventId, hostId: s.id, err: String(err) })
+          await recordEmailFailure({ helper: 'sendHostNoShowCardsEmail', recipient: s.email, error: err, context: { eventId, hostId: s.id } })
+        })
+    }
+  }
 }
 
 /**
@@ -444,6 +479,12 @@ export async function submitAppeal(cardId: string, userId: string, note: string,
       `${card.user.name ?? 'A member'} is appealing a red card from "${card.event.title}".`,
       '/admin/no-shows').catch(() => {})
   }
+  // The bell can sit unseen past a 48-hour window; the inbox email can't.
+  sendAdminNoShowAppealEmail(card.user.name ?? 'A member', card.event.title, card.appealDeadlineAt)
+    .catch(async err => {
+      console.error('[no-show] sendAdminNoShowAppealEmail failed', { cardId: card.id, err: String(err) })
+      await recordEmailFailure({ helper: 'sendAdminNoShowAppealEmail', recipient: process.env.ADMIN_EMAIL ?? 'info@smileyscommunity.com', error: err, context: { cardId: card.id } })
+    })
   return 'ok'
 }
 

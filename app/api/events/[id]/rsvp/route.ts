@@ -12,6 +12,7 @@ import { sendPushToUser } from '@/lib/push'
 import { trackServer } from '@/lib/posthog-server'
 import { activateAttendee, cancelAttendeeOp, isActiveAttendee } from '@/lib/attendance'
 import { checkRsvpAllowed, gateErrorBody, getRsvpGate, recordYellowAcknowledgement } from '@/lib/noShow'
+import { isFreeEvent } from '@/lib/noShowPolicy'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -388,6 +389,7 @@ export async function POST(req: NextRequest, { params }: Params) {
           event.title, event.date,
           event.location ?? event.neighborhood ?? city?.name ?? 'your city',
           eventId,
+          { free: isFreeEvent(event) },
         ).catch(async err => {
           console.error('[rsvp POST] sendRsvpConfirmationEmail failed', { userId: session.id, eventId, err: String(err) })
           await recordEmailFailure({ helper: 'sendRsvpConfirmationEmail', recipient: user.email, error: err, context: { userId: session.id, eventId } })

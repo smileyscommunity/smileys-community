@@ -89,6 +89,7 @@ const PREF_KEY: Record<string, 'newEvents' | 'reminders' | 'eventUpdates' | 'joi
   no_show_appeal:              null,
   no_show_appeal_resolved:     null,
   no_show_waitlist_removed:    null,
+  no_show_cards_issued:        null,   // host: cards issued from your event
 }
 
 // Quiet hours are the MEMBER's evening, so the hour is read on their home

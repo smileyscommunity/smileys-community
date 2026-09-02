@@ -2,9 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/notify', () => ({ createNotification: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('@/lib/email',  () => ({
-  sendYellowCardEmail: vi.fn().mockResolvedValue(undefined),
-  sendRedCardEmail:    vi.fn().mockResolvedValue(undefined),
-  recordEmailFailure:  vi.fn(),
+  sendYellowCardEmail:        vi.fn().mockResolvedValue(undefined),
+  sendRedCardEmail:           vi.fn().mockResolvedValue(undefined),
+  sendHostNoShowCardsEmail:   vi.fn().mockResolvedValue(undefined),
+  sendAdminNoShowAppealEmail: vi.fn().mockResolvedValue(undefined),
+  recordEmailFailure:         vi.fn(),
 }))
 vi.mock('@/lib/audit', () => ({ writeAudit: vi.fn() }))
 vi.mock('@/lib/prisma', () => ({ prisma: {
@@ -13,13 +15,14 @@ vi.mock('@/lib/prisma', () => ({ prisma: {
   eventAttendee: { findMany: vi.fn(), updateMany: vi.fn() },
   noShowCard:    { findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), count: vi.fn(), create: vi.fn(), createMany: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
   waitlistEntry: { findMany: vi.fn(), deleteMany: vi.fn() },
+  eventCoHost:   { findMany: vi.fn().mockResolvedValue([]) },
   user:          { findMany: vi.fn() },
   city:          { findMany: vi.fn() },
 } }))
 
 import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notify'
-import { sendYellowCardEmail, sendRedCardEmail } from '@/lib/email'
+import { sendYellowCardEmail, sendRedCardEmail, sendHostNoShowCardsEmail, sendAdminNoShowAppealEmail } from '@/lib/email'
 import { settleEvent, sweepNoShows, notifyIssuedCards, activateRedCards, checkRsvpAllowed, recordYellowAcknowledgement, submitAppeal, waiveCard, resolveCard } from '@/lib/noShow'
 
 // The settlement job against a mocked database: which rows become
@@ -167,20 +170,27 @@ describe('settleEvent — card colour from the rolling window', () => {
   })
 })
 
-describe('notifyIssuedCards — one email, one bell, then stamped', () => {
-  it('sends per card and stamps notifiedAt', async () => {
+describe('notifyIssuedCards — one email, one bell, then stamped; host told once per event', () => {
+  it('sends per card, stamps notifiedAt, and tells the host and co-host once', async () => {
+    const event = { id: 'e1', title: 'T', emoji: '🎉', hostId: 'host' }
     p.noShowCard.findMany.mockResolvedValue([
-      { id: 'y', kind: 'yellow', userId: 'u1', user: { id: 'u1', name: 'A B', email: 'a@x' }, event: { title: 'T', emoji: '🎉' } },
-      { id: 'r', kind: 'red', userId: 'u2', user: { id: 'u2', name: 'C', email: 'c@x' }, event: { title: 'T', emoji: '🎉' },
+      { id: 'y', kind: 'yellow', userId: 'u1', user: { id: 'u1', name: 'A B', email: 'a@x' }, event },
+      { id: 'r', kind: 'red', userId: 'u2', user: { id: 'u2', name: 'C', email: 'c@x' }, event,
         appealDeadlineAt: new Date(), restrictionStartsAt: new Date(), restrictionEndsAt: new Date() },
     ])
     p.noShowCard.update.mockResolvedValue({})
+    p.eventCoHost.findMany.mockResolvedValue([{ userId: 'cohost' }])
+    p.user.findMany.mockResolvedValue([{ id: 'host', name: 'H', email: 'h@x' }, { id: 'cohost', name: 'C', email: 'co@x' }])
     expect(await notifyIssuedCards()).toBe(2)
     expect(sendYellowCardEmail).toHaveBeenCalledTimes(1)
     expect(sendRedCardEmail).toHaveBeenCalledTimes(1)
-    expect(createNotification).toHaveBeenCalledTimes(2)
     expect(p.noShowCard.update).toHaveBeenCalledWith({ where: { id: 'y' }, data: { notifiedAt: expect.any(Date) } })
     expect(p.noShowCard.update).toHaveBeenCalledWith({ where: { id: 'r' }, data: { notifiedAt: expect.any(Date) } })
+    // members: 2 bells; staff: 1 bell each, one grouped email each
+    expect(createNotification).toHaveBeenCalledTimes(4)
+    expect(createNotification).toHaveBeenCalledWith('host', 'no_show_cards_issued', expect.stringContaining('2 no-shows'), expect.any(String), '/host/events/e1/participants')
+    expect(sendHostNoShowCardsEmail).toHaveBeenCalledTimes(2)
+    expect(sendHostNoShowCardsEmail).toHaveBeenCalledWith('h@x', 'H', 'T', '🎉', { yellow: 1, red: 1 }, 'e1')
   })
   it('nothing pending → nothing sent', async () => {
     p.noShowCard.findMany.mockResolvedValue([])
@@ -246,6 +256,7 @@ describe('submitAppeal — inside the window, once', () => {
       data:  { appealNote: 'I was there, the scan failed', appealedAt: NOW, appealStatus: 'pending', status: 'appeal_pending' },
     })
     expect(createNotification).toHaveBeenCalledWith('admin', 'no_show_appeal', expect.any(String), expect.any(String), '/admin/no-shows')
+    expect(sendAdminNoShowAppealEmail).toHaveBeenCalledWith('A', 'T', red.appealDeadlineAt)
   })
   it('after the deadline → window_closed', async () => {
     p.noShowCard.findFirst.mockResolvedValue({ ...red, appealDeadlineAt: new Date(NOW.getTime() - H) })
