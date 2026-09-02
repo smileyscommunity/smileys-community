@@ -10,6 +10,7 @@ import { autoJoinClub } from '@/lib/autoJoinClub'
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 import { writeAudit } from '@/lib/audit'
 import { activateAttendee, activeAttendeeWhere, cancelAttendeeOp, isActiveAttendee, type CancelActor } from '@/lib/attendance'
+import { getRsvpGate, gateErrorBody } from '@/lib/noShow'
 
 // Who is taking the member off the event, for the soft-cancel stamp.
 // Everyone past canManageEventOps who isn't an admin is some kind of host.
@@ -112,7 +113,7 @@ export async function GET(_: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const [attendeesRaw, waitlistRaw, cohosts, eventRow, payments] = await Promise.all([
+    const [attendeesRaw, waitlistRaw, cohosts, eventRow, payments, noShowCards] = await Promise.all([
       prisma.eventAttendee.findMany({
         where: { eventId, ...activeAttendeeWhere },
         include: { user: { select: userSelect } },
@@ -130,6 +131,13 @@ export async function GET(_: NextRequest, { params }: Params) {
         where:   { eventId, status: { in: ['pending', 'paid'] } },
         select:  { id: true, userId: true, status: true, amount: true, currency: true },
         orderBy: { createdAt: 'asc' },
+      }),
+      // No-show cards from this event, for the host's waive button. Includes
+      // late-cancel cards, whose attendee rows are not in the list above.
+      prisma.noShowCard.findMany({
+        where:   { eventId },
+        select:  { id: true, userId: true, kind: true, status: true, waivedAt: true, user: { select: { id: true, name: true } } },
+        orderBy: { issuedAt: 'asc' },
       }),
     ])
 
@@ -151,7 +159,7 @@ export async function GET(_: NextRequest, { params }: Params) {
     const userMap = Object.fromEntries(waitlistUsers.map(u => [u.id, u]))
     const waitlist = waitlistRaw.map(w => ({ ...w, user: userMap[w.userId] }))
 
-    return NextResponse.json({ attendees, waitlist, payments })
+    return NextResponse.json({ attendees, waitlist, payments, noShowCards })
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
@@ -297,6 +305,15 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // gave up — or email a rejection for a request they cancelled.
     if ((action === 'approve' || action === 'reject') && !isActiveAttendee(current)) {
       return NextResponse.json({ error: 'Not an attendee of this event' }, { status: 404 })
+    }
+    // A red-card block holds here as it does for PUT/POST: approving gives a
+    // seat, and "to waitlist" gives a place in the queue — neither for a
+    // member whose RSVPs are paused. Reject and remove stay open.
+    if (action === 'approve' || action === 'toWaitlist') {
+      const gate = await getRsvpGate(userId)
+      if (!gate.ok && gate.code === 'red_card_blocked') {
+        return NextResponse.json(gateErrorBody(gate), { status: 409 })
+      }
     }
 
     // Normalize so 'Male' / 'MALE' / 'male' and 'Türkiye' / 'Turkey' / 'TR'
@@ -519,6 +536,14 @@ export async function PUT(req: NextRequest, { params }: Params) {
     })
     if (isActiveAttendee(existing)) return NextResponse.json({ error: 'Already attending' }, { status: 409 })
 
+    // A red-card block holds for a host's manual add too — otherwise it is
+    // a rule for one button only. (A yellow card's confirmation is the
+    // member's own promise, not something a host makes for them.)
+    const gate = await getRsvpGate(userId)
+    if (!gate.ok && gate.code === 'red_card_blocked') {
+      return NextResponse.json(gateErrorBody(gate), { status: 409 })
+    }
+
     await prisma.$transaction(async (tx) => {
       await tx.waitlistEntry.deleteMany({ where: { eventId, userId } })
       await activateAttendee(tx, { userId, eventId, status: 'approved' })
@@ -554,6 +579,12 @@ export async function POST(req: NextRequest, { params }: Params) {
       where: { id: eventId },
       select: { approvalRequired: true, totalSpots: true },
     })
+
+    // Same rule as the PUT add-member path above.
+    const gate = await getRsvpGate(userId)
+    if (!gate.ok && gate.code === 'red_card_blocked') {
+      return NextResponse.json(gateErrorBody(gate), { status: 409 })
+    }
 
     await prisma.$transaction(async (tx) => {
       await tx.waitlistEntry.deleteMany({ where: { eventId, userId } })

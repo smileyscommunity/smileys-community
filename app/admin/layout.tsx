@@ -43,6 +43,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     '/admin/moderation',
     '/admin/events',
     '/admin/participants',
+  '/admin/no-shows',
     '/admin/checkin',
     '/admin/spotlight',
     '/admin/announcements',

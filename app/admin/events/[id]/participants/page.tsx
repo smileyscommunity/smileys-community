@@ -4,11 +4,14 @@ import { useState, useEffect, useRef, use } from 'react'
 import { confirmToast } from '@/lib/confirmToast'
 import Link from 'next/link'
 import { toast } from 'sonner'
+import { promptToast } from '@/lib/promptToast'
 import { formatDate } from '@/lib/data'
 import type { Event } from '@/lib/data'
 import UserAvatar from '@/components/UserAvatar'
 import WhatsAppButton from '@/components/WhatsAppButton'
 import { useAdminMemberSearch } from '@/hooks/useAdminMemberSearch'
+
+interface NoShowCard { id: string; userId: string; kind: 'yellow' | 'red'; status: string; waivedAt: string | null; user: { id: string; name: string } }
 
 interface AttendeeUser { id: string; name: string; color: string; email: string; profilePhoto?: string | null; gender?: string | null; nationality?: string | null; phone?: string | null; noShowCount?: number }
 interface Attendee    { userId: string; status: string; checkedIn: boolean; joinedAt: string; isStaff?: boolean; user: AttendeeUser }
@@ -43,6 +46,9 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
   const [event,     setEvent]     = useState<Event | null>(null)
   const [attendees, setAttendees] = useState<Attendee[]>([])
   const [waitlist,  setWaitlist]  = useState<WaitlistEntry[]>([])
+  // No-show cards from this event (yellow/red, any status) — the host's
+  // waive button lives here. Late-cancel cards have no attendee row above.
+  const [noShowCards, setNoShowCards] = useState<NoShowCard[]>([])
   // userId → live payment row (paid/pending). Only rendered for
   // Smileys-collected priced events.
   const [payments,  setPayments]  = useState<Record<string, PaymentRow>>({})
@@ -81,6 +87,7 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
       const mergeNoShow = (a: Attendee): Attendee => ({ ...a, user: { ...a.user, noShowCount: noShowMap.get(a.userId) ?? 0 } })
       setAttendees(Array.isArray(data.attendees) ? data.attendees.map(mergeNoShow) : [])
       setWaitlist(Array.isArray(data.waitlist)   ? data.waitlist  : [])
+      setNoShowCards(Array.isArray(data.noShowCards) ? data.noShowCards : [])
       if (Array.isArray(data.payments)) {
         // Latest row per user, 'paid' winning over a stray older 'pending'.
         const map: Record<string, PaymentRow> = {}
@@ -184,6 +191,24 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
       toast.error('Network error — check your connection')
     }
     setPayBusy(null)
+  }
+
+  async function waiveNoShow(card: NoShowCard) {
+    const reason = await promptToast(`Clear ${card.user.name}'s no-show? Say why — it goes in the audit log.`,
+      { placeholder: 'e.g. Was there, scanner missed them', confirmLabel: 'Clear it' })
+    if (!reason) return
+    setBusy(card.id)
+    try {
+      const res  = await fetch(`/app/api/events/${id}/no-shows/waive`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cardId: card.id, reason }),
+      })
+      const data = await res.json()
+      if (!res.ok) { toast.error(data.error ?? 'Could not clear'); return }
+      setNoShowCards(prev => prev.map(c => c.id === card.id ? { ...c, status: 'waived', waivedAt: new Date().toISOString() } : c))
+      toast.success('No-show cleared')
+    } finally { setBusy(null) }
   }
 
   async function removeWaitlist(userId: string) {
@@ -718,6 +743,33 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
               ))}
             </div>
         }
+
+        {/* Cards issued from this event by the no-show sweep. A host clears
+            one when the attendance record was wrong; the card stays as a
+            waived record, the attendee row keeps its mark. */}
+        {noShowCards.length > 0 && (
+          <div className="mt-4">
+            <SectionHeader title="No-show cards" count={noShowCards.length} color="bg-red-500/20 text-red-400" />
+            <div className="divide-y divide-zinc-800">
+              {noShowCards.map(c => (
+                <Row key={c.id}>
+                  <span className="text-lg shrink-0" aria-hidden="true">{c.kind === 'red' ? '🟥' : '🟨'}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-white truncate">{c.user.name}</p>
+                    <p className="text-[11px] text-zinc-500">{c.kind === 'red' ? 'Second no-show — RSVPs pause after the appeal window' : 'First no-show — warning only'}</p>
+                  </div>
+                  {c.status === 'active' || c.status === 'appeal_pending'
+                    ? <button onClick={() => waiveNoShow(c)} disabled={busy === c.id}
+                        title="The attendance record was wrong — clear this card"
+                        className="text-xs px-3 py-2 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 font-semibold transition-colors disabled:opacity-40">
+                        Clear
+                      </button>
+                    : <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-zinc-800 text-zinc-500 uppercase">{c.status.replace('_', ' ')}</span>}
+                </Row>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
 

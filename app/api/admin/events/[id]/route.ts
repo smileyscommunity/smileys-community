@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { activeAttendeeWhere } from '@/lib/attendance'
+import { waiveCard } from '@/lib/noShow'
 import { getSession } from '@/lib/session'
 import { isAdmin, isAdminOrModerator, isClubHost, isClubHostFor, hostCityIds } from '@/lib/access'
 import { createNotification, notifyNewEvent } from '@/lib/notify'
@@ -49,6 +50,16 @@ export async function DELETE(_: NextRequest, { params }: Params) {
     // "who deleted an event with 40 RSVPs" has to be captured before the row
     // is gone (PUT was audited; DELETE wasn't).
     const attendeeCount = await prisma.eventAttendee.count({ where: { eventId: id, ...activeAttendeeWhere } })
+    // No-show cards cascade with the event. Close the open ones properly
+    // first — audited, member told, a dependent red card downgraded — so a
+    // deleted event never silently erases (or silently keeps) a consequence.
+    const openCards = await prisma.noShowCard.findMany({
+      where:  { eventId: id, status: { in: ['active', 'appeal_pending'] } },
+      select: { id: true },
+    })
+    for (const c of openCards) {
+      await waiveCard({ cardId: c.id, actor: { id: session.id, name: session.name }, reason: 'Event deleted' })
+    }
     // Payment.event has no onDelete (→ Restrict), so any priced event that
     // ever had an RSVP was undeletable — P2003 rolled the whole transaction
     // back as a generic 500. Snapshot the ledger rows into PaymentLog
@@ -78,7 +89,7 @@ export async function DELETE(_: NextRequest, { params }: Params) {
       prisma.event.delete({ where: { id } }),
     ])
     writeAudit(session.id, session.name, 'event.delete', id, 'event',
-      { title: eventScope.title, date: eventScope.date, attendeesRemoved: attendeeCount },
+      { title: eventScope.title, date: eventScope.date, attendeesRemoved: attendeeCount, noShowCardsClosed: openCards.length },
       `Deleted event "${eventScope.title}" (${eventScope.date}, ${attendeeCount} attendees removed)`,
     )
     return NextResponse.json({ ok: true })

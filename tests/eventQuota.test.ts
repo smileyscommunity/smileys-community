@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+// Promotion now consults the no-show gate; nobody here is paused.
+vi.mock('@/lib/noShow', () => ({ getRsvpGate: vi.fn().mockResolvedValue({ ok: true }) }))
 vi.mock('@/lib/prisma', () => ({ prisma: {
   eventAttendee:  { count: vi.fn() },
   waitlistEntry:  { findMany: vi.fn() },

@@ -2,6 +2,7 @@
 
 import { toast } from 'sonner'
 import { confirmToast } from '@/lib/confirmToast'
+import { promptToast } from '@/lib/promptToast'
 
 import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
@@ -29,6 +30,8 @@ function Stars({ n }: { n: number }) {
   )
 }
 
+interface NoShowCard { id: string; userId: string; kind: 'yellow' | 'red'; status: string; waivedAt: string | null; user: { id: string; name: string } }
+
 export default function HostParticipantsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
 
@@ -36,14 +39,36 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
   const [eventDate,  setEventDate]  = useState('')
   const [attendees,  setAttendees]  = useState<Attendee[]>([])
   const [waitlist,   setWaitlist]   = useState<WaitlistEntry[]>([])
+  // No-show cards issued from this event — the host clears one here when the
+  // attendance record was wrong. Late-cancel cards have no attendee row.
+  const [noShowCards, setNoShowCards] = useState<NoShowCard[]>([])
+  const [waiving,     setWaiving]     = useState<string | null>(null)
   const [loading,    setLoading]    = useState(true)
-  const [tab,        setTab]        = useState<'pending' | 'approved' | 'waitlist' | 'reviews'>('pending')
+  const [tab,        setTab]        = useState<'pending' | 'approved' | 'waitlist' | 'reviews' | 'noshows'>('pending')
   const [addSearch,    setAddSearch]    = useState('')
   const [searchResults, setSearchResults] = useState<AttendeeUser[]>([])
   const [searching,    setSearching]    = useState(false)
   const [addBusy,      setAddBusy]      = useState<string | null>(null)
   const [reviews,        setReviews]        = useState<Review[]>([])
   const [reviewsLoaded,  setReviewsLoaded]  = useState(false)
+
+  async function waiveNoShow(card: NoShowCard) {
+    const reason = await promptToast(`Clear ${card.user.name}'s no-show? Say why — it goes in the audit log.`,
+      { placeholder: 'e.g. Was there, scanner missed them', confirmLabel: 'Clear it' })
+    if (!reason) return
+    setWaiving(card.id)
+    try {
+      const res  = await fetch(`/app/api/events/${id}/no-shows/waive`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cardId: card.id, reason }),
+      })
+      const data = await res.json()
+      if (!res.ok) { toast.error(data.error ?? 'Could not clear'); return }
+      setNoShowCards(prev => prev.map(c => c.id === card.id ? { ...c, status: 'waived', waivedAt: new Date().toISOString() } : c))
+      toast.success('No-show cleared')
+    } finally { setWaiving(null) }
+  }
 
   useEffect(() => {
     Promise.all([
@@ -54,6 +79,7 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
       if (ev?.date)  setEventDate(ev.date)
       setAttendees(Array.isArray(data.attendees) ? data.attendees : [])
       setWaitlist(Array.isArray(data.waitlist) ? data.waitlist : [])
+      setNoShowCards(Array.isArray(data.noShowCards) ? data.noShowCards : [])
     }).finally(() => setLoading(false))
   }, [id])
 
@@ -285,6 +311,7 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
           { key: 'approved', label: `Approved (${approved.length})` },
           { key: 'waitlist', label: `Waitlist (${waitlist.length})` },
           ...(isPast ? [{ key: 'reviews' as const, label: '⭐ Reviews' }] : []),
+          ...(noShowCards.length ? [{ key: 'noshows' as const, label: `No-shows (${noShowCards.length})` }] : []),
         ] as const).map(t => (
           <button key={t.key} onClick={() => switchTab(t.key as typeof tab)}
             className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors ${tab === t.key ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-white'}`}>
@@ -371,6 +398,31 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {tab === 'noshows' && (
+        <div className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
+          <p className="px-5 py-3 text-xs text-zinc-500 border-b border-zinc-800">
+            Cards from this event&apos;s no-show sweep. If someone was there and the scan was missed — or you made a mistake — clear it and nothing from this event counts against them.
+          </p>
+          <div className="divide-y divide-zinc-800">
+            {noShowCards.map(c => (
+              <div key={c.id} className="flex items-center gap-3 px-5 py-4">
+                <span className="text-lg shrink-0" aria-hidden="true">{c.kind === 'red' ? '🟥' : '🟨'}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-white truncate">{c.user.name}</p>
+                  <p className="text-[11px] text-zinc-500">{c.kind === 'red' ? 'Second no-show — RSVPs pause after the appeal window' : 'First no-show — warning only'}</p>
+                </div>
+                {c.status === 'active' || c.status === 'appeal_pending'
+                  ? <button onClick={() => waiveNoShow(c)} disabled={waiving === c.id}
+                      className="text-xs px-3 py-2 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 font-semibold transition-colors disabled:opacity-40">
+                      Clear
+                    </button>
+                  : <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-zinc-800 text-zinc-500 uppercase">{c.status.replace('_', ' ')}</span>}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

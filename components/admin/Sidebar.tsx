@@ -87,6 +87,8 @@ const NAV_GROUPS = [
       { label: 'Events',       href: '/admin/events',       exact: false, roles: ['admin', 'host'],            icon: 'events'       },
       { label: 'Participants', href: '/admin/participants',  exact: false, roles: ['admin', 'host'],            icon: 'participants' },
       { label: 'Check-In',     href: '/admin/checkin',       exact: false, roles: ['admin', 'host'],            icon: 'checkin'      },
+      // No-show cards: appeals inbox + card history. Hosts waive from Participants.
+      { label: 'No-shows',     href: '/admin/no-shows',      exact: false, roles: ['admin', 'moderator'],       icon: 'participants' },
       // Feedback ✿ = post-event safety + quality surveys. Lives here
       // because it's per-event signal, not a moderation action. The
       // auto-filed anomaly Reports still surface under Moderation

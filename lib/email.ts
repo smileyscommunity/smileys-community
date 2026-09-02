@@ -3,6 +3,8 @@ import { unsubscribeUrl, oneClickUnsubscribeUrl } from '@/lib/unsubscribe'
 import { APP_URL as ENV_APP_URL } from '@/lib/env'
 import { prisma } from '@/lib/prisma'
 import type { Prisma } from '@prisma/client'
+import { DEFAULT_TZ } from '@/lib/cityTime'
+import { NO_SHOW_CANCELLATION_CUTOFF_HOURS, NO_SHOW_ROLLING_WINDOW_DAYS } from '@/lib/noShowPolicy'
 
 const FROM    = process.env.EMAIL_FROM ?? 'Smileys Community <info@smileyscommunity.com>'
 const APP_URL = ENV_APP_URL
@@ -1102,5 +1104,84 @@ export async function sendNoShowEmail(
       </div>
     `,
     tags: [{ name: 'type', value: 'no_show' }],
+  })
+}
+
+// ── No-show cards ───────────────────────────────────────────────────────────
+// Same voice as sendNoShowEmail above: factual, no scolding. The policy
+// values are interpolated from lib/noShowPolicy so copy and rules can't drift.
+
+function fmtDate(d: Date): string {
+  // Policy dates are member-level, not tied to one event's city; the
+  // founding zone is the agreed fallback for those (see lib/cityTime).
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: DEFAULT_TZ })
+}
+
+export async function sendYellowCardEmail(
+  userId: string, email: string, name: string,
+  eventTitle: string, eventEmoji: string,
+) {
+  const unsub     = unsubscribeUrl(userId)
+  const firstName = name.split(' ')[0]
+  const url       = `${APP_URL}/no-show`
+  await getResend().emails.send({
+    from: FROM, to: email,
+    subject: safeSubject(`We missed you at ${eventTitle} ${eventEmoji}`),
+    html: `
+      <div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <div style="text-align:center;margin-bottom:28px">
+          <span style="font-size:40px">${esc(eventEmoji)}</span>
+          <h1 style="font-size:22px;font-weight:800;color:#111;margin:8px 0 4px">We missed you, ${esc(firstName)}</h1>
+          <p style="color:#6b7280;font-size:14px;margin:0">You had a spot at <strong>${esc(eventTitle)}</strong>, check-in ran, and we didn't see you.</p>
+        </div>
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:16px 20px;margin-bottom:24px">
+          <p style="color:#92400e;font-size:14px;margin:0 0 8px"><strong>This is a heads-up, nothing more.</strong> Spots are limited and someone on the waitlist could have had yours.</p>
+          <p style="color:#92400e;font-size:14px;margin:0">Next time you RSVP we'll ask you to confirm you're really coming. A second no-show within ${NO_SHOW_ROLLING_WINDOW_DAYS} days pauses your RSVPs for a while — cancelling at least ${NO_SHOW_CANCELLATION_CUTOFF_HOURS} hours ahead always keeps you clear.</p>
+        </div>
+        <a href="${url}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:16px">
+          See the details →
+        </a>
+        <p style="color:#9ca3af;font-size:12px;text-align:center">If this is a mistake — you were there, or the host missed your check-in — the host can clear it.</p>
+        <p style="color:#9ca3af;font-size:11px;text-align:center;margin-top:20px">
+          <a href="${unsub}" style="color:#9ca3af">Unsubscribe from event reminders</a>
+        </p>
+      </div>
+    `,
+    tags: [{ name: 'type', value: 'no_show_yellow' }],
+  })
+}
+
+export async function sendRedCardEmail(
+  userId: string, email: string, name: string,
+  eventTitle: string, eventEmoji: string,
+  dates: { appealDeadlineAt: Date; restrictionStartsAt: Date; restrictionEndsAt: Date },
+) {
+  const unsub     = unsubscribeUrl(userId)
+  const firstName = name.split(' ')[0]
+  const url       = `${APP_URL}/no-show`
+  await getResend().emails.send({
+    from: FROM, to: email,
+    subject: safeSubject(`Your RSVPs are paused — second no-show at ${eventTitle}`),
+    html: `
+      <div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <div style="text-align:center;margin-bottom:28px">
+          <span style="font-size:40px">${esc(eventEmoji)}</span>
+          <h1 style="font-size:22px;font-weight:800;color:#111;margin:8px 0 4px">Hi ${esc(firstName)}, this is your second no-show</h1>
+          <p style="color:#6b7280;font-size:14px;margin:0">You had a spot at <strong>${esc(eventTitle)}</strong>, check-in ran, and we didn't see you — the second time in the last few months.</p>
+        </div>
+        <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:16px 20px;margin-bottom:24px">
+          <p style="color:#991b1b;font-size:14px;margin:0 0 8px"><strong>From ${fmtDate(dates.restrictionStartsAt)} to ${fmtDate(dates.restrictionEndsAt)}</strong> you won't be able to RSVP or join waitlists. Everything else stays open.</p>
+          <p style="color:#991b1b;font-size:14px;margin:0">Think this is wrong? You can appeal until <strong>${fmtDate(dates.appealDeadlineAt)}</strong>, and nothing is paused while an appeal is open.</p>
+        </div>
+        <a href="${url}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:16px">
+          Review or appeal →
+        </a>
+        <p style="color:#9ca3af;font-size:12px;text-align:center">We'd rather have you at events than not. Cancelling ${NO_SHOW_CANCELLATION_CUTOFF_HOURS} hours ahead is all it takes.</p>
+        <p style="color:#9ca3af;font-size:11px;text-align:center;margin-top:20px">
+          <a href="${unsub}" style="color:#9ca3af">Unsubscribe from event reminders</a>
+        </p>
+      </div>
+    `,
+    tags: [{ name: 'type', value: 'no_show_red' }],
   })
 }

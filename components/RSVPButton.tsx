@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
+import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRSVP } from '@/hooks/useRSVP'
@@ -24,7 +25,7 @@ interface Props {
 
 export default function RSVPButton({ eventId, hostId, spotsLeft, soldOut = false, price, memberPrice, membersOnly, currency = 'TRY', payTo = 'venue' }: Props) {
   const { isLoggedIn, user } = useAuth()
-  const { status, position, loading, checked, join, leave } = useRSVP(eventId)
+  const { status, position, loading, checked, join, leave, gate } = useRSVP(eventId)
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [stealth,       setStealth]       = useState(false)
   const [showStealth,   setShowStealth]   = useState(false)
@@ -52,6 +53,21 @@ export default function RSVPButton({ eventId, hostId, spotsLeft, soldOut = false
     return (
       <div className="flex items-center justify-center gap-2 w-full px-6 py-3 bg-blue-50 border-2 border-blue-200 text-blue-700 font-semibold rounded-xl text-sm mb-3">
         🎤 You're hosting this event
+      </div>
+    )
+  }
+
+  // A red card: the server refuses every join, so the button says so
+  // instead of inviting a tap that can only fail. Only the idle state — an
+  // RSVP made before the pause still stands and can be cancelled.
+  if (!gate.ok && gate.code === 'red_card_blocked' && status === 'idle') {
+    const until = new Date(gate.restrictionEndsAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+    return (
+      <div className="mb-3">
+        <div className="flex items-center justify-center gap-2 w-full px-6 py-3 bg-gray-100 border-2 border-gray-200 text-gray-500 font-semibold rounded-xl text-sm">
+          RSVPs paused until {until}
+        </div>
+        <Link href="/no-show" className="block text-center text-xs text-gray-400 hover:text-gray-600 underline mt-1.5">Why?</Link>
       </div>
     )
   }

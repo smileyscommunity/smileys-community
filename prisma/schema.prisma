@@ -117,6 +117,7 @@ model User {
   sentMessages               DirectMessage[]         @relation("SentMessages")
   receivedMessages           DirectMessage[]         @relation("ReceivedMessages")
   joinedEvents               EventAttendee[]
+  noShowCards                NoShowCard[]
   eventRecommendations       EventRecommendation[]
   cohostedEvents             EventCoHost[]
   eventMessages              EventMessage[]
@@ -655,7 +656,12 @@ model Event {
   cityId               String
   surveyDispatchedAt   DateTime?
   surveyReminderAt     DateTime?
+  // Stamped by sweep-no-shows once this event's attendance has been settled
+  // (no-shows marked, cards issued). Never reprocessed — an edit to the date
+  // or end time afterwards must not open a second round of cards.
+  noShowProcessedAt    DateTime?
   attendees            EventAttendee[]
+  noShowCards          NoShowCard[]
   hangouts             Hangout[]       @relation("EventHangouts")
   saves                EventSave[]
   boardPosts           BoardPost[]     @relation("EventBoardPosts")
@@ -990,6 +996,7 @@ model EventAttendee {
   attendance  String    @default("unknown")
   cancelledAt DateTime?
   cancelledBy String?   // 'member' | 'host' | 'admin'
+  noShowCard  NoShowCard?
   event     Event    @relation(fields: [eventId], references: [id])
   user      User     @relation(fields: [userId], references: [id])
 
@@ -1000,6 +1007,55 @@ model EventAttendee {
   @@index([eventId, status])
   @@index([userId, status])
   @@map("event_attendees")
+}
+
+// One card per no-show. The attendee row (attendance = 'no_show') is the
+// attendance record; this is the consequence and its paper trail — which
+// colour it was, whether it was appealed, waived by the host, or overturned,
+// and for a red card the appeal window and the RSVP block that follows it.
+// Rows are never overwritten into a "current card": a member's history is
+// the list. Policy values live in lib/noShowPolicy.ts.
+model NoShowCard {
+  id                    String    @id @default(cuid())
+  userId                String
+  kind                  String    // 'yellow' | 'red'
+  status                String    @default("active") // active | appeal_pending | waived | overturned | expired
+  attendeeId            String    @unique
+  eventId               String
+  // When the no-show happened (the event's end) — the rolling-window anchor.
+  occurredAt            DateTime
+  issuedAt              DateTime  @default(now())
+  // Member told (bell + email) — stamped after the send, so a crash between
+  // issue and notify is retried on the next run (at worst one repeat, never
+  // a silent miss).
+  notifiedAt            DateTime?
+  // Red only: the block waits out the appeal window before it starts.
+  appealDeadlineAt      DateTime?
+  restrictionStartsAt   DateTime?
+  restrictionEndsAt     DateTime?
+  restrictionNotifiedAt DateTime?
+  // Yellow: the member confirmed "I'll actually come" on their next RSVP.
+  acknowledgedAt        DateTime?
+  acknowledgedEventId   String?
+  // Appeal (red cards, within the window).
+  appealNote            String?
+  appealedAt            DateTime?
+  appealStatus          String?   // pending | accepted | rejected
+  resolvedAt            DateTime?
+  resolvedById          String?
+  resolutionNote        String?
+  // Host waiver — the attendance result was wrong (missed scan, host error).
+  waivedAt              DateTime?
+  waivedById            String?
+  waiveReason           String?
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attendee EventAttendee @relation(fields: [attendeeId], references: [id], onDelete: Cascade)
+  event    Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([eventId])
+  @@index([status, restrictionStartsAt])
+  @@map("no_show_cards")
 }
 
 model Review {

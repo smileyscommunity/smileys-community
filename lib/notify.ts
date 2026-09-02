@@ -78,6 +78,17 @@ const PREF_KEY: Record<string, 'newEvents' | 'reminders' | 'eventUpdates' | 'joi
   // doesn't silently swallow the community-pulse signal.
   event_survey:       null,
   nps_survey:         null,
+  // No-show cards — transactional, every one. A warning, a block, an appeal
+  // outcome or a waiver is something the member must always hear about;
+  // the admin one is the appeals inbox ping.
+  no_show_yellow:              null,
+  no_show_red:                 null,
+  no_show_restriction_active:  null,
+  no_show_waived:              null,
+  no_show_downgraded:          null,
+  no_show_appeal:              null,
+  no_show_appeal_resolved:     null,
+  no_show_waitlist_removed:    null,
 }
 
 // Quiet hours are the MEMBER's evening, so the hour is read on their home

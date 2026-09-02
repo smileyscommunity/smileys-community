@@ -8,6 +8,7 @@ vi.mock('@/lib/autoJoinClub', () => ({ autoJoinClub: vi.fn().mockResolvedValue(u
 vi.mock('@/lib/spotsLeft',    () => ({ recomputeSpotsLeft: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('@/lib/audit',        () => ({ writeAudit: vi.fn() }))
 vi.mock('@/lib/eventQuota',   () => ({ findPromotableFromWaitlist: vi.fn(), hasQuotaRoomFor: vi.fn(), quotaEventSelect: {} }))
+vi.mock('@/lib/noShow',       () => ({ getRsvpGate: vi.fn().mockResolvedValue({ ok: true }), gateErrorBody: vi.fn() }))
 vi.mock('@/lib/prisma', () => ({ prisma: {
   $transaction:  vi.fn(),
   event:         { findUnique: vi.fn() },

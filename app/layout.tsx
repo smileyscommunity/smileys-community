@@ -7,6 +7,7 @@ import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import VerifyEmailBanner from '@/components/VerifyEmailBanner'
 import PendingApprovalBanner from '@/components/PendingApprovalBanner'
+import NoShowBanner from '@/components/NoShowBanner'
 import { AuthProvider } from '@/contexts/AuthContext'
 import BottomNav from '@/components/BottomNav'
 import ServiceWorkerRegistration from '@/components/ServiceWorkerRegistration'
@@ -215,6 +216,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <Navbar cities={navCities} homeSlug={homeSlug} viewingSlug={viewingSlug} />
           <VerifyEmailBanner />
           <PendingApprovalBanner />
+          <NoShowBanner />
           <main className="flex-1">{children}</main>
           <BottomNav cities={navCities} homeSlug={homeSlug} viewingSlug={viewingSlug} />
           <Footer stats={footerStats} cityName={footerCityName} hasNeighborhoods={hasNeighborhoods} />

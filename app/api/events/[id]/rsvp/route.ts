@@ -11,6 +11,7 @@ import { stampFirstEventRsvp } from '@/lib/firstEvent'
 import { sendPushToUser } from '@/lib/push'
 import { trackServer } from '@/lib/posthog-server'
 import { activateAttendee, cancelAttendeeOp, isActiveAttendee } from '@/lib/attendance'
+import { checkRsvpAllowed, gateErrorBody, getRsvpGate, recordYellowAcknowledgement } from '@/lib/noShow'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -62,6 +63,23 @@ export async function POST(req: NextRequest, { params }: Params) {
       trackRsvp('approved', { via: 'cohost' })
       return NextResponse.json({ ok: true, status: 'approved' })
     }
+
+    // No-show cards. Every member join path below — waitlist claim, pending
+    // request, straight RSVP, and the waitlist fallbacks — sits behind this
+    // one check. Co-hosts above are staff: they take no spot and are never
+    // marked as no-shows, so a block does not keep them from their own event, so a paused member can't reach a queue either. A yellow
+    // card is passable with the body's confirmation; a red block is not.
+    const gate = await checkRsvpAllowed(session.id, { eventId, acknowledge: body?.acknowledgeNoShow === true })
+    if (!gate.ok) {
+      trackRsvp('blocked', { code: gate.code })
+      return NextResponse.json(gateErrorBody(gate), { status: 403 })
+    }
+    // The yellow-card confirmation is kept only once a join has landed —
+    // called before every 2xx return below, never on a bounce.
+    const ackAfterJoin = () => {
+      if ('pendingAck' in gate) recordYellowAcknowledgement(session.id, eventId).catch(() => {})
+    }
+
 
     // Check if already attending or pending. A cancelled/removed row is
     // history, not a seat — the join paths below revive it.
@@ -122,7 +140,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         stampFirstEventRsvp(session.id, eventId).catch(() => {})
         createNotification(session.id, 'rsvp', "You're in! 🎉", `You claimed the open spot for "${event.title}".`, `/events/${eventId}`)
         trackRsvp('approved', { via: 'waitlist_claim' })
-        return NextResponse.json({ ok: true, status: 'approved' })
+        ackAfterJoin(); return NextResponse.json({ ok: true, status: 'approved' })
       }
       // No open spot — they're still on the waitlist. Tell them so the
       // client can render "spot just taken" rather than a generic error.
@@ -190,7 +208,7 @@ export async function POST(req: NextRequest, { params }: Params) {
           ).catch(() => {})
         }
         trackRsvp('waitlisted', { via: 'quota_pool' })
-      return NextResponse.json({ ok: true, status: 'waitlisted', position })
+      ackAfterJoin(); return NextResponse.json({ ok: true, status: 'waitlisted', position })
       }
 
       // Checked before the capacity maths: someone who has said the event is
@@ -266,7 +284,7 @@ export async function POST(req: NextRequest, { params }: Params) {
           `/host/events/${eventId}/participants`)
       }
       trackRsvp('pending')
-      return NextResponse.json({ ok: true, status: 'pending' })
+      ackAfterJoin(); return NextResponse.json({ ok: true, status: 'pending' })
     }
 
     // Auto-approve path. Quota + spot checks happen in one transaction with
@@ -350,7 +368,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         ).catch(() => {})
       }
       trackRsvp('waitlisted', { via: 'full' })
-      return NextResponse.json({ ok: true, status: 'waitlisted', position })
+      ackAfterJoin(); return NextResponse.json({ ok: true, status: 'waitlisted', position })
     }
 
     autoJoinClub(session.id, eventId).catch(() => {})
@@ -387,7 +405,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     })()
 
     trackRsvp('approved')
-    return NextResponse.json({ ok: true, status: 'approved' })
+    ackAfterJoin(); return NextResponse.json({ ok: true, status: 'approved' })
 
   } catch (e) {
     console.error(e)
@@ -602,11 +620,15 @@ export async function GET(_: NextRequest, { params }: Params) {
       })
     }
 
+    // The gate rides along so the button can show a paused state (or ask
+    // for the yellow-card confirmation) before the tap, not only after.
+    const gate = await getRsvpGate(session.id)
     return NextResponse.json({
       attending:  attendee?.status === 'approved',
       pending:    attendee?.status === 'pending',
       waitlisted: !!waitlistEntry,
       position,
+      gate: gate.ok ? { ok: true } : gateErrorBody(gate),
     })
   } catch (e) {
     return NextResponse.json({ attending: false, waitlisted: false })

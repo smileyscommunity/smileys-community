@@ -36,10 +36,13 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       return NextResponse.json({ error: 'No-show notices were sent for this event recently — try again later.' }, { status: 429 })
     }
 
-    const noShows = await prisma.eventAttendee.findMany({
+    // Members the no-show sweep already wrote to (a card carries its own
+    // email) are skipped — one "we missed you" per event is plenty.
+    const carded = new Set((await prisma.noShowCard.findMany({ where: { eventId: id }, select: { userId: true } })).map(c => c.userId))
+    const noShows = (await prisma.eventAttendee.findMany({
       where: { eventId: id, status: 'approved', checkedIn: false },
       include: { user: { select: { id: true, name: true, email: true } } },
-    })
+    })).filter(a => !carded.has(a.userId))
 
     if (noShows.length === 0) {
       return NextResponse.json({ emailed: 0, notified: 0 })

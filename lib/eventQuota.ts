@@ -16,6 +16,7 @@
 // anyone skipped keeps their place for a spot their side can take.
 
 import { prisma } from './prisma'
+import { getRsvpGate } from './noShow'
 
 // Gender and nationality are free text on the user record, so compare against
 // the spellings actually seen rather than assuming a canonical case.
@@ -140,7 +141,13 @@ export async function findPromotableFromWaitlist(
     // than treating unknown as eligible.
     if (!user) continue
     const room = await hasQuotaRoomFor(eventId, event, user)
-    if (room.ok) return { id: entry.id, userId: entry.userId }
+    if (!room.ok) continue
+    // A member whose RSVPs are paused keeps their place in line only until
+    // the block starts (activation clears their waitlists); between the two
+    // sweeps this is what keeps them from being promoted into a spot.
+    const gate = await getRsvpGate(entry.userId)
+    if (!gate.ok && gate.code === 'red_card_blocked') continue
+    return { id: entry.id, userId: entry.userId }
   }
   return null
 }

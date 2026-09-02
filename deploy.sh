@@ -446,6 +446,12 @@ chmod +x $REMOTE/scripts/sweep-event-surveys.sh
 (crontab -l 2>/dev/null | grep -v 'sweep-event-surveys' ; echo '5 * * * * $REMOTE/scripts/sweep-event-surveys.sh >> /var/log/sweep-event-surveys.log 2>&1') | crontab -
 echo '  ✓ event-surveys'
 
+# Hourly at :25 — settles attendance ~2h after an event ends and issues
+# no-show cards (see app/api/cron/sweep-no-shows/route.ts).
+chmod +x $REMOTE/scripts/sweep-no-shows.sh
+(crontab -l 2>/dev/null | grep -v 'sweep-no-shows' ; echo '25 * * * * $REMOTE/scripts/sweep-no-shows.sh >> /var/log/sweep-no-shows.log 2>&1') | crontab -
+echo '  ✓ no-shows'
+
 chmod +x $REMOTE/scripts/sweep-nps-dispatch.sh
 (crontab -l 2>/dev/null | grep -v 'sweep-nps-dispatch' ; echo '10 9 * * * $REMOTE/scripts/sweep-nps-dispatch.sh >> /var/log/sweep-nps.log 2>&1') | crontab -
 echo '  ✓ nps-dispatch'

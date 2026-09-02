@@ -56,6 +56,7 @@ export const SWEEPER_INTERVAL_MIN: Record<string, number> = {
   //   db-backup, sweep-connection-abuse, sweep-neighborhood-hygiene.
   'sweep-newsletters':      5,
   'sweep-event-surveys':    60,
+  'sweep-no-shows':         60,
   'sweep-hangouts':         60,
   'sweep-payment-reminders': 60,
   'sweep-reminders':        60,

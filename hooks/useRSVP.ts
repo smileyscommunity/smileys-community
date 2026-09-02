@@ -5,9 +5,20 @@ import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 import { apiFetch } from '@/lib/api'
 import { useAuth } from '@/contexts/AuthContext'
+import { confirmToast } from '@/lib/confirmToast'
 import posthog from 'posthog-js'
 
 export type RSVPStatus = 'idle' | 'joined' | 'pending' | 'waitlisted' | 'loading' | 'error'
+
+// The no-show gate as the server reports it (see lib/noShow.gateErrorBody).
+// `red_card_blocked` renders a paused button; `yellow_ack_required` is
+// handled on the tap — a confirmation, then the request is retried with it.
+export type RSVPGate =
+  | { ok: true }
+  | { ok: false; code: 'red_card_blocked'; restrictionEndsAt: string; appealDeadlineAt: string | null }
+  | { ok: false; code: 'yellow_ack_required'; cardId: string }
+
+const fmtDay = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 
 export function useRSVP(eventId: string, initialStatus?: 'joined' | 'pending' | 'waitlisted' | null) {
   const { isLoggedIn } = useAuth()
@@ -21,6 +32,7 @@ export function useRSVP(eventId: string, initialStatus?: 'joined' | 'pending' | 
   const [position, setPosition] = useState<number | null>(null)
   const [loading,  setLoading]  = useState(false)
   const [checked,  setChecked]  = useState(seeded)
+  const [gate,     setGate]     = useState<RSVPGate>({ ok: true })
 
   useEffect(() => {
     if (seeded) return
@@ -33,22 +45,42 @@ export function useRSVP(eventId: string, initialStatus?: 'joined' | 'pending' | 
         else if (d.waitlisted) setStatus('waitlisted')
         else setStatus('idle')
         setPosition(d.position ?? null)
+        if (d.gate) setGate(d.gate)
         setChecked(true)
       })
       .catch(() => { setStatus('idle'); setChecked(true) })
   }, [eventId, isLoggedIn, seeded])
 
-  async function join(stealth = false) {
+  async function join(stealth = false, acknowledgeNoShow = false) {
     if (!isLoggedIn) { router.push('/login'); return }
     setLoading(true)
     try {
       const res  = await apiFetch(`/app/api/events/${eventId}/rsvp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stealth }),
+        body: JSON.stringify({ stealth, acknowledgeNoShow }),
       })
       const data = await res.json()
       if (!res.ok) {
+        // Yellow card: the server wants an explicit "I'll actually come"
+        // before it writes the RSVP. Ask, and retry with the confirmation —
+        // the retry is what records the acknowledgement.
+        if (data.code === 'yellow_ack_required' && !acknowledgeNoShow) {
+          setLoading(false)
+          const yes = await confirmToast(
+            "You missed an event you'd RSVP'd to. Spots are limited — please only join if you'll actually come.",
+            { confirmLabel: "I'll actually come", cancelLabel: 'Not this time' },
+          )
+          if (yes) return join(stealth, true)
+          posthog.capture('event_rsvp_declined_after_warning', { event_id: eventId })
+          return
+        }
+        if (data.code === 'red_card_blocked') {
+          setGate({ ok: false, code: 'red_card_blocked', restrictionEndsAt: data.restrictionEndsAt, appealDeadlineAt: data.appealDeadlineAt ?? null })
+          posthog.capture('event_rsvp_blocked', { event_id: eventId })
+          toast.error(`RSVPs are paused until ${fmtDay(data.restrictionEndsAt)}`)
+          return
+        }
         posthog.capture('event_rsvp_failed', { event_id: eventId, status_code: res.status, reason: data.error })
         toast.error(data.error ?? 'Could not join')
         return
@@ -101,5 +133,5 @@ export function useRSVP(eventId: string, initialStatus?: 'joined' | 'pending' | 
     }
   }
 
-  return { status, position, loading, checked, join, leave }
+  return { status, position, loading, checked, join, leave, gate }
 }
