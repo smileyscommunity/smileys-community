@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator } from '@/lib/access'
+import { isAdmin, isAdminOrModerator, failClosedCityId } from '@/lib/access'
 
 // GET /api/admin/directory/claims?status=pending|approved|rejected
 // Powers the Claims tab on /admin/directory.
@@ -18,6 +18,9 @@ export async function GET(req: NextRequest) {
     if (status === 'pending' || status === 'approved' || status === 'rejected') {
       where.status = status
     }
+    // Moderators see claims on their own city's businesses only (the row
+    // route already refused a cross-city decision; the list now matches).
+    if (!isAdmin(session)) where.business = { cityId: failClosedCityId(session) }
 
     const claims = await prisma.businessClaim.findMany({
       where,

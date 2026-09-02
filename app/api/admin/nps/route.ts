@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator } from '@/lib/access'
+import { isAdminOrModerator, isAdmin, failClosedCityId } from '@/lib/access'
 import { periodFor, summarize, eligibilityCutoff, MIN_DAYS_FOR_NPS, type NPSRollup } from '@/lib/nps'
 
 // GET /api/admin/nps
@@ -44,11 +44,14 @@ export async function GET(req: NextRequest) {
 
   // Build the trailing-4 period set ending at currentPeriod.
   const periods = buildPeriodSet(currentPeriod, HISTORY_QUARTERS)
+  // Moderators read their own city's responses (still anonymous — userId is
+  // never returned); admins read the network.
+  const cityScope = isAdmin(session) ? {} : { user: { cityId: failClosedCityId(session) } }
 
   // CSV branch — short-circuit before computing the rollup payload.
   if (format === 'csv') {
     const rows = await prisma.memberNPS.findMany({
-      where:   { period: { in: periods } },
+      where:   { period: { in: periods }, ...cityScope },
       select:  { score: true, comment: true, period: true, createdAt: true },
       orderBy: { createdAt: 'desc' },
       take:    5000,  // safety cap; trailing 4 quarters of healthy NPS shouldn't approach this
@@ -73,16 +76,16 @@ export async function GET(req: NextRequest) {
 
   const [rowsByPeriod, eligibleCount, comments] = await Promise.all([
     prisma.memberNPS.findMany({
-      where:  { period: { in: periods } },
+      where:  { period: { in: periods }, ...cityScope },
       select: { score: true, period: true },
     }),
-    prisma.user.count({ where: { status: 'approved', joinedAt: { lt: eligibilityCutoff() } } }),
+    prisma.user.count({ where: { status: 'approved', joinedAt: { lt: eligibilityCutoff() }, ...(isAdmin(session) ? {} : { cityId: failClosedCityId(session) }) } }),
     // Strip userId before returning. We surface score + comment +
     // period + createdAt — enough for the admin to read sentiment
     // and trend, never enough to identify the responder. Score
     // alone gives band-colouring on the row without the helper.
     prisma.memberNPS.findMany({
-      where:   { comment: { not: null }, NOT: { comment: '' } },
+      where:   { comment: { not: null }, NOT: { comment: '' }, ...cityScope },
       select:  { id: true, score: true, comment: true, period: true, createdAt: true },
       orderBy: { createdAt: 'desc' },
       take:    50,

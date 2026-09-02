@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator } from '@/lib/access'
+import { isAdminOrModerator, isAdmin, failClosedCityId } from '@/lib/access'
 import { rateLimit } from '@/lib/rateLimit'
 import { prisma } from '@/lib/prisma'
 import { sendLoginNudgeEmail, recordEmailFailure } from '@/lib/email'
@@ -26,6 +26,8 @@ export async function POST() {
 
     const candidates = await prisma.user.findMany({
       where: {
+        // Outbound mail: a moderator reaches their own city's members only.
+        ...(isAdmin(session) ? {} : { cityId: failClosedCityId(session) }),
         status:     'approved',
         lastActive: null,
         password:   null,

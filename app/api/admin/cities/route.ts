@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { CITY_STATUS } from '@/lib/cityStatus'
 import { getSession } from '@/lib/session'
-import { isAdmin, isAdminOrModerator } from '@/lib/access'
+import { isAdmin, isAdminOrModerator, canActInCity } from '@/lib/access'
 import { slugify } from '@/lib/slug'
 import { toCountryCode } from '@/lib/country'
 import { DEFAULT_CITY_SLUG } from '@/lib/city'
@@ -109,7 +109,11 @@ export async function GET() {
       neighborhoods: c._count.neighborhoods > 0,
     },
     maturity: stats.get(c.id)?.maturity ?? null,
-    hosts: c.cityHosts.map(h => ({ cityHostId: h.id, id: h.user.id, name: h.user.name, email: h.user.email })),
+    // Who runs another city is not a moderator's business: hosts (and their
+    // emails) only for cities the caller may act in.
+    hosts: canActInCity(session, c.id)
+      ? c.cityHosts.map(h => ({ cityHostId: h.id, id: h.user.id, name: h.user.name, email: h.user.email }))
+      : [],
   })))
 }
 

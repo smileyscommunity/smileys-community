@@ -65,7 +65,7 @@ Checked, already correct. Changing them would be a regression.
 
 ---
 
-## 4. Moderation queues — one route left, then an audit
+## 4. Moderation queues — closed 2026-09-03
 
 **Then:** eight report routes, none referencing `cityId`.
 
@@ -75,22 +75,38 @@ the reported member's city through `failClosedCityId` / `canModerateReports`,
 guarded by `tests/adminCrossCityModeration.test.ts`. The member-facing
 `…/report` routes (listings, directory, board, neighborhood posts) need no
 scoping — a member reports what they can see; the city rule belongs to the
-queue that reads the report.
+queue that reads the report. `app/api/admin/directory/reports/route.ts`
+filters through the reported business's city
+(`tests/adminDirectoryReportsScope.test.ts`).
 
-**Closed 2026-09-03.** `app/api/admin/directory/reports/route.ts` — the last
-moderator-reachable list with no city scope — now filters through the
-reported business's city, failing closed for a moderator with no city, and an
-admin still sees everything. Guarded by `tests/adminDirectoryReportsScope.test.ts`,
-which was run against the unfixed route first and failed there.
+**The audit this item always stood for ran on 2026-09-03.** Every
+moderator-reachable route under `app/api/admin` was read for server-side
+city scoping. Twelve had none and three were partial; all are fixed. The
+rule everywhere: a moderator sees and acts on their own city (plus
+network-wide rows where a `cityId: null` row exists — broadcasts, clubs,
+posts, testimonials), fails closed with no city, and cannot widen the scope
+with `?city=`; an admin sees everything and may narrow.
 
-**What is still open.** The wider question this item always stood for: a
-route-by-route audit of every moderator-reachable admin route for
-server-side city scoping, with guard tests that fail against the unfixed
-code. Start: `grep -rln isAdminOrModerator app/api/admin` and check each
-hit for `failClosedCityId` / `canActInCity`.
+- Lists: `listings`, `moving-sales`, `partners`, `directory/claims` (through
+  the claimed business), `notifications/broadcast`, `clubs`, `posts`,
+  `testimonials`, `surveys` (every rollup and the CSV, through the event's
+  city), `nps` (through the responder, still anonymous), `cities` (host
+  lists only for cities the caller may act in).
+- Row actions: `partners/[id]` PATCH/POST/DELETE, `posts` POST and
+  `posts/[id]` GET/PUT/DELETE (re-pinning a post to another city is a
+  403), `clubs/[id]` GET (audit `meta` stays admin-only),
+  `testimonials` POST/reorder and `testimonials/[id]` PATCH/DELETE,
+  `spotlight` POST (featuring another city's member), `tools/login-nudge`
+  (outbound mail reaches the moderator's own city only).
 
-**Effort.** The audit, half a day. **Risk.** Medium — it is an authorisation
-boundary.
+Guarded by `tests/adminCityScopeSweep.test.ts` — sixteen cases, run against
+the unfixed routes first: all sixteen failed there, all pass now.
+
+**Working rule for new admin routes.** Any route that
+`isAdminOrModerator` can reach scopes its reads with
+`isAdmin(session) ? {} : { cityId: failClosedCityId(session) }` and gates
+its writes with `canActInCity(session, row.cityId)` — and adds a case to the
+sweep test.
 
 ---
 

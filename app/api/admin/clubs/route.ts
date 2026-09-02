@@ -1,4 +1,4 @@
-import { canManageClubs, isAdminOrModerator } from '@/lib/access'
+import { canManageClubs, isAdminOrModerator, isAdmin, failClosedCityId } from '@/lib/access'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
@@ -36,9 +36,12 @@ export async function GET(req: NextRequest) {
     // match, deliberately excluding global clubs (cityId null) that merely
     // appear in every city's member-facing grid. ?city=global lists exactly
     // those. Unset keeps the full network list this endpoint always returned.
+    // A moderator's view is their own city's clubs plus the global ones —
+    // the set canActInCity lets them touch — whatever ?city= says.
     const cityParam = req.nextUrl.searchParams.get('city')
     const clubs = await prisma.club.findMany({
-      where: cityParam === 'global' ? { cityId: null }
+      where: !isAdmin(session)      ? { OR: [{ cityId: failClosedCityId(session) }, { cityId: null }] }
+           : cityParam === 'global' ? { cityId: null }
            : cityParam              ? { cityId: cityParam }
            : {},
       orderBy: { name: 'asc' },

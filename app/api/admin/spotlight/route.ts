@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator } from '@/lib/access'
+import { isAdminOrModerator, canActInCity } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
 import { readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
@@ -33,8 +33,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   const { userId, funFact, topSpots } = await req.json()
-  if (!userId) return NextResponse.json({ error: 'userId required' }, { status: 400 })
-  writeFileSync(filePath, JSON.stringify({ userId, funFact: funFact ?? '', topSpots: topSpots ?? ['', '', ''], updatedAt: new Date().toISOString() }, null, 2))
+  if (!userId || typeof userId !== 'string') return NextResponse.json({ error: 'userId required' }, { status: 400 })
+  // The spotlight renders on every city's dashboard, and the member being
+  // featured has a home city: a moderator features their own city's members.
+  const member = await prisma.user.findUnique({ where: { id: userId }, select: { cityId: true, status: true } })
+  if (!member || member.status !== 'approved') return NextResponse.json({ error: 'Member not found' }, { status: 404 })
+  if (!canActInCity(session, member.cityId)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const fact  = typeof funFact === 'string' ? funFact.slice(0, 300) : ''
+  const spots = Array.isArray(topSpots) ? topSpots.slice(0, 3).map(s => typeof s === 'string' ? s.slice(0, 120) : '') : ['', '', '']
+  while (spots.length < 3) spots.push('')
+  writeFileSync(filePath, JSON.stringify({ userId, funFact: fact, topSpots: spots, updatedAt: new Date().toISOString() }, null, 2))
   return NextResponse.json({ ok: true })
 }
 

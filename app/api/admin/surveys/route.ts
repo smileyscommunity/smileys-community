@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { canModerateReports } from '@/lib/access'
+import { canModerateReports, isAdmin, failClosedCityId } from '@/lib/access'
 import type { Prisma } from '@prisma/client'
 
 // GET /api/admin/surveys
@@ -56,11 +56,15 @@ export async function GET(req: NextRequest) {
 
   // Build a reusable where clause. Host filter dives into the event
   // relation; q matches anomalyNote substring case-insensitive.
+  // City scope for moderators — surveys hang off events, so it is the
+  // event's city. Applied to the list, the CSV, the rollups and the host
+  // dropdown alike: a Bodrum moderator reads Bodrum's anomaly notes only.
+  const cityScope: Prisma.EventWhereInput = isAdmin(session) ? {} : { cityId: failClosedCityId(session) }
   const where: Prisma.EventSurveyWhereInput = {}
   if (Object.keys(createdAt).length) where.createdAt = createdAt
   if (anomalyOnly) where.anomaly = true
   if (q)           where.anomalyNote = { contains: q, mode: 'insensitive' }
-  if (hostId)      where.event = { is: { hostId } }
+  where.event = { is: { ...cityScope, ...(hostId ? { hostId } : {}) } }
 
   // The 30d rollup ignores the active filters — it's the "is the
   // signal healthy overall?" header and should stay stable as you
@@ -69,18 +73,18 @@ export async function GET(req: NextRequest) {
   const monthAgo = new Date(now - 30 * 24 * 60 * 60 * 1000)
   const prevAgo  = new Date(now - 60 * 24 * 60 * 60 * 1000)
   const [total30, ret30, anom30, totalPrev, retPrev, totalAll, anomAll, hostsRaw] = await Promise.all([
-    prisma.eventSurvey.count({ where: { createdAt: { gte: monthAgo } } }),
-    prisma.eventSurvey.count({ where: { createdAt: { gte: monthAgo }, wouldReturn: true } }),
-    prisma.eventSurvey.count({ where: { createdAt: { gte: monthAgo }, anomaly: true } }),
-    prisma.eventSurvey.count({ where: { createdAt: { gte: prevAgo, lt: monthAgo } } }),
-    prisma.eventSurvey.count({ where: { createdAt: { gte: prevAgo, lt: monthAgo }, wouldReturn: true } }),
-    prisma.eventSurvey.count(),
-    prisma.eventSurvey.count({ where: { anomaly: true } }),
+    prisma.eventSurvey.count({ where: { event: { is: cityScope }, createdAt: { gte: monthAgo } } }),
+    prisma.eventSurvey.count({ where: { event: { is: cityScope }, createdAt: { gte: monthAgo }, wouldReturn: true } }),
+    prisma.eventSurvey.count({ where: { event: { is: cityScope }, createdAt: { gte: monthAgo }, anomaly: true } }),
+    prisma.eventSurvey.count({ where: { event: { is: cityScope }, createdAt: { gte: prevAgo, lt: monthAgo } } }),
+    prisma.eventSurvey.count({ where: { event: { is: cityScope }, createdAt: { gte: prevAgo, lt: monthAgo }, wouldReturn: true } }),
+    prisma.eventSurvey.count({ where: { event: { is: cityScope } } }),
+    prisma.eventSurvey.count({ where: { event: { is: cityScope }, anomaly: true } }),
     // Distinct hosts who have at least one event with at least one
     // survey response — drives the host filter dropdown so it only
     // lists people whose events actually have data.
     prisma.eventSurvey.findMany({
-      where:    {},
+      where:    { event: { is: cityScope } },
       select:   { event: { select: { hostId: true } } },
       distinct: ['eventId'],
     }),

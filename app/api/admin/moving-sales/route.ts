@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator } from '@/lib/access'
+import { isAdmin, isAdminOrModerator, failClosedCityId } from '@/lib/access'
 
 // Admin list — unlike the public GET (which only shows active,
 // non-expired sales, capped at 30), this surfaces everything so staff can
@@ -16,6 +16,8 @@ export async function GET() {
     }
 
     const sales = await prisma.movingSale.findMany({
+      // Moderators: their own city's sales. Admins: all.
+      where:   isAdmin(session) ? {} : { cityId: failClosedCityId(session) },
       orderBy: { createdAt: 'desc' },
       take: 200,
       select: {

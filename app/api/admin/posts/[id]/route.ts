@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { canManagePosts } from '@/lib/access'
+import { canManagePosts, canActInCity } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
 import { notifyNewArticle } from '@/lib/notify'
 import { CATEGORIES, HANDBOOK_CATEGORIES, isKind, isValidCategory, normalizeHandbookCategory, TITLE_MAX, EXCERPT_MAX, BODY_MAX } from '@/app/admin/posts/constants'
@@ -17,6 +17,7 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
   const { id } = await params
   const post = await prisma.post.findUnique({ where: { id }, include: { author: { select: { name: true } } } })
   if (!post) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!canActInCity(session, post.cityId)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   return NextResponse.json(post)
 }
 
@@ -28,6 +29,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const { title, excerpt, body, coverImage, status, category, kind, cityId } = await req.json()
   const existing = await prisma.post.findUnique({ where: { id } })
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!canActInCity(session, existing.cityId)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   // Kind can be edited (blog↔handbook). Fall back to existing when the body
   // omits it or sends a value outside the whitelist. Category is validated
   // against the *new* kind so a simultaneous kind+category change is coherent.
@@ -70,6 +72,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     } else {
       cityPatch = { cityId: null }
     }
+    // Re-pinning is a move; the destination must be the moderator's too.
+    if (!canActInCity(session, cityPatch.cityId)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const post = await prisma.post.update({
@@ -122,8 +126,9 @@ export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id:
 
   const { id } = await params
   const snapshot = await prisma.post.findUnique({ where: { id },
-    select: { title: true, status: true, category: true, authorId: true, publishedAt: true } })
+    select: { title: true, status: true, category: true, authorId: true, publishedAt: true, cityId: true } })
   if (!snapshot) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!canActInCity(session, snapshot.cityId)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   await prisma.post.delete({ where: { id } })
   writeAudit(session.id, session.name, 'post.delete', id, 'post',
     { title: snapshot.title, status: snapshot.status, category: snapshot.category,

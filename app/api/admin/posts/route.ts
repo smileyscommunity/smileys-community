@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { canManagePosts } from '@/lib/access'
+import { canManagePosts, canActInCity, isAdmin, failClosedCityId } from '@/lib/access'
 import { slugify } from '@/lib/slug'
 import { writeAudit } from '@/lib/audit'
 import { notifyNewArticle } from '@/lib/notify'
@@ -17,6 +17,9 @@ export async function GET() {
   if (!session || !canManagePosts(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const posts = await prisma.post.findMany({
+    // Moderators: their own city's posts plus the global ones (cityId null —
+    // the set canActInCity lets them touch). Admins: all.
+    where:   isAdmin(session) ? {} : { OR: [{ cityId: failClosedCityId(session) }, { cityId: null }] },
     orderBy: { createdAt: 'desc' },
     include: { author: { select: { name: true } } },
   })
@@ -71,6 +74,9 @@ export async function POST(req: NextRequest) {
     if (!c) return NextResponse.json({ error: 'Unknown city' }, { status: 400 })
     postCityId = c.id
   }
+  // Publishing fans a notification out to the target city's members; a
+  // moderator may only aim that at their own city (or everywhere: null).
+  if (!canActInCity(session, postCityId)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const willPublish = status === 'published'
   const post = await prisma.post.create({

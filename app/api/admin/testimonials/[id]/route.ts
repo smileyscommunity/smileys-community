@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator } from '@/lib/access'
+import { isAdminOrModerator, canActInCity } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
 import { ALLOWED_CATEGORIES } from '../constants'
 import { INVALID, resolveCityIdInput } from '../cityInput'
@@ -12,6 +12,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   const { id } = await params
+  const current = await prisma.testimonial.findUnique({ where: { id }, select: { cityId: true } })
+  if (!current) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!canActInCity(session, current.cityId)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const body = await req.json()
 
   // Whitelist and validate only allowed fields
@@ -40,6 +43,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (cleanCityId === INVALID) {
       return NextResponse.json({ error: 'Unknown city' }, { status: 400 })
     }
+    // Moving a quote is a move; the destination must be the moderator's too.
+    if (!canActInCity(session, cleanCityId)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     data.cityId = cleanCityId
   }
 
@@ -61,8 +66,9 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   }
   const { id } = await params
   const snapshot = await prisma.testimonial.findUnique({ where: { id },
-    select: { memberName: true, role: true, quote: true, category: true, active: true } })
+    select: { memberName: true, role: true, quote: true, category: true, active: true, cityId: true } })
   if (!snapshot) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!canActInCity(session, snapshot.cityId)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   await prisma.testimonial.delete({ where: { id } })
   writeAudit(session.id, session.name, 'testimonial.delete', id, 'testimonial',
     { memberName: snapshot.memberName, role: snapshot.role, category: snapshot.category, active: snapshot.active, quotePreview: snapshot.quote.slice(0, 100) },

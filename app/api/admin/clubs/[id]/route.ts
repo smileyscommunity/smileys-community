@@ -1,4 +1,4 @@
-import { canManageClubs, isAdminOrModerator } from '@/lib/access'
+import { canManageClubs, isAdminOrModerator, isAdmin, canActInCity } from '@/lib/access'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
@@ -50,6 +50,8 @@ export async function GET(_: NextRequest, { params }: Params) {
       },
     })
     if (!club) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    // Own city or a global club (cityId null) — canActInCity's own rule.
+    if (!canActInCity(session, club.cityId)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     // Quality rollup — same helper that powers host quality + the
     // per-event survey badge on /admin/events. recent[] keeps the
@@ -118,7 +120,8 @@ export async function GET(_: NextRequest, { params }: Params) {
       where:   { targetId: id, targetType: 'club' },
       orderBy: { createdAt: 'desc' },
       take:    50,
-      select:  { id: true, action: true, adminName: true, description: true, meta: true, createdAt: true },
+      // meta carries member ids/names — same rule as /api/admin/audit: admins only.
+      select:  { id: true, action: true, adminName: true, description: true, meta: isAdmin(session), createdAt: true },
     })
 
     return NextResponse.json({ ...club, quality, events, auditLog })

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession, type SessionUser } from '@/lib/session'
-import { canManagePartners, canManageUsers } from '@/lib/access'
+import { canManagePartners, canManageUsers, canActInCity } from '@/lib/access'
 import { isSafeHref } from '@/lib/safeUrl'
 import { writeAudit } from '@/lib/audit'
 
@@ -32,6 +32,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (!session || !canManagePartners(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { id } = await params
+  // A moderator edits partners in their own city only.
+  const scope = await prisma.partner.findUnique({ where: { id }, select: { cityId: true } })
+  if (!scope) return NextResponse.json({ error: 'Partner not found' }, { status: 404 })
+  if (!canActInCity(session, scope.cityId)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const body = await req.json()
   const allowed = ['name', 'category', 'discount', 'address', 'neighborhood', 'website', 'instagram', 'isActive']
   const data: Record<string, unknown> = {}
@@ -61,12 +65,17 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (!userId) return NextResponse.json({ error: 'userId required' }, { status: 400 })
 
   const [partner, target] = await Promise.all([
-    prisma.partner.findUnique({ where: { id }, select: { id: true, name: true } }),
-    prisma.user.findUnique({ where: { id: userId }, select: { role: true, name: true, email: true } }),
+    prisma.partner.findUnique({ where: { id }, select: { id: true, name: true, cityId: true } }),
+    prisma.user.findUnique({ where: { id: userId }, select: { role: true, name: true, email: true, cityId: true } }),
   ])
   if (!partner) return NextResponse.json({ error: 'Partner not found' }, { status: 404 })
   // Previously an unknown id reached prisma.user.update and surfaced as a 500.
   if (!target)  return NextResponse.json({ error: 'User not found' }, { status: 404 })
+  // Both ends of the binding must be in the moderator's city: the partner
+  // being assigned to, and the member whose role is about to change.
+  if (!canActInCity(session, partner.cityId) || !canActInCity(session, target.cityId)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   if (!mayRebindRole(session, target.role)) {
     return NextResponse.json(
@@ -104,11 +113,14 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   // is self-documenting (the role demotion + partner-link removal
   // is a meaningful access-control change).
   const [user, partner] = await Promise.all([
-    prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true, role: true, partnerId: true } }),
-    prisma.partner.findUnique({ where: { id }, select: { name: true } }),
+    prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true, role: true, partnerId: true, cityId: true } }),
+    prisma.partner.findUnique({ where: { id }, select: { name: true, cityId: true } }),
   ])
   if (!user || user.partnerId !== id) {
     return NextResponse.json({ error: 'That account is not assigned to this partner' }, { status: 404 })
+  }
+  if (!canActInCity(session, partner?.cityId) || !canActInCity(session, user.cityId)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   // The partnerId guard already means the target is normally a partner, so

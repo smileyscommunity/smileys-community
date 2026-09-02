@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { canSendBroadcasts, isAdmin } from '@/lib/access'
+import { canSendBroadcasts, isAdmin, failClosedCityId } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
 import { sendBroadcastEmail } from '@/lib/email'
 
@@ -9,6 +9,8 @@ export async function GET() {
   const session = await getSession()
   if (!session || !canSendBroadcasts(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const history = await prisma.broadcast.findMany({
+    // Moderators: their own city's sends plus the network-wide ones.
+    where:   isAdmin(session) ? {} : { OR: [{ cityId: failClosedCityId(session) }, { cityId: null }] },
     orderBy: { createdAt: 'desc' },
     take: 50,
   })

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { resolveTargetCityId } from '@/lib/city'
-import { canManagePartners, isAdmin } from '@/lib/access'
+import { canManagePartners, isAdmin, failClosedCityId } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
 
 export async function GET() {
@@ -10,6 +10,8 @@ export async function GET() {
   if (!session || !canManagePartners(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const partners = await prisma.partner.findMany({
+    // Moderators: their own city's partners. Admins: all.
+    where:   isAdmin(session) ? {} : { cityId: failClosedCityId(session) },
     orderBy: { createdAt: 'desc' },
     take: 200,
     include: {

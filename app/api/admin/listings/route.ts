@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdmin, isAdminOrModerator } from '@/lib/access'
+import { isAdmin, isAdminOrModerator, failClosedCityId } from '@/lib/access'
 import { normalizeContactEmail } from '@/lib/contactEmail'
 
 const VALID_CATEGORIES = ['ROOMS','JOBS','SERVICES','BUY_SELL','FREE','LOST_FOUND','RECO','EXPERIENCES','PETS']
@@ -23,7 +23,9 @@ export async function GET(req: NextRequest) {
   const where: Record<string, unknown> = {
     ...(status !== 'all' ? { status } : {}),
     ...(category ? { category } : {}),
-    ...(cityParam ? { cityId: cityParam } : {}),
+    // City scope: a moderator sees their own city whatever ?city= says; an
+    // admin sees everything unless they narrow. Same rule as /admin/directory.
+    ...(isAdmin(session) ? (cityParam ? { cityId: cityParam } : {}) : { cityId: failClosedCityId(session) }),
     ...(search ? {
       OR: [
         { title:       { contains: search, mode: 'insensitive' } },
