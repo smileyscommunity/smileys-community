@@ -90,6 +90,10 @@ const PREF_KEY: Record<string, 'newEvents' | 'reminders' | 'eventUpdates' | 'joi
   no_show_appeal_resolved:     null,
   no_show_waitlist_removed:    null,
   no_show_cards_issued:        null,   // host: cards issued from your event
+  // Day-before "still coming?" and its consequence. Transactional: a seat
+  // depends on the answer.
+  reconfirm_ask:               'reminders',   // the push waits out quiet hours; the email still goes
+  reconfirm_released:          null,
 }
 
 // Quiet hours are the MEMBER's evening, so the hour is read on their home

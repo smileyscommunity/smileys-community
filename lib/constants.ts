@@ -67,7 +67,7 @@ export const AttendeeStatus = {
   Approved:  'approved',
   Pending:   'pending',
   Cancelled: 'cancelled',   // withdrawn by the member
-  Removed:   'removed',     // taken off by a host or admin
+  Removed:   'removed',     // taken off by a host, an admin, or the reconfirmation release
 } as const
 export type AttendeeStatus = typeof AttendeeStatus[keyof typeof AttendeeStatus]
 

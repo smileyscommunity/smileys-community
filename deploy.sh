@@ -452,6 +452,12 @@ chmod +x $REMOTE/scripts/sweep-no-shows.sh
 (crontab -l 2>/dev/null | grep -v 'sweep-no-shows' ; echo '25 * * * * $REMOTE/scripts/sweep-no-shows.sh >> /var/log/sweep-no-shows.log 2>&1') | crontab -
 echo '  ✓ no-shows'
 
+# Hourly at :35 — day-before "still coming?" asks and the 12h seat release
+# (see app/api/cron/sweep-reconfirm/route.ts).
+chmod +x $REMOTE/scripts/sweep-reconfirm.sh
+(crontab -l 2>/dev/null | grep -v 'sweep-reconfirm' ; echo '35 * * * * $REMOTE/scripts/sweep-reconfirm.sh >> /var/log/sweep-reconfirm.log 2>&1') | crontab -
+echo '  ✓ reconfirm'
+
 chmod +x $REMOTE/scripts/sweep-nps-dispatch.sh
 (crontab -l 2>/dev/null | grep -v 'sweep-nps-dispatch' ; echo '10 9 * * * $REMOTE/scripts/sweep-nps-dispatch.sh >> /var/log/sweep-nps.log 2>&1') | crontab -
 echo '  ✓ nps-dispatch'

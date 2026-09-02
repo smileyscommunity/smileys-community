@@ -37,6 +37,10 @@ const FILTER_TYPES: Record<Filter, string[]> = {
     'waitlist', 'waitlist_joined', 'waitlist_promoted', 'spot_opened',
     'checkin', 'checkin_started', 'checkin_count', 'event_message', 'event_photos',
     'host_message', 'payment_reminder',
+    // Day-before reconfirmation and no-show cards are event lifecycle too.
+    'reconfirm_ask', 'reconfirm_released',
+    'no_show_yellow', 'no_show_red', 'no_show_restriction_active', 'no_show_waived',
+    'no_show_downgraded', 'no_show_waitlist_removed', 'no_show_cards_issued', 'no_show_appeal_resolved',
   ],
   Social: [
     'connection_request', 'connection_accepted', 'connection_suggestion',
@@ -49,11 +53,22 @@ const FILTER_TYPES: Record<Filter, string[]> = {
     'club_approved', 'club_rejected', 'host_assigned', 'announcement',
     'warning', 'system_alert', 'alert', 'system', 'application',
     'report', 'report_alert', 'report_reviewed', 'membership_upgraded',
-    'nps_survey', 'listing_expiry',
+    'nps_survey', 'listing_expiry', 'no_show_appeal',
   ],
 }
 
 const TYPE_ICON: Record<string, string> = {
+  reconfirm_ask:       '🙋',
+  reconfirm_released:  '🚪',
+  no_show_yellow:      '🟨',
+  no_show_red:         '🟥',
+  no_show_restriction_active: '⏸️',
+  no_show_waived:      '✅',
+  no_show_downgraded:  '🟨',
+  no_show_waitlist_removed: '📋',
+  no_show_cards_issued: '🧾',
+  no_show_appeal:      '📨',
+  no_show_appeal_resolved: '⚖️',
   checkin:             '✅',
   rsvp:                '🎉',
   rsvp_pending:        '⏳',

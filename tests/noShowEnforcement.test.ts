@@ -6,6 +6,7 @@ vi.mock('@/lib/notify',    () => ({ createNotification: vi.fn().mockResolvedValu
 vi.mock('@/lib/email',     () => ({ sendRsvpConfirmationEmail: vi.fn(), sendSpotOpenedEmail: vi.fn(), recordEmailFailure: vi.fn() }))
 vi.mock('@/lib/push',      () => ({ sendPushToUser: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('@/lib/spotsLeft', () => ({ recomputeSpotsLeft: vi.fn().mockResolvedValue(undefined) }))
+vi.mock('@/lib/spotOpened', () => ({ announceSpotOpened: vi.fn().mockResolvedValue(0) }))
 vi.mock('@/lib/autoJoinClub',   () => ({ autoJoinClub: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('@/lib/firstEvent',     () => ({ stampFirstEventRsvp: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('@/lib/posthog-server', () => ({ trackServer: vi.fn() }))

@@ -995,7 +995,12 @@ model EventAttendee {
   // 'no_show' when post-event processing says so.
   attendance  String    @default("unknown")
   cancelledAt DateTime?
-  cancelledBy String?   // 'member' | 'host' | 'admin'
+  cancelledBy String?   // 'member' | 'host' | 'admin' | 'system'
+  // Day-before "still coming?" on free limited-spot events (lib/reconfirm).
+  // Asked once; an asked-but-unconfirmed seat is released to the waitlist at
+  // the cancellation cutoff when someone is waiting.
+  reconfirmAskedAt DateTime?
+  reconfirmedAt    DateTime?
   noShowCard  NoShowCard?
   event     Event    @relation(fields: [eventId], references: [id])
   user      User     @relation(fields: [userId], references: [id])

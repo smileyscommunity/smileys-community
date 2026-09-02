@@ -25,7 +25,7 @@ export function isActiveAttendee(row: { status: string } | null | undefined): ro
   return !!row && ACTIVE_ATTENDEE_STATUSES.includes(row.status)
 }
 
-export type CancelActor = 'member' | 'host' | 'admin'
+export type CancelActor = 'member' | 'host' | 'admin' | 'system'   // system: reconfirmation release
 
 /**
  * Put a member on an event: a fresh row, or the revival of one that was
@@ -53,6 +53,11 @@ export async function activateAttendee(
       attendance:  Attendance.Unknown,
       cancelledAt: null,
       cancelledBy: null,
+      // A fresh commitment gets a fresh day-before ask. Without this a
+      // member released for not answering, who then rejoins, is released
+      // again on the next run — every hour until the start.
+      reconfirmAskedAt: null,
+      reconfirmedAt:    null,
     },
   })
   if (revived.count === 0) {

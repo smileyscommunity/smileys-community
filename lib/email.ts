@@ -1250,3 +1250,73 @@ export async function sendAdminNoShowAppealEmail(memberName: string, eventTitle:
     `,
   })
 }
+
+// ── Day-before reconfirmation ───────────────────────────────────────────────
+
+export async function sendReconfirmEmail(
+  userId: string, email: string, name: string,
+  eventTitle: string, eventEmoji: string, whenText: string, deadlineText: string,
+  confirmUrl: string, eventId: string,
+) {
+  const unsub     = unsubscribeUrl(userId)
+  const firstName = name.split(' ')[0]
+  const eventUrl  = `${APP_URL}/events/${eventId}`
+  await getResend().emails.send({
+    from: FROM, to: email,
+    subject: safeSubject(`Still coming to ${eventTitle} tomorrow? ${eventEmoji}`),
+    html: `
+      <div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <div style="text-align:center;margin-bottom:28px">
+          <span style="font-size:40px">${esc(eventEmoji)}</span>
+          <h1 style="font-size:22px;font-weight:800;color:#111;margin:8px 0 4px">Still coming, ${esc(firstName)}?</h1>
+          <p style="color:#6b7280;font-size:14px;margin:0"><strong>${esc(eventTitle)}</strong> · ${esc(whenText)}</p>
+        </div>
+        <a href="${confirmUrl}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:12px">
+          Yes, I'll be there ✓
+        </a>
+        <a href="${eventUrl}" style="display:block;text-align:center;color:#6b7280;font-weight:600;font-size:13px;padding:10px 24px;text-decoration:underline;margin-bottom:20px">
+          Plans changed? Cancel my spot
+        </a>
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:16px 20px;margin-bottom:16px">
+          <p style="color:#92400e;font-size:14px;margin:0">Spots are limited and people are waiting. If we don't hear back by <strong>${esc(deadlineText)}</strong>, your spot may go to the waitlist. Cancelling before then keeps you clear of any no-show.</p>
+        </div>
+        <p style="color:#9ca3af;font-size:11px;text-align:center;margin-top:20px">
+          <a href="${unsub}" style="color:#9ca3af">Unsubscribe from event reminders</a>
+        </p>
+      </div>
+    `,
+    tags: [{ name: 'type', value: 'reconfirm_ask' }],
+  })
+}
+
+export async function sendSpotReleasedEmail(
+  userId: string, email: string, name: string,
+  eventTitle: string, eventEmoji: string, eventId: string,
+) {
+  const unsub     = unsubscribeUrl(userId)
+  const firstName = name.split(' ')[0]
+  const eventUrl  = `${APP_URL}/events/${eventId}`
+  await getResend().emails.send({
+    from: FROM, to: email,
+    subject: safeSubject(`Your spot at ${eventTitle} went to the waitlist ${eventEmoji}`),
+    html: `
+      <div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <div style="text-align:center;margin-bottom:28px">
+          <span style="font-size:40px">${esc(eventEmoji)}</span>
+          <h1 style="font-size:22px;font-weight:800;color:#111;margin:8px 0 4px">We didn't hear back, ${esc(firstName)}</h1>
+          <p style="color:#6b7280;font-size:14px;margin:0">We asked yesterday whether you were still coming to <strong>${esc(eventTitle)}</strong>. Someone was waiting, so the spot has gone to the waitlist.</p>
+        </div>
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:16px 20px;margin-bottom:24px">
+          <p style="color:#92400e;font-size:14px;margin:0">This doesn't count against you. Still want to come? Rejoin if a spot is open, or take a place on the waitlist.</p>
+        </div>
+        <a href="${eventUrl}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:16px">
+          See the event →
+        </a>
+        <p style="color:#9ca3af;font-size:11px;text-align:center;margin-top:20px">
+          <a href="${unsub}" style="color:#9ca3af">Unsubscribe from event reminders</a>
+        </p>
+      </div>
+    `,
+    tags: [{ name: 'type', value: 'reconfirm_released' }],
+  })
+}

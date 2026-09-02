@@ -4,11 +4,10 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
-import { sendRsvpConfirmationEmail, sendSpotOpenedEmail, recordEmailFailure } from '@/lib/email'
-import { recomputeSpotsLeft } from '@/lib/spotsLeft'
+import { sendRsvpConfirmationEmail, recordEmailFailure } from '@/lib/email'
 import { autoJoinClub } from '@/lib/autoJoinClub'
 import { stampFirstEventRsvp } from '@/lib/firstEvent'
-import { sendPushToUser } from '@/lib/push'
+import { announceSpotOpened } from '@/lib/spotOpened'
 import { trackServer } from '@/lib/posthog-server'
 import { activateAttendee, cancelAttendeeOp, isActiveAttendee } from '@/lib/attendance'
 import { checkRsvpAllowed, gateErrorBody, getRsvpGate, recordYellowAcknowledgement } from '@/lib/noShow'
@@ -526,75 +525,10 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       }
     }
 
-    // When an approved attendee cancels, fan out a "spot opened" ping
-    // to every waitlist member. First to tap Join wins — race-safety
-    // for the claim itself lives in the POST handler, which uses the
-    // existing conditional `updateMany({ spotsLeft: { gt: 0 } })`
-    // atomic decrement pattern.
-    //
-    // Why this replaced silent auto-promote:
-    // The previous behavior promoted the first person on the waitlist
-    // to 'approved' without any action on their part. Two failure modes:
-    //   1. They no longer wanted to go → silent no-show on the day
-    //   2. They didn't see the notification in time → still a no-show
-    // Making members actively claim is a much better signal of intent
-    // and shifts the bias from "fill the seat" to "someone who wants it
-    // will fill the seat".
-    // WaitlistEntry has no FK relation to User in the schema (just a
-    // userId String column), so the user records have to be fetched
-    // separately in one batched query.
-    const eventRow = await prisma.event.findUnique({
-      where: { id: eventId },
-      select: { title: true, approvalRequired: true, totalSpots: true, date: true },
-    })
-    const waitlistEntries = wasApproved
-      ? await prisma.waitlistEntry.findMany({
-          where: { eventId },
-          orderBy: { createdAt: 'asc' },
-          select: { userId: true },
-        })
-      : []
-    const waitlistUsers = waitlistEntries.length > 0
-      ? await prisma.user.findMany({
-          where:  { id: { in: waitlistEntries.map(w => w.userId) } },
-          select: { id: true, name: true, email: true },
-        })
-      : []
-
-    if (waitlistUsers.length > 0 && eventRow) {
-      for (const u of waitlistUsers) {
-        createNotification(
-          u.id,
-          'spot_opened',
-          'Spot opened — claim it! 🚪',
-          `A spot just opened for "${eventRow.title}". First come, first served.`,
-          `/events/${eventId}`,
-        ).catch(() => {})
-        sendPushToUser(u.id, {
-          title: 'Spot opened! 🚪',
-          body:  `Quick — a spot opened for "${eventRow.title}". First come first served.`,
-          link:  `/app/events/${eventId}`,
-        }).catch(() => {})
-        // Fire-and-forget so a single SMTP failure doesn't block other
-        // members' notifications or the cancel response.
-        sendSpotOpenedEmail(u.email, u.name ?? 'Member', eventRow.title, eventRow.date ?? '', eventId)
-          .catch(async err => {
-            console.error('[rsvp DELETE spot-opened] sendSpotOpenedEmail failed', { userId: u.id, eventId, err: String(err) })
-            await recordEmailFailure({ helper: 'sendSpotOpenedEmail', recipient: u.email, error: err, context: { userId: u.id, eventId } })
-          })
-      }
-    }
-
-    // The spot is now genuinely open until someone claims it — recompute
-    // spotsLeft so the event page accurately shows availability. The
-    // POST handler will atomically decrement again when a waitlist
-    // member (or any RSVP) takes it. Recompute, never a blind +1: the
-    // host and co-hosts join without consuming a spot, so their cancel
-    // must not mint one — and the derived value can't creep past
-    // totalSpots on repeated join/cancel cycles.
-    if (wasApproved && eventRow) {
-      await recomputeSpotsLeft(eventId, eventRow.totalSpots)
-    }
+    // When an approved attendee cancels, the seat goes to the waitlist as a
+    // "spot opened — claim it" fanout (lib/spotOpened for the why), which
+    // also re-derives spotsLeft.
+    if (wasApproved) await announceSpotOpened(eventId)
 
     return NextResponse.json({ ok: true })
   } catch (e) {
@@ -631,6 +565,10 @@ export async function GET(_: NextRequest, { params }: Params) {
       waitlisted: !!waitlistEntry,
       position,
       gate: gate.ok ? { ok: true } : gateErrorBody(gate),
+      // Day-before "still coming?" — the button shows the ask until answered.
+      reconfirm: attendee?.status === 'approved' && attendee.reconfirmAskedAt
+        ? { asked: true, confirmed: !!attendee.reconfirmedAt }
+        : null,
     })
   } catch (e) {
     return NextResponse.json({ attending: false, waitlisted: false })

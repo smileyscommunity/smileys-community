@@ -35,6 +35,8 @@ export function useRSVP(eventId: string, initialStatus?: 'joined' | 'pending' | 
   // A join the server paused for the yellow-card confirmation. The consumer
   // renders <NoShowAckModal/> off this and calls confirmAck / cancelAck.
   const [ackRequest, setAckRequest] = useState<{ stealth: boolean } | null>(null)
+  // Day-before reconfirmation: null until asked; confirmed flips on answer.
+  const [reconfirm, setReconfirm] = useState<{ asked: boolean; confirmed: boolean } | null>(null)
 
   useEffect(() => {
     if (seeded) return
@@ -48,6 +50,7 @@ export function useRSVP(eventId: string, initialStatus?: 'joined' | 'pending' | 
         else setStatus('idle')
         setPosition(d.position ?? null)
         if (d.gate) setGate(d.gate)
+        setReconfirm(d.reconfirm ?? null)
         setChecked(true)
       })
       .catch(() => { setStatus('idle'); setChecked(true) })
@@ -120,8 +123,36 @@ export function useRSVP(eventId: string, initialStatus?: 'joined' | 'pending' | 
       posthog.capture('event_rsvp_cancelled', { event_id: eventId, previous_status: status })
       setStatus('idle')
       setPosition(null)
+      setReconfirm(null)
       toast('Registration cancelled')
       router.refresh()
+    } catch {
+      toast.error('Something went wrong')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // token: from the email's one-tap link (works without a session — the
+  // token is the proof); otherwise the session is.
+  async function confirmComing(token?: { uid: string; t: string }) {
+    setLoading(true)
+    try {
+      const res  = await apiFetch(`/app/api/events/${eventId}/reconfirm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(token ?? {}),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error ?? 'Could not confirm')
+        if (data.code === 'released') { setStatus('idle'); setReconfirm(null); router.refresh() }
+        return
+      }
+      setReconfirm({ asked: true, confirmed: true })
+      posthog.capture('event_reconfirmed', { event_id: eventId })
+      toast.success("See you there ✓")
+      navigator.vibrate?.(40)
     } catch {
       toast.error('Something went wrong')
     } finally {
@@ -139,5 +170,7 @@ export function useRSVP(eventId: string, initialStatus?: 'joined' | 'pending' | 
     posthog.capture('event_rsvp_declined_after_warning', { event_id: eventId })
   }
 
-  return { status, position, loading, checked, join, leave, gate, ackRequest, confirmAck, cancelAck }
+  const confirmWithToken = (uid: string, t: string) => confirmComing({ uid, t })
+
+  return { status, position, loading, checked, join, leave, gate, ackRequest, confirmAck, cancelAck, reconfirm, confirmComing: () => confirmComing(), confirmWithToken }
 }

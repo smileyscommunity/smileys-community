@@ -28,6 +28,15 @@ export const NO_SHOW_PROCESSING_LOOKBACK_DAYS  = 7
 // were checked in; below it the event waits (the host may still be
 // scanning the morning after) and falls out of the window untouched.
 export const NO_SHOW_MIN_CHECKIN_RATIO         = 0.5
+// Day-before reconfirmation (lib/reconfirm.ts). Free, limited-spot events
+// only: "still coming?" this many hours before the start; a seat that was
+// asked and never answered is released to the waitlist at the cancellation
+// cutoff — the same line after which a cancel would count as a no-show —
+// and only when someone is actually waiting for it. Below the minimum
+// lead nobody is asked: too little time to answer fairly.
+export const RECONFIRM_ASK_HOURS_BEFORE        = 24
+export const RECONFIRM_RELEASE_HOURS_BEFORE    = NO_SHOW_CANCELLATION_CUTOFF_HOURS
+export const RECONFIRM_MIN_LEAD_HOURS          = 14
 
 const HOUR = 60 * 60 * 1000
 const DAY  = 24 * HOUR

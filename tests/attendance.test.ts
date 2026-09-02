@@ -49,6 +49,7 @@ describe('activateAttendee', () => {
     expect(call.data).toMatchObject({
       status: 'pending', stealth: false, checkedIn: false, attendance: 'unknown',
       cancelledAt: null, cancelledBy: null,
+      reconfirmAskedAt: null, reconfirmedAt: null,   // a rejoin is a fresh ask, not a stale release
     })
     expect(call.data.joinedAt).toBeInstanceOf(Date)
     expect(d.eventAttendee.create).not.toHaveBeenCalled()

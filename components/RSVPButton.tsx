@@ -7,6 +7,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRSVP } from '@/hooks/useRSVP'
 import { formatPrice } from '@/lib/data'
+import { RECONFIRM_RELEASE_HOURS_BEFORE } from '@/lib/noShowPolicy'
+import { toast } from 'sonner'
 import NoShowAckModal from '@/components/NoShowAckModal'
 
 interface Props {
@@ -26,7 +28,7 @@ interface Props {
 
 export default function RSVPButton({ eventId, hostId, spotsLeft, soldOut = false, price, memberPrice, membersOnly, currency = 'TRY', payTo = 'venue' }: Props) {
   const { isLoggedIn, user } = useAuth()
-  const { status, position, loading, checked, join, leave, gate, ackRequest, confirmAck, cancelAck } = useRSVP(eventId)
+  const { status, position, loading, checked, join, leave, gate, ackRequest, confirmAck, cancelAck, reconfirm, confirmComing, confirmWithToken } = useRSVP(eventId)
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [stealth,       setStealth]       = useState(false)
   const [showStealth,   setShowStealth]   = useState(false)
@@ -35,6 +37,25 @@ export default function RSVPButton({ eventId, hostId, spotsLeft, soldOut = false
   // first client render via useEffect.
   const [mounted,       setMounted]       = useState(false)
   useEffect(() => { setMounted(true) }, [])
+  // Landing from the email's one-tap link (GET /reconfirm redirects here with
+  // the outcome). Say it once, then drop the flag from the URL.
+  useEffect(() => {
+    const url = new URL(window.location.href)
+    const r = url.searchParams.get('reconfirm')
+    if (!r) return
+    const uid = url.searchParams.get('uid')
+    const t   = url.searchParams.get('t')
+    for (const k of ['reconfirm', 'uid', 't']) url.searchParams.delete(k)
+    window.history.replaceState({}, '', url.toString())
+    if (r === 'prompt' && uid && t) {
+      // The email link only redirected here; this POST is the actual answer,
+      // made by a real browser rather than a mail scanner's prefetch.
+      confirmWithToken(uid, t)
+      return
+    }
+    toast.error('That confirmation link is not valid.')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function handleLeave() {
     if (price > 0 && status === 'joined') {
@@ -100,11 +121,21 @@ export default function RSVPButton({ eventId, hostId, spotsLeft, soldOut = false
           </motion.div>
         ) : status === 'joined' ? (
           <motion.div key="attending" {...slide} className="space-y-2 mb-3">
+            {reconfirm?.asked && !reconfirm.confirmed && (
+              <div className="rounded-xl border-2 border-amber-300 bg-amber-50 px-4 py-3">
+                <p className="text-sm font-semibold text-amber-800">Still coming?</p>
+                <p className="text-xs text-amber-700 mb-2">People are waiting for a spot. Unanswered spots may go to the waitlist {RECONFIRM_RELEASE_HOURS_BEFORE} hours before the start.</p>
+                <button onClick={confirmComing} disabled={loading}
+                  className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors disabled:opacity-50">
+                  {loading ? 'Confirming…' : "Yes, I'll be there ✓"}
+                </button>
+              </div>
+            )}
             <div className="flex items-center justify-center gap-2 w-full px-6 py-3 bg-green-50 border-2 border-green-200 text-green-700 font-semibold rounded-xl text-sm">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
               </svg>
-              You're attending
+              {reconfirm?.confirmed ? "You're attending · confirmed" : "You're attending"}
             </div>
             <button onClick={handleLeave} disabled={loading}
               className="w-full py-2.5 text-sm font-semibold text-gray-500 hover:text-red-600 border border-gray-200 hover:border-red-300 hover:bg-red-50 rounded-xl transition-colors">
