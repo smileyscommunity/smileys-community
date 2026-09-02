@@ -58,7 +58,7 @@
   },
   "overrides": {
     "@hono/node-server": "1.19.14",
-    "fast-uri": "4.1.2",
+    "fast-uri": "4.1.4",
     "sharp": "$sharp",
     "postcss": "$postcss",
     "deepmerge-ts": "^8",
