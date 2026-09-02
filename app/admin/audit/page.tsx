@@ -3,6 +3,8 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
+import { useAuth } from '@/contexts/AuthContext'
+import CitySelect from '@/components/admin/CitySelect'
 
 // Map an audit entry's targetType to the admin detail route for that
 // resource. Returning null means the target has no admin landing page
@@ -166,6 +168,7 @@ function AdminAuditPageInner() {
   const initialSearch = searchParams.get('search') ?? ''
   const initialFrom   = searchParams.get('from')   ?? ''
   const initialTo     = searchParams.get('to')     ?? ''
+  const initialCity   = searchParams.get('city')   ?? ''
 
   const [logs,        setLogs]        = useState<AuditEntry[]>([])
   const [loading,     setLoading]     = useState(true)
@@ -175,6 +178,11 @@ function AdminAuditPageInner() {
   const [search,      setSearch]      = useState(initialSearch)
   const [fromDate,    setFromDate]    = useState(initialFrom)
   const [toDate,      setToDate]      = useState(initialTo)
+  // Admin-only narrowing to one city. Moderators are scoped server-side to
+  // their own city (plus city-less rows), so the control is not shown to them.
+  const [city,        setCity]        = useState(initialCity)
+  const { user }     = useAuth()
+  const isAdminUser  = user?.role === 'admin'
   // Debounced version of `search` — keeps typing from spamming the API.
   const [debouncedSearch, setDebouncedSearch] = useState(initialSearch.trim())
 
@@ -193,12 +201,13 @@ function AdminAuditPageInner() {
     if (debouncedSearch) params.set('search', debouncedSearch); else params.delete('search')
     if (fromDate)        params.set('from',   fromDate);        else params.delete('from')
     if (toDate)          params.set('to',     toDate);          else params.delete('to')
+    if (city)            params.set('city',   city);          else params.delete('city')
     const q = params.toString()
     router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false })
   // searchParams excluded — including it would re-fire on every URL
   // change we just made and loop.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter, debouncedSearch, fromDate, toDate, pathname, router])
+  }, [filter, debouncedSearch, fromDate, toDate, city, pathname, router])
 
   // Build the query string for both initial and load-more fetches. The
   // only difference between them is the `before` cursor.
@@ -211,6 +220,7 @@ function AdminAuditPageInner() {
     // datetime, so push it to end-of-day so an entry created at 23:00
     // still falls inside "today".
     if (toDate)          qs.set('to',     `${toDate}T23:59:59.999`)
+    if (city)            qs.set('city',   city)
     if (before)          qs.set('before', before)
     return qs.toString()
   }
@@ -230,7 +240,7 @@ function AdminAuditPageInner() {
   // buildQs depends on every filter via closure, so rebuilding it
   // doesn't need to be a dep — listing the fields is enough.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter, debouncedSearch, fromDate, toDate])
+  }, [filter, debouncedSearch, fromDate, toDate, city])
 
   async function loadMore() {
     if (!hasMore || loadingMore || logs.length === 0) return
@@ -316,6 +326,16 @@ function AdminAuditPageInner() {
           className="px-2 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:ring-1 focus:ring-amber-500" />
         {(fromDate || toDate) && (
           <button onClick={() => { setFromDate(''); setToDate('') }} className="text-zinc-500 hover:text-white underline">clear</button>
+        )}
+        {/* Rows carry the target's city since 2026-09-03 (null before, and
+            for platform-wide actions), so "what happened in Bodrum" is one
+            pick here. Admins only — a moderator's view is already theirs. */}
+        {isAdminUser && (
+          <>
+            <span className="text-zinc-700">|</span>
+            <CitySelect value={city} onChange={setCity} label={null} emptyLabel="All cities"
+              className="px-2 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:ring-1 focus:ring-amber-500" />
+          </>
         )}
       </div>
 

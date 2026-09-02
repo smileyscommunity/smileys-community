@@ -1328,10 +1328,16 @@ model AuditLog {
   meta        Json?
   createdAt   DateTime @default(now())
   description String?
+  // The city the target belongs to, resolved by writeAudit from the target
+  // (a user's home city, an event's city, the city itself…). Null when the
+  // target has none (platform-wide settings, the Cup) and on every row from
+  // before 2026-09-03. "What happened in Bodrum" is answerable from here on.
+  cityId      String?
 
   @@index([adminId])
   @@index([action])
   @@index([createdAt])
+  @@index([cityId, createdAt])
   @@map("audit_logs")
 }
 

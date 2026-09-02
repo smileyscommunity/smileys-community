@@ -94,17 +94,22 @@ boundary.
 
 ---
 
-## 5. No per-city audit trail — still open
+## 5. Per-city audit trail — closed 2026-09-03
 
-**Evidence.** `AuditLog` has `action` and `targetType`; no city column
-(`sed -n '/^model AuditLog/,/^}/p' prisma/schema.prisma | grep cityId` is
-empty). "What happened in Bodrum" cannot be answered.
+`AuditLog.cityId` (nullable, indexed with `createdAt`). `writeAudit` resolves
+it from the target — a member's home city, an event's city, a card or a
+payment through its event, the city itself — rather than by its 96 call
+sites; a caller that already knows the city passes `meta.cityId`. Targets
+with no city (settings, the Cup, tags) and every row from before the column
+stay null. `/admin/audit`: moderators see their own city's rows plus the
+city-less ones (so the history they could always read didn't vanish the day
+the column arrived); admins see everything and can narrow to one city.
+Guarded by `tests/auditCity.test.ts`, run against the unfixed code first.
+Re-check: `grep -n cityId lib/audit.ts app/api/admin/audit/route.ts`.
 
-**Change.** Nullable `cityId`, populated by `writeAudit` where the target has
-one, and a city filter on `/admin/audit`. Migrations lead the code; additive,
-so it ships through `prisma migrate deploy` with no backfill.
-
-**Effort.** Half a day with the migration. **Risk.** Low.
+Not backfilled: old rows would have to be guessed at from targets that may
+no longer exist. If a backfill is ever wanted, it is one script over
+`targetType`/`targetId` with the same resolver.
 
 ---
 
@@ -196,8 +201,7 @@ to catch. Re-check: `grep -c DEFAULT_CITY_SLUG lib/guideContent.ts`.
 
 ## Sequence
 
-5 is under a day and worth doing before city four. The 4 audit and 6 are
-the real work, and 6 is the project. 9 waits for
+The 4 audit and 6 are the real work, and 6 is the project. 9 waits for
 a reason. 7 is not on this list because it is not code.
 
 ## Working rules that apply to all of it
