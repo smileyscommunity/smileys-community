@@ -77,21 +77,20 @@ guarded by `tests/adminCrossCityModeration.test.ts`. The member-facing
 scoping — a member reports what they can see; the city rule belongs to the
 queue that reads the report.
 
-**What is open, concretely.** `app/api/admin/directory/reports/route.ts` is
-reachable by moderators (`isAdminOrModerator`) and lists directory reports
-with no city scope, while its sibling `[id]/route.ts` is scoped. A moderator
-sees every city's directory reports in the list and is refused only on
-action.
+**Closed 2026-09-03.** `app/api/admin/directory/reports/route.ts` — the last
+moderator-reachable list with no city scope — now filters through the
+reported business's city, failing closed for a moderator with no city, and an
+admin still sees everything. Guarded by `tests/adminDirectoryReportsScope.test.ts`,
+which was run against the unfixed route first and failed there.
 
-**Change.** Scope that list the way the moderation queue is scoped. Then the
-wider question this item always stood for: a route-by-route audit of every
-moderator-reachable admin route for server-side city scoping, with guard
-tests that fail against the unfixed code.
-Start: `grep -rln isAdminOrModerator app/api/admin` and check each hit for
-`failClosedCityId` / `canActInCity`.
+**What is still open.** The wider question this item always stood for: a
+route-by-route audit of every moderator-reachable admin route for
+server-side city scoping, with guard tests that fail against the unfixed
+code. Start: `grep -rln isAdminOrModerator app/api/admin` and check each
+hit for `failClosedCityId` / `canActInCity`.
 
-**Effort.** The route, an hour. The audit, half a day. **Risk.** Medium —
-it is an authorisation boundary.
+**Effort.** The audit, half a day. **Risk.** Medium — it is an authorisation
+boundary.
 
 ---
 
@@ -197,8 +196,8 @@ to catch. Re-check: `grep -c DEFAULT_CITY_SLUG lib/guideContent.ts`.
 
 ## Sequence
 
-4 (the one route) and 5 are each under a day and worth doing before city
-four. The 4 audit and 6 are the real work, and 6 is the project. 9 waits for
+5 is under a day and worth doing before city four. The 4 audit and 6 are
+the real work, and 6 is the project. 9 waits for
 a reason. 7 is not on this list because it is not code.
 
 ## Working rules that apply to all of it
