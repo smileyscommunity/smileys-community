@@ -24,6 +24,7 @@ const DESTINATIONS: Record<string, string> = {
   events:        '/events',
   clubs:         '/clubs',
   directory:     '/directory',
+  board:         '/board',
   members:       '/members',
   neighborhoods: '/neighborhoods',
   guide:         '/guide',

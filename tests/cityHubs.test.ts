@@ -14,6 +14,8 @@ describe('hubCanonical', () => {
     expect(hubCanonical(DEFAULT_CITY_SLUG, 'clubs')).toMatch(/\/app\/clubs$/)
     expect(hubCanonical('izmir', 'events')).toMatch(/\/app\/izmir\/events$/)
     expect(hubCanonical('izmir', 'clubs')).toMatch(/\/app\/izmir\/clubs$/)
+    expect(hubCanonical('izmir', 'directory')).toMatch(/\/app\/izmir\/directory$/)
+    expect(hubCanonical(DEFAULT_CITY_SLUG, 'board')).toMatch(/\/app\/board$/)
     expect(isDefaultCitySlug(DEFAULT_CITY_SLUG)).toBe(true)
     expect(isDefaultCitySlug('izmir')).toBe(false)
   })
@@ -22,9 +24,11 @@ describe('hubCanonical', () => {
 describe('publicLinkFor', () => {
   const enter = enterLinkFor('izmir')
   const guest = publicLinkFor('izmir', enter)
-  it('sends a guest to the hub for events and clubs', () => {
+  it('sends a guest to the hub for events, clubs, directory and board', () => {
     expect(guest('events')).toBe('/app/izmir/events')
     expect(guest('clubs')).toBe('/app/izmir/clubs')
+    expect(guest('directory')).toBe('/app/izmir/directory')
+    expect(guest('board')).toBe('/app/izmir/board')
   })
   it('leaves every other destination on the cookie-setting entry link', () => {
     expect(guest('guide')).toBe(enter('guide'))

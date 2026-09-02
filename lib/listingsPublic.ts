@@ -8,7 +8,7 @@
 // photo (the visual is the listing's pull for prospects), category, title,
 // neighborhood, price, time, id (so deep links still resolve).
 
-const TEASER_DESCRIPTION_LIMIT = 80
+export const TEASER_DESCRIPTION_LIMIT = 80
 
 export type ListingWithUser = {
   id: string

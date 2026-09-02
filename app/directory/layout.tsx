@@ -27,7 +27,9 @@ export async function generateMetadata(): Promise<Metadata> {
     : `Member-recommended businesses, services and places across ${name} — cafés, doctors, gyms and more, vouched for by the Smileys community.`
 
   return {
-    alternates: { canonical: `${APP_URL}/directory` },
+    // Same rule as app/events/layout.tsx: another city's directory is
+    // canonical at its hub (/[city]/directory); the default city's stays here.
+    alternates: { canonical: cfg.slug === DEFAULT_CITY_SLUG ? `${APP_URL}/directory` : `${APP_URL}/${cfg.slug}/directory` },
     title,
     description: desc,
     openGraph: {

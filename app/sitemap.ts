@@ -133,8 +133,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const cityHubRoutes: MetadataRoute.Sitemap = cities
     .filter(c => c.status === CITY_STATUS.Live && c.slug !== DEFAULT_CITY_SLUG)
     .flatMap(c => [
-      { url: `${BASE}/${c.slug}/events`, priority: 0.85, changeFrequency: 'daily'  as const, lastModified: newestEvent },
-      { url: `${BASE}/${c.slug}/clubs`,  priority: 0.75, changeFrequency: 'weekly' as const, lastModified: newestClub },
+      { url: `${BASE}/${c.slug}/events`,    priority: 0.85, changeFrequency: 'daily'  as const, lastModified: newestEvent },
+      { url: `${BASE}/${c.slug}/clubs`,     priority: 0.75, changeFrequency: 'weekly' as const, lastModified: newestClub },
+      { url: `${BASE}/${c.slug}/directory`, priority: 0.75, changeFrequency: 'weekly' as const, lastModified: newestBusiness },
+      { url: `${BASE}/${c.slug}/board`,     priority: 0.75, changeFrequency: 'daily'  as const, lastModified: newestListing },
     ])
 
   const staticRoutes: MetadataRoute.Sitemap = [

@@ -3,6 +3,7 @@ import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { todayInTz } from '@/lib/cityTime'
 import { getEvents, getClubs } from '@/lib/db'
+import { queryDirectory } from '@/lib/directory'
 import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
 import { getPublicCity, DEFAULT_CITY_SLUG } from '@/lib/cities'
 import { CITY_STATUS } from '@/lib/cityStatus'
@@ -185,7 +186,7 @@ export function featureClubs(clubs: CityPageData['clubs']) {
   ].slice(0, 4)
 }
 
-export type EnterTarget = 'events' | 'clubs' | 'directory' | 'neighborhoods' | 'guide' | 'handbook'
+export type EnterTarget = 'events' | 'clubs' | 'directory' | 'board' | 'neighborhoods' | 'guide' | 'handbook'
 export type EnterLink   = (to: EnterTarget, n?: string) => string
 
 // Feed links route through /api/city/enter, which sets the view-city cookie
@@ -208,7 +209,7 @@ export function enterLinkFor(slug: string): EnterLink {
 // canonical URLs (rewording a URL Google ranks costs something for nothing),
 // so its hubs point back there; every other city's hub is canonical to itself.
 
-export type HubKind = 'events' | 'clubs'
+export type HubKind = 'events' | 'clubs' | 'directory' | 'board'
 
 export function isDefaultCitySlug(slug: string): boolean {
   return slug === DEFAULT_CITY_SLUG
@@ -228,7 +229,7 @@ export function hubCanonical(slug: string, kind: HubKind): string {
  */
 export function publicLinkFor(slug: string, enter: EnterLink): EnterLink {
   return (to, n) => {
-    if (to === 'events' || to === 'clubs') {
+    if (to === 'events' || to === 'clubs' || to === 'directory' || to === 'board') {
       return isDefaultCitySlug(slug) ? `/app/${to}` : `/app/${slug}/${to}`
     }
     return enter(to, n)
@@ -262,5 +263,57 @@ export const getCityClubsHub = unstable_cache(
     return { clubs, total: all.length }
   },
   ['city-clubs-hub'],
+  { revalidate: 60, tags: ['home'] },
+)
+
+/** A city's top-rated places for the directory hub, and how many there are. */
+export const getCityDirectoryHub = unstable_cache(
+  async (cityId: string) => {
+    // No callerId: the hub is the same page for everyone, so the per-viewer
+    // fields (isSaved, isMine, claim status) stay at their guest defaults.
+    const page = await queryDirectory({ cityId, sort: 'toprated' })
+    // Only what the hub renders. The full row carries per-viewer flags and
+    // the recommending member's name; the cached value is streamed to the
+    // browser, so it must hold nothing the page doesn't show.
+    const items = page.items.slice(0, HUB_LIMIT).map(b => ({
+      id: b.id, name: b.name, category: b.category, description: b.description,
+      neighborhood: b.neighborhood, coverImage: b.coverImage, logo: b.logo,
+      isExpatOwned: b.isExpatOwned, isExpatFriendly: b.isExpatFriendly,
+      memberDiscount: b.memberDiscount, avgRating: b.avgRating, reviewCount: b.reviewCount,
+    }))
+    return { items, total: page.total }
+  },
+  ['city-directory-hub'],
+  { revalidate: 60, tags: ['home'] },
+)
+
+/**
+ * A city's newest live listings for the board hub, and how many there are.
+ *
+ * A strict public projection, on purpose: contact, contactEmail and the
+ * gallery are member-only and are never selected here, so the cached value
+ * — which Next streams to the browser as part of the page — can't carry
+ * them whoever is looking. Safe by construction, not by stripping (the same
+ * rule the visitors query on the city page follows). What still differs
+ * for a guest — poster name, description length — the page handles per
+ * request, outside this cache.
+ */
+export const getCityBoardHub = unstable_cache(
+  async (cityId: string) => {
+    const where = { status: 'active', cityId }
+    const [listings, total] = await Promise.all([
+      prisma.listing.findMany({
+        where, orderBy: { createdAt: 'desc' }, take: HUB_LIMIT,
+        select: {
+          id: true, category: true, title: true, description: true, price: true,
+          neighborhood: true, createdAt: true,
+          user: { select: { name: true } },
+        },
+      }),
+      prisma.listing.count({ where }),
+    ])
+    return { listings, total }
+  },
+  ['city-board-hub'],
   { revalidate: 60, tags: ['home'] },
 )
