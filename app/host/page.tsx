@@ -9,6 +9,7 @@ import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import HostImpactStats from '@/components/HostImpactStats'
 import HostProfileCard from '@/components/HostProfileCard'
+import CheckInPrompt from '@/components/CheckInPrompt'
 
 interface Event {
   id: string
@@ -21,6 +22,11 @@ interface Event {
   totalSpots: number
   checkedInCount?: number
   _count?: { attendees: number }
+  // Read by CheckInPrompt to decide which finished events still need a scan.
+  endTime?: string | null
+  price: number
+  memberPrice?: number | null
+  noShowProcessedAt?: string | null
 }
 
 
@@ -78,6 +84,8 @@ export default function HostDashboard() {
             : "Here's an overview of your events."}
         </p>
       </div>
+
+      {canEvents && <CheckInPrompt events={events} tz={tz} />}
 
       <HostProfileCard />
 

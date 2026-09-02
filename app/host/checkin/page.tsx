@@ -6,19 +6,14 @@ import {resolveImageUrl, avatarUrl, getInitials} from '@/lib/data'
 import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { vibrate, useScanCheckin } from '@/lib/checkin'
+import { awaitingCheckIn, type CheckInPromptEvent } from '@/lib/checkInPrompt'
 import SwipeRow from '@/components/SwipeRow'
 import ScanResultToast from '@/components/ScanResultToast'
 import dynamic from 'next/dynamic'
 
 const QRScanner = dynamic(() => import('@/components/QRScanner'), { ssr: false })
 
-interface HostEvent {
-  id: string
-  title: string
-  date: string
-  time: string
-  emoji: string
-}
+type HostEvent = CheckInPromptEvent
 
 interface Attendee {
   userId: string
@@ -38,8 +33,15 @@ function EventList() {
     fetch('/app/api/host/events', { credentials: 'include' })
       .then(r => r.json())
       .then(d => {
+        // Today's events, plus any that have already ended without a check-in
+        // and can still be settled. Without the second half, a host following
+        // the dashboard prompt the morning after lands on "No events today".
         const today = todayInTz(tz)
-        setEvents(Array.isArray(d) ? d.filter((e: HostEvent) => e.date === today) : [])
+        const all: HostEvent[] = Array.isArray(d) ? d : []
+        const todays  = all.filter(e => e.date === today)
+        const pending = awaitingCheckIn(all, tz).map(p => p.event)
+        const seen    = new Set(todays.map(e => e.id))
+        setEvents([...todays, ...pending.filter(e => !seen.has(e.id))])
       })
       .finally(() => setLoading(false))
   }, [])
@@ -63,7 +65,12 @@ function EventList() {
           <span aria-hidden="true" className="text-3xl">{e.emoji}</span>
           <div className="min-w-0">
             <div className="text-sm font-medium text-white truncate">{e.title}</div>
-            <div className="text-xs text-zinc-400 mt-0.5">{e.time}</div>
+            <div className="text-xs text-zinc-400 mt-0.5">
+              {/* A finished event in this list is one still awaiting its
+                  check-in, so it needs its date — the time alone would read
+                  as today. */}
+              {e.date === todayInTz(tz) ? e.time : `${e.date} · ${e.time}`}
+            </div>
           </div>
           <div className="ml-auto text-xs text-amber-400 font-medium shrink-0">Open →</div>
         </button>
