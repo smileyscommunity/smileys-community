@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRSVP } from '@/hooks/useRSVP'
 import { formatPrice } from '@/lib/data'
+import NoShowAckModal from '@/components/NoShowAckModal'
 
 interface Props {
   eventId:      string
@@ -25,7 +26,7 @@ interface Props {
 
 export default function RSVPButton({ eventId, hostId, spotsLeft, soldOut = false, price, memberPrice, membersOnly, currency = 'TRY', payTo = 'venue' }: Props) {
   const { isLoggedIn, user } = useAuth()
-  const { status, position, loading, checked, join, leave, gate } = useRSVP(eventId)
+  const { status, position, loading, checked, join, leave, gate, ackRequest, confirmAck, cancelAck } = useRSVP(eventId)
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [stealth,       setStealth]       = useState(false)
   const [showStealth,   setShowStealth]   = useState(false)
@@ -82,6 +83,7 @@ export default function RSVPButton({ eventId, hostId, spotsLeft, soldOut = false
 
   return (
     <>
+      <NoShowAckModal open={!!ackRequest} onConfirm={confirmAck} onCancel={cancelAck} busy={loading} />
       <AnimatePresence mode="wait" initial={false}>
         {status === 'pending' ? (
           <motion.div key="pending" {...slide} className="space-y-2 mb-3">

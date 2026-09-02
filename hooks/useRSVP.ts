@@ -5,7 +5,6 @@ import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 import { apiFetch } from '@/lib/api'
 import { useAuth } from '@/contexts/AuthContext'
-import { confirmToast } from '@/lib/confirmToast'
 import posthog from 'posthog-js'
 
 export type RSVPStatus = 'idle' | 'joined' | 'pending' | 'waitlisted' | 'loading' | 'error'
@@ -33,6 +32,9 @@ export function useRSVP(eventId: string, initialStatus?: 'joined' | 'pending' | 
   const [loading,  setLoading]  = useState(false)
   const [checked,  setChecked]  = useState(seeded)
   const [gate,     setGate]     = useState<RSVPGate>({ ok: true })
+  // A join the server paused for the yellow-card confirmation. The consumer
+  // renders <NoShowAckModal/> off this and calls confirmAck / cancelAck.
+  const [ackRequest, setAckRequest] = useState<{ stealth: boolean } | null>(null)
 
   useEffect(() => {
     if (seeded) return
@@ -66,13 +68,7 @@ export function useRSVP(eventId: string, initialStatus?: 'joined' | 'pending' | 
         // before it writes the RSVP. Ask, and retry with the confirmation —
         // the retry is what records the acknowledgement.
         if (data.code === 'yellow_ack_required' && !acknowledgeNoShow) {
-          setLoading(false)
-          const yes = await confirmToast(
-            "You missed an event you'd RSVP'd to. Spots are limited — please only join if you'll actually come.",
-            { confirmLabel: "I'll actually come", cancelLabel: 'Not this time' },
-          )
-          if (yes) return join(stealth, true)
-          posthog.capture('event_rsvp_declined_after_warning', { event_id: eventId })
+          setAckRequest({ stealth })
           return
         }
         if (data.code === 'red_card_blocked') {
@@ -133,5 +129,15 @@ export function useRSVP(eventId: string, initialStatus?: 'joined' | 'pending' | 
     }
   }
 
-  return { status, position, loading, checked, join, leave, gate }
+  function confirmAck() {
+    const r = ackRequest
+    setAckRequest(null)
+    if (r) join(r.stealth, true)
+  }
+  function cancelAck() {
+    setAckRequest(null)
+    posthog.capture('event_rsvp_declined_after_warning', { event_id: eventId })
+  }
+
+  return { status, position, loading, checked, join, leave, gate, ackRequest, confirmAck, cancelAck }
 }

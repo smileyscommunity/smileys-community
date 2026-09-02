@@ -14,6 +14,7 @@ import AvatarStack from '@/components/AvatarStack'
 import EventBadges from '@/components/EventBadges'
 
 import { useRSVP } from '@/hooks/useRSVP'
+import NoShowAckModal from '@/components/NoShowAckModal'
 import { isSoldOut, isManuallySoldOut } from '@/lib/soldOut'
 
 function Tip({ text, children }: { text: string; children: React.ReactNode }) {
@@ -71,7 +72,7 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
   const urgency     = getUrgency(event.spotsLeft, event.totalSpots, event.limitedSpots, fillPercent, event.soldOut)
   const barColor    = getBarColor(fillPercent)
 
-  const { status, loading, join } = useRSVP(event.id, initialStatus)
+  const { status, loading, join, ackRequest, confirmAck, cancelAck } = useRSVP(event.id, initialStatus)
   const isCancelled = event.status === 'cancelled'
   // Counter-full or said-so-by-a-human — the card treats both the same, and
   // lib/soldOut is the one place that decides which.
@@ -87,6 +88,8 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
   }
 
   return (
+    <>
+    <NoShowAckModal open={!!ackRequest} onConfirm={confirmAck} onCancel={cancelAck} busy={loading} />
     <motion.div
       initial={{ opacity: 0, y: 24 }}
       animate={{ opacity: 1, y: 0 }}
@@ -331,5 +334,6 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
       </div>
     </Link>
     </motion.div>
+    </>
   )
 }
