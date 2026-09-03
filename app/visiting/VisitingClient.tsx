@@ -49,6 +49,13 @@ interface FeaturedLocal {
   color:        string
   profilePhoto: string | null
   neighborhood: string | null
+  // What this member said they're open to, in settings. Shown to signed-in
+  // viewers only: the flags live on the members-only directory today, and
+  // /visiting is a public page — ordering by them leaks nothing, printing
+  // them to the open web would be a new disclosure the member never agreed to.
+  openToHosting?:  boolean
+  openToCoffee?:   boolean
+  openToLanguage?: boolean
 }
 
 interface Props {
@@ -243,9 +250,14 @@ function LocalsStrip({ locals, viewerId }: { locals: FeaturedLocal[]; viewerId: 
   if (locals.length === 0) return null
   const visible = viewerId ? locals.filter(l => l.id !== viewerId) : locals
   if (visible.length === 0) return null
+  // Only claim they welcome visitors when they said so. Otherwise this is the
+  // same neutral "here are some members" strip it has always been.
+  const anyHost = visible.slice(0, 4).some(l => l.openToHosting)
   return (
     <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5 mb-6">
-      <p className="text-xs font-bold uppercase tracking-wide text-amber-700 mb-4">Meet some locals</p>
+      <p className="text-xs font-bold uppercase tracking-wide text-amber-700 mb-4">
+        {viewerId && anyHost ? 'Locals happy to meet visitors' : 'Meet some locals'}
+      </p>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {visible.slice(0, 4).map(l => (
           <div key={l.id} className="flex flex-col items-center gap-2 text-center">
@@ -264,6 +276,13 @@ function LocalsStrip({ locals, viewerId }: { locals: FeaturedLocal[]; viewerId: 
                 {l.name.split(' ')[0]}
               </Link>
               {l.neighborhood && <p className="text-[10px] text-gray-400">{l.neighborhood}</p>}
+              {viewerId && (l.openToHosting || l.openToCoffee || l.openToLanguage) && (
+                <div className="flex flex-wrap justify-center gap-1 mt-1">
+                  {l.openToHosting  && <span title="Open to hosting visitors" aria-label="Open to hosting visitors" className="text-[10px] px-1.5 py-0.5 bg-green-50 text-green-700 border border-green-100 rounded-full">🏠</span>}
+                  {l.openToCoffee   && <span title="Open to coffee with newcomers" aria-label="Open to coffee with newcomers" className="text-[10px] px-1.5 py-0.5 bg-amber-50 text-amber-700 border border-amber-100 rounded-full">☕</span>}
+                  {l.openToLanguage && <span title="Open to language exchange" aria-label="Open to language exchange" className="text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-100 rounded-full">🗣️</span>}
+                </div>
+              )}
             </div>
             {viewerId && <ConnectButton targetUserId={l.id} targetName={l.name} />}
           </div>

@@ -136,10 +136,18 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
       orderBy: { date: 'asc' },
       take:    60,
     }),
+    // Locals to meet. Members who ticked "🏠 Hosting visitors" in settings come
+    // first — they are the only ones who actually said they welcome strangers,
+    // and this page never asked the rest. goodHangouts still orders within each
+    // group, and remains the whole ordering while nobody has opted in, so the
+    // strip never empties on the way to its first host.
     prisma.user.findMany({
       where:   { status: 'approved', cityId: cityId },
-      select:  { id: true, name: true, color: true, profilePhoto: true, neighborhood: true },
-      orderBy: { goodHangouts: 'desc' },
+      select:  {
+        id: true, name: true, color: true, profilePhoto: true, neighborhood: true,
+        openToHosting: true, openToCoffee: true, openToLanguage: true,
+      },
+      orderBy: [{ openToHosting: 'desc' }, { goodHangouts: 'desc' }],
       take:    5,
     }),
     prisma.user.groupBy({
@@ -171,6 +179,15 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
     lookingFor:   a.lookingFor,
     user:         a.user ? { id: a.user.id, name: a.user.name, color: a.user.color, profilePhoto: a.user.profilePhoto } : null,
   }))
+
+  // The "open to…" flags live on the members-only directory. Hiding them in
+  // the render is not enough — props reach the browser in the RSC payload, so
+  // a guest would receive them in the page source while seeing nothing. Strip
+  // them here instead; guests get exactly the four fields they always got.
+  const localsForViewer = session
+    ? featuredLocals
+    : featuredLocals.map(({ id, name, color, profilePhoto, neighborhood }) =>
+        ({ id, name, color, profilePhoto, neighborhood }))
 
   const cityCount = new Set(serialised.map(a => a.fromCity).filter(Boolean)).size
 
@@ -362,7 +379,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
             its own reading width so it doesn't stretch into a banner. */}
         <div id="visitors" className="scroll-mt-20">
 
-        <VisitingClient announcements={serialised} events={upcomingEvents} cityCount={cityCount} featuredLocals={featuredLocals} cityName={city.name} />
+        <VisitingClient announcements={serialised} events={upcomingEvents} cityCount={cityCount} featuredLocals={localsForViewer} cityName={city.name} />
 
         {/* Cross-link to /handbook — visitors landing here are the exact
             audience for the long-form survival reads. Closes the loop
