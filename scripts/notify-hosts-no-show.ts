@@ -28,6 +28,7 @@ import {
   NO_SHOW_PROCESSING_DELAY_HOURS as DELAY,
   NO_SHOW_MIN_CHECKIN_RATIO as RATIO,
   RECONFIRM_ASK_HOURS_BEFORE as ASK,
+  NO_SHOW_POLICY_PATH,
 } from '@/lib/noShowPolicy'
 
 const DRY_RUN = process.env.DRY_RUN === '1'
@@ -38,7 +39,10 @@ const SUBJECT = 'How no-show cards work on your events'
 
 const APP_URL   = process.env.NEXT_PUBLIC_APP_URL ?? 'https://smileyscommunity.com/app'
 const FROM      = process.env.EMAIL_FROM ?? 'Smileys Community <info@smileyscommunity.com>'
-const ARTICLE   = `${APP_URL}/posts/how-free-event-spots-work`
+// The member article — what the CTA is explicitly labelled as ("what members
+// were told"). The notification link is the HOST guide; see HOST_GUIDE below.
+const ARTICLE    = `${APP_URL}${NO_SHOW_POLICY_PATH}`
+const HOST_GUIDE = '/posts/how-no-show-cards-work-for-hosts'
 
 const esc = (v: string) => v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
@@ -136,7 +140,7 @@ async function main() {
         h.id, 'broadcast',
         '🟨 How no-show cards work on your events',
         'Free events now settle no-shows automatically. You are the only person who can clear a card — here is what that means at your door.',
-        '/posts/how-free-event-spots-work',
+        HOST_GUIDE,
       )
       await resend.emails.send({
         from: FROM, to: h.email,
