@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { validateGuideEntry, guideEntryPayload } from '@/lib/guideEntryInput'
 import { readFileSync } from 'fs'
+import { writeAudit, SCRIPT_ACTOR } from '@/lib/audit'
 
 // Seed a city's guide experiences from a JSON file — the generic version of
 // what Bodrum needed four bespoke scripts for (history, water, table, takes).
@@ -51,6 +52,7 @@ async function main() {
   console.log(`${DRY_RUN ? '[DRY RUN] ' : ''}Seeding ${raw.length} guide entries for ${city.name} (${citySlug})\n`)
 
   let created = 0, skipped = 0, invalid = 0
+  const createdSlugs: string[] = []
   for (const [i, item] of raw.entries()) {
     // The same validation the panel runs — per-city collections/moods/seasons/
     // neighborhoods, slug shape, Take required when publishing.
@@ -78,10 +80,17 @@ async function main() {
       })
     }
     created++
+    createdSlugs.push(v.slug)
     console.log(`  + ${v.slug} (${v.status})`)
   }
 
   console.log(`\n${DRY_RUN ? '[DRY RUN] would create' : 'Created'} ${created} · skipped ${skipped} existing · ${invalid} invalid`)
+  if (!DRY_RUN && created > 0) {
+    await writeAudit(SCRIPT_ACTOR.id, SCRIPT_ACTOR.name, 'city.guide_seed', city.id, 'city',
+      { city: city.name, created, skipped, invalid, slugs: createdSlugs.slice(0, 30), file },
+      `Seeded ${created} guide entr${created === 1 ? 'y' : 'ies'} in ${city.name}`,
+    )
+  }
   if (invalid > 0) process.exitCode = 1
 }
 

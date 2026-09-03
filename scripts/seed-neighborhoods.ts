@@ -37,6 +37,7 @@
 import { readFileSync } from 'fs'
 import { prisma } from '@/lib/prisma'
 import { neighborhoodToSlug } from '@/lib/neighborhoods'
+import { writeAudit, SCRIPT_ACTOR } from '@/lib/audit'
 
 const DRY_RUN     = process.env.DRY_RUN === '1'
 const FILL_BLANKS = process.env.FILL_BLANKS === '1'
@@ -166,6 +167,7 @@ async function main() {
   if (FILL_BLANKS) console.log('  FILL_BLANKS — null columns on existing rows will be filled')
 
   let created = 0, filled = 0, skipped = 0
+  const createdNames: string[] = []
 
   for (const e of entries) {
     const name  = e.name.trim()
@@ -228,6 +230,7 @@ async function main() {
     }
     console.log(`  + ${name} (${slug})${e.area ? ` [${e.area}]` : ''} cost ${e.cost ?? 2}${lat != null ? ` @ ${lat},${lng}` : ''} — sortOrder ${sortOrder}`)
     created++
+    createdNames.push(name)
   }
 
   // Rows the city has that the file doesn't mention. Reported, never touched:
@@ -241,6 +244,13 @@ async function main() {
   }
 
   console.log(`✓ ${DRY_RUN ? 'would create' : 'created'} ${created}, ${FILL_BLANKS ? `${DRY_RUN ? 'would fill' : 'filled'} ${filled}, ` : ''}${skipped} already present`)
+  if (!DRY_RUN && (created > 0 || filled > 0)) {
+    // The panel's paste box writes this same action; the dashboard reads it.
+    await writeAudit(SCRIPT_ACTOR.id, SCRIPT_ACTOR.name, 'city.neighborhoods_add', city.id, 'city',
+      { city: city.name, added: created, reactivated: 0, filled, names: createdNames.slice(0, 30), file: filePath },
+      `Added ${created} neighborhood(s)${filled ? ` + filled ${filled}` : ''} in ${city.name}`,
+    )
+  }
   if (!DRY_RUN && created > 0 && city.status !== 'live') {
     console.log(`  ${city.name} is ${city.status} — the go-live gate also needs at least one active club and one city host.`)
   }

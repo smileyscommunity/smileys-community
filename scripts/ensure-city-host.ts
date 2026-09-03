@@ -20,6 +20,7 @@
 // default is every ACTIVE club in the city.
 
 import { prisma } from '@/lib/prisma'
+import { writeAudit, SCRIPT_ACTOR } from '@/lib/audit'
 
 const CITY       = process.env.CITY
 const HOST_EMAIL = process.env.HOST_EMAIL
@@ -47,6 +48,7 @@ async function main() {
   console.log(`${APPLY ? 'APPLYING' : 'DRY RUN'} — ${host.name} as host of ${clubs.length} active club(s) in ${city.name}\n`)
 
   let created = 0, promoted = 0, unchanged = 0
+  const touched: string[] = []
   for (const club of clubs) {
     const existing = await prisma.clubMembership.findUnique({
       where:  { userId_clubId: { userId: host.id, clubId: club.id } },
@@ -64,6 +66,7 @@ async function main() {
       // so it must NOT move.
       console.log(`  ↑ ${club.slug.padEnd(26)} promote ${existing.role}/${existing.status} → host/approved (count stays ${club.memberCount})`)
       promoted++
+      touched.push(club.slug)
       if (APPLY) {
         await prisma.clubMembership.update({
           where: { userId_clubId: { userId: host.id, clubId: club.id } },
@@ -75,6 +78,7 @@ async function main() {
 
     console.log(`  + ${club.slug.padEnd(26)} add host membership (count ${club.memberCount} → ${club.memberCount + 1})`)
     created++
+    touched.push(club.slug)
     if (APPLY) {
       // One transaction so a membership can never exist without its count,
       // matching how the approvals route enrols members.
@@ -90,6 +94,12 @@ async function main() {
   console.log(`\n${APPLY ? '✓ Applied' : '✓ Dry run — nothing written'}: ` +
               `${created} added, ${promoted} promoted, ${unchanged} already hosted`)
   if (!APPLY) console.log('  Re-run with APPLY=1 to write.')
+  if (APPLY && touched.length) {
+    await writeAudit(SCRIPT_ACTOR.id, SCRIPT_ACTOR.name, 'club.host_add', city.id, 'city',
+      { city: city.name, host: host.name, hostId: host.id, added: created, promoted, clubs: touched },
+      `${host.name} made host of ${touched.length} club(s) in ${city.name}: ${touched.join(', ')}`,
+    )
+  }
 }
 
 main()

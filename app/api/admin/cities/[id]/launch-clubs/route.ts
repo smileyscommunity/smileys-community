@@ -4,6 +4,7 @@ import { getSession } from '@/lib/session'
 import { isAdmin, isAdminOrModerator } from '@/lib/access'
 import { seedCityClubs } from '@/lib/seedCityClubs'
 import { CITY_STATUS } from '@/lib/cityStatus'
+import { writeAudit } from '@/lib/audit'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -37,6 +38,12 @@ export async function POST(_req: NextRequest, { params }: Params) {
 
   try {
     const result = await seedCityClubs(prisma, city.slug)
+    if (result.created > 0) {
+      await writeAudit(session.id, session.name, 'city.clubs_launch', id, 'city',
+        { city: city.name, created: result.created, activeCreated: result.activeCreated, skipped: result.skipped, slugs: result.createdSlugs },
+        `Launched ${result.created} starter club(s) in ${city.name} (${result.activeCreated} active)`,
+      )
+    }
     return NextResponse.json(result)
   } catch (e) {
     console.error('[launch-clubs]', e)

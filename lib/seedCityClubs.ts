@@ -11,6 +11,7 @@ export interface SeedCityClubsResult {
   skipped: number
   total: number
   createdSlugs: string[]
+  cityId: string
 }
 
 // The clubs a new city OPENS with, vs the ones it grows into. Bodrum set the
@@ -73,5 +74,5 @@ export async function seedCityClubs(
     createdSlugs.push(slug)
   }
 
-  return { city: city.name, created, activeCreated, skipped, total: templates.length, createdSlugs }
+  return { city: city.name, cityId: city.id, created, activeCreated, skipped, total: templates.length, createdSlugs }
 }

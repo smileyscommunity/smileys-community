@@ -48,6 +48,13 @@ async function cityForTarget(targetType: string | undefined, targetId: string | 
   }
 }
 
+// Launch and seed scripts run on the server with no session. They still
+// change what members see, so they audit under this actor rather than not at
+// all — the dashboard's "Recent Activity" is the audit log, and a city that
+// gained 17 neighborhoods with no row there looks like nothing happened.
+// adminId is a plain string (no FK), so a non-user id is safe here.
+export const SCRIPT_ACTOR = { id: 'system:script', name: 'Launch script' } as const
+
 export async function writeAudit(
   adminId: string,
   adminName: string,

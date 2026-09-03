@@ -24,6 +24,7 @@
 import { readFileSync } from 'fs'
 import { prisma } from '@/lib/prisma'
 import { canonicalCategory } from '@/lib/handbook-categories'
+import { writeAudit } from '@/lib/audit'
 
 const DRY_RUN = process.env.DRY_RUN === '1'
 
@@ -145,6 +146,12 @@ async function main() {
       // lastReviewedAt / reviewIntervalDays deliberately unset — see header.
     },
   })
+  // Same row the panel writes on publish, so the dashboard's Recent Activity
+  // and the per-city audit view see a script-published article too.
+  await writeAudit(author.id, author.name, 'post.publish', post.id, 'post',
+    { title: post.title, status: post.status, category: post.category, slug: post.slug, source: 'script' },
+    `Published article "${post.title}" (${post.category})`,
+  )
   console.log(`✓ published ${post.slug} (${post.id})`)
 }
 
