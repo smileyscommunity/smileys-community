@@ -100,8 +100,10 @@ lib/guide.ts later gains a city list, remap the existing entries in the same
 change** (`scripts/scan-guide-vocabulary.ts` catches drift). Seed as drafts
 (`scripts/seed-city-guide.ts`), fact-check flagged items against official
 sources (this killed a fatal-accident cable car and a suspended tram from
-Antalya's set), then publish. `lastReviewedAt` stays null until a human on
-the ground checks.
+Antalya's set), then publish with `scripts/publish-city-guide.ts <slug>`
+(DRY_RUN first; every draft in the city, or a comma list of slugs; refuses a
+draft with an empty Take, same rule as the panel). `lastReviewedAt` stays
+null until a human on the ground checks.
 
 ## 5. Handbook + neighborhood editorial
 
