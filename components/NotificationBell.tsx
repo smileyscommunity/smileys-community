@@ -4,48 +4,13 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { timeAgo } from '@/lib/timeAgo'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { TYPE_ICON } from '@/lib/notificationFilters'
 
 interface Notification {
   id: string; type: string; title: string; body: string
   isRead: boolean; link: string | null; createdAt: string
 }
 
-const TYPE_ICON: Record<string, string> = {
-  rsvp:                '🎉',
-  rsvp_pending:        '⏳',
-  waitlist:            '📋',
-  waitlist_promoted:   '✅',
-  club_approved:       '🏛️',
-  club_rejected:       '❌',
-  new_event:           '📣',
-  attendee_joined:     '🙌',
-  review_request:      '⭐',
-  event_updated:       '📅',
-  event_cancelled:     '😔',
-  host_assigned:       '🎖️',
-  host_message:        '📨',
-  reminder_24h:        '⏰',
-  reminder_2h:         '⚡',
-  message:             '💬',
-  visitor_tip:         '💡',
-  warning:             '⚠️',
-  announcement:        '📢',
-  system_alert:        '🚨',
-  alert:               '🚨',
-  reminder:            '⏰',
-  club_wall_post:      '📝',
-  club_post_reply:     '💬',
-  club_mention:        '💬',
-  // Admin/moderator-only — distinct icon so directory submissions
-  // stand out from generic 'system' bell entries.
-  directory_submission: '📋',
-  membership_upgraded:  '⭐',
-  connection_request:  '🤝',
-  connection_accepted: '🤝',
-  report:              '🚩',
-  application:         '👤',
-  event_survey:        '✍️',
-}
 
 
 export default function NotificationBell() {
