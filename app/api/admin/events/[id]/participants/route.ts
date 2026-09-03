@@ -136,7 +136,7 @@ export async function GET(_: NextRequest, { params }: Params) {
       // late-cancel cards, whose attendee rows are not in the list above.
       prisma.noShowCard.findMany({
         where:   { eventId },
-        select:  { id: true, userId: true, kind: true, status: true, waivedAt: true, user: { select: { id: true, name: true } } },
+        select:  { id: true, userId: true, kind: true, status: true, waivedAt: true, notifiedAt: true, user: { select: { id: true, name: true } } },
         orderBy: { issuedAt: 'asc' },
       }),
     ])

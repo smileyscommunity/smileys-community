@@ -11,7 +11,7 @@ import UserAvatar from '@/components/UserAvatar'
 import WhatsAppButton from '@/components/WhatsAppButton'
 import { useAdminMemberSearch } from '@/hooks/useAdminMemberSearch'
 
-interface NoShowCard { id: string; userId: string; kind: 'yellow' | 'red'; status: string; waivedAt: string | null; user: { id: string; name: string } }
+interface NoShowCard { id: string; userId: string; kind: 'yellow' | 'red'; status: string; waivedAt: string | null; notifiedAt: string | null; user: { id: string; name: string } }
 
 interface AttendeeUser { id: string; name: string; color: string; email: string; profilePhoto?: string | null; gender?: string | null; nationality?: string | null; phone?: string | null; noShowCount?: number }
 interface Attendee    { userId: string; status: string; checkedIn: boolean; joinedAt: string; isStaff?: boolean; user: AttendeeUser }
@@ -289,7 +289,7 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
         method: 'POST', credentials: 'include',
       })
       const data = await res.json()
-      if (res.ok) toast.success(`Sent to ${data.emailed} email${data.emailed !== 1 ? 's' : ''} · ${data.notified} in-app`)
+      if (res.ok) toast.success(`Sent to ${data.emailed} email${data.emailed !== 1 ? 's' : ''} · ${data.notified} in-app${data.alreadyCarded ? ` · ${data.alreadyCarded} already notified by the sweep` : ''}`)
       else toast.error(data.error ?? 'Failed to notify')
     } catch {
       toast.error('Failed to notify')
@@ -547,6 +547,20 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
       {/* ── APPROVED ── */}
       {(() => {
         const noShows = approved.filter(a => !a.checkedIn)
+        // The no-show sweep emails and bells every member it cards, and the
+        // Notify route skips those members — so the button must count only
+        // who it would actually reach. Once everyone is carded it says so
+        // instead of offering a send that goes to nobody.
+        const cardedIds     = new Set(noShowCards.map(c => c.userId))
+        const uncardedNoShows = noShows.filter(a => !cardedIds.has(a.userId))
+        const sweepNotifiedAt = noShowCards.map(c => c.notifiedAt).filter((t): t is string => !!t).sort()[0] ?? null
+        // A cleared card means the host says they were there (late, missed
+        // scan) — still not checked in, so still in this list, but not a
+        // no-show anyone should be told about.
+        const clearedCount  = noShowCards.filter(c => c.status === 'waived' && noShows.some(a => a.userId === c.userId)).length
+        const sweepTime = sweepNotifiedAt
+          ? new Date(sweepNotifiedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+          : null
         const byCheckin = attendeeView === 'checkedin' ? approved.filter(a => a.checkedIn)
           : attendeeView === 'noshows' ? noShows
           : approved
@@ -599,16 +613,24 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
                 ))}
               </div>
             )}
-            {isPastEvent && noShows.length > 0 && (
+            {isPastEvent && uncardedNoShows.length > 0 && (
               <button
-                onClick={() => notifyNoShows(noShows.length)}
+                onClick={() => notifyNoShows(uncardedNoShows.length)}
                 disabled={notifying}
                 className="flex items-center gap-1.5 text-xs px-2.5 py-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 font-semibold transition-colors disabled:opacity-40"
                 title="Send email + in-app notification to no-shows"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                {notifying ? 'Sending…' : `Notify (${noShows.length})`}
+                {notifying ? 'Sending…' : `Notify (${uncardedNoShows.length})`}
               </button>
+            )}
+            {isPastEvent && noShows.length > 0 && uncardedNoShows.length === 0 && (
+              <span
+                className="flex items-center gap-1.5 text-xs px-2.5 py-2 rounded-lg bg-zinc-800 text-zinc-400"
+                title="The no-show sweep emailed and notified every one of them when it issued their cards — nothing left to send"
+              >
+                ✓ All {noShows.length} notified by the sweep{sweepTime ? ` at ${sweepTime}` : ''}{clearedCount > 0 ? ` · ${clearedCount} since cleared by the host` : ''}
+              </span>
             )}
             {approved.length > 0 && (
               <button

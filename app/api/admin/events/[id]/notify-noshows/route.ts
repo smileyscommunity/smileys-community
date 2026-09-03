@@ -45,7 +45,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     })).filter(a => !carded.has(a.userId))
 
     if (noShows.length === 0) {
-      return NextResponse.json({ emailed: 0, notified: 0 })
+      return NextResponse.json({ emailed: 0, notified: 0, alreadyCarded: carded.size })
     }
 
     let emailed = 0, notified = 0
@@ -64,7 +64,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       ])
     }))
 
-    return NextResponse.json({ emailed, notified })
+    return NextResponse.json({ emailed, notified, alreadyCarded: carded.size })
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
