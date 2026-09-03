@@ -7,12 +7,15 @@ import { promptToast } from '@/lib/promptToast'
 import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
 import UserAvatar from '@/components/UserAvatar'
+import NoShowCardBadge from '@/components/NoShowCardBadge'
 
 interface AttendeeUser {
   id: string; name: string; color: string; email?: string; profilePhoto?: string | null
 }
 interface Attendee {
   userId: string; status: string; checkedIn: boolean; joinedAt: string; user: AttendeeUser
+  // Pending rows only: the member's active no-show cards across all events.
+  activeCards?: { yellow: number; red: number }
 }
 interface WaitlistEntry {
   id: string; userId: string; createdAt: string; user: AttendeeUser
@@ -330,7 +333,10 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
                 <div key={a.userId} className="flex items-center gap-3 px-5 py-4">
                   <UserAvatar user={a.user} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-white truncate">{a.user.name}</p>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <p className="text-sm font-semibold text-white truncate">{a.user.name}</p>
+                      <NoShowCardBadge cards={a.activeCards} />
+                    </div>
                     {a.user.email && <p className="text-xs text-zinc-500 truncate">{a.user.email}</p>}
                   </div>
                   <div className="flex gap-2 shrink-0">

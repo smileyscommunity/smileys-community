@@ -8,13 +8,14 @@ import { promptToast } from '@/lib/promptToast'
 import { formatDate } from '@/lib/data'
 import type { Event } from '@/lib/data'
 import UserAvatar from '@/components/UserAvatar'
+import NoShowCardBadge from '@/components/NoShowCardBadge'
 import WhatsAppButton from '@/components/WhatsAppButton'
 import { useAdminMemberSearch } from '@/hooks/useAdminMemberSearch'
 
 interface NoShowCard { id: string; userId: string; kind: 'yellow' | 'red'; status: string; waivedAt: string | null; notifiedAt: string | null; user: { id: string; name: string } }
 
 interface AttendeeUser { id: string; name: string; color: string; email: string; profilePhoto?: string | null; gender?: string | null; nationality?: string | null; phone?: string | null; noShowCount?: number }
-interface Attendee    { userId: string; status: string; checkedIn: boolean; joinedAt: string; isStaff?: boolean; user: AttendeeUser }
+interface Attendee    { userId: string; status: string; checkedIn: boolean; joinedAt: string; isStaff?: boolean; user: AttendeeUser; activeCards?: { yellow: number; red: number } }
 interface WaitlistEntry { id: string; userId: string; createdAt: string; user: AttendeeUser }
 interface PaymentRow  { id: string; userId: string; status: string; amount: number; currency: string }
 
@@ -523,8 +524,11 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
                   <Row key={a.userId}>
                     <UserAvatar user={a.user} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-white truncate">{a.user.name}</p>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <p className="text-sm font-semibold text-white truncate">{a.user.name}</p>
+                        <NoShowCardBadge cards={a.activeCards} />
                       </div>
+                    </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <WhatsAppButton user={a.user} />
                       <button onClick={() => approveAttendee(a.userId)} disabled={busy === a.userId}

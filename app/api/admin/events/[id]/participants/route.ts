@@ -11,6 +11,7 @@ import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 import { writeAudit } from '@/lib/audit'
 import { activateAttendee, activeAttendeeWhere, cancelAttendeeOp, isActiveAttendee, type CancelActor } from '@/lib/attendance'
 import { getRsvpGate, gateErrorBody } from '@/lib/noShow'
+import { CardStatus } from '@/lib/noShowPolicy'
 
 // Who is taking the member off the event, for the soft-cancel stamp.
 // Everyone past canManageEventOps who isn't an admin is some kind of host.
@@ -146,10 +147,31 @@ export async function GET(_: NextRequest, { params }: Params) {
       ...cohosts.map(c => c.userId),
     ].filter(Boolean) as string[])
 
+    // A yellow card is a private warning to the member — hosts never see it
+    // on the approved list or the waitlist. The one place it informs a
+    // decision is the approval queue, so pending rows (and only those) carry
+    // the member's ACTIVE cards from any event, as counts, not history. Red
+    // cards enforce themselves at RSVP time, so a red here means the request
+    // predates the restriction.
+    const pendingIds = attendeesRaw.filter(a => a.status === 'pending').map(a => a.userId)
+    const activeCardRows = pendingIds.length
+      ? await prisma.noShowCard.findMany({
+          where:  { userId: { in: pendingIds }, status: { in: [CardStatus.Active, CardStatus.AppealPending] } },
+          select: { userId: true, kind: true },
+        })
+      : []
+    const activeCards = new Map<string, { yellow: number; red: number }>()
+    for (const c of activeCardRows) {
+      const cur = activeCards.get(c.userId) ?? { yellow: 0, red: 0 }
+      if (c.kind === 'red') cur.red++; else cur.yellow++
+      activeCards.set(c.userId, cur)
+    }
+
     // Keep all in the list for display, but tag host/cohost so client can distinguish
     const attendees = attendeesRaw.map(a => ({
       ...a,
       isStaff: excludeIds.has(a.userId),
+      ...(a.status === 'pending' ? { activeCards: activeCards.get(a.userId) ?? { yellow: 0, red: 0 } } : {}),
     }))
 
     const waitlistUserIds = waitlistRaw.map(w => w.userId)
