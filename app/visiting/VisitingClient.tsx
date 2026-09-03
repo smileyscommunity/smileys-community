@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { toast } from 'sonner'
 import { useAuth } from '@/contexts/AuthContext'
 import { VISITOR_TRAVELER_TYPES, VISITOR_LOOKING_FOR, avatarUrl } from '@/lib/data'
+import { sharedSignals } from '@/lib/visitorMatch'
 
 const TRAVELER_LABEL: Record<string, string> = Object.fromEntries(VISITOR_TRAVELER_TYPES.map(t => [t.value, t.label]))
 const LOOKING_FOR_META: Record<string, { label: string; emoji: string }> = Object.fromEntries(
@@ -325,10 +326,12 @@ function FirstTimeChecklist({ hasPosted, viewerId }: { hasPosted: boolean; viewe
   )
 }
 
-function AnnouncementCard({ a, viewerId, viewerInterests, events, allAnnouncements, todayUTC }: {
+function AnnouncementCard({ a, viewerId, viewerInterests, viewerLanguages, viewerNeighborhood, events, allAnnouncements, todayUTC }: {
   a:                Announcement
   viewerId:         string | null
   viewerInterests:  string[]
+  viewerLanguages:  string[]
+  viewerNeighborhood: string | null
   events:           EventSummary[]
   allAnnouncements: Announcement[]
   todayUTC:         number
@@ -336,7 +339,11 @@ function AnnouncementCard({ a, viewerId, viewerInterests, events, allAnnouncemen
   const [coffeeOpen, setCoffeeOpen] = useState(false)
   const status          = arrivalStatus(a, todayUTC)
   const isSelf          = !!(viewerId && a.user && viewerId === a.user.id)
-  const sharedInterests = viewerInterests.filter(i => a.interests.includes(i)).slice(0, 3)
+  // Why a local might say hi — see lib/visitorMatch.
+  const { interests: sharedInterests, languages: sharedLanguages, sameNeighborhood } = sharedSignals(
+    { interests: viewerInterests, languages: viewerLanguages, neighborhood: viewerNeighborhood },
+    { interests: a.interests,     languages: a.languages,     neighborhood: a.neighborhood ?? null },
+  )
   const eventsInWindow  = events.filter(e => e.date >= a.startsOn && e.date <= a.endsOn)
   // Overlapping visitors ranked by shared "looking for" tags first (e.g. two
   // people who both want a coworking buddy during the same week are a much
@@ -389,7 +396,8 @@ function AnnouncementCard({ a, viewerId, viewerInterests, events, allAnnouncemen
       <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap mb-3">{a.intro}</p>
 
       {/* Looking for + shared interests + events during stay */}
-      {(a.lookingFor.length > 0 || sharedInterests.length > 0 || eventsInWindow.length > 0) && (
+      {(a.lookingFor.length > 0 || sharedInterests.length > 0 || sharedLanguages.length > 0
+        || sameNeighborhood || eventsInWindow.length > 0) && (
         <div className="flex flex-wrap items-center gap-2 mb-3">
           {a.lookingFor.map(v => LOOKING_FOR_META[v] && (
             <span key={v} className="text-xs bg-violet-50 text-violet-700 border border-violet-100 px-2 py-0.5 rounded-full font-medium">
@@ -401,6 +409,16 @@ function AnnouncementCard({ a, viewerId, viewerInterests, events, allAnnouncemen
               🎯 {i}
             </span>
           ))}
+          {sharedLanguages.map(l => (
+            <span key={l} className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-100 px-2 py-0.5 rounded-full font-medium">
+              <span aria-hidden="true">🗣️ </span>You both speak {l}
+            </span>
+          ))}
+          {sameNeighborhood && (
+            <span className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-100 px-2 py-0.5 rounded-full font-medium">
+              <span aria-hidden="true">📍 </span>Staying in your neighbourhood
+            </span>
+          )}
           {eventsInWindow.length > 0 && (
             <Link href="/events"
               className="text-xs bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 rounded-full font-medium hover:bg-blue-100 transition-colors">
@@ -464,6 +482,8 @@ export default function VisitingClient({ announcements, events, cityCount, featu
   const { user, isLoggedIn } = useAuth()
   const viewerId        = isLoggedIn ? user.id        : null
   const viewerInterests = isLoggedIn ? (user.interests ?? []) as string[] : []
+  const viewerLanguages = isLoggedIn ? (user.languages ?? []) as string[] : []
+  const viewerNeighborhood = isLoggedIn ? (user.neighborhood ?? null) : null
   const hasPosted       = isLoggedIn && announcements.some(a => a.user?.id === user.id)
 
   const [filter, setFilter] = useState<FilterKey>('all')
@@ -576,7 +596,9 @@ export default function VisitingClient({ announcements, events, cityCount, featu
           : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5'
         }>
           {sorted.map(a => (
-            <AnnouncementCard key={a.id} a={a} viewerId={viewerId} viewerInterests={viewerInterests} events={events} allAnnouncements={announcements} todayUTC={todayUTC} />
+            <AnnouncementCard key={a.id} a={a} viewerId={viewerId} viewerInterests={viewerInterests}
+              viewerLanguages={viewerLanguages} viewerNeighborhood={viewerNeighborhood}
+              events={events} allAnnouncements={announcements} todayUTC={todayUTC} />
           ))}
         </div>
       )}
