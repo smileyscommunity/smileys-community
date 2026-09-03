@@ -398,9 +398,18 @@ Known, not yet addressed:
   removed. The 7-day TTL itself is unchanged — refresh-token rotation
   would shorten the stolen-cookie blast radius further but adds
   meaningful flow complexity.
-- **2FA optional for admins/mods.** Audit recommended mandatory; not
-  done because it's a UX decision (where's the enrollment prompt? what
-  happens on failed enrollment?).
+- **2FA optional for admins/mods.** *Narrowed 2026-09-03.* Still optional
+  for signing in and for routine admin work, so the UX question (where's
+  the enrollment prompt?) is still open. But the three operations a
+  stolen password must not buy — **role changes, user deletion, payment
+  deletion** — now require a 2FA-verified session via `requireStepUp()`
+  in `lib/stepUp.ts`. `isAdminStrict()` had been written and unit-tested
+  since the audit with no call site, which meant the capability was
+  decorative. This is not a lockout: `POST /api/auth/2fa/setup` uses a
+  raw role check so a non-enrolled admin can still reach it, and
+  completing enrollment marks the *current* session `totpVerified`, so
+  the admin enrolls once and comes straight back. The 403 carries
+  `code: 'totp_required'` for the UI.
 - ~~**Webhook signature verification.**~~ *Closed to the extent
   possible today.* No inbound webhook endpoints exist in this codebase
   as of the audit. A reusable HMAC-SHA256 verification helper lives at
@@ -446,6 +455,10 @@ When you add a new API route or feature, walk through this:
 - [ ] Does it require admin or moderator role? If yes, use the
       capability helper from `lib/access.ts` — don't inline the check.
       For city-bound resources, pass `targetCityId`.
+- [ ] Is it destructive or does it grant capability (deleting records,
+      changing a role, moving money)? If yes, add `requireStepUp()` from
+      `lib/stepUp.ts` after the capability check, so a stolen password
+      alone can't do it. Routine admin work stays on the plain helpers.
 - [ ] Does it accept an ID in the URL that nests under another ID
       (`/clubs/[slug]/posts/[postId]`)? If yes, look up both, assert
       the child belongs to the parent, before mutating.

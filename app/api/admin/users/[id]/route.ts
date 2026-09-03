@@ -1,4 +1,5 @@
 import { canManageUsers, canViewUserList, canSuspendUsers, canActInCity } from '@/lib/access'
+import { requireStepUp } from '@/lib/stepUp'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { activeAttendeeWhere } from '@/lib/attendance'
@@ -243,6 +244,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (allowed.role !== undefined && !['admin', 'moderator', 'member'].includes(allowed.role as string)) {
       return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
     }
+    // Granting a role is the one field in this whitelist that hands out
+    // capability, so it needs more than a password behind it. Only fires when
+    // a role is actually being set — the rest of a PATCH (bio, neighborhood,
+    // suspension) stays on the plain capability checks above.
+    if (allowed.role !== undefined) {
+      const stepUp = requireStepUp(session)
+      if (stepUp) return stepUp
+    }
     if (allowed.status !== undefined && !['approved', 'pending', 'banned'].includes(allowed.status as string)) {
       return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
     }
@@ -431,6 +440,11 @@ export async function DELETE(_: NextRequest, { params }: Params) {
     if (!session || !canManageUsers(session)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
+    // Deleting a member cascades across payments, attendance and authored
+    // content. Irreversible, so it takes a 2FA-verified session.
+    const stepUp = requireStepUp(session)
+    if (stepUp) return stepUp
+
     const { id } = await params
     if (id === session.id) return NextResponse.json({ error: 'Cannot delete yourself' }, { status: 400 })
 

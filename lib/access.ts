@@ -5,11 +5,11 @@ import { Role, MembershipStatus } from './constants'
 // ── Primitive role checks ──────────────────────────────────────────────────
 //
 // totpVerified is stored on the Session row (true only when the session was
-// created via the TOTP verify step). The column exists for future enforcement
-// — use isAdminStrict() on the most sensitive routes once all admins have
-// re-authenticated through the 2FA flow. Plain isAdmin() and
-// isAdminOrModerator() do role-only checks so existing sessions aren't
-// broken by the migration default of totpVerified=false.
+// created via the TOTP verify step). Enforced since 2026-09-03 via
+// requireStepUp() in lib/stepUp.ts, which guards role changes, user deletion
+// and payment deletion — read that file before adding a fourth. Plain
+// isAdmin() and isAdminOrModerator() stay role-only so ordinary admin work
+// isn't broken by the migration default of totpVerified=false.
 export function isAdmin(session: SessionUser): boolean {
   return session.role === Role.Admin
 }

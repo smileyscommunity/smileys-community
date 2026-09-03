@@ -1,4 +1,5 @@
 import { canManagePayments } from '@/lib/access'
+import { requireStepUp } from '@/lib/stepUp'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
@@ -267,6 +268,12 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const session = await requireAdmin()
   if (!session) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  // Destroying a financial record is the most irreversible thing this panel
+  // does — the snapshot below is a trail, not an undo. PATCH stays on the
+  // plain admin check: marking a payment paid is routine work.
+  const stepUp = requireStepUp(session)
+  if (stepUp) return stepUp
 
   // Tighter limit on DELETE than PATCH — deletes are destructive
   // even with the audit snapshot, and a compromised admin token
