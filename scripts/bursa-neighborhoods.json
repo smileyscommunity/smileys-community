@@ -1,0 +1,155 @@
+[
+  {
+    "name": "Heykel",
+    "emoji": "🗿",
+    "vibe": "The city's meeting point — Atatürk's statue, the bazaar streets, everyone's 'see you at Heykel'",
+    "area": "Old City",
+    "cost": 2,
+    "lat": 40.183,
+    "lng": 29.066
+  },
+  {
+    "name": "Tophane",
+    "emoji": "🕰️",
+    "vibe": "Clock tower on the citadel hill, the founders' tombs, the sunset terrace over the whole plain",
+    "area": "Old City",
+    "cost": 2,
+    "lat": 40.1878,
+    "lng": 29.0575
+  },
+  {
+    "name": "Muradiye",
+    "emoji": "🕌",
+    "vibe": "Ottoman tombs under plane trees, quiet lanes, the old Bursa that never got loud",
+    "area": "Old City",
+    "cost": 1,
+    "lat": 40.1904,
+    "lng": 29.0465
+  },
+  {
+    "name": "Altıparmak",
+    "emoji": "🎬",
+    "vibe": "Cinemas, cafés and the main avenue between the old city and Çekirge",
+    "area": "Old City",
+    "cost": 2,
+    "lat": 40.1914,
+    "lng": 29.0507
+  },
+  {
+    "name": "Setbaşı",
+    "emoji": "🌉",
+    "vibe": "The Irgandı bridge and the Gökdere gorge — Yeşil's green mosque up the hill, tea by the water below",
+    "area": "Old City",
+    "cost": 2,
+    "lat": 40.181,
+    "lng": 29.0696
+  },
+  {
+    "name": "Çekirge",
+    "emoji": "♨️",
+    "vibe": "Thermal hamams and spa hotels on the hillside, Bursa's classic address",
+    "area": "Thermal Hills",
+    "cost": 3,
+    "lat": 40.2014,
+    "lng": 29.0238
+  },
+  {
+    "name": "Kükürtlü",
+    "emoji": "🌿",
+    "vibe": "Sulphur springs, Kültürpark next door, leafy and residential",
+    "area": "Thermal Hills",
+    "cost": 2,
+    "lat": 40.2047,
+    "lng": 29.0275
+  },
+  {
+    "name": "Nilüfer",
+    "emoji": "🏙️",
+    "vibe": "The modern west — malls, wide boulevards, where newcomers rent",
+    "area": "Nilüfer",
+    "cost": 2,
+    "lat": 40.217,
+    "lng": 28.9848
+  },
+  {
+    "name": "Özlüce",
+    "emoji": "🏡",
+    "vibe": "Villas and new-build sites, family and expat territory",
+    "area": "Nilüfer",
+    "cost": 3,
+    "lat": 40.2388,
+    "lng": 28.906
+  },
+  {
+    "name": "Görükle",
+    "emoji": "🎓",
+    "vibe": "Uludağ University's town — students, cheap food, late nights",
+    "area": "Nilüfer",
+    "cost": 1,
+    "lat": 40.2319,
+    "lng": 28.8395
+  },
+  {
+    "name": "Mudanya",
+    "emoji": "⛴️",
+    "vibe": "Bursa's seafront — the ferry from Istanbul, fish restaurants, a promenade for evenings",
+    "area": "Coast",
+    "cost": 2,
+    "lat": 40.3753,
+    "lng": 28.8838
+  },
+  {
+    "name": "Tirilye",
+    "emoji": "🫒",
+    "vibe": "Stone houses, olive groves and a fishing harbour — the coast's prettiest village",
+    "area": "Coast",
+    "cost": 2,
+    "lat": 40.3927,
+    "lng": 28.7962
+  },
+  {
+    "name": "Gemlik",
+    "emoji": "🌊",
+    "vibe": "The olive capital on its own gulf — working port town, beaches beyond it",
+    "area": "Coast",
+    "cost": 1,
+    "lat": 40.4302,
+    "lng": 29.1571
+  },
+  {
+    "name": "Gölyazı",
+    "emoji": "🪶",
+    "vibe": "A village on an island in Lake Uluabat — pelicans, weeping willows, fish lunch",
+    "area": "Lakes",
+    "cost": 1,
+    "lat": 40.1654,
+    "lng": 28.6776
+  },
+  {
+    "name": "İznik",
+    "emoji": "🏺",
+    "vibe": "Ancient Nicaea on its lake — Roman walls, tile workshops, a slow weekend",
+    "area": "Lakes",
+    "cost": 1,
+    "lat": 40.4303,
+    "lng": 29.7224
+  },
+  {
+    "name": "Cumalıkızık",
+    "emoji": "🥞",
+    "vibe": "Seven-hundred-year-old Ottoman village, cobbled lanes and the famous village breakfast",
+    "area": "Mountain & Villages",
+    "cost": 1,
+    "lat": 40.1752,
+    "lng": 29.1727
+  },
+  {
+    "name": "Uludağ",
+    "emoji": "⛷️",
+    "vibe": "The mountain — skiing in winter, hiking and cool air in summer, the hotel zone at the top",
+    "area": "Mountain & Villages",
+    "cost": 3,
+    "lat": 40.104,
+    "lng": 29.1329
+  }
+]
