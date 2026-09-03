@@ -5,7 +5,10 @@ import { getSession } from '@/lib/session'
 import { redactEventForGuest } from '@/lib/db'
 import { getPublicCity } from '@/lib/cities'
 import { CITY_STATUS } from '@/lib/cityStatus'
-import { APP_URL } from '@/lib/env'
+import { APP_URL, SITE_URL } from '@/lib/env'
+import { jsonLdHtml } from '@/lib/jsonLd'
+import { eventListJsonLd } from '@/lib/eventJsonLd'
+import { headers } from 'next/headers'
 import EventCard from '@/components/EventCard'
 import JoinCityButton from '@/components/JoinCityButton'
 import { getCityEventsHub, arrangeEvents, enterLinkFor, hubCanonical, isDefaultCitySlug } from '../data'
@@ -53,8 +56,19 @@ export default async function CityEventsPage({ params }: Params) {
   const enter   = enterLinkFor(city.slug)
   const isDefault = isDefaultCitySlug(city.slug)
 
+  // The crawlable list of events, as data. Built from the same rows the cards
+  // below render — a listing whose structured data disagrees with its visible
+  // content is worse than none. Redacted rows are fine here: nothing in the
+  // markup is member-private (title, date, place, link).
+  const eventsJsonLd = eventListJsonLd(events, city, { appUrl: APP_URL, siteUrl: SITE_URL })
+  const nonce = (await headers()).get('x-nonce') ?? undefined
+
   return (
     <>
+      {eventsJsonLd && (
+        <script type="application/ld+json" nonce={nonce}
+          dangerouslySetInnerHTML={{ __html: jsonLdHtml(eventsJsonLd) }} />
+      )}
       <section className="bg-gradient-to-b from-amber-50 via-white to-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-8">
           <Link href={`/${city.slug}`} className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-amber-700 hover:text-amber-800 mb-6">

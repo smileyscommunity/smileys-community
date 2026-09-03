@@ -1,7 +1,11 @@
 import type { Metadata } from 'next'
-import { APP_URL } from '@/lib/env'
+import { headers } from 'next/headers'
+import { APP_URL, SITE_URL } from '@/lib/env'
 import { getSession } from '@/lib/session'
 import { resolveCityId, getCityConfig, DEFAULT_CITY_SLUG } from '@/lib/city'
+import { getCityEventsHub } from '@/app/[city]/data'
+import { jsonLdHtml } from '@/lib/jsonLd'
+import { eventListJsonLd } from '@/lib/eventJsonLd'
 
 // See app/about/page.tsx for why this is needed — a page-level `openGraph`
 // block loses the root layout's default og:image, so /events shared with
@@ -56,6 +60,32 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 }
 
-export default function EventsLayout({ children }: { children: React.ReactNode }) {
-  return <>{children}</>
+// The page itself is client-rendered, so a crawler reaching /events sees an
+// empty shell — and this is the canonical URL for the default city, the one
+// Google already ranks. The layout is a server component, so the event list
+// can be emitted as structured data here without touching the interactive
+// calendar below it. Same rows, same cache as the /[city]/events hub.
+export default async function EventsLayout({ children }: { children: React.ReactNode }) {
+  // A layout wraps its nested routes, so this runs on /events/[id] too. A
+  // detail page already emits its own Event JSON-LD and must stay the page's
+  // primary entity — bolting a list of twenty unrelated events onto it would
+  // muddy exactly the signal that page exists to send. Only the listing emits.
+  const path      = (await headers()).get('x-pathname') ?? ''
+  const isListing = path.split('?')[0].replace(/\/$/, '').endsWith('/events')
+  if (!isListing) return <>{children}</>
+
+  const cityId = await resolveCityId(await getSession())
+  const cfg    = await getCityConfig(cityId)
+  const { events } = await getCityEventsHub(cityId)
+  const jsonLd = eventListJsonLd(events, cfg, { appUrl: APP_URL, siteUrl: SITE_URL })
+  const nonce  = (await headers()).get('x-nonce') ?? undefined
+  return (
+    <>
+      {jsonLd && (
+        <script type="application/ld+json" nonce={nonce}
+          dangerouslySetInnerHTML={{ __html: jsonLdHtml(jsonLd) }} />
+      )}
+      {children}
+    </>
+  )
 }
