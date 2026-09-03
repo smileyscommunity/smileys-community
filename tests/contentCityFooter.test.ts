@@ -10,10 +10,14 @@ describe('contentCitySlugPath', () => {
     expect(contentCitySlugPath('/app/guide/kara-ada-hot-springs')).toEqual({ kind: 'guide', slug: 'kara-ada-hot-springs' })
     expect(contentCitySlugPath('/guide/routes/bosphorus-day')).toEqual({ kind: 'route', slug: 'bosphorus-day' })
     expect(contentCitySlugPath('/app/neighborhoods/gumusluk')).toEqual({ kind: 'neighborhood', slug: 'gumusluk' })
+    // The Ankara/Bursa transport-card articles rendered "Find your people in
+    // Istanbul" for a guest because this returned null for /handbook/<slug>.
+    expect(contentCitySlugPath('/app/handbook/bursakart-one-card-for-bursaray-the-buses-and-the-trams'))
+      .toEqual({ kind: 'handbook', slug: 'bursakart-one-card-for-bursaray-the-buses-and-the-trams' })
   })
 
   it('does NOT claim the index pages — they are feeds of the reader\'s city', () => {
-    for (const p of ['/app/guide', '/guide', '/app/neighborhoods', '/app/events', '/app/clubs', '/app/board', '/']) {
+    for (const p of ['/app/guide', '/guide', '/app/neighborhoods', '/app/handbook', '/app/events', '/app/clubs', '/app/board', '/']) {
       expect(contentCitySlugPath(p), p).toBeNull()
     }
   })

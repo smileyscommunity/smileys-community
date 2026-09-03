@@ -2,16 +2,15 @@
 //
 // Server-only: the root layout uses it to give the footer the city of the page
 // it is wrapping, for pages whose URL carries no city (a guide experience, a
-// guide route, a neighborhood). See contentCitySlugPath for which paths qualify
-// and why feeds deliberately don't.
+// guide route, a neighborhood, a handbook article). See contentCitySlugPath for
+// which paths qualify and why feeds deliberately don't.
 //
 // Cached for 60s per (kind, slug) in module memory — this runs on every request
 // to those pages, and a slug's owning city changes about as often as the row is
 // created.
 
 import { prisma } from './prisma'
-
-type Ref = { kind: 'guide' | 'route' | 'neighborhood'; slug: string }
+import type { ContentCityRef as Ref } from './pathCitySlug'
 
 const TTL_MS = 60_000
 const cache = new Map<string, { cityId: string | null; expires: number }>()
@@ -26,6 +25,17 @@ export async function cityIdForContent(ref: Ref): Promise<string | null> {
     if (ref.kind === 'neighborhood') {
       const row = await prisma.neighborhood.findFirst({
         where:  { slug: ref.slug, active: true },
+        select: { cityId: true },
+      })
+      cityId = row?.cityId ?? null
+    } else if (ref.kind === 'handbook') {
+      // Same published-only rule as the guide. A global article has no cityId,
+      // so it resolves to null here and the footer keeps the reader's city —
+      // only a city-local article (Başkentkart, BursaKart) redresses the page.
+      // The page itself 404s anything that isn't a published handbook post, so
+      // the filter can't disagree with what the reader sees.
+      const row = await prisma.post.findFirst({
+        where:  { slug: ref.slug, kind: 'handbook', status: 'published' },
         select: { cityId: true },
       })
       cityId = row?.cityId ?? null

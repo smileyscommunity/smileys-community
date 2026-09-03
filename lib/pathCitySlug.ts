@@ -54,14 +54,23 @@ export function cityCandidatesFromUrl(pathAndSearch: string): string[] {
  * matches no row returns null and the caller falls back as before, so a
  * mistyped URL costs one indexed lookup and changes nothing.
  *
+ * A handbook article is the same shape with one wrinkle: the row's city is
+ * nullable. A city-local article (Başkentkart, BursaKart) names its city and
+ * gets the footer to match; a global one (residence permits, tax numbers) has
+ * no city, resolves to null, and keeps following the reader — the page already
+ * titles itself that way (see app/handbook/[slug]/page.tsx).
+ *
  * Deliberately NOT a general rule for every page: /events and /clubs are
  * feeds of whichever city you're in, so the reader's city is the right answer
  * there and the footer should keep following the session.
  */
-export function contentCitySlugPath(pathname: string): { kind: 'guide' | 'route' | 'neighborhood'; slug: string } | null {
+export type ContentCityRef = { kind: 'guide' | 'route' | 'neighborhood' | 'handbook'; slug: string }
+
+export function contentCitySlugPath(pathname: string): ContentCityRef | null {
   const parts = pathname.replace(/^\/app(?=\/|$)/, '').split('?')[0].split('/').filter(Boolean)
   if (parts[0] === 'guide' && parts[1] === 'routes' && parts[2]) return { kind: 'route',        slug: parts[2] }
   if (parts[0] === 'guide' && parts[1] && parts[1] !== 'routes') return { kind: 'guide',        slug: parts[1] }
   if (parts[0] === 'neighborhoods' && parts[1])                  return { kind: 'neighborhood', slug: parts[1] }
+  if (parts[0] === 'handbook' && parts[1])                       return { kind: 'handbook',     slug: parts[1] }
   return null
 }
