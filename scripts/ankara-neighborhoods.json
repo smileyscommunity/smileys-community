@@ -1,0 +1,20 @@
+[
+  { "name": "Ulus", "emoji": "🏛️", "vibe": "Where the Republic started — the first parliament, the Roman baths, Hacı Bayram and the old-town bazaars", "area": "Old Ankara", "cost": 1, "lat": 39.9392, "lng": 32.8507 },
+  { "name": "Ankara Kalesi", "emoji": "🏰", "vibe": "The citadel: copper lanes, restored houses turned restaurants, and the museum quarter at its foot", "area": "Old Ankara", "cost": 2, "lat": 39.9415, "lng": 32.8654 },
+  { "name": "Hamamönü", "emoji": "🏘️", "vibe": "Restored Ottoman streets, courtyard cafés and the calmest walk in the old city", "area": "Old Ankara", "cost": 2, "lat": 39.9335, "lng": 32.8661 },
+  { "name": "Kızılay", "emoji": "🚇", "vibe": "The city's crossroads — metro hub, Sakarya's fish-and-beer tables and the student crowd that never goes home", "area": "Centre", "cost": 2, "lat": 39.9206, "lng": 32.8541 },
+  { "name": "Kavaklıdere", "emoji": "🍷", "vibe": "Tunalı Hilmi, Kuğulu Park and the Bestekar bar street — Ankara's evening out", "area": "Centre", "cost": 3, "lat": 39.9133, "lng": 32.8579 },
+  { "name": "Bahçelievler", "emoji": "📚", "vibe": "7. Cadde: bookshops, cheap eats and a long walkable evening in a garden-suburb grid", "area": "Centre", "cost": 2, "lat": 39.9278, "lng": 32.8265 },
+  { "name": "Ayrancı", "emoji": "☕", "vibe": "Leafy, low-key and central — the neighbourhood cafés diplomats' families actually use", "area": "Çankaya", "cost": 3, "lat": 39.9029, "lng": 32.8498 },
+  { "name": "Gaziosmanpaşa", "emoji": "🎩", "vibe": "Embassy row and Filistin Caddesi's restaurants — the most polished address in the capital", "area": "Çankaya", "cost": 3, "lat": 39.8971, "lng": 32.8662 },
+  { "name": "Dikmen", "emoji": "🌇", "vibe": "Big residential hills south of the centre with the valley park running through the middle", "area": "Çankaya", "cost": 1, "lat": 39.8798, "lng": 32.8386 },
+  { "name": "ODTÜ", "emoji": "🌲", "vibe": "METU's forest campus and the 100. Yıl cafés around it — Ankara's alternative side", "area": "Campus Belt", "cost": 1, "lat": 39.8755, "lng": 32.7855 },
+  { "name": "Bilkent", "emoji": "🎓", "vibe": "University town in the pines, with concert halls and a shopping centre that doubles as the local square", "area": "Campus Belt", "cost": 2, "lat": 39.8843, "lng": 32.7611 },
+  { "name": "Çayyolu", "emoji": "🏡", "vibe": "Çayyolu and Ümitköy — the suburban west where families and long-stay expats settle", "area": "West", "cost": 3, "lat": 39.8813, "lng": 32.6838 },
+  { "name": "Batıkent", "emoji": "🚉", "vibe": "The planned new town at the end of the metro — cooperative housing, wide streets, honest prices", "area": "West", "cost": 1, "lat": 39.9700, "lng": 32.7169 },
+  { "name": "Eryaman", "emoji": "🛒", "vibe": "Apartment city out west with its own malls and the Başkentray line into town", "area": "West", "cost": 1, "lat": 39.9824, "lng": 32.6088 },
+  { "name": "Keçiören", "emoji": "🎡", "vibe": "Ankara's populous north — parks, a fairground skyline and the most local end of the city", "area": "North", "cost": 1, "lat": 39.9777, "lng": 32.8670 },
+  { "name": "Gölbaşı", "emoji": "🛶", "vibe": "Mogan Lake's shore restaurants and Sunday promenades, half an hour south", "area": "Escapes", "cost": 2, "lat": 39.7925, "lng": 32.8067 },
+  { "name": "Beypazarı", "emoji": "🥕", "vibe": "An Ottoman market town of carved houses, carrot juice and güveç — the classic day trip", "area": "Escapes", "cost": 2, "lat": 40.1656, "lng": 31.9205 },
+  { "name": "Kızılcahamam", "emoji": "♨️", "vibe": "Thermal baths and the Soğuksu pine forest, an hour north — the winter weekend", "area": "Escapes", "cost": 2, "lat": 40.4701, "lng": 32.6529 }
+]
