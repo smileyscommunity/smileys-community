@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { NO_SHOW_CANCELLATION_CUTOFF_HOURS, NO_SHOW_ROLLING_WINDOW_DAYS, RED_CARD_BLOCK_DAYS } from '@/lib/noShowPolicy'
+import { NO_SHOW_CANCELLATION_CUTOFF_HOURS, NO_SHOW_ROLLING_WINDOW_DAYS, RED_CARD_BLOCK_DAYS, NO_SHOW_POLICY_PATH } from '@/lib/noShowPolicy'
 
 // The member's own no-show standing, in full: every live card, what it
 // means, and the appeal form for a red card inside its window. Same facts
@@ -63,6 +63,12 @@ export default function NoShowPage() {
             Spots at free events are limited. When someone RSVPs and doesn&apos;t come, a place on the waitlist went unused.
             Cancelling at least {NO_SHOW_CANCELLATION_CUTOFF_HOURS} hours before an event always keeps you clear.
           </p>
+          {/* This page answers "what happened to me"; the article answers "why
+              does this exist and what are the actual rules". A member who lands
+              here from a card email needs both. */}
+          <Link href={NO_SHOW_POLICY_PATH} className="inline-block mt-2 text-sm font-semibold text-amber-600 hover:text-amber-700 underline">
+            Read how free-event spots work →
+          </Link>
         </div>
 
         {failed && (

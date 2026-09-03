@@ -38,6 +38,12 @@ export const RECONFIRM_ASK_HOURS_BEFORE        = 24
 export const RECONFIRM_RELEASE_HOURS_BEFORE    = NO_SHOW_CANCELLATION_CUTOFF_HOURS
 export const RECONFIRM_MIN_LEAD_HOURS          = 14
 
+// Where the rules are written out for members. The card emails, the member's
+// standing page and the article-publishing script all read this one constant:
+// a member who gets a card must be able to reach the full policy from wherever
+// they landed, and a renamed article must not leave three dead links behind.
+export const NO_SHOW_POLICY_PATH = '/posts/how-free-event-spots-work'
+
 const HOUR = 60 * 60 * 1000
 const DAY  = 24 * HOUR
 

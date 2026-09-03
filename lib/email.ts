@@ -4,7 +4,7 @@ import { APP_URL as ENV_APP_URL } from '@/lib/env'
 import { prisma } from '@/lib/prisma'
 import type { Prisma } from '@prisma/client'
 import { DEFAULT_TZ } from '@/lib/cityTime'
-import { NO_SHOW_CANCELLATION_CUTOFF_HOURS, NO_SHOW_ROLLING_WINDOW_DAYS } from '@/lib/noShowPolicy'
+import { NO_SHOW_CANCELLATION_CUTOFF_HOURS, NO_SHOW_ROLLING_WINDOW_DAYS, NO_SHOW_POLICY_PATH } from '@/lib/noShowPolicy'
 
 const FROM    = process.env.EMAIL_FROM ?? 'Smileys Community <info@smileyscommunity.com>'
 const APP_URL = ENV_APP_URL
@@ -1104,6 +1104,7 @@ export async function sendNoShowEmail(
           Browse upcoming events →
         </a>
         <p style="color:#9ca3af;font-size:12px;text-align:center">Hope to see you at the next one 😊</p>
+        ${policyLine()}
         <p style="color:#9ca3af;font-size:11px;text-align:center;margin-top:20px">
           <a href="${unsub}" style="color:#9ca3af">Unsubscribe from event reminders</a>
         </p>
@@ -1116,6 +1117,17 @@ export async function sendNoShowEmail(
 // ── No-show cards ───────────────────────────────────────────────────────────
 // Same voice as sendNoShowEmail above: factual, no scolding. The policy
 // values are interpolated from lib/noShowPolicy so copy and rules can't drift.
+
+// Every card email ends here. The primary button sends a member to their own
+// standing (/no-show, "what happened to me"); this line sends them to the
+// rules themselves ("why this is a thing at all"). Before the article existed
+// the card emails were the first and only place a member met the policy,
+// which is how 13 people ended up reading about a card with nowhere to look
+// the rules up.
+const policyLine = (color = '#9ca3af') =>
+  `<p style="color:${color};font-size:12px;text-align:center;margin-top:14px">
+     <a href="${APP_URL}${NO_SHOW_POLICY_PATH}" style="color:${color};text-decoration:underline">How free-event spots work →</a>
+   </p>`
 
 function fmtDate(d: Date): string {
   // Policy dates are member-level, not tied to one event's city; the
@@ -1148,6 +1160,7 @@ export async function sendYellowCardEmail(
           See the details →
         </a>
         <p style="color:#9ca3af;font-size:12px;text-align:center">If this is a mistake — you were there, or the host missed your check-in — the host can clear it.</p>
+        ${policyLine()}
         <p style="color:#9ca3af;font-size:11px;text-align:center;margin-top:20px">
           <a href="${unsub}" style="color:#9ca3af">Unsubscribe from event reminders</a>
         </p>
@@ -1183,6 +1196,7 @@ export async function sendRedCardEmail(
           Review or appeal →
         </a>
         <p style="color:#9ca3af;font-size:12px;text-align:center">We'd rather have you at events than not. Cancelling ${NO_SHOW_CANCELLATION_CUTOFF_HOURS} hours ahead is all it takes.</p>
+        ${policyLine()}
         <p style="color:#9ca3af;font-size:11px;text-align:center;margin-top:20px">
           <a href="${unsub}" style="color:#9ca3af">Unsubscribe from event reminders</a>
         </p>
