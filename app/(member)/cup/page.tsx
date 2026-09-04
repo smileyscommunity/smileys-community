@@ -20,9 +20,8 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { CUP_TEAMS as TEAMS, TEAM_BY_CODE, teamLabel, ROUND_LABEL, isFixtureLocked, CUP_GROUPS } from '@/lib/cup-data'
+import { CUP_TEAMS as TEAMS, TEAM_BY_CODE, teamLabel, ROUND_LABEL, isFixtureLocked, CUP_GROUPS, CUP_TZ } from '@/lib/cup-data'
 import { avatarUrl } from '@/lib/data'
-import { CUP_TZ } from '@/lib/cup'
 import { formatDay, fromWallClockInTz, todayInTz } from '@/lib/cityTime'
 
 interface Fixture {

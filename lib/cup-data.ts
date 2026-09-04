@@ -9,6 +9,19 @@
 // Now: this file is the single source. lib/cup.ts re-exports from
 // here for server-side callers; the page files import directly.
 
+import { DEFAULT_TZ } from './cityTime'
+
+// The Cup ran on one clock. Fixture days, "Locks at first kickoff" and the
+// watch-party list are all read in the founding city's zone — the tournament
+// was a Smileys-wide game scored from Istanbul, not a per-city event. Named
+// here so the page says which clock it means instead of spelling a zone
+// literal seven times; a future cup that belongs to a city passes that
+// city's zone instead.
+export const CUP_TZ = DEFAULT_TZ
+// Defined HERE and not in lib/cup.ts because the cup page is a client
+// component: cup.ts imports prisma, and a client import of it drags the
+// Postgres driver into the browser bundle (the build fails resolving fs/tls).
+
 export type CupRound = 'group' | 'r32' | 'r16' | 'qf' | 'sf' | 'final'
 
 // Scoring per round. winnerTeam matches pickedTeam → these points
