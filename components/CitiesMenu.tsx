@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
+import { cityMenuLabel } from '@/lib/cityMenuLabel'
+import type { CityMaturity } from '@/lib/cityMaturity'
 
 // The nav's one city control. Populated from /api/cities at runtime — never a
 // hard-coded list — so a city an admin takes live appears here without a
@@ -21,7 +23,7 @@ import { toast } from 'sonner'
 // "Back to <home>" always undoes it. For a guest there is no such state, so
 // picking a city is plain navigation and the button stays labelled "Cities".
 
-interface City { slug: string; name: string; country: string; status: string }
+interface City { slug: string; name: string; country: string; status: string; maturity?: CityMaturity | null }
 
 export default function CitiesMenu({
   className = '',
@@ -138,6 +140,17 @@ export default function CitiesMenu({
     }
     if (c.slug === homeSlug) {
       return <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Home</span>
+    }
+    // A live city that is still seeding says so. "Founding" is the hero's own
+    // word for it, in the amber the menu already uses for what is not yet
+    // running — green LIVE is kept for cities with people in them.
+    if (cityMenuLabel(c.status, c.maturity) === 'founding') {
+      return (
+        <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-amber-600">
+          <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+          Founding
+        </span>
+      )
     }
     return (
       <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-emerald-600">
