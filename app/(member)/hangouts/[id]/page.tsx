@@ -4,25 +4,29 @@ import Image from 'next/image'
 import { notFound, redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { isAdminOrModerator } from '@/lib/access'
 import { resolveImageUrl } from '@/lib/data'
 import { neighborhoodToSlug, NEIGHBORHOOD_META } from '@/lib/neighborhoods'
 import { APP_URL, SITE_URL } from '@/lib/env'
 import SocialShare from '@/components/SocialShare'
 import HangoutJoinButton from '@/components/HangoutJoinButton'
+import HangoutCancelButton from '@/components/HangoutCancelButton'
 import HangoutDiscussion from '@/components/HangoutDiscussion'
 import AddToCalendar from '@/components/AddToCalendar'
 import ReportButton from '@/components/ReportButton'
 import { getCityConfig } from '@/lib/city'
 
-// Read-only permalink for a single hangout. Designed so stale push
+// Permalink for a single hangout. Designed so stale push
 // notifications (cancellation, recap from days ago, third-party links)
 // don't 404 — instead the user sees what the hangout was, what happened
 // to it, and a way back to the live feed.
 //
-// Why server-rendered (no 'use client'): this page does no mutations.
-// All actions (join, cancel, message) happen on the main /hangouts feed
-// where the join/leave/message UI already lives. Duplicating that here
-// would create two sources of truth.
+// Server-rendered; the few mutations it offers (join, cancel, message) are
+// small client components calling the same APIs the feed does — one source of
+// truth in the API, not in the UI. Cancel lives here as well as on the feed
+// because the feed only lists ACTIVE hangouts in the VIEWER's current city:
+// arrive from a share link, a push, or another city and the feed's cancel is
+// unreachable, which left a host with no way to call their own plan off.
 
 export const dynamic = 'force-dynamic'  // session-gated; no caching
 
@@ -131,6 +135,10 @@ export default async function HangoutPermalinkPage({ params }: PageProps) {
   const isOwner    = hangout.user.id === session.id
   const joinedByMe = hangout.joins.some((j: any) => j.user.id === session.id)
   const isJoinable = hangout.status === 'active' && hangout.endsAt >= new Date()
+  // Same authority the DELETE endpoint enforces: host or staff. Only offered
+  // while there is still something to call off — a hangout that already ran
+  // its course gets the "has ended" banner, not a cancel button.
+  const canCancel  = isJoinable && (isOwner || isAdminOrModerator(session))
 
   // The hangout's own city scopes the Maps search and the calendar timezone.
   const city = await getCityConfig(hangout.cityId)
@@ -223,6 +231,10 @@ export default async function HangoutPermalinkPage({ params }: PageProps) {
         ) : isJoinable ? (
           <HangoutJoinButton hangoutId={hangout.id} initialJoined={joinedByMe} />
         ) : null}
+
+        {/* Calling it off. Sits under the primary action so it never competes
+            with "I'm in"; the DELETE notifies every joiner. */}
+        {canCancel && <HangoutCancelButton hangoutId={hangout.id} isOwner={isOwner} />}
 
         {/* Directions (always, so people can find the spot) + Add to Calendar
             (upcoming only). Hidden for cancelled hangouts. */}
