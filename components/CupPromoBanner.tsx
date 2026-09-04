@@ -19,9 +19,10 @@ import Link from 'next/link'
 // on this surface.
 
 const DISMISS_KEY    = 'smileys_cup_promo_v1'
-// Final match kicks off Jul 19, 2026 ~22:00 Istanbul. Hide the
-// pill from the next day onwards regardless of dismiss state.
-const TOURNAMENT_END = Date.parse('2026-07-20T00:00:00+03:00')
+// Final match kicks off Jul 19, 2026 ~22:00 Istanbul. Hide the pill from
+// the next Istanbul day onwards regardless of dismiss state — midnight
+// there is 21:00 UTC, written as the one instant it is.
+const TOURNAMENT_END = Date.parse('2026-07-19T21:00:00Z')
 
 export default function CupPromoBanner() {
   // Start hidden to avoid an SSR/CSR flash. Flip on mount if (a)

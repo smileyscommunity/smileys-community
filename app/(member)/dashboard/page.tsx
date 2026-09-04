@@ -38,6 +38,7 @@ import { recommendedClubsFor } from '@/lib/clubRecommendations'
 import Image from 'next/image'
 import { categoryMeta } from '@/lib/handbook-categories'
 import { todayInTz } from '@/lib/cityTime'
+import { DEFAULT_TZ } from '@/lib/cityTime'
 
 export const dynamic = 'force-dynamic'
 
@@ -87,7 +88,7 @@ export default async function DashboardPage() {
   // ComingSoon, not Live: this fallback only fires for a cityId with no City
   // row (stale session after a reseed). Claiming Live would walk a phantom
   // city straight through the founding gate as "Istanbul".
-  }) ?? { name: 'Istanbul', lat: null, lng: null, timezone: 'Europe/Istanbul', status: CITY_STATUS.ComingSoon }
+  }) ?? { name: 'Istanbul', lat: null, lng: null, timezone: DEFAULT_TZ, status: CITY_STATUS.ComingSoon }
 
   // The member's city decides the calendar day; the row above already
   // carries its zone, and its fallback is the default city's.

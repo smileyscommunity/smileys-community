@@ -8,7 +8,7 @@ import Link from 'next/link'
 import {formatShortDate} from '@/lib/data'
 import UserAvatar from '@/components/UserAvatar'
 import WhatsAppButton from '@/components/WhatsAppButton'
-import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
+import { todayInTz, dayInTz, DEFAULT_TZ } from '@/lib/cityTime'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 
 // ─── Page contract ──────────────────────────────────────────────────
@@ -63,10 +63,11 @@ function timeAgo(iso: string): string {
   return `${Math.floor(h / 24)}d ago`
 }
 
-// Istanbul calendar day of a timestamp — feed rows group by the day the
-// member RSVPed, in the community's timezone (not the admin's, not UTC).
-function istanbulDay(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Europe/Istanbul' })
+// Calendar day of a timestamp on the city's clock — feed rows group by the
+// day the member RSVPed, in the community's timezone (not the admin's, not
+// UTC).
+function cityDay(iso: string, tz: string): string {
+  return dayInTz(new Date(iso), tz)
 }
 
 // Capacity badge for event group headers. `demand` is how many people
@@ -330,12 +331,12 @@ export default function AdminParticipantsPage() {
   const pendingByEvent  = useMemo(() => groupByEvent(pending), [pending])
   const waitlistByEvent = useMemo(() => groupByEvent(queue),   [queue])
 
-  // Recent RSVPs group by Istanbul join-day, newest day first (approved
+  // Recent RSVPs group by city join-day, newest day first (approved
   // is already sorted desc, so insertion order is the display order).
   const approvedByDay = useMemo(() => {
     const groups = new Map<string, Attendee[]>()
     for (const a of approved) {
-      const day = istanbulDay(a.joinedAt)
+      const day = cityDay(a.joinedAt, tz)
       const g = groups.get(day)
       if (g) g.push(a)
       else groups.set(day, [a])

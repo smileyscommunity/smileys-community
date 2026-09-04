@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import {resolveImageUrl,  formatTime} from '@/lib/data'
 import AlertsRow, { type Alert } from '@/components/admin/AlertsRow'
-import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
+import { todayInTz, nowInTz, DEFAULT_TZ } from '@/lib/cityTime'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 
 interface TopHost {
@@ -233,9 +233,9 @@ export default function AdminPage() {
     return () => clearInterval(t)
   }, [])
 
-  // Istanbul wall-clock, not the device's — same rationale (and hourCycle
+  // The city's wall-clock, not the device's — same rationale (and hourCycle
   // gotcha) as the member dashboard's getGreeting().
-  const hour = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Istanbul', hour: 'numeric', hourCycle: 'h23' }).format(new Date()))
+  const hour = nowInTz(tz).hour
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
   const firstName = user?.name?.split(' ')[0] ?? 'Admin'
 

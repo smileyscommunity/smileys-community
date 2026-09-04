@@ -7,6 +7,8 @@ import Link from 'next/link'
 import { toast } from 'sonner'
 import { resolveImageUrl } from '@/lib/data'
 import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
+import { wallClockInTz, fromWallClockInTz, DEFAULT_TZ } from '@/lib/cityTime'
 import { downscaleImage } from '@/lib/image-resize'
 
 const STATUS_OPTS = [
@@ -55,15 +57,16 @@ function whenLabel(startsAt: string, endsAt: string) {
   return `${day}, ${t(s)}–${t(e)}`
 }
 
-// The datetime-local input holds ISTANBUL wall-clock time (the hangout's
+// The datetime-local input holds the hangout's CITY wall-clock time (its
 // meet time), matching the member composer/edit form — not the admin's
-// device time. Turkey is UTC+3 year-round (no DST since 2016), so format
-// via the Istanbul zone and tag the inverse with +03:00.
-function toIstanbulInput(iso: string) {
-  return new Date(iso).toLocaleString('sv-SE', { timeZone: 'Europe/Istanbul' }).replace(' ', 'T').slice(0, 16)
+// device time. The pair in lib/cityTime does the conversion from the city's
+// zone, DST included; this file used to hand-tag '+03:00', which is one
+// city's offset and wrong twice a year anywhere else.
+function toCityInput(iso: string, tz: string) {
+  return wallClockInTz(new Date(iso), tz)
 }
-function istanbulInputToISO(local: string) {
-  return new Date(`${local}:00+03:00`).toISOString()
+function cityInputToISO(local: string, tz: string) {
+  return fromWallClockInTz(local, tz).toISOString()
 }
 
 export default function AdminHangoutsPage() {
@@ -77,6 +80,10 @@ export default function AdminHangoutsPage() {
   const [status, setStatus]     = useState('active')
   const [cityFilter, setCityFilter] = useState('')
   const cities = useAdminCities()
+  // Each hangout converts on ITS city's clock; the admin's current city is
+  // the fallback for a row whose city the list hasn't loaded yet.
+  const currentTz = useCurrentCity()?.timezone ?? DEFAULT_TZ
+  const tzFor = (h: Hangout) => cities.find(c => c.slug === h.city?.slug)?.timezone ?? currentTz
   const [query, setQuery]       = useState('')
   const [editing, setEditing]   = useState<Hangout | null>(null)
   const [editForm, setEditForm] = useState({ title: '', location: '', neighborhood: '', description: '', startsAt: '', endsAt: '' })
@@ -141,8 +148,8 @@ export default function AdminHangoutsPage() {
       location:     h.location,
       neighborhood: h.neighborhood ?? '',
       description:  h.description ?? '',
-      startsAt:     toIstanbulInput(h.startsAt),
-      endsAt:       toIstanbulInput(h.endsAt),
+      startsAt:     toCityInput(h.startsAt, tzFor(h)),
+      endsAt:       toCityInput(h.endsAt, tzFor(h)),
     })
   }
 
@@ -188,8 +195,8 @@ export default function AdminHangoutsPage() {
           location,
           neighborhood: editForm.neighborhood || null,
           description:  editForm.description.trim(),
-          startsAt:     istanbulInputToISO(editForm.startsAt),
-          endsAt:       istanbulInputToISO(editForm.endsAt),
+          startsAt:     cityInputToISO(editForm.startsAt, tzFor(editing)),
+          endsAt:       cityInputToISO(editForm.endsAt, tzFor(editing)),
           // null clears the photo; a /api/files URL adds/replaces it.
           photo,
         }),

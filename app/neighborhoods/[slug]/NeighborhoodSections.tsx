@@ -9,6 +9,7 @@ import { formatShortDate, formatTime, formatPrice, BLUR_PLACEHOLDER, resolveImag
 import { SITE_URL, APP_URL } from '@/lib/env'
 import NeighborhoodWall from '@/components/NeighborhoodWall'
 import AvatarImg from '@/components/AvatarImg'
+import { eventStartDate } from '@/lib/eventJsonLd'
 
 // Absolute URL for JSON-LD `image` — schema.org wants a full URL, but
 // resolveImageUrl only returns app-relative paths (fine for <img src>,
@@ -278,7 +279,7 @@ export default async function NeighborhoodSections({
         description:  e.description
           ? e.description.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 500)
           : `${e.emoji} ${e.title} in ${name}, ${city.name}`,
-        startDate:    `${e.date}T${e.time ?? '00:00'}:00+03:00`,
+        startDate:    eventStartDate(e, city.timezone),
         eventStatus:  'https://schema.org/EventScheduled',
         eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
         location: {

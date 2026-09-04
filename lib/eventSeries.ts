@@ -9,6 +9,7 @@
 // Every occurrence remains a canonical Event record (§68) — nothing is
 // merged, deduplicated or rewritten in the database.
 
+import { weekdayOf } from './cityTime'
 export interface SeriesGroupable {
   id: string
   title: string
@@ -75,7 +76,7 @@ export function groupBySeries<T extends SeriesGroupable>(events: T[]): SeriesGro
 export function seriesCadenceLabel(group: SeriesGroup<SeriesGroupable>): string | null {
   if (!group.isSeries) return null
   const all = [group.next, ...group.upcoming]
-  const weekdays = new Set(all.map(e => new Date(`${e.date}T12:00:00+03:00`).getUTCDay()))
+  const weekdays = new Set(all.map(e => weekdayOf(e.date)))
   if (weekdays.size === 1) {
     // A calendar date's weekday is timezone-independent — anchor at UTC
     // noon instead of a city-specific offset literal.

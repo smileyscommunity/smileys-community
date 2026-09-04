@@ -13,7 +13,10 @@ import { join, relative } from 'path'
 // the timezone instead of assuming Istanbul's; it is the one file allowed to
 // spell the default out, and is excluded below.
 //
-// This locks in today's count per file:
+// It reached zero on 2026-09-04 (32 literals in 21 files, cleared for the
+// first non-Turkish city). From here the rule is simply: none, anywhere
+// but lib/cityTime.ts. The per-file baseline mechanism stays so an argued
+// exception can be recorded with a number rather than by deleting the test:
 //
 //   · a NEW file with a pinned zone/offset fails
 //   · an EXISTING file gaining one fails
@@ -31,27 +34,8 @@ const COMMENT = /^\s*(\/\/|\*|\/\*)/
 // file -> how many pinned-timezone literals it had when this ratchet was set,
 // 2026-08-31, while every live city still shared Türkiye's clock.
 const BASELINE: Record<string, number> = {
-  'app/(member)/cup/page.tsx': 7,
-  'app/(member)/dashboard/page.tsx': 1,
-  'app/admin/hangouts/page.tsx': 2,
-  'app/admin/newsletter/page.tsx': 2,
-  'app/admin/page.tsx': 1,
-  'app/admin/participants/page.tsx': 1,
-  'app/api/admin/events/[id]/route.ts': 1,
-  'app/api/admin/mod-stats/route.ts': 1,
-  'app/api/admin/surveys/route.ts': 2,
-  'app/api/auth/login/route.ts': 1,
-  'app/api/events/[id]/feedback/route.ts': 1,
-  'app/clubs/page.tsx': 2,
-  'app/guide/[slug]/EventMatches.tsx': 1,
-  'app/host/events/[id]/participants/page.tsx': 1,
-  'app/neighborhoods/[slug]/NeighborhoodSections.tsx': 1,
-  'app/visiting/page.tsx': 2,
-  'components/CityWeather.tsx': 1,
-  'components/CupPromoBanner.tsx': 1,
-  'lib/city.ts': 1,
-  'lib/eventSeries.ts': 1,
-  'lib/nps.ts': 1,
+  // Emptied 2026-09-04: every pinned zone outside lib/cityTime.ts is gone.
+  // A new entry here is a deliberate, argued exception — not a default.
 }
 
 function walk(dir: string): string[] {
@@ -73,9 +57,11 @@ function countIn(file: string): number {
   return n
 }
 
+let scanned = 0
 const counts = new Map<string, number>()
 for (const root of ROOTS) {
   for (const abs of walk(join(process.cwd(), root))) {
+    scanned++
     const rel = relative(process.cwd(), abs)
     if (EXCLUDED.has(rel)) continue
     const n = countIn(abs)
@@ -87,7 +73,9 @@ const ADVICE = "new Türkiye-pinned time handling — use the city's timezone vi
 
 describe('pinned-timezone literals do not spread', () => {
   it('finds files to scan (guards against a silently empty sweep)', () => {
-    expect(counts.size).toBeGreaterThan(10)
+    // Files walked, not files with hits — with the baseline at zero the
+    // second is meant to be empty; it is the walk that must not be.
+    expect(scanned).toBeGreaterThan(200)
   })
 
   it('no NEW file pins the Türkiye timezone', () => {

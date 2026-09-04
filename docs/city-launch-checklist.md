@@ -187,10 +187,19 @@ Each was a real bug on a launch night; a reappearance is a regression:
   migration pending); send-now works.
 - Handbook Quick Reference + "Start here" shelf are default-city-only.
 - Community polls are network-wide (no city dimension).
-- First **non-Turkish** city is a named project: the
-  `tests/timezoneHardcoding.test.ts` baseline must reach ~zero (32 literals
-  in 21 files on 2026-09-04, and none of the Turkish cities observe DST, so a
-  shifting offset is untested), and currency/language defaults need work.
-  DONE 2026-09-04: handbook country scoping — `Post.country` + `lib/postScope`;
-  national articles show only in their country, and the panel's "Applies in"
-  picker / the publish script's `country` field set it.
+- First **non-Turkish** city is a named project. Two of its three blockers
+  are now cleared, both on 2026-09-04:
+  - DONE: pinned timezones. The `tests/timezoneHardcoding.test.ts` baseline
+    is at zero — every site asks its city through `lib/cityTime` /
+    `getCityTz`, and `tests/cityTimeDst.test.ts` pins the behaviour on
+    Athens and New York, both sides of the DST jump (no Turkish city has
+    observed DST since 2016, so this had never been exercised). The Cup is
+    the one named exception: it runs on `CUP_TZ` (the founding city) because
+    it was a network-wide game, not a city event.
+  - DONE: handbook country scoping — `Post.country` + `lib/postScope`;
+    national articles show only in their country, and the panel's "Applies
+    in" picker / the publish script's `country` field set it.
+  - OPEN: currency and country copy. The fallback city config still says
+    TRY/TR; guide `cost` uses ₺ glyphs by convention; one grep pass for
+    "Türkiye"/"Turkish" in copy that is national by accident (about page,
+    guidelines, email templates, founding-member wording) is still owed.

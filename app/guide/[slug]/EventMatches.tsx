@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { formatDay } from '@/lib/cityTime'
 import posthog from 'posthog-js'
 
 export interface MatchedEvent { id: string; title: string; emoji: string; date: string; neighborhood: string | null }
@@ -21,7 +22,7 @@ export default function EventMatches({ events }: { events: MatchedEvent[] }) {
           <div className="flex-1 min-w-0">
             <p className="text-sm font-bold text-white truncate">{ev.title}</p>
             <p className="text-xs text-gray-300 mt-0.5">
-              {new Date(ev.date + 'T12:00:00+03:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
+              {formatDay(ev.date)}
               {ev.neighborhood && <> · 📍 {ev.neighborhood}</>}
             </p>
           </div>

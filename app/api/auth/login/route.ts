@@ -8,6 +8,7 @@ import { sendNewDeviceLoginEmail, sendAccountLockedEmail, recordEmailFailure } f
 import { sendPushToUser } from '@/lib/push'
 import { hostCityIds } from '@/lib/access'
 import { SignJWT } from 'jose'
+import { getCityConfig } from '@/lib/city'
 
 if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET environment variable is not set')
 const SECRET = new TextEncoder().encode(process.env.JWT_SECRET)
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest) {
                 neighborhood: true, instagram: true, emailVerified: true, partnerId: true,
                 password: true, status: true, suspendedUntil: true, suspensionNote: true,
                 totpEnabled: true, failedLoginCount: true, loginLockedUntil: true, knownIps: true,
-                fingerprints: true, tokenVersion: true } })
+                fingerprints: true, tokenVersion: true, cityId: true } })
     if (!user || !user.password) {
       // Burn equivalent CPU time so attackers can't distinguish "no such user"
       // from "wrong password" by measuring response latency.
@@ -151,10 +152,14 @@ export async function POST(req: NextRequest) {
       ? [...new Set([...(user.fingerprints ?? []), loginFingerprint])].slice(-50)
       : null
     if (isNewIp) {
-      const loginTime = new Date().toLocaleString('en-GB', { timeZone: 'Europe/Istanbul', dateStyle: 'medium', timeStyle: 'short' })
+      // Stamped on the member's OWN city clock and named after it — a security
+      // email that says "14:05 (Türkiye)" to someone in another city reads as
+      // someone else's login.
+      const loginCity = await getCityConfig(user.cityId)
+      const loginTime = new Date().toLocaleString('en-GB', { timeZone: loginCity.timezone, dateStyle: 'medium', timeStyle: 'short' })
       // EM5 fix: new-device email is a security signal — silent
       // SMTP failure means a compromised login goes un-noticed.
-      sendNewDeviceLoginEmail(user.email, user.name, loginIp, `${loginTime} (Türkiye)`)
+      sendNewDeviceLoginEmail(user.email, user.name, loginIp, `${loginTime} (${loginCity.name})`)
         .catch(async err => {
           console.error('[auth login] sendNewDeviceLoginEmail failed', { userId: user.id, loginIp, err: String(err) })
           await recordEmailFailure({ helper: 'sendNewDeviceLoginEmail', recipient: user.email, error: err, context: { userId: user.id, loginIp } })

@@ -22,6 +22,8 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { CUP_TEAMS as TEAMS, TEAM_BY_CODE, teamLabel, ROUND_LABEL, isFixtureLocked, CUP_GROUPS } from '@/lib/cup-data'
 import { avatarUrl } from '@/lib/data'
+import { CUP_TZ } from '@/lib/cup'
+import { formatDay, fromWallClockInTz, todayInTz } from '@/lib/cityTime'
 
 interface Fixture {
   id:        string
@@ -137,7 +139,8 @@ export default function CupPredictionsPage() {
   // explicit choice persists in localStorage so the toggle sticks.
   const [groupStageView, setGroupStageView] = usePersistedState<'group' | 'date'>(
     'cup-stage-view',
-    new Date() < new Date('2026-06-11T21:00:00+03:00') ? 'group' : 'date',
+    // The opening match, 11 June 2026 21:00 in Istanbul — one instant, written in UTC.
+    new Date() < new Date('2026-06-11T18:00:00Z') ? 'group' : 'date',
     v => v,
     raw => (raw === 'group' || raw === 'date') ? raw : 'group',
   )
@@ -784,12 +787,12 @@ function DateStageSections({
   canPick: boolean
   onPick: (fixtureId: string, team: string) => void
 }) {
-  // Bucket by Istanbul-day key so a 23:00 Istanbul kickoff doesn't
-  // bleed into the next day.
+  // Bucket by the Cup's clock (CUP_TZ) so a 23:00 kickoff doesn't bleed
+  // into the next day.
   const byDay = useMemo(() => {
     const map = new Map<string, Fixture[]>()
     const fmt = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Europe/Istanbul', year: 'numeric', month: '2-digit', day: '2-digit',
+      timeZone: CUP_TZ, year: 'numeric', month: '2-digit', day: '2-digit',
     })
     for (const r of rows) {
       const key = fmt.format(new Date(r.kickoffAt))
@@ -799,15 +802,13 @@ function DateStageSections({
     return Array.from(map.entries())
       .map(([key, list]) => ({
         dayKey: key,
-        date:   new Date(`${key}T00:00:00+03:00`),
+        date:   fromWallClockInTz(`${key}T00:00`, CUP_TZ),
         list:   list.sort((a, b) => a.kickoffAt.localeCompare(b.kickoffAt)),
       }))
       .sort((a, b) => a.dayKey.localeCompare(b.dayKey))
   }, [rows])
 
-  const todayKey = useMemo(() => new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Europe/Istanbul', year: 'numeric', month: '2-digit', day: '2-digit',
-  }).format(new Date()), [])
+  const todayKey = useMemo(() => todayInTz(CUP_TZ), [])
 
   // Show the "Today" shortcut only when today's date matches one
   // of the seeded match days. Outside the tournament window
@@ -931,7 +932,7 @@ function BracketCard({
   const lockMsg = tournamentStartAt
     // Same zone as the fixture list below — device-local here put two
     // different clock times for the same kickoff on one screen.
-    ? `Locks at first kickoff · ${new Date(tournamentStartAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Istanbul' })}`
+    ? `Locks at first kickoff · ${new Date(tournamentStartAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: CUP_TZ })}`
     : 'Locks at first kickoff'
 
   return (
@@ -1085,7 +1086,7 @@ function FixtureRow({ fixture, saving, canPick, onPick }: { fixture: Fixture; sa
   const tbd = !fixture.homeTeam || !fixture.awayTeam
   const homeLabel = tbd ? (fixture.homeLabel ?? '—') : teamLabel(fixture.homeTeam)
   const awayLabel = tbd ? (fixture.awayLabel ?? '—') : teamLabel(fixture.awayTeam)
-  const kickoff = new Date(fixture.kickoffAt).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Istanbul' })
+  const kickoff = new Date(fixture.kickoffAt).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: CUP_TZ })
   const yourPick = fixture.yourPick?.pickedTeam ?? null
   const isDraw  = fixture.homeScore !== null && fixture.awayScore !== null && !fixture.winnerTeam
   const correct = !isDraw && fixture.winnerTeam && yourPick === fixture.winnerTeam
@@ -1534,9 +1535,7 @@ function WatchParties() {
 }
 
 function WatchPartyRow({ e }: { e: WatchPartyEvent }) {
-  const dateLabel = new Date(`${e.date}T${e.time || '00:00'}:00+03:00`).toLocaleDateString('en-GB', {
-    weekday: 'short', day: 'numeric', month: 'short',
-  })
+  const dateLabel = formatDay(e.date)
   const fill = e.totalSpots > 0 ? Math.round(((e.totalSpots - e.spotsLeft) / e.totalSpots) * 100) : 0
   return (
     <Link href={`/events/${e.id}`} className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50 transition-colors">

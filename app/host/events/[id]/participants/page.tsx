@@ -8,6 +8,8 @@ import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
 import UserAvatar from '@/components/UserAvatar'
 import NoShowCardBadge from '@/components/NoShowCardBadge'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
+import { DEFAULT_TZ, todayInTz } from '@/lib/cityTime'
 
 interface AttendeeUser {
   id: string; name: string; color: string; email?: string; profilePhoto?: string | null
@@ -114,7 +116,8 @@ export default function HostParticipantsPage({ params }: { params: Promise<{ id:
     if (t === 'reviews') loadReviews()
   }
 
-  const today  = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Istanbul' })).toISOString().split('T')[0]
+  // "Past" on the city's clock, not the host's device.
+  const today  = todayInTz(useCurrentCity()?.timezone ?? DEFAULT_TZ)
   const isPast = eventDate ? eventDate < today : false
 
   async function approve(userId: string) {

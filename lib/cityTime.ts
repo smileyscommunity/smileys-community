@@ -129,11 +129,38 @@ export function wallClockInTz(d: Date, tz: string = DEFAULT_TZ): string {
   return d.toLocaleString('sv-SE', { timeZone: safeTz(tz) }).replace(' ', 'T').slice(0, 16)
 }
 
+/**
+ * A bare calendar day ('YYYY-MM-DD') rendered as a label — "Wed 9 Sep".
+ *
+ * A date string is a day, not an instant, so its weekday is the same in every
+ * timezone and needs no zone to render. The old idiom, `new Date(date +
+ * 'T12:00:00+03:00')`, pinned noon in the founding city to make the browser's
+ * local formatting land on the right day; that is an offset literal in six
+ * places doing the job of "format this day". Anchor at UTC noon and format in
+ * UTC instead, and the result is right for any city and any viewer.
+ */
+export function formatDay(date: string, opts: Intl.DateTimeFormatOptions = { weekday: 'short', day: 'numeric', month: 'short' }, locale = 'en-GB'): string {
+  return new Date(`${date}T12:00:00Z`).toLocaleDateString(locale, { ...opts, timeZone: 'UTC' })
+}
+
+/** 0 (Sunday) … 6 for a bare calendar day, zone-free for the same reason. */
+export function weekdayOf(date: string): number {
+  return new Date(`${date}T12:00:00Z`).getUTCDay()
+}
+
 export function fromWallClockInTz(value: string, tz: string = DEFAULT_TZ): Date {
   const asIfUtc = new Date(`${value}:00Z`).getTime()
   // What the city's clock reads at that instant, read back as if it were UTC:
   // the gap between the two IS the city's offset at that moment.
   const shown  = new Date(`${wallClockInTz(new Date(asIfUtc), tz)}:00Z`).getTime()
   const offset = shown - asIfUtc
-  return new Date(asIfUtc - offset)
+  const guess  = new Date(asIfUtc - offset)
+  // The offset was measured an offset away from the answer, so on a DST
+  // changeover it can be the wrong side's. Read the guess back: if the city's
+  // clock doesn't show what was asked for, the asked-for time sits in the
+  // spring-forward gap, and the difference moves it forward across the jump
+  // (03:30 on the day 03:00 becomes 04:00 lands on 04:30). Never fires for a
+  // zone without DST, and never for a time that exists.
+  const check = new Date(`${wallClockInTz(guess, tz)}:00Z`).getTime()
+  return check === asIfUtc ? guess : new Date(guess.getTime() + (asIfUtc - check))
 }

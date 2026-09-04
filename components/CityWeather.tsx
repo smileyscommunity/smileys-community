@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { DEFAULT_TZ } from '@/lib/cityTime'
 
 interface Weather {
   temp: number | null
@@ -41,7 +42,7 @@ export default function CityWeather({
   name,
   lat,
   lng,
-  timezone = 'Europe/Istanbul',
+  timezone = DEFAULT_TZ,
 }: {
   name: string
   lat?: number | null

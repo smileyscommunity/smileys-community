@@ -10,6 +10,7 @@ import { normalizePaymentContact } from '@/lib/safeUrl'
 import { splitLeadingEmoji, stripDupTrailingEmoji } from '@/lib/data'
 import { sendEventCancelledEmail, recordEmailFailure } from '@/lib/email'
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
+import { todayInCity } from '@/lib/city'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -354,7 +355,8 @@ export async function PUT(req: NextRequest, { params }: Params) {
         if (!SERIES_EXCLUDED.has(k)) seriesData[k] = v
       }
       if (Object.keys(seriesData).length > 0) {
-        const today = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Istanbul' })).toISOString().split('T')[0]
+        // "Future" is measured on the EVENT's city clock, not the founding city's.
+        const today = await todayInCity(before.cityId)
         await prisma.event.updateMany({
           where: { seriesId: before.seriesId, id: { not: id }, date: { gte: today } },
           data: seriesData,

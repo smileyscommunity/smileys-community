@@ -1,5 +1,5 @@
 import { prisma } from './prisma'
-import { todayInTz } from './cityTime'
+import { todayInTz, DEFAULT_TZ } from './cityTime'
 import { canActInCity } from './access'
 import type { SessionUser } from './session'
 
@@ -164,7 +164,7 @@ export async function getCityConfig(cityId: string): Promise<CityConfig> {
   // a stale cityId must degrade to Istanbul behavior, not a 500. That includes
   // showGlobalClubs: Istanbul shows them, so a stale id doesn't silently strip
   // the Culture and Language clubs out of the grid.
-  const cfg: CityConfig = city ?? { timezone: 'Europe/Istanbul', currency: 'TRY', slug: DEFAULT_CITY_SLUG, name: 'Istanbul', country: 'TR', showGlobalClubs: true, heroImage: null, lat: null, lng: null }
+  const cfg: CityConfig = city ?? { timezone: DEFAULT_TZ, currency: 'TRY', slug: DEFAULT_CITY_SLUG, name: 'Istanbul', country: 'TR', showGlobalClubs: true, heroImage: null, lat: null, lng: null }
   configCache.set(cityId, { cfg, expires: Date.now() + CONFIG_TTL_MS })
   return cfg
 }

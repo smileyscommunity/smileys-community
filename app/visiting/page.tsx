@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { formatDay, fromWallClockInTz } from '@/lib/cityTime'
 import Image from 'next/image'
 import { APP_URL } from '@/lib/env'
 import { unstable_cache } from 'next/cache'
@@ -207,7 +208,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
       status: 'active',
       cityId,
       endsAt: { gte: new Date() },
-      ...(viewerVisit ? { startsAt: { lte: new Date(viewerVisit.endsOn + 'T23:59:59+03:00') } } : {}),
+      ...(viewerVisit ? { startsAt: { lte: new Date(fromWallClockInTz(viewerVisit.endsOn + 'T23:59', city.timezone).getTime() + 59_999) } } : {}),
     },
     select: {
       id: true, title: true, activity: true, neighborhood: true, startsAt: true, maxPeople: true,
@@ -555,7 +556,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
                         <div className="min-w-0">
                           <p className="text-sm font-bold text-gray-900 truncate">{ev.title}</p>
                           <p className="text-xs text-gray-500 mt-0.5">
-                            {new Date(ev.date + 'T12:00:00+03:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
+                            {formatDay(ev.date)}
                             {ev.club && <> · {ev.club.emoji} {ev.club.name}</>}
                           </p>
                         </div>

@@ -10,6 +10,7 @@
 // 280-point ceiling. Group stage carries 0 — too much data entry,
 // low signal, and the math gets boring.
 
+import { DEFAULT_TZ } from './cityTime'
 import { prisma } from '@/lib/prisma'
 import type { Prisma, PrismaClient } from '@prisma/client'
 
@@ -30,6 +31,14 @@ import {
   isFixtureLocked,
   type CupRound,
 } from '@/lib/cup-data'
+
+// The Cup ran on one clock. Fixture days, "Locks at first kickoff" and the
+// watch-party list are all read in the founding city's zone — the tournament
+// was a Smileys-wide game scored from Istanbul, not a per-city event. Named
+// here so the page says which clock it means instead of spelling a zone
+// literal seven times; a future cup that belongs to a city passes that
+// city's zone instead.
+export const CUP_TZ = DEFAULT_TZ
 
 // Re-export the client-safe constants so existing server-side
 // callers (e.g. scripts/archive/cup-2026/seed-cup.ts, /api/admin/cup, /api/cup/*)

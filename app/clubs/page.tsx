@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { formatDay } from '@/lib/cityTime'
 import { useState, useEffect, useMemo, Suspense } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { toast } from 'sonner'
@@ -487,7 +488,7 @@ function AppClubsPageInner() {
                   {c.nextEvent ? (
                     <p className="text-xs text-gray-600">
                       <span className="font-semibold text-amber-700">Next:</span> {c.nextEvent.title.slice(0, 40)}
-                      <span className="block text-gray-400 mt-0.5">{new Date(c.nextEvent.date + 'T12:00:00+03:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
+                      <span className="block text-gray-400 mt-0.5">{formatDay(c.nextEvent.date)}</span>
                     </p>
                   ) : (
                     <p className="text-xs text-gray-400">Nothing planned yet</p>
@@ -510,7 +511,7 @@ function AppClubsPageInner() {
                   <div className="min-w-0">
                     <p className="text-sm font-bold text-gray-900 truncate">{c.nextEvent!.title}</p>
                     <p className="text-xs text-gray-500 mt-0.5">
-                      {new Date(c.nextEvent!.date + 'T12:00:00+03:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })} · {c.name}
+                      {formatDay(c.nextEvent!.date)} · {c.name}
                     </p>
                   </div>
                 </Link>

@@ -1,4 +1,4 @@
-import { DEFAULT_TZ } from './cityTime'
+import { DEFAULT_TZ, fromWallClockInTz } from './cityTime'
 // Quarterly Net Promoter Score helpers — shared across the cron
 // dispatcher, the member-facing form, the submit endpoint, and the
 // admin rollup. Single source of truth for period naming and score-
@@ -40,18 +40,18 @@ export function periodFor(date: Date = new Date()): string {
   return `${year}-Q${quarter}`
 }
 
-// Returns the start date of the given period in Istanbul time. Used
-// by the dispatch cron to decide "is today inside the first 14 days
-// of the quarter?" — the window in which we send the nudge.
-export function periodStartDate(period: string): Date {
+// Returns the instant the given period starts, on `tz`'s clock. Used by the
+// dispatch cron to decide "is today inside the first 14 days of the
+// quarter?" — the window in which we send the nudge. NPS is one network-wide
+// survey, so it runs on the founding city's clock by default; a per-city
+// rollout passes the city's zone.
+export function periodStartDate(period: string, tz: string = DEFAULT_TZ): Date {
   const match = period.match(/^(\d{4})-Q([1-4])$/)
   if (!match) throw new Error(`Invalid period: ${period}`)
   const year    = parseInt(match[1], 10)
   const quarter = parseInt(match[2], 10)
   const month   = (quarter - 1) * 3 + 1  // 1, 4, 7, 10
-  // Build a UTC date so the day boundary is unambiguous; Istanbul
-  // (UTC+3, no DST) means the +3 offset is constant.
-  return new Date(`${year}-${String(month).padStart(2, '0')}-01T00:00:00+03:00`)
+  return fromWallClockInTz(`${year}-${String(month).padStart(2, '0')}-01T00:00`, tz)
 }
 
 export interface NPSRollup {

@@ -3,8 +3,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import RichTextEditor from '@/components/RichTextEditor'
-import CitySelect from '@/components/admin/CitySelect'
+import CitySelect, { useAdminCities } from '@/components/admin/CitySelect'
 import { confirmToast } from '@/lib/confirmToast'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
+import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
 
 // ISO timestamp → the 'YYYY-MM-DDTHH:MM' local format a datetime-local input
 // expects, so editing a scheduled newsletter prefills its send time correctly.
@@ -173,6 +175,10 @@ function NewsletterRow({ n, onDuplicate, onCancel, onEdit }: {
 }
 
 export default function NewsletterPage() {
+  // The city being mailed decides "this week"; before one is picked, the
+  // city being administered. Never the admin's device.
+  const cities      = useAdminCities()
+  const currentCity = useCurrentCity()
   const [subject,          setSubject]          = useState('')
   const [bodyHtml,         setBodyHtml]         = useState('')
   const [segment,          setSegment]          = useState<Segment>('all')
@@ -188,6 +194,7 @@ export default function NewsletterPage() {
   const [loading,          setLoading]          = useState(true)
   const [confirm,          setConfirm]          = useState(false)
   const [insertingEvents,  setInsertingEvents]  = useState(false)
+  const tz = cities.find(c => c.id === sendCityId)?.timezone ?? currentCity?.timezone ?? DEFAULT_TZ
   const [insertingClubs,   setInsertingClubs]   = useState(false)
   const [insertingCup,     setInsertingCup]     = useState(false)
   const [insertingMembers, setInsertingMembers] = useState(false)
@@ -305,9 +312,9 @@ export default function NewsletterPage() {
       const all: Array<{ id: string; title: string; date: string; neighborhood?: string | null; emoji?: string; status?: string }> =
         Array.isArray(data.events) ? data.events : []
       // Dates are 'YYYY-MM-DD' strings → lexical compare works. Window = today
-      // through today+7, Istanbul.
-      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Istanbul' })
-      const end   = new Date(Date.now() + 7 * 86_400_000).toLocaleDateString('en-CA', { timeZone: 'Europe/Istanbul' })
+      // through today+7 on the clock of the city being mailed.
+      const today = todayInTz(tz)
+      const end   = todayInTz(tz, 7)
       const week  = all.filter(e => e.status !== 'cancelled' && e.date >= today && e.date <= end)
       if (week.length === 0) { toast('No events in the next 7 days'); return }
 

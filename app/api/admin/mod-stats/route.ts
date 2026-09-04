@@ -52,7 +52,7 @@ export async function GET() {
         where: {
           hostId: session.id,
           status: 'published',
-          date: { gte: new Date(new Date().toLocaleString('en-CA', { timeZone: 'Europe/Istanbul' }).split(',')[0]).toISOString().split('T')[0] },
+          date: { gte: await todayInCity(await resolveCityId(session)) },
         },
         orderBy: { date: 'asc' },
         take: 3,

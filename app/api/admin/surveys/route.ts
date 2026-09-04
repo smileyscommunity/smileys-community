@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { canModerateReports, isAdmin, failClosedCityId } from '@/lib/access'
 import type { Prisma } from '@prisma/client'
+import { resolveCityId, getCityTz } from '@/lib/city'
+import { fromWallClockInTz } from '@/lib/cityTime'
 
 // GET /api/admin/surveys
 //
@@ -48,10 +50,12 @@ export async function GET(req: NextRequest) {
   const format      = params.get('format') === 'csv' ? 'csv' : 'json'
 
   // Date filter shape — yyyy-mm-dd "from" is start-of-day, "to" is
-  // end-of-day, both Istanbul time. Matches the apply-page presets.
+  // end-of-day, both on the clock of the city being administered. Matches
+  // the apply-page presets.
+  const tz = await getCityTz(await resolveCityId(session))
   const createdAt: Prisma.DateTimeFilter = {}
-  if (fromStr)  createdAt.gte = new Date(`${fromStr}T00:00:00+03:00`)
-  if (toStr)    createdAt.lte = new Date(`${toStr}T23:59:59.999+03:00`)
+  if (fromStr)  createdAt.gte = fromWallClockInTz(`${fromStr}T00:00`, tz)
+  if (toStr)    createdAt.lte = new Date(fromWallClockInTz(`${toStr}T23:59`, tz).getTime() + 59_999)
   if (cursor)   createdAt.lt  = new Date(cursor)
 
   // Build a reusable where clause. Host filter dives into the event
