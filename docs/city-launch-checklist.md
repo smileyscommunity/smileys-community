@@ -103,7 +103,14 @@ sources (this killed a fatal-accident cable car and a suspended tram from
 Antalya's set), then publish with `scripts/publish-city-guide.ts <slug>`
 (DRY_RUN first; every draft in the city, or a comma list of slugs; refuses a
 draft with an empty Take, same rule as the panel). `lastReviewedAt` stays
-null until a human on the ground checks.
+null until a human on the ground checks. **Then fact-check the published
+text adversarially** — a second, independent pass against primary sources
+found eleven wrong facts in Ankara's fifteen entries that the drafting pass
+had "verified" (a festival date from the previous year, a dish described
+backwards, a direction of travel wrong). Fix in the draft file and carry the
+fixes to the rows with `scripts/update-city-guide.ts` (DRY_RUN first; never
+touches status, order, photo or lastReviewedAt); articles the same way with
+`scripts/update-handbook-article.ts`.
 
 ## 5. Handbook + neighborhood editorial
 
@@ -181,6 +188,9 @@ Each was a real bug on a launch night; a reappearance is a regression:
 - Handbook Quick Reference + "Start here" shelf are default-city-only.
 - Community polls are network-wide (no city dimension).
 - First **non-Turkish** city is a named project: the
-  `tests/timezoneHardcoding.test.ts` baseline must reach ~zero, the
-  "national" handbook articles need country scoping, currency/language
-  defaults need work.
+  `tests/timezoneHardcoding.test.ts` baseline must reach ~zero (32 literals
+  in 21 files on 2026-09-04, and none of the Turkish cities observe DST, so a
+  shifting offset is untested), and currency/language defaults need work.
+  DONE 2026-09-04: handbook country scoping — `Post.country` + `lib/postScope`;
+  national articles show only in their country, and the panel's "Applies in"
+  picker / the publish script's `country` field set it.
