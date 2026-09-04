@@ -20,6 +20,7 @@ import { Resend } from 'resend'
 import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notify'
 import { writeAudit } from '@/lib/audit'
+import { firstNameOf } from '@/lib/data'
 import {
   NO_SHOW_CANCELLATION_CUTOFF_HOURS as CUTOFF,
   NO_SHOW_ROLLING_WINDOW_DAYS as WINDOW,
@@ -145,7 +146,7 @@ async function main() {
       await resend.emails.send({
         from: FROM, to: h.email,
         subject: SUBJECT,
-        html: emailHtml((h.name ?? 'there').split(' ')[0]),
+        html: emailHtml(firstNameOf(h.name) || 'there'),
         tags: [{ name: 'type', value: 'host_no_show_briefing' }],
       })
       sent++

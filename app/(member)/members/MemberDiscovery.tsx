@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import posthog from 'posthog-js'
 import AvatarImg from '@/components/AvatarImg'
-import { avatarUrl } from '@/lib/data'
+import { avatarUrl, firstNameOf} from '@/lib/data'
 
 interface DiscoveryMember {
   id: string; name: string; color: string; profilePhoto: string | null
@@ -35,7 +35,7 @@ function MemberCard({ m, onOpen }: { m: DiscoveryMember; onOpen: (id: string) =>
       <AvatarImg src={avatarUrl(m.profilePhoto, 256)} name={m.name} color={m.color}
         size="w-16 h-16" textSize="text-lg" className="mb-3" />
       <p className="font-bold text-gray-900 text-sm truncate group-hover:text-amber-700 transition-colors">
-        {m.name.split(' ')[0]}
+        {firstNameOf(m.name)}
         {m.isHost && <span className="ml-1.5 text-[10px] font-bold text-amber-600 align-middle">HOST</span>}
       </p>
       {m.neighborhood && <p className="text-xs text-gray-500 mt-0.5 truncate"><span aria-hidden="true">📍</span> {m.neighborhood}</p>}

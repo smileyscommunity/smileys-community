@@ -1,3 +1,4 @@
+import { firstNameOf } from '../data'
 // soldOut is last and optional so the existing four-argument calls still
 // compile; it means the same thing the badge already said, just for events the
 // counter can't tell you about.
@@ -25,9 +26,9 @@ export function buildSocialLabel(
   total: number,
 ): string {
   if (!previews || previews.length === 0) return `${total} going`
-  const first = previews[0].name.split(' ')[0]
+  const first = firstNameOf(previews[0].name)
   if (total === 1) return `${first} is going`
-  const second = previews[1]?.name.split(' ')[0]
+  const second = firstNameOf(previews[1]?.name)
   if (total === 2 && second) return `${first} and ${second} are going`
   const rest = total - (second ? 2 : 1)
   if (second) return `${first}, ${second} and ${rest} other${rest !== 1 ? 's' : ''} are going`

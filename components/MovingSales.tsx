@@ -6,7 +6,7 @@ import posthog from 'posthog-js'
 import { toast } from 'sonner'
 import { useAuth } from '@/contexts/AuthContext'
 import AvatarImg from '@/components/AvatarImg'
-import { avatarUrl } from '@/lib/data'
+import { avatarUrl, firstNameOf} from '@/lib/data'
 import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import { downscaleImage } from '@/lib/image-resize'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
@@ -273,7 +273,7 @@ export default function MovingSales({ cityName = '' }: { cityName?: string }) {
               <AvatarImg src={avatarUrl(sale.user.profilePhoto, 96)} name={sale.user.name} color={sale.user.color}
                 size="w-11 h-11" textSize="text-sm" className="shrink-0" />
               <div className="flex-1 min-w-0">
-                <p className="font-bold text-gray-900">{sale.user.name.split(' ')[0]}&apos;s Moving Sale</p>
+                <p className="font-bold text-gray-900">{firstNameOf(sale.user.name)}&apos;s Moving Sale</p>
                 <p className="text-xs text-gray-500 mt-0.5">
                   Leaving {fmtLeaving(sale.leavingOn)}
                   {sale.neighborhood && <> · 📍 {sale.neighborhood}</>}
@@ -316,7 +316,7 @@ export default function MovingSales({ cityName = '' }: { cityName?: string }) {
               contactFor === sale.id ? (
                 <div className="mt-3 space-y-2">
                   <textarea value={contactText} onChange={e => setContactText(e.target.value)} rows={2} maxLength={300}
-                    placeholder={`Hi ${sale.user.name.split(' ')[0]}, is the desk still available?`}
+                    placeholder={`Hi ${firstNameOf(sale.user.name)}, is the desk still available?`}
                     className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400" />
                   <div className="flex gap-2">
                     <button onClick={() => setContactFor(null)} className="px-4 py-2 text-xs font-bold text-gray-500">Cancel</button>
@@ -329,7 +329,7 @@ export default function MovingSales({ cityName = '' }: { cityName?: string }) {
               ) : (
                 <button onClick={() => { setContactFor(sale.id); setContactText('') }}
                   className="mt-3 w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl transition-colors">
-                  💬 Contact {sale.user.name.split(' ')[0]}
+                  💬 Contact {firstNameOf(sale.user.name)}
                 </button>
               )
             )}

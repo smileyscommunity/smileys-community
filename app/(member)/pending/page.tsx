@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
+import { firstNameOf } from '@/lib/data'
 
 export default function PendingStatusPage() {
   const { user, isLoggedIn, isLoading, logout } = useAuth()
@@ -36,7 +37,7 @@ export default function PendingStatusPage() {
 
           <h1 className="text-2xl font-extrabold text-gray-900 mb-2">Application under review</h1>
           <p className="text-gray-600 mb-6">
-            Hi <strong>{user.name.split(' ')[0]}</strong> — we've received your application and will review it personally.
+            Hi <strong>{firstNameOf(user.name)}</strong> — we've received your application and will review it personally.
             You'll get an email at <strong className="text-gray-700">{email}</strong> once you're approved.
           </p>
 

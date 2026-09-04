@@ -3,6 +3,7 @@ import OpenAI from 'openai'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { canManageUsers } from '@/lib/access'
+import { firstNameOf } from '@/lib/data'
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
@@ -21,7 +22,7 @@ export async function POST(req: NextRequest) {
   })
   if (!user) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const firstName   = user.name?.split(' ')[0] ?? 'there'
+  const firstName   = firstNameOf(user.name) || 'there'
   const interests   = (user.interests ?? []).slice(0, 3).join(', ')
   const neighborhood = user.neighborhood ?? null
 

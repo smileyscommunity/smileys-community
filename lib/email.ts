@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import type { Prisma } from '@prisma/client'
 import { DEFAULT_TZ } from '@/lib/cityTime'
 import { NO_SHOW_CANCELLATION_CUTOFF_HOURS, NO_SHOW_ROLLING_WINDOW_DAYS, NO_SHOW_POLICY_PATH } from '@/lib/noShowPolicy'
+import { firstNameOf } from './data'
 
 const FROM    = process.env.EMAIL_FROM ?? 'Smileys Community <info@smileyscommunity.com>'
 const APP_URL = ENV_APP_URL
@@ -399,7 +400,7 @@ export async function sendActivationEmail(
   founding?: { rank: number; others: string[] },
 ) {
   const url        = `${APP_URL}/activate?token=${token}`
-  const firstName  = name.split(' ')[0]
+  const firstName  = firstNameOf(name)
   // Escape user-supplied welcomeMessage FIRST, then convert newlines to <br>.
   // Doing it the other way around would let an admin inject HTML by typing
   // `<img onerror=...>` in the welcome-note field.
@@ -446,7 +447,7 @@ export async function sendActivationEmail(
 
 export async function sendLoginNudgeEmail(email: string, name: string, token: string, nudgeNumber: number) {
   const url       = `${APP_URL}/activate?token=${token}`
-  const firstName = name.split(' ')[0]
+  const firstName = firstNameOf(name)
   const subject   = nudgeNumber === 1
     ? safeSubject(`${firstName}, your Smileys account is waiting for you`)
     : safeSubject(`Last reminder — your Smileys spot is still open, ${firstName}`)
@@ -529,7 +530,7 @@ const FREE_FOOTER = `Plans change? Cancel at least ${NO_SHOW_CANCELLATION_CUTOFF
 
 export async function sendRsvpConfirmationEmail(email: string, name: string, eventTitle: string, eventDate: string, eventLocation: string, eventId: string, opts: { free?: boolean } = {}) {
   const url = `${APP_URL}/events/${eventId}`
-  const firstName = name.split(' ')[0]
+  const firstName = firstNameOf(name)
   await getResend().emails.send({
     from: FROM, to: email,
     subject: safeSubject(`You're going to "${eventTitle}" 🎉`),
@@ -555,7 +556,7 @@ export async function sendRsvpConfirmationEmail(email: string, name: string, eve
 
 export async function sendReviewRequestEmail(email: string, name: string, eventTitle: string, eventEmoji: string) {
   const url = `${APP_URL}/reviews`
-  const firstName = name.split(' ')[0]
+  const firstName = firstNameOf(name)
   await getResend().emails.send({
     from: FROM, to: email,
     subject: safeSubject(`How was "${eventTitle}"? Share your review`),
@@ -593,7 +594,7 @@ export async function sendReviewRequestEmail(email: string, name: string, eventT
 // better signal of intent.
 export async function sendSpotOpenedEmail(email: string, name: string, eventTitle: string, eventDate: string, eventId: string) {
   const url = `${APP_URL}/events/${eventId}`
-  const firstName = name.split(' ')[0]
+  const firstName = firstNameOf(name)
   await getResend().emails.send({
     from: FROM, to: email,
     subject: safeSubject(`A spot just opened for "${eventTitle}" — claim it!`),
@@ -617,7 +618,7 @@ export async function sendSpotOpenedEmail(email: string, name: string, eventTitl
 }
 
 export async function sendEventCancelledEmail(email: string, name: string, eventTitle: string, eventDate: string) {
-  const firstName = name.split(' ')[0]
+  const firstName = firstNameOf(name)
   await getResend().emails.send({
     from: FROM, to: email,
     subject: safeSubject(`"${eventTitle}" has been cancelled`),
@@ -638,7 +639,7 @@ export async function sendEventCancelledEmail(email: string, name: string, event
 }
 
 export async function sendRefundEmail(email: string, name: string, eventTitle: string, amount: number, currency: string, note?: string) {
-  const firstName = name.split(' ')[0]
+  const firstName = firstNameOf(name)
   const noteHtml = note
     ? `<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:16px 20px;margin-bottom:24px">
         <p style="color:#374151;font-size:14px;margin:0;line-height:1.6">${esc(note)}</p>
@@ -662,7 +663,7 @@ export async function sendRefundEmail(email: string, name: string, eventTitle: s
 }
 
 export async function sendNewDeviceLoginEmail(email: string, name: string, ip: string, time: string) {
-  const firstName = name.split(' ')[0]
+  const firstName = firstNameOf(name)
   await getResend().emails.send({
     from: FROM, to: email,
     subject: 'New login to your Smileys account',
@@ -688,7 +689,7 @@ export async function sendNewDeviceLoginEmail(email: string, name: string, ip: s
 }
 
 export async function sendAccountLockedEmail(email: string, name: string) {
-  const firstName = name.split(' ')[0]
+  const firstName = firstNameOf(name)
   await getResend().emails.send({
     from: FROM, to: email,
     subject: 'Your Smileys account has been temporarily locked',
@@ -716,7 +717,7 @@ export async function sendListingExpiryEmail(email: string, name: string, listin
   // (older callers), the board. Renewal died at the generic link — all four
   // room listings ever posted lapsed unrenewed.
   const url       = listingId ? `${APP_URL}/board/renew/${listingId}` : `${APP_URL}/board`
-  const firstName = name.split(' ')[0]
+  const firstName = firstNameOf(name)
   await getResend().emails.send({
     from: FROM, to: email,
     subject: safeSubject(`Your listing "${listingTitle}" expires in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}`),
@@ -749,7 +750,7 @@ export async function sendBroadcastEmail(
   message: string,
 ) {
   const unsub     = unsubscribeUrl(userId)
-  const firstName = name.split(' ')[0]
+  const firstName = firstNameOf(name)
   // Escape paragraph text BEFORE wrapping in <p>/<br> — admin can otherwise
   // inject HTML via the broadcast composer. Lower risk than user-supplied
   // content (admin-only) but defense-in-depth for a compromised admin session.
@@ -806,7 +807,7 @@ export async function sendFirstEventNudgeEmail(
   cityName?: string,
 ) {
   const unsub     = unsubscribeUrl(userId)
-  const firstName = name.split(' ')[0]
+  const firstName = firstNameOf(name)
   const pretty    = new Date(ev.date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
   const meta      = [ev.neighborhood, `${pretty}${ev.time ? ` · ${ev.time}` : ''}`].filter(Boolean).map(x => esc(String(x))).join(' · ')
   const going     = ev.attendees > 0 ? `${ev.attendees} ${ev.attendees === 1 ? 'person is' : 'people are'} going` : ''
@@ -930,7 +931,7 @@ function stripHtml(html: string): string {
 // identical between single + batch so both render the same email.
 function buildNewsletterPayload(userId: string, email: string, name: string, subject: string, bodyHtml: string, newsletterId?: string, preheader?: string) {
   const unsub     = unsubscribeUrl(userId, newsletterId)
-  const firstName = esc(name.split(' ')[0])
+  const firstName = esc(firstNameOf(name))
   // Hidden preview line inboxes show after the subject; zero-width padding
   // stops clients from pulling visible body text in after it.
   const preheaderHtml = preheader
@@ -1047,7 +1048,7 @@ export async function sendEventReminderEmail(
   opts: { free?: boolean } = {},
 ) {
   const unsub     = unsubscribeUrl(userId)
-  const firstName = name.split(' ')[0]
+  const firstName = firstNameOf(name)
   const url       = `${APP_URL}/events/${eventId}`
   await getResend().emails.send({
     from: FROM, to: email,
@@ -1085,7 +1086,7 @@ export async function sendNoShowEmail(
   eventId: string,
 ) {
   const unsub     = unsubscribeUrl(userId)
-  const firstName = name.split(' ')[0]
+  const firstName = firstNameOf(name)
   const url       = `${APP_URL}/events`
   await getResend().emails.send({
     from: FROM, to: email,
@@ -1140,7 +1141,7 @@ export async function sendYellowCardEmail(
   eventTitle: string, eventEmoji: string,
 ) {
   const unsub     = unsubscribeUrl(userId)
-  const firstName = name.split(' ')[0]
+  const firstName = firstNameOf(name)
   const url       = `${APP_URL}/no-show`
   await getResend().emails.send({
     from: FROM, to: email,
@@ -1176,7 +1177,7 @@ export async function sendRedCardEmail(
   dates: { appealDeadlineAt: Date; restrictionStartsAt: Date; restrictionEndsAt: Date },
 ) {
   const unsub     = unsubscribeUrl(userId)
-  const firstName = name.split(' ')[0]
+  const firstName = firstNameOf(name)
   const url       = `${APP_URL}/no-show`
   await getResend().emails.send({
     from: FROM, to: email,
@@ -1214,7 +1215,7 @@ export async function sendHostNoShowCardsEmail(
   counts: { yellow: number; red: number },
   eventId: string,
 ) {
-  const firstName = name.split(' ')[0]
+  const firstName = firstNameOf(name)
   const url       = `${APP_URL}/host/events/${eventId}/participants`
   const total     = counts.yellow + counts.red
   const what      = [
@@ -1273,7 +1274,7 @@ export async function sendReconfirmEmail(
   confirmUrl: string, eventId: string,
 ) {
   const unsub     = unsubscribeUrl(userId)
-  const firstName = name.split(' ')[0]
+  const firstName = firstNameOf(name)
   const eventUrl  = `${APP_URL}/events/${eventId}`
   await getResend().emails.send({
     from: FROM, to: email,
@@ -1308,7 +1309,7 @@ export async function sendSpotReleasedEmail(
   eventTitle: string, eventEmoji: string, eventId: string,
 ) {
   const unsub     = unsubscribeUrl(userId)
-  const firstName = name.split(' ')[0]
+  const firstName = firstNameOf(name)
   const eventUrl  = `${APP_URL}/events/${eventId}`
   await getResend().emails.send({
     from: FROM, to: email,

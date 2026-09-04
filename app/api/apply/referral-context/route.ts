@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { rateLimit, getIp } from '@/lib/rateLimit'
+import { firstNameOf } from '@/lib/data'
 
 // GET /api/apply/referral-context?ref=XYZ
 //
@@ -47,7 +48,7 @@ export async function GET(req: NextRequest) {
   // the form doesn't accidentally welcome someone with a stale code.
   const inviterPayload = inviter && inviter.status === 'approved'
     ? {
-        firstName:    inviter.name.split(' ')[0],
+        firstName:    firstNameOf(inviter.name),
         color:        inviter.color,
         profilePhoto: inviter.profilePhoto,
       }

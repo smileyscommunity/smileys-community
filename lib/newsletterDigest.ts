@@ -3,7 +3,7 @@ import { getDefaultCityId, todayInCity, getCityConfig } from './city'
 import { postCityScope } from './postScope'
 import { loadContent } from './content'
 import { APP_URL, SITE_URL } from './env'
-import { resolveImageUrl, formatTime } from './data'
+import { resolveImageUrl, formatTime, firstNameOf} from './data'
 
 // Server-side builder for the weekly auto-newsletter. Produces the same
 // card markup as the composer's insert buttons (events digest + 3 random
@@ -237,7 +237,7 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
 
   // New-member welcome.
   if (newMembers.length > 0) {
-    const firstNames = newMembers.map(m => esc(m.name.split(' ')[0]))
+    const firstNames = newMembers.map(m => esc(firstNameOf(m.name)))
     const shown = firstNames.slice(0, 3)
     const rest  = newMembers.length - shown.length
     const who = rest > 0

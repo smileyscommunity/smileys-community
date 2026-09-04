@@ -7,6 +7,7 @@ import CitySelect, { useAdminCities } from '@/components/admin/CitySelect'
 import { confirmToast } from '@/lib/confirmToast'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
+import { firstNameOf } from '@/lib/data'
 
 // ISO timestamp → the 'YYYY-MM-DDTHH:MM' local format a datetime-local input
 // expects, so editing a scheduled newsletter prefills its send time correctly.
@@ -427,7 +428,7 @@ export default function NewsletterPage() {
       const fresh = all.filter(m => new Date(m.joinedAt).getTime() >= weekAgo)
       if (fresh.length === 0) { toast('No new members in the last 7 days'); return }
       const escapeHtml = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      const firstNames = fresh.map(m => escapeHtml(m.name.split(' ')[0]))
+      const firstNames = fresh.map(m => escapeHtml(firstNameOf(m.name)))
       const shown = firstNames.slice(0, 3)
       const rest  = fresh.length - shown.length
       const who = rest > 0

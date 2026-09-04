@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { useAuth } from '@/contexts/AuthContext'
-import { VISITOR_TRAVELER_TYPES, VISITOR_LOOKING_FOR, avatarUrl } from '@/lib/data'
+import { VISITOR_TRAVELER_TYPES, VISITOR_LOOKING_FOR, avatarUrl, firstNameOf} from '@/lib/data'
 import { sharedSignals } from '@/lib/visitorMatch'
 
 const TRAVELER_LABEL: Record<string, string> = Object.fromEntries(VISITOR_TRAVELER_TYPES.map(t => [t.value, t.label]))
@@ -149,7 +149,7 @@ function CoffeeInviteModal({ target, onClose }: { target: VisitorUser; onClose: 
   const [message,      setMessage]      = useState('')
   const [sending,      setSending]      = useState(false)
 
-  const firstName = target.name.split(' ')[0]
+  const firstName = firstNameOf(target.name)
 
   async function send() {
     if (sending) return
@@ -231,7 +231,7 @@ function ConnectButton({ targetUserId, targetName }: { targetUserId: string; tar
       const data = await res.json().catch(() => ({}))
       if (!res.ok) { toast.error(data.error ?? 'Could not connect'); return }
       setSent(true)
-      toast.success(`Request sent to ${targetName.split(' ')[0]}!`)
+      toast.success(`Request sent to ${firstNameOf(targetName)}!`)
     } finally {
       setSending(false)
     }
@@ -273,7 +273,7 @@ function LocalsStrip({ locals, viewerId }: { locals: FeaturedLocal[]; viewerId: 
             </Link>
             <div>
               <Link href={`/members/${l.id}`} className="text-xs font-semibold text-gray-800 hover:text-amber-600 transition-colors">
-                {l.name.split(' ')[0]}
+                {firstNameOf(l.name)}
               </Link>
               {l.neighborhood && <p className="text-[10px] text-gray-400">{l.neighborhood}</p>}
               {viewerId && (l.openToHosting || l.openToCoffee || l.openToLanguage) && (
@@ -454,8 +454,8 @@ function AnnouncementCard({ a, viewerId, viewerInterests, viewerLanguages, viewe
             <span key={o.id}>
               {i > 0 && ', '}
               {o.user
-                ? <Link href={`/members/${o.user.id}`} className="font-semibold text-gray-700 hover:text-amber-600 transition-colors">{o.name.split(' ')[0]}</Link>
-                : <span className="font-semibold text-gray-700">{o.name.split(' ')[0]}</span>
+                ? <Link href={`/members/${o.user.id}`} className="font-semibold text-gray-700 hover:text-amber-600 transition-colors">{firstNameOf(o.name)}</Link>
+                : <span className="font-semibold text-gray-700">{firstNameOf(o.name)}</span>
               }
               {shared.length > 0 && LOOKING_FOR_META[shared[0]] && (
                 <span className="text-violet-600"> (also wants {LOOKING_FOR_META[shared[0]].label.toLowerCase()})</span>

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { resolveImageUrl, avatarUrl, getInitials } from '@/lib/data'
+import { resolveImageUrl, avatarUrl, getInitials, firstNameOf} from '@/lib/data'
 import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import { countryFlag } from '@/lib/countries'
 import { matchesTimeFilter, statusBadge, type TimeFilter } from '@/lib/hangoutTime'
@@ -414,7 +414,7 @@ export default function HangoutsPage() {
       setPulses(prev => prev.map(p => p.id === pulse.id
         ? { ...p, waves: { ...p.waves, mine: true, count: p.waves.mine ? p.waves.count : p.waves.count + 1 } }
         : p))
-      toast.success(`${pulse.user.name.split(' ')[0]} will get a ping ✋`)
+      toast.success(`${firstNameOf(pulse.user.name)} will get a ping ✋`)
     } catch {
       toast.error('Network error — check your connection')
     }
@@ -949,7 +949,7 @@ export default function HangoutsPage() {
                                 </div>
                             }
                             <p className="text-xs font-medium text-gray-700 max-w-[56px] truncate group-hover:text-amber-600 transition-colors">
-                              {r.name.split(' ')[0]}
+                              {firstNameOf(r.name)}
                             </p>
                           </Link>
                         )
@@ -1091,7 +1091,7 @@ export default function HangoutsPage() {
                       </span>
                     </div>
                     <p className="text-xs font-medium text-gray-700 text-center leading-tight max-w-[64px] truncate group-hover:text-amber-600 transition-colors">
-                      {r.name.split(' ')[0]}
+                      {firstNameOf(r.name)}
                     </p>
                     <p className="text-[10px] text-gray-400">{r.count} hosted</p>
                   </Link>
@@ -1714,7 +1714,7 @@ function PulseCard({ pulse, onClear, onWave }: { pulse: Pulse; onClear?: () => v
                   {pulse.waves.users.map((u, i) => (
                     <span key={u.id}>
                       {i > 0 && ', '}
-                      <Link href={`/messages/${u.id}`} className="underline decoration-green-300 hover:text-green-800">{u.name.split(' ')[0]}</Link>
+                      <Link href={`/messages/${u.id}`} className="underline decoration-green-300 hover:text-green-800">{firstNameOf(u.name)}</Link>
                     </span>
                   ))}
                   {pulse.waves.count > pulse.waves.users.length && ` +${pulse.waves.count - pulse.waves.users.length}`}

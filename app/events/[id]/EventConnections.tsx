@@ -6,6 +6,7 @@ import posthog from 'posthog-js'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { DEFAULT_TZ } from '@/lib/cityTime'
+import { firstNameOf } from '@/lib/data'
 
 interface EventHangout { id: string; title: string; startsAt: string; neighborhood: string | null; eventId: string | null }
 interface EventPost { id: string; title: string; replyCount: number; user: { name: string } }
@@ -82,7 +83,7 @@ export default function EventConnections({ eventId }: { eventId: string }) {
                 <span aria-hidden="true" className="shrink-0">💬</span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-gray-900 truncate group-hover:text-amber-700 transition-colors">{p.title}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{p.user.name.split(' ')[0]}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{firstNameOf(p.user.name)}</p>
                 </div>
                 <span className="shrink-0 text-xs font-bold text-amber-600">
                   {p.replyCount > 0 ? `${p.replyCount} 💬` : 'Reply →'}

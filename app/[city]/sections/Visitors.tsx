@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { formatShortDate } from '@/lib/data'
+import { formatShortDate, firstNameOf} from '@/lib/data'
 import type { PublicCity, Visitors as VisitorsData } from '../data'
 
 // Who's coming to town, and the door to announcing your own trip. Renders
@@ -26,7 +26,7 @@ export default function Visitors({ city, visitors, visitorTotal, isDefaultCity }
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             {visitors.map(v => (
               <div key={v.id} className="card p-5">
-                <p className="font-bold text-gray-900 truncate">{v.name.split(' ')[0]}</p>
+                <p className="font-bold text-gray-900 truncate">{firstNameOf(v.name)}</p>
                 <p className="text-xs text-gray-500 mt-0.5">{v.fromCity ? `from ${v.fromCity}` : 'traveling'}</p>
                 <p className="text-xs font-semibold text-amber-600 mt-2">
                   {formatShortDate(v.startsOn)} – {formatShortDate(v.endsOn)}

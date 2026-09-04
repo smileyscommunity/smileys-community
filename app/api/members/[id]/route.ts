@@ -6,6 +6,7 @@ import { rateLimit, getIp } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
 import { isAdminOrModerator, isClubHost } from '@/lib/access'
 import { todayInCity, resolveCityId } from '@/lib/city'
+import { firstNameOf } from '@/lib/data'
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
@@ -176,7 +177,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   return NextResponse.json({
     id:           user.id,
-    name:         fullAccess ? user.name : user.name.split(' ')[0],
+    name:         fullAccess ? user.name : firstNameOf(user.name),
     color:        user.color,
     bio:          fullAccess ? user.bio : null,
     neighborhood: fullAccess ? user.neighborhood : null,

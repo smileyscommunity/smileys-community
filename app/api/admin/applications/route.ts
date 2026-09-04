@@ -13,6 +13,7 @@ import { hashToken } from '@/lib/tokenHash'
 import { promoteApplicationPhoto } from '@/lib/promotePhoto'
 import { getStatsFor } from '@/lib/cities'
 import { CITY_MATURITY } from '@/lib/cityMaturity'
+import { firstNameOf } from '@/lib/data'
 
 function normalizeName(name: string): string {
   if (!name) return name
@@ -233,7 +234,7 @@ export async function PATCH(req: NextRequest) {
                   select: { name: true },
                 }),
               ])
-              founding = { rank: Math.max(1, rank), others: fellows.map(f => f.name.split(' ')[0]) }
+              founding = { rank: Math.max(1, rank), others: fellows.map(f => firstNameOf(f.name)) }
             }
             await sendActivationEmail(application.email, application.fullName, token, welcomeMessage || undefined, targetCity?.name, founding)
           } else {

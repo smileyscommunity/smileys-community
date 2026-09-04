@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import type { Event } from '@/lib/data'
-import { formatShortDate, formatTime, formatPrice, vibeConfig, resolveImageUrl, BLUR_PLACEHOLDER } from '@/lib/data'
+import { formatShortDate, formatTime, formatPrice, vibeConfig, resolveImageUrl, BLUR_PLACEHOLDER, firstNameOf} from '@/lib/data'
 import { getUrgency, getBarColor, buildSocialLabel } from '@/lib/utils/event'
 import { neighborhoodToSlug } from '@/lib/neighborhoods'
 import AvatarStack from '@/components/AvatarStack'
@@ -219,7 +219,7 @@ export default function EventCard({ event, linkPrefix = '/events', initialStatus
                     : event.hostName.trim().split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
                   }
                 </div>
-                <span className="truncate">{event.hostName.split(' ')[0]}</span>
+                <span className="truncate">{firstNameOf(event.hostName)}</span>
               </span>
             )}
           </div>

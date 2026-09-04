@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import AlertsRow, { type Alert } from '@/components/admin/AlertsRow'
 import Avatar from '@/components/admin/Avatar'
+import { firstNameOf } from '@/lib/data'
 
 interface ModStats {
   pendingApplications: number
@@ -35,7 +36,7 @@ export default function ModeratorPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  const firstName = user?.name?.split(' ')[0] ?? 'Moderator'
+  const firstName = firstNameOf(user?.name) || 'Moderator'
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
 

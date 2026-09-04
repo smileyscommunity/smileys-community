@@ -7,7 +7,7 @@ import { toast } from 'sonner'
 import posthog from 'posthog-js'
 import { useAuth } from '@/contexts/AuthContext'
 import AvatarImg from '@/components/AvatarImg'
-import { avatarUrl } from '@/lib/data'
+import { avatarUrl, firstNameOf} from '@/lib/data'
 import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { DEFAULT_TZ } from '@/lib/cityTime'
@@ -94,7 +94,7 @@ function VisitorsModule({ visitors }: { visitors: Visitor[] }) {
       <div className="space-y-2">
         {visitors.map(v => (
           <p key={v.id} className="text-sm text-gray-700">
-            <span className="font-bold text-gray-900">{v.name.split(' ')[0]}</span>
+            <span className="font-bold text-gray-900">{firstNameOf(v.name)}</span>
             {v.fromCity && <> · {v.fromCity}</>}
             {v.neighborhood && <> · 📍 {v.neighborhood}</>}
             <> · arriving {fmtArrival(v.startsOn)}</>
@@ -344,7 +344,7 @@ function RepliesBlock({ postId, onCount }: { postId: string; onCount: (n: number
               size="w-7 h-7" textSize="text-[10px]" className="shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
               <p className="text-xs">
-                <Link href={`/members/${r.user.id}`} className="font-bold text-gray-900 hover:text-amber-600">{r.user.name.split(' ')[0]}</Link>
+                <Link href={`/members/${r.user.id}`} className="font-bold text-gray-900 hover:text-amber-600">{firstNameOf(r.user.name)}</Link>
                 <span className="text-gray-400 ml-1.5">{timeAgo(r.createdAt)}</span>
               </p>
               <p className="text-sm text-gray-700 mt-0.5 whitespace-pre-wrap">{r.body}</p>
@@ -359,7 +359,7 @@ function RepliesBlock({ postId, onCount }: { postId: string; onCount: (n: number
                     size="w-6 h-6" textSize="text-[9px]" className="shrink-0 mt-0.5" />
                   <div className="min-w-0">
                     <p className="text-xs">
-                      <Link href={`/members/${c.user.id}`} className="font-bold text-gray-900 hover:text-amber-600">{c.user.name.split(' ')[0]}</Link>
+                      <Link href={`/members/${c.user.id}`} className="font-bold text-gray-900 hover:text-amber-600">{firstNameOf(c.user.name)}</Link>
                       <span className="text-gray-400 ml-1.5">{timeAgo(c.createdAt)}</span>
                     </p>
                     <p className="text-sm text-gray-700 mt-0.5 whitespace-pre-wrap">{c.body}</p>
@@ -375,7 +375,7 @@ function RepliesBlock({ postId, onCount }: { postId: string; onCount: (n: number
         <div>
           {replyTo && (
             <p className="text-[11px] text-gray-500 mb-1">
-              Replying to <span className="font-semibold">{replyTo.user.name.split(' ')[0]}</span>
+              Replying to <span className="font-semibold">{firstNameOf(replyTo.user.name)}</span>
               <button onClick={() => setReplyTo(null)} className="ml-2 text-gray-400 hover:text-gray-600">✕</button>
             </p>
           )}
@@ -555,7 +555,7 @@ export default function BoardFeed() {
       .then(r => r.ok ? r.json() : { hangouts: [] })
       .then(d => setHangouts((d.hangouts ?? []).slice(0, 3).map((h: { id: string; title: string; neighborhood: string | null; location: string; startsAt: string; joins?: unknown[]; user?: { name?: string } }) => ({
         id: h.id, title: h.title, neighborhood: h.neighborhood, location: h.location,
-        startsAt: h.startsAt, joinCount: h.joins?.length ?? 0, host: h.user?.name?.split(' ')[0] ?? 'A Smiley',
+        startsAt: h.startsAt, joinCount: h.joins?.length ?? 0, host: firstNameOf(h.user?.name) || 'A Smiley',
       }))))
       .catch(() => {})
   }, [viewerIsMember])

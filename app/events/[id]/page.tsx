@@ -7,7 +7,7 @@ import type { Metadata } from 'next'
 import { getEventById } from '@/lib/db'
 import { getCityConfig } from '@/lib/city'
 import { DEFAULT_TZ, todayInTz, fromWallClockInTz } from '@/lib/cityTime'
-import { formatDate, formatTime, formatPrice, vibeConfig, resolveImageUrl, avatarUrl, getInitials, type Event } from '@/lib/data'
+import { formatDate, formatTime, formatPrice, vibeConfig, resolveImageUrl, avatarUrl, getInitials, type Event, firstNameOf} from '@/lib/data'
 import { countryFlag } from '@/lib/countries'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
@@ -676,10 +676,10 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                     Hosted by{' '}
                     {session ? (
                       <Link href={`/members/${event.hostId}`} className="font-semibold text-gray-900 hover:text-amber-600 transition-colors">
-                        {event.hostName.split(' ')[0]}
+                        {firstNameOf(event.hostName)}
                       </Link>
                     ) : (
-                      <span className="font-semibold text-gray-900">{event.hostName.split(' ')[0]}</span>
+                      <span className="font-semibold text-gray-900">{firstNameOf(event.hostName)}</span>
                     )}
                     {cohosts.length > 0 && (
                       <span className="text-gray-400">
@@ -688,10 +688,10 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                             {i > 0 && ', '}
                             {session ? (
                               <Link href={`/members/${c.user.id}`} className="font-semibold text-gray-900 hover:text-amber-600 transition-colors">
-                                {c.user.name.split(' ')[0]}
+                                {firstNameOf(c.user.name)}
                               </Link>
                             ) : (
-                              <span className="font-semibold text-gray-900">{c.user.name.split(' ')[0]}</span>
+                              <span className="font-semibold text-gray-900">{firstNameOf(c.user.name)}</span>
                             )}
                           </span>
                         ))}
@@ -888,7 +888,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                   return (
                     <li key={user.id} className="text-sm text-gray-800">
                       <Link href={`/members/${user.id}`} className="font-bold text-amber-800 hover:underline">
-                        {user.name.split(' ')[0]}
+                        {firstNameOf(user.name)}
                       </Link>
                       {bits.length > 0 && <span className="text-gray-600"> — {bits.join(' · ')}</span>}
                     </li>
@@ -948,7 +948,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                         </div>
                       )}
                       <span className="text-xs text-gray-600 group-hover:text-amber-600 transition-colors text-center truncate w-full leading-tight flex items-center justify-center gap-0.5">
-                        {a.user.name.split(' ')[0]}
+                        {firstNameOf(a.user.name)}
                         {!restrictedAttendees.has(a.user.id) && countryFlag((a.user as any).nationality) && (
                           <span className="text-xs">{countryFlag((a.user as any).nationality)}</span>
                         )}
@@ -994,7 +994,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                         </div>
                       )}
                       <span className="text-xs text-gray-600 group-hover:text-amber-600 transition-colors text-center truncate w-full leading-tight flex items-center justify-center gap-0.5">
-                        {u.name.split(' ')[0]}
+                        {firstNameOf(u.name)}
                         {flag && <span className="text-xs">{flag}</span>}
                       </span>
                     </Link>
@@ -1111,7 +1111,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                     {isAdmin || isHost || myAttendance?.status === 'approved' ? (
                       <>
                         <span className="font-semibold text-gray-800">
-                          {attendees.slice(0, 2).map(a => a.user.name.split(' ')[0]).join(', ')}
+                          {attendees.slice(0, 2).map(a => firstNameOf(a.user.name)).join(', ')}
                         </span>
                         {totalAttendeeCount > 2 && ` and ${totalAttendeeCount - 2} others`} going
                       </>

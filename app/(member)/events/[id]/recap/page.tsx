@@ -3,7 +3,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { formatDate, resolveImageUrl, avatarUrl, getInitials } from '@/lib/data'
+import { formatDate, resolveImageUrl, avatarUrl, getInitials, firstNameOf} from '@/lib/data'
 import RecapShareButton from '@/components/RecapShareButton'
 import { APP_URL } from '@/lib/env'
 
@@ -137,7 +137,7 @@ export default async function EventRecapPage({ params }: { params: Promise<{ id:
                         {getInitials(a.user.name)}
                       </div>
                     )}
-                    <span className="text-xs text-gray-600 text-center max-w-[56px] truncate">{a.user.name.split(' ')[0]}</span>
+                    <span className="text-xs text-gray-600 text-center max-w-[56px] truncate">{firstNameOf(a.user.name)}</span>
                   </Link>
                 )
               })}

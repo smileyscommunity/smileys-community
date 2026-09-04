@@ -6,7 +6,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { resolveCityId, getCityConfig } from '@/lib/city'
 import { canonicalCategory, categoryMeta, storedKeysFor, categoryHero } from '@/lib/handbook-categories'
-import { resolveImageUrl } from '@/lib/data'
+import { resolveImageUrl, firstNameOf} from '@/lib/data'
 
 // Queried by every stored key that maps to this canonical category, so legacy
 // rows still filed under the old vocabulary appear here rather than vanishing
@@ -97,7 +97,7 @@ export default async function HandbookCategoryPage({ params }: Params) {
                   <div className="p-6 min-w-0">
                     <div className="flex items-center gap-2 mb-2 text-xs text-gray-600">
                       {a.publishedAt && <span>{formatDate(a.publishedAt)}</span>}
-                      {a.author?.name && <span>· by {a.author.name.split(' ')[0]}</span>}
+                      {a.author?.name && <span>· by {firstNameOf(a.author.name)}</span>}
                     </div>
                     <h3 className="text-lg sm:text-xl font-extrabold text-gray-900 group-hover:text-amber-600 transition-colors leading-tight">
                       {a.title}

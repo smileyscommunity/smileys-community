@@ -8,7 +8,7 @@ import type { Metadata } from 'next'
 import { getSession } from '@/lib/session'
 import { resolveCityForPage, type CitySearch } from '@/lib/cityPageParam'
 import { absoluteOgImage } from '@/lib/og'
-import { resolveImageUrl } from '@/lib/data'
+import { resolveImageUrl, firstNameOf} from '@/lib/data'
 import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
 import { loadExperiences } from '@/lib/guideContent'
 import VisitingClient from './VisitingClient'
@@ -594,7 +594,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
                     {hg.neighborhood && <> · 📍 {hg.neighborhood}</>}
                   </p>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    {hg.user.name.split(' ')[0]} · 👥 {hg._count.joins + 1} going
+                    {firstNameOf(hg.user.name)} · 👥 {hg._count.joins + 1} going
                     {hg.maxPeople && hg.maxPeople - hg._count.joins - 1 > 0 && <> · {hg.maxPeople - hg._count.joins - 1} spots left</>}
                   </p>
                   <span className="inline-block text-xs font-bold text-amber-600 mt-3">Join →</span>

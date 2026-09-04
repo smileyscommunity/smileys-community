@@ -11,7 +11,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { confirmToast } from '@/lib/confirmToast'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { getInitials } from '@/lib/data'
+import { getInitials, firstNameOf} from '@/lib/data'
 import { useAdminLoad } from '@/lib/admin/useAdminLoad'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 
@@ -194,7 +194,7 @@ function HostCard({ host, onChanged }: { host: Host; onChanged: () => void }) {
         toast.error(d.error ?? 'Demote failed')
         return
       }
-      toast.success(`Demoted ${host.user.name.split(' ')[0]} from ${clubName}`)
+      toast.success(`Demoted ${firstNameOf(host.user.name)} from ${clubName}`)
       onChanged()
     } finally {
       setBusyClubId(null)
@@ -340,7 +340,7 @@ function PromotePanel({ onSaved, onCancel }: { onSaved: () => void; onCancel: ()
         toast.error(d.error ?? 'Promote failed')
         return
       }
-      toast.success(`Promoted ${userName.split(' ')[0]} to host`)
+      toast.success(`Promoted ${firstNameOf(userName)} to host`)
       onSaved()
     } finally {
       setBusy(false)

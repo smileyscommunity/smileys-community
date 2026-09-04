@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
+import { firstNameOf } from '@/lib/data'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -55,7 +56,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       createNotification(
         post.userId,
         'board_interest',
-        `👋 ${session.name.split(' ')[0]} is interested`,
+        `👋 ${firstNameOf(session.name)} is interested`,
         `"${post.title.slice(0, 80)}"`,
         `/board?post=${id}`,
       ).catch(() => {})

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { createNotification } from '@/lib/notify'
 import { rateLimit } from '@/lib/rateLimit'
+import { firstNameOf } from '@/lib/data'
 
 // Same invitation-scoped DM pattern as listing contact: an active moving
 // sale is an explicit "come take my stuff" — once per sale per sender,
@@ -50,7 +51,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   })
   createNotification(
     sale.userId, 'message',
-    `📦 ${session.name.split(' ')[0]} is interested in your moving sale`,
+    `📦 ${firstNameOf(session.name)} is interested in your moving sale`,
     text.slice(0, 100),
     `/messages/${session.id}`,
   ).catch(() => {})

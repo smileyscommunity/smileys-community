@@ -5,6 +5,7 @@ import { isAdminOrModerator } from '@/lib/access'
 import { restrictedSetFor } from '@/lib/memberPrivacy'
 import { createNotification } from '@/lib/notify'
 import { rateLimit } from '@/lib/rateLimit'
+import { firstNameOf } from '@/lib/data'
 
 type Params = { params: Promise<{ slug: string }> }
 
@@ -90,7 +91,7 @@ export async function GET(req: NextRequest, { params }: Params) {
     return {
       role:         m.role,
       id:           m.user.id,
-      firstName:    m.user.name.split(' ')[0],
+      firstName:    firstNameOf(m.user.name),
       fullName:     connected ? m.user.name : null,
       color:        m.user.color,
       photo:        m.user.profilePhoto,

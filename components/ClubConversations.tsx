@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import posthog from 'posthog-js'
 import { useAuth } from '@/contexts/AuthContext'
 import AvatarImg from '@/components/AvatarImg'
-import { avatarUrl } from '@/lib/data'
+import { avatarUrl, firstNameOf} from '@/lib/data'
 import { BOARD_POST_TYPES, type BoardPostType } from '@/lib/board'
 
 interface Post {
@@ -126,7 +126,7 @@ export default function ClubConversations({ slug, isMember }: { slug: string; is
             <AvatarImg src={avatarUrl(p.user.profilePhoto, 96)} name={p.user.name} color={p.user.color}
               size="w-10 h-10" textSize="text-sm" className="shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-xs text-gray-500">{p.user.name.split(' ')[0]} · {timeAgo(p.createdAt)}</p>
+              <p className="text-xs text-gray-500">{firstNameOf(p.user.name)} · {timeAgo(p.createdAt)}</p>
               <p className="text-sm font-bold text-gray-900 mt-0.5 group-hover:text-amber-700 transition-colors">{p.title}</p>
               {p.body && <p className="text-xs text-gray-600 mt-1 line-clamp-2">{p.body}</p>}
             </div>

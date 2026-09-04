@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { createNotification } from '@/lib/notify'
 import { rateLimit } from '@/lib/rateLimit'
+import { firstNameOf } from '@/lib/data'
 
 // POST /api/listings/[id]/contact — "Contact the seller" as an internal DM.
 //
@@ -66,7 +67,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   createNotification(
     listing.userId,
     'message',
-    `🛍️ ${session.name.split(' ')[0]} is interested in your listing`,
+    `🛍️ ${firstNameOf(session.name)} is interested in your listing`,
     `"${listing.title.slice(0, 60)}" — ${text.slice(0, 100)}`,
     `/messages/${session.id}`,
   ).catch(() => {})

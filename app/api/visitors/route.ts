@@ -7,7 +7,7 @@ import { resolveCityId, todayInCity } from '@/lib/city'
 import { rateLimit, getIp } from '@/lib/rateLimit'
 import { verifyTurnstile } from '@/lib/turnstile'
 import { createNotification } from '@/lib/notify'
-import { VISITOR_TRAVELER_TYPES, VISITOR_LOOKING_FOR } from '@/lib/data'
+import { VISITOR_TRAVELER_TYPES, VISITOR_LOOKING_FOR, firstNameOf} from '@/lib/data'
 import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
 
 // "I'm visiting Istanbul" announcements. Anonymous posting allowed to capture
@@ -177,7 +177,7 @@ export async function POST(req: NextRequest) {
             u.id,
             'visitor_announced',
             `👋 Visitor coming to ${safeNeighborhood}`,
-            `${created.name.split(' ')[0]} from ${created.fromCity ?? 'abroad'} — ${created.startsOn} to ${created.endsOn}`,
+            `${firstNameOf(created.name)} from ${created.fromCity ?? 'abroad'} — ${created.startsOn} to ${created.endsOn}`,
             // City-aware link: the default city's visitors live on /visiting,
             // any other city's on its own landing page.
             dest.slug === 'istanbul' ? '/visiting' : `/${dest.slug}`,

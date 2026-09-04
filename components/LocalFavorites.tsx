@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { resolveImageUrl } from '@/lib/data'
+import { resolveImageUrl, firstNameOf} from '@/lib/data'
 
 export interface LocalPick {
   id:           string
@@ -87,7 +87,7 @@ export default function LocalFavorites({ picks }: { picks: LocalPick[] }) {
               )}
               {p.quote && (
                 <p className="text-xs text-gray-600 italic mt-2.5 leading-relaxed line-clamp-3">
-                  “{p.quote}”{p.quoteBy && <span className="not-italic text-gray-400"> — {p.quoteBy.split(' ')[0]}</span>}
+                  “{p.quote}”{p.quoteBy && <span className="not-italic text-gray-400"> — {firstNameOf(p.quoteBy)}</span>}
                 </p>
               )}
               <span className="inline-block text-xs font-bold text-gray-700 mt-3 group-hover:text-amber-600 transition-colors">

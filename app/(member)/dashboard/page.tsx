@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { formatDate, formatTime, formatPrice, resolveImageUrl, avatarUrl, BLUR_PLACEHOLDER, getInitials } from '@/lib/data'
+import { formatDate, formatTime, formatPrice, resolveImageUrl, avatarUrl, BLUR_PLACEHOLDER, getInitials, firstNameOf} from '@/lib/data'
 import { articleCover } from '@/lib/articleCover'
 import { neighborhoodToSlug } from '@/lib/neighborhoods'
 import { prisma } from '@/lib/prisma'
@@ -188,7 +188,7 @@ export default async function DashboardPage() {
       const rank = await prisma.user.count({
         where: { cityId, status: 'approved', role: MEMBER_ROLES, joinedAt: { lte: userProfile.joinedAt } },
       })
-      founding = { cityName: city.name, rank: Math.max(1, rank), total: cityMemberCount, firstName: session.name.split(' ')[0] }
+      founding = { cityName: city.name, rank: Math.max(1, rank), total: cityMemberCount, firstName: firstNameOf(session.name) }
     }
   }
 
@@ -906,7 +906,7 @@ export default async function DashboardPage() {
             <div className="min-w-0">
               <p className="text-amber-700 text-sm font-medium mb-1">{getGreeting(tz)} 👋</p>
               <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 tracking-tight truncate">
-                {session.name.split(' ')[0]}
+                {firstNameOf(session.name)}
               </h1>
               {nextEvent && (
                 <div className="mt-3 inline-flex items-center gap-2 bg-white border border-amber-200 text-gray-700 text-xs font-semibold px-3 py-1.5 rounded-full">
@@ -1083,7 +1083,7 @@ export default async function DashboardPage() {
                         </div>
                       )}
                       <span className="text-xs text-gray-600 text-center leading-tight max-w-[48px] truncate">
-                        {a.user.name.split(' ')[0]}
+                        {firstNameOf(a.user.name)}
                       </span>
                       <span className="text-xs text-amber-600 font-medium text-center leading-tight max-w-[52px] line-clamp-2">
                         {a.event.emoji} {a.event.title}
@@ -1378,7 +1378,7 @@ export default async function DashboardPage() {
                 <p className="text-sm text-green-900 min-w-0 flex-1 truncate">
                   <span className="font-bold">
                     {recentPulses.length === 1
-                      ? `${recentPulses[0].user.name.split(' ')[0]} is free to meet right now`
+                      ? `${firstNameOf(recentPulses[0].user.name)} is free to meet right now`
                       : `${recentPulses.length} members are free to meet right now`}
                   </span>
                 </p>
@@ -1678,7 +1678,7 @@ export default async function DashboardPage() {
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold text-gray-900 group-hover:text-amber-600 transition-colors truncate">{l.title}</p>
                           <p className="text-xs text-gray-400 truncate">
-                            {l.user.name.split(' ')[0]}{l.price ? ` · ${l.price}` : ''}
+                            {firstNameOf(l.user.name)}{l.price ? ` · ${l.price}` : ''}
                           </p>
                         </div>
                       </Link>
@@ -1707,7 +1707,7 @@ export default async function DashboardPage() {
                       <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center text-lg shrink-0">📦</div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-gray-900 group-hover:text-amber-600 transition-colors truncate">
-                          {s.user.name.split(' ')[0]} is leaving{s.neighborhood ? ` ${s.neighborhood}` : ''}
+                          {firstNameOf(s.user.name)} is leaving{s.neighborhood ? ` ${s.neighborhood}` : ''}
                         </p>
                         <p className="text-xs text-gray-400 truncate">
                           {s.items.map(it => it.name).join(', ')}
@@ -1879,7 +1879,7 @@ export default async function DashboardPage() {
                           {m.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()}
                         </div>
                       )}
-                      <p className="text-sm font-semibold text-gray-900 group-hover:text-amber-600 transition-colors truncate">{m.name.split(' ')[0]}</p>
+                      <p className="text-sm font-semibold text-gray-900 group-hover:text-amber-600 transition-colors truncate">{firstNameOf(m.name)}</p>
                       {m.neighborhood && <p className="text-xs text-gray-400 mt-0.5 truncate">📍 {m.neighborhood}</p>}
                       {m.bio && <p className="text-xs text-gray-400 mt-1 line-clamp-2 leading-tight">{m.bio}</p>}
                     </Link>
@@ -2075,7 +2075,7 @@ export default async function DashboardPage() {
                   )}
                   <p className="text-sm font-bold text-gray-900 group-hover:text-amber-600 transition-colors leading-snug line-clamp-2">{l.title}</p>
                   <div className="flex items-center justify-between mt-2">
-                    <p className="text-xs text-gray-400">{l.user.name.split(' ')[0]}</p>
+                    <p className="text-xs text-gray-400">{firstNameOf(l.user.name)}</p>
                     {l.price && <p className="text-xs font-semibold text-amber-600">{l.price}</p>}
                   </div>
                 </Link>

@@ -10,7 +10,7 @@ import type { Metadata } from 'next'
 import { getSession } from '@/lib/session'
 import { resolveCityId, getCityConfig, DEFAULT_CITY_SLUG } from '@/lib/city'
 import { postCityScope } from '@/lib/postScope'
-import { resolveImageUrl } from '@/lib/data'
+import { resolveImageUrl, firstNameOf} from '@/lib/data'
 import { canonicalCategory, categoryMeta, categoryHero, CATEGORY_KEYS, HANDBOOK_CATEGORIES } from '@/lib/handbook-categories'
 import { reviewLabel, readingTime } from '@/lib/handbook-review'
 import type { HandbookSearchItem } from '@/lib/handbook-search'
@@ -309,7 +309,7 @@ export default async function HandbookPage() {
                       <div className="p-6 min-w-0">
                         <div className="flex items-center gap-2 mb-2 text-xs text-gray-600 flex-wrap">
                           <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-bold">{e?.category ?? a.category}</span>
-                          {a.author?.name && <span>by {a.author.name.split(' ')[0]}</span>}
+                          {a.author?.name && <span>by {firstNameOf(a.author.name)}</span>}
                           <span>· {e?.minutes ?? 1} min read</span>
                           {a.lastReviewedAt && (
                             <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 font-bold">

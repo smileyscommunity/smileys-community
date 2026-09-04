@@ -5,7 +5,7 @@ import posthog from 'posthog-js'
 import { useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import Link from 'next/link'
-import { resolveImageUrl, avatarUrl, getInitials } from '@/lib/data'
+import { resolveImageUrl, avatarUrl, getInitials, firstNameOf} from '@/lib/data'
 import { countryFlag } from '@/lib/countries'
 import { useAuth } from '@/contexts/AuthContext'
 import ReportButton from '@/components/ReportButton'
@@ -159,12 +159,12 @@ function ConnectButton({ m, currentUserId, connections, onConnectionChange }: {
         body: JSON.stringify({ receiverId: m.id, note: note.trim() || undefined }),
       })
       if (!res.ok) {
-        toast.error(`Could not send request to ${m.name.split(' ')[0]}`)
+        toast.error(`Could not send request to ${firstNameOf(m.name)}`)
         return
       }
       const data = await res.json()
       onConnectionChange(data.connection)
-      toast.success(`Request sent to ${m.name.split(' ')[0]}`)
+      toast.success(`Request sent to ${firstNameOf(m.name)}`)
       setShowNote(false)
       setNote('')
     } catch {
@@ -187,7 +187,7 @@ function ConnectButton({ m, currentUserId, connections, onConnectionChange }: {
       }
       const data = await res.json()
       onConnectionChange(data.connection)
-      toast.success(`Connected with ${m.name.split(' ')[0]}`)
+      toast.success(`Connected with ${firstNameOf(m.name)}`)
     } catch {
       toast.error('Network error — check your connection')
     } finally { setLoading(false) }
@@ -220,7 +220,7 @@ function ConnectButton({ m, currentUserId, connections, onConnectionChange }: {
         <div className="flex flex-col gap-2 w-full max-w-xs">
           <textarea
             value={note} onChange={e => setNote(e.target.value)}
-            placeholder={`How do you know ${m.name.split(' ')[0]}? (optional)`}
+            placeholder={`How do you know ${firstNameOf(m.name)}? (optional)`}
             rows={2} maxLength={200} autoFocus
             className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-amber-400"
           />
@@ -319,11 +319,11 @@ function MemberModal({ m, onClose, currentUserId, currentUserRole, viewerPrivile
         body: JSON.stringify({ userId: m.id }),
       })
       if (!res.ok) {
-        toast.error(`Could not block ${m.name.split(' ')[0]}`)
+        toast.error(`Could not block ${firstNameOf(m.name)}`)
         return
       }
       setBlocked(true)
-      toast.success(`Blocked ${m.name.split(' ')[0]}`)
+      toast.success(`Blocked ${firstNameOf(m.name)}`)
       onClose()
     } catch {
       toast.error('Network error — check your connection')
@@ -399,7 +399,7 @@ function MemberModal({ m, onClose, currentUserId, currentUserRole, viewerPrivile
   // first click, commits on the second.
   const blockButton = confirmingBlock ? (
     <div className="flex items-center gap-2">
-      <span className="text-xs text-red-700 font-semibold">Block {m.name.split(' ')[0]}?</span>
+      <span className="text-xs text-red-700 font-semibold">Block {firstNameOf(m.name)}?</span>
       <button onClick={commitBlock} disabled={blocking}
         className="text-xs px-2 py-1 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold disabled:opacity-50">
         {blocking ? '…' : 'Yes, block'}
@@ -415,7 +415,7 @@ function MemberModal({ m, onClose, currentUserId, currentUserRole, viewerPrivile
       <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
       </svg>
-      {blocked ? 'Unblock' : `Block ${m.name.split(' ')[0]}`}
+      {blocked ? 'Unblock' : `Block ${firstNameOf(m.name)}`}
     </button>
   )
 
@@ -461,7 +461,7 @@ function MemberModal({ m, onClose, currentUserId, currentUserRole, viewerPrivile
               <div className="flex-1 min-w-0 pt-1 pr-7">
                 <div className="flex items-center gap-2 flex-wrap">
                   <h2 className="text-lg font-extrabold text-gray-900 leading-tight">
-                    {isConnected || m.id === currentUserId ? m.name : m.name.split(' ')[0]}
+                    {isConnected || m.id === currentUserId ? m.name : firstNameOf(m.name)}
                     {(isConnected || m.id === currentUserId) && flag && <span className="ml-1.5 text-base font-normal">{flag}</span>}
                   </h2>
                   <MembershipBadge membershipType={m.membershipType} className="shrink-0 text-[10px] px-2 py-0.5" />
@@ -532,7 +532,7 @@ function MemberModal({ m, onClose, currentUserId, currentUserRole, viewerPrivile
               {m.restricted ? (
                 <>
                   <p className="text-sm font-semibold text-gray-700">This profile is private</p>
-                  <p className="text-xs text-gray-400">{m.name.split(' ')[0]} keeps their profile to connections only. Send a request — once they accept, you’ll see their full profile.</p>
+                  <p className="text-xs text-gray-400">{firstNameOf(m.name)} keeps their profile to connections only. Send a request — once they accept, you’ll see their full profile.</p>
                 </>
               ) : (
                 <>
@@ -682,7 +682,7 @@ const MemberCard = memo(function MemberCard({ m, onSelect, connectionStatus, han
     : false
   const isConnected = connectionStatus === 'accepted' || connectionStatus === 'privileged'
 
-  const displayName = isConnected ? m.name : m.name.split(' ')[0]
+  const displayName = isConnected ? m.name : firstNameOf(m.name)
 
   return (
     <button
@@ -846,7 +846,7 @@ function MemberFlashCards({ members, currentUserId, connections, onConnectionCha
   const isSelf      = m.id === currentUserId
   const flag        = countryFlag(m.nationality)
   const photo       = resolveImageUrl(m.profilePhoto)
-  const displayName = isConnected || isSelf ? m.name : m.name.split(' ')[0]
+  const displayName = isConnected || isSelf ? m.name : firstNameOf(m.name)
 
   const go = (dir: 1 | -1) => {
     setDx(0)
@@ -1460,12 +1460,12 @@ function MembersPageInner() {
                     )}
                     <div className="flex gap-2 shrink-0">
                       <button
-                        onClick={() => handlePendingAction(req.id, 'accept', u.name.split(' ')[0])}
+                        onClick={() => handlePendingAction(req.id, 'accept', firstNameOf(u.name))}
                         className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg transition-colors">
                         Accept
                       </button>
                       <button
-                        onClick={() => handlePendingAction(req.id, 'decline', u.name.split(' ')[0])}
+                        onClick={() => handlePendingAction(req.id, 'decline', firstNameOf(u.name))}
                         className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-semibold rounded-lg transition-colors">
                         Decline
                       </button>

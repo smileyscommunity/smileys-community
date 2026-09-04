@@ -3,7 +3,7 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { resolveImageUrl, avatarUrl } from '@/lib/data'
+import { resolveImageUrl, avatarUrl, firstNameOf} from '@/lib/data'
 import { APP_URL, SITE_URL } from '@/lib/env'
 import MovingSaleContact from '@/components/MovingSaleContact'
 
@@ -29,7 +29,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const sale = await getSale(id)
   if (!sale) return {}
 
-  const firstName = sale.user.name.split(' ')[0]
+  const firstName = firstNameOf(sale.user.name)
   const title = `${firstName}'s Moving Sale — Smileys Community`
   const itemsPart = sale.items.map(it => it.name).join(', ')
   const description = `Leaving ${fmtLeaving(sale.leavingOn)}${sale.neighborhood ? ` from ${sale.neighborhood}` : ''} — ${sale.note || itemsPart}`.slice(0, 160)
@@ -113,7 +113,7 @@ export default async function MovingSaleDetailPage({ params }: { params: Promise
             </div>
 
             <h1 className="text-2xl font-extrabold text-gray-900 leading-snug">
-              {sale.user.name.split(' ')[0]}&apos;s Moving Sale
+              {firstNameOf(sale.user.name)}&apos;s Moving Sale
             </h1>
 
             {sale.note && <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">{sale.note}</p>}
@@ -151,11 +151,11 @@ export default async function MovingSaleDetailPage({ params }: { params: Promise
             </div>
 
             {session ? (
-              !isOwner && <MovingSaleContact saleId={sale.id} firstName={sale.user.name.split(' ')[0]} />
+              !isOwner && <MovingSaleContact saleId={sale.id} firstName={firstNameOf(sale.user.name)} />
             ) : (
               <div className="text-center space-y-3 py-4 bg-amber-50 rounded-2xl px-4">
                 <p className="text-sm font-semibold text-gray-700">Members only</p>
-                <p className="text-xs text-gray-600">Sign in to contact {sale.user.name.split(' ')[0]} and claim items.</p>
+                <p className="text-xs text-gray-600">Sign in to contact {firstNameOf(sale.user.name)} and claim items.</p>
                 <Link href={`/login?return=/moving-sales/${id}`}
                   className="inline-block px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors">
                   Sign in to Smileys →

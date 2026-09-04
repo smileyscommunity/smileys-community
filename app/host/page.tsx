@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { canHostEvents, canHostClubs } from '@/lib/auth'
-import {} from '@/lib/data'
+import { firstNameOf } from '@/lib/data'
 import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import HostImpactStats from '@/components/HostImpactStats'
@@ -77,7 +77,7 @@ export default function HostDashboard() {
   return (
     <div className="p-4 sm:p-8">
       <div className="mb-6 sm:mb-8">
-        <h1 className="text-2xl font-bold text-white">Welcome back, {user.name.split(' ')[0]}</h1>
+        <h1 className="text-2xl font-bold text-white">Welcome back, {firstNameOf(user.name)}</h1>
         <p className="text-zinc-400 text-sm mt-1">
           {canEvents && canClubs ? "You manage events and clubs."
             : canClubs ? "You manage clubs."

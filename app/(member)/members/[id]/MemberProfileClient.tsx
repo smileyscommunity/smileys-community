@@ -3,7 +3,7 @@
 import { useEffect, useState, use, useRef } from 'react'
 import posthog from 'posthog-js'
 import Link from 'next/link'
-import { resolveImageUrl, getInitials, formatDate } from '@/lib/data'
+import { resolveImageUrl, getInitials, formatDate, firstNameOf} from '@/lib/data'
 import { countryFlag } from '@/lib/countries'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from 'sonner'
@@ -239,7 +239,7 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
           setConnStatus(data.connection.status)
           setConnIsReq(true)
           if (data.connection.status === 'accepted') {
-            toast.success(`Connected with ${member!.name.split(' ')[0]}!`)
+            toast.success(`Connected with ${firstNameOf(member!.name)}!`)
           } else {
             toast.success('Connection request sent!')
           }
@@ -279,7 +279,7 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
       }
       if (action === 'accept') {
         setConnStatus('accepted')
-        toast.success(`Connected with ${member!.name.split(' ')[0]}!`)
+        toast.success(`Connected with ${firstNameOf(member!.name)}!`)
       } else {
         // Decline deletes the row server-side — clear local state to
         // mirror that. The Connect button re-appears, which is
@@ -346,7 +346,7 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </Link>
-          <span className="font-semibold text-gray-900 text-sm truncate flex-1">{member.name.split(' ')[0]}'s Profile</span>
+          <span className="font-semibold text-gray-900 text-sm truncate flex-1">{firstNameOf(member.name)}'s Profile</span>
           {isOwnProfile ? (
             <Link href="/profile" className="text-xs text-amber-600 font-semibold hover:underline">Edit</Link>
           ) : (
@@ -612,7 +612,7 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
                     {getInitials(ref.fromUser.name)}
                   </div>
                   <p className="text-xs text-gray-700 min-w-0 flex-1">
-                    <span className="font-semibold">{ref.fromUser.name.split(' ')[0]}</span>
+                    <span className="font-semibold">{firstNameOf(ref.fromUser.name)}</span>
                     {' after '}
                     <Link href={`/hangouts/${ref.hangout.id}`} className="text-amber-600 hover:underline font-medium">
                       {ref.hangout.title}
@@ -629,13 +629,13 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
         {showOpeners && (
           <div className="bg-white rounded-2xl shadow-card p-5 space-y-3">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-extrabold text-gray-900">Say hi to {member.name.split(' ')[0]} 👋</p>
+              <p className="text-sm font-extrabold text-gray-900">Say hi to {firstNameOf(member.name)} 👋</p>
               <button onClick={() => setShowOpeners(false)} aria-label="Close" className="text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>
             </div>
-            {suggestedOpeners(member.sharedContext ?? null, member.name.split(' ')[0]).length > 0 && (
+            {suggestedOpeners(member.sharedContext ?? null, firstNameOf(member.name)).length > 0 && (
               <div className="space-y-2">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Suggested</p>
-                {suggestedOpeners(member.sharedContext ?? null, member.name.split(' ')[0]).map(o => (
+                {suggestedOpeners(member.sharedContext ?? null, firstNameOf(member.name)).map(o => (
                   <button key={o} onClick={() => setNote(o)}
                     className={`w-full text-left text-sm px-3 py-2 rounded-xl border transition-colors ${
                       note === o ? 'bg-amber-50 border-amber-300 text-amber-900' : 'bg-gray-50 border-gray-200 text-gray-700 hover:border-amber-200'
@@ -664,7 +664,7 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
         {/* §28 — shared context. Sits above the lock notice on purpose:
             a non-connected viewer should see WHY to connect before being
             told what's hidden. */}
-        <SharedContextBlock ctx={member.sharedContext ?? null} firstName={member.name.split(' ')[0]} />
+        <SharedContextBlock ctx={member.sharedContext ?? null} firstName={firstNameOf(member.name)} />
 
         {/* Locked state — the API redacts bio/interests/socials/clubs for
             non-connected viewers, so those sections simply don't render;
@@ -791,7 +791,7 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
             <span className="w-px h-3 bg-gray-200" />
             {confirmingBlock && !blocked ? (
               <div className="flex items-center gap-2">
-                <span className="text-xs text-red-700 font-semibold">Block {member.name.split(' ')[0]}?</span>
+                <span className="text-xs text-red-700 font-semibold">Block {firstNameOf(member.name)}?</span>
                 <button onClick={handleBlock} disabled={blocking}
                   className="text-xs px-2 py-1 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold disabled:opacity-50">
                   {blocking ? '…' : 'Yes, block'}
@@ -809,7 +809,7 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
                 </svg>
-                {blocked ? `Unblock ${member.name.split(' ')[0]}` : `Block ${member.name.split(' ')[0]}`}
+                {blocked ? `Unblock ${firstNameOf(member.name)}` : `Block ${firstNameOf(member.name)}`}
               </button>
             )}
           </div>

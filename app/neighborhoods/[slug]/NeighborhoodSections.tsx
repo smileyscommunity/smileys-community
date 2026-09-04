@@ -5,7 +5,7 @@ import { headers } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import type { NeighborhoodView } from '@/lib/neighborhoodsDb'
 import type { CityConfig } from '@/lib/city'
-import { formatShortDate, formatTime, formatPrice, BLUR_PLACEHOLDER, resolveImageUrl, avatarUrl } from '@/lib/data'
+import { formatShortDate, formatTime, formatPrice, BLUR_PLACEHOLDER, resolveImageUrl, avatarUrl, firstNameOf} from '@/lib/data'
 import { SITE_URL, APP_URL } from '@/lib/env'
 import NeighborhoodWall from '@/components/NeighborhoodWall'
 import AvatarImg from '@/components/AvatarImg'
@@ -456,7 +456,7 @@ export default async function NeighborhoodSections({
                 <Link key={m.id} href={`/members/${m.id}`} className="flex flex-col items-center gap-1.5 group hover:opacity-80 transition-opacity">
                   <AvatarImg src={avatarUrl(m.profilePhoto, 128)} name={m.name} color={m.color} />
                   <span className="text-xs text-gray-600 max-w-[56px] text-center truncate group-hover:text-amber-600 transition-colors">
-                    {m.name.split(' ')[0]}
+                    {firstNameOf(m.name)}
                   </span>
                 </Link>
               ))}
@@ -734,7 +734,7 @@ export default async function NeighborhoodSections({
                     <span aria-hidden="true">{bp.type === 'plan' ? '☕' : bp.type === 'question' ? '❓' : bp.type === 'reco' ? '💡' : '📣'} </span>{bp.title}
                   </p>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    {bp.user.name.split(' ')[0]}
+                    {firstNameOf(bp.user.name)}
                     {bp.whenLabel && <> · <span aria-hidden="true">🕐</span> {bp.whenLabel}</>}
                     {bp._count.replies > 0 && <> · <span aria-hidden="true">💬</span> {bp._count.replies}</>}
                     {bp._count.interests > 0 && <> · <span aria-hidden="true">👋</span> {bp._count.interests} interested</>}

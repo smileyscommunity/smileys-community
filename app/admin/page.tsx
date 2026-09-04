@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
-import {resolveImageUrl,  formatTime} from '@/lib/data'
+import {resolveImageUrl,  formatTime, firstNameOf} from '@/lib/data'
 import AlertsRow, { type Alert } from '@/components/admin/AlertsRow'
 import { todayInTz, nowInTz, DEFAULT_TZ } from '@/lib/cityTime'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
@@ -239,7 +239,7 @@ export default function AdminPage() {
   // gotcha) as the member dashboard's getGreeting().
   const hour = nowInTz(tz).hour
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
-  const firstName = user?.name?.split(' ')[0] ?? 'Admin'
+  const firstName = firstNameOf(user?.name) || 'Admin'
 
   const alerts: Alert[] = stats ? [
     stats.pendingApplications > 0 && {
@@ -767,7 +767,7 @@ export default function AdminPage() {
                               ? <img src={resolveImageUrl(e.host.profilePhoto)} alt={e.host.name} className="w-full h-full object-cover" />
                               : e.host.name.slice(0, 2).toUpperCase()}
                           </div>
-                          <span className="text-[11px] text-zinc-500">{e.host.name.split(' ')[0]}</span>
+                          <span className="text-[11px] text-zinc-500">{firstNameOf(e.host.name)}</span>
                         </div>
                       )}
                     </div>

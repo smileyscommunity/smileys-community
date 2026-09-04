@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { resolveImageUrl } from '@/lib/data'
+import { resolveImageUrl, firstNameOf} from '@/lib/data'
 
 interface Partner {
   id: string
@@ -53,7 +53,7 @@ export default function PartnersBanner() {
                 }
               </div>
               <div className="text-center">
-                <p className="text-xs font-semibold text-gray-700 truncate max-w-[56px]">{p.name.split(' ')[0]}</p>
+                <p className="text-xs font-semibold text-gray-700 truncate max-w-[56px]">{firstNameOf(p.name)}</p>
                 <p className="text-[9px] text-amber-600 font-bold truncate max-w-[56px]">{p.discount.split(' ').slice(0, 2).join(' ')}</p>
               </div>
             </Link>

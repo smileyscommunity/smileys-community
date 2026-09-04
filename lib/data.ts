@@ -335,8 +335,47 @@ export function formatTime(timeStr: string): string {
   return timeStr
 }
 
+// Titles that come BEFORE a name, English and Turkish. Turkish academic and
+// medical titles stack — "Prof. Dr.", "Op. Dr.", "Yrd. Doç. Dr." — so these are
+// stripped repeatedly, not once. Compared after stripping the trailing dot and
+// folding diacritics away, so "Doç"/"doc" and "Müh"/"muh" both land here
+// without ever lower-casing a Turkish name (see formatName for why that rule
+// matters). Suffix titles (Bey, Hanım, PhD) are NOT listed: they trail the
+// name, so they never steal the first-name slot.
+const HONORIFICS = new Set([
+  'dr', 'prof', 'doc', 'docent', 'op', 'uzm', 'uzman', 'av', 'avukat',
+  'muh', 'muhendis', 'yrd', 'ogr', 'hem', 'ecz', 'vet',
+  'mr', 'mrs', 'ms', 'miss', 'mx', 'sir', 'rev', 'capt',
+])
+
+const bareToken = (tok: string): string =>
+  tok.replace(/\.+$/, '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+
+/**
+ * Name tokens with any leading honorifics dropped. Never returns empty for a
+ * non-empty name: a name that is *all* title ("Dr.") keeps its last token,
+ * because showing "Dr." beats showing nothing.
+ */
+function nameTokens(name: string): string[] {
+  const tokens = name.trim().split(/\s+/).filter(Boolean)
+  let i = 0
+  while (i < tokens.length - 1 && HONORIFICS.has(bareToken(tokens[i]))) i++
+  return tokens.slice(i)
+}
+
+/**
+ * The name to greet a member by. "Dr. Hilmi Songur" is Hilmi, not Dr. —
+ * every greeting, notification and `{name} is interested` line goes through
+ * here rather than `name.split(' ')[0]`, which read the title as the person.
+ * Returns '' for a missing name so callers can `||` a fallback.
+ */
+export function firstNameOf(name: string | null | undefined): string {
+  if (!name) return ''
+  return nameTokens(name)[0] ?? ''
+}
+
 export function getInitials(name: string): string {
-  return name.trim().split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
+  return nameTokens(name).map(w => w[0]).join('').toUpperCase().slice(0, 2)
 }
 
 // Event titles often arrive with the emoji typed into the title as well

@@ -3,6 +3,7 @@ import OpenAI from 'openai'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { canReviewApplications, canActInCity } from '@/lib/access'
+import { firstNameOf } from '@/lib/data'
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
@@ -29,7 +30,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Cross-city review is admin-only' }, { status: 403 })
   }
 
-  const firstName = app.fullName?.split(' ')[0] ?? app.fullName ?? 'there'
+  const firstName = firstNameOf(app.fullName) || app.fullName || 'there'
   const interests = (app.interests ?? []).slice(0, 3).join(', ')
   const contributionLabel = app.contribution === 'host' ? 'wants to host events'
     : app.contribution === 'organize' ? 'wants to help organize'

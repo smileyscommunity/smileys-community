@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { createNotification } from '@/lib/notify'
+import { firstNameOf } from '@/lib/data'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -64,7 +65,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (!ev) return
     const recipients = new Set<string>([...attendees.map(a => a.userId), ev.hostId, ...cohosts.map(c => c.userId)])
     recipients.delete(session.id)
-    const firstName = session.name.split(' ')[0]
+    const firstName = firstNameOf(session.name)
     for (const uid of recipients) {
       await createNotification(uid, 'event_photos', '📸 New photo added',
         `${firstName} added a photo to "${ev.title}"`, `/events/${id}`)

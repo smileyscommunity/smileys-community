@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { firstNameOf } from '@/lib/data'
 
 // "Say hi" to a member you're not connected to. This sends a connection
 // REQUEST, not a message — the DM endpoint rejects unconnected senders
@@ -26,7 +27,7 @@ export default function SayHiButton({ targetId, targetName }: { targetId: string
       const data = await res.json().catch(() => ({}))
       if (!res.ok) { toast.error(data.error ?? 'Could not send'); return }
       setSent(true)
-      toast.success(`Request sent to ${targetName.split(' ')[0]}!`)
+      toast.success(`Request sent to ${firstNameOf(targetName)}!`)
     } finally {
       setSending(false)
     }

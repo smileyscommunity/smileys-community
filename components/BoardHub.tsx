@@ -5,7 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useAuth } from '@/contexts/AuthContext'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
-import { resolveImageUrl, avatarUrl } from '@/lib/data'
+import { resolveImageUrl, avatarUrl, firstNameOf} from '@/lib/data'
 import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import posthog from 'posthog-js'
@@ -150,7 +150,7 @@ function ListingModal({ listing, currentUserId, isLoggedIn, isStaff, isSaved, on
   const allPhotos = [listing.photo, ...(listing.photos ?? [])].filter((u): u is string => !!u)
   const [activePhoto, setActivePhoto] = useState(0)
   const [contactOpen, setContactOpen] = useState(false)
-  const [contactText, setContactText] = useState(`Hi ${listing.user.name.split(' ')[0]}, I'm interested in "${listing.title.slice(0, 40)}". Is it still available?`)
+  const [contactText, setContactText] = useState(`Hi ${firstNameOf(listing.user.name)}, I'm interested in "${listing.title.slice(0, 40)}". Is it still available?`)
   const [contactSending, setContactSending] = useState(false)
   const [contactSent, setContactSent] = useState(false)
   const [reportOpen, setReportOpen] = useState(false)
@@ -341,7 +341,7 @@ function ListingModal({ listing, currentUserId, isLoggedIn, isStaff, isSaved, on
             !contactOpen ? (
               <button onClick={() => setContactOpen(true)}
                 className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-2xl transition-colors">
-                💬 Contact {listing.user.name.split(' ')[0]}
+                💬 Contact {firstNameOf(listing.user.name)}
               </button>
             ) : (
               <div className="space-y-2">
@@ -399,7 +399,7 @@ function ListingModal({ listing, currentUserId, isLoggedIn, isStaff, isSaved, on
           {canEdit && editOpen && (
             <div className="space-y-2 border border-gray-200 rounded-xl p-3">
               {isStaff && !isOwner && (
-                <p className="text-[11px] font-semibold text-amber-600">Editing as staff — {listing.user.name.split(' ')[0]} isn't notified.</p>
+                <p className="text-[11px] font-semibold text-amber-600">Editing as staff — {firstNameOf(listing.user.name)} isn't notified.</p>
               )}
               <div>
                 <label className="block text-xs font-semibold text-gray-500 mb-1">Title</label>
@@ -1247,7 +1247,7 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
                     <div className="w-full h-32 bg-amber-50 flex items-center justify-center text-4xl" aria-hidden="true">📦</div>
                   )}
                   <div className="p-3.5">
-                    <p className="text-sm font-bold text-gray-900 truncate">{s.user.name.split(' ')[0]}&apos;s Moving Sale</p>
+                    <p className="text-sm font-bold text-gray-900 truncate">{firstNameOf(s.user.name)}&apos;s Moving Sale</p>
                     <p className="text-xs text-gray-400 mt-0.5 truncate">
                       {s.items.length} item{s.items.length !== 1 ? 's' : ''}{s.neighborhood ? ` · ${s.neighborhood}` : ''}
                     </p>

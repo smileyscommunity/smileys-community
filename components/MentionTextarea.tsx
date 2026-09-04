@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { resolveImageUrl, getInitials } from '@/lib/data'
+import { resolveImageUrl, getInitials, firstNameOf} from '@/lib/data'
 
 interface Member { id: string; name: string; color: string; photo: string | null; restricted?: boolean }
 
@@ -13,7 +13,7 @@ function getMentionQuery(value: string, cursor: number): string | null {
 function insertMention(value: string, cursor: number, name: string) {
   const match = value.slice(0, cursor).match(/@(\w+)$/)
   if (!match) return { text: value, newCursor: cursor }
-  const firstName = name.split(' ')[0]
+  const firstName = firstNameOf(name)
   const start     = cursor - match[0].length
   const inserted  = `@${firstName} `
   return { text: value.slice(0, start) + inserted + value.slice(cursor), newCursor: start + inserted.length }
@@ -40,7 +40,7 @@ function MemberDropdown({
             }
             <span className="text-sm font-medium text-gray-800">{m.name}</span>
             {m.restricted && <span title="Private profile" className="text-xs">🔒</span>}
-            <span className="text-xs text-amber-500 ml-auto">@{m.name.split(' ')[0]}</span>
+            <span className="text-xs text-amber-500 ml-auto">@{firstNameOf(m.name)}</span>
           </button>
         )
       })}

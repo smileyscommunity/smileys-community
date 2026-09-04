@@ -6,6 +6,7 @@ import { sendNewsletterEmail, sendNewsletterBatch, recordEmailFailure } from '@/
 import { buildWeeklyDigest } from '@/lib/newsletterDigest'
 import { writeAudit } from '@/lib/audit'
 import { sanitizeNewsletter } from '@/lib/sanitize'
+import { firstNameOf } from '@/lib/data'
 
 export const dynamic = 'force-dynamic'
 
@@ -73,7 +74,7 @@ export async function GET() {
       sentBy:           n.sentBy,
     })),
     segmentCounts: { all: allCount, new: newCount, active: activeCount, inactive: inactiveCount },
-    sampleRecipients: sampleRecipients.map(u => u.name.split(' ')[0]),
+    sampleRecipients: sampleRecipients.map(u => firstNameOf(u.name)),
   })
 }
 

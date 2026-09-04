@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { formatPrice, getInitials, resolveImageUrl, formatDate, formatShortDate } from '@/lib/data'
+import { formatPrice, getInitials, resolveImageUrl, formatDate, formatShortDate, firstNameOf} from '@/lib/data'
 
 interface ClubInfo { id: string; name: string; emoji: string; slug: string }
 
@@ -84,7 +84,7 @@ function PostItem({ item }: { item: FeedItem }) {
               {isAnnouncement
                 ? '📣 Announcement'
                 : item.author?.name
-                  ? `${item.author.name.split(' ')[0]} posted`
+                  ? `${firstNameOf(item.author.name)} posted`
                   : 'New post'}
             </span>
           </div>

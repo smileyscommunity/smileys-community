@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { getInitials } from '@/lib/data'
+import { getInitials, firstNameOf} from '@/lib/data'
 
 // Unified club activity feed for the dashboard. Replaces two single-
 // purpose widgets ("Club wall" + "New in your clubs") that each showed
@@ -319,7 +319,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
               <div key={`m-${i}`} className="flex items-center gap-2.5">
                 <Avatar name={user.name} color={user.color} />
                 <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
-                  <span className="font-semibold">{user.name.split(' ')[0]}</span>
+                  <span className="font-semibold">{firstNameOf(user.name)}</span>
                   {' joined '}
                   <Link href={`/clubs/${club.slug}`} className="font-semibold text-amber-600 hover:underline">
                     <span aria-hidden="true">{club.emoji}</span> {club.name}
@@ -338,7 +338,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                 <Avatar name={user.name} color={user.color} />
                 <div className="min-w-0 flex-1">
                   <p className="text-xs text-gray-700 leading-snug">
-                    <span className="font-semibold">{user.name.split(' ')[0]}</span>
+                    <span className="font-semibold">{firstNameOf(user.name)}</span>
                     {' '}{verb}{' '}
                     <span className="font-semibold text-amber-600"><span aria-hidden="true">{club.emoji}</span> {club.name}</span>
                   </p>
@@ -355,7 +355,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                     className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
                 <Avatar name={user.name} color={user.color} />
                 <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
-                  <span className="font-semibold">{user.name.split(' ')[0]}</span>
+                  <span className="font-semibold">{firstNameOf(user.name)}</span>
                   {' posted photos · '}
                   <span className="font-semibold text-amber-600">{title}</span>
                 </p>
@@ -370,7 +370,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                     className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
                 <Avatar name={user.name} color={user.color} />
                 <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
-                  <span className="font-semibold">{user.name.split(' ')[0]}</span>
+                  <span className="font-semibold">{firstNameOf(user.name)}</span>
                   {' is going to '}
                   <span className="font-semibold text-amber-600"><span aria-hidden="true">{event.emoji}</span> {event.title}</span>
                 </p>
@@ -384,7 +384,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
               <div key={`nm-${i}`} className="flex items-center gap-2.5">
                 <Avatar name={name} color={color} />
                 <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
-                  <span className="font-semibold">{name.split(' ')[0]}</span>
+                  <span className="font-semibold">{firstNameOf(name)}</span>
                   {' joined Smileys'}
                   {neighborhood && <span className="text-gray-500"> · {neighborhood}</span>}
                 </p>
@@ -399,7 +399,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                     className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
                 <Avatar name={user.name} color={user.color} />
                 <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
-                  <span className="font-semibold">{user.name.split(' ')[0]}</span>
+                  <span className="font-semibold">{firstNameOf(user.name)}</span>
                   {' posted a hangout'}
                   {neighborhood && <span className="text-gray-500"> · {neighborhood}</span>}
                   {' — '}
@@ -416,7 +416,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                     className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
                 <Avatar name={user.name} color={user.color} />
                 <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
-                  <span className="font-semibold">{user.name.split(' ')[0]}</span>
+                  <span className="font-semibold">{firstNameOf(user.name)}</span>
                   {' is around to hang out'}
                   {neighborhood && <span className="text-gray-500"> · {neighborhood}</span>}
                   {note && <span className="text-gray-400"> — {note}</span>}
@@ -434,9 +434,9 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                   <Avatar name={receiver.name}  color={receiver.color}  />
                 </div>
                 <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
-                  <span className="font-semibold">{requester.name.split(' ')[0]}</span>
+                  <span className="font-semibold">{firstNameOf(requester.name)}</span>
                   {' and '}
-                  <span className="font-semibold">{receiver.name.split(' ')[0]}</span>
+                  <span className="font-semibold">{firstNameOf(receiver.name)}</span>
                   {' connected'}
                 </p>
                 <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
@@ -450,7 +450,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                     className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
                 <Avatar name={fromUser.name} color={fromUser.color} />
                 <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
-                  <span className="font-semibold">{fromUser.name.split(' ')[0]}</span>
+                  <span className="font-semibold">{firstNameOf(fromUser.name)}</span>
                   {' left a good reference for '}
                   <span className="font-semibold text-amber-600">{hangout.title}</span>
                 </p>
@@ -465,7 +465,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                     className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
                 <Avatar name={user.name} color={user.color} />
                 <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
-                  <span className="font-semibold">{user.name.split(' ')[0]}</span>
+                  <span className="font-semibold">{firstNameOf(user.name)}</span>
                   {' rated '}
                   <span className="font-semibold text-amber-600"><span aria-hidden="true">{event.emoji}</span> {event.title}</span>
                   {' '}<span className="text-amber-500">{'★'.repeat(rating)}</span>
@@ -481,7 +481,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                     className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
                 <Avatar name={author.name} color={author.color} />
                 <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
-                  <span className="font-semibold">{author.name.split(' ')[0]}</span>
+                  <span className="font-semibold">{firstNameOf(author.name)}</span>
                   {' reviewed '}
                   <span className="font-semibold text-amber-600">{business.name}</span>
                   {' '}<span className="text-amber-500">{'★'.repeat(rating)}</span>
@@ -499,7 +499,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                   🧳
                 </div>
                 <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
-                  <span className="font-semibold">{name.split(' ')[0]}</span>
+                  <span className="font-semibold">{firstNameOf(name)}</span>
                   {' is visiting ' + cityName}
                   {fromCity && <span className="text-gray-500"> · from {fromCity}</span>}
                 </p>
@@ -514,7 +514,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                     className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
                 <Avatar name={user.name} color={user.color} />
                 <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
-                  <span className="font-semibold">{user.name.split(' ')[0]}</span>
+                  <span className="font-semibold">{firstNameOf(user.name)}</span>
                   {' joined a hangout — '}
                   <span className="font-semibold text-amber-600">{hangout.title}</span>
                 </p>
@@ -530,7 +530,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                 <Avatar name={user.name} color={user.color} />
                 <div className="min-w-0 flex-1">
                   <p className="text-xs text-gray-700 leading-snug">
-                    <span className="font-semibold">{user.name.split(' ')[0]}</span>
+                    <span className="font-semibold">{firstNameOf(user.name)}</span>
                     {' posted in '}
                     <span className="font-semibold text-amber-600">{neighborhood}</span>
                   </p>
@@ -567,7 +567,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-xs text-gray-700 leading-snug">
-                    <span className="font-semibold">{memberName.split(' ')[0]}</span>
+                    <span className="font-semibold">{firstNameOf(memberName)}</span>
                     {' shared their Smileys story'}
                   </p>
                   <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">“{quote}”</p>
@@ -583,7 +583,7 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
                     className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
                 <Avatar name={user.name} color={user.color} />
                 <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
-                  <span className="font-semibold">{user.name.split(' ')[0]}</span>
+                  <span className="font-semibold">{firstNameOf(user.name)}</span>
                   {' posted a listing — '}
                   <span className="font-semibold text-amber-600">{title}</span>
                 </p>

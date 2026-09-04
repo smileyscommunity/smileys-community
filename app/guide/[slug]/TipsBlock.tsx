@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import posthog from 'posthog-js'
 import { useAuth } from '@/contexts/AuthContext'
 import AvatarImg from '@/components/AvatarImg'
-import { avatarUrl } from '@/lib/data'
+import { avatarUrl, firstNameOf} from '@/lib/data'
 import { confirmToast } from '@/lib/confirmToast'
 
 interface Tip {
@@ -94,10 +94,10 @@ export default function TipsBlock({ slug }: { slug: string }) {
                     <Link href={`/members/${t.user.id}`}
                       onClick={() => posthog.capture('member_viewed', { from: 'guide_tip', memberId: t.user.id })}
                       className="text-xs font-bold text-gray-900 hover:text-amber-600 transition-colors">
-                      {t.user.name.split(' ')[0]}
+                      {firstNameOf(t.user.name)}
                     </Link>
                   ) : (
-                    <p className="text-xs font-bold text-gray-900">{t.user.name.split(' ')[0]}</p>
+                    <p className="text-xs font-bold text-gray-900">{firstNameOf(t.user.name)}</p>
                   )}
                   <p className="text-sm text-gray-700 mt-0.5 leading-relaxed">{t.body}</p>
                 </div>

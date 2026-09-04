@@ -7,7 +7,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
-import { DEFAULT_CURRENCY, formatMoney, currencySymbol } from '@/lib/data'
+import { DEFAULT_CURRENCY, formatMoney, currencySymbol, firstNameOf} from '@/lib/data'
 import { phonePlaceholder, dialCode } from '@/lib/country'
 
 interface AttendedEvent {
@@ -508,23 +508,23 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
               <div className="space-y-2">
                 <button
                   onClick={() => {
-                    const text = encodeURIComponent(`Hi ${user.name.split(' ')[0]}, this is Smileys Community. We're reaching out regarding your membership.`)
+                    const text = encodeURIComponent(`Hi ${firstNameOf(user.name)}, this is Smileys Community. We're reaching out regarding your membership.`)
                     window.open(`https://wa.me/${user.phone!.replace(/\D/g, '')}?text=${text}`, '_blank')
                   }}
                   className="w-full text-left p-2 rounded-lg bg-zinc-800 border border-zinc-700 hover:border-zinc-500 transition-colors text-xs text-zinc-300"
                 >
                   <span className="font-bold block text-zinc-500 mb-0.5 uppercase text-[9px]">General inquiry</span>
-                  "Hi ${user.name.split(' ')[0]}, this is Smileys..."
+                  "Hi ${firstNameOf(user.name)}, this is Smileys..."
                 </button>
                 <button
                   onClick={() => {
-                    const text = encodeURIComponent(`Hi ${user.name.split(' ')[0]}, we noticed you missed the event today. Is everything okay? We hope to see you next time!`)
+                    const text = encodeURIComponent(`Hi ${firstNameOf(user.name)}, we noticed you missed the event today. Is everything okay? We hope to see you next time!`)
                     window.open(`https://wa.me/${user.phone!.replace(/\D/g, '')}?text=${text}`, '_blank')
                   }}
                   className="w-full text-left p-2 rounded-lg bg-zinc-800 border border-zinc-700 hover:border-zinc-500 transition-colors text-xs text-zinc-300"
                 >
                   <span className="font-bold block text-zinc-500 mb-0.5 uppercase text-[9px]">No-show follow up</span>
-                  "Hi ${user.name.split(' ')[0]}, we noticed you missed..."
+                  "Hi ${firstNameOf(user.name)}, we noticed you missed..."
                 </button>
               </div>
             </div>
