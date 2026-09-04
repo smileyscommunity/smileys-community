@@ -12,6 +12,7 @@ import FingerprintJS from '@fingerprintjs/fingerprintjs'
 import posthog from 'posthog-js'
 import { INTERESTS as INTERESTS_LIST, COMMON_LANGUAGES } from '@/lib/profileOptions'
 import { downscaleImage, ImageUploadError } from '@/lib/image-resize'
+import PhotoRotateDialog from '@/components/PhotoRotateDialog'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { phonePlaceholder, dialCode } from '@/lib/country'
 
@@ -171,6 +172,8 @@ function ApplyForm() {
   const [fieldErrors,    setFieldErrors]    = useState<FieldErrors>({})
   const [submitError,    setSubmitError]    = useState('')
   const [photoUploading, setPhotoUploading] = useState(false)
+  // Held while the applicant confirms which way up the photo goes.
+  const [pendingPhoto, setPendingPhoto] = useState<File | null>(null)
   const [localPhoto,     setLocalPhoto]     = useState('')
   const photoInputRef  = useRef<HTMLInputElement>(null)
   const errorRef       = useRef<HTMLDivElement>(null)
@@ -230,7 +233,7 @@ function ApplyForm() {
     }))
   }
 
-  async function handlePhotoUpload(file: File) {
+  async function handlePhotoUpload(file: File): Promise<boolean> {
     // Show local preview immediately
     const localUrl = URL.createObjectURL(file)
     setLocalPhoto(localUrl)
@@ -246,13 +249,15 @@ function ApplyForm() {
       fd.append('file', uploadFile, 'profile.jpg')
       const res  = await fetch('/app/api/apply/upload', { method: 'POST', body: fd })
       const data = await res.json()
-      if (data.url) set('profilePhoto', data.url)
-      else setSubmitError(data.error ?? 'Photo upload failed')
+      if (data.url) { set('profilePhoto', data.url); return true }
+      setSubmitError(data.error ?? 'Photo upload failed')
+      return false
     } catch (e) {
       // ImageUploadError carries a user-facing, actionable message
       // (0-byte iCloud photo, unconvertible oversized file) — show it
       // verbatim instead of the generic fallback.
       setSubmitError(e instanceof ImageUploadError ? e.message : 'Photo upload failed')
+      return false
     } finally {
       setPhotoUploading(false)
     }
@@ -755,7 +760,21 @@ function ApplyForm() {
             <div>
               <label htmlFor="ap-photo" className="block text-xs font-semibold text-gray-600 mb-2">Profile photo — a real photo of you <span className="text-red-400">*</span></label>
               <input id="ap-photo" ref={photoInputRef} type="file" accept="image/*" className="hidden"
-                onChange={e => e.target.files?.[0] && handlePhotoUpload(e.target.files[0])} />
+                onChange={e => {
+                  const f = e.target.files?.[0]
+                  // Clear it so re-picking the same file still fires onChange.
+                  e.target.value = ''
+                  if (f) setPendingPhoto(f)
+                }} />
+
+              {pendingPhoto && (
+                <PhotoRotateDialog
+                  file={pendingPhoto}
+                  busy={photoUploading}
+                  onCancel={() => setPendingPhoto(null)}
+                  onConfirm={async f => { if (await handlePhotoUpload(f)) setPendingPhoto(null) }}
+                />
+              )}
               {localPhoto || form.profilePhoto ? (
                 <div className="flex items-center gap-4">
                   <img src={localPhoto || avatarUrl(form.profilePhoto, 128)} alt="Profile" loading="lazy" decoding="async" className="w-20 h-20 rounded-2xl object-cover border-2 border-amber-200" />

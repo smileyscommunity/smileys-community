@@ -9,6 +9,7 @@ import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import { COUNTRIES } from '@/lib/countries'
 import { SkeletonList } from '@/components/Skeleton'
 import { downscaleImage } from '@/lib/image-resize'
+import PhotoRotateDialog from '@/components/PhotoRotateDialog'
 import MembershipBadge from '@/components/MembershipBadge'
 
 const AVATAR_COLORS = [
@@ -154,6 +155,8 @@ export default function ProfilePage() {
   })
 
   const [photoUploading, setPhotoUploading] = useState(false)
+  // The picked file waits here while the member confirms which way is up.
+  const [pendingPhoto, setPendingPhoto] = useState<File | null>(null)
   const photoInputRef = useRef<HTMLInputElement>(null)
 
 
@@ -199,7 +202,7 @@ export default function ProfilePage() {
     setForm(f => ({ ...f, [key]: value }))
   }
 
-  async function handlePhotoUpload(file: File) {
+  async function handlePhotoUpload(file: File): Promise<boolean> {
     setPhotoUploading(true)
     try {
       const upload = await downscaleImage(file)
@@ -208,7 +211,7 @@ export default function ProfilePage() {
       fd.append('folder', 'users')
       const res  = await fetch('/app/api/upload', { method: 'POST', credentials: 'include', body: fd })
       const data = await res.json()
-      if (!res.ok) { toast.error(data.error ?? 'Upload failed'); return }
+      if (!res.ok) { toast.error(data.error ?? 'Upload failed'); return false }
       set('profilePhoto', data.url)
       await fetch('/app/api/auth/me', {
         method: 'PATCH', credentials: 'include',
@@ -217,7 +220,8 @@ export default function ProfilePage() {
       })
       setUser({ ...user, profilePhoto: data.url })
       toast.success('Photo updated')
-    } catch { toast.error('Upload failed') }
+      return true
+    } catch { toast.error('Upload failed'); return false }
     finally { setPhotoUploading(false) }
   }
 
@@ -285,7 +289,22 @@ export default function ProfilePage() {
               </div>
             </button>
             <input ref={photoInputRef} type="file" accept=".jpg,.jpeg,.png,.webp" className="hidden"
-              onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload(f) }} />
+              onChange={e => {
+                const f = e.target.files?.[0]
+                // Clear the input so picking the SAME file again still fires
+                // onChange — otherwise a cancelled rotate cannot be retried.
+                e.target.value = ''
+                if (f) setPendingPhoto(f)
+              }} />
+
+            {pendingPhoto && (
+              <PhotoRotateDialog
+                file={pendingPhoto}
+                busy={photoUploading}
+                onCancel={() => setPendingPhoto(null)}
+                onConfirm={async f => { if (await handlePhotoUpload(f)) setPendingPhoto(null) }}
+              />
+            )}
 
             <div className="flex-1 min-w-0 text-center sm:text-left">
               <div className="flex items-center justify-center sm:justify-start gap-2 flex-wrap">
