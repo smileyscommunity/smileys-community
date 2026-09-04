@@ -25,7 +25,7 @@
 import { readFileSync } from 'fs'
 import { prisma } from '@/lib/prisma'
 import { canonicalCategory } from '@/lib/handbook-categories'
-import { toCountryCode } from '@/lib/country'
+import { toCountryCode, countryName } from '@/lib/country'
 import { writeAudit } from '@/lib/audit'
 
 const DRY_RUN = process.env.DRY_RUN === '1'
@@ -131,15 +131,21 @@ async function main() {
   if (!author) throw new Error('Author "Nate G." not found')
 
   let cityId: string | null = null
-  let cityName = 'global (every city)'
+  // The plan line has to distinguish the three scopes, or the dry run is
+  // useless for the thing it exists to catch: a national article printed as
+  // "global" reads as approved to show in every city, which is what the
+  // country column was added to stop.
+  let scope = article.country
+    ? `${countryName(article.country)} only (every city in ${article.country})`
+    : 'GLOBAL — every city, every country'
   if (article.citySlug) {
     const city = await prisma.city.findUnique({ where: { slug: article.citySlug }, select: { id: true, name: true } })
     if (!city) throw new Error(`City not found: ${article.citySlug}`)
     cityId = city.id
-    cityName = city.name
+    scope  = `${city.name} only`
   }
 
-  console.log(`→ publish "${article.title}" [${article.category}] as ${author.name}, city ${cityName}`)
+  console.log(`→ publish "${article.title}" [${article.category}] as ${author.name}, scope: ${scope}`)
   if (DRY_RUN) { console.log('  DRY RUN — nothing written'); return }
 
   const now = new Date()
