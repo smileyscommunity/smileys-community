@@ -84,7 +84,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
   let mime = MIME[ext] ?? 'application/octet-stream'
   if (wantSized) {
     try {
-      body = await sharp(raw).resize(width, width, { fit: 'cover' }).jpeg({ quality: 80 }).toBuffer()
+      // .rotate() before .resize(): honours an EXIF Orientation tag if one
+      // ever reaches disk. Uploads bake orientation in and strip the tag, so
+      // this is normally a no-op — and exactly what you want the day it isn't.
+      body = await sharp(raw).rotate().resize(width, width, { fit: 'cover' }).jpeg({ quality: 80 }).toBuffer()
       mime = 'image/jpeg'
     } catch {
       // Corrupted or unsupported file — fall back to the raw bytes.
@@ -98,7 +101,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
     // / X all keep the preview image. Originals stay reachable without
     // `?w` so existing links keep working.
     try {
-      body = await sharp(raw).resize({ width, withoutEnlargement: true }).jpeg({ quality: 75 }).toBuffer()
+      body = await sharp(raw).rotate().resize({ width, withoutEnlargement: true }).jpeg({ quality: 75 }).toBuffer()
       mime = 'image/jpeg'
     } catch {
       // Fall back to raw on any sharp error.
