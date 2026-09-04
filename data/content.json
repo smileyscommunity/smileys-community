@@ -262,6 +262,22 @@
       "ctaHref": "/izmir",
       "from": "2026-09-02",
       "until": "2026-09-08"
+    },
+    {
+      "title": "🌅 Fifteen people in Antalya, and no first dinner yet",
+      "body": "Smileys Antalya has fifteen members, a city guide and three clubs — and has never once had everyone in the same room. We're fixing that this month with a first coffee in Kaleiçi. If you live on that coast, winter there, or you're the sort who'd rather start a table than find one, this is the moment to be early: the first twenty members shape what the city becomes. One account works in every Smileys city.",
+      "ctaLabel": "See Antalya",
+      "ctaHref": "/antalya",
+      "from": "2026-09-09",
+      "until": "2026-09-15"
+    },
+    {
+      "title": "🏛️ Smileys Ankara is open",
+      "body": "The capital joined this week — eighteen neighbourhoods from Ulus to Kızılcahamam, fifteen places worth your Saturday, and an honest guide to the Başkentkart. Founding-stage, which means the first twenty members decide what it becomes. If you're in Ankara, back and forth for work, or you know the person who is, this is the moment. One account works in every Smileys city.",
+      "ctaLabel": "See Ankara",
+      "ctaHref": "/ankara",
+      "from": "2026-09-16",
+      "until": "2026-09-22"
     }
   ]
 }
