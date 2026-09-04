@@ -1,0 +1,92 @@
+{
+  "title": "SIM Cards, eSIM and Home Internet in Georgia: Magti, Silknet, Cellfie",
+  "slug": "sim-cards-esim-and-home-internet-in-georgia-magti-silknet-cellfie",
+  "excerpt": "Georgia's three networks — Magti, Silknet (the old Geocell) and Cellfie (the old Beeline) — all sell SIMs and eSIMs on a scanned passport, at the airport counters and every corner shop, with no device registration of the Turkish kind. Tourist bundles die after a fortnight, so residents want a standard number, and that number soon becomes the key to the bank and the tax portal. Home internet is Magti or Silknet fibre, decided by which one is wired into your building.",
+  "bodyHtml": "<h2>Three networks, two of them renamed</h2><p>Georgia has three mobile operators and you will meet all three at the airport. <strong>Magti</strong> (Magticom, red) is the biggest — 41% of subscribers in 2025 by the regulator's count — and has the coverage that reaches into the mountains. <strong>Silknet</strong> (purple, 36%) swallowed the old Geocell network in 2018; the Geocell name still lives in its web addresses and in what older shopkeepers call it. <strong>Cellfie</strong> (yellow, 23%) is the former Beeline Georgia: VEON sold it to a local buyer in June 2022 and it took the Cellfie name in 2023 to shed the Russian association. Any 'Beeline' or 'Geocell' SIM you are handed is one of these two. All three run 4G everywhere that matters and 5G in the cities.</p><h2>Buying a SIM: passport, no exceptions</h2><p>Georgian law requires every SIM to be registered to an identity document, so a physical passport (or a residence card) is scanned and tied to the number at the counter — a photo on your phone is refused. Buy at an operator shop, at the counters in the arrivals hall, or at the many corner-shop dealers with the operator's sticker; the price is the same everywhere and there is no airport mark-up. The SIM itself costs little and comes with a small starting balance; you then buy a monthly package in the app. Tell the clerk you want a <em>standard</em> number if you are staying, not the tourist one — the difference matters below.</p><h2>eSIM</h2><p>All three sell eSIMs. Magti issues one for a new or existing number through the MyMagti app or any service centre, but only after you have passed its identification step, which for a foreigner in practice means a visit with the passport. Silknet lets you choose a number and buy an eSIM on its website, and Cellfie's app offers 'Buy eSIM' or 'Switch SIM card to eSIM'. If you just want data for a week, the global travel eSIMs (Airalo and the like) ride on these same networks at a higher price per gigabyte and skip the counter; if you are moving here, get a real number — the bank, the tax portal and every delivery app will want it.</p><h2>Tourist packages vs a resident number</h2><p>Each operator sells a tourist bundle — Magti's airport 'welcome package' at Tbilisi and Kutaisi is a free SIM with a 15-day allowance of data, local calls and some international minutes; Silknet's are branded Tourist Start and Tourist Unlimited. They are excellent for a fortnight and useless after it: the packages are fixed-term, the number is meant to be thrown away, and the balance cannot be turned into a normal plan. A standard prepaid number with a monthly package is what residents use; unlimited data on Magti or Silknet is cheap by Istanbul standards, and postpaid contracts exist for residence-card holders. ⚠ VERIFY the current package names — all three rename them yearly.</p><h2>Your phone: no registration, unlike Türkiye</h2><p>Members arriving from Türkiye will ask first. We found no IMEI or device-registration scheme in Georgia: nothing on the Communications Commission's site, no blocked-phone deadline, and any unlocked handset from anywhere simply works on a Georgian SIM indefinitely. One travel-eSIM blog claims registration is needed after 30 days; we could not find a Georgian source for it and treat it as a confusion with Türkiye or Azerbaijan. ⚠ VERIFY if you hear otherwise at a counter.</p><blockquote><p><strong>The dead-number trap.</strong> A prepaid number that goes unpaid and unused is recycled by the operator after a period of inactivity — the exact window differs by operator and is buried in the terms; ⚠ VERIFY yours. Your bank, the Revenue Service, the residence-permit portal and your two-factor codes are all tied to that number, so losing it while you are abroad locks you out of everything at once. Keep a small package running while you travel, or switch the number to a monthly plan that renews from your card.</p></blockquote><h2>Home internet</h2><p>Fixed broadband is essentially two companies: <strong>Magti</strong> (about 47% of fixed lines) and <strong>Silknet</strong> (about 31%), both mostly fibre-to-the-building in Tbilisi, Batumi, Kutaisi and Rustavi, with Silknet also selling DSL and 4.5G wireless boxes where fibre has not arrived. Before you sign a lease, ask which of the two is wired into the building — in older blocks in Sololaki, the Old Town and parts of Saburtalo it is often only one, and the answer decides your provider. Installation is usually a few days, needs the landlord's consent and someone at home, and bundles with the same company's mobile and TV are discounted. Speeds of 100–300 Mbps are normal in the centre. Starlink has been licensed since November 2023 for villages the fibre never reached.</p><h2>Outside Tbilisi</h2><p>Coverage is good along the roads and in every town. In Svaneti, Tusheti, Khevsureti and the high passes only Magti reliably holds a signal; Silknet is close behind; Cellfie is a city network and should not be your only SIM for a road trip. Download offline maps before you leave the plain.</p><h2>The airport counters</h2><p>At Tbilisi all three operators have desks in the arrivals hall, staffed whenever flights are landing, day or night. Kutaisi has Magti and Silknet on the Wizz Air schedule. Batumi's arrivals hall has operator counters too, though hours are shorter — ⚠ VERIFY before a late landing. Queues form when two flights arrive together; if you have an eSIM-capable phone, the airport Wi-Fi and an online eSIM get you moving faster.</p><h2>The legal note</h2><p>Georgia does not block social networks or messaging apps and has no law against VPNs; Freedom House counts a few hundred sites blocked since 2017, nearly all for copyright, and notes that operators must install lawful-intercept equipment under the communications law — the same as most of Europe. Use whatever you used at home.</p>",
+  "category": "Mobile & Digital",
+  "citySlug": null,
+  "country": "GE",
+  "tags": [
+    "sim card",
+    "esim",
+    "magti",
+    "magticom",
+    "silknet",
+    "geocell",
+    "cellfie",
+    "beeline",
+    "mobile",
+    "home internet",
+    "fibre",
+    "coverage",
+    "airport",
+    "imei",
+    "vpn"
+  ],
+  "officialSources": [
+    {
+      "label": "Magticom — mobile services (coverage, 5G, eSIM)",
+      "url": "https://www.magticom.ge/en/mobile"
+    },
+    {
+      "label": "Magticom — tourist SIM welcome packages at Tbilisi and Kutaisi airports",
+      "url": "https://www.magticom.ge/en/useful-info/sim-cards-for-tourists-in-georgian-airports"
+    },
+    {
+      "label": "Magticom — eSIM service (MyMagti app or service centre)",
+      "url": "https://www.magticom.ge/en/mobile/mobile-services/esim-service"
+    },
+    {
+      "label": "Magticom — home fibre internet",
+      "url": "https://www.magticom.ge/en/internet"
+    },
+    {
+      "label": "Silknet — home page (mobile, fibre, DSL, LTE, tourist packages)",
+      "url": "https://silknet.com/en"
+    },
+    {
+      "label": "Silknet — tourist packages",
+      "url": "https://silknet.com/en/personal/geocell/mobile-packages/tourist"
+    },
+    {
+      "label": "Silknet — buy an eSIM online",
+      "url": "https://silknet.com/en/online-services/new-sim/esim"
+    },
+    {
+      "label": "Silknet — home internet (fibre, DSL, 4.5G)",
+      "url": "https://silknet.com/en/personal/internet"
+    },
+    {
+      "label": "Cellfie Mobile — tariffs, eSIM, 5G/VoLTE",
+      "url": "https://cellfie.ge/en"
+    },
+    {
+      "label": "VEON — sale of Georgian operations (June 2022)",
+      "url": "https://www.veon.com/newsroom/press-releases/veon-announces-sale-of-georgian-operations"
+    },
+    {
+      "label": "Communications Commission (ComCom) — regulation",
+      "url": "https://comcom.ge/en/regulation"
+    },
+    {
+      "label": "ComCom analytics — mobile subscribers by operator",
+      "url": "https://analytics.comcom.ge/en/statistics-share/?total=total&c=mobiles&sid=1487327"
+    },
+    {
+      "label": "Freedom House — Freedom on the Net 2024: Georgia (blocking, operators, surveillance)",
+      "url": "https://freedomhouse.org/country/georgia/freedom-net/2024"
+    },
+    {
+      "label": "Wander-Lush — Georgian SIM card guide (passport rule, airport hours, mountain coverage; updated July 2026)",
+      "url": "https://wander-lush.org/georgian-sim-card-beeline-magti/"
+    },
+    {
+      "label": "Tbilisi Expat — SIM cards in Georgia (ID law, eSIM per operator, tourist vs standard plans)",
+      "url": "https://tbilisi-expat.com/blog/sim-card-georgia"
+    },
+    {
+      "label": "ExpatHub — home internet providers in Georgia",
+      "url": "https://expathub.ge/internet-in-georgia-country/"
+    }
+  ]
+}
