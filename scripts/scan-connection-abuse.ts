@@ -20,6 +20,14 @@
 //     15+ requests, when acceptRate < 30% OR ignoreRate >= 50%.
 //   - Live rows understate history: declines older than 2026-07-17 were
 //     hard-deleted. cross-check notifications for full send counts.
+//   - WINDOWED. Ranking on ALL-TIME rows buried a live 2026-09 cohort
+//     (10-request sprays to women, brand-new accounts) under last quarter's
+//     high-volume history, and kept resurfacing suspended-then-returned
+//     members whose flagged rows predate their suspension. So the scan now
+//     ranks on the last WINDOW_DAYS (default 60) only: an offender who has
+//     stopped drops off, and a low-volume active one rises. The window's
+//     shorter, so the count threshold is lower (10, was 15 all-time).
+//     WINDOW_DAYS=0 restores the all-time view for a historical audit.
 
 import { prisma } from '@/lib/prisma'
 import { Resend } from 'resend'
@@ -32,6 +40,13 @@ function log(line: string) {
 }
 
 async function main() {
+  const WINDOW_DAYS = process.env.WINDOW_DAYS === undefined ? 60 : Number(process.env.WINDOW_DAYS)
+  // WINDOW_DAYS=0 → all time (a far-past cutoff); otherwise the rolling window.
+  const cutoff = WINDOW_DAYS > 0 ? new Date(Date.now() - WINDOW_DAYS * 86_400_000) : new Date(0)
+  const MIN_REQUESTS = WINDOW_DAYS > 0 && WINDOW_DAYS <= 90 ? 10 : 15
+  const MIN_DM_PARTNERS = WINDOW_DAYS > 0 && WINDOW_DAYS <= 90 ? 6 : 8
+  const windowLabel = WINDOW_DAYS > 0 ? `last ${WINDOW_DAYS} days` : 'all time'
+
   const requests: {
     name: string; gender: string | null; role: string; suspended: boolean
     sent: number; to_f: number; pend: number; acc: number
@@ -45,11 +60,12 @@ async function main() {
     FROM member_connections mc
     JOIN users u ON u.id = mc."requesterId"
     JOIN users r ON r.id = mc."receiverId"
+    WHERE mc."createdAt" >= ${cutoff}
     GROUP BY u.id
-    HAVING COUNT(*) >= 15
+    HAVING COUNT(*) >= ${MIN_REQUESTS}
     ORDER BY COUNT(*) DESC`
 
-  log('--- Connection requests (15+ live rows as requester) ---')
+  log(`--- Connection requests (${MIN_REQUESTS}+ in ${windowLabel}, as requester) ---`)
   for (const x of requests) {
     const pctF   = Math.round(100 * x.to_f / x.sent)
     const accPct = Math.round(100 * x.acc / x.sent)
@@ -69,7 +85,8 @@ async function main() {
   // the inbox" variant the request scan misses.
   const dms: { name: string; gender: string | null; suspended: boolean; partners: number; f: number; noreply: number }[] = await prisma.$queryRaw`
     WITH threads AS (
-      SELECT "fromId", "toId", COUNT(*) AS n FROM direct_messages GROUP BY "fromId", "toId"
+      SELECT "fromId", "toId", COUNT(*) AS n FROM direct_messages
+      WHERE "createdAt" >= ${cutoff} GROUP BY "fromId", "toId"
     )
     SELECT u.name, u.gender,
            (u."suspendedUntil" IS NOT NULL AND u."suspendedUntil" > NOW()) AS suspended,
@@ -81,10 +98,10 @@ async function main() {
     JOIN users p ON p.id = t."toId"
     LEFT JOIN threads rev ON rev."fromId" = t."toId" AND rev."toId" = t."fromId"
     GROUP BY u.id
-    HAVING COUNT(*) >= 8
+    HAVING COUNT(*) >= ${MIN_DM_PARTNERS}
     ORDER BY COUNT(*) DESC`
 
-  log('--- DMs (8+ distinct partners, members only) ---')
+  log(`--- DMs (${MIN_DM_PARTNERS}+ distinct partners in ${windowLabel}, members only) ---`)
   for (const x of dms) {
     const pctF = Math.round(100 * x.f / x.partners)
     const flag = x.gender === 'male' && !x.suspended && pctF >= 80 ? '  ⚠️ REVIEW' : ''
