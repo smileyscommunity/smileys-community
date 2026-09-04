@@ -516,6 +516,11 @@ export default function AdminListingsPage() {
         ) : listings.length === 0 ? (
           <div className="p-12 text-center text-zinc-500">No listings found</div>
         ) : (
+          // Scrolls sideways rather than clipping — same reason as the
+          // hangouts table: the card above is overflow-hidden for its rounded
+          // corners, so anything past the container width was cut off with no
+          // scrollbar, taking the rightmost row actions with it.
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-zinc-800">
@@ -601,6 +606,7 @@ export default function AdminListingsPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
 
         {hasMore && (

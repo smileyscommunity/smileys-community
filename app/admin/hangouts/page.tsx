@@ -370,6 +370,16 @@ export default function AdminHangoutsPage() {
         ) : hangouts.length === 0 ? (
           <div className="p-12 text-center text-zinc-500">No hangouts found</div>
         ) : (
+          // Scrolls sideways rather than clipping. The card above is
+          // overflow-hidden for its rounded corners, and this table's natural
+          // width beats it as soon as the host email and the nowrap When/Going
+          // cells are in play — so the last column was cut off with no
+          // scrollbar to say so. Actions is that last column and its buttons
+          // are justify-end, which meant Edit stayed visible while Cancel, one
+          // step further right, silently vanished: an admin could see a hangout
+          // was active and still have no way to call it off. Same wrapper the
+          // moderation and payments tables already use.
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-zinc-800">
@@ -453,6 +463,7 @@ export default function AdminHangoutsPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
 
         {hasMore && (
