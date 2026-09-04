@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { prisma } from '@/lib/prisma'
+import { toCountryCode } from '@/lib/country'
 import { getSession } from '@/lib/session'
 import { canManagePosts, canActInCity } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
@@ -26,7 +27,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!session || !canManagePosts(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { id } = await params
-  const { title, excerpt, body, coverImage, status, category, kind, cityId } = await req.json()
+  const { title, excerpt, body, coverImage, status, category, kind, cityId, country } = await req.json()
   const existing = await prisma.post.findUnique({ where: { id } })
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (!canActInCity(session, existing.cityId)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -63,14 +64,22 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   // Only touch cityId when the client sent the key, so a partial edit can't
   // silently globalize a city-pinned post. '' / null = global; a real id is
   // validated so it can't orphan the post.
-  let cityPatch: { cityId?: string | null } = {}
+  // A post is city-local, national, or global (see lib/postScope). `country`
+  // only means anything on a post with no city, so pinning a city clears it —
+  // a stale country under a cityId is dead data that reads like a rule.
+  let cityPatch: { cityId?: string | null; country?: string | null } = {}
+  if (country !== undefined) {
+    const code = country === null || country === '' ? null : toCountryCode(country)
+    if (country && !code) return NextResponse.json({ error: 'Country must be a 2-letter ISO code' }, { status: 400 })
+    cityPatch = { country: code }
+  }
   if (cityId !== undefined) {
     if (cityId) {
       const c = await prisma.city.findUnique({ where: { id: cityId }, select: { id: true } })
       if (!c) return NextResponse.json({ error: 'Unknown city' }, { status: 400 })
-      cityPatch = { cityId: c.id }
+      cityPatch = { ...cityPatch, cityId: c.id, country: null }
     } else {
-      cityPatch = { cityId: null }
+      cityPatch = { ...cityPatch, cityId: null }
     }
     // Re-pinning is a move; the destination must be the moderator's too.
     if (!canActInCity(session, cityPatch.cityId)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })

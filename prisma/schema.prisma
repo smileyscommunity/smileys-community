@@ -1596,12 +1596,23 @@ model Post {
   // High-stakes articles must cite where the reader can verify the facts
   // themselves rather than trusting member-written text.
   officialSources    Json?
-  // Nullable ON PURPOSE, unlike the rest of the city sweep: null = global
-  // content (applies everywhere — most community posts, national handbook
-  // articles like residence permits). Set only on genuinely city-local
-  // articles. Read paths treat null as "show in every city".
+  // Nullable ON PURPOSE, unlike the rest of the city sweep: null = not pinned
+  // to one city. Set only on genuinely city-local articles (Başkentkart,
+  // İzmirim Kart). Read paths pair it with `country` — see lib/postScope.ts.
   cityId             String?
   city               City?     @relation(fields: [cityId], references: [id])
+  // The country a non-city-local post applies in, as the ISO code stored on
+  // City.country. Residence permits, tax numbers and SIM cards are NATIONAL,
+  // not global: true everywhere in Türkiye and wrong everywhere else. Until
+  // the first non-Turkish city they were indistinguishable, because cityId
+  // null meant "show in every city" and every city was Turkish.
+  //
+  //   cityId set              → that city only
+  //   cityId null, country TR → every Turkish city
+  //   cityId null, country null → genuinely global (most community posts)
+  //
+  // Backfilled to 'TR' on the four Türkiye-wide handbook articles.
+  country            String?
 
   author      User      @relation(fields: [authorId], references: [id])
   likes       PostLike[]
@@ -1611,6 +1622,8 @@ model Post {
   // Drives the review queue ("what is overdue?") and the freshness sort.
   @@index([kind, status, lastReviewedAt])
   @@index([cityId])
+  // The handbook read paths all filter on this pair (lib/postScope.ts).
+  @@index([cityId, country])
   @@map("posts")
 }
 

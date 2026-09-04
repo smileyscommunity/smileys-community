@@ -9,6 +9,7 @@ import { prisma } from '@/lib/prisma'
 import type { Metadata } from 'next'
 import { getSession } from '@/lib/session'
 import { resolveCityId, getCityConfig, DEFAULT_CITY_SLUG } from '@/lib/city'
+import { postCityScope } from '@/lib/postScope'
 import { resolveImageUrl } from '@/lib/data'
 import { canonicalCategory, categoryMeta, categoryHero, CATEGORY_KEYS, HANDBOOK_CATEGORIES } from '@/lib/handbook-categories'
 import { reviewLabel, readingTime } from '@/lib/handbook-review'
@@ -26,15 +27,14 @@ function articleCover(a: { coverImage: string | null; body: string; category: st
   return categoryHero(a.category)?.src ?? null
 }
 
-// Scoped to the viewer's city. A null cityId means global — residence
-// permits and tax numbers are national, and most of the Handbook is —
-// so those match everywhere; only genuinely city-local articles are
-// filtered out. cityId is part of the cache key, not captured from the
-// request inside it: one shared cache entry per city, never a city's
-// articles served to another.
+// Scoped to the viewer's city by the shared rule in lib/postScope: this
+// city's own articles, its COUNTRY's national ones (residence permits, tax
+// numbers), and the genuinely global ones. City and country are both part of
+// the cache key, not captured from the request inside it: one shared cache
+// entry per city, never a city's articles served to another.
 const getHandbookArticles = unstable_cache(
-  async (cityId: string) => prisma.post.findMany({
-    where:   { kind: 'handbook', status: 'published', OR: [{ cityId }, { cityId: null }] },
+  async (cityId: string, country: string | null) => prisma.post.findMany({
+    where:   { kind: 'handbook', status: 'published', ...postCityScope(cityId, country) },
     orderBy: { publishedAt: 'desc' },
     select:  {
       id: true, slug: true, title: true, excerpt: true, body: true, coverImage: true, category: true,
@@ -88,10 +88,10 @@ export async function generateMetadata(): Promise<Metadata> {
 
 // Resolved once per render path (metadata and the page body each call it).
 // Both the session decode and the city config are cached, so this is cheap.
-async function handbookCity(): Promise<{ id: string; name: string; isDefault: boolean }> {
+async function handbookCity(): Promise<{ id: string; country: string | null; name: string; isDefault: boolean }> {
   const cityId = await resolveCityId(await getSession())
   const cfg    = await getCityConfig(cityId)
-  return { id: cityId, name: cfg.name, isDefault: cfg.slug === DEFAULT_CITY_SLUG }
+  return { id: cityId, country: cfg.country ?? null, name: cfg.name, isDefault: cfg.slug === DEFAULT_CITY_SLUG }
 }
 
 // "Start here" — the questions people actually arrive with, each pointing at
@@ -151,7 +151,7 @@ function loadQuickReference(): Category[] {
 
 export default async function HandbookPage() {
   const city = await handbookCity()
-  const articles = await getHandbookArticles(city.id)
+  const articles = await getHandbookArticles(city.id, city.country)
 
   // Group by CANONICAL category so legacy-keyed rows land in the new IA
   // without a data migration. Dev-only: warn when an article's category

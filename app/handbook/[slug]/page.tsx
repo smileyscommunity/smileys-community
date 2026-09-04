@@ -7,6 +7,7 @@ import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { resolveCityId, getCityConfig, DEFAULT_CITY_SLUG } from '@/lib/city'
+import { postCityScope } from '@/lib/postScope'
 import { sanitizeArticle } from '@/lib/sanitize'
 import { resolveImageUrl } from '@/lib/data'
 import { firstBodyImage } from '@/lib/articleCover'
@@ -57,8 +58,8 @@ const getHandbookArticle = unstable_cache(
 // indexed URL must not start 404ing based on a cookie), but what we
 // RECOMMEND alongside it stays in the reader's own city.
 const getHandbookRelated = unstable_cache(
-  async (storedKeys: string[], excludeId: string, cityId: string) => prisma.post.findMany({
-    where:   { kind: 'handbook', status: 'published', category: { in: storedKeys }, NOT: { id: excludeId }, OR: [{ cityId }, { cityId: null }] },
+  async (storedKeys: string[], excludeId: string, cityId: string, country: string | null) => prisma.post.findMany({
+    where:   { kind: 'handbook', status: 'published', category: { in: storedKeys }, NOT: { id: excludeId }, ...postCityScope(cityId, country) },
     orderBy: { publishedAt: 'desc' },
     take:    3,
     select:  { id: true, slug: true, title: true, excerpt: true },
@@ -160,6 +161,7 @@ export default async function HandbookArticlePage({ params }: Params) {
     canonical ? storedKeysFor(canonical) : [post.category],
     post.id,
     cityId,
+    (await getCityConfig(cityId)).country ?? null,
   )
 
   // Freshness + sources are computed server-side so the client component gets

@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 // City picker + badge for admin surfaces. Everything here renders nothing
 // until more than one city exists — a single-city platform has no city
 // dimension worth showing, and every page using these predates multi-city.
-export interface CityOption { id: string; name: string; slug: string; status: string; isDefault?: boolean }
+export interface CityOption { id: string; name: string; slug: string; status: string; country?: string; isDefault?: boolean }
 
 // One fetch per mounted consumer; cities change about as often as a launch,
 // so there is nothing to poll or cache-bust.

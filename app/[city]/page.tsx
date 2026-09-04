@@ -50,7 +50,7 @@ export default async function CityPage({ params }: Params) {
   if (city.status !== CITY_STATUS.Live) return <PreLaunch city={city} />
 
   const { events: cachedEvents, clubs, neighborhoodCounts, testimonials, newMembersThisWeek, guideEntries, latestStories } =
-    await getCityPageData(city.id, city.timezone)
+    await getCityPageData(city.id, city.timezone, city.country ?? null)
 
   // Guest redaction happens per-request, OUTSIDE the shared cache entry —
   // a session-dependent branch must never write into unstable_cache. Same

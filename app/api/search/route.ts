@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { resolveCityId, todayInCity } from '@/lib/city'
+import { resolveCityId, todayInCity, getCityConfig } from '@/lib/city'
+import { postCityScopeSql } from '@/lib/postScope'
 import { rateLimit } from '@/lib/rateLimit'
 import { restrictedSetFor } from '@/lib/memberPrivacy'
 import { categoryMeta } from '@/lib/handbook-categories'
@@ -34,9 +35,10 @@ export async function GET(req: NextRequest) {
   // The pattern is passed as a bound parameter (Prisma.sql), never
   // interpolated, so `q` can't inject; %/_ in the query are treated as
   // wildcards, which for search is behaviour, not a bug.
-  // Search is scoped to the viewer's city. Handbook articles with a null
-  // cityId are global (apply everywhere) and always match.
+  // Search is scoped to the viewer's city by the shared rule in lib/postScope:
+  // this city's articles, its COUNTRY's national ones, and the global ones.
   const cityId = await resolveCityId(session)
+  const cityCountry = (await getCityConfig(cityId)).country ?? null
 
   const pattern = `%${q}%`
   const handbookQuery = prisma.$queryRaw<
@@ -45,7 +47,7 @@ export async function GET(req: NextRequest) {
     SELECT id, slug, title, excerpt, category
     FROM posts
     WHERE kind = 'handbook' AND status = 'published'
-      AND ("cityId" IS NULL OR "cityId" = ${cityId})
+      AND ${postCityScopeSql(cityId, cityCountry)}
       AND (title ILIKE ${pattern} OR excerpt ILIKE ${pattern}
            OR array_to_string(tags, ' ') ILIKE ${pattern})
     ORDER BY views DESC

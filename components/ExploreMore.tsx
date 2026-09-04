@@ -1,6 +1,8 @@
 import Link from 'next/link'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
+import { getCityConfig } from '@/lib/city'
+import { postCityScope } from '@/lib/postScope'
 
 // "Need something else?" — the shared cross-link grid, promoted from the
 // Handbook's bespoke section. Every content surface names the OTHER surfaces
@@ -28,11 +30,11 @@ export type ExploreMoreSurface =
 // one of these three counts, so reusing either would leave the others stale
 // past their own events; revalidate keeps the answer fresh within 5 min.
 const getSurfaceCounts = unstable_cache(
-  async (cityId: string) => {
+  async (cityId: string, country: string | null) => {
     const [guideEntries, stories, neighborhoods] = await Promise.all([
       prisma.guideEntry.count({ where: { cityId, status: 'published' } }),
-      // Same null-means-global rule as /posts: most community stories are.
-      prisma.post.count({ where: { kind: 'community', status: 'published', OR: [{ cityId }, { cityId: null }] } }),
+      // Same scope as /posts (lib/postScope): this city, its country's, global.
+      prisma.post.count({ where: { kind: 'community', status: 'published', ...postCityScope(cityId, country) } }),
       prisma.neighborhood.count({ where: { cityId, active: true } }),
     ])
     return { guideEntries, stories, neighborhoods }
@@ -46,7 +48,8 @@ export default async function ExploreMore({ current, cityId, cityName }: {
   cityId: string
   cityName: string
 }) {
-  const counts = await getSurfaceCounts(cityId)
+  // Country rides along for the post scope; getCityConfig is cached.
+  const counts = await getSurfaceCounts(cityId, (await getCityConfig(cityId)).country ?? null)
 
   const surfaces: { key: ExploreMoreSurface; href: string; emoji: string; label: string; job: string; show: boolean }[] = [
     { key: 'guide',         href: '/guide',         emoji: '🗺️', label: 'Guide',         job: `Experience ${cityName}`,     show: counts.guideEntries > 0 },

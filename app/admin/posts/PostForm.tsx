@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import CitySelect from '@/components/admin/CitySelect'
+import CitySelect, { useAdminCities } from '@/components/admin/CitySelect'
+import { countryName } from '@/lib/country'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import RichTextEditor from '@/components/RichTextEditor'
@@ -19,12 +20,16 @@ interface PostFormProps {
     kind?: string
     category?: string
     cityId?: string | null
+    country?: string | null
   }
 }
 
 export default function PostForm({ initial = {} }: PostFormProps) {
   const router  = useRouter()
   const isEdit  = !!initial.id
+  // Distinct countries we actually run cities in — the only honest options for
+  // "national". Derived rather than listed, so a new country needs no edit here.
+  const countries = [...new Set(useAdminCities().map(c => c.country).filter((c): c is string => !!c))].sort()
 
   const [title,       setTitle]       = useState(initial.title      ?? '')
   const [excerpt,     setExcerpt]     = useState(initial.excerpt     ?? '')
@@ -32,9 +37,13 @@ export default function PostForm({ initial = {} }: PostFormProps) {
   const [coverImage,  setCoverImage]  = useState(initial.coverImage  ?? '')
   const [status,      setStatus]      = useState(initial.status      ?? 'draft')
   const [kind,        setKind]        = useState(initial.kind        ?? 'community')
-  // '' = global (shown in every city); an id pins the article to one city's
-  // Stories. Global is the right default — most articles are network-wide.
+  // '' = not pinned to one city; an id pins the article to one city's
+  // Stories. Unpinned is the right default — most articles are network-wide.
   const [cityId,      setCityId]      = useState(initial.cityId ?? '')
+  // For an unpinned post: '' = genuinely global, a country code = national.
+  // Residence permits and SIM cards are true across ONE country, not across
+  // every city we run — see lib/postScope. Ignored when a city is pinned.
+  const [country,     setCountry]     = useState(initial.country ?? '')
   // A handbook article still stored under a legacy category key is shown
   // pre-selected on its canonical successor — otherwise the select renders with
   // nothing highlighted and an unwary save would land on the default category.
@@ -77,6 +86,7 @@ export default function PostForm({ initial = {} }: PostFormProps) {
         kind,
         category,
         cityId: cityId || null,
+        country: cityId ? null : (country || null),
       }
       const url    = isEdit ? `/app/api/admin/posts/${initial.id}` : '/app/api/admin/posts'
       const method = isEdit ? 'PUT' : 'POST'
@@ -221,15 +231,36 @@ export default function PostForm({ initial = {} }: PostFormProps) {
             </div>
           </div>
 
-          {/* City — global by default; renders only when >1 city exists */}
+          {/* City — unpinned by default; renders only when >1 city exists */}
           <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-4 empty:hidden">
             <CitySelect
               value={cityId}
               onChange={setCityId}
               label="City"
-              emptyLabel="All cities (global)"
+              emptyLabel="No single city"
               className="w-full bg-zinc-900 border border-zinc-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500"
             />
+            {/* Only an unpinned post has a country question to answer: a city
+                already implies one. "Everywhere" is the honest default, so
+                nothing is silently claimed to apply in a country it doesn't. */}
+            {!cityId && countries.length > 0 && (
+              <div className="mt-3">
+                <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5">Applies in</p>
+                <select
+                  value={country}
+                  onChange={e => setCountry(e.target.value)}
+                  className="w-full bg-zinc-900 border border-zinc-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                >
+                  <option value="">Everywhere (global)</option>
+                  {countries.map(code => (
+                    <option key={code} value={code}>{countryName(code)} only</option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-zinc-500 mt-1.5">
+                  Residence permits, tax numbers and SIM cards are national, not global.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Category */}

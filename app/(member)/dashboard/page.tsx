@@ -3,8 +3,9 @@ import { formatDate, formatTime, formatPrice, resolveImageUrl, avatarUrl, BLUR_P
 import { articleCover } from '@/lib/articleCover'
 import { neighborhoodToSlug } from '@/lib/neighborhoods'
 import { prisma } from '@/lib/prisma'
+import { postCityScope } from '@/lib/postScope'
 import { getSession } from '@/lib/session'
-import { resolveCityId } from '@/lib/city'
+import { resolveCityId, getCityConfig } from '@/lib/city'
 import { getStatsFor } from '@/lib/cities'
 import { CITY_MATURITY } from '@/lib/cityMaturity'
 import { CITY_STATUS } from '@/lib/cityStatus'
@@ -72,6 +73,9 @@ export default async function DashboardPage() {
   // dashboard was the biggest cross-city leak (Izmir's seeded clubs were
   // topping every Istanbul member's "new clubs" strip).
   const cityId = await resolveCityId(session)
+  // Country goes with it: national handbook articles (residence permits, SIM
+  // cards) are true across a country, not across every city we run.
+  const cityCountry = (await getCityConfig(cityId)).country ?? null
   // The weather card needs a point and a clock, not just an id — same city the
   // rest of this page is scoped to.
   const hasNeighborhoods = (await prisma.neighborhood.count({
@@ -492,8 +496,9 @@ export default async function DashboardPage() {
     // so members discover the KB without leaving the dashboard. Same
     // shape as latestPosts so we can reuse the existing card markup.
     prisma.post.findMany({
-      // null cityId = global article, shown in every city.
-      where:   { status: 'published', kind: 'handbook', OR: [{ cityId }, { cityId: null }] },
+      // This city, its country's national articles, then the global ones —
+      // the shared rule in lib/postScope.
+      where:   { status: 'published', kind: 'handbook', ...postCityScope(cityId, cityCountry) },
       orderBy: { publishedAt: 'desc' },
       take: 2,
       select: { id: true, title: true, slug: true, excerpt: true, coverImage: true, body: true, category: true, publishedAt: true },
@@ -571,7 +576,7 @@ export default async function DashboardPage() {
     // handbook articles get their own surface via `latestHandbook` so
     // the "From Smileys" strip doesn't mix the two editorial voices.
     prisma.post.findMany({
-      where: { status: 'published', kind: 'community', OR: [{ cityId }, { cityId: null }] },
+      where: { status: 'published', kind: 'community', ...postCityScope(cityId, cityCountry) },
       orderBy: { publishedAt: 'desc' },
       take: 3,
       select: { id: true, title: true, slug: true, excerpt: true, coverImage: true, body: true, category: true, publishedAt: true },
@@ -747,7 +752,7 @@ export default async function DashboardPage() {
     // rolls off as newer activity — and newer articles — take its place. The
     // dedicated "From Smileys" / "From the Handbook" strips carry the full list.
     prisma.post.findMany({
-      where:   { status: 'published', kind: { in: ['handbook', 'community'] }, publishedAt: { gte: monthAgo }, OR: [{ cityId }, { cityId: null }] },
+      where:   { status: 'published', kind: { in: ['handbook', 'community'] }, publishedAt: { gte: monthAgo }, ...postCityScope(cityId, cityCountry) },
       orderBy: { publishedAt: 'desc' },
       take: 5,
       select: { id: true, title: true, slug: true, kind: true, publishedAt: true },

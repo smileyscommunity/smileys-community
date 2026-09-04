@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
+import { postCityScope } from '@/lib/postScope'
 import { todayInTz } from '@/lib/cityTime'
 import { getEvents, getClubs } from '@/lib/db'
 import { queryDirectory } from '@/lib/directory'
@@ -55,8 +56,9 @@ export function cityMetadata(city: PublicCity): Metadata {
 export const getCityPageData = unstable_cache(
   // `tz` is the city's own zone, passed in rather than defaulted: it is part of
   // the cache key (unstable_cache hashes the args), so two cities in different
-  // zones can't share a "today".
-  async (cityId: string, tz: string) => {
+  // zones can't share a "today". `country` is there for the same reason — it
+  // decides which national stories the city sees (lib/postScope).
+  async (cityId: string, tz: string, country: string | null) => {
     const today        = todayInTz(tz)
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
 
@@ -89,12 +91,13 @@ export const getCityPageData = unstable_cache(
       // Does this city have a guide worth linking to? Published entries only —
       // a city whose guide is still all drafts has nothing to read yet.
       prisma.guideEntry.count({ where: { cityId, status: 'published' } }),
-      // Latest city-relevant community writing — same null-means-global rule
-      // as /posts and the Guide's strip, so İzmir's page surfaces "Smileys is
-      // coming to İzmir" without borrowing another city's stories. Over-fetch
-      // so the city's OWN pieces can be ranked ahead of global ones below.
+      // Latest city-relevant community writing — the shared scope in
+      // lib/postScope, same as /posts and the Guide's strip, so İzmir's page
+      // surfaces "Smileys is coming to İzmir" without borrowing another city's
+      // stories. Over-fetch so the city's OWN pieces can be ranked ahead of
+      // national and global ones below.
       prisma.post.findMany({
-        where:   { kind: 'community', status: 'published', OR: [{ cityId }, { cityId: null }] },
+        where:   { kind: 'community', status: 'published', ...postCityScope(cityId, country) },
         orderBy: { publishedAt: 'desc' },
         take:    6,
         select:  { id: true, slug: true, title: true, excerpt: true, coverImage: true, cityId: true },

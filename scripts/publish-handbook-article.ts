@@ -9,8 +9,9 @@
 //   ...review the plan, then rerun without DRY_RUN=1.
 //
 // The JSON file (see scripts/data/handbook-article.example.json):
-//   { title, slug, excerpt, bodyHtml, category, citySlug (null = global),
-//     tags: string[], officialSources: [{ label, url }] }
+//   { title, slug, excerpt, bodyHtml, category, citySlug (null = not one city),
+//     country (null = global, 'TR' = every Turkish city; only read when
+//     citySlug is null — see lib/postScope), tags, officialSources }
 //
 // Every field is validated before the DB is touched; category must resolve
 // through lib/handbook-categories' canonicalCategory (aliases accepted, but
@@ -24,6 +25,7 @@
 import { readFileSync } from 'fs'
 import { prisma } from '@/lib/prisma'
 import { canonicalCategory } from '@/lib/handbook-categories'
+import { toCountryCode } from '@/lib/country'
 import { writeAudit } from '@/lib/audit'
 
 const DRY_RUN = process.env.DRY_RUN === '1'
@@ -35,6 +37,7 @@ interface ArticleInput {
   bodyHtml:        string
   category:        string   // stored as its canonical key
   citySlug:        string | null
+  country:         string | null
   tags:            string[]
   officialSources: { label: string; url: string }[]
 }
@@ -79,6 +82,18 @@ function parseArticle(file: string): ArticleInput {
     fail('"citySlug" must be a city slug string or null')
   }
   const citySlug = b.citySlug === null ? null : (b.citySlug as string).trim()
+  // Only meaningful without a city. Required explicitly there for the same
+  // reason citySlug is: "residence permits are global" was an assumption that
+  // was silently true while every city was Turkish, and silently wrong after.
+  let country: string | null = null
+  if (citySlug === null) {
+    if (!('country' in b)) fail('"country" is required when citySlug is null — an ISO code like "TR", or null for genuinely global content')
+    if (b.country !== null) {
+      const code = toCountryCode(b.country)
+      if (!code) fail('"country" must be a 2-letter ISO code (TR, GR, BG) or null')
+      country = code
+    }
+  }
 
   if (!Array.isArray(b.tags) || b.tags.some(t => typeof t !== 'string' || !t.trim())) {
     fail('"tags" must be an array of non-empty strings (may be empty)')
@@ -95,7 +110,7 @@ function parseArticle(file: string): ArticleInput {
     return { label, url }
   })
 
-  return { title, slug, excerpt, bodyHtml, category, citySlug, tags, officialSources }
+  return { title, slug, excerpt, bodyHtml, category, citySlug, country, tags, officialSources }
 }
 
 async function main() {
@@ -139,6 +154,7 @@ async function main() {
       kind:        'handbook',
       authorId:    author.id,
       cityId,
+      country: cityId ? null : article.country,
       publishedAt: now,
       notifiedAt:  now,
       tags:        article.tags,

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { toCountryCode } from '@/lib/country'
 import { getSession } from '@/lib/session'
 import { canManagePosts, canActInCity, isAdmin, failClosedCityId } from '@/lib/access'
 import { slugify } from '@/lib/slug'
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest) {
   const session = await getSession()
   if (!session || !canManagePosts(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { title, excerpt, body, coverImage, status, category, kind, cityId } = await req.json()
+  const { title, excerpt, body, coverImage, status, category, kind, cityId, country } = await req.json()
   const cleanTitle   = String(title   ?? '').trim()
   const cleanExcerpt = excerpt ? String(excerpt).trim() : ''
   const cleanBody    = String(body    ?? '').trim()
@@ -65,14 +66,21 @@ export async function POST(req: NextRequest) {
     slug = `${base}-${i++}`
   }
 
-  // cityId is nullable by design: null/'' = a global article shown in every
-  // city; a real id pins it to one city's Stories. Validate a provided id so
-  // a typo can't orphan the post to a city that doesn't exist.
+  // cityId is nullable by design: null/'' = not pinned to one city; a real id
+  // pins it to one city's Stories. Validate a provided id so a typo can't
+  // orphan the post to a city that doesn't exist.
   let postCityId: string | null = null
   if (cityId) {
     const c = await prisma.city.findUnique({ where: { id: cityId }, select: { id: true } })
     if (!c) return NextResponse.json({ error: 'Unknown city' }, { status: 400 })
     postCityId = c.id
+  }
+  // An unpinned post is national or global (lib/postScope). A pinned one gets
+  // no country: the city already carries it, and a second answer would drift.
+  let postCountry: string | null = null
+  if (!postCityId && country) {
+    postCountry = toCountryCode(country)
+    if (!postCountry) return NextResponse.json({ error: 'Country must be a 2-letter ISO code' }, { status: 400 })
   }
   // Publishing fans a notification out to the target city's members; a
   // moderator may only aim that at their own city (or everywhere: null).
@@ -91,6 +99,7 @@ export async function POST(req: NextRequest) {
       category:    cleanCategory,
       authorId:    session.id,
       cityId:      postCityId,
+      country:     postCountry,
       publishedAt: willPublish ? new Date() : null,
     },
   })

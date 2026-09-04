@@ -1,5 +1,6 @@
 import { prisma } from './prisma'
-import { getDefaultCityId, todayInCity } from './city'
+import { getDefaultCityId, todayInCity, getCityConfig } from './city'
+import { postCityScope } from './postScope'
 import { loadContent } from './content'
 import { APP_URL, SITE_URL } from './env'
 import { resolveImageUrl, formatTime } from './data'
@@ -29,6 +30,7 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
   // digest mailed to every city's members is the "hardcoded Istanbul"
   // class wearing a newsletter costume.
   const cityId = await getDefaultCityId()
+  const cityCountry = (await getCityConfig(cityId)).country ?? null
 
   // Dates come from THAT city, not from a constant. Identical today, since the
   // city in question is the founding one — but it means the day the digest
@@ -75,9 +77,9 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
     // New reads — handbook + community articles published this week, so
     // editorial content gets a weekly nudge (it's otherwise pull-only).
     prisma.post.findMany({
-      // Global posts (cityId null) plus this city's own — the one digest
-      // query that previously had no city filter.
-      where:   { status: 'published', kind: { in: ['handbook', 'community'] }, publishedAt: { gte: weekAgoDate }, OR: [{ cityId: null }, { cityId }] },
+      // This city's own, its country's national articles, then the global
+      // ones (lib/postScope) — the one digest query that once had no filter.
+      where:   { status: 'published', kind: { in: ['handbook', 'community'] }, publishedAt: { gte: weekAgoDate }, ...postCityScope(cityId, cityCountry) },
       orderBy: { publishedAt: 'desc' },
       take:    4,
       select:  { slug: true, title: true, excerpt: true, kind: true },

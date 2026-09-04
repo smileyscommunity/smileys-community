@@ -4,23 +4,24 @@ import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { resolveCityId, getCityConfig } from '@/lib/city'
+import { postCityScope } from '@/lib/postScope'
 import { avatarUrl } from '@/lib/data'
 import { articleCover } from '@/lib/articleCover'
 import { readingTime } from '@/lib/handbook-review'
 import ExploreMore from '@/components/ExploreMore'
 
-// Scoped to the viewer's city, same contract as the Handbook index: a null
-// cityId means global (most community stories are), so those show everywhere;
-// only genuinely city-local stories are filtered out. cityId is part of the
-// cache key, not captured from the request inside it — one shared cache entry
-// per city, never a city's stories served to another.
+// Scoped to the viewer's city by the shared rule in lib/postScope, same
+// contract as the Handbook index: this city's stories, its country's, and the
+// global ones (most community stories are). City and country are both part of
+// the cache key, not captured from the request inside it — one shared cache
+// entry per city, never a city's stories served to another.
 //
 // kind: 'community' so handbook articles don't leak into the /posts listing.
 // The Post table is shared between /posts (kind = 'community') and /handbook
 // (kind = 'handbook').
 const getPosts = unstable_cache(
-  async (cityId: string) => prisma.post.findMany({
-    where:   { kind: 'community', status: 'published', OR: [{ cityId }, { cityId: null }] },
+  async (cityId: string, country: string | null) => prisma.post.findMany({
+    where:   { kind: 'community', status: 'published', ...postCityScope(cityId, country) },
     orderBy: { publishedAt: 'desc' },
     select:  {
       id: true, slug: true, title: true, excerpt: true, body: true, coverImage: true,
@@ -100,7 +101,10 @@ function AuthorDot({ author, size = 'w-6 h-6' }: {
 
 export default async function PostsPage() {
   const cityId = await resolveCityId(await getSession())
-  const [city, posts] = await Promise.all([getCityConfig(cityId), getPosts(cityId)])
+  // Config first: the post scope needs the city's country. getCityConfig is
+  // cached, so this costs nothing over the old parallel fetch.
+  const city   = await getCityConfig(cityId)
+  const posts  = await getPosts(cityId, city.country ?? null)
 
   const featured = posts[0] ?? null
   const rest = posts.slice(1)

@@ -15,6 +15,7 @@ import Image from 'next/image'
 import { prisma } from '@/lib/prisma'
 import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
 import { DEFAULT_CITY_SLUG } from '@/lib/city'
+import { postCityScope } from '@/lib/postScope'
 import { resolveCityForPage, type CitySearch } from '@/lib/cityPageParam'
 import { absoluteOgImage } from '@/lib/og'
 import { APP_URL } from '@/lib/env'
@@ -149,9 +150,10 @@ export default async function GuidePage({ searchParams }: { searchParams?: Promi
   const routes = await loadRoutes(cityId)
 
   // The Stories strip at the page foot — latest city-relevant community
-  // writing, global posts included, same null-means-global rule as /posts.
+  // writing, by the shared scope in lib/postScope (this city, its country's,
+  // and the global ones), same rule as /posts.
   const latestStories = await prisma.post.findMany({
-    where:   { kind: 'community', status: 'published', OR: [{ cityId }, { cityId: null }] },
+    where:   { kind: 'community', status: 'published', ...postCityScope(cityId, city.country ?? null) },
     orderBy: { publishedAt: 'desc' },
     take:    2,
     select:  { slug: true, title: true },
