@@ -6,6 +6,8 @@ import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from 'sonner'
 import { VISITOR_TRAVELER_TYPES, VISITOR_LOOKING_FOR, VISITOR_VISIBILITY } from '@/lib/data'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
+import { phonePlaceholder, dialCode } from '@/lib/country'
 
 type PublicCity = { slug: string; name: string; status: string }
 
@@ -21,6 +23,7 @@ export default function NewVisitingPage() {
 }
 
 function NewVisitingPageInner() {
+  const country = useCurrentCity()?.country
   const { user } = useAuth()
 
   // Destination: which Smileys city this visit is TO. The picker only
@@ -291,7 +294,7 @@ function NewVisitingPageInner() {
               WhatsApp / Instagram <span className="text-gray-400 font-normal">(optional)</span>
             </label>
             <input type="text" value={contact} onChange={e => setContact(e.target.value)} maxLength={200}
-              placeholder="+90 ... or @handle" className="input" />
+              placeholder={`${dialCode(country)} … or @handle`} className="input" />
           </div>
 
           {/* Defaults to members-only. Radios rather than a toggle so both

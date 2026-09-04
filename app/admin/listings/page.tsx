@@ -6,6 +6,8 @@ import { isValidContactEmail } from '@/lib/contactEmail'
 import Link from 'next/link'
 import { CityBadge, useAdminCities } from '@/components/admin/CitySelect'
 import { toast } from 'sonner'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
+import { DEFAULT_CURRENCY, currencySymbol } from '@/lib/data'
 
 const CATEGORIES = [
   { id: 'all',      label: 'All' },
@@ -99,6 +101,7 @@ const DEFAULT_LISTING_SETTINGS: ListingSettings = {
 }
 
 export default function AdminListingsPage() {
+  const cur = useCurrentCity()?.currency ?? DEFAULT_CURRENCY
   const [listings, setListings]   = useState<Listing[]>([])
   const [total, setTotal]         = useState(0)
   const [hasMore, setHasMore]     = useState(false)
@@ -277,7 +280,7 @@ export default function AdminListingsPage() {
             <div>
               <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Price</label>
               <input value={editForm.price} onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))}
-                placeholder="e.g. ₺500 / month"
+                placeholder={`e.g. ${currencySymbol(cur).trim()}500 / month`}
                 className="w-full px-4 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
             </div>
             <div>

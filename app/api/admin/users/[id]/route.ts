@@ -13,6 +13,7 @@ import { computeEventSurveyRollup, aggregateRollup } from '@/lib/survey'
 import {formatName} from '@/lib/data'
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 import { todayInCity, resolveCityId } from '@/lib/city'
+import { formatMoney } from '@/lib/data'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -586,7 +587,7 @@ export async function DELETE(_: NextRequest, { params }: Params) {
     writeAudit(session.id, session.name, 'user.remove', id, 'user',
       { name: target?.name, email: target?.email, payments: paymentSummary },
       `User ${target?.name ?? id} (${target?.email ?? ''}) permanently removed${
-        paymentSummary ? ` — ${paymentSummary.count} payment${paymentSummary.count === 1 ? '' : 's'} destroyed (₺${paymentSummary.totalAmount.toLocaleString()} across ${Object.entries(paymentSummary.byStatus).map(([s, n]) => `${n} ${s}`).join(', ')})` : ''
+        paymentSummary ? ` — ${paymentSummary.count} payment${paymentSummary.count === 1 ? '' : 's'} destroyed (${formatMoney(paymentSummary.totalAmount, payments[0]?.currency)} across ${Object.entries(paymentSummary.byStatus).map(([s, n]) => `${n} ${s}`).join(', ')})` : ''
       }`,
     )
 

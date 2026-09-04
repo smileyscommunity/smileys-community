@@ -30,7 +30,7 @@ interface ParsedItem {
 
 const PLACEHOLDER = `Beautiful 1+1 flat in Moda — walking distance to ferry
 Price: 25000 TL/month
-Contact: +90 555 123 4567 (WhatsApp)
+Contact: 555 123 4567 (WhatsApp)
 Neighborhood: Moda
 Furnished, top floor, big balcony with sea view. Available May 1.
 Building has elevator. Cats welcome, no dogs.

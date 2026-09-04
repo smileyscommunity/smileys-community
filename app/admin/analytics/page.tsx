@@ -5,6 +5,8 @@ import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { resolveImageUrl } from '@/lib/data'
 import CitySelect, { useAdminCities } from '@/components/admin/CitySelect'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
+import { DEFAULT_CURRENCY, formatMoney, currencySymbol } from '@/lib/data'
 
 interface Analytics {
   period: string
@@ -263,6 +265,7 @@ const TABS: { key: Tab; label: string }[] = [
 ]
 
 function AnalyticsInner() {
+  const cur = useCurrentCity()?.currency ?? DEFAULT_CURRENCY
   const searchParams = useSearchParams()
   const router       = useRouter()
   const pathname     = usePathname()
@@ -1343,12 +1346,12 @@ function AnalyticsInner() {
           <section>
             <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3">Revenue</h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
-              <StatCard label="Collected"  value={`₺${data.revenue.collected.toLocaleString()}`} subColor="text-green-400" sub="Paid transactions" />
-              <StatCard label="Pending"    value={`₺${data.revenue.pending.toLocaleString()}`}   subColor="text-amber-400" sub="Awaiting payment" href="/admin/payments" />
-              <StatCard label="Refunded"   value={`₺${data.revenue.refunded.toLocaleString()}`}  subColor="text-zinc-400"  sub="Total refunded" />
+              <StatCard label="Collected"  value={formatMoney(data.revenue.collected, cur)} subColor="text-green-400" sub="Paid transactions" />
+              <StatCard label="Pending"    value={formatMoney(data.revenue.pending, cur)}   subColor="text-amber-400" sub="Awaiting payment" href="/admin/payments" />
+              <StatCard label="Refunded"   value={formatMoney(data.revenue.refunded, cur)}  subColor="text-zinc-400"  sub="Total refunded" />
             </div>
             <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5">
-              <div className="text-xs font-semibold text-zinc-400 mb-3">Revenue collected — last {periodWindowLabel(period)} (₺)</div>
+              <div className="text-xs font-semibold text-zinc-400 mb-3">Revenue collected — last {periodWindowLabel(period)} ({currencySymbol(cur).trim()})</div>
               <MiniBar values={data.revenue.byMonth} months={data.months} color="#34d399" />
               {data.revenue.byMonth.every(v => v === 0) && (
                 <p className="text-xs text-zinc-600 mt-2">No paid transactions recorded yet.</p>
@@ -1363,7 +1366,7 @@ function AnalyticsInner() {
               {/* Revenue per club */}
               <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5">
                 <div className="text-xs font-semibold text-zinc-400 mb-1">Revenue per club</div>
-                <div className="text-xs text-zinc-600 mb-4">Ranked by total paid transactions (₺)</div>
+                <div className="text-xs text-zinc-600 mb-4">Ranked by total paid transactions ({currencySymbol(cur).trim()})</div>
                 {data.revenueByClub?.length > 0 ? (
                   <div className="space-y-3">
                     {data.revenueByClub.map((c, i) => {
@@ -1375,7 +1378,7 @@ function AnalyticsInner() {
                               <span className="text-zinc-600 text-xs w-3">{i + 1}</span>
                               {c.emoji} {c.name}
                             </span>
-                            <span className="text-xs text-amber-400 font-bold">₺{c.revenue.toLocaleString()}</span>
+                            <span className="text-xs text-amber-400 font-bold">{formatMoney(c.revenue, cur)}</span>
                           </div>
                           <div className="flex items-center gap-2">
                             <div className="flex-1 h-1.5 bg-zinc-800 rounded-full overflow-hidden">

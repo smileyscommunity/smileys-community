@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { DEFAULT_TZ } from '@/lib/cityTime'
+import { DEFAULT_CURRENCY } from '@/lib/data'
 
 // The city the viewer's feeds resolve to (view-city cookie → their home city →
 // default), for client components that need to NAME it.
@@ -25,6 +26,10 @@ export interface CurrentCity {
   // city's zone, which is a wrong answer about which DAY it is the moment a
   // city sits outside it. Falls back to DEFAULT_TZ until the fetch resolves.
   timezone: string
+  // Money and phone placeholders follow the city too: a lira sign or a +90
+  // hint is one country's answer.
+  currency: string
+  country:  string | null
   // True when the view-city cookie has moved this viewer off their own city,
   // with the city "back" returns to. Feeds render an escape hatch from these —
   // the cookie lasts a year, so viewing another city needs a visible way home.
@@ -58,6 +63,8 @@ function loadCity(): Promise<CurrentCity | null> {
         cached = {
           name: d.name, slug: d.slug, isDefault: !!d.isDefault,
           timezone: typeof d.timezone === 'string' && d.timezone ? d.timezone : DEFAULT_TZ,
+          currency: typeof d.currency === 'string' && d.currency ? d.currency : DEFAULT_CURRENCY,
+          country:  typeof d.country  === 'string' && d.country  ? d.country  : null,
           viewing:  !!d.viewing,
           homeName: typeof d.homeName === 'string' ? d.homeName : null,
           ...(d.posting?.name ? { posting: { name: d.posting.name, slug: d.posting.slug, differs: !!d.posting.differs } } : {}),

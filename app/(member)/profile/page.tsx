@@ -19,6 +19,8 @@ const AVATAR_COLORS = [
 // Hoisted to lib/profileOptions — this copy had already drifted from the
 // apply form's (different ordering and membership).
 import { COMMON_LANGUAGES, LOOKING_FOR_OPTIONS as SHARED_LOOKING_FOR } from '@/lib/profileOptions'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
+import { phonePlaceholder, dialCode } from '@/lib/country'
 
 const COMMON_INTERESTS = [
   'Travel', 'Photography', 'Hiking', 'Yoga', 'Cooking', 'Music',
@@ -120,6 +122,7 @@ function TagPicker({ options, selected, onChange, max }: {
 }
 
 export default function ProfilePage() {
+  const country = useCurrentCity()?.country
   const { user, setUser, logout } = useAuth()
   const neighborhoods = useCityNeighborhoods()
 
@@ -357,7 +360,7 @@ export default function ProfilePage() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1.5">Phone <span className="text-red-400">*</span></label>
-                  <input type="tel" value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="+90 555 000 0000" className={inputCls} />
+                  <input type="tel" value={form.phone} onChange={e => set('phone', e.target.value)} placeholder={phonePlaceholder(country)} className={inputCls} />
                 </div>
               </div>
 

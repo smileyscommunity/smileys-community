@@ -7,6 +7,8 @@ import { toast } from 'sonner'
 import { useAdminLoad } from '@/lib/admin/useAdminLoad'
 import { CityBadge, useAdminCities } from '@/components/admin/CitySelect'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
+import { DEFAULT_CURRENCY, formatMoney, currencySymbol } from '@/lib/data'
 
 interface Payment {
   id: string
@@ -89,6 +91,7 @@ export default function AdminPaymentsPage() {
 }
 
 function AdminPaymentsPageInner() {
+  const cur = useCurrentCity()?.currency ?? DEFAULT_CURRENCY
   const searchParams = useSearchParams()
   const router       = useRouter()
   const pathname     = usePathname()
@@ -355,7 +358,7 @@ function AdminPaymentsPageInner() {
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
-          { label: 'Total Collected', value: `₺${(stats?.paidSum      ?? 0).toLocaleString()}`, color: 'text-green-400' },
+          { label: 'Total Collected', value: formatMoney(stats?.paidSum ?? 0, cur), color: 'text-green-400' },
           { label: 'Pending',         value:  stats?.pendingCount     ?? 0,                     color: 'text-amber-400' },
           { label: 'Transactions',    value:  stats?.total            ?? 0,                     color: 'text-white'     },
         ].map(s => (
@@ -382,10 +385,10 @@ function AdminPaymentsPageInner() {
                     <span className="text-xs text-zinc-300 font-medium truncate max-w-[60%]">{e.emoji} {e.title}</span>
                     <div className="flex items-center gap-2 shrink-0">
                       <span className="text-xs text-zinc-500">{e.paidCount} txn</span>
-                      <span className="text-xs font-bold text-green-400">₺{e.paidTotal.toLocaleString()}</span>
+                      <span className="text-xs font-bold text-green-400">{formatMoney(e.paidTotal, cur)}</span>
                       {e.pendingTotal > 0 && (
                         <span className="text-xs font-semibold text-amber-400" title={`${e.pendingCount} pending payment${e.pendingCount === 1 ? '' : 's'}`}>
-                          +₺{e.pendingTotal.toLocaleString()} pending
+                          +{formatMoney(e.pendingTotal, cur)} pending
                         </span>
                       )}
                     </div>
@@ -486,7 +489,7 @@ function AdminPaymentsPageInner() {
                     <div className="text-xs text-zinc-400 mt-0.5">{p.event.emoji} {p.event.title} <CityBadge city={p.event.city} cities={cities} /></div>
                   </div>
                   <div className="shrink-0 text-right">
-                    <div className="text-base font-bold text-white">₺{p.amount.toLocaleString()}</div>
+                    <div className="text-base font-bold text-white">{formatMoney(p.amount, cur)}</div>
                     <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${statusMeta(p.status).color}`}>
                       {p.status}
                     </span>
@@ -593,7 +596,7 @@ function AdminPaymentsPageInner() {
                         <div className="text-zinc-500 text-xs">{p.user.email}</div>
                       </td>
                       <td className="px-4 py-3 text-zinc-300">{p.event.emoji} {p.event.title} <CityBadge city={p.event.city} cities={cities} /></td>
-                      <td className="px-4 py-3 text-white font-bold">₺{p.amount.toLocaleString()}</td>
+                      <td className="px-4 py-3 text-white font-bold">{formatMoney(p.amount, cur)}</td>
                       <td className="px-4 py-3">
                         <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${statusMeta(p.status).color}`}>
                           {p.status}
@@ -701,7 +704,7 @@ function AdminPaymentsPageInner() {
             <div>
               <h3 className="text-white font-bold text-lg">Confirm refund</h3>
               <p className="text-zinc-400 text-sm mt-1">
-                Refund <span className="text-white font-semibold">₺{refundConfirm.amount.toLocaleString()}</span> to{' '}
+                Refund <span className="text-white font-semibold">{formatMoney(refundConfirm.amount, cur)}</span> to{' '}
                 <span className="text-white font-semibold">{refundConfirm.user.name}</span> for{' '}
                 <span className="text-white">{refundConfirm.event.emoji} {refundConfirm.event.title}</span>?
               </p>

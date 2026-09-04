@@ -12,6 +12,8 @@ import FingerprintJS from '@fingerprintjs/fingerprintjs'
 import posthog from 'posthog-js'
 import { INTERESTS as INTERESTS_LIST, COMMON_LANGUAGES } from '@/lib/profileOptions'
 import { downscaleImage, ImageUploadError } from '@/lib/image-resize'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
+import { phonePlaceholder, dialCode } from '@/lib/country'
 
 const step0Schema = z.object({
   firstName:    z.string().min(1, 'First name is required'),
@@ -68,6 +70,7 @@ export default function ApplyClient() {
 }
 
 function ApplyForm() {
+  const country = useCurrentCity()?.country
   const searchParams = useSearchParams()
   const refCode = searchParams.get('ref') ?? ''
   // Homepage city cards link here as /apply?city=<slug> — both the "Explore"
@@ -568,7 +571,7 @@ function ApplyForm() {
                 onBlur={e => validateField('phone', e.target.value)}
                 inputMode="tel"
                 autoComplete="tel"
-                placeholder="+90 555 000 0000" className={fieldCls(fieldErrors.phone)} />
+                placeholder={phonePlaceholder(country)} className={fieldCls(fieldErrors.phone)} />
               {fieldErrors.phone && <p className="text-xs text-red-500 mt-1">{fieldErrors.phone}</p>}
             </div>
             <div>

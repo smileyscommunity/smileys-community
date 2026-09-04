@@ -9,6 +9,8 @@ import AvatarImg from '@/components/AvatarImg'
 import { avatarUrl } from '@/lib/data'
 import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import { downscaleImage } from '@/lib/image-resize'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
+import { DEFAULT_CURRENCY, currencySymbol } from '@/lib/data'
 
 interface SaleItem { id: string; name: string; price: string | null; claimed: boolean }
 interface Sale {
@@ -43,6 +45,7 @@ async function copyShare(id: string): Promise<boolean> {
 // so both strings below fall back to city-neutral copy, never the default
 // city's name.
 export default function MovingSales({ cityName = '' }: { cityName?: string }) {
+  const cur = useCurrentCity()?.currency ?? DEFAULT_CURRENCY
   const { user, isLoggedIn } = useAuth()
   const neighborhoods = useCityNeighborhoods()
   const [sales,   setSales]   = useState<Sale[] | null>(null)
@@ -232,7 +235,7 @@ export default function MovingSales({ cityName = '' }: { cityName?: string }) {
                   <input value={it.name} onChange={e => setItems(prev => prev.map((p, j) => j === i ? { ...p, name: e.target.value } : p))}
                     maxLength={80} placeholder="Desk" className="input flex-1" />
                   <input value={it.price} onChange={e => setItems(prev => prev.map((p, j) => j === i ? { ...p, price: e.target.value } : p))}
-                    maxLength={40} placeholder="₺2,000 or empty = FREE" className="input w-44" />
+                    maxLength={40} placeholder={`${currencySymbol(cur).trim()}2,000 or empty = FREE`} className="input w-44" />
                   {items.length > 1 && (
                     <button type="button" onClick={() => setItems(prev => prev.filter((_, j) => j !== i))}
                       aria-label="Remove item" className="px-3 text-gray-400 hover:text-red-500">×</button>

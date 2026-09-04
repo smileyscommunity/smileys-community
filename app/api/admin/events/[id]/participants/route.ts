@@ -12,6 +12,7 @@ import { writeAudit } from '@/lib/audit'
 import { activateAttendee, activeAttendeeWhere, cancelAttendeeOp, isActiveAttendee, type CancelActor } from '@/lib/attendance'
 import { getRsvpGate, gateErrorBody } from '@/lib/noShow'
 import { CardStatus } from '@/lib/noShowPolicy'
+import { DEFAULT_CURRENCY } from '@/lib/data'
 
 // Who is taking the member off the event, for the soft-cancel stamp.
 // Everyone past canManageEventOps who isn't an admin is some kind of host.
@@ -293,7 +294,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           // and the payments overview agree.
           payment = await prisma.payment.create({
             data: { userId, eventId, amount: Math.max(0, Number(evt.price) || 0),
-                    currency: evt.currency ?? 'TRY', status: 'paid', method: 'manual' },
+                    currency: evt.currency ?? DEFAULT_CURRENCY, status: 'paid', method: 'manual' },
           })
           await prisma.paymentLog.create({
             data: { paymentId: payment.id, adminId: session.id, adminName: session.name,

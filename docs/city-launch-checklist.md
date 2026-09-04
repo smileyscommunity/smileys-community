@@ -199,7 +199,18 @@ Each was a real bug on a launch night; a reappearance is a regression:
   - DONE: handbook country scoping — `Post.country` + `lib/postScope`;
     national articles show only in their country, and the panel's "Applies
     in" picker / the publish script's `country` field set it.
-  - OPEN: currency and country copy. The fallback city config still says
-    TRY/TR; guide `cost` uses ₺ glyphs by convention; one grep pass for
-    "Türkiye"/"Turkish" in copy that is national by accident (about page,
-    guidelines, email templates, founding-member wording) is still owed.
+  - DONE: currency and country copy. Money is spelled once
+    (`DEFAULT_CURRENCY`, `currencySymbol`, `formatMoney` in lib/data.ts) and
+    every admin figure, price label and placeholder asks the city's currency
+    via `useCurrentCity()`; events are created in their club's city currency;
+    phone placeholders use `phonePlaceholder(country)`; the geocoder anchors
+    on the administered city, not "Istanbul, Turkey"; JSON-LD names the real
+    country. `tests/countryHardcoding.test.ts` holds it at zero (lira sign,
+    'TRY', '+90') and baselines the country NAME per file — the Turkish-male
+    quota is a real feature and stays. Still true by design: the guide's
+    `cost` convention is the city's own symbol doubled ("€€" in Athens).
+
+  What a non-Turkish city still needs that no code can give it: its own
+  national handbook articles (residence permit, bank account, SIM) marked
+  "<country> only", a local host for the first event, and a currency the
+  panel's Settings whitelist knows (₺ $ € £ ₾ лв today).

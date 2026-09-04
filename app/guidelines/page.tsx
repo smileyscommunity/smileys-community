@@ -160,7 +160,7 @@ export default function GuidelinesPage() {
             <li>No content that targets people by race, religion, gender, sexuality, nationality, or disability.</li>
             <li>No promotion of violence, self-harm, illegal drugs, or weapons.</li>
             <li>No sexually explicit content — Smileys is a mixed-audience community space.</li>
-            <li>No political party campaigning or organized political mobilization (per Turkish law and our community focus on social life). Personal views shared respectfully are fine.</li>
+            <li>No political party campaigning or organized political mobilization (per local law and our community focus on social life). Personal views shared respectfully are fine.</li>
             <li>No deepfakes, manipulated images of real people, or impersonation.</li>
           </ul>
         </Section>

@@ -7,6 +7,9 @@ import { toast } from 'sonner'
 import { confirmToast } from '@/lib/confirmToast'
 import { useAuth } from '@/contexts/AuthContext'
 import Avatar from '@/components/admin/Avatar'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
+import { DEFAULT_CURRENCY, formatMoney, currencySymbol } from '@/lib/data'
+import { phonePlaceholder, dialCode } from '@/lib/country'
 
 interface Report {
   id: string
@@ -93,6 +96,8 @@ export default function ModerationPage() {
 }
 
 function ModerationPageInner() {
+  const cur = useCurrentCity()?.currency ?? DEFAULT_CURRENCY
+  const country = useCurrentCity()?.country
   const { user, isLoading: authLoading } = useAuth()
   const isAdmin = user?.role === 'admin'
   const searchParams = useSearchParams()
@@ -760,7 +765,7 @@ function ModerationPageInner() {
                       <div className="flex items-center gap-3 text-xs text-zinc-500 mb-2">
                         <span>Host: <span className="text-zinc-300">{e.host.name}</span></span>
                         <span>Club: <span className="text-zinc-300">{e.club.name}</span></span>
-                        <span>₺{e.price} · {e.totalSpots} spots</span>
+                        <span>{formatMoney(e.price, cur)} · {e.totalSpots} spots</span>
                         <span>{new Date(e.date).toLocaleDateString()}</span>
                       </div>
                       {e.description && (
@@ -889,7 +894,7 @@ function ModerationPageInner() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-zinc-400 mb-1">Phone</label>
-                <input value={blPhone} onChange={e => setBlPhone(e.target.value)} placeholder="+90…" className={inputCls} />
+                <input value={blPhone} onChange={e => setBlPhone(e.target.value)} placeholder={`${dialCode(country)}…`} className={inputCls} />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-zinc-400 mb-1">Name (optional)</label>

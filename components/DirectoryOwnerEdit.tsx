@@ -10,6 +10,8 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { BUSINESS_CATEGORIES, DIRECTORY_LIMITS } from '@/lib/directory-constants'
 import { DAY_KEYS, DAY_LABELS, isValidRange } from '@/lib/businessHours'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
+import { phonePlaceholder } from '@/lib/country'
 
 interface BusinessLike {
   id: string
@@ -67,6 +69,7 @@ function initFromBusiness(b: BusinessLike): EditState {
 export default function DirectoryOwnerEdit({
   b, onSaved,
 }: { b: BusinessLike; onSaved: () => void }) {
+  const country = useCurrentCity()?.country
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [s,    setS]    = useState<EditState>(() => initFromBusiness(b))
@@ -167,7 +170,7 @@ export default function DirectoryOwnerEdit({
                 </div>
                 <div>
                   <label className={labelCls}>Phone</label>
-                  <input maxLength={DIRECTORY_LIMITS.phone} placeholder="+90 5xx xxx xx xx"
+                  <input maxLength={DIRECTORY_LIMITS.phone} placeholder={phonePlaceholder(country)}
                     value={s.phone} onChange={e => setS(p => ({ ...p, phone: e.target.value }))} className={inputCls} />
                 </div>
                 <div>

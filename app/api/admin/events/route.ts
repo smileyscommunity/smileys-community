@@ -8,7 +8,7 @@ import {splitLeadingEmoji, stripDupTrailingEmoji} from '@/lib/data'
 import { normalizePaymentContact } from '@/lib/safeUrl'
 import { computeEventSurveyRollup } from '@/lib/survey'
 import { ensurePendingVenueBusiness } from '@/lib/venueDirectory'
-import { todayInCity, resolveCityId } from '@/lib/city'
+import { todayInCity, resolveCityId, getCityConfig } from '@/lib/city'
 
 export async function GET(req: NextRequest) {
   try {
@@ -314,7 +314,9 @@ export async function POST(req: NextRequest) {
         refundPolicy:         refundPolicy ?? null,
         registrationDeadline: registrationDeadline ?? null,
         endTime:              endTime ?? null,
-        currency:             currency ?? 'TRY',
+        // The club's city decides the currency when the form didn't: an Athens
+        // event is priced in euros by default, not lira.
+        currency:             currency ?? (await getCityConfig(parentClub.cityId)).currency,
         approvalRequired:     approvalRequired ?? false,
         // Gender balance + quotas — null defaults so explicit-off doesn't
         // get coerced to 0. Cast numbers explicitly since the form ships

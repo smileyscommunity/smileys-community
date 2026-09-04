@@ -2,6 +2,7 @@ import { prisma } from './prisma'
 import { todayInTz, DEFAULT_TZ } from './cityTime'
 import { canActInCity } from './access'
 import type { SessionUser } from './session'
+import { DEFAULT_CURRENCY } from './data'
 
 // ── City scoping (multi-city phase 1) ───────────────────────────────────────
 // Every feed with a location dimension is scoped to exactly one city. Members
@@ -108,6 +109,8 @@ export interface ResolvedCityInfo {
   timezone: string
   // City centre for the map surfaces' default view — nullable like the DB
   // column, and null means "fall back to your own constant".
+  currency: string
+  country: string
   lat: number | null
   lng: number | null
 }
@@ -126,6 +129,8 @@ export async function describeCity(
     viewing,
     homeName:  viewing ? (await getCityConfig(homeId)).name : null,
     timezone:  cfg.timezone,
+    currency:  cfg.currency,
+    country:   cfg.country,
     lat:       cfg.lat,
     lng:       cfg.lng,
   }
@@ -164,7 +169,7 @@ export async function getCityConfig(cityId: string): Promise<CityConfig> {
   // a stale cityId must degrade to Istanbul behavior, not a 500. That includes
   // showGlobalClubs: Istanbul shows them, so a stale id doesn't silently strip
   // the Culture and Language clubs out of the grid.
-  const cfg: CityConfig = city ?? { timezone: DEFAULT_TZ, currency: 'TRY', slug: DEFAULT_CITY_SLUG, name: 'Istanbul', country: 'TR', showGlobalClubs: true, heroImage: null, lat: null, lng: null }
+  const cfg: CityConfig = city ?? { timezone: DEFAULT_TZ, currency: DEFAULT_CURRENCY, slug: DEFAULT_CITY_SLUG, name: 'Istanbul', country: 'TR', showGlobalClubs: true, heroImage: null, lat: null, lng: null }
   configCache.set(cityId, { cfg, expires: Date.now() + CONFIG_TTL_MS })
   return cfg
 }

@@ -30,6 +30,7 @@ import EventLocationMap from '@/components/EventLocationMap'
 import EventBadges from '@/components/EventBadges'
 import { sanitize } from '@/lib/sanitize'
 import { isSoldOut, isManuallySoldOut } from '@/lib/soldOut'
+import { DEFAULT_CURRENCY } from '@/lib/data'
 
 export const dynamic = 'force-dynamic'
 
@@ -89,7 +90,7 @@ function buildEventJsonLd(event: Event, eventUrl: string, tz: string, cityName: 
     offers: {
       '@type':       'Offer',
       price:         String(event.price ?? 0),
-      priceCurrency: event.currency ?? 'TRY',
+      priceCurrency: event.currency ?? DEFAULT_CURRENCY,
       availability:  isSoldOut(event)
         ? 'https://schema.org/SoldOut'
         : 'https://schema.org/InStock',

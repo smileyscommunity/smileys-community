@@ -5,6 +5,8 @@ import { toast } from 'sonner'
 import { confirmToast } from '@/lib/confirmToast'
 import ImageUpload from '@/components/ImageUpload'
 import { moodsFor, collectionsFor, seasonsFor, type GuideTaxon } from '@/lib/guide'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
+import { DEFAULT_CURRENCY, currencySymbol } from '@/lib/data'
 
 // Guide phase 2.3b — the editor for guide experiences.
 //
@@ -78,6 +80,7 @@ const slugify = (s: string) =>
     .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 
 export default function AdminGuideEntriesPage() {
+  const cur = useCurrentCity()?.currency ?? DEFAULT_CURRENCY
   const [cities,  setCities]  = useState<City[]>([])
   const [citySlug, setCitySlug] = useState('')
   const [entries, setEntries] = useState<Entry[]>([])
@@ -259,7 +262,7 @@ export default function AdminGuideEntriesPage() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-            {([['cost', 'Cost', '₺₺'], ['time', 'Time', 'Half a day'], ['when', 'When to go', 'Summer mornings']] as const).map(([k, label, ph]) => (
+            {([['cost', 'Cost', `${currencySymbol(cur).trim()}${currencySymbol(cur).trim()}`], ['time', 'Time', 'Half a day'], ['when', 'When to go', 'Summer mornings']] as const).map(([k, label, ph]) => (
               <div key={k}>
                 <label className="label">{label}</label>
                 <input value={draft[k]} onChange={e => setDraft(d => ({ ...d, [k]: e.target.value }))} className="input" placeholder={ph} />

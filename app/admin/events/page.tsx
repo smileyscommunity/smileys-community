@@ -12,6 +12,7 @@ import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import NotifyAttendeesModal from '@/components/admin/NotifyAttendeesModal'
 import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
+import { DEFAULT_CURRENCY, formatMoney, currencySymbol } from '@/lib/data'
 
 type TabKey = 'all' | 'upcoming' | 'pending' | 'cancelled' | 'archived'
 const TAB_KEYS: TabKey[] = ['all', 'upcoming', 'pending', 'cancelled', 'archived']
@@ -164,6 +165,7 @@ export default function AdminEventsPage() {
 function AdminEventsPageInner() {
   // Admin surfaces follow the city being administered.
   const tz = useCurrentCity()?.timezone ?? DEFAULT_TZ
+  const cur = useCurrentCity()?.currency ?? DEFAULT_CURRENCY
   const today = todayInTz(tz)
   const searchParams = useSearchParams()
   const router       = useRouter()
@@ -774,7 +776,7 @@ function AdminEventsPageInner() {
                     </div>
                   </div>
                   <div className="flex items-center justify-between text-xs text-zinc-400">
-                    <span>{event.date} · {formatTime(event.time)}{event.price > 0 ? ` · ₺${event.price}` : ''}</span>
+                    <span>{event.date} · {formatTime(event.time)}{event.price > 0 ? ` · ${formatMoney(event.price, cur)}` : ''}</span>
                     <span>{goingCount}/{event.totalSpots}</span>
                   </div>
                   <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
@@ -862,7 +864,7 @@ function AdminEventsPageInner() {
                     <div className="text-xs font-semibold text-zinc-200">{event.date}</div>
                     <div className="text-xs text-zinc-500 mt-0.5">
                       {formatTime(event.time)}
-                      {event.price > 0 && <span className="ml-1.5 text-amber-400 font-semibold">₺{event.price}</span>}
+                      {event.price > 0 && <span className="ml-1.5 text-amber-400 font-semibold">{formatMoney(event.price, cur)}</span>}
                     </div>
                     <span className={`inline-block mt-1 text-xs font-bold px-1.5 py-0.5 rounded-full ${statusCls}`}>{statusLabel}</span>
                   </div>

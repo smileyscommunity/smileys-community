@@ -11,6 +11,8 @@ import { BUSINESS_CATEGORIES, DIRECTORY_LIMITS, parseGoogleMapsUrl } from '@/lib
 import { DAY_KEYS, DAY_LABELS } from '@/lib/businessHours'
 import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import { downscaleImage } from '@/lib/image-resize'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
+import { phonePlaceholder, dialCode } from '@/lib/country'
 
 // Small reusable upload widget used inline next to the Logo and Cover
 // image URL inputs on both the admin edit drawer and the admin create
@@ -222,6 +224,7 @@ function toEditFields(b: Business): EditFields {
 }
 
 function BusinessRow({ b, onAction, neighborhoods, cities }: { b: Business; onAction: () => void; neighborhoods: string[]; cities: { id: string; name: string; slug: string; status: string; isDefault?: boolean }[] }) {
+  const country = useCurrentCity()?.country
   const [expanded,      setExpanded]      = useState(false)
   const [loading,       setLoading]       = useState(false)
   // Inline confirm replaces a single-click destructive delete — matches
@@ -484,7 +487,7 @@ function BusinessRow({ b, onAction, neighborhoods, cities }: { b: Business; onAc
             </div>
             <div>
               <label className={labelCls}>Phone</label>
-              <input maxLength={DIRECTORY_LIMITS.phone} placeholder="+90 5xx xxx xx xx" {...field('phone')} className={inputCls} />
+              <input maxLength={DIRECTORY_LIMITS.phone} placeholder={phonePlaceholder(country)} {...field('phone')} className={inputCls} />
             </div>
             <div>
               <label className={labelCls}>Languages</label>
@@ -597,6 +600,7 @@ function BusinessRow({ b, onAction, neighborhoods, cities }: { b: Business; onAc
 type CreateMode = 'single' | 'bulk'
 
 function CreateForm({ onCreated, onCancel }: { onCreated: () => void; onCancel: () => void }) {
+  const country = useCurrentCity()?.country
   const [mode,    setMode]    = useState<CreateMode>('single')
   const [form,    setForm]    = useState<CreateForm>(EMPTY_CREATE)
   // Panel-level, not per-form: single and bulk share it, and the bulk path
@@ -740,7 +744,7 @@ function CreateForm({ onCreated, onCancel }: { onCreated: () => void; onCancel: 
             </div>
             <div>
               <label className={labelCls}>Phone</label>
-              <input value={form.phone} onChange={e => set('phone', e.target.value)} maxLength={DIRECTORY_LIMITS.phone} placeholder="+90 5xx xxx xx xx" className={inputCls} />
+              <input value={form.phone} onChange={e => set('phone', e.target.value)} maxLength={DIRECTORY_LIMITS.phone} placeholder={phonePlaceholder(country)} className={inputCls} />
             </div>
             <div>
               <label className={labelCls}>Languages</label>

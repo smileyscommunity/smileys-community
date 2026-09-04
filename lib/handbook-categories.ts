@@ -85,7 +85,7 @@ export const HANDBOOK_CATEGORIES: Record<string, CategoryMeta> = {
     volatility: 'medium', highStakes: true,
   },
   'Language & Culture': {
-    emoji: '🗣️', label: 'Language & Culture', tagline: 'Useful Turkish, etiquette, and the misunderstandings worth skipping.',
+    emoji: '🗣️', label: 'Language & Culture', tagline: 'The local language, etiquette, and the misunderstandings worth skipping.',
     volatility: 'low',
   },
 }

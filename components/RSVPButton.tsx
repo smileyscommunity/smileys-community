@@ -10,6 +10,7 @@ import { formatPrice } from '@/lib/data'
 import { RECONFIRM_RELEASE_HOURS_BEFORE } from '@/lib/noShowPolicy'
 import { toast } from 'sonner'
 import NoShowAckModal from '@/components/NoShowAckModal'
+import { DEFAULT_CURRENCY } from '@/lib/data'
 
 interface Props {
   eventId:      string
@@ -26,7 +27,7 @@ interface Props {
   payTo?:       'venue' | 'smileys'
 }
 
-export default function RSVPButton({ eventId, hostId, spotsLeft, soldOut = false, price, memberPrice, membersOnly, currency = 'TRY', payTo = 'venue' }: Props) {
+export default function RSVPButton({ eventId, hostId, spotsLeft, soldOut = false, price, memberPrice, membersOnly, currency = DEFAULT_CURRENCY, payTo = 'venue' }: Props) {
   const { isLoggedIn, user } = useAuth()
   const { status, position, loading, checked, join, leave, gate, ackRequest, confirmAck, cancelAck, reconfirm, confirmComing, confirmWithToken } = useRSVP(eventId)
   const [confirmCancel, setConfirmCancel] = useState(false)

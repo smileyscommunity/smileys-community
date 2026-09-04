@@ -33,6 +33,7 @@ export const dynamic = 'force-dynamic'
 // constant-time (timingSafeEqual) instead of `!==`. See that file for
 // the rationale.
 import { checkCronAuth } from '@/lib/cronAuth'
+import { DEFAULT_CURRENCY } from '@/lib/data'
 
 async function runSweep() {
   // "Today, tomorrow, or the day after" is a claim about the event's own city.
@@ -85,7 +86,7 @@ async function runSweep() {
         data: missing.map(userId => ({
           userId, eventId: event.id,
           amount: Math.max(0, Number(event.price) || 0),
-          currency: event.currency ?? 'TRY',
+          currency: event.currency ?? DEFAULT_CURRENCY,
           status: 'pending',
         })),
       })

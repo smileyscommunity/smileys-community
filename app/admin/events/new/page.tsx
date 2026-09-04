@@ -10,10 +10,13 @@ import VibePicker from '@/components/VibePicker'
 import { useAdminMemberSearch } from '@/hooks/useAdminMemberSearch'
 import { EVENT_EMOJIS as EMOJIS } from '@/lib/eventEmojis'
 import { countryName } from '@/lib/country'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
+import { phonePlaceholder, dialCode } from '@/lib/country'
 const inputCls = 'bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none px-3 py-2.5 w-full text-sm'
 
 
 export default function NewEventPage() {
+  const country = useCurrentCity()?.country
   const router = useRouter()
   const [clubs, setClubs] = useState<{ id: string; name: string; emoji: string; city?: { name: string; slug: string; country: string } }[]>([])
   const [hosts,      setHosts]      = useState<{ id: string; name: string }[]>([])
@@ -121,7 +124,7 @@ export default function NewEventPage() {
     // Istanbul coordinates. Falls back to the default city only when no club
     // is picked yet.
     const geoClub = clubs.find(c => c.id === form.clubId)
-    const cityHint = geoClub?.city ? `${geoClub.city.name}, ${countryName(geoClub.city.country)}` : 'Istanbul, Turkey'
+    const cityHint = geoClub?.city ? `${geoClub.city.name}, ${countryName(geoClub.city.country)}` : ''
     const query = [form.location, form.address, form.neighborhood, cityHint].filter(Boolean).join(', ')
     setGeocoding(true)
     try {
@@ -565,7 +568,7 @@ export default function NewEventPage() {
             <div className="mt-3">
               <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Payment contact (WhatsApp)</label>
               <input type="text" value={form.paymentContact} onChange={e => set('paymentContact', e.target.value)}
-                placeholder="+90 555 000 0000" className={inputCls} />
+                placeholder={phonePlaceholder(country)} className={inputCls} />
             </div>
           )}
         </div>

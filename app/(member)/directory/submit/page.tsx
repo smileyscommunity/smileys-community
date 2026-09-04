@@ -8,6 +8,8 @@ import { resolveImageUrl } from '@/lib/data'
 import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import { BUSINESS_CATEGORIES, DIRECTORY_LIMITS } from '@/lib/directory-constants'
 import { downscaleImage } from '@/lib/image-resize'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
+import { phonePlaceholder, dialCode } from '@/lib/country'
 
 const EMPTY_FORM = {
   name: '', category: '', description: '',
@@ -55,6 +57,7 @@ function MembersOnlyPitch() {
 }
 
 export default function SubmitBusinessPage() {
+  const country = useCurrentCity()?.country
   const router = useRouter()
   const { isLoggedIn, isLoading } = useAuth()
   const neighborhoods = useCityNeighborhoods()
@@ -250,7 +253,7 @@ export default function SubmitBusinessPage() {
           <div>
             <label className={labelCls}>Phone</label>
             <input value={form.phone} onChange={e => set('phone', e.target.value)}
-              placeholder="+90 5xx xxx xx xx" className={inputCls} />
+              placeholder={phonePlaceholder(country)} className={inputCls} />
           </div>
           <div>
             <label className={labelCls}>Website</label>

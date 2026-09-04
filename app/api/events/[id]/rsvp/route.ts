@@ -12,6 +12,7 @@ import { trackServer } from '@/lib/posthog-server'
 import { activateAttendee, cancelAttendeeOp, isActiveAttendee } from '@/lib/attendance'
 import { checkRsvpAllowed, gateErrorBody, getRsvpGate, recordYellowAcknowledgement } from '@/lib/noShow'
 import { isFreeEvent } from '@/lib/noShowPolicy'
+import { DEFAULT_CURRENCY, formatMoney } from '@/lib/data'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -271,7 +272,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         await activateAttendee(tx, { userId: session.id, eventId, status: 'pending', stealth })
         if (safeAmount > 0 && weCollect) {
           await tx.payment.create({
-            data: { userId: session.id, eventId, amount: safeAmount, currency: event.currency ?? 'TRY', status: 'pending' },
+            data: { userId: session.id, eventId, amount: safeAmount, currency: event.currency ?? DEFAULT_CURRENCY, status: 'pending' },
           })
         }
       })
@@ -340,7 +341,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       // Same payTo guard as the approval-required path above.
       if (safeAmount > 0 && event.payTo === 'smileys') {
         await tx.payment.create({
-          data: { userId: session.id, eventId, amount: safeAmount, currency: event.currency ?? 'TRY', status: 'pending' },
+          data: { userId: session.id, eventId, amount: safeAmount, currency: event.currency ?? DEFAULT_CURRENCY, status: 'pending' },
         })
       }
       return { kind: 'approved' as const }
@@ -519,7 +520,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
           a.id,
           'payment_attention',
           'Paid attendee cancelled — refund?',
-          `${session.name} cancelled their RSVP for "${eventTitle}" — ₺${totalPaid.toLocaleString()} was already paid. Review for refund.`,
+          `${session.name} cancelled their RSVP for "${eventTitle}" — ${formatMoney(totalPaid, paidPayments[0]?.currency)} was already paid. Review for refund.`,
           `/admin/payments?search=${encodeURIComponent(session.email)}`,
         ).catch(() => {})
       }

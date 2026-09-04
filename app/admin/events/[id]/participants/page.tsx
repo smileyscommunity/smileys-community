@@ -11,6 +11,8 @@ import UserAvatar from '@/components/UserAvatar'
 import NoShowCardBadge from '@/components/NoShowCardBadge'
 import WhatsAppButton from '@/components/WhatsAppButton'
 import { useAdminMemberSearch } from '@/hooks/useAdminMemberSearch'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
+import { DEFAULT_CURRENCY, formatMoney, currencySymbol } from '@/lib/data'
 
 interface NoShowCard { id: string; userId: string; kind: 'yellow' | 'red'; status: string; waivedAt: string | null; notifiedAt: string | null; user: { id: string; name: string } }
 
@@ -43,6 +45,8 @@ function SectionHeader({ title, count, color, badge, children }: {
 }
 
 export default function ParticipantsPage({ params }: { params: Promise<{ id: string }> }) {
+  const cur = useCurrentCity()?.currency ?? DEFAULT_CURRENCY
+  const sym = currencySymbol(cur).trim()
   const { id } = use(params)
   const [event,     setEvent]     = useState<Event | null>(null)
   const [attendees, setAttendees] = useState<Attendee[]>([])
@@ -365,10 +369,10 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
           { label: 'Waitlist',   value: waitlist.length,    color: waitlist.length > 0 ? 'text-violet-400' : 'text-zinc-600', sub: 'in queue',
             onClick: () => waitlistRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) },
           ...(trackPayments ? [{
-            label: '₺ Paid',
+            label: `${sym} Paid`,
             value: paidCount,
             color: paidCount >= goingCount && goingCount > 0 ? 'text-green-400' : 'text-amber-400',
-            sub: payView === 'all' ? `/ ${goingCount} · ₺${outstanding} due` : `showing ${payView} ↓`,
+            sub: payView === 'all' ? `/ ${goingCount} · ${formatMoney(outstanding, cur)} due` : `showing ${payView} ↓`,
             onClick: () => setPayView(v => v === 'all' ? 'unpaid' : v === 'unpaid' ? 'paid' : 'all'),
           }] : []),
           ...(turkishMaleQuota ? [{
@@ -591,7 +595,7 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
                 {(['all', 'paid', 'unpaid'] as const).map(v => (
                   <button key={v} onClick={() => setPayView(v)}
                     className={`px-2.5 py-1.5 transition-colors ${payView === v ? 'bg-zinc-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}>
-                    {v === 'all' ? 'All' : v === 'paid' ? `₺ ${paidCount}` : `Unpaid ${goingCount - paidCount}`}
+                    {v === 'all' ? 'All' : v === 'paid' ? `${sym} ${paidCount}` : `Unpaid ${goingCount - paidCount}`}
                   </button>
                 ))}
               </div>
@@ -689,7 +693,7 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
                             : 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20'
                         }`}
                       >
-                        {payBusy === a.userId ? '…' : payments[a.userId]?.status === 'paid' ? '₺ Paid' : '₺ Unpaid'}
+                        {payBusy === a.userId ? '…' : payments[a.userId]?.status === 'paid' ? `${sym} Paid` : `${sym} Unpaid`}
                       </button>
                     )}
                     {/* No status pill — the check-in button's color carries

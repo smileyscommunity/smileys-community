@@ -81,6 +81,7 @@ import { resolveImageUrl, avatarUrl } from '@/lib/data'
 import AvatarImg from '@/components/AvatarImg'
 import NeighborhoodGrid, { type Group } from '@/components/NeighborhoodGrid'
 import { loadContent } from '@/lib/content'
+import { countryName } from '@/lib/country'
 
 export const dynamic = 'force-dynamic'
 
@@ -397,7 +398,7 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
         containedInPlace: {
           '@type': 'City',
           name:    city.name,
-          containedInPlace: { '@type': 'Country', name: 'Turkey' },
+          containedInPlace: { '@type': 'Country', name: countryName(city.country) },
         },
       },
     })),

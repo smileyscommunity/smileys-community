@@ -407,7 +407,7 @@ export default async function WhyPage() {
             {[
               { icon: '💛', title: 'Free to apply',        desc: 'Applying and getting approved costs nothing — no membership fee, ever.' },
               { icon: '🎉', title: 'Most events are free',  desc: 'The majority of our events have no cost at all. Just RSVP and show up.' },
-              { icon: '🎟️', title: 'Paid events, upfront',  desc: 'When an event has a cost — venue, food, an activity — the price is shown clearly before you RSVP, usually ₺250–1,200.' },
+              { icon: '🎟️', title: 'Paid events, upfront',  desc: 'When an event has a cost — venue, food, an activity — the price is shown clearly before you RSVP.' },
               { icon: '🏛️', title: 'Clubs are always free', desc: 'Every interest-based club is free to join. No exceptions.' },
             ].map(s => (
               <div key={s.title} className="text-center sm:text-left">

@@ -273,11 +273,37 @@ export function istanbulEventWindow(): EventWindow {
 // One rendering for money everywhere: symbol-prefixed for known currencies
 // ("\u20ba100", "$100"), code-suffixed otherwise ("100 CHF"). Cards used to
 // hardcode \u20ba while the detail page wrote "100 TRY" for the same event.
-const CURRENCY_SYMBOLS: Record<string, string> = { TRY: '\u20ba', USD: '$', EUR: '\u20ac', GBP: '\u00a3' }
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  TRY: '\u20ba', USD: '$', EUR: '\u20ac', GBP: '\u00a3',
+  GEL: '\u20be', BGN: '\u043b\u0432', CHF: 'CHF ', AED: 'AED ',
+}
+// The founding city's currency, and the last-resort fallback wherever a row
+// predates the currency column. Spelled once: every other 'TRY' in the code
+// was a guess about which city the reader is in. Sibling of DEFAULT_TZ.
+export const DEFAULT_CURRENCY = 'TRY'
+
+/** '₺' for TRY, '€' for EUR, and the code itself for anything unmapped. */
+export function currencySymbol(currency?: string | null): string {
+  const cur = currency || DEFAULT_CURRENCY
+  return CURRENCY_SYMBOLS[cur] ?? `${cur} `
+}
+
 export function formatPrice(price: number, currency?: string | null): string {
-  const cur = currency || 'TRY'
+  const cur = currency || DEFAULT_CURRENCY
   const sym = CURRENCY_SYMBOLS[cur]
   return sym ? `${sym}${price}` : `${price} ${cur}`
+}
+
+/**
+ * A sum of money for a dashboard or a receipt: symbol + grouped digits.
+ *
+ * Admin surfaces used to write `₺${n.toLocaleString()}` in thirty places —
+ * a lira sign on every city's revenue, which is one city's answer. The
+ * currency comes from the city being administered (useCurrentCity) or from
+ * the row itself (Payment.currency, Event.currency) when there is one.
+ */
+export function formatMoney(amount: number, currency?: string | null, locale = 'en-GB'): string {
+  return `${currencySymbol(currency)}${amount.toLocaleString(locale)}`
 }
 
 export function formatDate(dateStr: string): string {

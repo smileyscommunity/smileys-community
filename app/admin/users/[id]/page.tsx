@@ -6,6 +6,9 @@ import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
+import { DEFAULT_CURRENCY, formatMoney, currencySymbol } from '@/lib/data'
+import { phonePlaceholder, dialCode } from '@/lib/country'
 
 interface AttendedEvent {
   id: string
@@ -94,6 +97,8 @@ const PROFESSIONAL_STATUS_OPTIONS = [
 ]
 
 export default function UserProfilePage({ params }: { params: Promise<{ id: string }> }) {
+  const cur = useCurrentCity()?.currency ?? DEFAULT_CURRENCY
+  const country = useCurrentCity()?.country
   const { id } = use(params)
   const router  = useRouter()
   const { user: me } = useAuth()
@@ -448,7 +453,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
               </div>
               <div className="bg-zinc-800/50 rounded-xl p-3">
                 <p className="text-[10px] font-bold text-zinc-500 uppercase">Total spent</p>
-                <p className="text-xl font-black text-white">₺{totalSpent.toLocaleString()}</p>
+                <p className="text-xl font-black text-white">{formatMoney(totalSpent, cur)}</p>
               </div>
             </div>
 
@@ -538,7 +543,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
               <div>
                 <label className="text-[10px] font-bold text-zinc-500 uppercase block mb-1">Phone</label>
                 <input type="text" value={profileForm.phone} onChange={e => setProfileForm({ ...profileForm, phone: e.target.value })}
-                  placeholder="+90 555 123 4567"
+                  placeholder={phonePlaceholder(country)}
                   className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-amber-500" />
                 <p className="text-[10px] text-zinc-600 mt-1">Include the country code — members often type only the local number, which breaks the WhatsApp link above.</p>
               </div>
@@ -737,7 +742,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                           {new Date(je.event.date) < new Date() ? 'No Show' : 'Upcoming'}
                         </span>
                       )}
-                      <p className="text-[10px] font-bold text-zinc-600 uppercase mt-0.5">₺{je.event.price?.toLocaleString() || 0}</p>
+                      <p className="text-[10px] font-bold text-zinc-600 uppercase mt-0.5">{formatMoney(je.event.price ?? 0, cur)}</p>
                     </div>
                   </Link>
                 ))

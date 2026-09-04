@@ -6,6 +6,7 @@ import { getSession } from '@/lib/session'
 import { writeAudit } from '@/lib/audit'
 import { sendRefundEmail, recordEmailFailure } from '@/lib/email'
 import { rateLimit } from '@/lib/rateLimit'
+import { DEFAULT_CURRENCY, formatMoney } from '@/lib/data'
 
 // Allowlist of statuses the API accepts on PATCH. Previously the
 // server took whatever string the client sent — admin tooling
@@ -224,7 +225,7 @@ export async function PATCH(req: NextRequest) {
           updated.user.name ?? 'Member',
           updated.event.title,
           current.amount,
-          current.currency ?? 'TRY',
+          current.currency ?? DEFAULT_CURRENCY,
           notes,
         )
         refundEmailSent = true
@@ -308,7 +309,7 @@ export async function DELETE(req: NextRequest) {
       adminName: session.name,
       fromStatus: snapshot.status,
       toStatus:   'deleted',
-      note:       `Payment record deleted (₺${snapshot.amount} for ${snapshot.event.title}, member: ${snapshot.user.email})`,
+      note:       `Payment record deleted (${formatMoney(snapshot.amount, snapshot.currency)} for ${snapshot.event.title}, member: ${snapshot.user.email})`,
     },
   })
   writeAudit(session.id, session.name, 'payment.delete', id, 'payment',
@@ -321,7 +322,7 @@ export async function DELETE(req: NextRequest) {
       eventId:  snapshot.eventId,
       createdAt: snapshot.createdAt.toISOString(),
     },
-    `Payment record deleted (₺${snapshot.amount} ${snapshot.status}, member: ${snapshot.user.email}, event: ${snapshot.event.title})`,
+    `Payment record deleted (${formatMoney(snapshot.amount, snapshot.currency)} ${snapshot.status}, member: ${snapshot.user.email}, event: ${snapshot.event.title})`,
   )
 
   await prisma.payment.delete({ where: { id } })

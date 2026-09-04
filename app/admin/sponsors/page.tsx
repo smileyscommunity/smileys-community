@@ -4,6 +4,8 @@ import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { useAdminLoad } from '@/lib/admin/useAdminLoad'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
+import { DEFAULT_CURRENCY, formatMoney, currencySymbol } from '@/lib/data'
 
 interface SponsorLead {
   id: string
@@ -44,11 +46,12 @@ const FORMAT_LABELS: Record<string, string> = {
 
 const inputCls = 'bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-1.5 text-white text-sm focus:outline-none focus:border-amber-500'
 
-function fmtTRY(n: number) {
-  return `₺${n.toLocaleString('tr-TR')}`
+function fmtMoney(n: number, currency: string) {
+  return formatMoney(n, currency)
 }
 
 export default function AdminSponsorsPage() {
+  const cur = useCurrentCity()?.currency ?? DEFAULT_CURRENCY
   const { data, loading, error, retry, setData } = useAdminLoad<SponsorsPayload>(
     '/app/api/admin/sponsors',
     (v): v is SponsorsPayload =>
@@ -144,7 +147,7 @@ export default function AdminSponsorsPage() {
           <p className="text-zinc-500 text-sm mt-1">B2B leads from the advertise page — work them from enquiry to closed deal.</p>
         </div>
         <div className="text-right">
-          <div className="text-2xl font-bold text-green-400">{fmtTRY(data?.summary.wonValue ?? 0)}</div>
+          <div className="text-2xl font-bold text-green-400">{fmtMoney(data?.summary.wonValue ?? 0, cur)}</div>
           <div className="text-xs text-zinc-500">{data?.summary.wonCount ?? 0} won deal{(data?.summary.wonCount ?? 0) === 1 ? '' : 's'}</div>
         </div>
       </div>
@@ -189,7 +192,7 @@ export default function AdminSponsorsPage() {
                     </span>
                     <span className="text-xs text-zinc-500">{FORMAT_LABELS[lead.format] ?? lead.format}</span>
                     {lead.status === 'won' && lead.dealValue !== null && (
-                      <span className="text-xs font-semibold text-green-400">{fmtTRY(lead.dealValue)}</span>
+                      <span className="text-xs font-semibold text-green-400">{fmtMoney(lead.dealValue, cur)}</span>
                     )}
                   </div>
                   <div className="text-xs text-zinc-500 mt-1 truncate">
@@ -207,7 +210,7 @@ export default function AdminSponsorsPage() {
                   <p className="text-sm text-zinc-300 whitespace-pre-wrap">{lead.message}</p>
                   <div className="flex items-end gap-3 flex-wrap">
                     <div>
-                      <label className="block text-xs text-zinc-500 mb-1">Deal value (₺)</label>
+                      <label className="block text-xs text-zinc-500 mb-1">Deal value ({currencySymbol(cur).trim()})</label>
                       <input type="number" min={0} value={draft.dealValue}
                         onChange={e => setDrafts(prev => ({ ...prev, [lead.id]: { ...draft, dealValue: e.target.value } }))}
                         placeholder="—" className={`${inputCls} w-36`} />

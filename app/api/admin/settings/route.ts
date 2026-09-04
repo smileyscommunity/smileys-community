@@ -87,7 +87,7 @@ const NOTIFICATION_KEYS = new Set([
 // gives us strings) — keep that shape, but cap length and reject non-
 // numeric content so they round-trip cleanly through Number().
 const PRICING_NUMERIC_KEYS = new Set(['monthlyPrice', 'yearlyPrice', 'trialDays'])
-const CURRENCIES = new Set(['₺', '$', '€'])
+const CURRENCIES = new Set(['₺', '$', '€', '£', '₾', 'лв'])
 
 // Mirrors LISTING_CATEGORIES on /admin/listings. If you add a category
 // there, add it here too — otherwise the admin can pick it in the UI

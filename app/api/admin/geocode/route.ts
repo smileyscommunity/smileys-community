@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { isAdmin } from '@/lib/access'
+import { resolveCityId, getCityConfig } from '@/lib/city'
+import { countryName } from '@/lib/country'
 
 const COORD_PATTERNS = [
   /@(-?\d+\.\d+),(-?\d+\.\d+)/,
@@ -79,7 +81,10 @@ export async function GET(req: NextRequest) {
       const placeMatch = resolved.match(/\/maps\/place\/([^/@?]+)/)
       if (placeMatch) {
         const name = decodeURIComponent(placeMatch[1].replace(/\+/g, ' '))
-        const result = await geocodeQuery(`${name}, Istanbul, Turkey`)
+        // Anchor the place name in the city being administered — this used to
+        // say "Istanbul, Turkey" for every city's venues.
+        const city   = await getCityConfig(await resolveCityId(session))
+        const result = await geocodeQuery(`${name}, ${city.name}, ${countryName(city.country)}`)
         if (result) return NextResponse.json([result])
       }
     } catch {}

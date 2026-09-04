@@ -8,6 +8,7 @@ import type { Club, Event, VibeTag } from './data'
 import { nowInTz, todayInTz, DEFAULT_TZ } from './cityTime'
 import { getCityTz, getCityConfig } from './city'
 import { isSoldOut } from '@/lib/soldOut'
+import { DEFAULT_CURRENCY } from './data'
 
 // ── Clubs ─────────────────────────────────────────────────────────────────
 
@@ -135,7 +136,7 @@ function mapEvent(e: any, spotsLeft?: number): Event {
     coverImagePosition: e.coverImagePosition ?? 50,
     whatsappUrl:      e.whatsappUrl      ?? undefined,
     meetingUrl:       e.meetingUrl       ?? undefined,
-    currency:         e.currency         ?? 'TRY',
+    currency:         e.currency         ?? DEFAULT_CURRENCY,
     approvalRequired: e.approvalRequired ?? false,
     featured:         e.featured         ?? false,
     genderBalance:    e.genderBalance    ?? false,

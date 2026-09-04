@@ -4,6 +4,7 @@
 import 'leaflet/dist/leaflet.css'
 import { useEffect, useRef, useState } from 'react'
 import type { Event } from '@/lib/data'
+import { formatPrice } from '@/lib/data'
 
 const ISTANBUL = { lat: 41.0082, lng: 28.9784 }
 
@@ -214,7 +215,7 @@ function MiniCard({ event, x, y, status }: { event: Event; x: number; y: number;
           <p className="text-xs text-gray-600 mt-0.5">{fmt(event.date)} · {event.neighborhood}</p>
           <div className="flex items-center gap-2 mt-1.5">
             <span className="text-xs font-semibold text-amber-600">
-              {event.price === 0 ? 'Free' : `${event.price} ${event.currency ?? 'TRY'}`}
+              {event.price === 0 ? 'Free' : formatPrice(event.price, event.currency)}
             </span>
             {status === 'joined' && (
               <span className="text-xs font-semibold text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full">Joined</span>

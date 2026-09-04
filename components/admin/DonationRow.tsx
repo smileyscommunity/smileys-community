@@ -19,6 +19,8 @@ import { type AdminDonation, isMaybeValidUrl } from '@/lib/admin/donations'
 // rules the server enforces when it writes the row, so the preview
 // in this form matches the slug allocated at publish time.
 import { slugifyForCup } from '@/lib/cup-prize-conversion'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
+import { DEFAULT_CURRENCY, formatMoney, currencySymbol } from '@/lib/data'
 
 interface Props {
   d:        AdminDonation
@@ -26,6 +28,7 @@ interface Props {
 }
 
 export default function DonationRow({ d, onAction }: Props) {
+  const cur = useCurrentCity()?.currency ?? DEFAULT_CURRENCY
   const isPending = d.status === 'pending'
   const created   = new Date(d.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 
@@ -82,7 +85,7 @@ export default function DonationRow({ d, onAction }: Props) {
           )}
           <p className="text-sm font-bold text-white">{d.prizeTitle}</p>
           {d.estimatedValue !== null && (
-            <span className="text-[10px] text-zinc-500">~₺{d.estimatedValue.toLocaleString()}</span>
+            <span className="text-[10px] text-zinc-500">~{formatMoney(d.estimatedValue, cur)}</span>
           )}
         </div>
         <span className="text-[10px] text-zinc-600">{created}</span>

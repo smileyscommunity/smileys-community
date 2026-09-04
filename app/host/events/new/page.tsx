@@ -12,6 +12,8 @@ import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import { useAuth } from '@/contexts/AuthContext'
 import { EVENT_EMOJIS as EMOJIS } from '@/lib/eventEmojis'
+import { currencySymbol } from '@/lib/data'
+import { countryName } from '@/lib/country'
 
 const inputCls = 'w-full px-4 py-3 rounded-xl border border-zinc-700 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500 bg-zinc-800 placeholder-zinc-500'
 
@@ -108,7 +110,7 @@ function HostNewEventForm() {
     // otherwise geocodes to Istanbul coordinates. (Admin forms hint with the
     // parent club's city; hosts always create in their own.) Also include the
     // neighborhood — this was the only one of the four event forms omitting it.
-    const cityHint = city?.name ?? 'Istanbul, Turkey'
+    const cityHint = city ? [city.name, countryName(city.country)].filter(Boolean).join(', ') : ''
     const query = [form.location, form.address, form.neighborhood, cityHint].filter(Boolean).join(', ')
     setGeocoding(true)
     try {
@@ -522,13 +524,13 @@ function HostNewEventForm() {
         {/* Pricing */}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Guest price (₺)</label>
+            <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Guest price ({currencySymbol(city?.currency).trim()})</label>
             <input type="number" min="0" value={form.price}
               onChange={e => setForm(f => ({ ...f, price: e.target.value }))}
               placeholder="0 = Free" className={inputCls} />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Member price (₺)</label>
+            <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Member price ({currencySymbol(city?.currency).trim()})</label>
             <input type="number" min="0" value={form.memberPrice}
               onChange={e => setForm(f => ({ ...f, memberPrice: e.target.value }))}
               placeholder="Optional" className={inputCls} />

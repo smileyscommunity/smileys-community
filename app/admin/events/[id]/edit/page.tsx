@@ -13,6 +13,8 @@ import RichTextEditor from '@/components/RichTextEditor'
 import { useAdminMemberSearch } from '@/hooks/useAdminMemberSearch'
 import { useAuth } from '@/contexts/AuthContext'
 import { EVENT_EMOJIS as EMOJIS } from '@/lib/eventEmojis'
+import { useCurrentCity } from '@/hooks/useCurrentCity'
+import { phonePlaceholder, dialCode } from '@/lib/country'
 const inputCls = 'bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none px-3 py-2.5 w-full text-sm'
 
 const emptyForm = {
@@ -30,6 +32,7 @@ const emptyForm = {
 }
 
 export default function EditEventPage({ params }: { params: Promise<{ id: string }> }) {
+  const country = useCurrentCity()?.country
   const { user } = useAuth()
   // A club host can't publish past staff review (the PUT route enforces it);
   // don't offer 'Published' in their dropdown so the UI can't imply otherwise.
@@ -207,7 +210,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
     // Istanbul coordinates. Falls back to the default city only when no club
     // is picked yet.
     const geoClub = clubs.find(c => c.id === form.clubId)
-    const cityHint = geoClub?.city ? `${geoClub.city.name}, ${countryName(geoClub.city.country)}` : 'Istanbul, Turkey'
+    const cityHint = geoClub?.city ? `${geoClub.city.name}, ${countryName(geoClub.city.country)}` : ''
     const query = [form.location, form.address, form.neighborhood, cityHint].filter(Boolean).join(', ')
     setGeocoding(true)
     try {
@@ -735,7 +738,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
             <div className="mt-3">
               <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Payment contact (WhatsApp)</label>
               <input type="text" value={form.paymentContact} onChange={e => set('paymentContact', e.target.value)}
-                placeholder="+90 555 000 0000" className={inputCls} />
+                placeholder={phonePlaceholder(country)} className={inputCls} />
             </div>
           )}
         </div>

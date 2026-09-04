@@ -7,6 +7,7 @@ import {resolveImageUrl,  formatTime} from '@/lib/data'
 import AlertsRow, { type Alert } from '@/components/admin/AlertsRow'
 import { todayInTz, nowInTz, DEFAULT_TZ } from '@/lib/cityTime'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
+import { DEFAULT_CURRENCY, formatMoney, currencySymbol } from '@/lib/data'
 
 interface TopHost {
   id: string; name: string; color: string; profilePhoto: string | null; count: number
@@ -117,6 +118,7 @@ function Trend({ v }: { v?: number | null }) {
 export default function AdminPage() {
   // Admin surfaces follow the city being administered.
   const tz = useCurrentCity()?.timezone ?? DEFAULT_TZ
+  const cur = useCurrentCity()?.currency ?? DEFAULT_CURRENCY
   const { user } = useAuth()
   const [stats,    setStats]    = useState<Stats | null>(null)
   const [audit,    setAudit]    = useState<AuditEntry[]>([])
@@ -249,7 +251,7 @@ export default function AdminPage() {
       href: '/admin/participants', color: 'border-amber-500/30 bg-amber-500/5 text-amber-400',
     },
     stats.pendingPayments > 0 && {
-      icon: '💳', label: `${stats.pendingPayments} payment${stats.pendingPayments !== 1 ? 's' : ''} · ₺${stats.revenuePending.toLocaleString()}`,
+      icon: '💳', label: `${stats.pendingPayments} payment${stats.pendingPayments !== 1 ? 's' : ''} · ${formatMoney(stats.revenuePending, cur)}`,
       href: '/admin/payments', color: 'border-violet-500/30 bg-violet-500/5 text-violet-400',
     },
     stats.pendingReports > 0 && {
@@ -579,8 +581,8 @@ export default function AdminPage() {
             href: '/admin/participants',
           },
           {
-            label: 'Revenue', value: stats ? `₺${stats.revenueCollected.toLocaleString()}` : undefined,
-            sub: stats ? (stats.revenuePending ? `₺${stats.revenuePending.toLocaleString()} pending` : 'No pending') : null,
+            label: 'Revenue', value: stats ? formatMoney(stats.revenueCollected, cur) : undefined,
+            sub: stats ? (stats.revenuePending ? `${formatMoney(stats.revenuePending, cur)} pending` : 'No pending') : null,
             trend: stats?.trends.revenue,
             icon: '💰', iconBg: 'bg-violet-500/10 text-violet-400',
             href: '/admin/payments',
