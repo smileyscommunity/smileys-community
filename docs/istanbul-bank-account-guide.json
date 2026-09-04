@@ -1,0 +1,37 @@
+{
+  "title": "Opening a Bank Account in Istanbul",
+  "slug": "istanbul-bank-account-guide",
+  "excerpt": "How to open a Turkish bank account as a foreigner in Istanbul: the tax number you need first, which documents actually get accepted, and why the branch you walk into matters more than the bank you choose.",
+  "bodyHtml": "<h2>Get your tax number first</h2><p>Before any bank will talk to you, you need a Turkish <strong>tax number</strong> (<em>vergi numarası</em>). It is free, and you can apply online through the tax administration's portal rather than queuing at a tax office. Take the number seriously — it follows you through every piece of official business here.</p><p>Bring your passport. If you already have a residence permit, bring that too; several things get easier the moment you can show one.</p><h2>The branch matters more than the bank</h2><p>This is the part nobody tells you. Turkish banks give branches real discretion over foreign customers, so two branches of the <em>same</em> bank can give you two different answers on the same day with the same documents. One opens your account in forty minutes. Another asks for a residence permit with more months left on it than you have.</p><p>What actually helps:</p><ul><li><strong>Go to a branch in a neighbourhood with lots of foreign residents.</strong> They have done this a hundred times and have a process. A branch in a residential suburb may never have onboarded a foreigner.</li><li><strong>Go early on a weekday.</strong> Account opening is slow, and a branch that is slammed at lunchtime will find reasons to send you away.</li><li><strong>If a branch says no, that is information about the branch, not about you.</strong> Try another one before concluding you are ineligible.</li></ul><h2>What to bring</h2><p>Expect to need your passport, your tax number, a Turkish mobile number, and proof of address. Many branches will ask for your residence permit. Some will open an account for tourists; many will not, and the ones that do may restrict what the account can do.</p><p>The Turkish mobile number is not optional in practice — banking here runs on SMS confirmation for nearly everything, so sort your SIM out first. That ordering trips a lot of people up: SIM, then tax number, then bank.</p><h2>Once the account is open</h2><p>You will get a debit card and an IBAN. A few habits worth forming:</p><ul><li><strong>Domestic transfers are instant and normal.</strong> Paying rent, splitting a dinner, paying a repair — people move money by IBAN constantly. Learn the three words the apps use: <em>havale</em> (a transfer inside the same bank), <em>EFT</em> (between banks, through the interbank system, not instant and not around the clock), and <em>FAST</em> — the Central Bank's separate instant system, which moves money between banks 24/7, weekends and holidays included, up to a per-transaction limit.</li><li><strong>Keep the banking app's language in English if you want</strong> — most major banks support it, but set it up at the branch while someone is there to help.</li><li><strong>Ask specifically about fees on foreign-currency accounts and incoming international transfers.</strong> If money arrives from abroad regularly, this is the question that saves you the most.</li></ul><h2>Getting money in from abroad</h2><p>Incoming international wires work but can be slow and are sometimes held for documentation about the source of funds — this is normal compliance, not suspicion. Have an explanation and paperwork ready if the amount is large.</p><p>Rates and fees vary enough between banks and providers that it is worth asking around before you commit to one route for recurring transfers.</p><h2>Before you go</h2><p>Requirements shift, and they shift unevenly between banks. Check the current rules with the bank itself, and ask in the community which branches are currently onboarding foreigners smoothly — that answer changes over time and is genuinely local knowledge rather than something you can look up.</p>",
+  "category": "Money & Banking",
+  "citySlug": "istanbul",
+  "country": null,
+  "tags": [
+    "bank",
+    "banka",
+    "bank account",
+    "hesap",
+    "vergi numarası",
+    "tax number",
+    "IBAN",
+    "e-devlet",
+    "money transfer",
+    "havale",
+    "EFT",
+    "debit card"
+  ],
+  "officialSources": [
+    {
+      "url": "https://ivd.gib.gov.tr",
+      "label": "İnteraktif Vergi Dairesi — tax number (vergi numarası) applications"
+    },
+    {
+      "url": "https://www.turkiye.gov.tr",
+      "label": "e-Devlet — official government services portal"
+    },
+    {
+      "url": "https://www.tcmb.gov.tr",
+      "label": "Central Bank of the Republic of Türkiye — official exchange rates"
+    }
+  ]
+}

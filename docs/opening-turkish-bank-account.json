@@ -1,0 +1,40 @@
+{
+  "title": "Opening a Turkish bank account as a foreigner",
+  "slug": "opening-turkish-bank-account",
+  "excerpt": "You can open a Turkish bank account as a foreigner, but the required documents depend on whether you’re a resident or a visitor. Some banks still accept non-residents with a passport, a Turkish tax number, and proof of address, while most private banks now require a residence permit and Foreigner Identification Number (YKN). Branch policies vary, so if one branch says no, another may say yes.",
+  "bodyHtml": "<p>A Turkish bank account is the key to everyday life in Türkiye—paying rent, shopping online, setting up automatic bill payments, and managing your finances locally. While you can get by without one initially, you’ll quickly find it essential.</p><h2>What you need</h2><ul><li><p><strong>Passport</strong> (original; copies aren’t enough).</p></li><li><p><strong>Tax number (Vergi Kimlik Numarası)</strong> — free and available from any tax office or online.</p></li><li><p><strong>Proof of address</strong> — requirements vary by bank. Accepted documents may include:</p><ul><li><p>A residence permit showing your registered address.</p></li><li><p>A recent Turkish utility bill.</p></li><li><p>An official address registration document.</p></li><li><p>In some cases, a notarised rental contract.</p></li></ul></li><li><p><strong>Turkish mobile phone number</strong> — required for SMS verification and mobile banking.</p></li><li><p><strong>Residence permit</strong> — strongly recommended. While not legally required by every bank, most private banks now require one, and having it significantly improves your chances of opening an account.</p></li></ul><h2>Which banks open accounts for foreigners</h2><p>This article used to rank banks — which were \"easiest\" for non-residents, which \"usually require\" a residence permit. That ranking is gone, because it was the kind of claim that is confidently wrong at a counter on a given morning. Bank policy on foreign customers changes without notice, differs for resident and non-resident applicants, and is applied with real discretion at branch level. Kuveyt Türk, for one, publishes separate requirement sets for resident and non-resident foreign nationals — so even \"this bank takes non-residents\" is too coarse to act on.</p><p>Read the bank's own current requirements before you go, and take them with you:</p><ul><li><p><strong>Ziraat Bankası</strong> — <a href=\"https://www.ziraatbank.com.tr\">ziraatbank.com.tr</a></p></li><li><p><strong>Kuveyt Türk</strong> — <a href=\"https://www.kuveytturk.com.tr\">kuveytturk.com.tr</a> (separate pages for resident and non-resident foreign nationals)</p></li><li><p><strong>Garanti BBVA</strong> — <a href=\"https://www.garantibbva.com.tr\">garantibbva.com.tr</a></p></li><li><p><strong>İş Bankası</strong> — <a href=\"https://www.isbank.com.tr\">isbank.com.tr</a></p></li><li><p><strong>Akbank</strong> — <a href=\"https://www.akbank.com\">akbank.com</a></p></li><li><p><strong>Yapı Kredi</strong> — <a href=\"https://www.yapikredi.com.tr\">yapikredi.com.tr</a></p></li><li><p><strong>Enpara (QNB)</strong> — <a href=\"https://www.enpara.com\">enpara.com</a>, digital-only</p></li></ul><p>Two things hold whatever the published policy says: two branches of the same bank can give you different answers on the same day with the same documents, and a refusal at one branch is information about that branch rather than about your eligibility. Try another before concluding you cannot open an account.</p><h2>What to ask for when opening your account</h2><ul><li><p><strong>Mobile banking activation</strong> — make sure your Turkish phone number is registered before leaving the branch.</p></li><li><p><strong>Debit card (banka kartı)</strong> — many branches issue it immediately, while others mail it to your address within a few days.</p></li><li><p><strong>TRY current account with IBAN</strong> — this is the account you’ll use for salary payments, rent, and receiving transfers from services like Wise.</p></li><li><p><strong>USD and EUR accounts</strong> — useful if you receive or keep money in foreign currencies. Ask for these specifically, as they may not be opened automatically.</p></li></ul><h2>Tip: Get your Turkish SIM first</h2><p>Almost every bank uses SMS verification to activate online and mobile banking. Having an active Turkish SIM card before your appointment will make the process much smoother and can save you an extra trip.</p><h2>About foreign currency accounts</h2><p>Most Turkish banks allow you to open USD and EUR accounts alongside your Turkish Lira account. However, bank exchange rates are often less competitive than specialist money transfer services.</p><p>For larger transfers—such as apartment deposits, tuition fees, or moving savings into Türkiye—many expats find it cheaper to convert their money through Wise before sending Turkish Lira to their local bank account.</p><h2>Havale, EFT and FAST: know the difference before you pay rent</h2><p>Paying by bank transfer is completely normal here — rent, a repair, splitting dinner. Turkish banking splits transfers into two kinds, and the apps ask you to pick:</p><ul><li><p><strong>Havale</strong> — a transfer between two accounts at the <em>same</em> bank. Instant, and usually free.</p></li><li><p><strong>EFT</strong> — a transfer to an account at a <em>different</em> bank, settled through the interbank system. It may carry a small fee depending on your account package. EFT is <em>not</em> the instant rail, and it does not run around the clock.</p></li><li><p><strong>FAST</strong> — the Central Bank's instant payment system, and a separate thing from EFT. It moves money between banks <strong>24/7, nights, weekends and public holidays included</strong>, settling in seconds, up to a per-transaction limit set by the Central Bank. Most banking apps offer it as its own option; when the amount fits under the limit, this is usually the one you want.</p></li></ul><p>You do not have to memorise which is which — enter the IBAN and the app works it out. It is worth knowing the words, though, because that is how the fee is described to you, and it explains why some landlords ask which bank you are with.</p><h2>Money arriving from abroad</h2><p>Incoming international transfers work fine, but they can be slower than a domestic transfer and are sometimes held while the bank asks where the money came from. This is routine compliance, not suspicion, and it catches people off guard when a deposit or a few months of savings lands.</p><p>Save yourself the phone call: have a plain explanation ready and, for larger amounts, something documenting the source — a payslip, a sale contract, a transfer receipt from the sending bank. Sorting it out takes a few minutes if you have the paperwork and several days if you do not.</p>",
+  "category": "Money & Banking",
+  "citySlug": null,
+  "country": "TR",
+  "tags": [
+    "bank",
+    "banking",
+    "banka",
+    "hesap",
+    "iban",
+    "tax number",
+    "vergi numarası",
+    "ziraat",
+    "garanti",
+    "kuveyt türk",
+    "enpara",
+    "money",
+    "transfer",
+    "wise",
+    "atm"
+  ],
+  "officialSources": [
+    {
+      "url": "https://ivd.gib.gov.tr",
+      "label": "Interactive Tax Office (GİB) — tax number applications"
+    },
+    {
+      "label": "Central Bank of the Republic of Türkiye — FAST instant payment system",
+      "url": "https://www.tcmb.gov.tr"
+    },
+    {
+      "label": "Kuveyt Türk — account requirements for foreign nationals (resident and non-resident)",
+      "url": "https://www.kuveytturk.com.tr"
+    }
+  ]
+}

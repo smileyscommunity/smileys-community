@@ -1,0 +1,40 @@
+{
+  "title": "How Healthcare Actually Works in Istanbul",
+  "slug": "healthcare-in-istanbul-how-the-system-works",
+  "excerpt": "Istanbul healthcare for expats: when to use a pharmacy instead of a doctor, how to book a public hospital slot through MHRS, what private care actually costs, and who to call in an emergency.",
+  "bodyHtml": "<img class=\"rounded-lg max-w-full h-auto\" src=\"/app/api/files/posts/1786371194129-b41ac1bf1047.jpg\"><h2>Start at the pharmacy</h2><p>For anything minor, skip the doctor entirely. Your neighbourhood <strong>eczane</strong> (pharmacy — you'll see the red E sign everywhere) does way more than sell paracetamol. Pharmacists here will check your blood pressure, give injections, and straight-up recommend treatment for everyday stuff. Plenty of medications that need a prescription back home are sold over the counter in Türkiye.</p><p>Pharmacies are open Monday–Saturday during normal business hours. Outside that? Every neighbourhood has one <strong>nöbetçi eczane</strong> (duty pharmacy) open nights, Sundays, and holidays. To find it:</p><ul><li><p>Check the printed list taped in the window of any closed pharmacy</p></li><li><p>Check your provincial Chamber of Pharmacists (<em>Eczacı Odası</em>) — each one publishes the nightly duty roster for its province</p></li><li><p>Google Maps works too, but it's hit-or-miss — trust the window list</p></li></ul><p><strong>182 is not the pharmacy line.</strong> ALO 182 is MHRS, the Ministry of Health's central appointment line for public hospitals. It is genuinely useful — just not for finding a duty pharmacy.</p><h2>Public hospitals: cheap, busy, legit</h2><p>Türkiye's public system is solid and cheap — especially once you're registered with <strong>SGK</strong>, the national health insurance. Eligibility is not simply a matter of holding a year-long residence permit, which is the version that circulates in expat groups. A foreign national generally has to have completed <strong>one continuous year of residence in Türkiye</strong>, and further conditions apply on top of that — among them not already being covered by another country's social security. Check your own case against SGK's current rules before you count on it. Once you are registered, SGK unlocks near-free public care and heavily discounted prescriptions.</p><p>Appointments run through <strong>MHRS</strong>, the Ministry of Health's central booking system — website, app, or call <strong>182</strong>. One catch: you'll need your Turkish ID number (the kimlik number on your residence permit) to book. No kimlik, no MHRS.</p><p>Bonus: download <strong>e-Nabız</strong>, the national health record app. Your test results and prescriptions land there automatically. It feels like the future because it is.</p><h2>Private hospitals: fast, English-speaking, still reasonable</h2><p>If you want shorter waits and doctors who speak English, go private. It costs more than public but far less than you'd pay in the US or much of Western Europe. The big names — <strong>Acıbadem, Memorial, American Hospital, Medipol</strong> — all have English-speaking staff and most work directly with international insurance providers.</p><p>Walk-ins are usually fine, or book through the hospital's own app or phone line.</p><h2>Emergencies</h2><p><strong>Call 112.</strong> It's Türkiye's single emergency number — ambulance, police, fire, all of it. Heads up: operators may not speak English. If language is a worry, the big private hospitals run their own ambulance lines (Acıbadem's is 444 55 44) — save one in your phone now, not later.</p><hr><p>New in town? Skip the trial and error — Smileys is full of people who've already navigated all of this. Come to an event and ask.</p>",
+  "category": "Healthcare",
+  "citySlug": "istanbul",
+  "country": null,
+  "tags": [
+    "doctor",
+    "doktor",
+    "hospital",
+    "hastane",
+    "pharmacy",
+    "eczane",
+    "nöbetçi",
+    "mhrs",
+    "sgk",
+    "insurance",
+    "sigorta",
+    "emergency",
+    "acil",
+    "112",
+    "health"
+  ],
+  "officialSources": [
+    {
+      "url": "https://www.mhrs.gov.tr",
+      "label": "MHRS — central public hospital appointment system"
+    },
+    {
+      "url": "https://www.sgk.gov.tr",
+      "label": "SGK — Social Security Institution"
+    },
+    {
+      "label": "MHRS — Ministry of Health central appointment system (ALO 182)",
+      "url": "https://mhrs.gov.tr"
+    }
+  ]
+}

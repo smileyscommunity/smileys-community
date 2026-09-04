@@ -1,0 +1,37 @@
+{
+  "title": "Getting Your Residence Permit (İkamet) in Istanbul",
+  "slug": "istanbul-residence-permit-guide",
+  "excerpt": "Istanbul residence permit guide for expats: how the ikamet application actually runs, what trips people up at the PTT and the appointment, and why your address registration matters more than you think.",
+  "bodyHtml": "<h2>The one thing that decides everything</h2><p>Your residence permit (<strong>ikamet</strong>) hangs on one question: can you prove where you live? Everything else — the forms, the fee, the biometric photos — is paperwork you can redo. A shaky address is what turns a two-week process into a three-month one.</p><p>If you rent, that proof is a <strong>notarised lease</strong>. Not a WhatsApp agreement with your landlord, not a signed printout. A notary (<em>noter</em>) has to stamp it, and your landlord has to show up or send authorisation. Sort this out <em>before</em> you book anything else. Members who get rejected almost always get rejected here.</p><p>If you live in someone else's flat, you need a notarised <em>taahhütname</em> — a formal undertaking from the person whose name is on the lease or deed. Staying in a hotel or student housing changes the document again. Ask before you assume.</p><h2>The application runs online first</h2><p>You apply through <strong>e-İkamet</strong>, the official portal. You fill in the form, it assigns you an appointment, and only then do you show up in person. You do not walk into an immigration office and start.</p><p>A few things worth knowing before you open the site:</p><ul><li><strong>Appointment dates can be far out.</strong> In busy periods in Istanbul, the system may hand you a slot weeks ahead. Your legal status is generally protected between applying and attending, but do not book a flight assuming it is quick.</li><li><strong>The document that covers you is issued at the end of the process, not the start.</strong> The <em>Residence Permit Application Document</em> is issued and validated only once the prescribed steps have been completed — submitting the online form does not by itself produce it. If you must travel while the application is still being processed, you need that approved document <em>together with your fee receipts</em>, and you have to return within <strong>15 days</strong>. Stay away longer and the ordinary visa rules apply again.</li><li><strong>Your passport must comfortably outlast the permit you are asking for.</strong> Renew it first if it is close.</li><li><strong>Health insurance is required</strong> and has to actually satisfy the requirement — a travel policy from home usually will not. Turkish private insurers sell policies written specifically for ikamet applications; ask for one by name.</li></ul><h2>At the appointment</h2><p>Bring originals and photocopies of everything, plus more biometric photos than you think you need. Turkish bureaucracy is not hostile, but it is literal: a missing photocopy sends you to a shop down the street and back into the queue.</p><p>You pay the fee through a bank or the PTT rather than at the desk, and you bring the receipt. Officers check the paperwork, take your biometrics, and the card arrives by post to the address you registered. That address has to be one where someone can receive registered post — a building with no working buzzer and no one home all day is a genuine failure mode.</p><h2>After you have it</h2><p>Register your address with the authorities if that was not part of your application, and keep the card on you. You will need it constantly: opening a bank account, signing a phone contract, a tax number, sometimes a gym membership.</p><p>If you move, you have to register the new address with the Provincial Directorate of Migration Management within <strong>20 working days</strong>. That deadline is easy to miss in the middle of a move, and missing it is its own problem — set a reminder the day you sign the new lease. If you leave the country for a long stretch, be aware that extended absences can affect a renewal.</p><h2>What this article does not tell you</h2><p>Fees, document lists, and eligibility rules for each permit type change, sometimes with little warning, and they differ by nationality and permit category. Treat this as the shape of the process, not the checklist. The checklist lives on <strong>e-ikamet.goc.gov.tr</strong>, and that is the only version that counts on the day.</p><p>The fastest way to avoid a wasted appointment is to ask someone who did it recently with your passport and your permit type. That is exactly the kind of question the community handles well — the rules on paper and the rules at the desk are not always the same document.</p>",
+  "category": "Residence & Legal",
+  "citySlug": "istanbul",
+  "country": null,
+  "tags": [
+    "ikamet",
+    "residence permit",
+    "oturma izni",
+    "goc",
+    "e-ikamet",
+    "randevu",
+    "appointment",
+    "visa",
+    "vize",
+    "adres",
+    "address registration",
+    "tourist residence permit"
+  ],
+  "officialSources": [
+    {
+      "url": "https://e-ikamet.goc.gov.tr",
+      "label": "e-İkamet — official residence permit application portal"
+    },
+    {
+      "url": "https://www.goc.gov.tr",
+      "label": "Presidency of Migration Management (Göç İdaresi)"
+    },
+    {
+      "url": "https://www.turkiye.gov.tr",
+      "label": "e-Devlet — address registration and official documents"
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "title": "İzmirim Kart: The Only Ticket That Matters",
+  "slug": "izmirim-kart-the-only-ticket-that-matters",
+  "excerpt": "One contactless card covers İzmir's metro, tram, İZBAN commuter rail, ferries, ESHOT buses and the Balçova cable car — plus a 90-minute free transfer window that most newcomers never realise they are entitled to.",
+  "bodyHtml": "<h2>One card, the whole city</h2>\n<p>The İzmirim Kart is İzmir's contactless transport card. A single card works across the metro, the tram, İZBAN (the commuter rail that runs the length of the bay), the ferries, ESHOT city buses and the Balçova cable car. There is no separate ticket to buy for any of them.</p>\n<h2>Where to get one</h2>\n<p>Cards and tickets are sold at all seven ferry terminals — Konak, Bostanlı, Karşıyaka, Alsancak, Göztepe, Üçkuyular and Pasaport — at the central metro stations — Konak, Fahrettin Altay, Bornova, Halkapınar and Şirinyer — at the airport stations, at the Intercity Bus Terminal, and at two designated 24-hour booths.</p>\n<h2>Topping up</h2>\n<p>Every station has charging machines, and all ferry terminals have both machines and staffed booths during office hours. You can also top up online or through the İzmirim Kart app, which will create a digital card and let you board by QR code.</p>\n<blockquote><p><strong>The online top-up trap.</strong> An online top-up is not usable immediately. It activates when you tap a validator on a vehicle, and the municipality states this takes effect after one hour. If you top up online on the way to the stop, assume it will not be there when you tap. Load at a machine if you need it now.</p></blockquote>\n<h2>The 90-minute transfer is the part people miss</h2>\n<p>The second and any subsequent rides within 90 minutes of your first are <strong>free</strong> on the metro, the tram, the ferries and ESHOT city buses. A ferry across the bay followed by a metro ride is one fare, not two — so long as you tap within the window.</p>\n<p>Two exclusions matter, and the first catches people out constantly. <strong>İZBAN is not part of the free transfer.</strong> The card works on İZBAN, but the municipality excludes the commuter rail from the transfer benefit, so an İZBAN leg is charged as its own fare even when you tap inside the 90 minutes. The benefit also does <strong>not</strong> apply to the bus routes serving the outlying İzmir districts. Those are charged separately.</p>\n<h2>Travel at the right hour and pay half</h2>\n<p>A 50% discount applies to the standard tariff between 06:00–07:00 and 19:00–20:00.</p>\n<h2>What a ride costs</h2>\n<p>Fares change too often for a number written here to stay true — check the current tariff on the official ESHOT/İzmirim Kart pages linked below before you load the card.</p>\n<h2>Card types</h2>\n<p>Alongside the standard pay-as-you-go card there are reduced-fare cards for students and an electronic senior pass for the nationally-mandated free travel entitlement. If you are a foreign student, bring your residence permit and student certificate and ask at a staffed İzmirim Kart booth — the document list is theirs to confirm.</p>",
+  "category": "Getting Around",
+  "citySlug": "izmir",
+  "country": null,
+  "tags": [
+    "izmirim kart",
+    "eshot",
+    "izban",
+    "metro",
+    "vapur",
+    "ulaşım",
+    "toplu taşıma"
+  ],
+  "officialSources": [
+    {
+      "url": "https://www.izmir.bel.tr/en/transportation-guide/494/17",
+      "label": "İzmir Büyükşehir Belediyesi — Transportation Guide"
+    },
+    {
+      "url": "https://www.izmir.bel.tr/en/transportation-guide/494/1035",
+      "label": "İzmir Büyükşehir Belediyesi — İzmirim Kart"
+    },
+    {
+      "label": "İzmirim Kart — official card, tariff and transfer rules",
+      "url": "https://www.izmirimkart.com.tr"
+    },
+    {
+      "label": "ESHOT — İzmir Metropolitan Municipality transport authority",
+      "url": "https://www.eshot.gov.tr"
+    }
+  ]
+}
