@@ -116,6 +116,15 @@ invitation than "we have a city page".
 **Ankara, 16–22 September** — aimed at the large number of Istanbul members
 with Ankara ties, and at the capital's own expat population.
 
+**Bursa, 23–29 September** — the only one of our cities an Istanbul member can
+reach before lunch, so it leads with the sea bus rather than the history. Bursa
+has zero members, which the block says outright: "be the first and the city
+takes its shape from you" is a truer offer than pretending there's a crowd.
+
+Each window holds exactly one Monday — 14, 21 and 28 September — because the
+digest only sends then. Nothing clashes: the first block whose window contains
+today wins.
+
 Both are in the JSON change alongside this file; nothing sends until the
 Monday cron runs, and either can be pulled by deleting its block.
 
