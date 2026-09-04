@@ -1,0 +1,19 @@
+[
+  { "name": "Old Town", "emoji": "🛁", "vibe": "Kala and Abanotubani — the sulphur baths, the crooked balconies and the fortress above them", "area": "Old Tbilisi", "cost": 2, "lat": 41.6877, "lng": 44.8115 },
+  { "name": "Sololaki", "emoji": "🚪", "vibe": "Art-nouveau stairwells, painted hallways and courtyard cafés on the hill behind Freedom Square", "area": "Old Tbilisi", "cost": 2, "lat": 41.6905, "lng": 44.7980 },
+  { "name": "Mtatsminda", "emoji": "🎡", "vibe": "The funicular, the pantheon and the park on the ridge — the whole city from above", "area": "Old Tbilisi", "cost": 2, "lat": 41.6964, "lng": 44.7939 },
+  { "name": "Avlabari", "emoji": "⛪", "vibe": "The cathedral hill on the left bank, Armenian Tbilisi, and the cable car down to the river", "area": "Old Tbilisi", "cost": 1, "lat": 41.6927, "lng": 44.8168 },
+  { "name": "Vera", "emoji": "☕", "vibe": "Quiet streets between Rustaveli and Vake — the cafés, the bakeries, the neighbourhood people move to", "area": "Centre", "cost": 2, "lat": 41.7058, "lng": 44.7828 },
+  { "name": "Vake", "emoji": "🌳", "vibe": "The park, the embassies and Chavchavadze Avenue — Tbilisi's polished side", "area": "Centre", "cost": 3, "lat": 41.7093, "lng": 44.7637 },
+  { "name": "Marjanishvili", "emoji": "🎭", "vibe": "The left bank's theatre square, Fabrika's courtyard, Aghmashenebeli's cafés — the newest energy in the city", "area": "Left Bank", "cost": 2, "lat": 41.7096, "lng": 44.7969 },
+  { "name": "Saburtalo", "emoji": "🏢", "vibe": "Big, busy, residential — universities, metro stops and the best-value flats in the centre's reach", "area": "Centre", "cost": 1, "lat": 41.7247, "lng": 44.7517 },
+  { "name": "Isani", "emoji": "🚇", "vibe": "Left-bank residential along the metro's first line — local prices, ten minutes from the Old Town", "area": "Left Bank", "cost": 1, "lat": 41.6881, "lng": 44.8341 },
+  { "name": "Didube", "emoji": "🚌", "vibe": "The marshrutka station for the whole country, the big markets, and the trains north", "area": "Left Bank", "cost": 1, "lat": 41.7354, "lng": 44.7813 },
+  { "name": "Dighomi", "emoji": "🏘️", "vibe": "New builds and family blocks on the way out of town — quiet, cheaper, car-friendly", "area": "Outer City", "cost": 1, "lat": 41.7839, "lng": 44.7306 },
+  { "name": "Gldani", "emoji": "🏙️", "vibe": "The Soviet microdistricts at the end of the metro — the most local end of Tbilisi", "area": "Outer City", "cost": 1, "lat": 41.7911, "lng": 44.8150 },
+  { "name": "Kojori", "emoji": "🥾", "vibe": "The pine plateau above the city — summer air, forest walks and Turtle Lake on the way", "area": "Escapes", "cost": 1, "lat": 41.6495, "lng": 44.6985 },
+  { "name": "Mtskheta", "emoji": "🏛️", "vibe": "The old capital half an hour away — Jvari on its hill, Svetitskhoveli below, UNESCO on both", "area": "Escapes", "cost": 1, "lat": 41.8463, "lng": 44.7196 },
+  { "name": "Sighnaghi", "emoji": "🍇", "vibe": "Kakheti's wine town on a ridge — cellars, the Alazani valley and the Caucasus wall behind it", "area": "Escapes", "cost": 2, "lat": 41.6190, "lng": 45.9228 },
+  { "name": "Gudauri", "emoji": "⛷️", "vibe": "The ski resort on the Georgian Military Highway — two hours up, snow from December", "area": "Escapes", "cost": 3, "lat": 42.4766, "lng": 44.4770 },
+  { "name": "Stepantsminda", "emoji": "🏔️", "vibe": "Kazbegi — the Gergeti church under a 5,000-metre peak, the day trip everyone does once", "area": "Escapes", "cost": 2, "lat": 42.6580, "lng": 44.6408 }
+]
