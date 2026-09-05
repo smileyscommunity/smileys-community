@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { shareCover } from '@/lib/shareCover'
 import Link from 'next/link'
 import { headers } from 'next/headers'
 import { notFound, redirect } from 'next/navigation'
@@ -17,23 +18,24 @@ import { getCityClubsHub, enterLinkFor, hubCanonical, isDefaultCitySlug } from '
 
 interface Params { params: Promise<{ city: string }> }
 
-const ogImage = `${APP_URL}/images/clubs-og.jpg`
-
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { city: slug } = await params
   const city = await getPublicCity(slug)
   if (!city || city.status !== CITY_STATUS.Live) return {}
   const title = `Clubs in ${city.name} — Smileys Community`
   const description = `Join interest-based clubs in ${city.name} — hiking, photography, language conversation, book clubs and more. Find your people at Smileys.`
+  // The city's own cover or hero photo, never the default city's card under
+  // this city's name (lib/shareCover).
+  const image = shareCover('clubs', city, `Clubs in ${city.name} — Smileys Community`)
   return {
     title, description,
     alternates: { canonical: hubCanonical(city.slug, 'clubs') },
     openGraph: {
       title, description,
       url: `${APP_URL}/${city.slug}/clubs`,
-      images: [{ url: ogImage, width: 1200, height: 1200, alt: 'Smileys Clubs — do more, meet more, live more' }],
+      images: [image],
     },
-    twitter: { card: 'summary', title, description, images: [ogImage] },
+    twitter: { card: image.twitterCard, title, description, images: [image.url] },
   }
 }
 

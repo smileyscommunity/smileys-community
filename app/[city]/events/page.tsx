@@ -10,6 +10,7 @@ import { jsonLdHtml } from '@/lib/jsonLd'
 import { eventListJsonLd } from '@/lib/eventJsonLd'
 import { headers } from 'next/headers'
 import EventCard from '@/components/EventCard'
+import { shareCover } from '@/lib/shareCover'
 import JoinCityButton from '@/components/JoinCityButton'
 import { getCityEventsHub, arrangeEvents, enterLinkFor, hubCanonical, isDefaultCitySlug } from '../data'
 
@@ -21,23 +22,24 @@ import { getCityEventsHub, arrangeEvents, enterLinkFor, hubCanonical, isDefaultC
 
 interface Params { params: Promise<{ city: string }> }
 
-const ogImage = `${APP_URL}/images/events-og.jpg`
-
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { city: slug } = await params
   const city = await getPublicCity(slug)
   if (!city || city.status !== CITY_STATUS.Live) return {}
   const title = `Events in ${city.name} — Smileys Community`
   const description = `Discover curated social events in ${city.name} — dinners, photowalks, language meetups and more. Join Smileys and find your next experience.`
+  // The city's own cover or hero photo, never the default city's card under
+  // this city's name (lib/shareCover).
+  const image = shareCover('events', city, `Events in ${city.name} — Smileys Community`)
   return {
     title, description,
     alternates: { canonical: hubCanonical(city.slug, 'events') },
     openGraph: {
       title, description,
       url: `${APP_URL}/${city.slug}/events`,
-      images: [{ url: ogImage, width: 1200, height: 1200, alt: 'Smileys Events — every week, new experiences, lasting memories' }],
+      images: [image],
     },
-    twitter: { card: 'summary', title, description, images: [ogImage] },
+    twitter: { card: image.twitterCard, title, description, images: [image.url] },
   }
 }
 

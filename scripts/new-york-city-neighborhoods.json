@@ -1,0 +1,21 @@
+[
+  { "name": "East Village", "emoji": "🎸", "vibe": "Tenement blocks, dive bars and the loudest cheap dinner in Manhattan — St Marks never quite grew up", "area": "Manhattan", "cost": 3, "lat": 40.7293, "lng": -73.9874 },
+  { "name": "West Village", "emoji": "🌿", "vibe": "The one part of the grid that isn't one — crooked leafy streets, stoops, and rents to match", "area": "Manhattan", "cost": 3, "lat": 40.7342, "lng": -74.0056 },
+  { "name": "Lower East Side", "emoji": "🍸", "vibe": "Where every wave of arrivals landed first, now the bars that stay open latest", "area": "Manhattan", "cost": 3, "lat": 40.7159, "lng": -73.9868 },
+  { "name": "Chelsea", "emoji": "🖼️", "vibe": "Gallery district under the High Line — art on the ground floor, the river two blocks west", "area": "Manhattan", "cost": 3, "lat": 40.7465, "lng": -74.0015 },
+  { "name": "Upper West Side", "emoji": "🎻", "vibe": "Lincoln Center, the park on both sides, and pre-war apartments full of people who never left", "area": "Manhattan", "cost": 3, "lat": 40.7870, "lng": -73.9754 },
+  { "name": "Harlem", "emoji": "🎷", "vibe": "Brownstone rows, the Apollo, Sunday gospel and the best-value space left on the island", "area": "Manhattan", "cost": 2, "lat": 40.8079, "lng": -73.9455 },
+  { "name": "Washington Heights", "emoji": "🏔️", "vibe": "Dominican uptown on the high ground — the Cloisters, Fort Tryon, and Manhattan you can afford", "area": "Manhattan", "cost": 1, "lat": 40.8402, "lng": -73.9402 },
+  { "name": "Williamsburg", "emoji": "🌉", "vibe": "The waterfront with the skyline in front of it — the L to Manhattan, Smorgasburg on Saturdays", "area": "Brooklyn", "cost": 3, "lat": 40.7146, "lng": -73.9535 },
+  { "name": "Greenpoint", "emoji": "🇵🇱", "vibe": "Little Poland on the creek — pierogi, the G train, and the quietest corner of north Brooklyn", "area": "Brooklyn", "cost": 2, "lat": 40.7237, "lng": -73.9510 },
+  { "name": "Bushwick", "emoji": "🎨", "vibe": "Painted warehouse walls, late venues and studio space — where the art moved when Williamsburg priced out", "area": "Brooklyn", "cost": 2, "lat": 40.6943, "lng": -73.9187 },
+  { "name": "Bedford-Stuyvesant", "emoji": "🏘️", "vibe": "The deepest brownstone streets in the city, block after block, with the stoop life to go with them", "area": "Brooklyn", "cost": 2, "lat": 40.6834, "lng": -73.9412 },
+  { "name": "Park Slope", "emoji": "🌳", "vibe": "Prospect Park at the end of the street, farmers' market on Saturday — Brooklyn's family answer", "area": "Brooklyn", "cost": 3, "lat": 40.6701, "lng": -73.9860 },
+  { "name": "Astoria", "emoji": "🍺", "vibe": "Greek tavernas, Egyptian cafés and a Czech beer garden — twenty minutes from Midtown, half the rent", "area": "Queens", "cost": 2, "lat": 40.7720, "lng": -73.9303 },
+  { "name": "Long Island City", "emoji": "🏙️", "vibe": "New towers looking straight back at Manhattan, MoMA PS1, and one stop under the river", "area": "Queens", "cost": 3, "lat": 40.7455, "lng": -73.9485 },
+  { "name": "Jackson Heights", "emoji": "🌏", "vibe": "The most-spoken-languages few blocks on earth — momos, arepas and Little India on 74th", "area": "Queens", "cost": 1, "lat": 40.7557, "lng": -73.8858 },
+  { "name": "Flushing", "emoji": "🥟", "vibe": "The city's real Chinatown plus Korean Northern Boulevard — the 7 train's last and best stop", "area": "Queens", "cost": 1, "lat": 40.7654, "lng": -73.8174 },
+  { "name": "Mott Haven", "emoji": "🎤", "vibe": "The South Bronx where hip-hop started — waterfront studios, and the cheapest way into the city", "area": "The Bronx", "cost": 1, "lat": 40.8090, "lng": -73.9229 },
+  { "name": "Rockaway Beach", "emoji": "🏄", "vibe": "Surf and boardwalk at the end of the A train — the only city beach you reach on a MetroCard", "area": "Escapes", "cost": 1, "lat": 40.5845, "lng": -73.8168 },
+  { "name": "Beacon", "emoji": "🚂", "vibe": "Ninety minutes up the Hudson on Metro-North — Dia:Beacon, Main Street, and Breakneck Ridge to climb", "area": "Escapes", "cost": 2, "lat": 41.5048, "lng": -73.9695 }
+]

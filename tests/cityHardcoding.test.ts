@@ -78,14 +78,13 @@ const BASELINE: Record<string, number> = {
   'app/apply/layout.tsx': 5,
   'app/apply/page.tsx': 1,        // server wrapper — only the honest 'Istanbul' fallback default (2026-08-19)
   'app/apply/ApplyClient.tsx': 3,  // renamed from page.tsx; visible copy now city-aware, only first-load default + fallback remain
-  'app/clubs/layout.tsx': 4,
-  'app/clubs/page.tsx': 1,
+  'app/clubs/ClubsClient.tsx': 1,  // renamed from page.tsx (server wrapper added so the page can read ?city=)
+  'app/clubs/page.tsx': 2,         // the metadata the deleted layout held
   'app/contact/page.tsx': 1,
   'app/directory/page.tsx': 1,  // metadata moved here from the deleted layout so the page can read ?city=
   'app/directory/DirectoryClient.tsx': 1,  // renamed from page.tsx (server wrapper added for ExploreMore); only the pre-fetch 'Istanbul' fallback remains
   'app/events/[id]/page.tsx': 9,
-  'app/events/layout.tsx': 4,
-  'app/events/page.tsx': 4,
+  'app/events/page.tsx': 2,        // the metadata the deleted layout held; the client moved to EventsClient.tsx
   'app/faq/page.tsx': 3,
   'app/guide/GuideCTA.tsx': 2,
   'app/guide/IstanbulToday.tsx': 5,

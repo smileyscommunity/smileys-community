@@ -1,9 +1,10 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { getClubs } from '@/lib/db'
 import { getSession } from '@/lib/session'
 import { resolveCityId, getCityTz } from '@/lib/city'
+import { getPublicCity } from '@/lib/cities'
 import { todayInTz } from '@/lib/cityTime'
 import { classifyClubs } from '@/lib/clubHealth'
 
@@ -94,9 +95,13 @@ const getDiscoveryClubs = unstable_cache(
   { revalidate: 120, tags: ['clubs'] },
 )
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await getSession()
-  const cityId = await resolveCityId(session)
+  // ?city=<slug> scopes the grid to that city: the /clubs page carries it so
+  // a shared link shows the city it names (lib/cityPageParam), and the client
+  // passes it through. An unknown slug falls back to the viewer's city.
+  const slug   = req.nextUrl.searchParams.get('city')?.trim()
+  const cityId = (slug ? (await getPublicCity(slug))?.id : undefined) ?? await resolveCityId(session)
   // The city's own calendar decides "upcoming" and "this week" — a UTC
   // today undercounted upcoming events by a day for the first hours of
   // the city's morning. Both dates are cache-key args, so each city day

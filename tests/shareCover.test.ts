@@ -43,6 +43,18 @@ describe('shareCover', () => {
     expect(own.url).toMatch(/\/app\/images\/marketplace-cover-izmir\.jpg$/)
   })
 
+  it('the events and clubs cards are square, so they ask for the summary twitter card', () => {
+    const ev = shareCover('events', { slug: DEFAULT_CITY_SLUG, heroImage: null }, 'alt', none)
+    expect(ev.url).toMatch(/\/app\/images\/events-og\.jpg$/)
+    expect(ev).toMatchObject({ width: 1200, height: 1200, twitterCard: 'summary' })
+    const cl = shareCover('clubs', { slug: DEFAULT_CITY_SLUG, heroImage: null }, 'alt', none)
+    expect(cl.url).toMatch(/\/app\/images\/clubs-og\.jpg$/)
+    expect(cl.twitterCard).toBe('summary')
+    // A city's own photo or cover is landscape and wants the large card.
+    expect(shareCover('events', { slug: 'izmir', heroImage: hero }, 'alt', none).twitterCard).toBe('summary_large_image')
+    expect(shareCover('clubs', { slug: 'izmir', heroImage: null }, 'alt', f => f === 'clubs-cover-izmir.jpg').twitterCard).toBe('summary_large_image')
+  })
+
   it('looks for the cover by the exact per-city file name', () => {
     const asked: string[] = []
     shareCover('directory', { slug: 'bodrum', heroImage: null }, 'alt', f => { asked.push(f); return false })
@@ -53,10 +65,10 @@ describe('shareCover', () => {
 describe('the cover files', () => {
   // WhatsApp silently drops an og:image over ~300KB — no error anywhere, the
   // share just has no picture. Both bare covers were over it until 2026-09-05.
-  it('every handbook/directory/marketplace cover, per-city ones included, stays under 300KB', () => {
+  it('every share cover and card, per-city ones included, stays under 300KB', () => {
     const dir    = join(process.cwd(), 'public/images')
-    const covers = readdirSync(dir).filter(f => /^(handbook|directory|marketplace|board)-cover(-[a-z0-9-]+)?\.jpg$/.test(f))
-    expect(covers).toEqual(expect.arrayContaining(['handbook-cover.jpg', 'directory-cover.jpg', 'board-cover.jpg']))
+    const covers = readdirSync(dir).filter(f => /^((handbook|directory|marketplace|board|events|clubs)-cover(-[a-z0-9-]+)?|events-og|clubs-og)\.jpg$/.test(f))
+    expect(covers).toEqual(expect.arrayContaining(['handbook-cover.jpg', 'directory-cover.jpg', 'board-cover.jpg', 'events-og.jpg', 'clubs-og.jpg']))
     for (const f of covers) {
       const size = statSync(join(dir, f)).size
       expect(size, f).toBeGreaterThan(20_000)

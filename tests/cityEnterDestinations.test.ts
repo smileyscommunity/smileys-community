@@ -17,7 +17,9 @@ const MAP = ROUTE.split('const DESTINATIONS')[1]?.split('}')[0] ?? ''
 /** Every `to=` key any page actually links to. */
 function linkedKeys(): string[] {
   const keys = new Set<string>()
-  const files = ['app/events/page.tsx', 'app/clubs/page.tsx', 'app/directory/page.tsx', 'app/(member)/members/page.tsx']
+  // The feeds' client trees — each page.tsx is a server wrapper now that
+  // reads ?city= for the share metadata; the links live in the clients.
+  const files = ['app/events/EventsClient.tsx', 'app/clubs/ClubsClient.tsx', 'app/directory/DirectoryClient.tsx', 'app/(member)/members/page.tsx']
   for (const f of files) {
     let src = ''
     try { src = readFileSync(join(process.cwd(), f), 'utf8') } catch { continue }
