@@ -49,9 +49,8 @@ const getHandbookArticles = unstable_cache(
 )
 
 // The share picture: public/images/handbook-cover-<city slug>.jpg when the
-// city has one, else its hero photo; only the default city falls back to
-// handbook-cover.jpg, whose book is literally titled "Istanbul Handbook".
-// Rules and size limit in lib/shareCover.
+// city has one (Istanbul's is the book literally titled "Istanbul Handbook"),
+// else its hero photo. Rules and size limit in lib/shareCover.
 // The Handbook names the city you're reading it in. The DEFAULT city keeps its
 // exact indexed strings — this page ranks for "Istanbul handbook"/"understand
 // Istanbul", and rewording a title Google already has is a real loss for no

@@ -14,31 +14,36 @@ const none = () => false
 const hero = '/app/api/files/general/photo.jpg'
 
 describe('shareCover', () => {
-  it('a cover named for the city wins over everything, with known dimensions', () => {
+  it('a cover named for the city wins over everything, with no dimension hint', () => {
     const img = shareCover('handbook', { slug: 'izmir', heroImage: hero }, 'alt', f => f === 'handbook-cover-izmir.jpg')
     expect(img.url).toMatch(/\/app\/images\/handbook-cover-izmir\.jpg$/)
-    expect(img).toMatchObject({ width: 1200, height: 800, alt: 'alt' })
+    expect(img).toMatchObject({ alt: 'alt', twitterCard: 'summary_large_image' })
+    expect(img.width).toBeUndefined()
   })
 
-  it('a non-default city with no cover previews with its hero photo, size-capped, no dimension hint', () => {
+  it('a city with no cover previews with its hero photo, size-capped, no dimension hint', () => {
     const img = shareCover('directory', { slug: 'izmir', heroImage: hero }, 'alt', none)
     expect(img.url).toMatch(/\/app\/api\/files\/general\/photo\.jpg\?w=1200$/)
     expect(img.width).toBeUndefined()
   })
 
-  it('the default city keeps the bare cover even when it has a hero photo', () => {
-    const img = shareCover('handbook', { slug: DEFAULT_CITY_SLUG, heroImage: hero }, 'alt', none)
-    expect(img.url).toMatch(/\/app\/images\/handbook-cover\.jpg$/)
+  it('the default city follows the same rule — its hero photo, not a hard-wired cover (2026-09-06)', () => {
+    const img = shareCover('clubs', { slug: DEFAULT_CITY_SLUG, heroImage: hero }, 'alt', none)
+    expect(img.url).toMatch(/\/app\/api\/files\/general\/photo\.jpg\?w=1200$/)
   })
 
-  it('a non-default city with neither cover nor photo still gets a picture', () => {
+  it("Istanbul's purpose-made covers are its per-city files, found by the same rule", () => {
+    const img = shareCover('board', { slug: DEFAULT_CITY_SLUG, heroImage: hero }, 'alt')
+    expect(img.url).toMatch(/\/app\/images\/board-cover-istanbul\.jpg$/)
+  })
+
+  it('a city with neither cover nor photo still gets a picture: the brand card', () => {
     const img = shareCover('directory', { slug: 'izmir', heroImage: null }, 'alt', none)
-    expect(img.url).toMatch(/\/app\/images\/directory-cover\.jpg$/)
+    expect(img.url).toMatch(/\/app\/api\/og$/)
+    expect(img).toMatchObject({ width: 1200, height: 630, twitterCard: 'summary_large_image' })
   })
 
-  it("the marketplace kept the board's cover as its bare one", () => {
-    const img = shareCover('marketplace', { slug: DEFAULT_CITY_SLUG, heroImage: null }, 'alt', none)
-    expect(img.url).toMatch(/\/app\/images\/board-cover\.jpg$/)
+  it('the marketplace has its own per-city slot, separate from the board', () => {
     const own = shareCover('marketplace', { slug: 'izmir', heroImage: null }, 'alt', f => f === 'marketplace-cover-izmir.jpg')
     expect(own.url).toMatch(/\/app\/images\/marketplace-cover-izmir\.jpg$/)
   })
@@ -64,11 +69,11 @@ describe('shareCover', () => {
 
 describe('the cover files', () => {
   // WhatsApp silently drops an og:image over ~300KB — no error anywhere, the
-  // share just has no picture. Both bare covers were over it until 2026-09-05.
+  // share just has no picture. Three of these were over it until 2026-09-05.
   it('every share cover and card, per-city ones included, stays under 300KB', () => {
     const dir    = join(process.cwd(), 'public/images')
     const covers = readdirSync(dir).filter(f => /^((handbook|directory|marketplace|board|events|clubs)-cover(-[a-z0-9-]+)?|events-og|clubs-og)\.jpg$/.test(f))
-    expect(covers).toEqual(expect.arrayContaining(['handbook-cover.jpg', 'directory-cover.jpg', 'board-cover.jpg', 'events-og.jpg', 'clubs-og.jpg']))
+    expect(covers).toEqual(expect.arrayContaining(['handbook-cover-istanbul.jpg', 'directory-cover-istanbul.jpg', 'board-cover-istanbul.jpg', 'events-og.jpg', 'clubs-og.jpg']))
     for (const f of covers) {
       const size = statSync(join(dir, f)).size
       expect(size, f).toBeGreaterThan(20_000)

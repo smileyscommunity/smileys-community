@@ -46,8 +46,8 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
   // at its crawlable hub (/[city]/clubs); the default city's stays here.
   // og:url follows the canonical.
   const canonical = isDefault ? `${APP_URL}/clubs` : `${APP_URL}/${city.slug}/clubs`
-  // The city's own cover or hero photo; the default city keeps the branded
-  // square card (lib/shareCover).
+  // The city's own cover or hero photo; the branded square card only when it
+  // has neither (lib/shareCover).
   const image = shareCover('clubs', city, 'Smileys Clubs — do more, meet more, live more')
 
   return {
