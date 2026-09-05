@@ -1,0 +1,2503 @@
+# Smileys — data model audit packet
+
+Smileys is a curated real-life social community platform (expats, nomads, locals),
+launched in Istanbul and now running seven cities plus three "coming soon". Stack:
+Next.js 15 App Router, Prisma v7, PostgreSQL. Multi-city: most content models carry
+a `cityId` so one city's content never leaks into another's feeds.
+
+## What to audit — please review the Prisma schema below for:
+1. **Privacy / PII surface.** Which fields are personal data (name, email, phone,
+   nationality, IP, fingerprints, location)? Flag any that a public/guest query
+   could expose. Note fields that should be encrypted at rest but likely aren't.
+2. **Multi-city scoping.** Every location-bearing model should carry `cityId`.
+   Flag any model that holds city-specific content but has NO city dimension —
+   that is how one city's data leaks into another's feed.
+3. **Indexing & scale.** Given the row counts below (notifications 128k,
+   event_recommendations 19k, club_memberships 10k), flag missing indexes on
+   foreign keys and on the columns that feeds filter/sort by.
+4. **Data-model smells.** Over-wide models, nullable-that-should-not-be,
+   denormalisation that will drift, enums stored as free-text strings.
+5. **Retention.** Models that grow unbounded (notifications, *_logs, sessions,
+   profile_views, rate_limits) with no evident TTL/cleanup.
+
+This is a STRUCTURE-ONLY review. There is NO member data here — only the schema
+and aggregate row counts. Do not ask for data; reason from the model.
+
+## Approximate row counts (production, aggregate only — no PII)
+```
+    --------------------------+-------------
+     notifications            |      128616
+     event_recommendations    |       19603
+     newsletter_email_logs    |       11782
+     club_memberships         |       10136
+     profile_views            |        7874
+     audit_logs               |        4002
+     sessions                 |        3623
+     event_attendees          |        2861
+     direct_messages          |        2245
+     member_connections       |        1857
+     member_applications      |        1778
+     users                    |        1693
+     password_reset_tokens    |        1676
+     rate_limits              |        1636
+     cup_predictions          |        1372
+     event_tags               |         720
+     event_messages           |         472
+     payments                 |         358
+     push_subscriptions       |         282
+     events                   |         279
+     payment_logs             |         259
+     event_surveys            |         252
+     clubs                    |         244
+     reviews                  |         227
+     neighborhoods            |         200
+     event_photos             |         194
+     community_poll_votes     |         171
+     businesses               |         124
+     guide_entries            |         111
+     cup_fixtures             |         103
+     club_photos              |          88
+     business_reviews         |          82
+     hangouts                 |          61
+     _prisma_migrations       |          56
+     direct_message_reactions |          49
+     saved_listings           |          45
+     listings                 |          43
+     board_posts              |          41
+     hangout_messages         |          40
+     event_cohosts            |          38
+    
+```
+
+## Prisma schema
+
+```prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id                         String                  @id @default(cuid())
+  name                       String
+  email                      String                  @unique
+  password                   String?
+  role                       String                  @default("member")
+  color                      String                  @default("#f59e0b")
+  bio                        String?
+  neighborhood               String?
+  // Opt-OUT of appearing in "People around you" on /neighborhoods. Defaults
+  // to true because these members are already discoverable via /members and
+  // the directory — defaulting to false would silently empty a section for
+  // all 1,298 members who have set a neighborhood. This narrows discovery,
+  // it never widens it: profileVisibility is still applied on top, so a
+  // member set to 'connections' stays hidden regardless of this flag.
+  neighborhoodVisible        Boolean                 @default(true)
+  instagram                  String?
+  joinedAt                   DateTime                @default(now())
+  emailVerified              Boolean                 @default(false)
+  interests                  String[]
+  languages                  String[]
+  lastActive                 DateTime?
+  nudgesSent                 Int                     @default(0)
+  lastNudgedAt               DateTime?
+  // Weekly first-RSVP nudge (separate from the login nudge above): when this
+  // member was last emailed a "your first event?" suggestion, so the cron never
+  // re-nudges someone within 30 days.
+  firstRsvpNudgedAt          DateTime?
+  // Approved into a city while it was still in the seeding maturity stage.
+  // Stored, not derived: "founding member" is a historical fact that must
+  // survive the city growing past seeding. Set at approval time; backfilled
+  // for the cities that were seeding when the column shipped.
+  foundingMember             Boolean                 @default(false)
+  membershipType             String                  @default("free")
+  nationality                String?
+  phone                      String?
+  profilePhoto               String?
+  status                     String                  @default("approved")
+  // Admin-set: excluded from the member directory (list + counts) while
+  // keeping full account access. For staff/test accounts or members who
+  // ask not to be listed — softer than banning, invisible to the member.
+  hiddenFromMembers          Boolean                 @default(false)
+  banReason                  String?
+  bannedAt                   DateTime?
+  gender                     String?
+  warningCount               Int                     @default(0)
+  referralCode               String?                 @unique
+  referralCount              Int                     @default(0)
+  appealNote                 String?
+  appealStatus               String?
+  appealedAt                 DateTime?
+  checkedInCount             Int                     @default(0)
+  partnerId                  String?
+  suspendedAt                DateTime?
+  suspendedBy                String?
+  suspendedUntil             DateTime?
+  suspensionNote             String?
+  linkedin                   String?
+  lookingFor                 String[]
+  profileVisibility          String                  @default("everyone")
+  totpEnabled                Boolean                 @default(false)
+  totpSecret                 String?
+  socialStyles               String[]
+  emailMarketing             Boolean                 @default(true)
+  failedLoginCount           Int                     @default(0)
+  knownIps                   String[]
+  loginLockedUntil           DateTime?
+  listingAlerts              String[]
+  tokenVersion               Int                     @default(0)
+  lastUsedTotpStep           Int?
+  openToCoffee               Boolean                 @default(false)
+  openToHosting              Boolean                 @default(false)
+  openToLanguage             Boolean                 @default(false)
+  goodHangouts               Int                     @default(0)
+  noShowCount                Int                     @default(0)
+  lastFingerprint            String?
+  cityId                     String
+  fingerprints               String[]                @default([])
+  industry                   String?
+  professionalRole           String?
+  professionalStatus         String?
+  adminNotes                 AdminNote[]
+  availabilityPulses         AvailabilityPulse[]
+  businessClaims             BusinessClaim[]         @relation("BusinessClaims")
+  businessClaimReviews       BusinessClaim[]         @relation("BusinessClaimReviews")
+  businessReportsFiled       BusinessReport[]        @relation("BusinessReportReporter")
+  businessReportsReviewed    BusinessReport[]        @relation("BusinessReportReviewer")
+  businessReviewsAuthored    BusinessReview[]        @relation("BusinessReviewAuthor")
+  businessReviewOwnerReplies BusinessReview[]        @relation("BusinessReviewOwnerReply")
+  businessSaves              BusinessSave[]          @relation("BusinessSaves")
+  businessesOwned            Business[]              @relation("BusinessOwnership")
+  businessReviewsModerated   Business[]              @relation("BusinessReviews")
+  businessSubmissions        Business[]              @relation("BusinessSubmissions")
+  cityHostings               CityHost[]
+  clubMemberships            ClubMembership[]
+  clubPhotos                 ClubPhoto[]
+  clubPollVotes              ClubPollVote[]
+  clubPostLikes              ClubPostLike[]
+  clubPostReplies            ClubPostReply[]
+  clubPosts                  ClubPost[]
+  clubSpotlights             Club[]                  @relation("ClubSpotlight")
+  communityPollVotes         CommunityPollVote[]
+  cupBracketPick             CupBracketPick?
+  cupPredictions             CupPrediction[]
+  cupDonationsReviewed       CupPrizeDonation[]      @relation("CupDonationReviewer")
+  cupPrizesAwardedTo         CupPrize[]              @relation("CupPrizeAwardedTo")
+  cupSponsorsAdded           CupSponsor[]            @relation("CupSponsorAddedBy")
+  dmReactions                DirectMessageReaction[]
+  sentMessages               DirectMessage[]         @relation("SentMessages")
+  receivedMessages           DirectMessage[]         @relation("ReceivedMessages")
+  joinedEvents               EventAttendee[]
+  noShowCards                NoShowCard[]
+  eventRecommendations       EventRecommendation[]
+  cohostedEvents             EventCoHost[]
+  eventMessages              EventMessage[]
+  eventPhotos                EventPhoto[]
+  eventSurveys               EventSurvey[]
+  hangoutJoins               HangoutJoin[]
+  hangoutMessages            HangoutMessage[]
+  hangoutReferencesGiven     HangoutReference[]      @relation("HangoutReferencesGiven")
+  hangoutReferencesGot       HangoutReference[]      @relation("HangoutReferencesGot")
+  hangouts                   Hangout[]
+  listings                   Listing[]
+  reviewedApplications       MemberApplication[]
+  blocksReceived             MemberBlock[]           @relation("BlockReceiver")
+  blocksGiven                MemberBlock[]           @relation("BlockGiver")
+  connectionsReceived        MemberConnection[]      @relation("ConnectionReceiver")
+  connectionsRequested       MemberConnection[]      @relation("ConnectionRequester")
+  npsResponses               MemberNPS[]
+  // Member-saves: relation names are kept verbatim so the existing
+  // @relation strings in MemberSave stay valid. The Prisma client
+  // surface becomes `prisma.memberSave` (matches what /api/members,
+  // /api/members/saved, and /api/members/[id] already call).
+  memberSaves                MemberSave[]            @relation("MemberSaveOwner")
+  savedByMembers             MemberSave[]            @relation("MemberSaveTarget")
+  neighborhoodPostLikes      NeighborhoodPostLike[]
+  boardPosts                 BoardPost[]
+  boardReplies               BoardReply[]
+  boardInterests             BoardInterest[]
+  boardSaves                 BoardSave[]
+  movingSales                MovingSale[]
+  guideSaves                 GuideSave[]
+  eventSaves                 EventSave[]
+  guideTips                  GuideTip[]
+  guideTipLikes              GuideTipLike[]
+  neighborhoodPostReplies    NeighborhoodPostReply[]
+  neighborhoodPosts          NeighborhoodPost[]
+  postLikes                  PostLike[]
+  newslettersSent            Newsletter[]            @relation("NewslettersSent")
+  notifPrefs                 NotificationPreference?
+  notifications              Notification[]
+  payments                   Payment[]
+  posts                      Post[]
+  profileViews               ProfileView[]           @relation("ViewedProfile")
+  profileViewsMade           ProfileView[]           @relation("ProfileViewer")
+  pushSubscriptions          PushSubscription[]
+  reportsReceived            Report[]                @relation("ReportsReceived")
+  reportsMade                Report[]                @relation("ReportsMade")
+  reviews                    Review[]
+  savedListings              SavedListing[]
+  sessions                   Session[]
+  totpBackupCodes            TotpBackupCode[]
+  testimonials               Testimonial[]           @relation("MemberTestimonials")
+  city                       City                    @relation(fields: [cityId], references: [id])
+  // Cities joined or awaited beyond `city` above. See model CityRelationship.
+  cityRelationships          CityRelationship[]
+  partner                    Partner?                @relation(fields: [partnerId], references: [id])
+  visitorAnnouncements       VisitorAnnouncement[]
+
+  @@index([cityId, status])
+  @@index([lastActive])
+  @@index([membershipType])
+  @@index([nationality])
+  @@index([neighborhood])
+  @@index([neighborhood, status])
+  @@index([status])
+  @@index([status, joinedAt])
+  @@map("users")
+}
+
+model ProfileView {
+  id        String   @id @default(cuid())
+  viewerId  String
+  viewedId  String
+  createdAt DateTime @default(now())
+  viewed    User     @relation("ViewedProfile", fields: [viewedId], references: [id], onDelete: Cascade)
+  viewer    User     @relation("ProfileViewer", fields: [viewerId], references: [id], onDelete: Cascade)
+
+  @@unique([viewerId, viewedId])
+  @@index([viewedId, createdAt])
+  @@map("profile_views")
+}
+
+model MemberBlock {
+  id        String   @id @default(cuid())
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+  blocked   User     @relation("BlockReceiver", fields: [blockedId], references: [id], onDelete: Cascade)
+  blocker   User     @relation("BlockGiver", fields: [blockerId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@index([blockerId])
+  @@map("member_blocks")
+}
+
+model Partner {
+  id           String   @id @default(cuid())
+  name         String
+  category     String
+  discount     String
+  address      String
+  neighborhood String
+  lat          Float?
+  lng          Float?
+  logo         String?
+  coverImage   String?
+  website      String?
+  instagram    String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @updatedAt
+  cityId       String
+  city         City     @relation(fields: [cityId], references: [id])
+  users        User[]
+
+  @@index([cityId, isActive])
+  @@map("partners")
+}
+
+model SponsorLead {
+  id         String   @id @default(cuid())
+  name       String
+  email      String
+  company    String
+  format     String
+  message    String
+  status     String   @default("new")
+  dealValue  Float?
+  currency   String   @default("TRY")
+  adminNotes String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("sponsor_leads")
+}
+
+model Report {
+  id                 String    @id @default(cuid())
+  reporterId         String
+  reportedId         String
+  eventId            String?
+  reason             String
+  details            String?
+  status             String    @default("pending")
+  reviewNote         String?
+  reviewedBy         String?
+  reviewedAt         DateTime?
+  createdAt          DateTime  @default(now())
+  screenshot         String?
+  escalated          Boolean   @default(false)
+  escalatedNote      String?
+  escalatedBy        String?
+  escalatedAt        DateTime?
+  listingId          String?
+  boardPostId        String?
+  neighborhoodPostId String?
+  // Set on reports auto-filed from a post-event survey (reason
+  // 'post_event_survey') so dismissing the report can clear the survey's
+  // anomaly flag. Null for all other reports and for legacy survey
+  // reports created before the column existed.
+  surveyId           String?
+  reported           User         @relation("ReportsReceived", fields: [reportedId], references: [id], onDelete: Cascade)
+  reporter           User         @relation("ReportsMade", fields: [reporterId], references: [id], onDelete: Cascade)
+  survey             EventSurvey? @relation(fields: [surveyId], references: [id], onDelete: SetNull)
+
+  @@index([reportedId])
+  @@index([status])
+  @@index([listingId])
+  @@index([neighborhoodPostId])
+  @@index([boardPostId])
+  @@index([surveyId])
+  @@map("reports")
+}
+
+model Blacklist {
+  id          String   @id @default(cuid())
+  email       String?  @unique
+  phone       String?
+  name        String?
+  reason      String
+  bannedBy    String
+  createdAt   DateTime @default(now())
+  fingerprint String?
+  ipAddress   String?
+
+  @@map("blacklist")
+}
+
+model ClubMembership {
+  id       String   @id @default(cuid())
+  userId   String
+  clubId   String
+  role     String   @default("member")
+  joinedAt DateTime @default(now())
+  status   String   @default("approved")
+  club     Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, clubId])
+  // clubId-first lookups (member lists, host counts, recounts, the
+  // discovery faces window query) can't use the userId-led unique above.
+  @@index([clubId, status])
+  @@map("club_memberships")
+}
+
+model City {
+  id           String              @id @default(cuid())
+  name         String
+  slug         String              @unique
+  country      String
+  timezone     String
+  currency     String              @default("TRY")
+  defaultLang  String              @default("en")
+  // See lib/cities.ts for the vocabulary: coming_soon | preparing | live | paused.
+  // Only `live` cities get community statistics on the public site.
+  status       String              @default("coming_soon")
+  // Public shopfront copy, editable per city in the admin. Nullable because a
+  // city is created before anyone has written its pitch — the city card falls
+  // back to generated copy rather than blocking creation on marketing text.
+  tagline      String?
+  description  String?
+  heroImage    String?
+  // City centre, for anything that needs a point rather than a name — the
+  // dashboard weather card was fetching Istanbul's coordinates for every
+  // member, so an Izmir member saw Istanbul's weather labelled as theirs.
+  // Nullable: a city can exist before anyone fills these in, and consumers
+  // fall back rather than guess.
+  lat          Float?
+  lng          Float?
+  createdAt    DateTime            @default(now())
+  // Whether this city's club grid also lists the GLOBAL clubs (cityId null —
+  // Cultures of the World, Language). Those are Istanbul-grown: 1,517 of their
+  // 1,519 memberships were Istanbul members, so Bodrum's grid opened with 32
+  // of them above its own three clubs, none with a single local member.
+  // Defaults to false so a newly launched city starts with only its own clubs
+  // and opts in once the cross-city communities have people there.
+  showGlobalClubs Boolean          @default(false)
+  consulUserId String?
+  cityHosts    CityHost[]
+  clubs        Club[]
+  events       Event[]
+  applications MemberApplication[]
+  users        User[]
+  // City-scoping sweep (multi-city phase 1): every model with a location
+  // dimension carries a required cityId so a second city's content can
+  // never leak into another city's feeds. Backfilled to Istanbul.
+  guideSaves           GuideSave[]
+  partners             Partner[]
+  businesses           Business[]
+  listings             Listing[]
+  boardPosts           BoardPost[]
+  movingSales          MovingSale[]
+  hangouts             Hangout[]
+  visitorAnnouncements VisitorAnnouncement[]
+  neighborhoodPosts    NeighborhoodPost[]
+  availabilityPulses   AvailabilityPulse[]
+  posts                Post[]
+  neighborhoods        Neighborhood[]
+  guideEntries         GuideEntry[]
+  cityRelationships    CityRelationship[]
+  testimonials         Testimonial[]
+
+  @@map("cities")
+}
+
+// ── Interest in a city that hasn't launched ─────────────────────────────────
+// Deliberately NOT a CityMembership: you can't be a member of a community that
+// doesn't exist yet, and membership is live-only for exactly that reason. This
+// is "tell me when Bodrum opens" — a signal, not a belonging.
+//
+// It's also what an existing member needs instead of the application form: they
+// already have an account, so sending them to /apply for a pre-launch city asks
+// them to re-apply to Smileys, which is nonsense.
+// One member↔city relationship row (2026-08 merge of the former
+// CityMembership + CityInterest tables — same shape, one lifecycle):
+//   'member'     — joined beyond their home city (home is User.cityId, never here)
+//   'interested' — pre-launch waiting list; transitions to 'member' on launch
+// Unique on (userId, cityId), deliberately WITHOUT type: being both a member
+// of and interested in the same city is a contradiction, so it's made
+// unrepresentable rather than merely discouraged.
+model CityRelationship {
+  id        String   @id @default(cuid())
+  userId    String
+  cityId    String
+  type      String
+  createdAt DateTime @default(now())
+  // When the launch-day "your city is open" email went out for this
+  // interest row. The dedupe guard: a live → paused → live flip must not
+  // email the same people twice. Null on 'member' rows.
+  notifiedAt DateTime?
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  city      City     @relation(fields: [cityId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, cityId])
+  @@index([cityId, type])
+  @@map("city_relationships")
+}
+
+// ── City membership: the cities a member belongs to beyond their home one ───
+// Their HOME city stays User.cityId. That column scopes every feed and is read
+// in dozens of places, so it remains the single answer to "where does this
+// person live" — this table is strictly additive, which is also why no backfill
+// is needed: a member with no rows here simply belongs to their home city.
+//
+// Joining a second city is what makes one account work across the network: the
+// same profile, interests and history, without re-registering in Athens.
+
+// ── Guide entries: per-city editorial content (multi-city phase 2.3) ────────
+// Replaces the repo-shipped data/guide-*.json as the source of truth so a
+// city's guide is written by its consul in the admin, not by deploys. One
+// table for both kinds — experiences and routes share identity, card copy
+// and placement; what differs lives in `content` (same consolidation call
+// Listing.attrs made): experiences carry { why, take, sections, handbook?,
+// directory?, clubs? }, routes carry { intro, stops }.
+//
+// Slugs are unique per (city, kind); Istanbul's existing slugs migrate
+// verbatim so GuideSave/GuideTip rows (keyed by slug, no FK) keep matching
+// and /guide/<slug> URLs never break. The photo pipeline stays filesystem-
+// keyed on slug (public/images/guide/<slug>.jpg) — a new city must mind
+// slug collisions there until photos move to a column.
+//
+// Review lifecycle mirrors the Handbook's honesty rule: lastReviewedAt is
+// set ONLY when a human re-checks the content against reality — never
+// derived from updatedAt.
+model GuideEntry {
+  id            String    @id @default(cuid())
+  cityId        String
+  kind          String    // 'experience' | 'route'
+  slug          String
+  title         String
+  emoji         String    @default("✨")
+  tagline       String
+  // Explorer taxonomy (experiences; routes leave them empty). Values live
+  // in lib/guide.ts's mood/collection lists — per-city taxonomies are a
+  // follow-up, today every city shares the vocabulary.
+  collection    String?
+  moods         String[]  @default([])
+  cost          String?
+  time          String?
+  when          String?
+  // Which parts of the year an experience is for — a real axis, unlike `when`
+  // above, which is display copy ("Late afternoon for the light"). Empty means
+  // all year: most experiences are, and tagging them all would be noise.
+  // Values live in lib/guide.ts (summer | spring | autumn | winter).
+  seasons       String[]  @default([])
+  neighborhoods String[]  @default([])
+  firstTime     Boolean   @default(false)
+  content       Json
+  status        String    @default("published") // 'published' | 'draft'
+  sortOrder     Int       @default(0)
+  lastReviewedAt     DateTime?
+  reviewIntervalDays Int?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @default(now()) @updatedAt
+  city          City      @relation(fields: [cityId], references: [id])
+
+  @@unique([cityId, kind, slug])
+  @@index([cityId, kind, status, sortOrder])
+  @@map("guide_entries")
+}
+
+// ── Neighborhoods: per-city registry (multi-city phase 1, step 2) ───────────
+// Replaces the hardcoded Istanbul-only NEIGHBORHOOD_META constant as the
+// source of truth for which neighborhoods a city HAS — so launching Izmir's
+// neighborhoods is admin data entry, not a deploy. The `neighborhood` string
+// columns on content models stay (they're unambiguous now that every row
+// also carries cityId); what this table owns is the per-city list, the
+// validation set, and the card metadata. Istanbul's 104 rows are seeded from
+// the legacy constant by scripts/seed-neighborhoods-istanbul.ts.
+model Neighborhood {
+  id        String   @id @default(cuid())
+  cityId    String
+  name      String
+  // URL slug within the city (ASCII, Turkish chars transliterated at seed
+  // time by neighborhoodToSlug). Unique per city, not globally — Athens and
+  // Izmir may both have an 'alsancak'-like collision someday.
+  slug      String
+  emoji     String   @default("📍")
+  vibe      String?
+  // Free-form area grouping, per city: Istanbul uses European/Asian/Central/
+  // Coastal/Emerging/Islands; other cities define their own vocabulary.
+  area      String?
+  // 1–3 relative cost tier, same scale the Istanbul cards already render.
+  cost      Int      @default(2)
+  lat       Float?
+  lng       Float?
+  // Soft-hide: an inactive neighborhood disappears from pickers and index
+  // pages but existing content tagged with its name stays readable.
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  city      City     @relation(fields: [cityId], references: [id])
+
+  @@unique([cityId, slug])
+  @@unique([cityId, name])
+  @@index([cityId, active, sortOrder])
+  @@map("neighborhoods")
+}
+
+model CityHost {
+  id        String    @id @default(cuid())
+  userId    String
+  cityId    String
+  status    String    @default("approved")
+  grantedBy String?
+  grantedAt DateTime  @default(now())
+  revokedAt DateTime?
+  city      City      @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, cityId])
+  @@index([cityId])
+  @@index([userId])
+  @@map("city_hosts")
+}
+
+model Club {
+  id                 String           @id @default(cuid())
+  name               String
+  slug               String           @unique
+  description        String
+  category           String
+  emoji              String
+  color              String
+  bgColor            String
+  memberCount        Int              @default(0)
+  // Which lib/clubTemplates entry seeded this club; NULL = hand-made or
+  // pre-catalog. Provenance only — never joined, never user-visible.
+  templateKey        String?
+  coverImage         String?
+  foundedAt          DateTime?
+  instagramUrl       String?
+  isPrivate          Boolean          @default(false)
+  location           String?
+  rules              String?
+  whatsappUrl        String?
+  createdAt          DateTime         @default(now())
+  isActive           Boolean          @default(true)
+  spotlightUserId    String?
+  spotlightNote      String?
+  spotlightUpdatedAt DateTime?
+  coverImagePosition Int              @default(50)
+  // Null = GLOBAL club (Cultures of the World, Language clubs) — appears in
+  // every live city's grid. Local clubs carry their city as before.
+  // Classified by the owner 2026-08-16 (docs/global-club-candidates.md);
+  // never blanket-stamp.
+  cityId             String?
+  memberships        ClubMembership[]
+  photos             ClubPhoto[]
+  posts              ClubPost[]
+  resources          ClubResource[]
+  city               City?            @relation(fields: [cityId], references: [id])
+  spotlightUser      User?            @relation("ClubSpotlight", fields: [spotlightUserId], references: [id])
+  events             Event[]
+  boardPosts         BoardPost[]      @relation("ClubBoardPosts")
+  hangouts           Hangout[]        @relation("ClubHangouts")
+
+  @@index([cityId])
+  @@map("clubs")
+}
+
+model Event {
+  id                   String          @id @default(cuid())
+  title                String
+  description          String
+  date                 String
+  time                 String
+  location             String
+  neighborhood         String
+  emoji                String          @default("🎉")
+  price                Int             @default(0)
+  memberPrice          Int?
+  // Who collects the ticket money: 'venue' (member pays the venue/organizer
+  // directly — no payment ledger rows) or 'smileys' (we collect — RSVP
+  // creates a pending payment to reconcile). Default matches reality: most
+  // priced events are venue-paid.
+  payTo                String          @default("venue")
+  // wa.me link for the person who handles advance payments (normalized from
+  // a phone number in the admin form). Shown to members next to the
+  // pay-in-advance note; redacted for guests like whatsappUrl.
+  paymentContact       String?
+  // External ticket-purchase URL (venue's ticketing page, Eventbrite, …).
+  // Only rendered for venue-paid events — Smileys-collected events use
+  // the in-app payment ledger and must not point members elsewhere.
+  ticketUrl            String?
+  totalSpots           Int
+  spotsLeft            Int
+  limitedSpots         Boolean         @default(false)
+  // Said sold out by a human, whatever the counter says. Tickets sold on a
+  // partner's site, seats given away over WhatsApp, a venue that quietly
+  // shrank — the number in this table isn't always the truth, and someone who
+  // knows the door is closed needs to say so without inventing a spot count.
+  // Never cleared automatically: only whoever set it knows if it still holds.
+  soldOut              Boolean         @default(false)
+  isPremium            Boolean         @default(false)
+  membersOnly          Boolean         @default(false)
+  // Curated newcomer signal: admins flag low-commitment, welcoming events
+  // (coffee meetups, language exchanges) so the "Your First Event" matcher
+  // can boost them for members who have never RSVP'd.
+  isFirstTimerFriendly Boolean         @default(false)
+  intent               String          @default("social") // social | professional
+  vibes                String[]
+  clubId               String?
+  hostId               String
+  createdAt            DateTime        @default(now())
+  whatsappUrl          String?
+  address              String?
+  cancelReason         String?
+  cancelledAt          DateTime?
+  coverImage           String?
+  difficulty           String?
+  duration             Int?
+  isRecurring          Boolean         @default(false)
+  language             String?
+  lat                  Float?
+  lng                  Float?
+  maxAge               Int?
+  meetingUrl           String?
+  minAge               Int?
+  refundPolicy         String?
+  registrationDeadline String?
+  status               String          @default("published")
+  updatedAt            DateTime        @default(now()) @updatedAt
+  approvalRequired     Boolean         @default(false)
+  currency             String          @default("TRY")
+  endTime              String?
+  genderBalance        Boolean         @default(false)
+  maleQuota            Int?
+  turkishMaleQuota     Int?
+  featured             Boolean         @default(false)
+  seriesId             String?
+  coverImagePosition   Int             @default(50)
+  femaleQuota          Int?
+  cityId               String
+  surveyDispatchedAt   DateTime?
+  surveyReminderAt     DateTime?
+  // Stamped by sweep-no-shows once this event's attendance has been settled
+  // (no-shows marked, cards issued). Never reprocessed — an edit to the date
+  // or end time afterwards must not open a second round of cards.
+  noShowProcessedAt    DateTime?
+  attendees            EventAttendee[]
+  noShowCards          NoShowCard[]
+  hangouts             Hangout[]       @relation("EventHangouts")
+  saves                EventSave[]
+  boardPosts           BoardPost[]     @relation("EventBoardPosts")
+  cohosts              EventCoHost[]
+  messages             EventMessage[]
+  photos               EventPhoto[]
+  surveys              EventSurvey[]
+  tags                 EventTag[]
+  recommendations      EventRecommendation[]
+  city                 City            @relation(fields: [cityId], references: [id])
+  club                 Club?           @relation(fields: [clubId], references: [id])
+  payments             Payment[]
+  reviews              Review[]
+
+  @@index([date])
+  @@index([clubId])
+  @@index([status])
+  @@index([hostId])
+  @@index([cityId])
+  @@index([cityId, status, date])
+  @@map("events")
+}
+
+model EventPhoto {
+  id        String   @id @default(cuid())
+  eventId   String
+  userId    String
+  url       String
+  caption   String?
+  createdAt DateTime @default(now())
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("event_photos")
+}
+
+model EventCoHost {
+  id      String   @id @default(cuid())
+  eventId String
+  userId  String
+  addedAt DateTime @default(now())
+  event   Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@index([eventId])
+  @@index([userId])
+  @@map("event_cohosts")
+}
+
+model EventSurvey {
+  id          String   @id @default(cuid())
+  eventId     String
+  userId      String
+  anomaly     Boolean
+  anomalyNote String?
+  wouldReturn Boolean
+  // When wouldReturn is false, the main reason: 'host' (how it was run),
+  // 'guest' (another attendee), 'venue', 'timing', 'other'. Null when they
+  // would return, or for legacy rows. An anonymous DIAGNOSTIC surfaced to
+  // moderators on /admin/feedback (and the CSV) — deliberately NOT fed into
+  // the host's wouldReturnRate, which stays a raw share of all responses so
+  // the metric can't be quietly inflated. 'guest' is the signal worth a
+  // closer look (an attendee problem, not the host).
+  returnDeclineReason String?
+  createdAt   DateTime @default(now())
+  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reports     Report[]
+
+  @@unique([eventId, userId])
+  @@index([eventId])
+  @@index([anomaly])
+  @@map("event_surveys")
+}
+
+model CupFixture {
+  id                  String          @id
+  round               String
+  group               String?
+  homeTeam            String?
+  awayTeam            String?
+  homeLabel           String?
+  awayLabel           String?
+  kickoffAt           DateTime
+  venue               String?
+  winnerTeam          String?
+  homeScore           Int?
+  awayScore           Int?
+  points              Int             @default(0)
+  updatedAt           DateTime        @updatedAt
+  createdAt           DateTime        @default(now())
+  reminderSentAt      DateTime?
+  suggestedAt         DateTime?
+  suggestedAwayScore  Int?
+  suggestedHomeScore  Int?
+  suggestedStatus     String?
+  suggestedWinnerTeam String?
+  suggestedAwayTeam   String?
+  suggestedHomeTeam   String?
+  predictions         CupPrediction[]
+
+  @@index([round, kickoffAt])
+  @@index([reminderSentAt, kickoffAt])
+  @@map("cup_fixtures")
+}
+
+model CupPrediction {
+  id            String     @id @default(cuid())
+  userId        String
+  fixtureId     String
+  pickedTeam    String
+  submittedAt   DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  pointsAwarded Int        @default(0)
+  fixture       CupFixture @relation(fields: [fixtureId], references: [id], onDelete: Cascade)
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, fixtureId])
+  @@index([userId])
+  @@index([fixtureId])
+  @@map("cup_predictions")
+}
+
+model CupBracketPick {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  championPick  String
+  semifinalists String[]
+  submittedAt   DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  pointsAwarded Int      @default(0)
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("cup_bracket_picks")
+}
+
+model Campaign {
+  id          String             @id @default(cuid())
+  slug        String             @unique
+  name        String
+  emoji       String?
+  tagline     String?
+  description String?
+  coverImage  String?
+  status      String             @default("active")
+  startsAt    DateTime?
+  endsAt      DateTime?
+  routeSlug   String             @default("cup")
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  hasFixtures Boolean            @default(false)
+  donations   CupPrizeDonation[]
+  prizes      CupPrize[]
+  sponsors    CupSponsor[]
+
+  @@index([status])
+  @@map("campaigns")
+}
+
+model CupSponsor {
+  id            String     @id @default(cuid())
+  slug          String     @unique
+  name          String
+  blurb         String?
+  logoUrl       String?
+  websiteUrl    String?
+  instagramUrl  String?
+  status        String     @default("active")
+  addedByUserId String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  campaignId    String?
+  prizes        CupPrize[]
+  addedBy       User?      @relation("CupSponsorAddedBy", fields: [addedByUserId], references: [id])
+  campaign      Campaign?  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId, status])
+  @@map("cup_sponsors")
+}
+
+model CupPrize {
+  id              String      @id @default(cuid())
+  title           String
+  description     String?
+  imageUrl        String?
+  rank            Int?
+  status          String      @default("draft")
+  sponsorId       String?
+  awardedToUserId String?
+  awardedAt       DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  campaignId      String?
+  awardedTo       User?       @relation("CupPrizeAwardedTo", fields: [awardedToUserId], references: [id])
+  campaign        Campaign?   @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  sponsor         CupSponsor? @relation(fields: [sponsorId], references: [id])
+
+  @@index([campaignId, status, rank])
+  @@map("cup_prizes")
+}
+
+model CupPrizeDonation {
+  id                String    @id @default(cuid())
+  donorName         String
+  donorEmail        String
+  donorOrganization String?
+  donorPhone        String?
+  prizeTitle        String
+  prizeDescription  String
+  estimatedValue    Int?
+  notes             String?
+  status            String    @default("pending")
+  reviewedByUserId  String?
+  reviewedAt        DateTime?
+  reviewNote        String?
+  linkedSponsorId   String?
+  linkedPrizeId     String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  campaignId        String?
+  campaign          Campaign? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  reviewedBy        User?     @relation("CupDonationReviewer", fields: [reviewedByUserId], references: [id])
+
+  @@index([campaignId, status, createdAt])
+  @@map("cup_prize_donations")
+}
+
+model MemberNPS {
+  id        String   @id @default(cuid())
+  userId    String
+  score     Int
+  comment   String?
+  period    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, period])
+  @@index([period, createdAt])
+  @@index([score])
+  @@map("member_nps")
+}
+
+model TagGroup {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  emoji     String   @default("🏷️")
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  tags      Tag[]
+
+  @@map("tag_groups")
+}
+
+model Tag {
+  id        String           @id @default(cuid())
+  name      String           @unique
+  emoji     String           @default("🏷️")
+  groupId   String
+  createdAt DateTime         @default(now())
+  events    EventTag[]
+  interests InterestTagMap[]
+  group     TagGroup         @relation(fields: [groupId], references: [id])
+
+  @@map("tags")
+}
+
+// Bridges the two vocabularies that never matched: members pick TOPIC
+// interests (sailing, dining, games…) while events are tagged by VIBE
+// (Social, Chill, Adventure…). The "Your First Event" matcher scores
+// interest overlap through this map. Many-to-many: one interest can map
+// to several vibe tags. Topic interests with no vibe equivalent (sailing,
+// games) point at their nearest experience tag rather than polluting the
+// deliberate vibe taxonomy with topic tags.
+model InterestTagMap {
+  interest String
+  tagId    String
+  tag      Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([interest, tagId])
+  @@index([tagId])
+  @@map("interest_tag_map")
+}
+
+// Attribution log for the "Your First Event" matcher. One row per event
+// shown to a member; clickedAt / rsvpedAt are stamped as the member acts,
+// so we can measure the true lift (recommendation → RSVP) against the
+// signed-in→RSVP baseline. reason holds the score breakdown for debugging.
+model EventRecommendation {
+  id        String    @id @default(cuid())
+  userId    String
+  eventId   String
+  score     Float
+  reason    Json
+  surface   String    @default("first_event_block")
+  createdAt DateTime  @default(now())
+  clickedAt DateTime?
+  rsvpedAt  DateTime?
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event     Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([eventId])
+  @@map("event_recommendations")
+}
+
+model EventTag {
+  eventId String
+  tagId   String
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  tag     Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([eventId, tagId])
+  @@map("event_tags")
+}
+
+model EventAttendee {
+  id        String   @id @default(cuid())
+  userId    String
+  eventId   String
+  checkedIn Boolean  @default(false)
+  joinedAt  DateTime @default(now())
+  // 'approved' | 'pending' hold or ask for a spot. 'cancelled' (by the
+  // member) and 'removed' (by a host/admin) are soft-cancels: the row stays
+  // so "did they give the spot back, and how late" stays answerable. Every
+  // read that means "is attending" filters on status — lib/attendance.ts.
+  status    String   @default("approved")
+  stealth   Boolean  @default(false)
+  // Settled outcome, distinct from the door-side `checkedIn` toggle:
+  // 'unknown' until something decides it, 'attended' once checked in,
+  // 'no_show' when post-event processing says so.
+  attendance  String    @default("unknown")
+  cancelledAt DateTime?
+  cancelledBy String?   // 'member' | 'host' | 'admin' | 'system'
+  // Day-before "still coming?" on free limited-spot events (lib/reconfirm).
+  // Asked once; an asked-but-unconfirmed seat is released to the waitlist at
+  // the cancellation cutoff when someone is waiting.
+  reconfirmAskedAt DateTime?
+  reconfirmedAt    DateTime?
+  noShowCard  NoShowCard?
+  event     Event    @relation(fields: [eventId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, eventId])
+  @@index([eventId])
+  @@index([userId])
+  @@index([status])
+  @@index([eventId, status])
+  @@index([userId, status])
+  @@map("event_attendees")
+}
+
+// One card per no-show. The attendee row (attendance = 'no_show') is the
+// attendance record; this is the consequence and its paper trail — which
+// colour it was, whether it was appealed, waived by the host, or overturned,
+// and for a red card the appeal window and the RSVP block that follows it.
+// Rows are never overwritten into a "current card": a member's history is
+// the list. Policy values live in lib/noShowPolicy.ts.
+model NoShowCard {
+  id                    String    @id @default(cuid())
+  userId                String
+  kind                  String    // 'yellow' | 'red'
+  status                String    @default("active") // active | appeal_pending | waived | overturned | expired
+  attendeeId            String    @unique
+  eventId               String
+  // When the no-show happened (the event's end) — the rolling-window anchor.
+  occurredAt            DateTime
+  issuedAt              DateTime  @default(now())
+  // Member told (bell + email) — stamped after the send, so a crash between
+  // issue and notify is retried on the next run (at worst one repeat, never
+  // a silent miss).
+  notifiedAt            DateTime?
+  // Red only: the block waits out the appeal window before it starts.
+  appealDeadlineAt      DateTime?
+  restrictionStartsAt   DateTime?
+  restrictionEndsAt     DateTime?
+  restrictionNotifiedAt DateTime?
+  // Yellow: the member confirmed "I'll actually come" on their next RSVP.
+  acknowledgedAt        DateTime?
+  acknowledgedEventId   String?
+  // Appeal (red cards, within the window).
+  appealNote            String?
+  appealedAt            DateTime?
+  appealStatus          String?   // pending | accepted | rejected
+  resolvedAt            DateTime?
+  resolvedById          String?
+  resolutionNote        String?
+  // Host waiver — the attendance result was wrong (missed scan, host error).
+  waivedAt              DateTime?
+  waivedById            String?
+  waiveReason           String?
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attendee EventAttendee @relation(fields: [attendeeId], references: [id], onDelete: Cascade)
+  event    Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([eventId])
+  @@index([status, restrictionStartsAt])
+  @@map("no_show_cards")
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  userId    String
+  eventId   String
+  rating    Int
+  text      String
+  createdAt DateTime @default(now())
+  event     Event    @relation(fields: [eventId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, eventId])
+  @@map("reviews")
+}
+
+model Payment {
+  id             String   @id @default(cuid())
+  userId         String
+  eventId        String
+  amount         Float
+  method         String   @default("card")
+  status         String   @default("pending")
+  createdAt      DateTime @default(now())
+  currency       String   @default("TRY")
+  notes          String?
+  provider       String?
+  transactionRef String?
+  // Stamped by sweep-payment-reminders when the one-and-only "your spot
+  // needs payment" nudge goes out — the stamp is what makes it one-and-only.
+  reminderSentAt DateTime?
+  event          Event    @relation(fields: [eventId], references: [id])
+  user           User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([eventId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([eventId, status])
+  @@index([userId, eventId, status])
+  @@map("payments")
+}
+
+model MemberApplication {
+  id                   String    @id @default(cuid())
+  fullName             String
+  email                String
+  phone                String?
+  bio                  String?
+  source               String?
+  status               String    @default("pending")
+  reviewedBy           String?
+  reviewNote           String?
+  createdAt            DateTime  @default(now())
+  reviewedAt           DateTime?
+  city                 String?
+  instagram            String?
+  linkedin             String?
+  profession           String?
+  reasonHere           String?
+  timeInCity           String?
+  enjoyWith            String?
+  goodCommunity        String?
+  interests            String[]
+  whyJoin              String?
+  contribution         String?
+  groupBehavior        String?
+  removedFromCommunity String?
+  toxicBehavior        String?
+  profilePhoto         String?
+  assignedClubs        String[]
+  suggestedBy          String?
+  suggestion           String?
+  firstName            String    @default("")
+  lastName             String    @default("")
+  neighborhood         String?
+  country              String?
+  birthdate            String?
+  gender               String?
+  referredBy           String?
+  escalated            Boolean   @default(false)
+  escalatedNote        String?
+  escalatedBy          String?
+  escalatedAt          DateTime?
+  socialStyles         String[]
+  ipAddress            String?
+  userAgent            String?
+  fingerprint          String?
+  disposableEmail      Boolean   @default(false)
+  timezone             String?
+  timezoneMismatch     Boolean   @default(false)
+  aboutCommunity       String?
+  languages            String[]
+  openToCoffee         Boolean   @default(false)
+  openToHosting        Boolean   @default(false)
+  openToLanguage       Boolean   @default(false)
+  socialJudgment       String?
+  suspicionScore       Int       @default(0)
+  targetCityId         String
+  reviewer             User?     @relation(fields: [reviewedBy], references: [id])
+  targetCity           City      @relation(fields: [targetCityId], references: [id])
+
+  @@index([email])
+  @@index([phone])
+  @@index([instagram])
+  @@index([status])
+  @@index([fingerprint, createdAt])
+  @@index([ipAddress, createdAt])
+  @@index([targetCityId])
+  @@map("member_applications")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  title     String
+  body      String
+  isRead    Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+  data      Json?
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
+model EventMessage {
+  id        String   @id @default(cuid())
+  eventId   String
+  userId    String
+  message   String
+  createdAt DateTime @default(now())
+  editedAt  DateTime?
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, createdAt])
+  @@index([userId])
+  @@map("event_messages")
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@map("email_verification_tokens")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@map("password_reset_tokens")
+}
+
+model TotpBackupCode {
+  id        String    @id @default(cuid())
+  userId    String
+  codeHash  String    @unique
+  used      Boolean   @default(false)
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("totp_backup_codes")
+}
+
+model Session {
+  id           String    @id @default(cuid())
+  userId       String
+  userAgent    String?
+  ip           String?
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime  @default(now())
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  totpVerified Boolean   @default(false)
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model WaitlistEntry {
+  id        String   @id @default(cuid())
+  userId    String
+  eventId   String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, eventId])
+  @@index([eventId])
+  @@map("waitlist")
+}
+
+model NotificationPreference {
+  id           String  @id @default(cuid())
+  userId       String  @unique
+  newEvents    Boolean @default(true)
+  reminders    Boolean @default(true)
+  eventUpdates Boolean @default(true)
+  joinedEvents Boolean @default(true)
+  quietHours   Boolean @default(false)
+  quietFrom    Int     @default(23)
+  quietTo      Int     @default(9)
+  wallReplies  Boolean @default(true)
+  wallPosts    Boolean @default(true)
+  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_preferences")
+}
+
+model PaymentLog {
+  id         String   @id @default(cuid())
+  paymentId  String
+  adminId    String
+  adminName  String
+  fromStatus String?
+  toStatus   String?
+  note       String?
+  createdAt  DateTime @default(now())
+
+  @@index([paymentId])
+  @@map("payment_logs")
+}
+
+model Broadcast {
+  id        String   @id @default(cuid())
+  title     String
+  message   String
+  type      String
+  audience  String
+  clubId    String?
+  eventId   String?
+  sentBy    String
+  sentCount Int
+  createdAt DateTime @default(now())
+  channel   String   @default("in-app")
+  // Set when audience = 'city'. Plain string, no relation — this is an audit
+  // record of where a send went, and must survive a city row's deletion.
+  cityId    String?
+
+  @@map("broadcasts")
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  adminId     String
+  adminName   String
+  action      String
+  targetId    String?
+  targetType  String?
+  meta        Json?
+  createdAt   DateTime @default(now())
+  description String?
+  // The city the target belongs to, resolved by writeAudit from the target
+  // (a user's home city, an event's city, the city itself…). Null when the
+  // target has none (platform-wide settings, the Cup) and on every row from
+  // before 2026-09-03. "What happened in Bodrum" is answerable from here on.
+  cityId      String?
+
+  @@index([adminId])
+  @@index([action])
+  @@index([createdAt])
+  @@index([cityId, createdAt])
+  @@map("audit_logs")
+}
+
+model CronRun {
+  id            String    @id @default(cuid())
+  name          String    @unique
+  lastSuccessAt DateTime?
+  lastError     String?
+  lastErrorAt   DateTime?
+  totalRuns     Int       @default(0)
+  totalErrors   Int       @default(0)
+  updatedAt     DateTime  @updatedAt
+
+  @@map("cron_runs")
+}
+
+model EmailFailure {
+  id        String   @id @default(cuid())
+  helper    String
+  recipient String
+  error     String
+  context   Json?
+  createdAt DateTime @default(now())
+
+  @@index([helper])
+  @@index([createdAt])
+  @@map("email_failures")
+}
+
+model ClubPost {
+  id        String          @id @default(cuid())
+  clubId    String
+  userId    String
+  content   String
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  editedAt  DateTime?
+  isPinned  Boolean         @default(false)
+  pinnedAt  DateTime?
+  type      String          @default("post")
+  poll      ClubPoll?
+  likes     ClubPostLike[]
+  replies   ClubPostReply[]
+  club      Club            @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([clubId, isPinned(sort: Desc), createdAt(sort: Desc)])
+  @@map("club_posts")
+}
+
+model ClubPostLike {
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+  emoji     String   @default("❤️")
+  post      ClubPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([postId, userId])
+  @@map("club_post_likes")
+}
+
+model ClubPostReply {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  content   String
+  createdAt DateTime @default(now())
+  post      ClubPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([postId, createdAt])
+  @@map("club_post_replies")
+}
+
+model ClubPoll {
+  id       String           @id @default(cuid())
+  postId   String           @unique
+  question String
+  options  ClubPollOption[]
+  votes    ClubPollVote[]
+  post     ClubPost         @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@map("club_polls")
+}
+
+model ClubPollOption {
+  id     String         @id @default(cuid())
+  pollId String
+  text   String
+  order  Int            @default(0)
+  poll   ClubPoll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  votes  ClubPollVote[]
+
+  @@index([pollId])
+  @@map("club_poll_options")
+}
+
+model ClubPollVote {
+  id        String         @id @default(cuid())
+  userId    String
+  pollId    String
+  optionId  String
+  createdAt DateTime       @default(now())
+  option    ClubPollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  poll      ClubPoll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, pollId])
+  @@index([optionId])
+  @@map("club_poll_votes")
+}
+
+model ClubResource {
+  id        String   @id @default(cuid())
+  clubId    String
+  title     String
+  url       String
+  emoji     String   @default("🔗")
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  club      Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  @@index([clubId, order])
+  @@map("club_resources")
+}
+
+model ClubPhoto {
+  id        String   @id @default(cuid())
+  clubId    String
+  userId    String
+  url       String
+  caption   String?
+  createdAt DateTime @default(now())
+  club      Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([clubId, createdAt(sort: Desc)])
+  @@map("club_photos")
+}
+
+model CommunityPoll {
+  id        String                @id @default(cuid())
+  question  String
+  active    Boolean               @default(true)
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
+  options   CommunityPollOption[]
+
+  @@map("community_polls")
+}
+
+model CommunityPollOption {
+  id     String              @id @default(cuid())
+  pollId String
+  text   String
+  order  Int                 @default(0)
+  poll   CommunityPoll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  votes  CommunityPollVote[]
+
+  @@map("community_poll_options")
+}
+
+model CommunityPollVote {
+  id        String              @id @default(cuid())
+  userId    String
+  pollId    String
+  optionId  String
+  createdAt DateTime            @default(now())
+  option    CommunityPollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, pollId])
+  @@map("community_poll_votes")
+}
+
+model Testimonial {
+  id         String   @id @default(cuid())
+  memberName String
+  role       String?
+  quote      String
+  category   String   @default("general")
+  photo      String?
+  active     Boolean  @default(true)
+  order      Int      @default(0)
+  createdAt  DateTime @default(now())
+  // Whose city this member speaks for. NULL is the Club convention: a quote
+  // about Smileys itself rather than one place, shown in every city.
+  //
+  // It is nullable but never a safe default — without a city these were
+  // Istanbul members' words appearing on Izmir's and Bodrum's pages. The
+  // admin form defaults to a real city and makes "Across Smileys" a
+  // deliberate choice; existing rows were backfilled to Istanbul.
+  cityId     String?
+  city       City?    @relation(fields: [cityId], references: [id], onDelete: SetNull)
+  // Set when the quote came through the member self-submit flow (dashboard
+  // nudge) rather than being typed by an admin: dedupes the nudge ("asked
+  // and answered"), and lets a member's quote be cleaned up if they leave.
+  // Admin-authored quotes keep this null.
+  userId     String?
+  user       User?    @relation("MemberTestimonials", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([active, order])
+  @@index([cityId, active, order])
+  @@index([userId])
+  @@map("testimonials")
+}
+
+model StoryPhoto {
+  id        String   @id @default(cuid())
+  url       String
+  caption   String?
+  event     String?
+  active    Boolean  @default(true)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([active, order])
+  @@map("story_photos")
+}
+
+model Post {
+  id          String    @id @default(cuid())
+  title       String
+  slug        String    @unique
+  excerpt     String?
+  body        String
+  coverImage  String?
+  status      String    @default("draft")
+  category    String    @default("Community")
+  authorId    String
+  publishedAt DateTime?
+  // Set atomically the first time the "new article" broadcast is claimed, so
+  // a double-submitted publish, an unpublish→republish, or a re-run of the
+  // backfill can't re-notify the whole membership. Null = never announced.
+  notifiedAt  DateTime?
+  views       Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  kind        String    @default("community")
+
+  // ── Handbook review lifecycle (kind='handbook'; null on community posts) ──
+  // Set ONLY when a human re-checks the article against its sources.
+  // Deliberately NOT derived from updatedAt: a typo fix or a bulk content
+  // migration must never claim the facts were verified. Null renders as
+  // "not yet reviewed", never as a date.
+  lastReviewedAt     DateTime?
+  // Per-article review cadence in days. Visa fees, transport fares and bank
+  // requirements go stale far faster than dining etiquette does, so there is
+  // no universal period. Null = fall back to the category's volatility tier.
+  reviewIntervalDays Int?
+  // Extra search keywords beyond title/excerpt — the Turkish term a member
+  // would actually type ("ikamet", "vergi numarası", "e-devlet").
+  tags               String[]  @default([])
+  // Official government / municipal / provider links, as [{ label, url }].
+  // High-stakes articles must cite where the reader can verify the facts
+  // themselves rather than trusting member-written text.
+  officialSources    Json?
+  // Nullable ON PURPOSE, unlike the rest of the city sweep: null = not pinned
+  // to one city. Set only on genuinely city-local articles (Başkentkart,
+  // İzmirim Kart). Read paths pair it with `country` — see lib/postScope.ts.
+  cityId             String?
+  city               City?     @relation(fields: [cityId], references: [id])
+  // The country a non-city-local post applies in, as the ISO code stored on
+  // City.country. Residence permits, tax numbers and SIM cards are NATIONAL,
+  // not global: true everywhere in Türkiye and wrong everywhere else. Until
+  // the first non-Turkish city they were indistinguishable, because cityId
+  // null meant "show in every city" and every city was Turkish.
+  //
+  //   cityId set              → that city only
+  //   cityId null, country TR → every Turkish city
+  //   cityId null, country null → genuinely global (most community posts)
+  //
+  // Backfilled to 'TR' on the four Türkiye-wide handbook articles.
+  country            String?
+
+  author      User      @relation(fields: [authorId], references: [id])
+  likes       PostLike[]
+
+  @@index([status, publishedAt])
+  @@index([kind, status, publishedAt])
+  // Drives the review queue ("what is overdue?") and the freshness sort.
+  @@index([kind, status, lastReviewedAt])
+  @@index([cityId])
+  // The handbook read paths all filter on this pair (lib/postScope.ts).
+  @@index([cityId, country])
+  @@map("posts")
+}
+
+// Article likes (handbook + community posts). Deliberately a plain
+// like rather than the 4-emoji reaction set the club/neighborhood
+// walls use — an article is read once, not chatted over, so a single
+// signal is enough and keeps the page from turning into a feed.
+// Composite PK enforces one like per user per post at the DB level,
+// so a double-tap or a duplicated request can't inflate the count.
+model PostLike {
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([postId, userId])
+  @@index([postId])
+  @@map("post_likes")
+}
+
+model MemberConnection {
+  id          String   @id @default(cuid())
+  requesterId String
+  receiverId  String
+  status      String   @default("pending")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  note        String?
+  pairKey     String   @unique
+  receiver    User     @relation("ConnectionReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  requester   User     @relation("ConnectionRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, receiverId])
+  @@index([receiverId])
+  @@index([status])
+  @@map("member_connections")
+}
+
+model AdminNote {
+  id        String   @id @default(cuid())
+  userId    String
+  adminId   String
+  adminName String
+  text      String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("admin_notes")
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscriptions")
+}
+
+model DirectMessage {
+  id        String                  @id @default(cuid())
+  fromId    String
+  toId      String
+  text      String
+  isRead    Boolean                 @default(false)
+  createdAt DateTime                @default(now())
+  imageUrl  String?
+  replyToId String?
+  deletedAt DateTime?
+  reactions DirectMessageReaction[]
+  from      User                    @relation("SentMessages", fields: [fromId], references: [id], onDelete: Cascade)
+  replyTo   DirectMessage?          @relation("DMReplyTo", fields: [replyToId], references: [id])
+  replies   DirectMessage[]         @relation("DMReplyTo")
+  to        User                    @relation("ReceivedMessages", fields: [toId], references: [id], onDelete: Cascade)
+
+  @@index([fromId, toId])
+  @@index([toId, isRead])
+  @@index([createdAt])
+  @@index([replyToId])
+  @@index([deletedAt])
+  @@map("direct_messages")
+}
+
+model DirectMessageReaction {
+  id        String        @id @default(cuid())
+  messageId String
+  userId    String
+  emoji     String
+  createdAt DateTime      @default(now())
+  message   DirectMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([messageId])
+  @@map("direct_message_reactions")
+}
+
+model NeighborhoodPost {
+  id           String                  @id @default(cuid())
+  neighborhood String
+  userId       String
+  content      String
+  imageUrl     String?
+  isPinned     Boolean                 @default(false)
+  pinnedAt     DateTime?
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+  cityId       String
+  city         City                    @relation(fields: [cityId], references: [id])
+  likes        NeighborhoodPostLike[]
+  replies      NeighborhoodPostReply[]
+  user         User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([neighborhood, isPinned(sort: Desc), createdAt(sort: Desc)])
+  @@index([cityId])
+  @@map("neighborhood_posts")
+}
+
+model NeighborhoodPostLike {
+  postId    String
+  userId    String
+  emoji     String           @default("❤️")
+  createdAt DateTime         @default(now())
+  post      NeighborhoodPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([postId, userId])
+  @@map("neighborhood_post_likes")
+}
+
+model NeighborhoodPostReply {
+  id        String           @id @default(cuid())
+  postId    String
+  userId    String
+  content   String
+  createdAt DateTime         @default(now())
+  post      NeighborhoodPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([postId, createdAt])
+  @@map("neighborhood_post_replies")
+}
+
+model Listing {
+  id            String         @id @default(cuid())
+  userId        String
+  category      String
+  title         String
+  description   String
+  price         String?
+  photo         String?
+  photoPosition Int            @default(50)
+  // Marketplace phase 2: gallery beyond the single cover (photo stays the
+  // cover for legacy rows and card thumbnails), and per-category attributes
+  // (housing type / available-from / furnished, job type / remote, service
+  // rate unit, pet goal) as one validated JSON column instead of a dozen
+  // mostly-null scalars.
+  photos        String[]       @default([])
+  attrs         Json?
+  contact       String?
+  contactEmail  String?
+  status        String         @default("active")
+  expiresAt     DateTime
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  neighborhood  String?
+  cityId        String
+  city          City           @relation(fields: [cityId], references: [id])
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  savedBy       SavedListing[]
+
+  @@index([category, status, createdAt])
+  @@index([neighborhood, status])
+  @@index([userId])
+  @@index([cityId, status, createdAt])
+  @@map("listings")
+}
+
+model Hangout {
+  id                 String             @id @default(cuid())
+  userId             String
+  title              String
+  description        String?
+  location           String
+  neighborhood       String?
+  startsAt           DateTime
+  endsAt             DateTime
+  status             String             @default("active")
+  createdAt          DateTime           @default(now())
+  notifiedStartingAt DateTime?
+  meetMode           String             @default("group")
+  photo              String?
+  // Phase 2 of the hangouts plan: optional activity taxonomy (drives the
+  // emoji chip + future filters) and optional capacity. maxPeople counts
+  // EVERYONE including the host — "6" means host + 5 joiners — matching
+  // the card's "N going" figure, which has always included the host.
+  activity           String?
+  maxPeople          Int?
+  joins              HangoutJoin[]
+  messages           HangoutMessage[]
+  references         HangoutReference[]
+  // Optional club share (Clubs brief §29) — one canonical Hangout
+  // record, surfaced additionally in the club when set.
+  clubId    String?
+  club      Club?    @relation("ClubHangouts", fields: [clubId], references: [id])
+  // Optional event tie (Events brief §30) — "coffee before Smileys
+  // Wednesday", "drinks after". Still one canonical Hangout record; the
+  // event page merely surfaces it.
+  eventId   String?
+  event     Event?   @relation("EventHangouts", fields: [eventId], references: [id])
+  cityId             String
+  city               City               @relation(fields: [cityId], references: [id])
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, endsAt])
+  @@index([status, startsAt])
+  @@index([neighborhood, status])
+  @@index([cityId, status, startsAt])
+  @@map("hangouts")
+}
+
+model HangoutJoin {
+  id        String   @id @default(cuid())
+  hangoutId String
+  userId    String
+  createdAt DateTime @default(now())
+  hangout   Hangout  @relation(fields: [hangoutId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([hangoutId, userId])
+  @@index([hangoutId])
+  @@index([userId])
+  @@map("hangout_joins")
+}
+
+model HangoutMessage {
+  id        String   @id @default(cuid())
+  hangoutId String
+  userId    String
+  body      String
+  createdAt DateTime @default(now())
+  hangout   Hangout  @relation(fields: [hangoutId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([hangoutId, createdAt])
+  @@map("hangout_messages")
+}
+
+model HangoutReference {
+  id         String   @id @default(cuid())
+  hangoutId  String
+  fromUserId String
+  toUserId   String
+  vibe       String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  fromUser   User     @relation("HangoutReferencesGiven", fields: [fromUserId], references: [id], onDelete: Cascade)
+  hangout    Hangout  @relation(fields: [hangoutId], references: [id], onDelete: Cascade)
+  toUser     User     @relation("HangoutReferencesGot", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  @@unique([hangoutId, fromUserId, toUserId])
+  @@index([toUserId, vibe])
+  @@index([hangoutId])
+  @@map("hangout_references")
+}
+
+model AvailabilityPulse {
+  id           String      @id @default(cuid())
+  userId       String
+  neighborhood String?
+  note         String?
+  until        DateTime
+  createdAt    DateTime    @default(now())
+  cityId       String
+  city         City        @relation(fields: [cityId], references: [id])
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  waves        PulseWave[]
+
+  @@index([until])
+  @@index([neighborhood, until])
+  @@index([userId])
+  @@index([cityId, until])
+  @@map("availability_pulses")
+}
+
+// "✋ I'm free too" response to a pulse — one tap of mutual signal before
+// anyone has to compose a DM to a stranger. userId is a bare column (no
+// User relation), same pattern as WaitlistEntry; rows die with their
+// pulse via the cascade, so orphans are bounded by pulse lifetime.
+model PulseWave {
+  id        String            @id @default(cuid())
+  pulseId   String
+  userId    String
+  createdAt DateTime          @default(now())
+  pulse     AvailabilityPulse @relation(fields: [pulseId], references: [id], onDelete: Cascade)
+
+  @@unique([pulseId, userId])
+  @@map("pulse_waves")
+}
+
+model VisitorAnnouncement {
+  id           String   @id @default(cuid())
+  userId       String?
+  name         String
+  email        String?
+  fromCity     String?
+  intro        String
+  startsOn     String
+  endsOn       String
+  neighborhood String?
+  contact      String?
+  status       String   @default("active")
+  createdAt    DateTime @default(now())
+  // Structured tags — see VISITOR_TRAVELER_TYPES / VISITOR_LOOKING_FOR in
+  // lib/data.ts for the fixed option sets travelerType/lookingFor validate
+  // against. languages is free text (no fixed list — too many to enumerate),
+  // capped server-side on count and per-item length.
+  travelerType String?
+  languages    String[] @default([])
+  lookingFor   String[] @default([])
+  // 'members' (default) hides the card from the logged-out /visiting page;
+  // 'public' lists it for guests too, with contact/email redacted the same
+  // way they already are. See VISITOR_VISIBILITY in lib/data.ts.
+  visibility   String   @default("members")
+  // The DESTINATION city (what "visiting" means) — not where the visitor
+  // lives; that's the free-text fromCity above.
+  cityId       String
+  city         City     @relation(fields: [cityId], references: [id])
+  user         User?    @relation(fields: [userId], references: [id])
+
+  @@index([status, endsOn])
+  @@index([neighborhood, status])
+  @@index([cityId, status, endsOn])
+  @@map("visitor_announcements")
+}
+
+model SavedListing {
+  userId    String
+  listingId String
+  savedAt   DateTime @default(now())
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, listingId])
+  @@index([userId])
+  @@map("saved_listings")
+}
+
+model RateLimit {
+  key     String   @id
+  count   Int      @default(1)
+  resetAt DateTime
+
+  @@map("rate_limits")
+}
+
+model Business {
+  id              String           @id @default(cuid())
+  name            String
+  category        String
+  description     String
+  neighborhood    String?
+  address         String?
+  phone           String?
+  website         String?
+  instagram       String?
+  logo            String?
+  coverImage      String?
+  isExpatOwned    Boolean          @default(false)
+  isExpatFriendly Boolean          @default(false)
+  languages       String?
+  isApproved      Boolean          @default(false)
+  isActive        Boolean          @default(true)
+  submittedById   String?
+  reviewedById    String?
+  reviewedAt      DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @default(now()) @updatedAt
+  claimedAt       DateTime?
+  claimedById     String?
+  latitude        Float?
+  longitude       Float?
+  hours           Json?
+  memberDiscount  String?
+  tags            String[]         @default([])
+  cityId          String
+  // ── Provenance & freshness ────────────────────────────────────────────
+  // A directory row makes a factual promise: this place exists, here, and is
+  // open. A member who shows up at a bar that closed two years ago blames
+  // Smileys, not the source — so the columns below record where each row's
+  // facts came from and when they were last confirmed.
+  //
+  // Google's Place ID: the one field their terms allow us to keep
+  // indefinitely, so it — not the address — is the durable key for
+  // re-fetching. Globally unique, and unique here so a re-seed upserts
+  // rather than duplicating a venue. Null for rows never matched to Places
+  // (member submissions, hand-entered venues).
+  placeId         String?          @unique
+  // Where this row came from: 'manual' (staff typed it) | 'member' (public
+  // submission via /api/directory) | 'places' (seeded from Google Places) |
+  // 'generated' (model-written row awaiting review). Deliberately a string,
+  // matching how status/kind are handled everywhere else in this schema.
+  source          String           @default("manual")
+  // When the FACTS were last confirmed against the source of truth — not to
+  // be confused with `reviewedAt`, which is when an admin made an approval
+  // decision. A row can be long-approved and badly stale; only this column
+  // can tell you that.
+  verifiedAt      DateTime?
+  // Set when a verification pass finds the place permanently closed. Kept
+  // separate from `isActive` (an admin's editorial hide) so the two reasons
+  // a venue disappears stay distinguishable — and so re-opening is a matter
+  // of clearing one field rather than guessing why it was hidden.
+  closedAt        DateTime?
+  city            City             @relation(fields: [cityId], references: [id])
+  claims          BusinessClaim[]
+  reports         BusinessReport[]
+  reviews         BusinessReview[]
+  saves           BusinessSave[]
+  claimedBy       User?            @relation("BusinessOwnership", fields: [claimedById], references: [id])
+  reviewedBy      User?            @relation("BusinessReviews", fields: [reviewedById], references: [id])
+  submittedBy     User?            @relation("BusinessSubmissions", fields: [submittedById], references: [id])
+
+  @@index([isApproved, isActive])
+  @@index([category])
+  @@index([neighborhood])
+  @@index([cityId, isApproved, isActive])
+  // The re-verification sweep's query: stalest live rows first, per city.
+  // NULLs sort last on ASC in Postgres, so a never-verified row needs
+  // `verifiedAt: null` handled explicitly by the caller — see the sweep.
+  @@index([cityId, verifiedAt])
+  @@map("businesses")
+}
+
+model BusinessReview {
+  id             String    @id @default(cuid())
+  businessId     String
+  authorId       String
+  rating         Int
+  comment        String?
+  ownerReply     String?
+  ownerReplyAt   DateTime?
+  ownerReplyById String?
+  isHidden       Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @default(now()) @updatedAt
+  author         User      @relation("BusinessReviewAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  business       Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  ownerReplyBy   User?     @relation("BusinessReviewOwnerReply", fields: [ownerReplyById], references: [id])
+
+  @@unique([businessId, authorId])
+  @@index([businessId, isHidden])
+  @@index([authorId])
+  @@map("business_reviews")
+}
+
+model BusinessReport {
+  id           String    @id @default(cuid())
+  businessId   String
+  reporterId   String?
+  reason       String
+  message      String?
+  status       String    @default("pending")
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  business     Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  reporter     User?     @relation("BusinessReportReporter", fields: [reporterId], references: [id])
+  reviewedBy   User?     @relation("BusinessReportReviewer", fields: [reviewedById], references: [id])
+
+  @@index([status, createdAt])
+  @@index([businessId])
+  @@map("business_reports")
+}
+
+model BusinessSave {
+  id         String   @id @default(cuid())
+  userId     String
+  businessId String
+  createdAt  DateTime @default(now())
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user       User     @relation("BusinessSaves", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, businessId])
+  @@index([businessId, createdAt])
+  @@index([userId, createdAt])
+  @@map("business_saves")
+}
+
+// Tiny key-value store for runtime-editable flags (first user: the weekly
+// auto-newsletter toggle). JSON files under data/ get clobbered by rsync
+// deploys; DB rows don't.
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("app_settings")
+}
+
+model Newsletter {
+  id               String               @id @default(cuid())
+  subject          String
+  bodyHtml         String
+  recipientCount   Int
+  sentById         String
+  sentAt           DateTime             @default(now())
+  clickCount       Int                  @default(0)
+  openCount        Int                  @default(0)
+  scheduledFor     DateTime?
+  segment          String               @default("all")
+  status           String               @default("sent")
+  unsubscribeCount Int                  @default(0)
+  emailLogs        NewsletterEmailLog[]
+  sentBy           User                 @relation("NewslettersSent", fields: [sentById], references: [id])
+
+  @@index([sentAt(sort: Desc)])
+  @@map("newsletters")
+}
+
+model NewsletterEmailLog {
+  id           String     @id @default(cuid())
+  newsletterId String
+  resendId     String     @unique
+  createdAt    DateTime   @default(now())
+  newsletter   Newsletter @relation(fields: [newsletterId], references: [id], onDelete: Cascade)
+
+  @@index([newsletterId])
+  @@map("newsletter_email_logs")
+}
+
+model BusinessClaim {
+  id           String    @id @default(cuid())
+  businessId   String
+  claimantId   String
+  message      String
+  status       String    @default("pending")
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  business     Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  claimant     User      @relation("BusinessClaims", fields: [claimantId], references: [id], onDelete: Cascade)
+  reviewedBy   User?     @relation("BusinessClaimReviews", fields: [reviewedById], references: [id])
+
+  @@unique([businessId, claimantId])
+  @@index([status])
+  @@index([businessId])
+  @@map("business_claims")
+}
+
+// Same fix as ProWaitlistEntry — the introspect rewrote this from the
+// original camelCase MemberSave into snake_case `member_saves`, which
+// renamed the Prisma client surface to `prisma.member_saves` and broke
+// every `prisma.memberSave.*` call across the members API. @@map
+// preserves the DB table name so no migration is required.
+model MemberSave {
+  userId  String
+  savedId String
+  savedAt DateTime @default(now())
+
+  owner  User @relation("MemberSaveOwner", fields: [userId], references: [id], onDelete: Cascade)
+  target User @relation("MemberSaveTarget", fields: [savedId], references: [id], onDelete: Cascade)
+
+  @@id([userId, savedId])
+  @@index([userId])
+  @@map("member_saves")
+}
+
+// Restored from an accidental introspect that flattened the original
+// camelCase ProWaitlistEntry model into a snake_case `pro_waitlist`,
+// which broke `prisma.proWaitlistEntry` references across the Pro
+// stack (landing page, admin view, API route, dashboard nudge). The
+// @@map keeps the DB table name unchanged so no migration is needed.
+model ProWaitlistEntry {
+  id         String   @id @default(cuid())
+  userId     String?
+  name       String
+  email      String   @unique
+  industry   String?
+  role       String?
+  status     String   @default("waitlisted")
+  adminNotes String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("pro_waitlist")
+}
+
+// ── Istanbul Board: conversation layer ──────────────────────────────────────
+// Structured community posts (plan / question / reco / share) — the social
+// layer of the Board. Classifieds stay on the existing Listing model; these
+// are conversations, so they carry replies and type-specific reactions
+// instead of price/contact. Neighborhood-tagged posts also surface on
+// /neighborhoods/[slug], same record, filtered — deliberately NOT a second
+// discussion table (NeighborhoodPost predates this and is being retired).
+model BoardPost {
+  id           String          @id @default(cuid())
+  userId       String
+  type         String          // 'plan' | 'question' | 'reco' | 'share'
+  // Optional club association (Clubs brief §18/§30): the post is
+  // canonical on the Board AND surfaces in the club's Conversations.
+  // Posts tagged to a PRIVATE club are excluded from the public feed
+  // and render only inside the club.
+  clubId       String?
+  // Optional event association (Events brief §31): the event's
+  // conversation is canonical Board content — no separate event forum.
+  eventId      String?
+  title        String
+  body         String          @default("")
+  neighborhood String?
+  tag          String?         // plan activity or question topic chip
+  whenLabel    String?         // plans: 'Today' | 'Tonight' | 'Tomorrow' | 'Sat 9 Aug'
+  // Plans go stale the moment the time passes: expired plans drop out of
+  // the default feed (an "anyone around tonight?" from last week reads as
+  // a dead community) but stay readable at their own URL marked ENDED.
+  expiresAt    DateTime?
+  status       String          @default("active") // 'active' | 'removed'
+  pinned       Boolean         @default(false)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  cityId       String
+  city         City            @relation(fields: [cityId], references: [id])
+  club         Club?           @relation("ClubBoardPosts", fields: [clubId], references: [id])
+  event        Event?          @relation("EventBoardPosts", fields: [eventId], references: [id])
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replies      BoardReply[]
+  interests    BoardInterest[]
+  saves        BoardSave[]
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([neighborhood, status])
+  @@index([type, status])
+  @@index([userId])
+  @@index([clubId, createdAt(sort: Desc)])
+  @@index([eventId, createdAt(sort: Desc)])
+  @@index([cityId, status, createdAt(sort: Desc)])
+  @@map("board_posts")
+}
+
+model BoardReply {
+  id        String       @id @default(cuid())
+  postId    String
+  userId    String
+  // One level only: a reply to a reply carries the top-level parent's id,
+  // never a deeper one — coordination, not Reddit threads.
+  parentId  String?
+  body      String
+  createdAt DateTime     @default(now())
+  post      BoardPost    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent    BoardReply?  @relation("BoardReplyParent", fields: [parentId], references: [id])
+  children  BoardReply[] @relation("BoardReplyParent")
+
+  @@index([postId, createdAt])
+  @@index([userId])
+  @@map("board_replies")
+}
+
+// "I'm interested" on a plan (or "I can help" on a question) — a signal to
+// the author, not a like. Unique per member so it can't be spammed.
+model BoardInterest {
+  postId    String
+  userId    String
+  createdAt DateTime  @default(now())
+  post      BoardPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([postId, userId])
+  @@map("board_interests")
+}
+
+model BoardSave {
+  postId    String
+  userId    String
+  createdAt DateTime  @default(now())
+  post      BoardPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([postId, userId])
+  @@map("board_saves")
+}
+
+// ── Marketplace phase 3: Moving Sales (plan §13) ─────────────────────────────
+// One parent per departure, many items — the whole point is NOT creating
+// fifteen separate listings when someone leaves Istanbul. Expiry is the
+// leaving date itself: a moving sale after the mover has left is noise.
+model MovingSale {
+  id           String           @id @default(cuid())
+  userId       String
+  leavingOn    String           // YYYY-MM-DD, also the expiry
+  neighborhood String?
+  note         String?
+  photo        String?
+  status       String           @default("active") // 'active' | 'done' | 'removed'
+  createdAt    DateTime         @default(now())
+  cityId       String
+  city         City             @relation(fields: [cityId], references: [id])
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items        MovingSaleItem[]
+
+  @@index([status, leavingOn])
+  @@index([cityId, status, leavingOn])
+  @@map("moving_sales")
+}
+
+model MovingSaleItem {
+  id      String     @id @default(cuid())
+  saleId  String
+  name    String
+  price   String?    // null = FREE
+  claimed Boolean    @default(false)
+  sale    MovingSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@index([saleId])
+  @@map("moving_sale_items")
+}
+
+// Istanbul Guide interactions (§11/§18 of the Guide plan) — one row per
+// (member, experience slug), carrying both the private save ("My
+// Istanbul" bucket list) and the public recommend. Slugs reference
+// data/guide-experiences.json — editorial content, so no FK; the API
+// validates slugs against the loaded set on write.
+model GuideSave {
+  id          String   @id @default(cuid())
+  userId      String
+  // Which city's experience this is. Without it, two cities reusing a slug
+  // would share one save row — and every count over this table was
+  // network-wide, which is how "5 completed ✓" appeared under "My Bodrum" for
+  // five things done in Istanbul.
+  cityId      String
+  slug        String
+  saved       Boolean  @default(false)
+  recommended Boolean  @default(false)
+  // "I've done this" — light completion tracking for My Istanbul.
+  done        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  city        City     @relation(fields: [cityId], references: [id])
+
+  @@unique([userId, cityId, slug])
+  @@index([cityId, slug])
+  @@index([slug, recommended])
+  @@map("guide_saves")
+}
+
+// Member tips under Guide experiences ("Tips from Smileys"). Visible
+// immediately (member-only writes, rate-limited, plain text, links
+// stripped); owners and staff can delete. Likes are a join table so a
+// member can like a tip once.
+model GuideTip {
+  id        String         @id @default(cuid())
+  userId    String
+  slug      String
+  // Guide entry slugs are unique only per (cityId, kind) — a bare-slug tip
+  // would surface one city's tips on another city's page at the first slug
+  // collision (GuideSave grew this column for the identical bug). Nullable
+  // for schema-sync safety; the tips route always writes it.
+  cityId    String?
+  body      String
+  createdAt DateTime       @default(now())
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  likes     GuideTipLike[]
+
+  @@index([slug, cityId, createdAt])
+  @@map("guide_tips")
+}
+
+model GuideTipLike {
+  id        String   @id @default(cuid())
+  tipId     String
+  userId    String
+  createdAt DateTime @default(now())
+  tip       GuideTip @relation(fields: [tipId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tipId, userId])
+  @@map("guide_tip_likes")
+}
+
+// Saved events (Events brief §35) — a lightweight bookmark, distinct
+// from an RSVP: "I might go" rather than "I'm going". Mirrors the
+// GuideSave shape. Feeds the Saved tab in My Events (§36).
+model EventSave {
+  id        String   @id @default(cuid())
+  userId    String
+  eventId   String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventId])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("event_saves")
+}
+```
