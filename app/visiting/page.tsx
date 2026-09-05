@@ -7,7 +7,7 @@ import { prisma } from '@/lib/prisma'
 import type { Metadata } from 'next'
 import { getSession } from '@/lib/session'
 import { resolveCityForPage, type CitySearch } from '@/lib/cityPageParam'
-import { absoluteOgImage } from '@/lib/og'
+import { shareCover } from '@/lib/shareCover'
 import { resolveImageUrl, firstNameOf} from '@/lib/data'
 import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
 import { loadExperiences } from '@/lib/guideContent'
@@ -49,13 +49,9 @@ const getAnnouncements = unstable_cache(
 // preview on WhatsApp/iMessage/Twitter — all of which require og:image to
 // render a card at all — would kill exactly the traffic this exists for.
 //
-// Uses the real hero photo (visiting-hero.jpg) instead of the generated
-// title-card now that one exists. It's a static public/ asset, not an
-// uploaded file, so it doesn't go through the /api/files resize route —
-// pre-resized+compressed once to visiting-hero-og.jpg (1200x800, ~250KB)
-// instead, since the 456KB original is over WhatsApp's ~300KB silent-drop
-// threshold for og:image.
-const ogImage = `${APP_URL}/images/visiting-hero-og.jpg`
+// The picture follows the shared rule (lib/shareCover): a cover made for the
+// city, else its hero photo, else the pre-resized share copy of the hero
+// photo the page itself falls back to (visiting-hero-og.jpg).
 
 export async function generateMetadata({ searchParams }: { searchParams?: Promise<CitySearch> }): Promise<Metadata> {
   // Every string here named Istanbul, so Bodrum's guide sent a Bodrum reader to
@@ -66,16 +62,13 @@ export async function generateMetadata({ searchParams }: { searchParams?: Promis
   const title = `Visiting ${city.name}? Meet locals — Smileys Community`
   const description = `Tell Smileys members you're coming to ${city.name}. Locals will reach out to grab coffee, share neighborhood tips, and welcome you in.`
   const shareDesc = 'Post your trip dates, see who else is in town, and connect with locals before you arrive.'
-  const cityOg = absoluteOgImage(city.heroImage)
-  const image = cityOg
-    ? { url: cityOg, alt: `Visiting ${city.name}? — Smileys Community` }
-    : { url: ogImage, width: 1200, height: 800, alt: `Visiting ${city.name}? — Smileys Community` }
+  const image = shareCover('visiting', city, `Visiting ${city.name}? — Smileys Community`)
   return {
     alternates: { canonical: `${APP_URL}/visiting` },
     title,
     description,
     openGraph: { title, description: shareDesc, url: `${APP_URL}/visiting`, images: [image] },
-    twitter: { card: 'summary_large_image', title, description: shareDesc, images: [image.url] },
+    twitter: { card: image.twitterCard, title, description: shareDesc, images: [image.url] },
   }
 }
 

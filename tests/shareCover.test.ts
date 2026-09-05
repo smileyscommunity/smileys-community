@@ -60,6 +60,15 @@ describe('shareCover', () => {
     expect(shareCover('clubs', { slug: 'izmir', heroImage: null }, 'alt', f => f === 'clubs-cover-izmir.jpg').twitterCard).toBe('summary_large_image')
   })
 
+  it('the guide and visiting pages keep their own fallbacks, with their real dimensions', () => {
+    const g = shareCover('guide', { slug: 'izmir', heroImage: null }, 'alt', none)
+    expect(g.url).toMatch(/\/app\/images\/guide-og\.jpg$/)
+    expect(g).toMatchObject({ width: 1200, height: 640, twitterCard: 'summary_large_image' })
+    const v = shareCover('visiting', { slug: 'izmir', heroImage: null }, 'alt', none)
+    expect(v.url).toMatch(/\/app\/images\/visiting-hero-og\.jpg$/)
+    expect(v).toMatchObject({ width: 1200, height: 800 })
+  })
+
   it('looks for the cover by the exact per-city file name', () => {
     const asked: string[] = []
     shareCover('directory', { slug: 'bodrum', heroImage: null }, 'alt', f => { asked.push(f); return false })
@@ -72,8 +81,8 @@ describe('the cover files', () => {
   // share just has no picture. Four of these were over it until 2026-09-06.
   it('every share cover and card, per-city ones included, stays under 300KB', () => {
     const dir    = join(process.cwd(), 'public/images')
-    const covers = readdirSync(dir).filter(f => /^((handbook|directory|marketplace|board|events|clubs|neighborhoods)-cover(-[a-z0-9-]+)?|events-og|clubs-og)\.jpg$/.test(f))
-    expect(covers).toEqual(expect.arrayContaining(['handbook-cover-istanbul.jpg', 'directory-cover-istanbul.jpg', 'board-cover-istanbul.jpg', 'neighborhoods-cover-istanbul.jpg', 'events-og.jpg', 'clubs-og.jpg']))
+    const covers = readdirSync(dir).filter(f => /^((handbook|directory|marketplace|board|events|clubs|neighborhoods|guide|visiting)-cover(-[a-z0-9-]+)?|events-og|clubs-og|guide-og|visiting-hero-og)\.jpg$/.test(f))
+    expect(covers).toEqual(expect.arrayContaining(['handbook-cover-istanbul.jpg', 'directory-cover-istanbul.jpg', 'board-cover-istanbul.jpg', 'neighborhoods-cover-istanbul.jpg', 'events-og.jpg', 'clubs-og.jpg', 'guide-og.jpg', 'visiting-hero-og.jpg']))
     for (const f of covers) {
       const size = statSync(join(dir, f)).size
       expect(size, f).toBeGreaterThan(20_000)

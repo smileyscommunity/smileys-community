@@ -17,7 +17,7 @@ import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
 import { DEFAULT_CITY_SLUG } from '@/lib/city'
 import { postCityScope } from '@/lib/postScope'
 import { resolveCityForPage, type CitySearch } from '@/lib/cityPageParam'
-import { absoluteOgImage } from '@/lib/og'
+import { shareCover } from '@/lib/shareCover'
 import { APP_URL } from '@/lib/env'
 import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
@@ -53,21 +53,16 @@ export async function generateMetadata({ searchParams }: { searchParams?: Promis
   const url = isDefault ? `${APP_URL}/guide` : `${APP_URL}/guide?city=${city.slug}`
   const title = `${city.name} City Guide — Smileys Community`
   const description = `Experience ${city.name} like you know someone here — things worth doing, recommended by people who actually live here.`
-  // A city with its own photo shares that. The branded fallback card has
-  // "Istanbul" baked into the artwork, so it is only honest for the default
-  // city; every other city falls back to the plain card rather than a photo of
-  // somewhere else.
-  const cityOg = absoluteOgImage(city.heroImage)
-  const image = cityOg
-    ? { url: cityOg, alt: `${city.name} Guide — Smileys Community` }
-    : { url: `${APP_URL}/images/guide-og.jpg`, width: 1200, height: 640, alt: 'Smileys Guide — Experience the city. Live the stories.' }
+  // The shared rule (lib/shareCover): a cover made for the city, else its
+  // hero photo, else the branded guide card.
+  const image = shareCover('guide', city, `${city.name} Guide — Smileys Community`)
 
   return {
     alternates: { canonical: url },
     title,
     description,
     openGraph: { title, description, url, images: [image] },
-    twitter:   { card: 'summary_large_image', title, description, images: [image.url] },
+    twitter:   { card: image.twitterCard, title, description, images: [image.url] },
   }
 }
 

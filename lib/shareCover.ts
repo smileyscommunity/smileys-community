@@ -1,7 +1,7 @@
 // Which picture a city-scoped public page shares.
 //
 // Each such page (the Handbook, the Directory, the Board and Marketplace,
-// Events, Clubs) once shared one fixed picture — and it was the default
+// Events, Clubs, Neighborhoods, the Guide, Visiting) once shared one fixed picture — and it was the default
 // city's, so every other city shared it too, under its own name. The rule
 // is now the same for every city, the default included:
 //
@@ -23,7 +23,7 @@ import { join } from 'path'
 import { APP_URL } from './env'
 import { absoluteOgImage } from './og'
 
-export type ShareCoverKind = 'handbook' | 'directory' | 'marketplace' | 'board' | 'events' | 'clubs' | 'neighborhoods'
+export type ShareCoverKind = 'handbook' | 'directory' | 'marketplace' | 'board' | 'events' | 'clubs' | 'neighborhoods' | 'guide' | 'visiting'
 
 // The brand card per kind, with its dimensions. The events and clubs cards
 // are square by design (they double as the Instagram assets); the rest use
@@ -37,6 +37,11 @@ const BRAND_CARD: Record<ShareCoverKind, { url: string; width: number; height: n
   neighborhoods: { url: `${APP_URL}/api/og`,            width: 1200, height: 630 },
   events:      { url: `${APP_URL}/images/events-og.jpg`, width: 1200, height: 1200 },
   clubs:       { url: `${APP_URL}/images/clubs-og.jpg`,  width: 1200, height: 1200 },
+  // The guide's branded card, and the visiting page's share copy of the hero
+  // photo it shows when a city has none (the 456KB original is over the
+  // WhatsApp threshold; this copy is pre-resized).
+  guide:       { url: `${APP_URL}/images/guide-og.jpg`,        width: 1200, height: 640 },
+  visiting:    { url: `${APP_URL}/images/visiting-hero-og.jpg`, width: 1200, height: 800 },
 }
 
 export interface ShareImage {
