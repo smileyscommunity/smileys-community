@@ -12,7 +12,7 @@ import { getSession } from '@/lib/session'
 import { redirect } from 'next/navigation'
 import { resolveCityId, getCityConfig, DEFAULT_CITY_SLUG } from '@/lib/city'
 import { resolveCityForPage, type CitySearch } from '@/lib/cityPageParam'
-import { absoluteOgImage } from '@/lib/og'
+import { shareCover } from '@/lib/shareCover'
 import { getNeighborhoodViews } from '@/lib/neighborhoodsDb'
 import { restrictedSetFor } from '@/lib/memberPrivacy'
 import SayHiButton from '@/components/SayHiButton'
@@ -21,11 +21,6 @@ import ExploreMore from '@/components/ExploreMore'
 
 // Same script-tag escaping as the neighborhood detail page's JSON-LD
 // (handbook article / event detail / FAQ / neighborhood Place all match).
-
-// Fixed-size cover (1200×800) served from public/ under the /app basePath.
-// Only the fallback now: a city with its own photo shares that instead, because
-// this cover is an Istanbul shot and every city was sharing it.
-const NEIGHBORHOODS_OG_IMAGE = `${APP_URL}/images/neighborhoods-cover.jpg`
 
 // Names the city the viewer is actually looking at. The default city keeps the
 // hand-written, keyword-carrying description that's been indexed for months —
@@ -42,16 +37,11 @@ export async function generateMetadata({ searchParams }: { searchParams?: Promis
     ? 'Find Smileys events happening near you. From Kadıköy to Beşiktaş, Cihangir to Ataşehir — discover social events across Istanbul by neighborhood.'
     : `Find Smileys events happening near you — discover social events across ${city.name} by neighborhood.`
   const ogDesc = `Discover curated social events happening across ${city.name}, organised by neighborhood.`
-  // Share Bodrum's page and the preview showed Istanbul: the cover below is an
-  // Istanbul photo, hardcoded for every city. A city's own hero is the honest
-  // preview; absoluteOgImage caps it at 1200px wide so WhatsApp/iMessage/X
-  // don't silently drop an oversized original. Dimensions are asserted only for
-  // the fallback, whose 1200×800 is known — a real photo has its own aspect and
-  // a wrong hint mis-crops the first scrape.
-  const cityOg = absoluteOgImage(city.heroImage)
-  const ogImage = cityOg
-    ? { url: cityOg, secureUrl: cityOg, alt: `${city.name} Neighborhoods — Smileys Community` }
-    : { url: NEIGHBORHOODS_OG_IMAGE, secureUrl: NEIGHBORHOODS_OG_IMAGE, width: 1200, height: 800, alt: `${city.name} Neighborhoods — Smileys Community` }
+  // Share Bodrum's page and the preview once showed Istanbul: the cover was
+  // an Istanbul collage hardcoded for every city. Now the shared rule
+  // (lib/shareCover): the city's own cover file — the collage is Istanbul's —
+  // else its hero photo, else the brand card.
+  const ogImage = shareCover('neighborhoods', city, `${city.name} Neighborhoods — Smileys Community`)
 
   return {
     // Each city's variant is its own canonical; a shared bare URL would
@@ -70,7 +60,7 @@ export async function generateMetadata({ searchParams }: { searchParams?: Promis
       images: [ogImage],
     },
     twitter: {
-      card: 'summary_large_image' as const,
+      card: ogImage.twitterCard,
       title: `${city.name} Neighborhoods — Smileys Community`,
       description: ogDesc,
       images: [ogImage.url],

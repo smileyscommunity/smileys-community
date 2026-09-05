@@ -69,11 +69,11 @@ describe('shareCover', () => {
 
 describe('the cover files', () => {
   // WhatsApp silently drops an og:image over ~300KB — no error anywhere, the
-  // share just has no picture. Three of these were over it until 2026-09-05.
+  // share just has no picture. Four of these were over it until 2026-09-06.
   it('every share cover and card, per-city ones included, stays under 300KB', () => {
     const dir    = join(process.cwd(), 'public/images')
-    const covers = readdirSync(dir).filter(f => /^((handbook|directory|marketplace|board|events|clubs)-cover(-[a-z0-9-]+)?|events-og|clubs-og)\.jpg$/.test(f))
-    expect(covers).toEqual(expect.arrayContaining(['handbook-cover-istanbul.jpg', 'directory-cover-istanbul.jpg', 'board-cover-istanbul.jpg', 'events-og.jpg', 'clubs-og.jpg']))
+    const covers = readdirSync(dir).filter(f => /^((handbook|directory|marketplace|board|events|clubs|neighborhoods)-cover(-[a-z0-9-]+)?|events-og|clubs-og)\.jpg$/.test(f))
+    expect(covers).toEqual(expect.arrayContaining(['handbook-cover-istanbul.jpg', 'directory-cover-istanbul.jpg', 'board-cover-istanbul.jpg', 'neighborhoods-cover-istanbul.jpg', 'events-og.jpg', 'clubs-og.jpg']))
     for (const f of covers) {
       const size = statSync(join(dir, f)).size
       expect(size, f).toBeGreaterThan(20_000)

@@ -10,7 +10,7 @@
 //   the kind's brand card                        only when a city has neither
 //
 // Istanbul's purpose-made covers ("Istanbul Handbook", "Istanbul Directory",
-// "Istanbul Board") are its per-city files; where it has none it shares its
+// "Istanbul Board", "Istanbul Neighbourhoods") are its per-city files; where it has none it shares its
 // hero photo like everyone else. Covers must stay under the ~300KB at which
 // WhatsApp silently drops an og:image (tests/shareCover.test.ts checks every
 // one); a hero photo goes through absoluteOgImage, which caps it at 1200px
@@ -23,7 +23,7 @@ import { join } from 'path'
 import { APP_URL } from './env'
 import { absoluteOgImage } from './og'
 
-export type ShareCoverKind = 'handbook' | 'directory' | 'marketplace' | 'board' | 'events' | 'clubs'
+export type ShareCoverKind = 'handbook' | 'directory' | 'marketplace' | 'board' | 'events' | 'clubs' | 'neighborhoods'
 
 // The brand card per kind, with its dimensions. The events and clubs cards
 // are square by design (they double as the Instagram assets); the rest use
@@ -34,6 +34,7 @@ const BRAND_CARD: Record<ShareCoverKind, { url: string; width: number; height: n
   directory:   { url: `${APP_URL}/api/og`,              width: 1200, height: 630 },
   marketplace: { url: `${APP_URL}/api/og`,              width: 1200, height: 630 },
   board:       { url: `${APP_URL}/api/og`,              width: 1200, height: 630 },
+  neighborhoods: { url: `${APP_URL}/api/og`,            width: 1200, height: 630 },
   events:      { url: `${APP_URL}/images/events-og.jpg`, width: 1200, height: 1200 },
   clubs:       { url: `${APP_URL}/images/clubs-og.jpg`,  width: 1200, height: 1200 },
 }
