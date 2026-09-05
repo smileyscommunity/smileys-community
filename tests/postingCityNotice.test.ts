@@ -8,6 +8,7 @@ vi.mock('@/lib/city', () => ({
 }))
 vi.mock('@/lib/cityMembership', () => ({ resolvePostingCityId: vi.fn() }))
 
+import { NextRequest } from 'next/server'
 import { GET } from '@/app/api/city/current/route'
 import { getSession } from '@/lib/session'
 import { resolveCityId, describeCity, getCityConfig } from '@/lib/city'
@@ -36,7 +37,9 @@ beforeEach(() => {
   ;(getCityConfig as any).mockResolvedValue({ name: 'Istanbul', slug: 'istanbul' })
 })
 
-const body = async () => (await GET()).json()
+// No ?city= — the route's pinned-city branch is the page's business; these
+// cases are about the cookie-resolved city.
+const body = async () => (await GET(new NextRequest('http://localhost/app/api/city/current'))).json()
 
 describe('GET /api/city/current — posting city', () => {
   it('flags the mismatch when the viewer is browsing a city they cannot post to', async () => {

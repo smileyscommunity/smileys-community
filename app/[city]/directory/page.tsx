@@ -6,6 +6,7 @@ import { getPublicCity } from '@/lib/cities'
 import { CITY_STATUS } from '@/lib/cityStatus'
 import { APP_URL } from '@/lib/env'
 import { resolveImageUrl } from '@/lib/data'
+import { shareCover } from '@/lib/shareCover'
 import ExploreMore from '@/components/ExploreMore'
 import { getCityDirectoryHub, enterLinkFor, hubCanonical, isDefaultCitySlug } from '../data'
 
@@ -16,22 +17,23 @@ import { getCityDirectoryHub, enterLinkFor, hubCanonical, isDefaultCitySlug } fr
 
 interface Params { params: Promise<{ city: string }> }
 
-const ogImage = `${APP_URL}/images/directory-cover.jpg`
-
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { city: slug } = await params
   const city = await getPublicCity(slug)
   if (!city || city.status !== CITY_STATUS.Live) return {}
   const title = `${city.name} Directory — Smileys Community`
   const description = `Member-recommended businesses, services and places across ${city.name} — cafés, doctors, gyms and more, vouched for by the Smileys community.`
+  // The city's own cover or hero photo, never the default city's cover under
+  // this city's name (lib/shareCover).
+  const image = shareCover('directory', city, title)
   return {
     title, description,
     alternates: { canonical: hubCanonical(city.slug, 'directory') },
     openGraph: {
       title, description, url: `${APP_URL}/${city.slug}/directory`, siteName: 'Smileys Community', type: 'website',
-      images: [{ url: ogImage, secureUrl: ogImage, width: 1200, height: 800, alt: title }],
+      images: [image],
     },
-    twitter: { card: 'summary_large_image', title, description, images: [ogImage] },
+    twitter: { card: 'summary_large_image', title, description, images: [image.url] },
   }
 }
 

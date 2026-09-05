@@ -3,6 +3,7 @@ import { isUploadedImageUrl } from '@/lib/uploadedImageUrl'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { resolveCityId } from '@/lib/city'
+import { getPublicCity } from '@/lib/cities'
 import { resolvePostingCityId } from '@/lib/cityMembership'
 import { sendListingAlertEmail, recordEmailFailure } from '@/lib/email'
 import { createNotification } from '@/lib/notify'
@@ -49,11 +50,18 @@ export async function GET(req: NextRequest) {
     const mineFilter = mine && session ? { userId: session.id } : {}
     const statusFilter = mine && session ? {} : { status: 'active' }
 
+    // ?city=<slug> scopes the browse feed to that city: the /marketplace page
+    // carries it so a shared link shows the city it names (lib/cityPageParam),
+    // and the client passes it through. An unknown slug falls back to the
+    // viewer's city, the same way the page does.
+    const citySlug = searchParams.get('city')?.trim()
+    const cityId   = (citySlug ? (await getPublicCity(citySlug))?.id : undefined) ?? await resolveCityId(session)
+
     const where = {
       ...statusFilter,
       // "My listings" stays cross-city — you can manage what you posted
       // from a previous city; the browse feed is scoped to one city.
-      ...(mine && session ? {} : { cityId: await resolveCityId(session) }),
+      ...(mine && session ? {} : { cityId }),
       ...(category ? { category } : {}),
       ...(neighborhood ? { neighborhood } : {}),
       ...savedFilter,

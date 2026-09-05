@@ -659,17 +659,35 @@ function ListingCard({ listing, onClick, isLoggedIn, isSaved, onToggleSave }: {
 
 function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
   const { user, isLoggedIn } = useAuth()
-  const neighborhoods = useCityNeighborhoods()
   // Empty until /api/city/current answers. The headings below fall back to
   // city-neutral copy for that window rather than to the default city's name —
   // this whole change exists because a Bodrum member was told they were
   // reading Istanbul's board, and a flash of it would be the same lie briefly.
-  const cityName = useCurrentCity()?.name ?? ''
+  const cookieCity = useCurrentCity()
   const currentUserId = isLoggedIn ? user.id : null
   const isStaff = isLoggedIn && (user.role === 'admin' || user.role === 'moderator')
   const searchParams = useSearchParams()
   const router       = useRouter()
   const pathname     = usePathname()
+  // ?city=<slug>: the /marketplace server page pins the city in the URL so
+  // the address bar is a shareable link (lib/cityPageParam). It has to reach
+  // the listings fetch, the neighborhood filter, the heading and the URL
+  // sync — or an Istanbul member opening a shared İzmir link would read
+  // "İzmir" in the preview and Istanbul's listings on the page. Empty on
+  // /board, which has no pin.
+  const pinnedCity = searchParams.get('city') ?? ''
+  const [pinnedName, setPinnedName] = useState('')
+  useEffect(() => {
+    if (!pinnedCity) { setPinnedName(''); return }
+    let cancelled = false
+    fetch(`/app/api/city/current?city=${encodeURIComponent(pinnedCity)}`, { credentials: 'include' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelled && d?.name) setPinnedName(d.name) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [pinnedCity])
+  const cityName = (pinnedCity ? pinnedName : cookieCity?.name) ?? ''
+  const neighborhoods = useCityNeighborhoods(pinnedCity || undefined)
   const [category, setCategory] = useState(() => {
     const tab = searchParams.get('tab')?.toUpperCase()
     return tab && CATEGORIES.some(c => c.id === tab) ? tab : 'ALL'
@@ -734,12 +752,13 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
   // keystrokes don't pile up browser history entries.
   useEffect(() => {
     const params = new URLSearchParams()
+    if (pinnedCity)           params.set('city',         pinnedCity)
     if (category !== 'ALL')   params.set('tab',          category)
     if (neighborhood)         params.set('neighborhood', neighborhood)
     if (debouncedSearch)      params.set('q',            debouncedSearch)
     const qs = params.toString()
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
-  }, [category, neighborhood, debouncedSearch, pathname, router])
+  }, [pinnedCity, category, neighborhood, debouncedSearch, pathname, router])
 
   // Close alert menu on outside click OR Escape keypress so the
   // popover has keyboard parity with the click dismiss.
@@ -789,6 +808,7 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
     }
     if (nbhd) params.set('neighborhood', nbhd)
     if (q) params.set('q', q)
+    if (pinnedCity) params.set('city', pinnedCity)
     const res = await fetch(`/app/api/listings?${params}`, { credentials: 'include' })
     if (!res.ok) throw new Error('Failed to load listings')
     const data = await res.json()
@@ -801,7 +821,7 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
     })
     setTotal(data.total ?? 0)
     setHasMore(!!data.hasMore)
-  }, [])
+  }, [pinnedCity])
 
   const loadListings = useCallback(async () => {
     const seq = ++loadSeq.current

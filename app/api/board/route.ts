@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { resolveCityId } from '@/lib/city'
+import { getPublicCity } from '@/lib/cities'
 import { rateLimit } from '@/lib/rateLimit'
 import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
 import { BOARD_POST_TYPES, QUESTION_TAGS } from '@/lib/board'
@@ -22,6 +23,10 @@ export async function GET(req: NextRequest) {
   const offset       = Math.max(0, parseInt(searchParams.get('offset') || '0', 10) || 0)
 
   const postId       = searchParams.get('post') || undefined
+  // ?city=<slug> scopes the feed to that city: the /board page carries it so
+  // a shared link shows the city it names (lib/cityPageParam), and the client
+  // passes it through. An unknown slug falls back to the viewer's city.
+  const citySlug     = searchParams.get('city')?.trim()
 
   const session = await getSession()
 
@@ -80,7 +85,7 @@ export async function GET(req: NextRequest) {
         ...(eventId ? [{ eventId }] : []),
         // General feed is city-scoped; club and event feeds inherit their
         // club's/event's city implicitly and stay reachable cross-city.
-        ...(clubSlug || eventId ? [] : [{ cityId: await resolveCityId(session) }]),
+        ...(clubSlug || eventId ? [] : [{ cityId: (citySlug ? (await getPublicCity(citySlug))?.id : undefined) ?? await resolveCityId(session) }]),
       ],
       ...(type && TYPE_VALUES.has(type as never) ? { type } : {}),
       ...(neighborhood ? { neighborhood } : {}),

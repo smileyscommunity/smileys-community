@@ -81,7 +81,7 @@ const BASELINE: Record<string, number> = {
   'app/clubs/layout.tsx': 4,
   'app/clubs/page.tsx': 1,
   'app/contact/page.tsx': 1,
-  'app/directory/layout.tsx': 1,
+  'app/directory/page.tsx': 1,  // metadata moved here from the deleted layout so the page can read ?city=
   'app/directory/DirectoryClient.tsx': 1,  // renamed from page.tsx (server wrapper added for ExploreMore); only the pre-fetch 'Istanbul' fallback remains
   'app/events/[id]/page.tsx': 9,
   'app/events/layout.tsx': 4,

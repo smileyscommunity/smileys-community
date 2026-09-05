@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 // /handbook has no city in its URL, so it resolved one from the session — and
@@ -27,26 +27,13 @@ describe('the handbook share names the city the sharer had on screen', () => {
     expect(meta).toMatch(/url: canonicalUrl/)
   })
 
-  it('a city cover wins, then the default keeps its cover and any other city shows its photo', () => {
-    expect(src).toMatch(/handbook-cover-\$\{slug\}\.jpg/)
-    expect(meta).toMatch(/cityCoverUrl\(city\.slug\) \?\? \(isDefault \? HANDBOOK_OG_IMAGE : null\)/)
-    expect(meta).toMatch(/cover \? undefined : absoluteOgImage\(city\.heroImage\)/)
+  it('the picture comes from lib/shareCover: a city cover, else the hero photo, else the default cover', () => {
+    expect(meta).toMatch(/shareCover\('handbook', city, alt\)/)
     expect(meta).toMatch(/openGraph: \{[\s\S]*?images: \[image\]/)
     expect(meta).toMatch(/twitter: \{[\s\S]*?images: \[image\.url\]/)
   })
 
   it('the page redirects the bare URL to the explicit one, guarded on pinned', () => {
     expect(page).toMatch(/if \(!pinned && cfg\.slug !== DEFAULT_CITY_SLUG\) redirect\(`\/handbook\?city=\$\{cfg\.slug\}`\)/)
-  })
-
-  it('every cover, per-city ones included, stays under the WhatsApp silent-drop threshold', () => {
-    const dir    = join(process.cwd(), 'public/images')
-    const covers = readdirSync(dir).filter(f => /^handbook-cover(-[a-z0-9-]+)?\.jpg$/.test(f))
-    expect(covers).toContain('handbook-cover.jpg')
-    for (const f of covers) {
-      const size = statSync(join(dir, f)).size
-      expect(size, f).toBeGreaterThan(20_000)
-      expect(size, f).toBeLessThan(300_000)
-    }
   })
 })

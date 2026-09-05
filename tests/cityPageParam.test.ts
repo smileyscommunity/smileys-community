@@ -65,6 +65,12 @@ describe('resolveCityForPage', () => {
     expect(getPublicCity).toHaveBeenCalledWith('bodrum')
   })
 
+  it('takes the first of a repeated ?city=', async () => {
+    const r = await resolveCityForPage(Promise.resolve({ city: ['bodrum', 'atlantis'] }))
+    expect(r.cityId).toBe('c-bod')
+    expect(r.pinned).toBe(true)
+  })
+
   it('handles a page called with no searchParams at all', async () => {
     const r = await resolveCityForPage(undefined)
     expect(r.cityId).toBe('c-ist')

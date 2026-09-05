@@ -580,6 +580,10 @@ export default function BoardFeed() {
   // ever *applied*, never cleared, so BoardHub's own URL-sync stripping
   // the query moments later is harmless.
   const searchParams = useSearchParams()
+  // ?city=<slug>: the /board server page pins the city in the URL so the
+  // address bar is a shareable link (lib/cityPageParam); the feed has to ask
+  // for that city's posts or the page would name one city and list another.
+  const pinnedCity = searchParams.get('city') ?? ''
   useEffect(() => {
     const post = searchParams.get('post')
     if (post) setDeepPost(post)
@@ -597,6 +601,7 @@ export default function BoardFeed() {
       if (offset) params.set('offset', String(offset))
       if (hood) params.set('neighborhood', hood)
       if (deepPost && !offset) params.set('post', deepPost)
+      if (pinnedCity) params.set('city', pinnedCity)
       const res = await fetch(`/app/api/board?${params}`, { credentials: 'include' })
       const data = await res.json().catch(() => ({ posts: [] }))
       const next: Post[] = data.posts ?? []
@@ -605,7 +610,7 @@ export default function BoardFeed() {
     } finally {
       setLoading(false)
     }
-  }, [hood, deepPost])
+  }, [hood, deepPost, pinnedCity])
 
   useEffect(() => { load(filter, 0, false) }, [filter, load])
 

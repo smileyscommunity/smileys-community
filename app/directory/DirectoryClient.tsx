@@ -267,6 +267,11 @@ function DirectoryPageInner() {
   const searchParams = useSearchParams()
   const router       = useRouter()
   const pathname     = usePathname()
+  // ?city=<slug>: the server page pins the city in the URL so the address bar
+  // is a shareable link (lib/cityPageParam). It has to reach both fetches
+  // below and survive the URL sync, or the listings would follow the cookie
+  // while the page's metadata names the pinned city.
+  const pinnedCity   = searchParams.get('city') ?? ''
   const { user, isLoggedIn } = useAuth()
   const currentUserId = isLoggedIn ? user.id : null
   // Only one reviews drawer open at a time. Track open business id +
@@ -299,6 +304,7 @@ function DirectoryPageInner() {
   // in the search box doesn't pile up browser history entries.
   useEffect(() => {
     const params = new URLSearchParams()
+    if (pinnedCity)               params.set('city',        pinnedCity)
     if (category    !== 'all')    params.set('category',    category)
     if (type        !== 'all')    params.set('type',        type)
     if (sort        !== 'recent') params.set('sort',        sort)
@@ -307,7 +313,7 @@ function DirectoryPageInner() {
     if (meetOnly)                 params.set('meet',        '1')
     const qs = params.toString()
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
-  }, [category, type, sort, search, neighborhood, meetOnly, pathname, router])
+  }, [pinnedCity, category, type, sort, search, neighborhood, meetOnly, pathname, router])
 
   // total is the unpaginated server count from X-Total-Count — used to
   // surface "showing first 200 of N" when the server-side cap kicks in.
@@ -318,11 +324,11 @@ function DirectoryPageInner() {
   // same pattern as the clubs page.
   const [viewCity, setViewCity] = useState<{ name: string; slug: string; isDefault: boolean; viewing?: boolean; homeName?: string | null; lat?: number | null; lng?: number | null } | null>(null)
   useEffect(() => {
-    fetch('/app/api/city/current', { credentials: 'include' })
+    fetch(`/app/api/city/current${pinnedCity ? `?city=${encodeURIComponent(pinnedCity)}` : ''}`, { credentials: 'include' })
       .then(r => r.json())
       .then(d => { if (d?.slug) setViewCity(d) })
       .catch(() => {})
-  }, [])
+  }, [pinnedCity])
 
   const load = useCallback(() => {
     setLoading(true)
@@ -331,6 +337,7 @@ function DirectoryPageInner() {
     if (type !== 'all')     params.set('type', type)
     if (neighborhood)       params.set('neighborhood', neighborhood)
     if (sort !== 'recent')  params.set('sort', sort)
+    if (pinnedCity)         params.set('city', pinnedCity)
     fetch(`/app/api/directory?${params}`, { credentials: 'include' })
       .then(async r => {
         if (!r.ok) return { items: [] as Business[], total: 0 }
@@ -344,7 +351,7 @@ function DirectoryPageInner() {
       })
       .catch(() => { setBusinesses([]); setTotal(0) })
       .finally(() => setLoading(false))
-  }, [category, type, neighborhood, sort])
+  }, [category, type, neighborhood, sort, pinnedCity])
 
   useEffect(() => { load() }, [load])
 

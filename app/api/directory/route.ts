@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { resolveCityId } from '@/lib/city'
+import { getPublicCity } from '@/lib/cities'
 import { isAdminOrModerator } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
 import { sendAdminNewDirectorySubmissionEmail } from '@/lib/email'
@@ -39,16 +40,22 @@ export async function GET(req: NextRequest) {
     const sortParam    = searchParams.get('sort')
     const sort         = (sortParam === 'trending' || sortParam === 'toprated' ? sortParam : 'recent') as DirectorySort
     const cursor       = searchParams.get('cursor') || undefined
+    // ?city=<slug> scopes the list to that city: the /directory page carries
+    // it so a shared link shows the city it names (lib/cityPageParam), and
+    // the client passes it through. An unknown slug falls back to the
+    // viewer's city, the same way the page does.
+    const citySlug     = searchParams.get('city')?.trim()
+    const cityId       = (citySlug ? (await getPublicCity(citySlug))?.id : undefined) ?? await resolveCityId(session)
 
     if (category && category !== 'all' && !BUSINESS_CATEGORY_SET.has(category)) {
       return NextResponse.json({ error: 'Invalid category' }, { status: 400 })
     }
-    if (neighborhood && !await isValidNeighborhoodFor(await resolveCityId(session), neighborhood)) {
+    if (neighborhood && !await isValidNeighborhoodFor(cityId, neighborhood)) {
       return NextResponse.json({ error: 'Invalid neighborhood' }, { status: 400 })
     }
 
     const { items, nextCursor, total } = await queryDirectory({
-      cityId:       await resolveCityId(session),
+      cityId,
       category:     category || undefined,
       neighborhood: neighborhood || undefined,
       type:         type || undefined,

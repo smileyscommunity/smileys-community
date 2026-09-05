@@ -1,7 +1,8 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { resolveCityId, describeCity, getCityConfig } from '@/lib/city'
 import { resolvePostingCityId } from '@/lib/cityMembership'
+import { getPublicCity } from '@/lib/cities'
 
 // The city this request's feeds resolve to (view-city cookie → member's
 // home city → default). Public. Page headers use it to name the city
@@ -22,9 +23,13 @@ import { resolvePostingCityId } from '@/lib/cityMembership'
 // Computed here rather than inside describeCity on purpose: lib/cityMembership
 // imports resolveCityId from lib/city, so calling it from there would close an
 // import cycle.
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await getSession()
-  const viewedId = await resolveCityId(session)
+  // ?city=<slug> — the page pinned a city in its URL (lib/cityPageParam) and
+  // its header must name that city, not the cookie's. Unknown slugs fall back.
+  const slug     = req.nextUrl.searchParams.get('city')?.trim()
+  const pinnedId = slug ? (await getPublicCity(slug))?.id : undefined
+  const viewedId = pinnedId ?? await resolveCityId(session)
   const base = await describeCity(viewedId, session)
 
   // Guests have no membership and nothing to post with, so there is nothing

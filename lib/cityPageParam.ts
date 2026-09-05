@@ -23,7 +23,8 @@ import { getPublicCity } from './cities'
 import { getCityConfig, resolveCityId } from './city'
 import { getSession } from './session'
 
-export type CitySearch = { city?: string }
+// A repeated ?city= arrives as an array; the first one wins.
+export type CitySearch = { city?: string | string[] }
 
 export interface ResolvedPageCity {
   city:   Awaited<ReturnType<typeof getCityConfig>>
@@ -35,7 +36,8 @@ export interface ResolvedPageCity {
 export async function resolveCityForPage(
   searchParams: Promise<CitySearch> | undefined,
 ): Promise<ResolvedPageCity> {
-  const wanted = (await searchParams)?.city?.trim()
+  const raw    = (await searchParams)?.city
+  const wanted = (Array.isArray(raw) ? raw[0] : raw)?.trim()
   if (wanted) {
     const c = await getPublicCity(wanted)
     if (c) return { city: await getCityConfig(c.id), cityId: c.id, pinned: true }

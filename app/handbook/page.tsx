@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { existsSync, readFileSync } from 'fs'
+import { readFileSync } from 'fs'
 import { join } from 'path'
 import TransitLinks, { type Category } from '@/components/TransitLinks'
 import HandbookSearch from '@/components/HandbookSearch'
@@ -10,7 +10,7 @@ import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { DEFAULT_CITY_SLUG } from '@/lib/city'
 import { resolveCityForPage, type CitySearch } from '@/lib/cityPageParam'
-import { absoluteOgImage } from '@/lib/og'
+import { shareCover } from '@/lib/shareCover'
 import { postCityScope } from '@/lib/postScope'
 import { resolveImageUrl, firstNameOf} from '@/lib/data'
 import { canonicalCategory, categoryMeta, categoryHero, CATEGORY_KEYS, HANDBOOK_CATEGORIES } from '@/lib/handbook-categories'
@@ -48,22 +48,10 @@ const getHandbookArticles = unstable_cache(
   { revalidate: 300, tags: ['handbook'] },
 )
 
-// Share covers, 1200×800 JPEGs in public/images served under the /app basePath.
-//
-//   handbook-cover-<city slug>.jpg   that city's own cover, when one exists
-//   handbook-cover.jpg               the default city's — the book on it is
-//                                    titled "Istanbul Handbook", so it is
-//                                    never used for another city
-//
-// A city with no cover of its own previews with its hero photo from /admin.
-// Every cover must stay under the ~300KB at which WhatsApp silently drops an
-// og:image (tests/handbookShareCity.test.ts checks each file).
-const HANDBOOK_OG_IMAGE = `${APP_URL}/images/handbook-cover.jpg`
-function cityCoverUrl(slug: string): string | null {
-  const file = `handbook-cover-${slug}.jpg`
-  return existsSync(join(process.cwd(), 'public', 'images', file)) ? `${APP_URL}/images/${file}` : null
-}
-
+// The share picture: public/images/handbook-cover-<city slug>.jpg when the
+// city has one, else its hero photo; only the default city falls back to
+// handbook-cover.jpg, whose book is literally titled "Istanbul Handbook".
+// Rules and size limit in lib/shareCover.
 // The Handbook names the city you're reading it in. The DEFAULT city keeps its
 // exact indexed strings — this page ranks for "Istanbul handbook"/"understand
 // Istanbul", and rewording a title Google already has is a real loss for no
@@ -89,16 +77,7 @@ export async function generateMetadata({ searchParams }: { searchParams?: Promis
     : `Understand ${name}. Practical answers for living, moving and navigating life in ${name} — residence permits, banking, healthcare, transport — written by Smileys members who actually lived it.`
   const alt = `The ${name} Handbook — Smileys Community`
 
-  // A city's own cover first; otherwise the default city keeps its cover and
-  // any other city previews with its hero photo. Dimensions are asserted only
-  // for a cover, whose 1200×800 is known — a photo has its own aspect and a
-  // wrong hint mis-crops the first scrape. absoluteOgImage caps the photo at
-  // 1200px wide for the same silent-drop reason as the covers' size limit.
-  const cover  = cityCoverUrl(city.slug) ?? (isDefault ? HANDBOOK_OG_IMAGE : null)
-  const cityOg = cover ? undefined : absoluteOgImage(city.heroImage)
-  const image  = cityOg
-    ? { url: cityOg, secureUrl: cityOg, alt }
-    : { url: cover ?? HANDBOOK_OG_IMAGE, secureUrl: cover ?? HANDBOOK_OG_IMAGE, width: 1200, height: 800, alt }
+  const image = shareCover('handbook', city, alt)
 
   return {
     // Each city's variant is its own canonical; a shared bare URL would
