@@ -27,14 +27,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
   const allowed  = user?.role === 'admin' || user?.role === 'moderator'
   const isMod    = user?.role === 'moderator'
-  // TEMP: admin 2FA gate softened while the admin's authenticator app is
-  // in a broken state (multi-entry from today's disable/re-enroll cycles;
-  // codes come from stale entries whose secrets are no longer in the DB).
-  // Restore this line once the admin has (a) deleted every "Smileys
-  // Community" entry in their authenticator app and (b) completed a clean
-  // enrollment on /admin/security:
-  //   const needs2fa = allowed && !isMod && !user?.totpEnabled && !pathname.startsWith('/admin/security')
-  const needs2fa = false
+  // Admins must enroll in 2FA before they see anything but /admin/security.
+  // Moderators are exempt (their routes never pass requireStepUp anyway).
+  const needs2fa = allowed && !isMod && !user?.totpEnabled && !pathname.startsWith('/admin/security')
 
   const MODERATOR_ALLOWED = [
     '/admin/moderator',

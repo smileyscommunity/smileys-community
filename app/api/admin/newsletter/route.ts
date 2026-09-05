@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin } from '@/lib/access'
+import { requireStepUp } from '@/lib/stepUp'
 import { sendNewsletterEmail, sendNewsletterBatch, recordEmailFailure } from '@/lib/email'
 import { buildWeeklyDigest } from '@/lib/newsletterDigest'
 import { writeAudit } from '@/lib/audit'
@@ -137,6 +138,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Test send failed' }, { status: 500 })
     }
   }
+
+  // Everything past here fans out to a segment (now, or via the sweeper). A
+  // stolen password must not buy a mailing to the whole list; the preview and
+  // test sends above go only to the admin's own inbox, so they stay open.
+  const stepUp = requireStepUp(session)
+  if (stepUp) return stepUp
 
   // The Newsletter row has no cityId column, so a scheduled send can't carry
   // the city scope — the sweeper would fire it to every city. Refuse the combo

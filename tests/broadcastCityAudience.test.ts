@@ -30,7 +30,10 @@ import { POST } from '@/app/api/admin/notifications/broadcast/route'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 
-const admin = { id: 'a1', name: 'A', role: 'admin',     cityId: 'c-ist' }
+// totpVerified: a network-wide send is behind requireStepUp; every other
+// audience is not, so the plain admin below must still pass those.
+const admin = { id: 'a1', name: 'A', role: 'admin',     cityId: 'c-ist', totpVerified: true }
+const stale = { id: 'a1', name: 'A', role: 'admin',     cityId: 'c-ist' }
 const mod   = { id: 'm1', name: 'M', role: 'moderator', cityId: 'c-ist' }
 
 function post(body: Record<string, unknown>) {
@@ -91,5 +94,27 @@ describe('broadcast city audience', () => {
     expect(res.status).toBe(200)
     expect((prisma.user.findMany as any).mock.calls[0][0].where).toEqual({ status: 'approved' })
     expect((prisma.broadcast.create as any).mock.calls[0][0].data).toMatchObject({ cityId: null })
+  })
+
+  it("'all' from an admin session that never passed TOTP is a 403 with nothing sent", async () => {
+    ;(getSession as any).mockResolvedValue(stale)
+    const res = await post({ audience: 'all' })
+    expect(res.status).toBe(403)
+    expect((await res.json()).code).toBe('totp_required')
+    expect(prisma.user.findMany).not.toHaveBeenCalled()
+    expect(prisma.broadcast.create).not.toHaveBeenCalled()
+  })
+
+  it("an event audience with no eventId is the global list too, and gated the same", async () => {
+    ;(getSession as any).mockResolvedValue(stale)
+    const res = await post({ audience: 'event' })
+    expect(res.status).toBe(403)
+    expect(prisma.user.findMany).not.toHaveBeenCalled()
+  })
+
+  it('a city send does not step up (a moderator can never pass it)', async () => {
+    ;(getSession as any).mockResolvedValue(stale)
+    expect((await post({ audience: 'city', cityId: 'c-ist' })).status).toBe(200)
+    expect(prisma.broadcast.create).toHaveBeenCalledTimes(1)
   })
 })

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { canSendBroadcasts, isAdmin, failClosedCityId } from '@/lib/access'
+import { requireStepUp } from '@/lib/stepUp'
 import { createNotification } from '@/lib/notify'
 import { sendBroadcastEmail } from '@/lib/email'
 
@@ -97,6 +98,16 @@ export async function POST(req: NextRequest) {
       // Global broadcast — admin-only.
       return NextResponse.json({ error: 'Global broadcast is admin-only' }, { status: 403 })
     }
+  }
+
+  // The fall-through below is "every approved member in every city" — the
+  // one audience with no correct smaller target and no undo. Moderators never
+  // reach it (403 above), so this only ever asks an admin. Club, event and
+  // city sends are routine and stay on canSendBroadcasts alone.
+  const isGlobal = !((audience === 'event' && eventId) || (audience === 'club' && clubId) || (audience === 'city' && cityId))
+  if (isGlobal) {
+    const stepUp = requireStepUp(session)
+    if (stepUp) return stepUp
   }
 
   // Fetch users with email + unsubscribe preference

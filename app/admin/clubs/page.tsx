@@ -424,7 +424,8 @@ export default function AdminClubsPage() {
       setDeleteConfirmText('')
       toast(`"${name}" deleted`)
     } else {
-      toast.error('Could not delete')
+      const d = await res.json().catch(() => ({}))
+      toast.error(d?.error ?? 'Could not delete')
     }
   }
 

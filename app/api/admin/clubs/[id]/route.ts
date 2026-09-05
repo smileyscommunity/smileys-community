@@ -2,6 +2,7 @@ import { canManageClubs, isAdminOrModerator, isAdmin, canActInCity } from '@/lib
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { requireStepUp } from '@/lib/stepUp'
 import { writeAudit, getDiff } from '@/lib/audit'
 import { computeEventSurveyRollup, aggregateRollup } from '@/lib/survey'
 import { CLUB_CATEGORIES } from '@/lib/data'
@@ -246,6 +247,10 @@ export async function DELETE(_: NextRequest, { params }: Params) {
     if (!session || !canManageClubs(session)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
+    // Cascades through memberships, posts and events — the same class of
+    // operation as user and payment deletion, so the same gate.
+    const stepUp = requireStepUp(session)
+    if (stepUp) return stepUp
     const { id } = await params
     const doomed = await prisma.club.findUnique({ where: { id }, select: { name: true, cityId: true } })
     await prisma.club.delete({ where: { id } })
