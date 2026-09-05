@@ -5,6 +5,7 @@ import { isAdmin, canModerateReports } from '@/lib/access'
 import { rateLimit } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
 import { sendNoShowEmail } from '@/lib/email'
+import { writeAudit } from '@/lib/audit'
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -63,6 +64,11 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
         ).then(() => { notified++ }),
       ])
     }))
+
+    await writeAudit(session.id, session.name, 'event.notify_noshows', event.id, 'event',
+      { emailed, notified, noShows: noShows.length, alreadyCarded: carded.size, cityId: event.cityId },
+      `Sent no-show notices for "${event.title}" to ${noShows.length} members (${emailed} emailed, ${notified} notified)`,
+    )
 
     return NextResponse.json({ emailed, notified, alreadyCarded: carded.size })
   } catch (e) {

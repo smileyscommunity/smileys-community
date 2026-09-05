@@ -7,6 +7,7 @@ import { createNotification } from '@/lib/notify'
 import { isFreeEvent } from '@/lib/noShowPolicy'
 import { sendEventReminderEmail } from '@/lib/email'
 import { formatDate } from '@/lib/data'
+import { writeAudit } from '@/lib/audit'
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -65,6 +66,11 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
         ).then(() => { notified++ }),
       ])
     }))
+
+    await writeAudit(session.id, session.name, 'event.remind_attendees', event.id, 'event',
+      { emailed, notified, attendees: attendees.length, cityId: event.cityId },
+      `Sent reminders for "${event.title}" to ${attendees.length} attendees (${emailed} emailed, ${notified} notified)`,
+    )
 
     return NextResponse.json({ emailed, notified })
   } catch (e) {

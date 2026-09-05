@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma'
 import { sendLoginNudgeEmail, recordEmailFailure } from '@/lib/email'
 import { randomBytes } from 'crypto'
 import { hashToken } from '@/lib/tokenHash'
+import { writeAudit } from '@/lib/audit'
 
 export const dynamic = 'force-dynamic'
 
@@ -57,6 +58,15 @@ export async function POST() {
         failed++
         await recordEmailFailure({ helper: 'sendLoginNudgeEmail', recipient: user.email, error: e, context: { userId: user.id } })
       }
+    }
+
+    // A press that found nobody to nudge is not worth a row; a press that
+    // emailed people is, whoever pressed it and whichever city they hold.
+    if (candidates.length > 0) {
+      await writeAudit(session.id, session.name, 'users.login_nudge', undefined, undefined,
+        { sent, failed, candidates: candidates.length, ...(isAdmin(session) ? {} : { cityId: failClosedCityId(session) }) },
+        `Sent login nudges to ${sent} members who never signed in (${failed} failed)`,
+      )
     }
 
     return NextResponse.json({ ok: true, sent, failed, candidates: candidates.length })

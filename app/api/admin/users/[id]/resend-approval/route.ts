@@ -5,6 +5,7 @@ import { canManageUsers } from '@/lib/access'
 import { sendActivationEmail } from '@/lib/email'
 import { randomBytes } from 'crypto'
 import { hashToken } from '@/lib/tokenHash'
+import { writeAudit } from '@/lib/audit'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -35,6 +36,11 @@ export async function POST(_: NextRequest, { params }: Params) {
     await prisma.passwordResetToken.create({ data: { userId: id, token: hashToken(token), expiresAt } })
 
     await sendActivationEmail(user.email, user.name ?? 'Member', token, undefined, user.city.name)
+
+    await writeAudit(session.id, session.name, 'user.resend_activation', id, 'user',
+      { name: user.name },
+      `Re-sent the activation email to ${user.name ?? 'a member'}`,
+    )
 
     return NextResponse.json({ ok: true })
   } catch (e) {
