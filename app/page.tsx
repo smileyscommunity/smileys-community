@@ -35,13 +35,26 @@ import { isSoldOut } from '@/lib/soldOut'
 // link to the global landing page previewed the generated card titled
 // "Smileys Community — Istanbul", which is the one message this page exists to
 // stop sending.
+// The hero the page shows when no hero is set at /admin/content → Home, and
+// the share-sized copy of the same photo. The preview must show what the page
+// shows: until 2026-09-05 the metadata fell back to the generated brand card
+// while the page fell back to this photo, so a shared /app previewed with a
+// picture nobody saw on arrival. The -og variant is 1200×800 at ~250KB — the
+// 546KB original is over WhatsApp's ~300KB silent-drop threshold for og:image
+// (see visiting-hero-og.jpg for the same treatment).
+const HERO_FALLBACK    = '/app/images/hero-istanbul.jpg'
+const HERO_FALLBACK_OG = `${APP_URL}/images/hero-istanbul-og.jpg`
+
 export async function generateMetadata(): Promise<Metadata> {
   const home    = loadContent().home ?? {}
-  // With no hero set, fall back to the generated brand card rather than to
-  // nothing. A page-level `openGraph` replaces the layout's whole object, so
-  // leaving `images` out here didn't inherit the layout's card — it dropped
-  // og:image entirely, and every share of /app previewed with no picture.
-  const ogImage = absoluteOgImage(home.heroImage) ?? `${APP_URL}/api/og`
+  // A page-level `openGraph` replaces the layout's whole object, so `images`
+  // must always be set here — leaving it out dropped og:image entirely.
+  // An admin-set hero goes through the files route's resize; the bundled
+  // fallback is pre-sized, so its dimensions are known.
+  const adminHero = absoluteOgImage(home.heroImage)
+  const image = adminHero
+    ? { url: adminHero, alt: 'Smileys Community' }
+    : { url: HERO_FALLBACK_OG, width: 1200, height: 800, alt: 'Smileys Community' }
   const title   = 'Smileys — your people, in every city you land in'
   const description =
     'Meet people, join clubs and discover experiences wherever your international life takes you. Smileys is a network of local communities, growing city by city.'
@@ -52,9 +65,9 @@ export async function generateMetadata(): Promise<Metadata> {
     alternates: { canonical: APP_URL },
     openGraph: {
       title, description, url: APP_URL,
-      images: [{ url: ogImage, width: 1200, height: 630, alt: 'Smileys Community' }],
+      images: [image],
     },
-    twitter: { card: 'summary_large_image', title, description, images: [ogImage] },
+    twitter: { card: 'summary_large_image', title, description, images: [image.url] },
   }
 }
 
@@ -122,7 +135,7 @@ export default async function HomePage() {
   // below are the shipped copy, so clearing a field restores it rather than
   // leaving the hero blank.
   const home = loadContent().home ?? {}
-  const heroImage = home.heroImage || '/app/images/hero-istanbul.jpg'
+  const heroImage = home.heroImage || HERO_FALLBACK
   const heroAlt   = 'Smileys members together at a community dinner'
 
   const [cities, { events, testimonials, memberCount, stories }] = await Promise.all([
