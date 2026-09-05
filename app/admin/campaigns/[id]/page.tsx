@@ -17,6 +17,8 @@
 // last bit of admin nav duplication.
 
 import { useEffect, useState } from 'react'
+import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
+import { loadFailure } from '@/lib/admin/useAdminLoad'
 import { useParams, useSearchParams, useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -40,6 +42,8 @@ export default function AdminCampaignDetailPage() {
   const [donations, setDonations] = useState<AdminDonation[] | null>(null)
   const [showResolved, setShowResolved] = useState(false)
   const [editing,   setEditing]   = useState(false)
+  // A failed load used to leave the skeleton pulsing forever.
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   // Active tab from URL. Defaults to donations (matches the
   // pre-tab behavior of the page). Setter writes back to ?tab=
@@ -58,15 +62,18 @@ export default function AdminCampaignDetailPage() {
   }
 
   function load() {
+    setLoadError(null)
+    const get = (url: string) => fetch(url, { credentials: 'include' })
+      .then(async r => { if (!r.ok) throw await loadFailure(r); return r.json() })
     Promise.all([
       // Dedicated GET — fetches only the campaign we render rather
       // than the entire collection + Array.find() client-side.
-      fetch(`/app/api/admin/campaigns/${id}`, { credentials: 'include' }).then(r => r.ok ? r.json() : null),
-      fetch(`/app/api/admin/campaigns/${id}/donations`, { credentials: 'include' }).then(r => r.ok ? r.json() : null),
+      get(`/app/api/admin/campaigns/${id}`),
+      get(`/app/api/admin/campaigns/${id}/donations`),
     ]).then(([cRes, dRes]) => {
       if (cRes?.campaign)  setCampaign(cRes.campaign)
       if (dRes?.donations) setDonations(dRes.donations)
-    })
+    }).catch((e: Error) => setLoadError(e?.message ?? 'Failed to load'))
   }
   useEffect(load, [id])
 
@@ -116,6 +123,8 @@ export default function AdminCampaignDetailPage() {
   if (!campaign) {
     return (
       <div className="p-4 sm:p-6 space-y-5 max-w-4xl">
+        <LoadErrorBanner message={loadError} onRetry={load} title="Couldn't load the campaign" />
+        {!loadError && (<>
         <div className="bg-zinc-800 rounded h-3 w-32 animate-pulse" />
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
           <div className="flex items-start gap-3">
@@ -141,6 +150,7 @@ export default function AdminCampaignDetailPage() {
             ))}
           </div>
         </div>
+        </>)}
       </div>
     )
   }

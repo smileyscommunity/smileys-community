@@ -3,6 +3,8 @@
 import { toast } from 'sonner'
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
+import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
+import { loadFailure } from '@/lib/admin/useAdminLoad'
 
 type Channel  = 'in-app' | 'email'
 type MsgType  = 'announcement' | 'reminder' | 'alert'
@@ -67,6 +69,8 @@ export default function AdminNotificationsPage() {
   const [running,        setRunning]        = useState(false)
   const [history,        setHistory]        = useState<BroadcastRecord[]>([])
   const [loadingHistory, setLoadingHistory] = useState(true)
+  // A failed history load used to read "No broadcasts sent yet."
+  const [historyError,   setHistoryError]   = useState<string | null>(null)
   const [confirmSend,    setConfirmSend]    = useState(false)
   // Post-send editing (admins only) — rewrites the in-app notification
   // for every recipient. Keyed by broadcast id; null = nothing open.
@@ -89,8 +93,12 @@ export default function AdminNotificationsPage() {
   const loadHistory = useCallback(async () => {
     try {
       const res = await fetch('/app/api/admin/notifications/broadcast', { credentials: 'include' })
-      const d   = res.ok ? await res.json() : []
+      if (!res.ok) throw await loadFailure(res)
+      const d   = await res.json()
       setHistory(Array.isArray(d) ? d : [])
+      setHistoryError(null)
+    } catch (e) {
+      setHistoryError((e as Error)?.message ?? 'Failed to load')
     } finally {
       setLoadingHistory(false)
     }
@@ -344,9 +352,10 @@ export default function AdminNotificationsPage() {
       {/* Broadcast history */}
       <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
         <h2 className="text-white font-bold mb-4">Broadcast History</h2>
+        <LoadErrorBanner message={historyError} onRetry={loadHistory} title="Couldn't load broadcast history" className="mb-4" />
         {loadingHistory ? (
           <p className="text-zinc-500 text-sm">Loading…</p>
-        ) : history.length === 0 ? (
+        ) : historyError && history.length === 0 ? null : history.length === 0 ? (
           <p className="text-zinc-600 text-sm italic">No broadcasts sent yet.</p>
         ) : (
           <div className="space-y-2">

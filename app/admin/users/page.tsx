@@ -10,6 +10,8 @@ import Link from 'next/link'
 import CitySelect, { CityBadge, useAdminCities } from '@/components/admin/CitySelect'
 import { getInitials, whatsappUrl } from '@/lib/data'
 import { useAuth } from '@/contexts/AuthContext'
+import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
+import { loadFailure } from '@/lib/admin/useAdminLoad'
 
 type TabKey = 'all' | 'member' | 'moderator' | 'admin' | 'banned' | 'suspended' | 'inactive' | 'warned' | 'noshows' | 'deleted'
 
@@ -146,6 +148,9 @@ function AdminUsersPageInner() {
   const isAdmin       = me?.role === 'admin'
   const [users,       setUsers]       = useState<DBUser[]>([])
   const [loading,     setLoading]     = useState(true)
+  // The list load never checked r.ok: a 403 or 500 body is not an array, so
+  // the page just said "No users found."
+  const [loadError,   setLoadError]   = useState<string | null>(null)
   const [tab,         setTab]         = useState<TabKey>('all')
   const [search,      setSearch]      = useState(searchParams.get('search') ?? '')
   const [sortBy,      setSortBy]      = useState<SortKey>('recent')
@@ -186,14 +191,15 @@ function AdminUsersPageInner() {
     if (cityFilter)               params.set('city', cityFilter)
     const q = params.size ? `?${params}` : ''
     fetch(`/app/api/admin/users${q}`, { credentials: 'include' })
-      .then(r => r.json())
+      .then(async r => { if (!r.ok) throw await loadFailure(r); return r.json() })
       .then(data => {
         if (Array.isArray(data)) {
           setUsers(data)
           setLastRefresh(new Date())
+          setLoadError(null)
         }
       })
-      .catch(() => {})
+      .catch((e: Error) => setLoadError(e?.message ?? 'Failed to load'))
       .finally(() => { if (!background) setLoading(false) })
   }, [cityFilter])
 
@@ -853,6 +859,7 @@ function AdminUsersPageInner() {
         </div>
 
         <div className="divide-y divide-zinc-800">
+          <LoadErrorBanner message={loadError} onRetry={() => load(false)} title="Couldn't load members" className="m-4" />
           {/* Skeleton rows — match the real row height so the layout doesn't
               jump when data arrives. Matches the bar pattern on /admin
               (dashboard) and /admin/posts. */}
@@ -868,7 +875,7 @@ function AdminUsersPageInner() {
               <div className="h-7 w-20 rounded-lg bg-zinc-800 animate-pulse" />
             </div>
           ))}
-          {!loading && visible.length === 0 && <div className="px-6 py-12 text-center text-zinc-500 text-sm">No users found.</div>}
+          {!loading && !loadError && visible.length === 0 && <div className="px-6 py-12 text-center text-zinc-500 text-sm">No users found.</div>}
           {visible.map(u => {
             // waLink replaces the earlier dead-code + duplicate of this
             // inline string. The helper applies the +90 prefix only when

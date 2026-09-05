@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
+import { loadFailure } from '@/lib/admin/useAdminLoad'
 
 interface Member {
   id: string; name: string; email: string; color: string
@@ -144,13 +146,20 @@ export default function RetentionPage() {
   const [data, setData]     = useState<RetentionData | null>(null)
   const [loading, setLoading] = useState(true)
   const [tab, setTab]       = useState<Tab>('never')
+  // This is a moderator page: a 403 (moderator with no city) used to render
+  // "Failed to load retention data." with no reason and no way back.
+  const [loadError, setLoadError]   = useState<string | null>(null)
+  const [reloadTick, setReloadTick] = useState(0)
 
   useEffect(() => {
+    setLoading(true)
+    setLoadError(null)
     fetch('/app/api/admin/retention', { credentials: 'include' })
-      .then(r => r.ok ? r.json() : null)
+      .then(async r => { if (!r.ok) throw await loadFailure(r); return r.json() })
       .then(d => setData(d))
+      .catch((e: Error) => { setData(null); setLoadError(e?.message ?? 'Failed to load') })
       .finally(() => setLoading(false))
-  }, [])
+  }, [reloadTick])
 
   return (
     <div className="p-4 sm:p-8 max-w-4xl">
@@ -158,6 +167,8 @@ export default function RetentionPage() {
         <h1 className="text-2xl font-bold text-white">Member Retention</h1>
         <p className="text-zinc-400 text-sm mt-1">Identify members who may need a nudge to get engaged.</p>
       </div>
+
+      <LoadErrorBanner message={loadError} onRetry={() => setReloadTick(n => n + 1)} title="Couldn't load retention" className="mb-6" />
 
       {/* Stats */}
       {data && (
@@ -197,7 +208,7 @@ export default function RetentionPage() {
         {loading ? (
           <div className="p-12 text-center text-zinc-500">Loading…</div>
         ) : !data ? (
-          <div className="p-12 text-center text-zinc-500">Failed to load retention data.</div>
+          <div className="p-12 text-center text-zinc-500">{loadError ? 'Could not load — see above.' : 'Failed to load retention data.'}</div>
         ) : tab === 'never' ? (
           data.neverAttended.length === 0 ? (
             <div className="p-12 text-center text-zinc-500">

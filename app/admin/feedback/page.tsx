@@ -3,6 +3,8 @@
 import { useEffect, useState, useRef, useCallback, Suspense } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
+import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
+import { loadFailure } from '@/lib/admin/useAdminLoad'
 
 // Post-event survey dashboard. Lives in the Events section of the
 // sidebar — surveys are per-event feedback, not moderation actions.
@@ -76,6 +78,8 @@ function InnerPage() {
   const [responses,   setResponses]   = useState<SurveyResponse[]>([])
   const [eventsAgg,   setEventsAgg]   = useState<EventAggregate[]>([])
   const [hasMore,     setHasMore]     = useState(false)
+  // A failed query used to leave the primer ("no feedback yet") on screen.
+  const [loadError,   setLoadError]   = useState<string | null>(null)
   const [nextCursor,  setNextCursor]  = useState<string | null>(null)
   const [loading,     setLoading]     = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -104,9 +108,10 @@ function InnerPage() {
   const load = useCallback((background = false) => {
     if (!background) setLoading(true)
     fetch(`/app/api/admin/surveys?${buildQs()}`, { credentials: 'include' })
-      .then(r => r.ok ? r.json() : null)
+      .then(async r => { if (!r.ok) throw await loadFailure(r); return r.json() })
       .then(d => {
         if (!d) return
+        setLoadError(null)
         setLast30(d.last30)
         setAllTime(d.allTime)
         setHosts(d.hosts ?? [])
@@ -121,6 +126,7 @@ function InnerPage() {
         setNextCursor(d.nextCursor ?? null)
         setLastRefresh(new Date())
       })
+      .catch((e: Error) => setLoadError(e?.message ?? 'Failed to load'))
       .finally(() => { if (!background) setLoading(false) })
   }, [buildQs])
 
@@ -234,13 +240,15 @@ function InnerPage() {
 
       {/* 30d rollup — ignores active filters by design: this is the
           "is the signal healthy overall?" header, not a filtered view. */}
+      <LoadErrorBanner message={loadError} onRetry={() => load(false)} title="Couldn't load feedback" />
+
       <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-4 sm:p-5">
         <div className="flex items-center justify-between mb-3 gap-2">
           <div className="min-w-0">
             <h3 className="text-sm font-bold text-white">Last 30 days <span className="text-zinc-600 font-normal">· unfiltered</span></h3>
             <p className="text-xs text-zinc-500 mt-0.5">
               {loading && !last30 ? 'Loading…'
-              : !last30           ? 'Could not load — try refreshing.'
+              : !last30           ? (loadError ? 'Could not load — see above.' : 'Could not load — try refreshing.')
               :                     `${last30.responses} response${last30.responses === 1 ? '' : 's'}`}
             </p>
           </div>
@@ -340,7 +348,7 @@ function InnerPage() {
       {/* List */}
       {loading ? (
         <ListSkeleton />
-      ) : view === 'responses' ? (
+      ) : loadError && responses.length === 0 && eventsAgg.length === 0 ? null : view === 'responses' ? (
         responses.length === 0 ? (
           hasFilters ? (
             <EmptyFiltered onClear={() => { setAnomalyOnly(false); setFromDate(''); setToDate(''); setSearchQ(''); setHostId('') }} />

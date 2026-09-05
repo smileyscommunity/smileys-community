@@ -110,6 +110,19 @@ a 500 looks identical to a quiet day. Mod Home is the moderator's landing
 page, so a broken `mod-stats` reads as "no work". Every other page reaches
 `toast.error` or `LoadErrorBanner`.
 
+Fixed in `aafe4fb`. A second sweep on 2026-09-05 found five more primary
+loads with the same shape, missed because their pages toast on
+*mutations* and so looked handled: `retention` (a moderator page — a 403
+read as "Failed to load retention data." with no reason and no retry),
+`feedback` (the "no feedback yet" primer stayed up), `campaigns/[id]` (the
+skeleton pulsed forever), `notifications` (the broadcast history read "No
+broadcasts sent yet."), and `users`, which never checked `r.ok` at all, so
+an error body simply wasn't an array and the list said "No users found."
+All five now go through `loadFailure` and render `LoadErrorBanner`;
+`tests/adminLoadFailureSurfaced.test.ts` ratchets all eight pages, with a
+per-page allowance for the secondary lookups that may still fall back
+quietly (a sample event, the composer's option lists, connection flags).
+
 ### 5. Dead nav code in the layout
 
 - `bottomNav` in `app/admin/layout.tsx` is computed on every render from
