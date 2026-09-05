@@ -38,6 +38,10 @@ export const NAV_GROUPS: { label: string; items: AdminNavItem[] }[] = [
   {
     label: 'Events',
     items: [
+      // `host` is not a login role: the sidebar adds it to a viewer's roles
+      // when user.isClubHost is set. Only admins and moderators reach /admin,
+      // so in practice it means "a moderator who also hosts a club" — four of
+      // them today — and the three APIs admit a club host. Not a leftover.
       { label: 'Events',       href: '/admin/events',       exact: false, roles: ['admin', 'host'],            icon: 'events'       },
       { label: 'Participants', href: '/admin/participants',  exact: false, roles: ['admin', 'host'],            icon: 'participants' },
       { label: 'Check-In',     href: '/admin/checkin',       exact: false, roles: ['admin', 'host'],            icon: 'checkin'      },

@@ -29,7 +29,13 @@ describe('admin layout moderator page gate', () => {
   })
 
   it('admits every sidebar href a moderator who hosts a club can see', () => {
-    // The sidebar shows `host` items to a moderator with isClubHost.
+    // The sidebar shows `host` items to a moderator with isClubHost. Pin the
+    // derivation too: the 2026-09-05 audit read the tag as dead code, and a
+    // tidy-up that dropped it would take Events, Participants and Check-In
+    // from the moderators who host a club.
+    const sidebar = readFileSync(join(process.cwd(), 'components/admin/Sidebar.tsx'), 'utf8')
+    expect(sidebar).toMatch(/isClubHost === true/)
+    expect(sidebar).toMatch(/\[role, \.\.\.\(isHost \? \['host'\] : \[\]\)\]/)
     const hostItems = navItems.filter(i => i.roles.includes('host'))
     expect(hostItems.map(i => i.href)).toContain('/admin/events')
     const bounced = hostItems.map(i => pathOf(i.href)).filter(p => !isModeratorPageAllowed(p))

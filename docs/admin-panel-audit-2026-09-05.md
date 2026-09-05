@@ -131,6 +131,16 @@ quietly (a sample event, the composer's option lists, connection flags).
   the layout admits only `admin` and `moderator`, so a club host never reaches
   `/admin`. Hosts have their own panel; the role tag is a leftover.
 
+  **Withdrawn 2026-09-05.** The tag matches for a *moderator* who also hosts
+  a club: the sidebar builds the viewer's roles as `[role, 'host'?]` from
+  `user.isClubHost`, so those three items appear for them, and the events,
+  participants and check-in APIs all admit a club host. Four of the current
+  moderators host a club, so this is live behaviour, not dead code. The
+  first bullet (the unrendered `bottomNav`) was real and is fixed in
+  `aafe4fb`; the page gate (finding 1) admits the `host` items for exactly
+  this reason, and `tests/adminModeratorPageGate.test.ts` pins both the
+  derivation and the gate.
+
 ## What held up
 
 - **Anonymous access:** 179 of 182 method/route pairs answered 401/403.
