@@ -174,6 +174,9 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
       setUser(u => u ? { ...u, status: 'banned' } : null)
       setBanConfirm(false)
       toast.success('User banned')
+    } else {
+      const d = await res.json().catch(() => ({}))
+      toast.error(d.error ?? 'Failed to ban')
     }
     setBanning(false)
   }

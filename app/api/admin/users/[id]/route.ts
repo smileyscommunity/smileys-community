@@ -253,6 +253,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       const stepUp = requireStepUp(session)
       if (stepUp) return stepUp
     }
+    // Taking a member's standing away needs the same. Suspending and banning
+    // are the two writes here that cut someone off (and email them about it);
+    // lifting either, or editing a profile field, stays on the plain checks.
+    // canSuspendUsers is admin-only, so this never asks a moderator.
+    if (allowed.status === 'banned' || allowed.suspendedUntil) {
+      const stepUp = requireStepUp(session)
+      if (stepUp) return stepUp
+    }
     if (allowed.status !== undefined && !['approved', 'pending', 'banned'].includes(allowed.status as string)) {
       return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
     }
