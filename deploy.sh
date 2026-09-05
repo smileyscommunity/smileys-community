@@ -4,6 +4,14 @@ set -e
 SERVER="${SMILEYS_DEPLOY_SERVER:-root@178.105.37.133}"
 REMOTE="/root/smileys-community"
 LOCAL="/Users/nate/smileys-community"
+# Everything below that reads the working directory — the release stamp, the
+# clean-tree check, npm audit, and `npm run build` itself — must see the main
+# checkout, not wherever this script was launched from. On 2026-09-05 a launch
+# from a .claude/worktrees/* worktree built THAT tree (no .env, so the build
+# died at "Collecting page data" with DATABASE_URL unset), stamped the
+# worktree's HEAD, and had already emptied $LOCAL/.next. Prod survived only
+# because the failure came before rsync.
+cd "$LOCAL"
 APP_RELEASE=$(git rev-parse --short HEAD)
 
 # Keepalives on every remote call, for the reason backup.sh documents: on
