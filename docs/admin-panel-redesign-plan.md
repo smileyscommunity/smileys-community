@@ -98,6 +98,14 @@ Extract, in this order, each with the pages that adopt it in the same commit:
 **Do not** convert pages wholesale to server components in this phase. Do it
 per page in Phase 3, where the win is visible and reversible.
 
+**Also in this phase**, folded in from the 2026-09-05 audit (finding 3): a
+`writeAudit` row on the create routes that still have none — `events`,
+`clubs`, `cities`, `listings`, `tags`, `tag-groups`, `testimonials`
+POST/PATCH, `story-photos`, `neighborhoods/[slug]/image`,
+`clubs/[id]/recount`. Low stakes (each leaves its own row with a creator or
+timestamp), so they ride along with whichever page adopts the primitives,
+not as separate work.
+
 **Effort.** 3–4 days. **Risk.** Low, if each primitive lands with its first two
 consumers and no page is left half-migrated.
 

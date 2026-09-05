@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { name: true, interests: true, neighborhood: true, joinedAt: true },
+    select: { name: true, interests: true, neighborhood: true, joinedAt: true, city: { select: { name: true } } },
   })
   if (!user) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
@@ -26,7 +26,9 @@ export async function POST(req: NextRequest) {
   const interests   = (user.interests ?? []).slice(0, 3).join(', ')
   const neighborhood = user.neighborhood ?? null
 
-  const prompt = `You are writing a short, warm re-engagement message from the Smileys community team in Istanbul to a member who hasn't attended an event in over 90 days.
+  // The member's own city, not Istanbul — this text goes to every city's
+  // lapsed members (docs/admin-panel-audit-2026-09-05.md, finding 3).
+  const prompt = `You are writing a short, warm re-engagement message from the Smileys community team in ${user.city.name} to a member who hasn't attended an event in over 90 days.
 
 Write 2–3 sentences max. Be warm and personal — reference their interests if available. Don't be pushy or salesy. Suggest they check out upcoming events. No exclamation marks. No "Hey" or "Hi" salutation — the platform prepends that.
 

@@ -95,6 +95,12 @@ trail, see below). Fixed in this tree:
 
 Seen in passing: the `users/reengage` prompt still says "the Smileys
 community team in Istanbul" for every city's members. Copy leak, one line.
+Fixed 2026-09-05: the prompt names the member's own city.
+
+Also 2026-09-05: `tests/adminAuditTrail.test.ts` pins the four rows above
+(they landed without a test), including the login nudge's deliberate
+no-row-when-nobody-qualified case. The unaudited creates are recorded in
+the redesign plan under Phase 2.
 
 ### 4. Three pages turn a failed request into "nothing here"
 
