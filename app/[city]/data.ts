@@ -27,7 +27,9 @@ export type PublicCity   = NonNullable<Awaited<ReturnType<typeof getPublicCity>>
 export type CityPageData = Awaited<ReturnType<typeof getCityPageData>>
 
 export function cityMetadata(city: PublicCity): Metadata {
-  const ogImage = absoluteOgImage(city.heroImage)
+  // Fallback to the brand card, never to nothing: a page-level openGraph
+  // replaces the layout's object, so omitting images here drops og:image.
+  const ogImage = absoluteOgImage(city.heroImage) ?? `${APP_URL}/api/og`
 
   // A pre-launch page must not promise joinable clubs and events in the
   // search snippet — say what it actually is.
@@ -47,9 +49,9 @@ export function cityMetadata(city: PublicCity): Metadata {
     openGraph: {
       title, description,
       url: `${APP_URL}/${city.slug}`,
-      ...(ogImage ? { images: [{ url: ogImage, width: 1200, height: 630, alt: city.name }] } : {}),
+      images: [{ url: ogImage, width: 1200, height: 630, alt: city.name }],
     },
-    ...(ogImage ? { twitter: { card: 'summary_large_image' as const, images: [ogImage] } } : {}),
+    twitter: { card: 'summary_large_image', title, description, images: [ogImage] },
   }
 }
 

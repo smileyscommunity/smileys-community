@@ -20,7 +20,9 @@ import { absoluteOgImage } from '@/lib/og'
 // says nothing about what's behind it.
 export async function generateMetadata(): Promise<Metadata> {
   const cities  = await getPublicCities()
-  const ogImage = absoluteOgImage(cities.find(c => c.status === CITY_STATUS.Live)?.heroImage ?? cities[0]?.heroImage)
+  // Same fallback as the landing page: a page-level openGraph replaces the
+  // layout's, so no image here means no og:image at all.
+  const ogImage = absoluteOgImage(cities.find(c => c.status === CITY_STATUS.Live)?.heroImage ?? cities[0]?.heroImage) ?? `${APP_URL}/api/og`
   const title   = 'Smileys cities — where we are, and where we\'re going next'
   const description =
     'Every Smileys city: the communities that are live today and the ones opening next. One account works across all of them.'
@@ -31,9 +33,9 @@ export async function generateMetadata(): Promise<Metadata> {
     alternates: { canonical: `${APP_URL}/cities` },
     openGraph: {
       title, description, url: `${APP_URL}/cities`,
-      ...(ogImage ? { images: [{ url: ogImage, width: 1200, height: 630, alt: 'Smileys cities' }] } : {}),
+      images: [{ url: ogImage, width: 1200, height: 630, alt: 'Smileys cities' }],
     },
-    ...(ogImage ? { twitter: { card: 'summary_large_image' as const, images: [ogImage] } } : {}),
+    twitter: { card: 'summary_large_image', title, description, images: [ogImage] },
   }
 }
 

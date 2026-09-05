@@ -37,7 +37,11 @@ import { isSoldOut } from '@/lib/soldOut'
 // stop sending.
 export async function generateMetadata(): Promise<Metadata> {
   const home    = loadContent().home ?? {}
-  const ogImage = absoluteOgImage(home.heroImage)
+  // With no hero set, fall back to the generated brand card rather than to
+  // nothing. A page-level `openGraph` replaces the layout's whole object, so
+  // leaving `images` out here didn't inherit the layout's card — it dropped
+  // og:image entirely, and every share of /app previewed with no picture.
+  const ogImage = absoluteOgImage(home.heroImage) ?? `${APP_URL}/api/og`
   const title   = 'Smileys — your people, in every city you land in'
   const description =
     'Meet people, join clubs and discover experiences wherever your international life takes you. Smileys is a network of local communities, growing city by city.'
@@ -48,9 +52,9 @@ export async function generateMetadata(): Promise<Metadata> {
     alternates: { canonical: APP_URL },
     openGraph: {
       title, description, url: APP_URL,
-      ...(ogImage ? { images: [{ url: ogImage, width: 1200, height: 630, alt: 'Smileys Community' }] } : {}),
+      images: [{ url: ogImage, width: 1200, height: 630, alt: 'Smileys Community' }],
     },
-    ...(ogImage ? { twitter: { card: 'summary_large_image' as const, images: [ogImage] } } : {}),
+    twitter: { card: 'summary_large_image', title, description, images: [ogImage] },
   }
 }
 
