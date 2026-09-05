@@ -5,7 +5,8 @@ import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
-import Sidebar, { navItems, ICON_PATHS } from '@/components/admin/Sidebar'
+import Sidebar, { ICON_PATHS } from '@/components/admin/Sidebar'
+import { navItems, MODERATOR_BOTTOM_NAV, isModeratorPageAllowed } from '@/lib/adminNav'
 import Topbar from '@/components/admin/Topbar'
 
 function NavIcon({ name }: { name: string }) {
@@ -31,30 +32,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   // Moderators are exempt (their routes never pass requireStepUp anyway).
   const needs2fa = allowed && !isMod && !user?.totpEnabled && !pathname.startsWith('/admin/security')
 
-  const MODERATOR_ALLOWED = [
-    '/admin/moderator',
-    '/admin/security',
-    '/admin/applications',
-    '/admin/moderation',
-    '/admin/events',
-    '/admin/participants',
-  '/admin/no-shows',
-    '/admin/checkin',
-    '/admin/spotlight',
-    '/admin/announcements',
-    '/admin/engagement',
-    '/admin/listings',
-    '/admin/hangouts',
-    '/admin/retention',
-    '/admin/banners',
-    '/admin/stories',
-    '/admin/content',
-    '/admin/neighborhoods',
-    '/admin/posts',
-    '/admin/audit',
-    '/admin/partners',
-  ]
-  const isModPageAllowed = !isMod || MODERATOR_ALLOWED.some(p => pathname.startsWith(p))
+  // Which pages a moderator may open is derived from the sidebar nav in
+  // lib/adminNav — the two used to be separate lists and drifted.
+  const isModPageAllowed = !isMod || isModeratorPageAllowed(pathname)
 
   useEffect(() => {
     if (isLoading) return
@@ -93,14 +73,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
       {/* Mobile bottom nav — 6 pinned shortcuts + More */}
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-zinc-950 border-t border-white/5 flex">
-        {(isMod ? [
-          { label: 'Home',   href: '/admin/moderator',   icon: 'modHome',      exact: true  },
-          { label: 'Apps',   href: '/admin/applications', icon: 'applications', exact: false },
-          { label: 'Events', href: '/admin/events',       icon: 'events',       exact: false },
-          { label: 'Mod',    href: '/admin/moderation',   icon: 'moderation',   exact: false },
-          { label: 'Notify', href: '/admin/notifications',icon: 'notifications', exact: false },
-          { label: 'Content',href: '/admin/stories',      icon: 'stories',      exact: false },
-        ] : [
+        {(isMod ? MODERATOR_BOTTOM_NAV : [
           { label: 'Home',   href: '/admin',              icon: 'dashboard',    exact: true  },
           { label: 'Apps',   href: '/admin/applications', icon: 'applications', exact: false },
           { label: 'Events', href: '/admin/events',       icon: 'events',       exact: false },

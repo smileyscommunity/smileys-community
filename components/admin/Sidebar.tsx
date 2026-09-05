@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { resolveImageUrl } from '@/lib/data'
+import { NAV_GROUPS, navItems } from '@/lib/adminNav'
 
 // SVG icon components
 function Icon({ d, d2 }: { d: string; d2?: string }) {
@@ -58,121 +59,9 @@ const ICONS: Record<string, JSX.Element> = {
   directory:    <Icon d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />,
 }
 
-const NAV_GROUPS = [
-  {
-    label: 'Overview',
-    items: [
-      { label: 'Dashboard',    href: '/admin',            exact: true,  roles: ['admin'],      icon: 'dashboard' },
-      { label: 'Mod Home',     href: '/admin/moderator',  exact: true,  roles: ['moderator'],  icon: 'modHome'   },
-      { label: 'Analytics',    href: '/admin/analytics',  exact: false, roles: ['admin'],      icon: 'analytics' },
-    ],
-  },
-  {
-    label: 'People',
-    items: [
-      { label: 'Applications', href: '/admin/applications', exact: false, roles: ['admin', 'moderator'],  icon: 'applications' },
-      { label: 'Users',        href: '/admin/users',        exact: false, roles: ['admin'],               icon: 'users'        },
-      // "Reports" used to point at a misnamed analytics page; the actual
-      // member-reports queue lives at /admin/moderation (default tab).
-      { label: 'Moderation',   href: '/admin/moderation',   exact: false, roles: ['admin', 'moderator'],  icon: 'moderation'   },
-      // Moderators get a Retention shortcut here since they can't see Analytics
-      // (admin-only API). Admins access the same data via Analytics > Members
-      // tab, where it's folded in alongside the engagement summary.
-      { label: 'Retention',    href: '/admin/retention',    exact: false, roles: ['moderator'],  icon: 'retention'    },
-      { label: 'Audit Log',    href: '/admin/audit',        exact: false, roles: ['admin', 'moderator'],  icon: 'audit'        },
-    ],
-  },
-  {
-    label: 'Events',
-    items: [
-      { label: 'Events',       href: '/admin/events',       exact: false, roles: ['admin', 'host'],            icon: 'events'       },
-      { label: 'Participants', href: '/admin/participants',  exact: false, roles: ['admin', 'host'],            icon: 'participants' },
-      { label: 'Check-In',     href: '/admin/checkin',       exact: false, roles: ['admin', 'host'],            icon: 'checkin'      },
-      // No-show cards: appeals inbox + card history. Hosts waive from Participants.
-      { label: 'No-shows',     href: '/admin/no-shows',      exact: false, roles: ['admin', 'moderator'],       icon: 'noshows'      },
-      // Feedback ✿ = post-event safety + quality surveys. Lives here
-      // because it's per-event signal, not a moderation action. The
-      // auto-filed anomaly Reports still surface under Moderation
-      // (where they get triaged).
-      { label: 'Feedback',     href: '/admin/feedback',      exact: false, roles: ['admin', 'moderator'],       icon: 'feedback'     },
-      // NPS = quarterly Net Promoter Score across all members.
-      // Sibling to Feedback ✿ but a different cadence: one number
-      // every quarter vs. per-event drip. Anonymous from the
-      // responder's perspective; admins see scores + comments, not
-      // who wrote them.
-      { label: 'NPS',          href: '/admin/nps',           exact: false, roles: ['admin', 'moderator'],       icon: 'nps'          },
-      // Campaigns — sponsorship + fundraising drives. The Smileys
-      // Cup 2026 is the first one; future tournaments and non-
-      // tournament pushes (anniversary, referral) get their own row.
-      // Fixture management + result entry live on the campaign's
-      // own detail page as the "Fixtures + results" tab; the old
-      // standalone /admin/cup route was deleted as part of the
-      // campaign consolidation.
-      { label: 'Campaigns',    href: '/admin/campaigns',     exact: false, roles: ['admin', 'moderator'],       icon: 'campaigns'    },
-    ],
-  },
-  {
-    label: 'Community',
-    items: [
-      { label: 'Cities',       href: '/admin/cities',       exact: false, roles: ['admin'],               icon: 'cities'       },
-      { label: 'Clubs',        href: '/admin/clubs',        exact: false, roles: ['admin'],               icon: 'clubs'        },
-      { label: 'Hosts',        href: '/admin/hosts',        exact: false, roles: ['admin'],               icon: 'hosts'        },
-      { label: 'Marketplace',  href: '/admin/listings',     exact: false, roles: ['admin', 'moderator'],  icon: 'board'        },
-      { label: 'Moving Sales', href: '/admin/moving-sales', exact: false, roles: ['admin', 'moderator'],  icon: 'board'        },
-      { label: 'Hangouts',     href: '/admin/hangouts',     exact: false, roles: ['admin', 'moderator'],  icon: 'hangouts'     },
-      { label: 'Spotlight',    href: '/admin/spotlight',    exact: false, roles: ['admin', 'moderator'],  icon: 'spotlight'    },
-      { label: 'Partners',     href: '/admin/partners',     exact: false, roles: ['admin', 'moderator'],  icon: 'partners'     },
-      { label: 'Directory',    href: '/admin/directory',    exact: false, roles: ['admin', 'moderator'],  icon: 'directory'    },
-      { label: 'Tags',         href: '/admin/tags',         exact: false, roles: ['admin'],               icon: 'tags'         },
-    ],
-  },
-  {
-    label: 'Finance',
-    items: [
-      { label: 'Payments', href: '/admin/payments', exact: false, roles: ['admin'], icon: 'payments' },
-      // Sponsors = B2B leads from /advertise worked as a pipeline
-      // (new → … → won/lost). Lives under Finance because won deals
-      // carry the closed sponsorship revenue number.
-      { label: 'Sponsors', href: '/admin/sponsors', exact: false, roles: ['admin'], icon: 'partners' },
-      // Smileys Pro waitlist — founding-member cohort for the upcoming
-      // professional tier. Lives in Finance because it's the leading
-      // indicator for the next paid revenue line.
-      { label: 'Pro waitlist', href: '/admin/pro-waitlist', exact: false, roles: ['admin'], icon: 'campaigns' },
-    ],
-  },
-  {
-    label: 'Content',
-    items: [
-      { label: 'Notifications', href: '/admin/notifications',                 exact: false, roles: ['admin', 'moderator'],  icon: 'notifications' },
-      { label: 'Newsletter',    href: '/admin/newsletter',                    exact: false, roles: ['admin'],                icon: 'campaigns'     },
-      // Announcements + Polls used to share /admin/announcements behind a ?tab=
-      // query (a single-page tab nav). That left both tabs visible from either
-      // sidebar entry, so clicking "Polls" still showed an "Announcements" tab
-      // and vice versa — confusing. Split into focused routes now.
-      { label: 'Announcements', href: '/admin/announcements', exact: false, roles: ['admin', 'moderator'],  icon: 'banners'    },
-      { label: 'Polls',         href: '/admin/polls',         exact: false, roles: ['admin', 'moderator'],  icon: 'engagement' },
-      { label: 'Stories',       href: '/admin/stories',                     exact: false, roles: ['admin', 'moderator'],  icon: 'stories'       },
-      { label: 'Articles',      href: '/admin/posts',         exact: false, roles: ['admin', 'moderator'],  icon: 'articles'      },
-      { label: 'Neighborhoods', href: '/admin/neighborhoods', exact: false, roles: ['admin', 'moderator'],  icon: 'tags'          },
-      // Two different things, both called 'guide': /admin/guide edits the
-      // practical resources list, /admin/guide-entries edits the experiences
-      // the public /guide is actually built from (per city).
-      { label: 'Guide resources',  href: '/admin/guide',         exact: true,  roles: ['admin', 'moderator'],  icon: 'content'       },
-      { label: 'Guide experiences', href: '/admin/guide-entries', exact: false, roles: ['admin', 'moderator'],  icon: 'content'       },
-      { label: 'Banners',       href: '/admin/banners',       exact: false, roles: ['admin', 'moderator'],  icon: 'banners'       },
-      { label: 'Content',       href: '/admin/content',       exact: false, roles: ['admin', 'moderator'],  icon: 'content'       },
-    ],
-  },
-  {
-    label: 'System',
-    items: [
-      { label: 'Settings',  href: '/admin/settings',  exact: false, roles: ['admin'],  icon: 'settings' },
-      { label: 'Security',  href: '/admin/security',  exact: false, roles: ['admin'],  icon: 'security'  },
-    ],
-  },
-]
-
-export const navItems = NAV_GROUPS.flatMap(g => g.items)
+// Nav data lives in lib/adminNav (plain data, no JSX) so the layout's
+// moderator page gate and the tests derive from the same list.
+export { navItems }
 
 export const ICON_PATHS: Record<string, { d: string; d2?: string }> = {
   cities:       { d: 'M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9' },
