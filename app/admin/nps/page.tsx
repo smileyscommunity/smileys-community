@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
+import { loadFailure } from '@/lib/admin/useAdminLoad'
 
 // /admin/nps — quarterly Net Promoter Score dashboard.
 //
@@ -55,13 +57,18 @@ export default function AdminNpsPage() {
   const [data, setData]       = useState<Payload | null>(null)
   const [loading, setLoading] = useState(true)
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
+  // A failed rollup used to leave the page on "Loading…" / "Could not
+  // load" with no reason and no way back short of a browser refresh.
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [reloadTick, setReloadTick] = useState(0)
 
   useEffect(() => {
     let alive = true
     const load = () => {
       fetch('/app/api/admin/nps', { credentials: 'include' })
-        .then(r => r.ok ? r.json() : null)
-        .then(d => { if (alive && d) { setData(d); setLastRefresh(new Date()) } })
+        .then(async r => { if (!r.ok) throw await loadFailure(r); return r.json() })
+        .then(d => { if (alive && d) { setData(d); setLastRefresh(new Date()); setLoadError(null) } })
+        .catch((e: Error) => { if (alive) setLoadError(e?.message ?? 'Failed to load') })
         .finally(() => alive && setLoading(false))
     }
     load()
@@ -69,7 +76,7 @@ export default function AdminNpsPage() {
     // surfaces; cheap because the rollup query is tiny.
     const t = setInterval(load, 5 * 60 * 1000)
     return () => { alive = false; clearInterval(t) }
-  }, [])
+  }, [reloadTick])
 
   function exportCsv() {
     window.open('/app/api/admin/nps?format=csv', '_blank')
@@ -102,6 +109,8 @@ export default function AdminNpsPage() {
         </button>
       </div>
 
+      <LoadErrorBanner message={loadError} onRetry={() => setReloadTick(n => n + 1)} title="Couldn't load NPS" />
+
       {/* Current-quarter headline. NPS sits in a big tile with
           colour-graded class; the trend pill renders a delta vs the
           previous quarter (when present). Empty state when nobody
@@ -116,7 +125,7 @@ export default function AdminNpsPage() {
             </h3>
             <p className="text-xs text-zinc-500 mt-0.5">
               {loading && !data         ? 'Loading…'
-              : !data                    ? 'Could not load — try refreshing.'
+              : !data                    ? 'Could not load — see above.'
               : data.current.responses === 0 ? `No responses yet this quarter. Dispatch nudges members joined ≥ ${data.minDays} days ago in the first 14 days of each quarter.`
               :                            `${data.current.responses} response${data.current.responses === 1 ? '' : 's'} of ${data.eligible} eligible`}
             </p>

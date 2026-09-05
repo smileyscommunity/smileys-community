@@ -6,7 +6,7 @@ import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import Sidebar, { ICON_PATHS } from '@/components/admin/Sidebar'
-import { navItems, MODERATOR_BOTTOM_NAV, isModeratorPageAllowed } from '@/lib/adminNav'
+import { MODERATOR_BOTTOM_NAV, isModeratorPageAllowed } from '@/lib/adminNav'
 import Topbar from '@/components/admin/Topbar'
 
 function NavIcon({ name }: { name: string }) {
@@ -45,21 +45,6 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   }, [user, isLoading, isLoggedIn, allowed, needs2fa, isModPageAllowed, router])
 
   if (isLoading || !isLoggedIn || !allowed || needs2fa || !isModPageAllowed) return null
-
-  // Bottom nav derived from sidebar navItems — automatically includes every section
-  const userRoles = [user.role, ...(user.isClubHost ? ['host'] : [])]
-  const bottomNav = navItems.filter(item => item.roles.some(r => userRoles.includes(r)))
-    .map(item => {
-      const [hrefPath, hrefQuery] = item.href.split('?')
-      const active = item.exact
-        ? pathname === hrefPath
-        : pathname.startsWith(hrefPath) && (!hrefQuery || (() => {
-            const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '')
-            const [key, val] = hrefQuery.split('=')
-            return params.get(key) === val
-          })())
-      return { ...item, active }
-    })
 
   return (
     <div className="flex h-dvh bg-black overflow-hidden">

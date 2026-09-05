@@ -5,6 +5,8 @@ import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import CitySelect from '@/components/admin/CitySelect'
+import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
+import { loadFailure } from '@/lib/admin/useAdminLoad'
 
 // Map an audit entry's targetType to the admin detail route for that
 // resource. Returning null means the target has no admin landing page
@@ -172,6 +174,10 @@ function AdminAuditPageInner() {
 
   const [logs,        setLogs]        = useState<AuditEntry[]>([])
   const [loading,     setLoading]     = useState(true)
+  // A failed load must not look like a quiet day: a 403 (moderator with no
+  // city, revoked session) or a 500 used to render "No audit entries yet".
+  const [loadError,   setLoadError]   = useState<string | null>(null)
+  const [reloadTick,  setReloadTick]  = useState(0)
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore,     setHasMore]     = useState(false)
   const [filter,      setFilter]      = useState(initialFilter)
@@ -229,18 +235,20 @@ function AdminAuditPageInner() {
   // (this is a new query, not a continuation) and recomputes hasMore.
   useEffect(() => {
     setLoading(true)
+    setLoadError(null)
     fetch(`/app/api/admin/audit?${buildQs()}`, { credentials: 'include' })
-      .then(r => r.ok ? r.json() : [])
+      .then(async r => { if (!r.ok) throw await loadFailure(r); return r.json() })
       .then((d: AuditEntry[]) => {
         const data = Array.isArray(d) ? d : []
         setLogs(data)
         setHasMore(data.length === PAGE_SIZE)
       })
+      .catch((e: Error) => { setLogs([]); setHasMore(false); setLoadError(e?.message ?? 'Failed to load') })
       .finally(() => setLoading(false))
   // buildQs depends on every filter via closure, so rebuilding it
   // doesn't need to be a dep — listing the fields is enough.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter, debouncedSearch, fromDate, toDate, city])
+  }, [filter, debouncedSearch, fromDate, toDate, city, reloadTick])
 
   async function loadMore() {
     if (!hasMore || loadingMore || logs.length === 0) return
@@ -248,10 +256,14 @@ function AdminAuditPageInner() {
     setLoadingMore(true)
     try {
       const res = await fetch(`/app/api/admin/audit?${buildQs(cursor)}`, { credentials: 'include' })
-      const d   = res.ok ? await res.json() : []
+      if (!res.ok) throw await loadFailure(res)
+      const d   = await res.json()
       const data: AuditEntry[] = Array.isArray(d) ? d : []
       setLogs(prev => [...prev, ...data])
       setHasMore(data.length === PAGE_SIZE)
+    } catch (e) {
+      // The rows already shown are still right; only the next page failed.
+      setLoadError((e as Error)?.message ?? 'Failed to load more')
     } finally {
       setLoadingMore(false)
     }
@@ -339,6 +351,8 @@ function AdminAuditPageInner() {
         )}
       </div>
 
+      <LoadErrorBanner message={loadError} onRetry={() => setReloadTick(n => n + 1)} title="Couldn't load the audit log" />
+
       {loading ? (
         <div className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
           <div className="divide-y divide-zinc-800">
@@ -357,7 +371,7 @@ function AdminAuditPageInner() {
             ))}
           </div>
         </div>
-      ) : visible.length === 0 ? (
+      ) : loadError && visible.length === 0 ? null : visible.length === 0 ? (
         <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-10 text-center">
           <div className="text-3xl mb-2">🗒</div>
           <p className="text-zinc-400 text-sm">No audit entries yet.</p>

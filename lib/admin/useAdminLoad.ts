@@ -24,6 +24,15 @@
 
 import { useCallback, useEffect, useState } from 'react'
 
+// One line that says what a failed admin fetch was: the status plus the
+// start of the body (our routes answer `{ error: "..." }`, so the reason
+// is usually right there). Shared with pages whose loads are too
+// filter- or interval-driven for the hook itself.
+export async function loadFailure(r: Response): Promise<Error> {
+  const text = await r.text().catch(() => '')
+  return new Error(`${r.status}${text ? `: ${text.slice(0, 200)}` : ''}`)
+}
+
 export interface UseAdminLoadResult<T> {
   data:    T | null
   loading: boolean
@@ -66,10 +75,7 @@ export function useAdminLoad<T>(
     setError(null)
     fetch(url, { credentials: 'include' })
       .then(async r => {
-        if (!r.ok) {
-          const text = await r.text().catch(() => '')
-          throw new Error(`${r.status}${text ? `: ${text.slice(0, 200)}` : ''}`)
-        }
+        if (!r.ok) throw await loadFailure(r)
         return r.json()
       })
       .then(json => {

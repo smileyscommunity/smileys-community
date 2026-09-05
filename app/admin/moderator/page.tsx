@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import AlertsRow, { type Alert } from '@/components/admin/AlertsRow'
 import Avatar from '@/components/admin/Avatar'
+import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
+import { loadFailure } from '@/lib/admin/useAdminLoad'
 import { firstNameOf } from '@/lib/data'
 
 interface ModStats {
@@ -28,13 +30,22 @@ export default function ModeratorPage() {
   const isHost = user?.isClubHost === true
   const [stats, setStats] = useState<ModStats | null>(null)
   const [loading, setLoading] = useState(true)
+  // This is the moderator's landing page, so a broken mod-stats must not
+  // read as "no work today". Show the failure and offer a retry instead.
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [reloadTick, setReloadTick] = useState(0)
 
   useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setLoadError(null)
     fetch('/app/api/admin/mod-stats', { credentials: 'include' })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d) setStats(d) })
-      .finally(() => setLoading(false))
-  }, [])
+      .then(async r => { if (!r.ok) throw await loadFailure(r); return r.json() })
+      .then(d => { if (!cancelled && d) setStats(d) })
+      .catch((e: Error) => { if (!cancelled) setLoadError(e?.message ?? 'Failed to load') })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [reloadTick])
 
   const firstName = firstNameOf(user?.name) || 'Moderator'
   const hour = new Date().getHours()
@@ -84,7 +95,9 @@ export default function ModeratorPage() {
       {/* Shared "what needs attention" pill row — same component /admin
           uses, fed by the data moderators are authorized to see (apps +
           reports + visitors; no payments). */}
-      {!loading && <AlertsRow alerts={alerts} />}
+      <LoadErrorBanner message={loadError} onRetry={() => setReloadTick(n => n + 1)} title="Couldn't load Mod Home" />
+
+      {!loading && !loadError && <AlertsRow alerts={alerts} />}
 
       {loading ? (
         <div className="space-y-3">
@@ -250,9 +263,7 @@ export default function ModeratorPage() {
             </div>
           )}
         </>
-      ) : (
-        <div className="text-zinc-500 text-sm">Failed to load.</div>
-      )}
+      ) : null}
     </div>
   )
 }
