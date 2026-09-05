@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin } from '@/lib/access'
+import { requireStepUp } from '@/lib/stepUp'
 import { writeAudit } from '@/lib/audit'
 import { notifyCityLaunch } from '@/lib/cityLaunch'
 import { CITY_STATUS, CITY_STATUS_VALUES, isCityStatus } from '@/lib/cityStatus'
@@ -55,6 +56,15 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         { error: `Status must be one of: ${CITY_STATUS_VALUES.join(', ')}` },
         { status: 400 },
       )
+    }
+    // A status change is the one platform-wide switch in here: to `live` it
+    // publishes the city everywhere and emails the interest list; away from
+    // `live` it pulls a public city down. A stolen password with the 7-day
+    // cookie must not buy either, so it steps up. Tagline, description and
+    // hero edits stay open — they are copy, not reach.
+    if (body.status !== city.status) {
+      const stepUp = requireStepUp(session)
+      if (stepUp) return stepUp
     }
     // The default city is the fallback every unresolved request lands on —
     // guests, crawlers, and any code path that can't name a city — so it has to

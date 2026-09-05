@@ -2,9 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // docs/admin-panel-audit-2026-09-05.md finding 2: requireStepUp existed but
 // guarded two routes. These pin the ones added on 2026-09-05 — club deletion,
-// the newsletter's real send, and suspending or banning a member — and, just
-// as deliberately, what stays open: the newsletter's preview/test sends only
-// reach the admin's own inbox; lifting a suspension restores, not removes.
+// the newsletter's real send, suspending or banning a member, and a city
+// status change — and, just as deliberately, what stays open: the
+// newsletter's preview/test sends only reach the admin's own inbox; lifting a
+// suspension restores, not removes; a city's tagline is copy, not reach.
 // Each 403 case was run against the unguarded route first and failed there.
 
 vi.mock('@/lib/session', () => ({ getSession: vi.fn() }))
@@ -20,10 +21,11 @@ vi.mock('@/lib/email',   () => ({
 }))
 vi.mock('@/lib/neighborhoodsDb', () => ({ normalizeNeighborhoodInput: vi.fn(async (_c: string, v: string) => ({ ok: true, value: v })) }))
 vi.mock('@/lib/spotsLeft', () => ({ recomputeSpotsLeft: vi.fn(async () => {}) }))
-vi.mock('@/lib/city',      () => ({ todayInCity: vi.fn(() => '2026-09-05'), resolveCityId: vi.fn(async () => 'c-ist') }))
+vi.mock('@/lib/city',      () => ({ todayInCity: vi.fn(() => '2026-09-05'), resolveCityId: vi.fn(async () => 'c-ist'), DEFAULT_CITY_SLUG: 'istanbul' }))
+vi.mock('@/lib/cityLaunch', () => ({ notifyCityLaunch: vi.fn(async () => ({ notified: 0, failed: 0 })) }))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
-    club:       { findUnique: vi.fn(async () => ({ name: 'C', cityId: 'c-ist' })), delete: vi.fn(async () => ({})) },
+    club:       { findUnique: vi.fn(async () => ({ name: 'C', cityId: 'c-ist' })), delete: vi.fn(async () => ({})), count: vi.fn(async () => 5) },
     user:       {
       findUnique: vi.fn(async () => ({ id: 'u1', email: 'a@x', name: 'A', role: 'member', status: 'approved', cityId: 'c-ist', suspendedUntil: null, membershipType: 'free' })),
       findMany:   vi.fn(async () => [{ id: 'u1', email: 'u@x', name: 'U' }]),
@@ -32,7 +34,9 @@ vi.mock('@/lib/prisma', () => ({
     clubMembership: { findMany: vi.fn(async () => []) },
     blacklist:  { upsert: vi.fn(async () => ({})) },
     passwordResetToken: { deleteMany: vi.fn(async () => ({ count: 0 })) },
-    city:       { findUnique: vi.fn(async () => null) },
+    city:       { findUnique: vi.fn(async () => null), update: vi.fn(async () => ({ id: 'c-izm', name: 'Izmir', slug: 'izmir', status: 'live' })) },
+    cityHost:     { count: vi.fn(async () => 2) },
+    neighborhood: { count: vi.fn(async () => 9) },
     newsletter: { create: vi.fn(async () => ({ id: 'n1' })), update: vi.fn(async () => ({})) },
     appSetting: { findUnique: vi.fn(async () => null) },
     $transaction: vi.fn(async (ops: any) => Promise.all(ops)),
@@ -42,9 +46,11 @@ vi.mock('@/lib/prisma', () => ({
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import { sendNewsletterEmail } from '@/lib/email'
+import { notifyCityLaunch } from '@/lib/cityLaunch'
 import { DELETE as clubDELETE } from '@/app/api/admin/clubs/[id]/route'
 import { POST as newsletterPOST } from '@/app/api/admin/newsletter/route'
 import { PATCH as userPATCH } from '@/app/api/admin/users/[id]/route'
+import { PATCH as cityPATCH } from '@/app/api/admin/cities/[id]/route'
 
 const verified = { id: 'a1', name: 'A', email: 'a@x', role: 'admin', color: '#000', totpVerified: true }
 const stale    = { id: 'a1', name: 'A', email: 'a@x', role: 'admin', color: '#000' }
@@ -140,5 +146,48 @@ describe('user PATCH — suspend and ban', () => {
     expect((await patch({ status: 'banned', banReason: 'spam' })).status).toBe(200)
     expect((prisma.user.update as any).mock.calls[0][0].data).toMatchObject({ suspendedUntil: until, suspendedBy: 'a1' })
     expect((prisma.user.update as any).mock.calls[1][0].data).toMatchObject({ status: 'banned' })
+  })
+})
+
+describe('city PATCH — status change', () => {
+  const izmir = { id: 'c-izm', name: 'Izmir', slug: 'izmir', status: 'preparing' }
+  const patch = (body: Record<string, unknown>) => cityPATCH(new Request('https://x/app/api/admin/cities/c-izm', {
+    method: 'PATCH', body: JSON.stringify(body),
+  }) as never, params('c-izm'))
+
+  it('going live steps up — the city stays unpublished and the interest list is not mailed', async () => {
+    ;(getSession as any).mockResolvedValue(stale)
+    ;(prisma.city.findUnique as any).mockResolvedValueOnce(izmir)
+    const res = await patch({ status: 'live' })
+    expect(res.status).toBe(403)
+    expect((await res.json()).code).toBe('totp_required')
+    expect(prisma.city.update).not.toHaveBeenCalled()
+    expect(notifyCityLaunch).not.toHaveBeenCalled()
+  })
+
+  it('taking a live city down steps up too', async () => {
+    ;(getSession as any).mockResolvedValue(stale)
+    ;(prisma.city.findUnique as any).mockResolvedValueOnce({ ...izmir, status: 'live' })
+    const res = await patch({ status: 'coming_soon' })
+    expect(res.status).toBe(403)
+    expect(prisma.city.update).not.toHaveBeenCalled()
+  })
+
+  it('re-sending the current status and editing copy do not', async () => {
+    ;(getSession as any).mockResolvedValue(stale)
+    ;(prisma.city.findUnique as any).mockResolvedValueOnce(izmir)
+    expect((await patch({ status: 'preparing', tagline: 'Aegean' })).status).toBe(200)
+    ;(prisma.city.findUnique as any).mockResolvedValueOnce(izmir)
+    expect((await patch({ tagline: 'Aegean' })).status).toBe(200)
+    expect(prisma.city.update).toHaveBeenCalledTimes(2)
+  })
+
+  it('a TOTP-verified admin launches', async () => {
+    ;(getSession as any).mockResolvedValue(verified)
+    ;(prisma.city.findUnique as any).mockResolvedValueOnce(izmir)
+    const res = await patch({ status: 'live' })
+    expect(res.status).toBe(200)
+    expect(prisma.city.update).toHaveBeenCalledTimes(1)
+    expect(notifyCityLaunch).toHaveBeenCalledWith('c-izm')
   })
 })

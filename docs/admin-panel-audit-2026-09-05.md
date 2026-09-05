@@ -59,6 +59,15 @@ Fix shape: restore the line (the comment already spells out the two
 preconditions), then decide which of the outward-facing routes in finding 3
 should also call `requireStepUp`.
 
+Done in this tree, 2026-09-05: the gate line is restored (`5b37c5f`).
+`requireStepUp` now also guards club deletion, the newsletter's real and
+scheduled sends, suspending or banning a member, the global broadcast, and a
+city status change in either direction (going live publishes the city and
+mails its interest list; leaving live pulls a public city down). Left open
+on purpose: the newsletter's preview and test sends (the admin's own inbox),
+lifting a suspension, and city copy edits. `tests/adminStepUpRoutes.test.ts`
+pins each side.
+
 ### 3. Four routes that email members write no audit row
 
 Corrected after a closer read (the first draft of this finding counted 23

@@ -32,7 +32,9 @@ import { seedCityClubs } from '@/lib/seedCityClubs'
 
 const params = { params: Promise.resolve({ id: 'c1' }) }
 const req = (body: any = {}) => ({ json: async () => body }) as any
-const ADMIN = { id: 'a1', role: 'admin', name: 'Admin', cityId: 'c1' }
+// totpVerified: a status flip steps up (tests/adminStepUpRoutes); the gates
+// under test here sit behind that check.
+const ADMIN = { id: 'a1', role: 'admin', name: 'Admin', cityId: 'c1', totpVerified: true }
 
 // Ready on every axis; each test knocks out the one it is about.
 function counts({ clubs = 5, hosts = 2, neighborhoods = 9 } = {}) {
