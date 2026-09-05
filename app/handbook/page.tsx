@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { readFileSync } from 'fs'
+import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
 import TransitLinks, { type Category } from '@/components/TransitLinks'
 import HandbookSearch from '@/components/HandbookSearch'
@@ -7,8 +7,10 @@ import ExploreMore from '@/components/ExploreMore'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import type { Metadata } from 'next'
-import { getSession } from '@/lib/session'
-import { resolveCityId, getCityConfig, DEFAULT_CITY_SLUG } from '@/lib/city'
+import { redirect } from 'next/navigation'
+import { DEFAULT_CITY_SLUG } from '@/lib/city'
+import { resolveCityForPage, type CitySearch } from '@/lib/cityPageParam'
+import { absoluteOgImage } from '@/lib/og'
 import { postCityScope } from '@/lib/postScope'
 import { resolveImageUrl, firstNameOf} from '@/lib/data'
 import { canonicalCategory, categoryMeta, categoryHero, CATEGORY_KEYS, HANDBOOK_CATEGORIES } from '@/lib/handbook-categories'
@@ -46,9 +48,21 @@ const getHandbookArticles = unstable_cache(
   { revalidate: 300, tags: ['handbook'] },
 )
 
-// Fixed-size cover (1200×800) so we can assert real dimensions, unlike the
-// variable-aspect article photos. Served from public/ under the /app basePath.
+// Share covers, 1200×800 JPEGs in public/images served under the /app basePath.
+//
+//   handbook-cover-<city slug>.jpg   that city's own cover, when one exists
+//   handbook-cover.jpg               the default city's — the book on it is
+//                                    titled "Istanbul Handbook", so it is
+//                                    never used for another city
+//
+// A city with no cover of its own previews with its hero photo from /admin.
+// Every cover must stay under the ~300KB at which WhatsApp silently drops an
+// og:image (tests/handbookShareCity.test.ts checks each file).
 const HANDBOOK_OG_IMAGE = `${APP_URL}/images/handbook-cover.jpg`
+function cityCoverUrl(slug: string): string | null {
+  const file = `handbook-cover-${slug}.jpg`
+  return existsSync(join(process.cwd(), 'public', 'images', file)) ? `${APP_URL}/images/${file}` : null
+}
 
 // The Handbook names the city you're reading it in. The DEFAULT city keeps its
 // exact indexed strings — this page ranks for "Istanbul handbook"/"understand
@@ -56,15 +70,40 @@ const HANDBOOK_OG_IMAGE = `${APP_URL}/images/handbook-cover.jpg`
 // gain. Every other city gets the same sentence with its own name. The article
 // list itself is scoped the same way (see getHandbookArticles): global articles
 // everywhere, city-local ones only at home.
-export async function generateMetadata(): Promise<Metadata> {
-  const { name, isDefault } = await handbookCity()
+//
+// Which city: ?city= when the URL carries one, else the session
+// (lib/cityPageParam, the rule /neighborhoods set). A link-preview crawler has
+// neither session nor cookie, so without the param every share of /handbook
+// previewed as Istanbul's — title, description and the cover above — whatever
+// city the sharer had on screen. The page redirects the bare URL to the
+// explicit one for every city but the default, so the address bar itself is
+// the shareable link.
+export async function generateMetadata({ searchParams }: { searchParams?: Promise<CitySearch> }): Promise<Metadata> {
+  const { city } = await resolveCityForPage(searchParams)
+  const { name } = city
+  const isDefault    = city.slug === DEFAULT_CITY_SLUG
+  const canonicalUrl = isDefault ? `${APP_URL}/handbook` : `${APP_URL}/handbook?city=${city.slug}`
   const title = `The ${name} Handbook — Understand ${name}`
   const desc  = isDefault
     ? 'Understand Istanbul. Practical answers for living, moving and navigating life in Istanbul — residence permits, banking, healthcare, transport — written by Smileys members who actually lived it.'
     : `Understand ${name}. Practical answers for living, moving and navigating life in ${name} — residence permits, banking, healthcare, transport — written by Smileys members who actually lived it.`
+  const alt = `The ${name} Handbook — Smileys Community`
+
+  // A city's own cover first; otherwise the default city keeps its cover and
+  // any other city previews with its hero photo. Dimensions are asserted only
+  // for a cover, whose 1200×800 is known — a photo has its own aspect and a
+  // wrong hint mis-crops the first scrape. absoluteOgImage caps the photo at
+  // 1200px wide for the same silent-drop reason as the covers' size limit.
+  const cover  = cityCoverUrl(city.slug) ?? (isDefault ? HANDBOOK_OG_IMAGE : null)
+  const cityOg = cover ? undefined : absoluteOgImage(city.heroImage)
+  const image  = cityOg
+    ? { url: cityOg, secureUrl: cityOg, alt }
+    : { url: cover ?? HANDBOOK_OG_IMAGE, secureUrl: cover ?? HANDBOOK_OG_IMAGE, width: 1200, height: 800, alt }
 
   return {
-    alternates: { canonical: `${APP_URL}/handbook` },
+    // Each city's variant is its own canonical; a shared bare URL would
+    // otherwise point every city's handbook at Istanbul's.
+    alternates: { canonical: canonicalUrl },
     title: `${title} | Smileys Community`,
     description: desc,
     openGraph: {
@@ -72,26 +111,18 @@ export async function generateMetadata(): Promise<Metadata> {
       description: desc,
       // Include the /app basePath — the bare /handbook path 301-redirects, which
       // some crawlers won't follow for the canonical.
-      url: `${APP_URL}/handbook`,
+      url: canonicalUrl,
       siteName: 'Smileys Community',
       type: 'website',
-      images: [{ url: HANDBOOK_OG_IMAGE, secureUrl: HANDBOOK_OG_IMAGE, width: 1200, height: 800, alt: `The ${name} Handbook — Smileys Community` }],
+      images: [image],
     },
     twitter: {
       card: 'summary_large_image' as const,
       title,
       description: desc,
-      images: [HANDBOOK_OG_IMAGE],
+      images: [image.url],
     },
   }
-}
-
-// Resolved once per render path (metadata and the page body each call it).
-// Both the session decode and the city config are cached, so this is cheap.
-async function handbookCity(): Promise<{ id: string; country: string | null; name: string; isDefault: boolean }> {
-  const cityId = await resolveCityId(await getSession())
-  const cfg    = await getCityConfig(cityId)
-  return { id: cityId, country: cfg.country ?? null, name: cfg.name, isDefault: cfg.slug === DEFAULT_CITY_SLUG }
 }
 
 // "Start here" — the questions people actually arrive with, each pointing at
@@ -149,8 +180,15 @@ function loadQuickReference(): Category[] {
   }
 }
 
-export default async function HandbookPage() {
-  const city = await handbookCity()
+export default async function HandbookPage({ searchParams }: { searchParams?: Promise<CitySearch> }) {
+  const { city: cfg, cityId, pinned } = await resolveCityForPage(searchParams)
+  // Put the city in the URL for anyone not on the default city, so the address
+  // bar they copy is a link that survives being shared. Guarded on `pinned` so
+  // this can't loop, and skipped for the default city to leave its established
+  // bare URL (and its search ranking) alone.
+  if (!pinned && cfg.slug !== DEFAULT_CITY_SLUG) redirect(`/handbook?city=${cfg.slug}`)
+
+  const city = { id: cityId, country: cfg.country ?? null, name: cfg.name, isDefault: cfg.slug === DEFAULT_CITY_SLUG }
   const articles = await getHandbookArticles(city.id, city.country)
 
   // Group by CANONICAL category so legacy-keyed rows land in the new IA
