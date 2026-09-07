@@ -11,6 +11,23 @@ import { firstNameOf, getInitials, formatName } from '@/lib/data'
 // casing is a trap.
 
 describe('firstNameOf', () => {
+  it('skips a leading initial when the person goes by their second name', () => {
+    // "H. Kübra Çulha" was greeted as "H." on the dashboard wall (2026-09-07).
+    expect(firstNameOf('H. Kübra Çulha')).toBe('Kübra')
+    expect(firstNameOf('O. Alfred McCallum')).toBe('Alfred')
+    expect(firstNameOf('H Kübra Çulha')).toBe('Kübra')
+    expect(firstNameOf('Dr. H. Kübra Çulha')).toBe('Dr. Kübra')
+  })
+
+  it('never skips past an initial into a surname', () => {
+    // With only one token after the initial, that token is the surname —
+    // and "Sher" or "Smith" as a greeting is worse than the initial.
+    expect(firstNameOf('R Sher')).toBe('R')
+    expect(firstNameOf('J. Smith')).toBe('J.')
+    expect(firstNameOf('Y. E.')).toBe('Y.')
+    expect(firstNameOf('H.')).toBe('H.')
+  })
+
   it('keeps the title in front of the person', () => {
     expect(firstNameOf('Dr. Hilmi Songur')).toBe('Dr. Hilmi')
   })
@@ -73,7 +90,9 @@ describe('firstNameOf', () => {
   // fixes every greeting at once without rewriting a row.
   it('normalises what it returns instead of echoing what was typed', () => {
     expect(firstNameOf('h Kubra')).toBe('H')
-    expect(firstNameOf('h. kubra yılmaz')).toBe('H.')
+    // Was 'H.' — the initial-skipping rule above now reaches the name, and
+    // it still comes back capitalised.
+    expect(firstNameOf('h. kubra yılmaz')).toBe('Kubra')
     expect(firstNameOf('h.kubra yılmaz')).toBe('H.Kubra')
     expect(firstNameOf('hilmi songur')).toBe('Hilmi')
   })

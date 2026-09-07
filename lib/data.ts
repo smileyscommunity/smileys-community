@@ -359,6 +359,9 @@ const SURNAME_ONLY_TITLES = new Set(['mr', 'mrs', 'ms', 'miss', 'mx'])
 const bareToken = (tok: string): string =>
   tok.replace(/\.+$/, '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 
+// A single letter, with or without its dot: "H." in "H. Kübra Çulha".
+const isInitial = (tok: string): boolean => /^\p{L}\.?$/u.test(tok)
+
 /**
  * A name split into its leading titles and everything after them. Never
  * leaves `rest` empty for a non-empty name: a name that is *all* title
@@ -398,6 +401,14 @@ export function firstNameOf(name: string | null | undefined): string {
   if (!name) return ''
   const { titles, rest } = splitHonorifics(name)
   const kept = titles.filter(t => !SURNAME_ONLY_TITLES.has(bareToken(t)))
+  // "H. Kübra Çulha" is Kübra. A Turkish given name is often written as an
+  // initial when the person goes by their second name, and the wall greeted
+  // her as "H." (2026-09-07). Skip leading initials — but only while a given
+  // name AND a surname still follow: "R Sher" or "J. Smith" keep the initial,
+  // because the alternative is greeting someone by their surname, which is
+  // worse than an initial. "Y. E." stays "Y." for the same reason.
+  let first = 0
+  while (first < rest.length - 2 && isInitial(rest[first])) first++
   // Normalised, not raw. The stored name is only as tidy as whoever typed
   // it, and the apply form — how nearly everyone joins — wrote it through
   // verbatim for a long time, so lowercase first names reached the DB. This
@@ -405,7 +416,7 @@ export function firstNameOf(name: string | null | undefined): string {
   // through, which makes it the one place that fixes them all at once
   // without rewriting a single row. formatName is conservative by design
   // (see its comment), so this can only ever capitalise a leading letter.
-  return [...kept, rest[0] ?? ''].filter(Boolean).map(formatName).join(' ')
+  return [...kept, rest[first] ?? ''].filter(Boolean).map(formatName).join(' ')
 }
 
 export function getInitials(name: string): string {
