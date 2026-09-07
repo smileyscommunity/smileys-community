@@ -8,7 +8,7 @@ import {splitLeadingEmoji, stripDupTrailingEmoji} from '@/lib/data'
 import { normalizePaymentContact } from '@/lib/safeUrl'
 import { computeEventSurveyRollup } from '@/lib/survey'
 import { ensurePendingVenueBusiness } from '@/lib/venueDirectory'
-import { todayInCity, resolveCityId, getCityConfig } from '@/lib/city'
+import { todayInCity, resolveTargetCityId, getCityConfig } from '@/lib/city'
 
 export async function GET(req: NextRequest) {
   try {
@@ -119,6 +119,9 @@ export async function POST(req: NextRequest) {
             // nowhere, so admin-form gender-balance settings silently never made
             // it to prisma.event.create. Fix while adding femaleQuota.
             genderBalance, maleQuota, femaleQuota, turkishMaleQuota,
+            // cityId is only read when the parent club is global (cityId
+            // null) and so has no city to give the event — see below.
+            cityId,
             isRecurring, seriesId, lat, lng } = body
 
     if (!title || !date || !time || !location || !clubId || !hostId) {
@@ -245,34 +248,85 @@ export async function POST(req: NextRequest) {
       resolvedTagIds = tagRecords.map(t => t.id)
     }
 
-    // Non-admins/non-moderators always create events in pending for review
-    // This covers the timing issue where a host creates their first event before
-    // their club host membership is saved (form assigns host role after event creation)
-    const isFree        = !parseInt(price) && !memberPrice
-    const weekOut       = await todayInCity(await resolveCityId(session), 7)
-    const tooFarOut     = isFree && date > weekOut
-    const needsReview   = !admin && !isModerator(session)
-    const eventStatus   = needsReview ? 'pending' : (tooFarOut ? 'pending' : (status ?? 'published'))
-
     // Events inherit their city from the parent club — keeps Sailing
-    // Istanbul events out of the Berlin feed even if a host belongs
-    // to both cities. Fail loudly if the club has no cityId because
-    // every club has one post-backfill; this would only fire on a
-    // bug.
-    const parentClub = await prisma.club.findUnique({ where: { id: clubId }, select: { cityId: true } })
-    if (!parentClub?.cityId) {
-      return NextResponse.json({ error: 'Parent club has no city — cannot create event' }, { status: 400 })
+    // Istanbul events out of the Berlin feed even if a host belongs to both
+    // cities.
+    //
+    // But a null cityId is NOT the "impossible bug" this used to 400 on.
+    // Global clubs — the 32 language/nationality ones (English, German,
+    // Balkan, East Asian, …) — carry cityId null BY DESIGN: they appear in
+    // every city's grid, which is exactly why /api/admin/clubs gives them
+    // their own `?city=global` filter. They were listed in the create form's
+    // club dropdown and then rejected on save, so none of them could host an
+    // event anywhere. A global club has no city to inherit, so the request
+    // has to name one.
+    const parentClub = await prisma.club.findUnique({ where: { id: clubId }, select: { cityId: true, name: true } })
+    if (!parentClub) {
+      return NextResponse.json({ error: 'Unknown club' }, { status: 400 })
     }
+
+    let eventCityId: string
+    if (parentClub.cityId) {
+      eventCityId = parentClub.cityId
+    } else {
+      // Who gets asked, and who gets a sensible default:
+      //
+      //   - admins/moderators come through /admin/events/new, which now
+      //     renders a city picker as soon as a global club is chosen. They
+      //     can file into ANY city, so a silent fallback to their own would
+      //     quietly put an Antalya event in Istanbul. Ask instead.
+      //   - club hosts and city hosts come through /host/events/new, which
+      //     has no city control by design ("hosts always create in their
+      //     own city"). Defaulting to theirs is the documented behaviour,
+      //     and the cityHost grant check below still has the last word.
+      const staff = admin || isModerator(session)
+      if (!cityId && staff) {
+        return NextResponse.json(
+          { error: `"${parentClub.name}" is a global club, so it has no city of its own — pick which city this event is in.` },
+          { status: 400 },
+        )
+      }
+      // Validates the id and enforces canActInCity, so a moderator still
+      // can't file into someone else's city by hand-posting a cityId.
+      const resolved = await resolveTargetCityId(session, cityId)
+      if ('error' in resolved) {
+        return NextResponse.json({ error: resolved.error }, { status: resolved.status })
+      }
+      eventCityId = resolved.cityId
+    }
+
     // City-scope check for moderators (admins act globally, club hosts are
     // already constrained to their own clubs via isClubHostFor above).
-    if (!admin && isModerator(session) && session.cityId !== parentClub.cityId) {
+    if (!admin && isModerator(session) && session.cityId !== eventCityId) {
       return NextResponse.json({ error: 'Cross-city event creation is admin-only' }, { status: 403 })
     }
     // City hosts are scoped by their grants, not their home city — a consul
     // living in Istanbul can host the İzmir they were appointed to.
-    if (cityHost && !cityHostOf.includes(parentClub.cityId)) {
+    if (cityHost && !cityHostOf.includes(eventCityId)) {
       return NextResponse.json({ error: 'You can only create events in a city you host' }, { status: 403 })
     }
+
+    // Non-admins/non-moderators always create events in pending for review.
+    // This covers the timing issue where a host creates their first event
+    // before their club host membership is saved (the form assigns the host
+    // role after event creation).
+    //
+    // `tooFarOut` no longer applies to admins. It used to, which meant an
+    // admin creating a FREE event more than a week out got `pending` back
+    // without being told — the event saved fine and simply never appeared on
+    // the public page, which reads as "creating the event didn't work". An
+    // admin setting a date deliberately is not the case this guard was for;
+    // it still holds for moderators, and the create form now says so when it
+    // fires. An explicit `status` in the request still wins either way.
+    //
+    // The week window is measured in the EVENT's city, not the creator's —
+    // an Istanbul admin scheduling in Antalya was being judged against
+    // Istanbul's today.
+    const isFree        = !parseInt(price) && !memberPrice
+    const weekOut       = await todayInCity(eventCityId, 7)
+    const tooFarOut     = isFree && date > weekOut && !admin
+    const needsReview   = !admin && !isModerator(session)
+    const eventStatus   = needsReview ? 'pending' : (tooFarOut ? 'pending' : (status ?? 'published'))
 
     const event = await prisma.event.create({
       data: {
@@ -282,7 +336,7 @@ export async function POST(req: NextRequest) {
         neighborhood:         neighborhood?.trim() ?? '',
         address:              address?.trim() ?? '',
         clubId, hostId,
-        cityId:               parentClub.cityId,
+        cityId:               eventCityId,
         description:          description?.trim() ?? '',
         totalSpots:           spots,
         spotsLeft:            spots,
@@ -314,9 +368,11 @@ export async function POST(req: NextRequest) {
         refundPolicy:         refundPolicy ?? null,
         registrationDeadline: registrationDeadline ?? null,
         endTime:              endTime ?? null,
-        // The club's city decides the currency when the form didn't: an Athens
-        // event is priced in euros by default, not lira.
-        currency:             currency ?? (await getCityConfig(parentClub.cityId)).currency,
+        // The event's city decides the currency when the form didn't: an
+        // Athens event is priced in euros by default, not lira. Reads the
+        // resolved city rather than the club's, so a global club's event
+        // is priced in the city it was filed under.
+        currency:             currency ?? (await getCityConfig(eventCityId)).currency,
         approvalRequired:     approvalRequired ?? false,
         // Gender balance + quotas — null defaults so explicit-off doesn't
         // get coerced to 0. Cast numbers explicitly since the form ships

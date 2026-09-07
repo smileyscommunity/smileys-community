@@ -11,6 +11,7 @@ import { useAdminMemberSearch } from '@/hooks/useAdminMemberSearch'
 import { EVENT_EMOJIS as EMOJIS } from '@/lib/eventEmojis'
 import { countryName } from '@/lib/country'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
+import CitySelect, { useAdminCities } from '@/components/admin/CitySelect'
 import { phonePlaceholder, dialCode } from '@/lib/country'
 const inputCls = 'bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none px-3 py-2.5 w-full text-sm'
 
@@ -25,6 +26,9 @@ export default function NewEventPage() {
   const [form, setForm] = useState({
     title: '', date: '', time: '', location: '', neighborhood: '',
     address: '', clubId: '', hostId: '', description: '',
+    // Only sent (and only required) when the chosen club is global and so
+    // has no city for the event to inherit — see isGlobalClub below.
+    cityId: '',
     totalSpots: '20', price: '', memberPrice: '', payTo: 'free', paymentContact: '', ticketUrl: '',
     emoji: '🎉', status: 'published',
     isPremium: false, membersOnly: false, limitedSpots: true, isFirstTimerFriendly: false, isRecurring: false,
@@ -74,10 +78,20 @@ export default function NewEventPage() {
       })
   }, [form.clubId])
 
+  const cities       = useAdminCities()
+  const selectedClub = clubs.find(c => c.id === form.clubId)
+  // Global clubs (English, German, Balkan, …) belong to every city and so
+  // carry no city of their own. Nothing for the event to inherit, so the
+  // form has to ask — otherwise the server can only guess, and guessing
+  // files an Antalya event under Istanbul.
+  const isGlobalClub = !!selectedClub && !selectedClub.city
+
   // Neighborhoods follow the event's city (its parent club's), not the
-  // viewer's — so a Bodrum event offers Bodrum areas. Falls back to the
-  // viewer's own city until a club is chosen.
-  const selectedClubCity = clubs.find(c => c.id === form.clubId)?.city?.slug
+  // viewer's — so a Bodrum event offers Bodrum areas. For a global club
+  // that's whichever city was picked above. Falls back to the viewer's own
+  // city until a club is chosen.
+  const selectedClubCity = selectedClub?.city?.slug
+    ?? (isGlobalClub ? cities.find(c => c.id === form.cityId)?.slug : undefined)
   const neighborhoods = useCityNeighborhoods(selectedClubCity)
 
   function set(key: string, value: string | boolean | number) {
@@ -193,6 +207,7 @@ export default function NewEventPage() {
     if (!form.location)     missing.push('Location')
     if (!form.neighborhood) missing.push('Neighborhood')
     if (!form.clubId)       missing.push('Club')
+    if (isGlobalClub && !form.cityId) missing.push('City')
     if (!form.hostId)       missing.push('Host')
     if (form.payTo === 'buyonline' && !form.ticketUrl.trim()) missing.push('Ticket link')
     if (form.payTo !== 'free' && !(Number(form.price) > 0)) missing.push('Guest price (or choose Free)')
@@ -207,6 +222,13 @@ export default function NewEventPage() {
       // real values — Smileys still never touches the money for either, so
       // both map to payTo='venue' underneath.
       payTo:          form.payTo === 'free' || form.payTo === 'buyonline' ? 'venue' : form.payTo,
+      // "Free" is a UI state, not a price. The selector writes price='0' only
+      // when you CLICK it — and it starts already selected, so an admin who
+      // fills the form without touching payment posts price:'' and the server
+      // answers 400 "price required" for an event that is free by default.
+      // Clearing a typed price returns to "Free" the same way. Normalise here
+      // so the payload matches the choice however the form reached it.
+      price:          form.payTo === 'free' ? '0' : form.price,
       ticketUrl:      form.payTo === 'buyonline' ? form.ticketUrl : '',
       paymentContact: form.payTo === 'smileys'   ? form.paymentContact : '',
       isRecurring: isSeriesCreate ? true : form.isRecurring,
@@ -230,6 +252,12 @@ export default function NewEventPage() {
 
     setSaving(true)
     try {
+      // The server can downgrade the status it was asked for — a moderator's
+      // free event more than a week out lands in the review queue. That used
+      // to be invisible: the save succeeded, the redirect happened, and the
+      // event simply never showed up publicly, which reads as "it didn't
+      // work". Say so instead.
+      let savedPending = false
       for (const date of dates) {
         const res = await fetch('/app/api/admin/events', {
           method: 'POST', credentials: 'include',
@@ -238,6 +266,12 @@ export default function NewEventPage() {
         })
         const data = await res.json()
         if (!res.ok) { setError(data.error ?? 'Failed'); return }
+        if (data?.status === 'pending' && form.status !== 'pending') savedPending = true
+      }
+      if (savedPending) {
+        toast.warning('Saved for review — not public yet', {
+          description: 'Free events more than a week out go to the approval queue. Publish it from Admin → Events.',
+        })
       }
 
       // Auto-assign as club host + notify
@@ -286,6 +320,23 @@ export default function NewEventPage() {
                 {clubs.map(c => <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}
               </select>
             </div>
+            {/* Only for global clubs. Every other club names the city itself,
+                and a second city control there would just invite a mismatch
+                the server would have to reject. */}
+            {isGlobalClub && (
+              <div>
+                <CitySelect
+                  value={form.cityId}
+                  onChange={v => set('cityId', v)}
+                  className={inputCls}
+                  label="City *"
+                  emptyLabel="Select city"
+                />
+                <p className="text-[11px] text-zinc-500 mt-1.5">
+                  {selectedClub?.name} runs in every city, so this event needs one.
+                </p>
+              </div>
+            )}
             <div className="relative">
               <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Host *</label>
               <input
