@@ -138,6 +138,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       { url: `${BASE}/${c.slug}/directory`, priority: 0.75, changeFrequency: 'weekly' as const, lastModified: newestBusiness },
       { url: `${BASE}/${c.slug}/board`,     priority: 0.75, changeFrequency: 'daily'  as const, lastModified: newestListing },
     ])
+  // The pages with no hub of their own: for every city but the default they
+  // are canonical at their ?city= URL (lib/cityPageParam), which nothing linked
+  // for a crawler to find. The default city keeps the bare URLs listed below.
+  const cityParamRoutes: MetadataRoute.Sitemap = cities
+    .filter(c => c.status === CITY_STATUS.Live && c.slug !== DEFAULT_CITY_SLUG)
+    .flatMap(c => [
+      { url: `${BASE}/handbook?city=${c.slug}`,      priority: 0.7, changeFrequency: 'weekly'  as const, lastModified: newestPost },
+      { url: `${BASE}/guide?city=${c.slug}`,         priority: 0.7, changeFrequency: 'weekly'  as const },
+      { url: `${BASE}/marketplace?city=${c.slug}`,   priority: 0.7, changeFrequency: 'daily'   as const, lastModified: newestListing },
+      { url: `${BASE}/neighborhoods?city=${c.slug}`, priority: 0.5, changeFrequency: 'monthly' as const },
+    ])
 
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: BASE,                    priority: 1.0, changeFrequency: 'daily',   lastModified: newest([newestEvent, newestPost, newestClub]) },
@@ -256,6 +267,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...staticRoutes,
     ...cityRoutes,
     ...cityHubRoutes,
+    ...cityParamRoutes,
     ...neighborhoodRoutes,
     ...guideRoutes,
     ...eventRoutes,
