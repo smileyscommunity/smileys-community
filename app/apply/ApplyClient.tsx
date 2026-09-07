@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Turnstile from '@/components/Turnstile'
 import { z } from 'zod'
-import { resolveImageUrl, avatarUrl } from '@/lib/data'
+import { resolveImageUrl } from '@/lib/data'
 import { COUNTRIES } from '@/lib/countries'
 import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import FingerprintJS from '@fingerprintjs/fingerprintjs'
@@ -175,6 +175,13 @@ function ApplyForm() {
   // Held while the applicant confirms which way up the photo goes.
   const [pendingPhoto, setPendingPhoto] = useState<File | null>(null)
   const [localPhoto,     setLocalPhoto]     = useState('')
+  // A small data-URL copy of the uploaded photo, saved with the draft. The
+  // upload itself lives under /api/files/applications, which serves only
+  // admins — applicants have no session, and pending applicants never
+  // consented to a public avatar. So the preview must never ask the server:
+  // it used to, after a reload or a restored draft, and showed a broken "?"
+  // in place of the photo (2026-09-08).
+  const [photoPreview,   setPhotoPreview]   = useState('')
   const photoInputRef  = useRef<HTMLInputElement>(null)
   const errorRef       = useRef<HTMLDivElement>(null)
 
@@ -190,6 +197,7 @@ function ApplyForm() {
         if (d.interests)    setInterests(d.interests)
         if (d.socialStyles) setSocialStyles(d.socialStyles)
         if (d.languages)    setLanguages(d.languages)
+        if (typeof d.photoPreview === 'string') setPhotoPreview(d.photoPreview)
         if (typeof d.step === 'number') setStep(d.step)
       }
     } catch {}
@@ -202,10 +210,10 @@ function ApplyForm() {
     if (!draftHydrated) return
     try {
       localStorage.setItem(DRAFT_KEY, JSON.stringify({
-        form, interests, socialStyles, languages, step,
+        form, interests, socialStyles, languages, step, photoPreview,
       }))
     } catch {}
-  }, [draftHydrated, form, interests, socialStyles, languages, step])
+  }, [draftHydrated, form, interests, socialStyles, languages, step, photoPreview])
 
   // Switching the target city invalidates a neighborhood picked from the
   // previous city's list. Clear it only once the new list has actually loaded
@@ -249,7 +257,21 @@ function ApplyForm() {
       fd.append('file', uploadFile, 'profile.jpg')
       const res  = await fetch('/app/api/apply/upload', { method: 'POST', body: fd })
       const data = await res.json()
-      if (data.url) { set('profilePhoto', data.url); return true }
+      if (data.url) {
+        set('profilePhoto', data.url)
+        // Thumbnail for the draft — a few KB, so localStorage takes it.
+        try {
+          const thumb = await downscaleImage(uploadFile, 160, 0.7)
+          const dataUrl = await new Promise<string>((resolve, reject) => {
+            const r = new FileReader()
+            r.onload = () => resolve(String(r.result))
+            r.onerror = () => reject(r.error)
+            r.readAsDataURL(thumb)
+          })
+          setPhotoPreview(dataUrl)
+        } catch { /* preview is a nicety; the upload already succeeded */ }
+        return true
+      }
       setSubmitError(data.error ?? 'Photo upload failed')
       return false
     } catch (e) {
@@ -786,9 +808,14 @@ function ApplyForm() {
                   onConfirm={async f => { if (await handlePhotoUpload(f)) setPendingPhoto(null) }}
                 />
               )}
-              {localPhoto || form.profilePhoto ? (
+              {localPhoto || photoPreview || form.profilePhoto ? (
                 <div className="flex items-center gap-4">
-                  <img src={localPhoto || avatarUrl(form.profilePhoto, 128)} alt="Profile" loading="lazy" decoding="async" className="w-20 h-20 rounded-2xl object-cover border-2 border-amber-200" />
+                  {localPhoto || photoPreview
+                    ? <img src={localPhoto || photoPreview} alt="Profile" decoding="async" className="w-20 h-20 rounded-2xl object-cover border-2 border-amber-200" />
+                    : <div className="w-20 h-20 rounded-2xl bg-amber-50 border-2 border-amber-200 flex flex-col items-center justify-center text-amber-700">
+                        <span aria-hidden="true" className="text-xl">✓</span>
+                        <span className="text-[10px] font-semibold">Uploaded</span>
+                      </div>}
                   <button type="button" onClick={() => photoInputRef.current?.click()}
                     className="text-sm text-amber-600 hover:underline font-medium">Change photo</button>
                 </div>
