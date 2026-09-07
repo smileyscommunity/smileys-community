@@ -25,7 +25,7 @@ describe('the apply form', () => {
     expect(form).toMatch(/TIME_IN_CITY\.map/)
     expect(form).toMatch(/REASONS_HERE\.map/)
     expect(form).toMatch(/LOOKING_FOR_OPTIONS\.map/)
-    expect(form).toMatch(/lookingFor, referredBy: refCode/)
+    expect(form).toMatch(/lookingFor, termsAccepted: agreements\.terms, emailMarketing: agreements\.marketing, referredBy: refCode/)
   })
 
   it('asks who told them when the source is a friend, and sends the name', () => {
@@ -36,6 +36,34 @@ describe('the apply form', () => {
   it('no longer promises a 24-hour review it beats by a day', () => {
     expect(form).not.toMatch(/within 24 hours|24–48 hours/)
     expect(form).toMatch(/usually the same day/)
+  })
+})
+
+describe('consent (2026-09-08)', () => {
+  it('the form asks for Terms + Privacy + 18 and a conduct line, with marketing an unticked choice', () => {
+    expect(form).toMatch(/useState\(\{ terms: false, conduct: false, marketing: false \}\)/)
+    expect(form).toMatch(/if \(!agreements\.terms \|\| !agreements\.conduct\)/)
+    expect(form).toMatch(/href="\/terms"/)
+    expect(form).toMatch(/href="\/privacy"/)
+    expect(form).toMatch(/18 or older/)
+    expect(form).toMatch(/termsAccepted: agreements\.terms, emailMarketing: agreements\.marketing/)
+  })
+
+  it('the API refuses an application without the acceptance and records when it was given', () => {
+    expect(api).toMatch(/termsAccepted:\s+z\.boolean\(\)\.refine\(v => v === true/)
+    expect(api).toMatch(/emailMarketing:\s+z\.boolean\(\)\.optional\(\)\.default\(false\)/)
+    expect(api).toMatch(/termsAcceptedAt: new Date\(\)/)
+  })
+
+  it('approval copies the choices onto the member, activation records a first acceptance, and the columns exist', () => {
+    expect(approve).toMatch(/emailMarketing:\s+application\.emailMarketing \?\? false/)
+    expect(approve).toMatch(/termsAcceptedAt: application\.termsAcceptedAt \?\? null/)
+    const activate = read('app/api/auth/activate/route.ts')
+    expect(activate).toMatch(/where: \{ id: record\.userId, termsAcceptedAt: null \}, data: \{ termsAcceptedAt: new Date\(\) \}/)
+    const consent = read('prisma/migrations/20260908000002_consent_records/migration.sql')
+    expect(consent).toMatch(/"member_applications" ADD COLUMN "termsAcceptedAt"/)
+    expect(consent).toMatch(/"member_applications" ADD COLUMN "emailMarketing" BOOLEAN NOT NULL DEFAULT false/)
+    expect(consent).toMatch(/"users" ADD COLUMN "termsAcceptedAt"/)
   })
 })
 

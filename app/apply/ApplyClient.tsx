@@ -169,7 +169,11 @@ function ApplyForm() {
   const [lookingFor, setLookingFor] = useState<string[]>([])
   const [interests,      setInterests]      = useState<string[]>([])
   const [socialStyles,   setSocialStyles]   = useState<string[]>([])
-  const [agreements,     setAgreements]     = useState({ a1: false, a2: false, a3: false })
+  // Two required boxes and one choice (2026-09-08). The three culture
+  // statements this replaced were good values and no agreement at all: the
+  // Terms and Privacy Policy were never accepted anywhere, nothing said 18+,
+  // and marketing email defaulted to on.
+  const [agreements,     setAgreements]     = useState({ terms: false, conduct: false, marketing: false })
   const [saving,         setSaving]         = useState(false)
   const [submitted,      setSubmitted]      = useState(false)
   const [fieldErrors,    setFieldErrors]    = useState<FieldErrors>({})
@@ -311,7 +315,7 @@ function ApplyForm() {
       // on the long final step it otherwise renders off-screen and the
       // submit tap looks dead.
       if (!form.profilePhoto) { showError('Please upload a real photo of yourself — it\'s required for review'); return false }
-      if (!agreements.a1 || !agreements.a2 || !agreements.a3) { showError('Please agree to all terms'); return false }
+      if (!agreements.terms || !agreements.conduct) { showError('Please accept the terms and the community standard to continue'); return false }
     }
     return true
   }
@@ -351,7 +355,7 @@ function ApplyForm() {
       const res  = await fetch('/app/api/apply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, interests, socialStyles, languages, lookingFor, referredBy: refCode || undefined, targetCitySlug, _hp: honeypot, _cf: turnstileToken, _fp: fingerprint, _tz: browserTz }),
+        body: JSON.stringify({ ...form, interests, socialStyles, languages, lookingFor, termsAccepted: agreements.terms, emailMarketing: agreements.marketing, referredBy: refCode || undefined, targetCitySlug, _hp: honeypot, _cf: turnstileToken, _fp: fingerprint, _tz: browserTz }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -867,11 +871,17 @@ function ApplyForm() {
 
             <div className="pt-2 space-y-3">
               <h3 className="font-bold text-gray-900 text-sm">Agreement</h3>
-              {[
-                { key: 'a1' as const, text: 'I understand Smileys is a curated community and membership can be revoked.' },
-                { key: 'a2' as const, text: 'I agree to respectful behavior and active participation in the community.' },
-                { key: 'a3' as const, text: 'I understand that inactive or negative members may be removed.' },
-              ].map(({ key, text }) => (
+              {([
+                { key: 'terms' as const, text: (
+                  <>I&apos;m 18 or older and I agree to the{' '}
+                    <Link href="/terms" target="_blank" className="text-amber-600 underline" onClick={e => e.stopPropagation()}>Terms of Service</Link>
+                    {' '}and{' '}
+                    <Link href="/privacy" target="_blank" className="text-amber-600 underline" onClick={e => e.stopPropagation()}>Privacy Policy</Link>.
+                  </>
+                ) },
+                { key: 'conduct' as const, text: <>I&apos;ll treat every member with respect. Smileys is curated, and membership can be revoked.</> },
+                { key: 'marketing' as const, text: <>Email me about events and community news. <span className="text-gray-400">(optional)</span></> },
+              ]).map(({ key, text }) => (
                 <label key={key} className="flex items-start gap-3 cursor-pointer group"
                   onClick={() => setAgreements(a => ({ ...a, [key]: !a[key] }))}>
                   <div className={`mt-0.5 w-5 h-5 rounded-md border-2 shrink-0 flex items-center justify-center transition-colors ${

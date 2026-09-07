@@ -98,6 +98,10 @@ export async function POST(req: NextRequest) {
 
     const hashed = await bcrypt.hash(password, 10)
 
+    // The activation page asks for the Terms + Privacy acceptance too, for
+    // members created without an application. First acceptance wins; one
+    // given on the application stays.
+    await prisma.user.updateMany({ where: { id: record.userId, termsAcceptedAt: null }, data: { termsAcceptedAt: new Date() } })
     const user = await prisma.user.update({
       where: { id: record.userId },
       data: {

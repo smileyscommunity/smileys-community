@@ -178,6 +178,9 @@ export async function PATCH(req: NextRequest) {
                   interests:    application.interests    ?? [],
                   socialStyles: application.socialStyles ?? [],
                   lookingFor:   application.lookingFor   ?? [],
+                  // The applicant's own choices, not the schema's defaults.
+                  emailMarketing:  application.emailMarketing ?? false,
+                  termsAcceptedAt: application.termsAcceptedAt ?? null,
                   languages:    [],
                   profilePhoto: memberPhoto ?? null,
                   bio:          application.bio          ?? null,

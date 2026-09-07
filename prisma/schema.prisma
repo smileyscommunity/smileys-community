@@ -70,6 +70,9 @@ model User {
   totpSecret                 String?
   socialStyles               String[]
   emailMarketing             Boolean                 @default(true)
+  // Terms + Privacy accepted, from the application or at activation. Null
+  // for members who predate the acceptance box (2026-09-08).
+  termsAcceptedAt            DateTime?
   failedLoginCount           Int                     @default(0)
   knownIps                   String[]
   loginLockedUntil           DateTime?
@@ -1162,6 +1165,11 @@ model MemberApplication {
   // about Smileys when source is 'friend' — see the 2026-09-08 migration.
   lookingFor           String[]  @default([])
   referrerName         String?
+  // When the applicant accepted the Terms and Privacy Policy (with the 18+
+  // confirmation), and whether they opted in to marketing email — copied
+  // onto the member at approval. See the 2026-09-08 consent migration.
+  termsAcceptedAt      DateTime?
+  emailMarketing       Boolean   @default(false)
   suspicionScore       Int       @default(0)
   targetCityId         String
   reviewer             User?     @relation(fields: [reviewedBy], references: [id])

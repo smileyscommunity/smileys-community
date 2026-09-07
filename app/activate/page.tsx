@@ -53,7 +53,7 @@ function ActivateForm() {
     e.preventDefault()
     setError('')
     if (password !== confirm) { setError('Passwords do not match'); return }
-    if (!agreed) { setError('Please accept the community guidelines'); return }
+    if (!agreed) { setError('Please accept the terms to continue'); return }
     setLoading(true)
     try {
       const res  = await fetch('/app/api/auth/activate', {
@@ -232,7 +232,11 @@ function ActivateForm() {
             className="mt-0.5 w-4 h-4 accent-amber-500"
           />
           <span className="text-sm text-gray-600">
-            I agree to treat every member with respect and uphold the Smileys community values.
+            I&apos;m 18 or older, I agree to the{' '}
+            <Link href="/terms" target="_blank" className="text-amber-600 underline">Terms of Service</Link>
+            {' '}and{' '}
+            <Link href="/privacy" target="_blank" className="text-amber-600 underline">Privacy Policy</Link>,
+            and I&apos;ll treat every member with respect.
           </span>
         </label>
 

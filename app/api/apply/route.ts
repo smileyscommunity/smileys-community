@@ -46,6 +46,10 @@ const applySchema = z.object({
   socialStyles:    z.array(z.string().max(50)).max(20).optional().default([]),
   lookingFor:      z.array(z.string().max(50)).max(10).optional().default([]),
   referrerName:    z.string().trim().max(100).optional().nullable(),
+  // The one box that matters legally: Terms + Privacy + 18 or older.
+  termsAccepted:   z.boolean().refine(v => v === true, 'Please accept the Terms of Service and Privacy Policy'),
+  // Unticked by default — a choice, not a default (GDPR).
+  emailMarketing:  z.boolean().optional().default(false),
   openToCoffee:    z.boolean().optional().default(false),
   openToLanguage:  z.boolean().optional().default(false),
   openToHosting:   z.boolean().optional().default(false),
@@ -106,7 +110,7 @@ export async function POST(req: NextRequest) {
     const {
       firstName, lastName, email, phone, birthdate, gender, country, city, neighborhood,
       instagram, linkedin, profession, timeInCity, reasonHere,
-      aboutCommunity, socialJudgment, languages, interests, socialStyles, lookingFor, referrerName,
+      aboutCommunity, socialJudgment, languages, interests, socialStyles, lookingFor, referrerName, emailMarketing,
       openToCoffee, openToLanguage, openToHosting,
       whyJoin, enjoyWith, goodCommunity,
       contribution, groupBehavior, removedFromCommunity, toxicBehavior,
@@ -324,6 +328,8 @@ export async function POST(req: NextRequest) {
         // Only the profile's own options, whatever the client sent.
         lookingFor:   lookingFor.filter(v => LOOKING_FOR_VALUES.has(v)),
         referrerName: source === 'friend' ? (referrerName?.trim() || null) : null,
+        termsAcceptedAt: new Date(),
+        emailMarketing,
         contribution, groupBehavior, removedFromCommunity, toxicBehavior,
         aboutCommunity, socialJudgment,
         openToCoffee, openToLanguage, openToHosting,
