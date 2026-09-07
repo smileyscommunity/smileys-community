@@ -8,6 +8,7 @@ import { rateLimit, getIp } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
 import { verifyTurnstile } from '@/lib/turnstile'
 import { areApplicationsOpen, newApplicationEmailsEnabled } from '@/lib/communitySettings'
+import { formatName } from '@/lib/data'
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const disposableDomains: string[] = require('disposable-email-domains')
@@ -129,7 +130,14 @@ export async function POST(req: NextRequest) {
     }
     const targetCityId = targetCity.id
 
-    const fullName    = `${firstName} ${lastName}`
+    // Normalise on the way in, like every other write path does
+    // (auth/register, auth/me, admin/users/[id]). This one didn't, and it is
+    // the route nearly every member actually joins through — so a name typed
+    // "h.kubra yilmaz" was stored exactly that way and shown that way until
+    // the nightly hygiene sweep got to it, if it ever did.
+    const cleanFirst  = formatName(firstName)
+    const cleanLast   = formatName(lastName)
+    const fullName    = `${cleanFirst} ${cleanLast}`
     const cleanEmail  = email.toLowerCase()
     const cleanPhone  = phone || null
     const cleanInstagram = instagram?.trim() || null
@@ -257,7 +265,7 @@ export async function POST(req: NextRequest) {
       // Still save but mark as rejected immediately
       await prisma.memberApplication.create({
         data: {
-          firstName, lastName, fullName,
+          firstName: cleanFirst, lastName: cleanLast, fullName,
           email: cleanEmail, phone: cleanPhone, ipAddress: ip, userAgent: req.headers.get('user-agent')?.slice(0, 500) || null,
           fingerprint, timezone: browserTz, timezoneMismatch, disposableEmail: isDisposable,
           status: 'rejected', reviewNote: 'Auto-rejected: velocity limit (3+ applications from same IP within 24h)',
@@ -294,7 +302,7 @@ export async function POST(req: NextRequest) {
 
     await prisma.memberApplication.create({
       data: {
-        firstName, lastName, fullName,
+        firstName: cleanFirst, lastName: cleanLast, fullName,
         email:       cleanEmail,
         phone:       cleanPhone,
         birthdate:   birthdate  || null,

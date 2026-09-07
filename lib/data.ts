@@ -371,7 +371,14 @@ function nameTokens(name: string): string[] {
  */
 export function firstNameOf(name: string | null | undefined): string {
   if (!name) return ''
-  return nameTokens(name)[0] ?? ''
+  // Normalised, not raw. The stored name is only as tidy as whoever typed
+  // it, and the apply form — how nearly everyone joins — wrote it through
+  // verbatim for a long time, so lowercase first names reached the DB. This
+  // is the single choke point every greeting and notification passes
+  // through, which makes it the one place that fixes them all at once
+  // without rewriting a single row. formatName is conservative by design
+  // (see its comment), so this can only ever capitalise a leading letter.
+  return formatName(nameTokens(name)[0] ?? '')
 }
 
 export function getInitials(name: string): string {
@@ -457,7 +464,7 @@ export function whatsappUrl(phone: string | null | undefined, nationality?: stri
  */
 export function formatName(name: string): string {
   const fixToken = (tok: string): string => {
-    if (!tok || tok === '-' || tok === "'") return tok
+    if (!tok || tok === '-' || tok === "'" || tok === '.') return tok
     const first = tok[0]
     // Only act when the first char is a lowercase letter; leave the rest as-is.
     if (first === first.toLowerCase() && first !== first.toUpperCase()) {
@@ -469,7 +476,13 @@ export function formatName(name: string): string {
     .trim()
     .replace(/\s+/g, ' ')
     .split(' ')
-    .map(word => word.split(/([-'])/).map(fixToken).join(''))
+    // The dot joins the same way the hyphen and apostrophe do. Without it
+    // "h.kubra" only ever reached "H.kubra" — the letter after the dot was
+    // interior to one token, so nothing capitalised it — and dot-joined
+    // initials are common here ("H.Kubra", "R.G"). Still conservative: a
+    // separator is returned untouched and a token is only ever
+    // upper-cased, never lowered, so the Turkish İ/I hazard above stands.
+    .map(word => word.split(/([-'.])/).map(fixToken).join(''))
     .join(' ')
 }
 

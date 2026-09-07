@@ -48,6 +48,24 @@ describe('firstNameOf', () => {
     expect(firstNameOf('  Ece   Yıldız  ')).toBe('Ece')
   })
 
+  // H.Kubra joined and the site greeted her as "h". The stored name is only
+  // as tidy as whoever typed it — and the apply route, which is how nearly
+  // everyone joins, wrote it through verbatim — so normalising here is what
+  // fixes every greeting at once without rewriting a row.
+  it('normalises what it returns instead of echoing what was typed', () => {
+    expect(firstNameOf('h Kubra')).toBe('H')
+    expect(firstNameOf('h. kubra yılmaz')).toBe('H.')
+    expect(firstNameOf('h.kubra yılmaz')).toBe('H.Kubra')
+    expect(firstNameOf('hilmi songur')).toBe('Hilmi')
+  })
+
+  it('still refuses to touch casing it cannot safely judge', () => {
+    // ALL-CAPS stays — no locale lower-cases safely for both Turkish and
+    // Latin names. The nightly sweeper owns that, with nationality in hand.
+    expect(firstNameOf('KAYIŞ Demir')).toBe('KAYIŞ')
+    expect(firstNameOf('McKenzie Bell')).toBe('McKenzie')
+  })
+
   it('returns empty for a missing name so callers can fall back', () => {
     expect(firstNameOf('')).toBe('')
     expect(firstNameOf(null)).toBe('')
@@ -82,5 +100,20 @@ describe('formatName', () => {
   it('never de-shouts, and never touches interior casing', () => {
     expect(formatName('KAYIŞ')).toBe('KAYIŞ')
     expect(formatName('McKenzie')).toBe('McKenzie')
+  })
+
+  // The dot is a separator like the hyphen and the apostrophe. Before this,
+  // the letter after it was interior to the token, so "h.kubra" could only
+  // ever reach "H.kubra" — including under the nightly sweeper, which ends
+  // by calling formatName.
+  it('capitalises across a dot, not just a hyphen or apostrophe', () => {
+    expect(formatName('h.kubra yılmaz')).toBe('H.Kubra Yılmaz')
+    expect(formatName('r.g')).toBe('R.G')
+    expect(formatName('ayşe-nur o\'brien')).toBe('Ayşe-Nur O\'Brien')
+  })
+
+  it('leaves a trailing dot alone rather than treating it as a word', () => {
+    expect(formatName('Dr.')).toBe('Dr.')
+    expect(formatName('Aisha K.')).toBe('Aisha K.')
   })
 })
