@@ -8,6 +8,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // suspension restores, not removes; a city's tagline is copy, not reach.
 // Each 403 case was run against the unguarded route first and failed there.
 
+// These pin that the step-up gate is WIRED INTO each route. 2FA is not
+// currently required (ADMIN_2FA_REQUIRED is false — lib/totpPolicy.ts,
+// turned off 2026-09-07), so without this mock every 403 case below would
+// pass through and the suite would stop testing anything. Mocking the policy
+// on keeps the call sites verified, so flipping the flag back cannot reveal
+// a route that quietly lost its guard in the meantime.
+vi.mock('@/lib/totpPolicy', () => ({ ADMIN_2FA_REQUIRED: true }))
+
 vi.mock('@/lib/session', () => ({ getSession: vi.fn() }))
 vi.mock('@/lib/audit',   () => ({ writeAudit: vi.fn(async () => {}), getDiff: vi.fn(() => ({})) }))
 vi.mock('@/lib/notify',  () => ({ createNotification: vi.fn(async () => {}) }))

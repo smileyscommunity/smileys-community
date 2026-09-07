@@ -1,4 +1,13 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
+
+// 2FA is not currently REQUIRED (ADMIN_2FA_REQUIRED is false in
+// lib/totpPolicy.ts — turned off 2026-09-07), which would make every
+// assertion below vacuously pass. Mock the policy on so these keep testing
+// the enforcement logic itself; the last test covers the shipped-off state.
+// If the flag goes back to true, this mock becomes a no-op and the suite
+// still means exactly what it says.
+vi.mock('@/lib/totpPolicy', () => ({ ADMIN_2FA_REQUIRED: true }))
+
 import { requireStepUp } from '@/lib/stepUp'
 import type { SessionUser } from '@/lib/session'
 
@@ -27,6 +36,18 @@ describe('requireStepUp', () => {
   it('blocks non-admins even with a verified 2FA session', () => {
     expect(requireStepUp(u({ role: 'moderator', totpVerified: true }))?.status).toBe(403)
     expect(requireStepUp(u({ role: 'member', totpVerified: true }))?.status).toBe(403)
+  })
+
+  it('is a no-op for everyone while the policy is off (the shipped default)', async () => {
+    // The state production actually runs in. Re-imports the module against a
+    // false flag so this pins the disabled behaviour rather than assuming it.
+    vi.resetModules()
+    vi.doMock('@/lib/totpPolicy', () => ({ ADMIN_2FA_REQUIRED: false }))
+    const { requireStepUp: unenforced } = await import('@/lib/stepUp')
+    expect(unenforced(u({ role: 'admin' }))).toBeNull()
+    expect(unenforced(u({ role: 'admin', totpVerified: false }))).toBeNull()
+    vi.doUnmock('@/lib/totpPolicy')
+    vi.resetModules()
   })
 
   it('returns a machine-readable code and an actionable message', async () => {

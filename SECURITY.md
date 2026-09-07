@@ -102,7 +102,12 @@ gaps below).
   - reset-password: 5/15min/IP
   - activate (GET + POST): 10/min/IP
   - 2FA verify: 5/15min/IP
-  - 2FA setup (POST + DELETE): 5/15min/session.id
+  - 2FA setup (POST + DELETE): 5/15min/session.id — one shared bucket on
+    purpose, so alternating the two can't buy 10 code guesses per window
+  - 2FA setup QR (GET): 15/15min/session.id — its own bucket since
+    2026-09-07. Sharing the POST bucket made enrollment self-locking:
+    GET is what the "Set up" button calls, so asking for a fresh QR spent
+    the same budget as guessing a code
 - **Turnstile** (`lib/turnstile.ts`): gates login, register, forgot-password,
   apply, appeal, contact. **Fails closed in production** when
   `TURNSTILE_SECRET_KEY` is unset — never silently disabled.
@@ -398,18 +403,29 @@ Known, not yet addressed:
   removed. The 7-day TTL itself is unchanged — refresh-token rotation
   would shorten the stolen-cookie blast radius further but adds
   meaningful flow complexity.
-- **2FA optional for admins/mods.** *Narrowed 2026-09-03.* Still optional
-  for signing in and for routine admin work, so the UX question (where's
-  the enrollment prompt?) is still open. But the three operations a
-  stolen password must not buy — **role changes, user deletion, payment
-  deletion** — now require a 2FA-verified session via `requireStepUp()`
-  in `lib/stepUp.ts`. `isAdminStrict()` had been written and unit-tested
-  since the audit with no call site, which meant the capability was
-  decorative. This is not a lockout: `POST /api/auth/2fa/setup` uses a
-  raw role check so a non-enrolled admin can still reach it, and
-  completing enrollment marks the *current* session `totpVerified`, so
-  the admin enrolls once and comes straight back. The 403 carries
-  `code: 'totp_required'` for the UI.
+- **2FA not required for admins/mods.** *Narrowed 2026-09-03, then switched
+  OFF 2026-09-07 at the owner's request — forced enrollment was obstructing
+  day-to-day admin work.* One flag governs it: `ADMIN_2FA_REQUIRED` in
+  `lib/totpPolicy.ts`, currently `false`. While it is false:
+  `requireStepUp()` returns null for everyone, and `app/admin/layout.tsx`
+  no longer redirects an unenrolled admin to `/admin/security`.
+
+  **Open risk, stated plainly.** The eight step-up call sites — role
+  changes, user deletion, payment deletion, club deletion, city deletion,
+  newsletter blast, broadcast — are back to resting on a password plus a
+  7-day cookie, which is the exact exposure `requireStepUp()` was added on
+  2026-09-03 to close. They remain admin-only via the plain capability
+  helpers (`canManageUsers`, `canManagePayments`, …); what's gone is the
+  second factor. Re-enabling is a one-line change in `lib/totpPolicy.ts`
+  and needs no other edit — `tests/stepUp.test.ts`,
+  `tests/adminStepUpRoutes.test.ts` and `tests/broadcastCityAudience.test.ts`
+  mock the flag to `true`, so the call sites stay under test and a route
+  that silently loses its guard while the switch is off still fails CI.
+
+  2FA itself is untouched and still available: enrollment at
+  `/admin/security` works, secrets stay AES-256-GCM encrypted at rest,
+  TOTP verify still marks a session `totpVerified`, and a session that
+  enrolls voluntarily still satisfies `isAdminStrict()`.
 - ~~**Webhook signature verification.**~~ *Closed to the extent
   possible today.* No inbound webhook endpoints exist in this codebase
   as of the audit. A reusable HMAC-SHA256 verification helper lives at

@@ -1,5 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+// Two cases below assert the step-up 403 on a global send. 2FA is not
+// currently required (ADMIN_2FA_REQUIRED is false — lib/totpPolicy.ts, turned
+// off 2026-09-07), so mock the policy on to keep testing that this route is
+// still wired to the gate. The city-send case that expects 200 is unaffected:
+// it passes because a moderator can never satisfy step-up, not because the
+// policy is off.
+vi.mock('@/lib/totpPolicy', () => ({ ADMIN_2FA_REQUIRED: true }))
+
 // A broadcast's blast radius is the one thing about it you can't undo. The
 // audiences were all / club / event, where "all" meant every approved user in
 // every city — so an announcement meant for Istanbul had no correct target

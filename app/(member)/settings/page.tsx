@@ -447,7 +447,7 @@ export default function SettingsPage() {
         {/* Two-factor authentication. Enrollment is admin/moderator-only
             today, so members see no UI here. */}
         {(user.role === 'admin' || user.role === 'moderator') && (
-          <Section title="Two-factor authentication" description="Required for admin / moderator roles">
+          <Section title="Two-factor authentication" description="Recommended for admin / moderator roles">
             <TwoFactorSection show={true} />
           </Section>
         )}

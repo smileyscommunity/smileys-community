@@ -7,6 +7,7 @@ import type { ReactNode } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import Sidebar, { ICON_PATHS } from '@/components/admin/Sidebar'
 import { MODERATOR_BOTTOM_NAV, isModeratorPageAllowed } from '@/lib/adminNav'
+import { ADMIN_2FA_REQUIRED } from '@/lib/totpPolicy'
 import Topbar from '@/components/admin/Topbar'
 
 function NavIcon({ name }: { name: string }) {
@@ -28,9 +29,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
   const allowed  = user?.role === 'admin' || user?.role === 'moderator'
   const isMod    = user?.role === 'moderator'
-  // Admins must enroll in 2FA before they see anything but /admin/security.
-  // Moderators are exempt (their routes never pass requireStepUp anyway).
-  const needs2fa = allowed && !isMod && !user?.totpEnabled && !pathname.startsWith('/admin/security')
+  // Admins must enroll in 2FA before they see anything but /admin/security —
+  // but only while ADMIN_2FA_REQUIRED is on (lib/totpPolicy.ts), which it
+  // isn't. With the policy off this is always false, so the panel opens
+  // normally and /admin/security stays reachable for anyone who wants to
+  // enroll voluntarily. Moderators are exempt either way.
+  const needs2fa = ADMIN_2FA_REQUIRED && allowed && !isMod && !user?.totpEnabled && !pathname.startsWith('/admin/security')
 
   // Which pages a moderator may open is derived from the sidebar nav in
   // lib/adminNav — the two used to be separate lists and drifted.
