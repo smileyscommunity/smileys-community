@@ -177,6 +177,7 @@ export async function PATCH(req: NextRequest) {
                   gender:       application.gender       ?? null,
                   interests:    application.interests    ?? [],
                   socialStyles: application.socialStyles ?? [],
+                  lookingFor:   application.lookingFor   ?? [],
                   languages:    [],
                   profilePhoto: memberPhoto ?? null,
                   bio:          application.bio          ?? null,

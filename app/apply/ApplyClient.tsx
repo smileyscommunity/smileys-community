@@ -10,7 +10,7 @@ import { COUNTRIES } from '@/lib/countries'
 import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import FingerprintJS from '@fingerprintjs/fingerprintjs'
 import posthog from 'posthog-js'
-import { INTERESTS as INTERESTS_LIST, COMMON_LANGUAGES } from '@/lib/profileOptions'
+import { INTERESTS as INTERESTS_LIST, COMMON_LANGUAGES, LOOKING_FOR_OPTIONS } from '@/lib/profileOptions'
 import { downscaleImage, ImageUploadError } from '@/lib/image-resize'
 import PhotoRotateDialog from '@/components/PhotoRotateDialog'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
@@ -34,17 +34,21 @@ function fieldCls(error?: string) {
 
 const inputCls = 'input'
 
-const STEPS = [
-  'Basic Info',
-  'About You',
-  'Community Fit',
-  'Interests',
-  'Verification', // also covers Contribution + Social Judgment after the merge
-]
+// Three steps (2026-09-08, down from five). The review approves 98% of
+// applications in minutes, so the two essays and the "difficult social
+// situation" prompt screened nobody and cost every applicant ten minutes;
+// half of approved applicants answered the main essay in under 40
+// characters. What stays is what the app actually uses: identity and photo,
+// the matching fields as chips, and the agreements.
+const STEPS = ['Basic Info', 'About You', 'Verification']
 
-// Rough time-left estimate shown next to the step label — calibrated for
-// "specific beats long" answers, not deep essays.
-const STEP_MINUTES_LEFT = [6, 5, 3, 2, 1]
+// Rough time-left estimate shown next to the step label.
+const STEP_MINUTES_LEFT = [3, 2, 1]
+
+// Chips, not free text: these feed matching and filters, which a typed
+// "3 yrs" or "relocated 4 work" never could. Stored as the label.
+const TIME_IN_CITY = ['Just arrived', 'Under a year', '1–3 years', 'Longer than 3 years', 'Born here']
+const REASONS_HERE = ['Work', 'Study', 'Family or partner', 'Digital nomad', 'Born or raised here', 'Other']
 const DRAFT_KEY = 'smileys_apply_draft_v1'
 
 const SOCIAL_STYLES = [
@@ -150,12 +154,10 @@ function ApplyForm() {
   const [form,    setForm]    = useState({
     firstName: '', lastName: '', email: '', phone: '', birthdate: '', gender: '',
     country: '', neighborhood: '',
-    profession: '', timeInCity: '', reasonHere: '', bio: '', source: '',
-    // One consolidated essay (replaces whyJoin + enjoyWith + goodCommunity)
+    profession: '', timeInCity: '', reasonHere: '', source: '', referrerName: '',
+    // One optional line; the essays it replaced were rarely answered.
     aboutCommunity: '',
     contribution: '',
-    // One judgment prompt (replaces groupBehavior + removedFromCommunity + toxicBehavior)
-    socialJudgment: '',
     profilePhoto: '',
     // Open-to flags collected at apply time so new members are discoverable
     // on day 1 (copied to User on registration via approved application).
@@ -164,6 +166,7 @@ function ApplyForm() {
     openToHosting:  false,
   })
   const [languages, setLanguages] = useState<string[]>([])
+  const [lookingFor, setLookingFor] = useState<string[]>([])
   const [interests,      setInterests]      = useState<string[]>([])
   const [socialStyles,   setSocialStyles]   = useState<string[]>([])
   const [agreements,     setAgreements]     = useState({ a1: false, a2: false, a3: false })
@@ -197,7 +200,11 @@ function ApplyForm() {
         if (d.interests)    setInterests(d.interests)
         if (d.socialStyles) setSocialStyles(d.socialStyles)
         if (d.languages)    setLanguages(d.languages)
+        if (d.lookingFor)   setLookingFor(d.lookingFor)
         if (typeof d.photoPreview === 'string') setPhotoPreview(d.photoPreview)
+        // A draft from the five-step form may sit on a step that no longer
+        // exists; land it on the last one rather than off the end.
+        if (typeof d.step === 'number' && d.step >= STEPS.length) setStep(STEPS.length - 1)
         if (typeof d.step === 'number') setStep(d.step)
       }
     } catch {}
@@ -210,10 +217,10 @@ function ApplyForm() {
     if (!draftHydrated) return
     try {
       localStorage.setItem(DRAFT_KEY, JSON.stringify({
-        form, interests, socialStyles, languages, step, photoPreview,
+        form, interests, socialStyles, languages, lookingFor, step, photoPreview,
       }))
     } catch {}
-  }, [draftHydrated, form, interests, socialStyles, languages, step, photoPreview])
+  }, [draftHydrated, form, interests, socialStyles, languages, lookingFor, step, photoPreview])
 
   // Switching the target city invalidates a neighborhood picked from the
   // previous city's list. Clear it only once the new list has actually loaded
@@ -344,7 +351,7 @@ function ApplyForm() {
       const res  = await fetch('/app/api/apply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, interests, socialStyles, languages, referredBy: refCode || undefined, targetCitySlug, _hp: honeypot, _cf: turnstileToken, _fp: fingerprint, _tz: browserTz }),
+        body: JSON.stringify({ ...form, interests, socialStyles, languages, lookingFor, referredBy: refCode || undefined, targetCitySlug, _hp: honeypot, _cf: turnstileToken, _fp: fingerprint, _tz: browserTz }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -386,7 +393,7 @@ function ApplyForm() {
             Thanks for applying to Smileys Community. We personally review every application.
           </p>
           <p className="text-gray-600 text-sm mb-6">
-            We'll get back to you at <strong>{form.email}</strong> within 24 hours.
+            We'll get back to you at <strong>{form.email}</strong> — usually the same day.
           </p>
           <Link href="/" className="text-amber-600 font-semibold text-sm hover:underline">← Back to home</Link>
         </div>
@@ -409,7 +416,7 @@ function ApplyForm() {
               lived only in the FAQ, so applicants assumed a subscription. */}
           <ul className="mt-3 space-y-1 text-xs text-gray-500">
             <li>🆓 Joining is free — no subscription, no membership fee.</li>
-            <li>✍️ Every application is reviewed by hand within 24–48 hours.</li>
+            <li>✍️ Every application is reviewed by hand — usually the same day.</li>
             <li>🎟️ You only pay for events you choose — prices shown before you RSVP.</li>
           </ul>
         </div>
@@ -626,65 +633,60 @@ function ApplyForm() {
                 most applicants filled only one anyway, kept the funnel lighter. */}
           </>}
 
-          {/* Step 2: About You */}
+          {/* Step 2: About You — the matching fields, as chips. */}
           {step === 1 && <>
             <h2 className="font-bold text-gray-900 text-base mb-1">About You</h2>
             <div>
-              <label htmlFor="ap-profession" className="block text-xs font-semibold text-gray-600 mb-2">What do you do professionally?</label>
+              <label htmlFor="ap-profession" className="block text-xs font-semibold text-gray-600 mb-2">What do you do?</label>
               <input id="ap-profession" type="text" value={form.profession} onChange={e => set('profession', e.target.value)}
-                placeholder="e.g. Product designer, entrepreneur…" className={inputCls} />
+                placeholder="e.g. Product designer, teacher, founder…" className={inputCls} />
             </div>
             <div>
-              <label htmlFor="ap-time" className="block text-xs font-semibold text-gray-600 mb-2">How long have you been in {targetCityName}?</label>
-              <input id="ap-time" type="text" value={form.timeInCity} onChange={e => set('timeInCity', e.target.value)}
-                placeholder="e.g. 3 years, just arrived…" className={inputCls} />
+              <p className="text-xs font-semibold text-gray-600 mb-2">How long have you been in {targetCityName}?</p>
+              <div className="flex flex-wrap gap-2">
+                {TIME_IN_CITY.map(opt => (
+                  <button key={opt} type="button" onClick={() => set('timeInCity', form.timeInCity === opt ? '' : opt)}
+                    className={`px-3 py-1.5 rounded-full border text-sm font-medium transition-all ${
+                      form.timeInCity === opt ? 'bg-amber-50 border-amber-400 text-amber-700' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                    }`}>
+                    {opt}
+                  </button>
+                ))}
+              </div>
             </div>
             <div>
-              <label htmlFor="ap-reason" className="block text-xs font-semibold text-gray-600 mb-2">What brings you here?</label>
-              <input id="ap-reason" type="text" value={form.reasonHere} onChange={e => set('reasonHere', e.target.value)}
-                placeholder="e.g. Work, relocated, digital nomad…" className={inputCls} />
+              <p className="text-xs font-semibold text-gray-600 mb-2">What brought you here?</p>
+              <div className="flex flex-wrap gap-2">
+                {REASONS_HERE.map(opt => (
+                  <button key={opt} type="button" onClick={() => set('reasonHere', form.reasonHere === opt ? '' : opt)}
+                    className={`px-3 py-1.5 rounded-full border text-sm font-medium transition-all ${
+                      form.reasonHere === opt ? 'bg-amber-50 border-amber-400 text-amber-700' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                    }`}>
+                    {opt}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div>
-              <label htmlFor="ap-bio" className="block text-xs font-semibold text-gray-600 mb-2">Anything else you&apos;d like us to know?</label>
-              <textarea id="ap-bio" rows={3} value={form.bio} onChange={e => set('bio', e.target.value)}
-                placeholder="What you're passionate about, looking for…"
-                className={`${inputCls} resize-none`} />
+            <div className="pt-4 mt-2 border-t border-gray-100">
+              <p className="text-xs font-semibold text-gray-600 mb-1">What are you hoping to find here?</p>
+              <p className="text-xs text-gray-400 mb-2">Pick all that apply — this is how we introduce you to the right people.</p>
+              <div className="flex flex-wrap gap-2">
+                {LOOKING_FOR_OPTIONS.map(opt => {
+                  const active = lookingFor.includes(opt.id)
+                  return (
+                    <button key={opt.id} type="button"
+                      onClick={() => setLookingFor(prev => active ? prev.filter(x => x !== opt.id) : [...prev, opt.id])}
+                      className={`px-3 py-1.5 rounded-full border text-sm font-medium transition-all ${
+                        active ? 'bg-amber-50 border-amber-400 text-amber-700' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                      }`}>
+                      {opt.label}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
-            <div>
-              <label htmlFor="ap-source" className="block text-xs font-semibold text-gray-600 mb-2">How did you hear about us?</label>
-              <select id="ap-source" value={form.source} onChange={e => set('source', e.target.value)} className={`${inputCls} bg-white`}>
-                <option value="">Select…</option>
-                <option value="instagram">Instagram</option>
-                <option value="friend">Friend / referral</option>
-                <option value="google">Google</option>
-                <option value="event">Attended an event</option>
-                <option value="other">Other</option>
-              </select>
-            </div>
-          </>}
-
-          {/* Step 3: Community Fit — one consolidated prompt replaces three
-              overlapping ones (whyJoin / enjoyWith / goodCommunity). */}
-          {step === 2 && <>
-            <h2 className="font-bold text-gray-900 text-base mb-1">Community Fit</h2>
-            <div>
-              <label htmlFor="ap-community" className="block text-xs font-semibold text-gray-600 mb-2">
-                What kind of community are you looking for — and what would you bring to it?
-              </label>
-              <textarea id="ap-community" rows={6} value={form.aboutCommunity} onChange={e => set('aboutCommunity', e.target.value)}
-                placeholder="The community you're hoping to find, the people you'd love to spend time with, what you'd add to the mix…"
-                className={`${inputCls} resize-none`} />
-              <p className="text-xs text-gray-400 mt-1">A few sentences is plenty. Specific beats long.</p>
-            </div>
-          </>}
-
-          {/* Step 4: Languages + Interests + Social Style */}
-          {step === 3 && <>
-            {/* Languages chip multi-select — top matching axis for an
-                expat-heavy community, currently missing from apply. */}
-            <div>
-              <h2 className="font-bold text-gray-900 text-base mb-1">Languages you speak</h2>
-              <p className="text-xs text-gray-400 mb-2">Pick all that apply.</p>
+            <div className="pt-4 mt-2 border-t border-gray-100">
+              <p className="text-xs font-semibold text-gray-600 mb-2">Languages you speak</p>
               <div className="flex flex-wrap gap-2">
                 {COMMON_LANGUAGES.map(lang => {
                   const active = languages.includes(lang)
@@ -702,92 +704,103 @@ function ApplyForm() {
                 })}
               </div>
             </div>
-
-            <h2 className="font-bold text-gray-900 text-base mb-1 pt-4 mt-4 border-t border-gray-100">Interests & Activities</h2>
-            <p className="text-xs text-gray-400">Select everything that interests you</p>
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              {INTERESTS_LIST.map(item => {
-                const active = interests.includes(item.value)
-                return (
-                  <button key={item.value} type="button"
-                    onClick={() => setInterests(prev =>
-                      prev.includes(item.value) ? prev.filter(i => i !== item.value) : [...prev, item.value]
-                    )}
-                    className={`flex items-center gap-2.5 px-4 py-3 rounded-xl border-2 text-sm font-medium transition-all text-left ${
-                      active ? 'bg-amber-50 border-amber-400 text-amber-700' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
-                    }`}
-                  >
-                    <span className="text-lg">{item.emoji}</span>
-                    <span>{item.label}</span>
-                  </button>
-                )
-              })}
+            <div className="pt-4 mt-2 border-t border-gray-100">
+              <p className="text-xs font-semibold text-gray-600 mb-1">Interests & activities</p>
+              <p className="text-xs text-gray-400 mb-2">Select everything that interests you.</p>
+              <div className="grid grid-cols-2 gap-2">
+                {INTERESTS_LIST.map(item => {
+                  const active = interests.includes(item.value)
+                  return (
+                    <button key={item.value} type="button"
+                      onClick={() => setInterests(prev =>
+                        prev.includes(item.value) ? prev.filter(i => i !== item.value) : [...prev, item.value]
+                      )}
+                      className={`flex items-center gap-2.5 px-4 py-3 rounded-xl border-2 text-sm font-medium transition-all text-left ${
+                        active ? 'bg-amber-50 border-amber-400 text-amber-700' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                      }`}
+                    >
+                      <span className="text-lg">{item.emoji}</span>
+                      <span>{item.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
             </div>
-
-            <div className="pt-2">
-              <h3 className="font-bold text-gray-900 text-sm mb-1">Social Style <span className="font-normal text-gray-400">(optional)</span></h3>
+            <div className="pt-4 mt-2 border-t border-gray-100">
+              <p className="text-xs font-semibold text-gray-600 mb-1">Social style <span className="font-normal text-gray-400">(optional)</span></p>
               <p className="text-xs text-gray-400 mb-2">How do you show up socially? Pick up to 3.</p>
               <div className="flex flex-wrap gap-2">
                 {SOCIAL_STYLES.map(s => {
                   const active = socialStyles.includes(s.id)
                   return (
-                    <button key={s.id} type="button"
-                      title={s.desc}
+                    <button key={s.id} type="button" title={s.desc}
                       onClick={() => setSocialStyles(prev =>
-                        active ? prev.filter(x => x !== s.id)
-                               : prev.length < 3 ? [...prev, s.id] : prev
+                        active ? prev.filter(x => x !== s.id) : prev.length < 3 ? [...prev, s.id] : prev
                       )}
                       className={`text-sm px-3 py-2 rounded-full font-medium transition-colors border-2 ${
-                        active
-                          ? 'bg-amber-50 border-amber-400 text-amber-700'
-                          : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
-                      }`}
-                    >
+                        active ? 'bg-amber-50 border-amber-400 text-amber-700' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                      }`}>
                       {s.label}
                     </button>
                   )
                 })}
               </div>
             </div>
+            <div className="pt-4 mt-2 border-t border-gray-100">
+              <label htmlFor="ap-community" className="block text-xs font-semibold text-gray-600 mb-2">
+                Anything you&apos;d like to add? <span className="font-normal text-gray-400">(optional)</span>
+              </label>
+              <textarea id="ap-community" rows={2} value={form.aboutCommunity} onChange={e => set('aboutCommunity', e.target.value)}
+                placeholder="A line about you, or what would make Smileys feel like yours."
+                className={`${inputCls} resize-none`} />
+            </div>
           </>}
 
-          {/* Step 5: Contribution + Social Judgment + Verification merged. The
-              first three step-4 sections were each short; folding them into
-              Verification keeps the screening signal but drops perceived
-              length from 6 steps to 5. */}
-          {step === 4 && <>
-            <h2 className="font-bold text-gray-900 text-base mb-1">Contribution Mindset</h2>
-            <p className="text-xs text-gray-400 mb-2">What role do you see yourself playing?</p>
-            <div className="space-y-2">
-              {[
-                { value: 'attend',   label: 'Attend events only',        emoji: '🎟️' },
-                { value: 'organize', label: 'Help organize events',       emoji: '🤝' },
-                { value: 'host',     label: 'Become a host in the future', emoji: '🎖️' },
-              ].map(opt => (
-                <button key={opt.value} type="button" onClick={() => set('contribution', opt.value)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-sm font-medium transition-all text-left ${
-                    form.contribution === opt.value ? 'bg-amber-50 border-amber-400 text-amber-700' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
-                  }`}
-                >
-                  <span className="text-xl">{opt.emoji}</span>
-                  <span>{opt.label}</span>
-                  {form.contribution === opt.value && <span className="ml-auto text-amber-500">✓</span>}
-                </button>
-              ))}
+          {/* Step 3: Verification — how they found us, the role they see for
+              themselves, the photo that does the real screening, and the
+              agreements. */}
+          {step === 2 && <>
+            <h2 className="font-bold text-gray-900 text-base mb-1">Almost there</h2>
+            <div>
+              <label htmlFor="ap-source" className="block text-xs font-semibold text-gray-600 mb-2">How did you hear about us?</label>
+              <select id="ap-source" value={form.source} onChange={e => set('source', e.target.value)} className={`${inputCls} bg-white`}>
+                <option value="">Select…</option>
+                <option value="instagram">Instagram</option>
+                <option value="friend">Friend / referral</option>
+                <option value="google">Google</option>
+                <option value="event">Attended an event</option>
+                <option value="other">Other</option>
+              </select>
             </div>
-
-            <div className="pt-4 mt-2 border-t border-gray-100">
-              <h3 className="font-bold text-gray-900 text-sm mb-3">Social Judgment</h3>
+            {/* 45% of applicants say a friend told them and 3% carry a
+                referral code — the name is how that friend gets the credit. */}
+            {form.source === 'friend' && (
               <div>
-                <label htmlFor="ap-social" className="block text-xs font-semibold text-gray-600 mb-2">
-                  Tell us about a time you handled a difficult social situation well.
-                </label>
-                <textarea id="ap-social" rows={4} value={form.socialJudgment} onChange={e => set('socialJudgment', e.target.value)}
-                  placeholder="A few sentences — what happened, what you did, how it landed."
-                  className={`${inputCls} resize-none`} />
+                <label htmlFor="ap-referrer" className="block text-xs font-semibold text-gray-600 mb-2">Who told you about Smileys?</label>
+                <input id="ap-referrer" type="text" value={form.referrerName} onChange={e => set('referrerName', e.target.value)}
+                  placeholder="Their name — we'll thank them" className={inputCls} />
+              </div>
+            )}
+            <div className="pt-4 mt-2 border-t border-gray-100">
+              <p className="text-xs font-semibold text-gray-600 mb-2">What role do you see yourself playing?</p>
+              <div className="space-y-2">
+                {[
+                  { value: 'attend',   label: 'Attend events',               emoji: '🎟️' },
+                  { value: 'organize', label: 'Help organize events',        emoji: '🤝' },
+                  { value: 'host',     label: 'Become a host in the future',  emoji: '🎖️' },
+                ].map(opt => (
+                  <button key={opt.value} type="button" onClick={() => set('contribution', opt.value)}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-sm font-medium transition-all text-left ${
+                      form.contribution === opt.value ? 'bg-amber-50 border-amber-400 text-amber-700' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                    }`}
+                  >
+                    <span className="text-xl">{opt.emoji}</span>
+                    <span>{opt.label}</span>
+                    {form.contribution === opt.value && <span className="ml-auto text-amber-500">✓</span>}
+                  </button>
+                ))}
               </div>
             </div>
-
             <h2 className="font-bold text-gray-900 text-base mb-1 pt-6 mt-4 border-t border-gray-100">Verification</h2>
             <p className="text-xs text-gray-400 mb-3">We review every application personally — a real photo of you is required and helps us keep the community genuine.</p>
             <div>

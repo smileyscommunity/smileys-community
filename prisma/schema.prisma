@@ -1158,6 +1158,10 @@ model MemberApplication {
   openToHosting        Boolean   @default(false)
   openToLanguage       Boolean   @default(false)
   socialJudgment       String?
+  // What they hope to find (profile's LOOKING_FOR options) and who told them
+  // about Smileys when source is 'friend' — see the 2026-09-08 migration.
+  lookingFor           String[]  @default([])
+  referrerName         String?
   suspicionScore       Int       @default(0)
   targetCityId         String
   reviewer             User?     @relation(fields: [reviewedBy], references: [id])

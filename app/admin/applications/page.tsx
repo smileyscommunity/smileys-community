@@ -24,6 +24,7 @@ interface Application {
   openToCoffee: boolean; openToLanguage: boolean; openToHosting: boolean
   profilePhoto: string | null; suggestion: string | null; suggestedBy: string | null
   bio: string | null; source: string | null; referredBy: string | null; status: string
+  lookingFor?: string[]; referrerName?: string | null
   reviewNote: string | null; createdAt: string; reviewedAt: string | null; reviewer: { name: string } | null
   ipAddress: string | null; userAgent: string | null; fingerprint: string | null
   timezone: string | null; timezoneMismatch: boolean; disposableEmail: boolean
@@ -76,7 +77,9 @@ function score(app: Application): number {
   if (app.contribution === 'host' || app.contribution === 'organize') s += 15
   if (essayLen > 80 && !isGeneric)                           s += 20
   if (app.instagram || app.linkedin)                         s += 10
-  if (!app.aboutCommunity && !app.whyJoin && !app.goodCommunity && !app.bio) s -= 30
+  // The essay is optional since 2026-09-08 (the form asks "looking for" as
+  // chips instead); an empty one is no longer a mark against anyone.
+  if (app.lookingFor?.length)                                s += 10
   if (isGeneric)                                             s -= 15
   if (!app.profilePhoto)                                     s -= 40
   return Math.max(0, Math.min(100, s))
@@ -95,7 +98,7 @@ function Flag({ app }: { app: Application }) {
   const removed  = (app.removedFromCommunity ?? '').toLowerCase()
   if (removed && removed !== 'no' && removed.length > 2)
     return <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-500/10 text-red-400">⚠️ Flagged</span>
-  if (!app.aboutCommunity && !app.whyJoin && !app.goodCommunity && !app.bio)
+  if (!app.aboutCommunity && !app.whyJoin && !app.goodCommunity && !app.bio && !app.lookingFor?.length)
     return <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-zinc-700 text-zinc-400">Empty</span>
   if (GENERIC.some(kw => combined.includes(kw)))
     return <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-zinc-700 text-zinc-400">Generic</span>
@@ -1086,6 +1089,8 @@ function AdminApplicationsPageInner() {
                   {selected.phone  && <div className="flex gap-2"><span className="text-zinc-600 w-12 shrink-0">Phone</span><span className="text-zinc-400">{selected.phone}</span></div>}
                   {selected.source && <div className="flex gap-2"><span className="text-zinc-600 w-12 shrink-0">Via</span><span className="text-zinc-400 capitalize">{selected.source}</span></div>}
                   {selected.referredBy && <div className="flex gap-2"><span className="text-zinc-600 w-24 shrink-0">Referral code</span><span className="text-amber-400 font-mono text-xs">{selected.referredBy}</span></div>}
+                  {selected.referrerName && <div className="flex gap-2"><span className="text-zinc-600 w-24 shrink-0">Told by</span><span className="text-amber-400">{selected.referrerName}</span></div>}
+                  {!!selected.lookingFor?.length && <div className="flex gap-2"><span className="text-zinc-600 w-24 shrink-0">Looking for</span><span className="text-zinc-400">{selected.lookingFor.join(', ').replace(/_/g, ' ')}</span></div>}
                   {selected.ipAddress && (
                     <div className="flex gap-2 items-center">
                       <span className="text-zinc-600 w-12 shrink-0">IP</span>

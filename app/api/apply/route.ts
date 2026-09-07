@@ -6,6 +6,7 @@ import { Role } from '@/lib/constants'
 import { sendApplicationReceivedEmail, sendAdminNewApplicationEmail, sendAlreadyRegisteredEmail } from '@/lib/email'
 import { rateLimit, getIp } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
+import { LOOKING_FOR_VALUES } from '@/lib/profileOptions'
 import { verifyTurnstile } from '@/lib/turnstile'
 import { areApplicationsOpen, newApplicationEmailsEnabled } from '@/lib/communitySettings'
 import { formatName } from '@/lib/data'
@@ -43,6 +44,8 @@ const applySchema = z.object({
   languages:       z.array(z.string().max(50)).max(20).optional().default([]),
   interests:       z.array(z.string().max(50)).max(30).optional().default([]),
   socialStyles:    z.array(z.string().max(50)).max(20).optional().default([]),
+  lookingFor:      z.array(z.string().max(50)).max(10).optional().default([]),
+  referrerName:    z.string().trim().max(100).optional().nullable(),
   openToCoffee:    z.boolean().optional().default(false),
   openToLanguage:  z.boolean().optional().default(false),
   openToHosting:   z.boolean().optional().default(false),
@@ -103,7 +106,7 @@ export async function POST(req: NextRequest) {
     const {
       firstName, lastName, email, phone, birthdate, gender, country, city, neighborhood,
       instagram, linkedin, profession, timeInCity, reasonHere,
-      aboutCommunity, socialJudgment, languages, interests, socialStyles,
+      aboutCommunity, socialJudgment, languages, interests, socialStyles, lookingFor, referrerName,
       openToCoffee, openToLanguage, openToHosting,
       whyJoin, enjoyWith, goodCommunity,
       contribution, groupBehavior, removedFromCommunity, toxicBehavior,
@@ -318,6 +321,9 @@ export async function POST(req: NextRequest) {
         profession,  timeInCity, reasonHere,
         whyJoin,     enjoyWith,  goodCommunity,
         interests,   socialStyles, languages,
+        // Only the profile's own options, whatever the client sent.
+        lookingFor:   lookingFor.filter(v => LOOKING_FOR_VALUES.has(v)),
+        referrerName: source === 'friend' ? (referrerName?.trim() || null) : null,
         contribution, groupBehavior, removedFromCommunity, toxicBehavior,
         aboutCommunity, socialJudgment,
         openToCoffee, openToLanguage, openToHosting,
