@@ -20,9 +20,19 @@ export async function GET() {
   // Rate limit the secret-generation path. Each GET runs generateSecret +
   // encryptTotpSecret + a DB write + a QR PNG render — without a limit an
   // attacker with a session cookie can spray GETs to amplify DB writes
-  // and burn CPU. Same cadence as POST/DELETE on this route.
-  if (!await rateLimit(`2fa-setup:${session.id}`, 5, 15 * 60_000)) {
-    return NextResponse.json({ error: 'Too many attempts. Try again later.' }, { status: 429 })
+  // and burn CPU.
+  //
+  // Its OWN bucket, deliberately. This used to share `2fa-setup:<id>` with
+  // POST/DELETE, which made enrollment self-locking: GET is what the "Set
+  // up" button calls (it renders the QR), so opening the panel, mistyping a
+  // code and asking for a fresh QR spent 4 of the 5 attempts a 15-minute
+  // window allows — and an admin who hasn't enrolled yet is pinned to
+  // /admin/security by app/admin/layout.tsx with nowhere else to go, so the
+  // 429 locked them out of the only action available to them. Rendering a QR
+  // is not a guess at a secret, so it does not belong in the brute-force
+  // budget; this cap exists only to bound DB writes and CPU.
+  if (!await rateLimit(`2fa-setup-qr:${session.id}`, 15, 15 * 60_000)) {
+    return NextResponse.json({ error: 'Too many setup attempts. Try again in a few minutes.' }, { status: 429 })
   }
 
   const user = await prisma.user.findUnique({
@@ -67,6 +77,10 @@ export async function POST(req: NextRequest) {
   // route (`2fa:<ip>`). Per-session.id rather than per-IP because the
   // attacker would already be authenticated with the user's password to
   // get here.
+  //
+  // Shares `2fa-setup:<id>` with DELETE on purpose: both accept a 6-digit
+  // code, so giving them separate buckets would hand an attacker 10 guesses
+  // per window instead of 5. GET is the one that was split out — see there.
   if (!await rateLimit(`2fa-setup:${session.id}`, 5, 15 * 60_000)) {
     return NextResponse.json({ error: 'Too many attempts. Try again later.' }, { status: 429 })
   }
@@ -119,8 +133,9 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  // Same rate limit shape as POST — disabling 2FA also requires a valid
-  // code, so it's brute-forceable without the limit.
+  // Same bucket as POST, not merely the same shape — disabling 2FA also
+  // takes a valid code, and one shared budget is what stops an attacker
+  // alternating POST and DELETE to double their guesses per window.
   if (!await rateLimit(`2fa-setup:${session.id}`, 5, 15 * 60_000)) {
     return NextResponse.json({ error: 'Too many attempts. Try again later.' }, { status: 429 })
   }
