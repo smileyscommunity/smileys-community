@@ -15,6 +15,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { EVENT_EMOJIS as EMOJIS } from '@/lib/eventEmojis'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { phonePlaceholder, dialCode } from '@/lib/country'
+import { clubOptionLabel } from '@/lib/clubLabel'
 const inputCls = 'bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none px-3 py-2.5 w-full text-sm'
 
 const emptyForm = {
@@ -481,7 +482,7 @@ export default function EditEventPage({ params }: { params: Promise<{ id: string
           <div>
             <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Club</label>
             <select value={form.clubId} onChange={e => set('clubId', e.target.value)} className={inputCls}>
-              {clubs.map(c => <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}
+              {clubs.map(c => <option key={c.id} value={c.id}>{clubOptionLabel(c)}</option>)}
             </select>
           </div>
           <div className="relative">

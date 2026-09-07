@@ -13,6 +13,7 @@ import NotifyAttendeesModal from '@/components/admin/NotifyAttendeesModal'
 import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { DEFAULT_CURRENCY, formatMoney, currencySymbol } from '@/lib/data'
+import { clubOptionLabel } from '@/lib/clubLabel'
 
 type TabKey = 'all' | 'upcoming' | 'pending' | 'cancelled' | 'archived'
 const TAB_KEYS: TabKey[] = ['all', 'upcoming', 'pending', 'cancelled', 'archived']
@@ -36,7 +37,7 @@ interface AdminEvent {
   survey: { responses: number; wouldReturnRate: number; anomalyCount: number; eligibleAttendees: number; responseRate: number | null } | null
 }
 
-interface Club { id: string; name: string; emoji: string }
+interface Club { id: string; name: string; emoji: string; city?: { name: string; slug: string } | null }
 
 // ⋯ dropdown — status changes + duplicate + delete
 function ActionsMenu({
@@ -575,7 +576,7 @@ function AdminEventsPageInner() {
           <select value={clubFilter} onChange={e => setClubFilter(e.target.value)}
             className="text-xs px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:ring-2 focus:ring-amber-500 w-40">
             <option value="all">All clubs</option>
-            {clubs.map(c => <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}
+            {clubs.map(c => <option key={c.id} value={c.id}>{clubOptionLabel(c)}</option>)}
           </select>
           {cities.length > 1 && (
             <select value={cityFilter} onChange={e => setCityFilter(e.target.value)}

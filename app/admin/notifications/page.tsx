@@ -5,13 +5,14 @@ import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
 import { loadFailure } from '@/lib/admin/useAdminLoad'
+import { clubOptionLabel } from '@/lib/clubLabel'
 
 type Channel  = 'in-app' | 'email'
 type MsgType  = 'announcement' | 'reminder' | 'alert'
 type Audience = 'all' | 'city' | 'club' | 'event'
 
 interface CityOption  { id: string; name: string; status: string }
-interface ClubOption  { id: string; name: string; emoji?: string }
+interface ClubOption  { id: string; name: string; emoji?: string; city?: { name: string; slug: string } | null }
 interface EventOption { id: string; title: string; emoji?: string }
 
 interface BroadcastRecord {
@@ -293,7 +294,7 @@ export default function AdminNotificationsPage() {
               <select value={clubId} onChange={e => setClubId(e.target.value)}
                 className="w-full bg-zinc-800 border border-zinc-700 text-white text-sm rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-amber-500 focus:outline-none">
                 <option value="">Select club…</option>
-                {clubs.map(c => <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}
+                {clubs.map(c => <option key={c.id} value={c.id}>{clubOptionLabel(c)}</option>)}
               </select>
             )}
             {audience === 'event' && (

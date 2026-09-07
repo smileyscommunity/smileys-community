@@ -14,6 +14,7 @@ import { toast } from 'sonner'
 import { getInitials, firstNameOf} from '@/lib/data'
 import { useAdminLoad } from '@/lib/admin/useAdminLoad'
 import LoadErrorBanner from '@/components/admin/LoadErrorBanner'
+import { clubOptionLabel } from '@/lib/clubLabel'
 
 interface Host {
   userId:         string
@@ -282,7 +283,7 @@ function HostSkeleton() {
 // from role='member' to role='host'. Uses the existing
 // membership endpoint so notification + audit run as designed.
 // ──────────────────────────────────────────────────────────────
-interface ClubLite { id: string; name: string; emoji: string }
+interface ClubLite { id: string; name: string; emoji: string; city?: { name: string; slug: string } | null }
 interface MemberLite { id: string; name: string; email?: string }
 
 function PromotePanel({ onSaved, onCancel }: { onSaved: () => void; onCancel: () => void }) {
@@ -356,7 +357,7 @@ function PromotePanel({ onSaved, onCancel }: { onSaved: () => void; onCancel: ()
           <select value={clubId} onChange={e => setClubId(e.target.value)}
             className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500">
             <option value="">Select a club…</option>
-            {clubs?.map(c => <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}
+            {clubs?.map(c => <option key={c.id} value={c.id}>{clubOptionLabel(c)}</option>)}
           </select>
         </div>
         <div>
