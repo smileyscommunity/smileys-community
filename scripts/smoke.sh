@@ -81,10 +81,13 @@ fi
 echo "  ✓ CSP nonce wired ($CSP_NONCE)"
 
 # Any unnonced <script> tags would be blocked by 'strict-dynamic' in modern browsers.
-UNNONCED=$(grep -oE '<script[^>]*>' "$BODY" | grep -cv "nonce=" || true)
+# JSON-LD blocks are exempt: type="application/ld+json" is data the browser never
+# executes, so CSP never applies to it and the app stopped nonce-ing them
+# (859ee60). Counting them here failed a deploy for a block that can't be blocked.
+UNNONCED=$(grep -oE '<script[^>]*>' "$BODY" | grep -v 'application/ld+json' | grep -cv "nonce=" || true)
 if [ "${UNNONCED:-0}" -gt 0 ]; then
   echo "  ✗ $UNNONCED <script> tag(s) without a nonce attribute — would be CSP-blocked in prod"
-  grep -oE '<script[^>]*>' "$BODY" | grep -v "nonce=" | head -3
+  grep -oE '<script[^>]*>' "$BODY" | grep -v 'application/ld+json' | grep -v "nonce=" | head -3
   exit 1
 fi
 echo "  ✓ every rendered <script> tag has a nonce"
