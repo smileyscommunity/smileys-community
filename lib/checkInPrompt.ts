@@ -1,6 +1,6 @@
 import { eventEndsAt } from '@/lib/eventTime'
 import {
-  checkInIsCredible, isFreeEvent, NO_SHOW_PROCESSING_LOOKBACK_DAYS,
+  checkInIsCredible, noShowPolicyApplies, NO_SHOW_PROCESSING_LOOKBACK_DAYS,
 } from '@/lib/noShowPolicy'
 import { DEFAULT_TZ } from '@/lib/cityTime'
 
@@ -34,6 +34,9 @@ export interface CheckInPromptEvent {
   status:             string
   price:              number
   memberPrice?:       number | null
+  payTo?:             string | null
+  ticketUrl?:         string | null
+  paymentContact?:    string | null
   noShowProcessedAt?: string | null
   checkedInCount?:    number
   _count?:            { attendees: number }
@@ -59,9 +62,9 @@ export function awaitingCheckIn(
     // after it ran, which is exactly when a host looks at the dashboard.
     // The sweeper settles both statuses; this list must match it.
     if ((e.status !== 'published' && e.status !== 'archived') || e.noShowProcessedAt) return []
-    // Only free events ever produce cards, so only free events are worth
-    // chasing a host about.
-    if (!isFreeEvent(e)) return []
+    // Only events under the no-show policy ever produce cards, so only those
+    // are worth chasing a host about.
+    if (!noShowPolicyApplies(e)) return []
     const approved = e._count?.attendees ?? 0
     const checked  = e.checkedInCount ?? 0
     if (approved < 1 || checkInIsCredible(checked, approved)) return []

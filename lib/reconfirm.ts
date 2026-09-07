@@ -6,7 +6,7 @@ import { dayInTz, DEFAULT_TZ } from '@/lib/cityTime'
 import { announceSpotOpened } from '@/lib/spotOpened'
 import { reconfirmUrl } from '@/lib/reconfirmToken'
 import {
-  isFreeEvent, RECONFIRM_ASK_HOURS_BEFORE, RECONFIRM_RELEASE_HOURS_BEFORE, RECONFIRM_MIN_LEAD_HOURS,
+  noShowPolicyApplies, RECONFIRM_ASK_HOURS_BEFORE, RECONFIRM_RELEASE_HOURS_BEFORE, RECONFIRM_MIN_LEAD_HOURS,
 } from '@/lib/noShowPolicy'
 
 // ── Day-before reconfirmation ───────────────────────────────────────────────
@@ -21,17 +21,18 @@ import {
 const HOUR = 60 * 60 * 1000
 
 /**
- * Which events take part: free, limited spots, live, and self-serve. An
+ * Which events take part: under the no-show policy (nothing paid in
+ * advance), limited spots, live, and self-serve. An
  * approval-required event has a host vetting every seat; releasing one to
  * whoever claims first would put the system in the host's chair.
  */
 export function needsReconfirmation(e: {
-  price: number; memberPrice?: number | null; limitedSpots: boolean; status: string; cancelledAt: Date | null;
-  approvalRequired: boolean; time: string
+  price: number; memberPrice?: number | null; payTo?: string | null; ticketUrl?: string | null; paymentContact?: string | null
+  limitedSpots: boolean; status: string; cancelledAt: Date | null; approvalRequired: boolean; time: string
 }): boolean {
   // A start time that doesn't parse ("TBA") would read as midnight and
   // release seats a day early; such an event simply isn't asked.
-  return isFreeEvent(e) && e.limitedSpots && e.status === 'published' && !e.cancelledAt && !e.approvalRequired
+  return noShowPolicyApplies(e) && e.limitedSpots && e.status === 'published' && !e.cancelledAt && !e.approvalRequired
     && /^\d{1,2}:\d{2}/.test(e.time)
 }
 
@@ -146,7 +147,7 @@ export async function sweepReconfirm(now: Date = new Date()) {
       cityId: c.id, status: 'published', cancelledAt: null, price: 0, limitedSpots: true, approvalRequired: false,
       date: { gte: dayInTz(now, c.timezone), lte: dayInTz(twoDays, c.timezone) },
     },
-    select: { id: true, title: true, emoji: true, hostId: true, date: true, time: true, endTime: true, price: true, memberPrice: true, limitedSpots: true, status: true, cancelledAt: true, approvalRequired: true },
+    select: { id: true, title: true, emoji: true, hostId: true, date: true, time: true, endTime: true, price: true, memberPrice: true, payTo: true, ticketUrl: true, paymentContact: true, limitedSpots: true, status: true, cancelledAt: true, approvalRequired: true },
   }).then(rows => rows.map(e => ({ ...e, tz: c.timezone ?? DEFAULT_TZ })))))).flat()
 
   let asked = 0, released = 0

@@ -8,7 +8,7 @@ import { Attendance } from '@/lib/constants'
 import {
   CardKind, CardStatus, COUNTING_STATUSES,
   NO_SHOW_PROCESSING_DELAY_HOURS, NO_SHOW_PROCESSING_LOOKBACK_DAYS,
-  isFreeEvent, isNoShow, checkInIsCredible, windowStart, cardKindFor, redCardWindows, restrictionAfterRejectedAppeal,
+  noShowPolicyApplies, isNoShow, checkInIsCredible, windowStart, cardKindFor, redCardWindows, restrictionAfterRejectedAppeal,
   evaluateGate, type GateResult,
 } from '@/lib/noShowPolicy'
 
@@ -111,7 +111,7 @@ export async function settleEvent(eventId: string, now: Date = new Date()): Prom
   const event = await prisma.event.findUnique({
     where:  { id: eventId },
     select: {
-      id: true, date: true, time: true, endTime: true, hostId: true, price: true, memberPrice: true,
+      id: true, date: true, time: true, endTime: true, hostId: true, price: true, memberPrice: true, payTo: true, ticketUrl: true, paymentContact: true,
       status: true, cancelledAt: true, noShowProcessedAt: true,
       city:    { select: { timezone: true } },
       cohosts: { select: { userId: true } },
@@ -139,7 +139,8 @@ export async function settleEvent(eventId: string, now: Date = new Date()): Prom
   if (!checkInIsCredible(checkIns, room.length)) return { ...none, skipped: 'low_checkin' }
 
   const noShows  = attendees.filter(a => !staff.has(a.userId) && isNoShow(a, startsAt))
-  const free     = isFreeEvent(event)
+  // "free" in the policy's sense: nothing paid in advance (lib/noShowPolicy).
+  const free     = noShowPolicyApplies(event)
 
   // Everything the colour decision needs is read up front, in two queries,
   // so the transaction is three statements however big the room — a

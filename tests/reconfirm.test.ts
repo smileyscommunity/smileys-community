@@ -48,6 +48,9 @@ describe('needsReconfirmation', () => {
   it('free, limited, live events only', () => {
     expect(needsReconfirmation(EVENT)).toBe(true)
     expect(needsReconfirmation({ ...EVENT, price: 100 })).toBe(false)
+    // Paid at the door — nothing at stake in advance, so it takes part.
+    expect(needsReconfirmation({ ...EVENT, price: 100, payTo: 'venue' })).toBe(true)
+    expect(needsReconfirmation({ ...EVENT, price: 100, payTo: 'venue', ticketUrl: 'https://t.example/x' })).toBe(false)
     expect(needsReconfirmation({ ...EVENT, limitedSpots: false })).toBe(false)
     expect(needsReconfirmation({ ...EVENT, status: 'cancelled', cancelledAt: new Date() })).toBe(false)
     expect(needsReconfirmation({ ...EVENT, status: 'draft' })).toBe(false)

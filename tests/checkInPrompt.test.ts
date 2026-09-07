@@ -49,6 +49,9 @@ describe('awaitingCheckIn', () => {
 
   it('ignores paid events — they never yield cards', () => {
     expect(awaitingCheckIn([event({ price: 250 })], TZ, now)).toEqual([])
+    expect(awaitingCheckIn([event({ price: 250, payTo: 'smileys' })], TZ, now)).toEqual([])
+    // A museum ticket bought at the door is under the policy: chase the host.
+    expect(awaitingCheckIn([event({ price: 250, payTo: 'venue' })], TZ, now)).toHaveLength(1)
     expect(awaitingCheckIn([event({ price: 0, memberPrice: 100 })], TZ, now)).toEqual([])
   })
 

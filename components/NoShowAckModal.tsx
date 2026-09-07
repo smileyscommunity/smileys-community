@@ -30,7 +30,7 @@ export default function NoShowAckModal({ open, onConfirm, onCancel, busy = false
         <div className="text-3xl mb-3" aria-hidden="true">🟨</div>
         <h3 id="noshow-ack-title" className="font-bold text-gray-900 text-lg mb-2">Before you join</h3>
         <p className="text-sm text-gray-600 mb-2">
-          You had a spot at a recent event and weren&apos;t there. No problem — but spots at free events are limited, and someone on the waitlist could have had yours.
+          You had a spot at a recent event and weren&apos;t there. No problem — but spots at free and pay-at-the-door events are limited, and someone on the waitlist could have had yours.
         </p>
         <p className="text-sm text-gray-600 mb-5">
           If plans change, cancelling at least <strong>{NO_SHOW_CANCELLATION_CUTOFF_HOURS} hours</strong> ahead keeps you clear. A second no-show pauses RSVPs for {RED_CARD_BLOCK_DAYS} days.

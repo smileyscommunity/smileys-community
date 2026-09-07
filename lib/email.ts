@@ -523,10 +523,11 @@ export async function sendEventRejectedEmail(email: string, name: string, eventT
   })
 }
 
-// The footer line differs for free events: that is where the no-show policy
+// The footer line differs for events under the no-show policy (nothing paid
+// in advance — lib/noShowPolicy): that is where the policy
 // applies, and the RSVP confirmation is the first place a member should
 // hear about it — before it can ever bite, not after.
-const FREE_FOOTER = `Plans change? Cancel at least ${NO_SHOW_CANCELLATION_CUTOFF_HOURS} hours before so your spot goes to the waitlist — a spot left unused at a free event counts as a no-show.`
+const FREE_FOOTER = `Plans change? Cancel at least ${NO_SHOW_CANCELLATION_CUTOFF_HOURS} hours before so your spot goes to the waitlist — a spot left unused at a free or pay-at-the-door event counts as a no-show.`
 
 export async function sendRsvpConfirmationEmail(email: string, name: string, eventTitle: string, eventDate: string, eventLocation: string, eventId: string, opts: { free?: boolean } = {}) {
   const url = `${APP_URL}/events/${eventId}`

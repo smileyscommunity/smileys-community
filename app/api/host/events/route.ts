@@ -27,7 +27,7 @@ export async function GET() {
         // For the check-in prompt (components/CheckInPrompt): when the event
         // ended, whether it is free (only free events ever yield cards), and
         // whether the sweeper has already settled it.
-        endTime: true, price: true, memberPrice: true, noShowProcessedAt: true,
+        endTime: true, price: true, memberPrice: true, payTo: true, ticketUrl: true, paymentContact: true, noShowProcessedAt: true,
         _count: { select: { attendees: { where: { status: 'approved' } } } },
         attendees: { where: { status: 'approved', checkedIn: true }, select: { userId: true } },
       },

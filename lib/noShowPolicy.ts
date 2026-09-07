@@ -71,9 +71,38 @@ export function checkInIsCredible(checkedIn: number, approvedNonStaff: number): 
   return checkedIn / approvedNonStaff >= NO_SHOW_MIN_CHECKIN_RATIO
 }
 
-/** Cards only ever come from free events — price 0 for members too. */
+/** Nothing to pay at all — price 0 for members too. */
 export function isFreeEvent(e: { price: number; memberPrice?: number | null }): boolean {
   return (e.price ?? 0) === 0 && (e.memberPrice == null || e.memberPrice === 0)
+}
+
+/** What the no-show rule needs to know about an event's money. */
+export interface StakeFields {
+  price: number
+  memberPrice?: number | null
+  payTo?: string | null
+  ticketUrl?: string | null
+  paymentContact?: string | null
+}
+
+/**
+ * Does the no-show policy apply to this event — cards, the check-in chase,
+ * reconfirmation, the cancel-in-time reminders? It applies when a member has
+ * NOTHING AT STAKE IN ADVANCE, which is what makes an empty seat cost the
+ * community and not the member: a free event, or a priced one paid at the
+ * venue on the day (payTo 'venue' with no ticket link and no advance-payment
+ * contact). A museum walk where you buy your own ticket at the door is, for
+ * this purpose, a free event.
+ *
+ * It used to be isFreeEvent alone. Kaan's Cibali walk (300 TL museum ticket,
+ * 2026-09-05) ran check-in, settled one no-show, and issued nothing — and
+ * told the host nothing — because a ticket price read as "paid" (2026-09-07).
+ * Events with advance payment (collected by Smileys, a ticket link, a pay-
+ * in-advance contact) stay out: the member already paid for their seat.
+ */
+export function noShowPolicyApplies(e: StakeFields): boolean {
+  if (isFreeEvent(e)) return true
+  return e.payTo === 'venue' && !e.ticketUrl && !e.paymentContact
 }
 
 /** The last moment a cancel still counts as giving the spot back. */

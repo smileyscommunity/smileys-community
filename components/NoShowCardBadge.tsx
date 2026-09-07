@@ -13,7 +13,7 @@ export default function NoShowCardBadge({ cards }: { cards?: { yellow: number; r
       }`}
       title={red
         ? `${n} active red card${n !== 1 ? 's' : ''} — RSVPs are paused for this member`
-        : `${n} active yellow card${n !== 1 ? 's' : ''} — registered for a free event and didn't check in`}
+        : `${n} active yellow card${n !== 1 ? 's' : ''} — registered for a free or pay-at-the-door event and didn't check in`}
     >
       <span aria-hidden="true">{red ? '🟥' : '🟨'}</span>
       {n} active card{n !== 1 ? 's' : ''}

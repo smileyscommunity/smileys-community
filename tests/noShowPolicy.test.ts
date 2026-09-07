@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  isFreeEvent, isNoShow, checkInIsCredible, cardKindFor, windowStart, redCardWindows, restrictionAfterRejectedAppeal,
+  isFreeEvent, noShowPolicyApplies, isNoShow, checkInIsCredible, cardKindFor, windowStart, redCardWindows, restrictionAfterRejectedAppeal,
   evaluateGate, isBlocking, needsAcknowledgement,
   NO_SHOW_CANCELLATION_CUTOFF_HOURS, NO_SHOW_ROLLING_WINDOW_DAYS, RED_CARD_BLOCK_DAYS, RED_CARD_APPEAL_WINDOW_HOURS,
 } from '@/lib/noShowPolicy'
@@ -10,6 +10,27 @@ import {
 const H = 60 * 60 * 1000
 const D = 24 * H
 const start = new Date('2026-09-12T16:00:00Z')   // 19:00 Istanbul
+
+describe('noShowPolicyApplies', () => {
+  it('applies to free events', () => {
+    expect(noShowPolicyApplies({ price: 0 })).toBe(true)
+    expect(noShowPolicyApplies({ price: 0, memberPrice: 0, payTo: 'smileys' })).toBe(true)
+  })
+
+  it('applies to a priced event paid at the venue on the day — nothing at stake in advance', () => {
+    // Kaan's Cibali walk: a 300 TL museum ticket bought at the door. It ran
+    // check-in, settled one no-show and issued nothing (2026-09-07).
+    expect(noShowPolicyApplies({ price: 300, memberPrice: null, payTo: 'venue', ticketUrl: null, paymentContact: null })).toBe(true)
+  })
+
+  it('does not apply when the seat was paid for in advance', () => {
+    expect(noShowPolicyApplies({ price: 300, payTo: 'smileys' })).toBe(false)
+    expect(noShowPolicyApplies({ price: 300, payTo: 'venue', ticketUrl: 'https://tickets.example/x' })).toBe(false)
+    expect(noShowPolicyApplies({ price: 300, payTo: 'venue', paymentContact: 'https://wa.me/905000000000' })).toBe(false)
+    // A caller that never loaded the payment fields gets the old, safe answer.
+    expect(noShowPolicyApplies({ price: 300 })).toBe(false)
+  })
+})
 
 describe('isFreeEvent', () => {
   it('is free only when members pay nothing either', () => {
