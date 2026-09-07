@@ -6,6 +6,8 @@ import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import type { Metadata } from 'next'
 import { getSession } from '@/lib/session'
+import { redirect } from 'next/navigation'
+import { DEFAULT_CITY_SLUG } from '@/lib/city'
 import { resolveCityForPage, type CitySearch } from '@/lib/cityPageParam'
 import { shareCover } from '@/lib/shareCover'
 import { resolveImageUrl, firstNameOf} from '@/lib/data'
@@ -63,20 +65,36 @@ export async function generateMetadata({ searchParams }: { searchParams?: Promis
   const description = `Tell Smileys members you're coming to ${city.name}. Locals will reach out to grab coffee, share neighborhood tips, and welcome you in.`
   const shareDesc = 'Post your trip dates, see who else is in town, and connect with locals before you arrive.'
   const image = shareCover('visiting', city, `Visiting ${city.name}? — Smileys Community`)
+  // Each city's variant is its own canonical, like /guide and /neighborhoods;
+  // the default city keeps the bare URL.
+  const canonical = city.slug === DEFAULT_CITY_SLUG ? `${APP_URL}/visiting` : `${APP_URL}/visiting?city=${city.slug}`
   return {
-    alternates: { canonical: `${APP_URL}/visiting` },
+    alternates: { canonical },
     title,
     description,
-    openGraph: { title, description: shareDesc, url: `${APP_URL}/visiting`, images: [image] },
+    openGraph: { title, description: shareDesc, url: canonical, images: [image] },
     twitter: { card: image.twitterCard, title, description: shareDesc, images: [image.url] },
   }
 }
 
-export default async function VisitingPage({ searchParams }: { searchParams?: Promise<CitySearch> }) {
+export default async function VisitingPage({ searchParams }: { searchParams?: Promise<CitySearch & Record<string, string | string[] | undefined>> }) {
   // One resolution for the whole page: every query below was pinned to the
   // default city, so a Bodrum reader got Istanbul's events, members,
   // neighborhoods and hangouts under a header inviting them to Istanbul.
-  const { city, cityId } = await resolveCityForPage(searchParams)
+  const { city, cityId, pinned } = await resolveCityForPage(searchParams)
+  // Put the city in the URL for anyone not on the default city, so the address
+  // bar they copy is a link that survives being shared — the rule every other
+  // city-scoped page follows. Guarded on `pinned` so this can't loop; the
+  // ?neighborhood= deep link comes along.
+  if (!pinned && city.slug !== DEFAULT_CITY_SLUG) {
+    const qs = new URLSearchParams()
+    for (const [key, value] of Object.entries((await searchParams) ?? {})) {
+      if (key === 'city' || value === undefined) continue
+      for (const one of Array.isArray(value) ? value : [value]) qs.append(key, one)
+    }
+    qs.set('city', city.slug)
+    redirect(`/visiting?${qs}`)
+  }
   const today         = new Date().toISOString().split('T')[0]
   const sixtyDaysOut  = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 

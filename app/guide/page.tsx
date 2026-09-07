@@ -596,7 +596,7 @@ export default async function GuidePage({ searchParams }: { searchParams?: Promi
             programming (this card is /experiences' only inbound link, so
             it stays even though the surface isn't in the shared grid). */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
-          <Link href="/visiting"
+          <Link href={city.slug === DEFAULT_CITY_SLUG ? '/visiting' : `/visiting?city=${city.slug}`}
             className="bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-2xl px-4 py-3.5 transition-colors group">
             <div className="flex items-center gap-3">
               <div className="text-xl shrink-0">👋</div>

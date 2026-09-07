@@ -87,7 +87,8 @@ export default function CitiesMenu({
   // The city being viewed: the cookie if one is set, otherwise home. Guests
   // have neither, and the control says "Cities" rather than claiming a city
   // they never chose.
-  const current  = signedIn ? live.find(c => c.slug === (viewingSlug || homeSlug)) : undefined
+  // A guest who entered a city has the cookie too, and the menu should say so.
+  const current  = live.find(c => c.slug === (viewingSlug || homeSlug))
   const away     = !!current && current.slug !== homeSlug
 
   async function switchTo(slug: string | null) {
@@ -182,15 +183,22 @@ export default function CitiesMenu({
             {badge(c)}
           </button>
         ) : (
-          <Link
+          // A guest picking a city is choosing where they are, so the pick
+          // has to stick: through the cookie-setting entry route (guest-
+          // usable, unlike the member switch above), landing on the city's
+          // page. A plain link to /bodrum set nothing, and the next bare
+          // link — the navbar's Visiting, Events — fell back to the default
+          // city: "pick Bodrum, get Istanbul" (2026-09-08). A route handler,
+          // so a plain <a> with the /app basePath spelled out.
+          <a
             key={c.slug}
-            href={`/${c.slug}`}
+            href={`/app/api/city/enter?city=${c.slug}&to=city`}
             onClick={() => { setOpen(false); onNavigate?.() }}
             className={liveRowClass(c)}
           >
             <span className="font-semibold">{c.name}</span>
             {badge(c)}
-          </Link>
+          </a>
         )
       ))}
 

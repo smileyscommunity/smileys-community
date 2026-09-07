@@ -191,7 +191,7 @@ export function featureClubs(clubs: CityPageData['clubs']) {
   ].slice(0, 4)
 }
 
-export type EnterTarget = 'events' | 'clubs' | 'directory' | 'board' | 'neighborhoods' | 'guide' | 'handbook'
+export type EnterTarget = 'events' | 'clubs' | 'directory' | 'board' | 'neighborhoods' | 'guide' | 'handbook' | 'visiting'
 export type EnterLink   = (to: EnterTarget, n?: string) => string
 
 // Feed links route through /api/city/enter, which sets the view-city cookie

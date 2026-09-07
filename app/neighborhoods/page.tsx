@@ -697,7 +697,7 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
                 </div>
               ))}
             </div>
-            <Link href="/visiting" className="inline-block mt-6 text-sm font-bold text-amber-600 hover:underline">
+            <Link href={city.slug === DEFAULT_CITY_SLUG ? '/visiting' : `/visiting?city=${city.slug}`} className="inline-block mt-6 text-sm font-bold text-amber-600 hover:underline">
               See who&apos;s visiting →
             </Link>
           </section>
