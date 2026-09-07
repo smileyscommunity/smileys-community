@@ -1,6 +1,5 @@
 import Link from 'next/link'
 import { jsonLdHtml } from '@/lib/jsonLd'
-import { headers } from 'next/headers'
 import { isValidElement, type ReactNode } from 'react'
 import { APP_URL } from '@/lib/env'
 import { loadContent } from '@/lib/content'
@@ -206,10 +205,6 @@ export default async function FAQPage() {
     : SECTIONS
 
   // FAQPage rich results — every Q&A on the page, flattened across sections.
-  // Read the per-request CSP nonce set by middleware so the <script> isn't
-  // blocked under 'strict-dynamic' (same pattern as the handbook article /
-  // event detail JSON-LD).
-  const nonce = (await headers()).get('x-nonce') ?? undefined
   const faqJsonLd = {
     '@context': 'https://schema.org',
     '@type':    'FAQPage',
@@ -224,7 +219,6 @@ export default async function FAQPage() {
     <main className="bg-gray-50 min-h-screen">
       <script
         type="application/ld+json"
-        nonce={nonce}
         // JSON.stringify doesn't escape `<`, so a literal `</script>` in any
         // interpolated value would break out of this tag — escape `<` plus
         // the unicode line separators (same guard as the other JSON-LD blocks).

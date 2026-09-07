@@ -4,7 +4,6 @@ import Image from 'next/image'
 import { readFileSync } from 'fs'
 import { join } from 'path'
 import { unstable_cache } from 'next/cache'
-import { headers } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { neighborhoodToSlug } from '@/lib/neighborhoods'
 import { APP_URL } from '@/lib/env'
@@ -366,11 +365,6 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
     quoteBy:      b.reviews[0]?.author?.name ?? null,
   }))
 
-  // Read the per-request CSP nonce set by middleware so the JSON-LD <script>
-  // isn't blocked under 'strict-dynamic' (same pattern as the neighborhood
-  // detail page / handbook article / event detail / FAQ JSON-LD).
-  const nonce = (await headers()).get('x-nonce') ?? undefined
-
   // ItemList of Place — deterministic, non-personalized (built from the
   // static NEIGHBORHOOD_META set, not the viewer's session), so it's safe to
   // mirror in structured data regardless of who/what is crawling. Mirrors
@@ -396,7 +390,7 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
 
   return (
     <main>
-      <script type="application/ld+json" nonce={nonce}
+      <script type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: jsonLdHtml(neighborhoodsJsonLd) }} />
       {/* Hero — full-bleed photo with the copy overlaid. Same gradient
           reasoning as /visiting: the image is a bright sunset waterfront, so

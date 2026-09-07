@@ -1,7 +1,6 @@
 import Link from 'next/link'
 import { jsonLdHtml } from '@/lib/jsonLd'
 import Image from 'next/image'
-import { headers } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import type { NeighborhoodView } from '@/lib/neighborhoodsDb'
 import type { CityConfig } from '@/lib/city'
@@ -259,11 +258,6 @@ export default async function NeighborhoodSections({
     siblings.filter(n => Math.abs(n.cost - meta.cost) <= 1 && n.name !== name && n.area !== meta.area),
   )
 
-  // Read the per-request CSP nonce set by middleware — this component streams
-  // in under a <Suspense> boundary but still renders within the same request,
-  // so headers() resolves the same nonce page.tsx used for its own JSON-LD.
-  const nonce = (await headers()).get('x-nonce') ?? undefined
-
   // Mirrors the visible event cards below: only real, published, upcoming
   // events actually rendered on the page, so the markup never claims content
   // a crawler wouldn't also see in the DOM.
@@ -322,11 +316,11 @@ export default async function NeighborhoodSections({
   return (
     <>
       {eventsJsonLd && (
-        <script type="application/ld+json" nonce={nonce}
+        <script type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: jsonLdHtml(eventsJsonLd) }} />
       )}
       {businessJsonLd && (
-        <script type="application/ld+json" nonce={nonce}
+        <script type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: jsonLdHtml(businessJsonLd) }} />
       )}
       {/* Members free to meet up right now in this neighborhood (availability

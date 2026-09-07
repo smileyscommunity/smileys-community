@@ -1,7 +1,6 @@
 import { Suspense } from 'react'
 import { jsonLdHtml } from '@/lib/jsonLd'
 import { notFound } from 'next/navigation'
-import { headers } from 'next/headers'
 import Link from 'next/link'
 import Image from 'next/image'
 import { readFileSync } from 'fs'
@@ -256,10 +255,6 @@ export default async function NeighborhoodPage({ params }: { params: Promise<{ s
   const aboutCopy = buildAboutCopy(meta, city.name, nearestForAbout.map(n => n.name), city.slug === DEFAULT_CITY_SLUG)
   const pageUrl = `${APP_URL}/neighborhoods/${slug}`
 
-  // Read the per-request CSP nonce set by middleware so the JSON-LD <script>
-  // tags aren't blocked under 'strict-dynamic' (same pattern as the handbook
-  // article / event detail / FAQ JSON-LD).
-  const nonce = (await headers()).get('x-nonce') ?? undefined
   const breadcrumbJsonLd = {
     '@context': 'https://schema.org',
     '@type':    'BreadcrumbList',
@@ -292,7 +287,6 @@ export default async function NeighborhoodPage({ params }: { params: Promise<{ s
     <main>
       <script
         type="application/ld+json"
-        nonce={nonce}
         // JSON.stringify doesn't escape `<`, so a literal `</script>` in any
         // interpolated value would break out of this tag — escape `<` plus
         // the unicode line separators (same guard as the other JSON-LD
@@ -303,7 +297,6 @@ export default async function NeighborhoodPage({ params }: { params: Promise<{ s
       />
       <script
         type="application/ld+json"
-        nonce={nonce}
         dangerouslySetInnerHTML={{
           __html: jsonLdHtml(placeJsonLd),
         }}

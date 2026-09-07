@@ -1,5 +1,4 @@
 import type { Metadata } from 'next'
-import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { APP_URL, SITE_URL } from '@/lib/env'
 import { DEFAULT_CITY_SLUG } from '@/lib/city'
@@ -91,11 +90,10 @@ export default async function EventsPage({ searchParams }: Props) {
   // /[city]/events hub.
   const { events } = await getCityEventsHub(cityId)
   const jsonLd = eventListJsonLd(events, city, { appUrl: APP_URL, siteUrl: SITE_URL })
-  const nonce  = (await headers()).get('x-nonce') ?? undefined
   return (
     <>
       {jsonLd && (
-        <script type="application/ld+json" nonce={nonce}
+        <script type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: jsonLdHtml(jsonLd) }} />
       )}
       <EventsClient />

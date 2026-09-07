@@ -8,7 +8,6 @@ import { CITY_STATUS } from '@/lib/cityStatus'
 import { APP_URL, SITE_URL } from '@/lib/env'
 import { jsonLdHtml } from '@/lib/jsonLd'
 import { eventListJsonLd } from '@/lib/eventJsonLd'
-import { headers } from 'next/headers'
 import EventCard from '@/components/EventCard'
 import { shareCover } from '@/lib/shareCover'
 import JoinCityButton from '@/components/JoinCityButton'
@@ -63,12 +62,11 @@ export default async function CityEventsPage({ params }: Params) {
   // content is worse than none. Redacted rows are fine here: nothing in the
   // markup is member-private (title, date, place, link).
   const eventsJsonLd = eventListJsonLd(events, city, { appUrl: APP_URL, siteUrl: SITE_URL })
-  const nonce = (await headers()).get('x-nonce') ?? undefined
 
   return (
     <>
       {eventsJsonLd && (
-        <script type="application/ld+json" nonce={nonce}
+        <script type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: jsonLdHtml(eventsJsonLd) }} />
       )}
       <section className="bg-gradient-to-b from-amber-50 via-white to-white">

@@ -76,9 +76,7 @@ export const viewport: Viewport = {
 // cost, but the app is mostly authenticated/data-driven so the static
 // rendering savings were already small.
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  // Also captures the nonce for the sitewide Organization JSON-LD below.
   const reqHeaders = await headers()
-  const nonce = reqHeaders.get('x-nonce') ?? undefined
   // Admin override wins; otherwise the footer shows measured numbers rather
   // than a hard-coded figure that drifts (see lib/communityStats).
   const footerStats = await resolveStats(loadContent().stats)
@@ -181,9 +179,19 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link rel="manifest" href="/app/manifest.json" />
+        {/* No nonce, here or on any other JSON-LD block. A <script> whose type
+            isn't a JavaScript type is a data block: the HTML spec's "prepare
+            the script element" steps bail out before the CSP check, so
+            `script-src` never evaluates it and `'strict-dynamic'` can't block
+            it. The nonce it used to carry bought nothing and cost a hydration
+            mismatch on every page — browsers blank the nonce *attribute* once
+            CSP has read it (spec'd nonce-hiding, so a CSS selector can't
+            exfiltrate it), so React's hydration check compared the server's
+            nonce against an empty string and warned. Verified before removing:
+            /app/directory/[id] has shipped nonce-less JSON-LD for months and
+            production has logged zero [csp-violation] reports. */}
         <script
           type="application/ld+json"
-          nonce={nonce}
           // Same escaping guard as the per-page JSON-LD blocks (handbook
           // article, event detail, FAQ): `<` must be escaped or a literal
           // `</script><script>` in an interpolated value would break out of

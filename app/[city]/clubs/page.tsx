@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import { shareCover } from '@/lib/shareCover'
 import Link from 'next/link'
-import { headers } from 'next/headers'
 import { notFound, redirect } from 'next/navigation'
 import { getPublicCity } from '@/lib/cities'
 import { CITY_STATUS } from '@/lib/cityStatus'
@@ -57,8 +56,7 @@ export default async function CityClubsPage({ params }: Params) {
   const isDefault = isDefaultCitySlug(city.slug)
 
   // Same ItemList the global layout emits for the default city — here for
-  // every city, over its own clubs. Nonce from the middleware, as everywhere.
-  const nonce = (await headers()).get('x-nonce') ?? undefined
+  // every city, over its own clubs.
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type':    'ItemList',
@@ -77,7 +75,7 @@ export default async function CityClubsPage({ params }: Params) {
 
   return (
     <>
-      <script type="application/ld+json" nonce={nonce} dangerouslySetInnerHTML={{ __html: jsonLdHtml(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdHtml(jsonLd) }} />
       <section className="bg-gradient-to-b from-amber-50 via-white to-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-8">
           <Link href={`/${city.slug}`} className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-amber-700 hover:text-amber-800 mb-6">

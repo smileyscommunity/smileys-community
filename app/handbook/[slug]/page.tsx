@@ -1,6 +1,5 @@
 import { notFound } from 'next/navigation'
 import { jsonLdHtml } from '@/lib/jsonLd'
-import { headers } from 'next/headers'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { unstable_cache } from 'next/cache'
@@ -189,10 +188,8 @@ export default async function HandbookArticlePage({ params }: Params) {
   const catCls  = CATEGORY_STYLES[catKey] ?? 'bg-gray-100 text-gray-700'
   const pageUrl = `${APP_URL}/handbook/${post.slug}`
 
-  // Read the per-request CSP nonce set by middleware so the JSON-LD <script>
-  // isn't blocked. Article schema makes the public handbook eligible for
-  // Google rich results — a top-of-funnel win since handbook is unauthenticated.
-  const nonce = (await headers()).get('x-nonce') ?? undefined
+  // Article schema makes the public handbook eligible for Google rich results
+  // — a top-of-funnel win since handbook is unauthenticated.
   const articleJsonLd = {
     '@context':        'https://schema.org',
     '@type':           'Article',
@@ -215,7 +212,6 @@ export default async function HandbookArticlePage({ params }: Params) {
     <main className="bg-white">
       <script
         type="application/ld+json"
-        nonce={nonce}
         dangerouslySetInnerHTML={{
           __html: jsonLdHtml(articleJsonLd),
         }}

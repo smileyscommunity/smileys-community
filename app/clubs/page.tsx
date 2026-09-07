@@ -1,5 +1,4 @@
 import type { Metadata } from 'next'
-import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { jsonLdHtml } from '@/lib/jsonLd'
 import { APP_URL, SITE_URL } from '@/lib/env'
@@ -98,7 +97,6 @@ export default async function ClubsPage({ searchParams }: Props) {
   // from before the per-city hubs existed. isActive:true matches getClubs()'s
   // public-surface gate; private clubs are still included since they're still
   // visible in the grid (just gated on Join → Request).
-  const nonce = (await headers()).get('x-nonce') ?? undefined
   const clubs = await prisma.club.findMany({
     where: { isActive: true, cityId },
     orderBy: { name: 'asc' },
@@ -124,7 +122,6 @@ export default async function ClubsPage({ searchParams }: Props) {
     <>
       <script
         type="application/ld+json"
-        nonce={nonce}
         dangerouslySetInnerHTML={{ __html: jsonLdHtml(clubsJsonLd) }}
       />
       <ClubsClient />
