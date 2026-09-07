@@ -348,29 +348,56 @@ const HONORIFICS = new Set([
   'mr', 'mrs', 'ms', 'miss', 'mx', 'sir', 'rev', 'capt',
 ])
 
+// The titles that need a SURNAME to work. "Mr. John" is wrong in English \u2014
+// courtesy titles pair with the family name or with nothing at all \u2014 so
+// these are dropped from a greeting rather than carried into it. Every other
+// honorific reads correctly in front of a first name ("Dr. Hilmi", "Av.
+// Ay\u015fe", "Rev. John", "Capt. Jack", "Sir Elton"), which is the normal and
+// more respectful way to address someone in Turkish.
+const SURNAME_ONLY_TITLES = new Set(['mr', 'mrs', 'ms', 'miss', 'mx'])
+
 const bareToken = (tok: string): string =>
   tok.replace(/\.+$/, '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 
 /**
- * Name tokens with any leading honorifics dropped. Never returns empty for a
- * non-empty name: a name that is *all* title ("Dr.") keeps its last token,
- * because showing "Dr." beats showing nothing.
+ * A name split into its leading titles and everything after them. Never
+ * leaves `rest` empty for a non-empty name: a name that is *all* title
+ * ("Dr.") keeps its last token, because showing "Dr." beats showing nothing.
  */
-function nameTokens(name: string): string[] {
+function splitHonorifics(name: string): { titles: string[]; rest: string[] } {
   const tokens = name.trim().split(/\s+/).filter(Boolean)
   let i = 0
   while (i < tokens.length - 1 && HONORIFICS.has(bareToken(tokens[i]))) i++
-  return tokens.slice(i)
+  return { titles: tokens.slice(0, i), rest: tokens.slice(i) }
 }
 
 /**
- * The name to greet a member by. "Dr. Hilmi Songur" is Hilmi, not Dr. —
- * every greeting, notification and `{name} is interested` line goes through
- * here rather than `name.split(' ')[0]`, which read the title as the person.
+ * Name tokens with any leading honorifics dropped \u2014 the person, without
+ * their titles. Initials are built from this; greetings are not (see
+ * firstNameOf, which keeps the titles worth keeping).
+ */
+function nameTokens(name: string): string[] {
+  return splitHonorifics(name).rest
+}
+
+/**
+ * The name to greet a member by. "Dr. Hilmi Songur" is "Dr. Hilmi" — every
+ * greeting, notification and `{name} is interested` line goes through here
+ * rather than `name.split(' ')[0]`, which read the title as the person and
+ * called him "Dr." on his own.
+ *
+ * Dropping the title outright was the first fix for that, and it went one
+ * step too far: in Turkish, "Dr. Hilmi" is how you actually address someone,
+ * and bare "Hilmi" is more familiar than a platform should presume. So the
+ * title comes along — except the courtesy ones, which need a surname to make
+ * sense (see SURNAME_ONLY_TITLES).
+ *
  * Returns '' for a missing name so callers can `||` a fallback.
  */
 export function firstNameOf(name: string | null | undefined): string {
   if (!name) return ''
+  const { titles, rest } = splitHonorifics(name)
+  const kept = titles.filter(t => !SURNAME_ONLY_TITLES.has(bareToken(t)))
   // Normalised, not raw. The stored name is only as tidy as whoever typed
   // it, and the apply form — how nearly everyone joins — wrote it through
   // verbatim for a long time, so lowercase first names reached the DB. This
@@ -378,7 +405,7 @@ export function firstNameOf(name: string | null | undefined): string {
   // through, which makes it the one place that fixes them all at once
   // without rewriting a single row. formatName is conservative by design
   // (see its comment), so this can only ever capitalise a leading letter.
-  return formatName(nameTokens(name)[0] ?? '')
+  return [...kept, rest[0] ?? ''].filter(Boolean).map(formatName).join(' ')
 }
 
 export function getInitials(name: string): string {

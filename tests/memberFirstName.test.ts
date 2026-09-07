@@ -3,29 +3,48 @@ import { firstNameOf, getInitials, formatName } from '@/lib/data'
 
 // Dr. Hilmi Songur joined and the whole site called him "Dr." — every
 // greeting, every "X is interested in your listing", his initials. The cause
-// was name.split(' ')[0] in 150 places. These pin the replacement's edges,
-// especially the Turkish ones, where titles stack and casing is a trap.
+// was name.split(' ')[0] in 150 places. The first fix dropped the title and
+// greeted him "Hilmi", which over-corrected: in Turkish "Dr. Hilmi" is how
+// you address someone, and the bare first name presumes a familiarity a
+// platform hasn't earned. So the title travels with the greeting now — and
+// these pin the edges, especially the Turkish ones, where titles stack and
+// casing is a trap.
 
 describe('firstNameOf', () => {
-  it('skips a title to reach the person', () => {
-    expect(firstNameOf('Dr. Hilmi Songur')).toBe('Hilmi')
+  it('keeps the title in front of the person', () => {
+    expect(firstNameOf('Dr. Hilmi Songur')).toBe('Dr. Hilmi')
   })
 
   it('handles a title written without its dot', () => {
-    expect(firstNameOf('Dr Hilmi Songur')).toBe('Hilmi')
+    expect(firstNameOf('Dr Hilmi Songur')).toBe('Dr Hilmi')
   })
 
-  it('strips stacked Turkish academic and medical titles', () => {
-    expect(firstNameOf('Prof. Dr. Ayşe Kaya')).toBe('Ayşe')
-    expect(firstNameOf('Op. Dr. Mehmet Öz')).toBe('Mehmet')
-    expect(firstNameOf('Yrd. Doç. Dr. Elif Demir')).toBe('Elif')
-    expect(firstNameOf('Uzm. Dr. Can Yılmaz')).toBe('Can')
+  it('carries stacked Turkish academic and medical titles', () => {
+    expect(firstNameOf('Prof. Dr. Ayşe Kaya')).toBe('Prof. Dr. Ayşe')
+    expect(firstNameOf('Op. Dr. Mehmet Öz')).toBe('Op. Dr. Mehmet')
+    expect(firstNameOf('Yrd. Doç. Dr. Elif Demir')).toBe('Yrd. Doç. Dr. Elif')
+    expect(firstNameOf('Uzm. Dr. Can Yılmaz')).toBe('Uzm. Dr. Can')
+  })
+
+  it('drops the courtesy titles, which need a surname to make sense', () => {
+    // "Mr. John" is wrong in English — Mr. pairs with the family name or
+    // with nothing. The professional titles above do not have that problem.
+    expect(firstNameOf('Mr. John Smith')).toBe('John')
+    expect(firstNameOf('Mrs. Jane Doe')).toBe('Jane')
+    expect(firstNameOf('Ms. Ada Lovelace')).toBe('Ada')
+    // Sir and Rev. read fine with a first name, so they stay.
+    expect(firstNameOf('Sir Elton John')).toBe('Sir Elton')
+    expect(firstNameOf('Rev. Tim Keller')).toBe('Rev. Tim')
   })
 
   it('matches a title whether or not its diacritics survived', () => {
-    expect(firstNameOf('Doç. Ali Vural')).toBe('Ali')
-    expect(firstNameOf('Doc. Ali Vural')).toBe('Ali')
-    expect(firstNameOf('Müh. Burak Şahin')).toBe('Burak')
+    expect(firstNameOf('Doç. Ali Vural')).toBe('Doç. Ali')
+    expect(firstNameOf('Doc. Ali Vural')).toBe('Doc. Ali')
+    expect(firstNameOf('Müh. Burak Şahin')).toBe('Müh. Burak')
+  })
+
+  it('normalises the title too, not just the name', () => {
+    expect(firstNameOf('av. ayşe kaya')).toBe('Av. Ayşe')
   })
 
   it('leaves an ordinary name alone', () => {
@@ -74,6 +93,8 @@ describe('firstNameOf', () => {
 })
 
 describe('getInitials', () => {
+  // Unchanged by the greeting change above: a title belongs in an address,
+  // never in an avatar. "Dr. Hilmi Songur" is HS, not DH.
   it('ignores the title', () => {
     expect(getInitials('Dr. Hilmi Songur')).toBe('HS')
     expect(getInitials('Prof. Dr. Ayşe Kaya')).toBe('AK')
