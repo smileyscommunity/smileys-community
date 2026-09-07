@@ -21,7 +21,7 @@ const step0Schema = z.object({
   lastName:     z.string().min(1, 'Last name is required'),
   email:        z.string().min(1, 'Email is required').email('Enter a valid email address'),
   phone:        z.string().min(6, 'Phone number is required'),
-  country:      z.string().min(1, 'Country is required'),
+  country:      z.string().min(1, 'Nationality is required'),
   neighborhood: z.string().min(2, 'Neighborhood is required'),
   gender:       z.string().min(1, 'Gender is required'),
 })
@@ -528,16 +528,27 @@ function ApplyForm() {
                   max={new Date().toISOString().split('T')[0]} className={inputCls} />
               </div>
               <div>
-                <label htmlFor="ap-country" className="block text-xs font-semibold text-gray-600 mb-2">Country *</label>
+                {/* This answer becomes the member's NATIONALITY on approval
+                    (app/api/admin/applications). Labelled "Country" with no
+                    hint, applicants already living in the city read it as
+                    where they live and picked the host country — 132 of one
+                    month's approvals, UK and UAE phone numbers among them
+                    (2026-09-07). The field key stays `country`: that is the
+                    API's name for it. No browser autocomplete either:
+                    "country-name" prefills the address country, which is the
+                    wrong answer here. */}
+                <label htmlFor="ap-country" className="block text-xs font-semibold text-gray-600 mb-2">Nationality *</label>
                 <select id="ap-country" value={form.country}
                   onChange={e => set('country', e.target.value)}
                   onBlur={e => validateField('country', e.target.value)}
-                  autoComplete="country-name"
+                  autoComplete="off"
                   className={`${fieldCls(fieldErrors.country)} bg-white`}>
-                  <option value="">Select country…</option>
+                  <option value="">Select your nationality…</option>
                   {COUNTRIES.map(c => <option key={c.code} value={c.name}>{c.name}</option>)}
                 </select>
-                {fieldErrors.country && <p className="text-xs text-red-500 mt-1">{fieldErrors.country}</p>}
+                {fieldErrors.country
+                  ? <p className="text-xs text-red-500 mt-1">{fieldErrors.country}</p>
+                  : <p className="text-xs text-gray-500 mt-1">Where you&apos;re from — not where you live now.</p>}
               </div>
             </div>
             <div>

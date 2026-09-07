@@ -366,9 +366,13 @@ export default function ProfilePage() {
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1.5">Nationality <span className="text-red-400">*</span></label>
                   <select value={form.nationality} onChange={e => set('nationality', e.target.value)} className={inputCls}>
-                    <option value="" disabled>Select country…</option>
+                    <option value="" disabled>Select your nationality…</option>
                     {COUNTRIES.map(c => <option key={c.code} value={c.name}>{c.name}</option>)}
                   </select>
+                  {/* Same hint as the apply form: the answer used to be labelled
+                      "Country" there, so members who picked where they live can
+                      correct themselves here. */}
+                  <p className="text-xs text-gray-500 mt-1">Where you&apos;re from — not where you live now.</p>
                 </div>
                 <div className="col-span-full">
                   <label className="block text-xs font-semibold text-gray-600 mb-1.5">Neighborhood</label>
