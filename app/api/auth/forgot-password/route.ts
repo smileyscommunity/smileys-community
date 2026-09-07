@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { randomBytes } from 'crypto'
 import { prisma } from '@/lib/prisma'
-import { sendPasswordResetEmail } from '@/lib/email'
+import { sendPasswordResetEmail, sendNewActivationLinkEmail } from '@/lib/email'
+import { issueActivationToken } from '@/lib/activation'
 import { rateLimit, getIp } from '@/lib/rateLimit'
 import { verifyTurnstile } from '@/lib/turnstile'
 import { hashToken } from '@/lib/tokenHash'
@@ -25,8 +26,18 @@ export async function POST(req: NextRequest) {
     // Always return success to prevent email enumeration
     if (!user) return NextResponse.json({ ok: true })
 
-    // Unactivated accounts have no password — don't wipe their activation token
-    if (!user.password) return NextResponse.json({ ok: true })
+    // An account with no password was never activated. For an approved
+    // member that is the most likely reason they are here: the activation
+    // link died after 7 days and "forgot password" is the obvious next try.
+    // It used to return ok and send nothing — a silent dead end. Anyone else
+    // without a password (pending, suspended) still gets the silent ok.
+    if (!user.password) {
+      if (user.status === 'approved') {
+        const token = await issueActivationToken(user.id)
+        await sendNewActivationLinkEmail(user.email, user.name, token)
+      }
+      return NextResponse.json({ ok: true })
+    }
 
     // Invalidate old tokens
     await prisma.passwordResetToken.deleteMany({ where: { userId: user.id } })

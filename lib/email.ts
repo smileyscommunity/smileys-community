@@ -445,6 +445,36 @@ export async function sendActivationEmail(
   })
 }
 
+// Sent when a never-activated member asks for a new link — from the expired-
+// link page or by trying "forgot password". Approved members used to hit a
+// dead end there: the link died after 7 days, the page offered only an email
+// address, and forgot-password silently did nothing for an account with no
+// password (235 approved members never activated, 2026-09-08).
+export async function sendNewActivationLinkEmail(email: string, name: string, token: string) {
+  const url = `${APP_URL}/activate?token=${token}`
+  await getResend().emails.send({
+    from: FROM, to: email,
+    subject: 'Your new Smileys activation link',
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+        <div style="text-align:center;margin-bottom:28px">
+          <span style="font-size:40px">😊</span>
+          <h1 style="font-size:22px;font-weight:800;color:#111;margin:8px 0 4px">Here's your new link, ${esc(firstNameOf(name) || 'there')}</h1>
+          <p style="color:#6b7280;font-size:14px;margin:0;line-height:1.6">
+            Your Smileys application was approved and your spot is still yours. Set a password and you're in.
+          </p>
+        </div>
+        <a href="${url}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:20px">
+          Activate my account →
+        </a>
+        <p style="color:#9ca3af;font-size:12px;text-align:center;margin:0">
+          This link expires in 7 days. If you didn't ask for it, you can ignore this email.
+        </p>
+      </div>
+    `,
+  })
+}
+
 export async function sendLoginNudgeEmail(email: string, name: string, token: string, nudgeNumber: number) {
   const url       = `${APP_URL}/activate?token=${token}`
   const firstName = firstNameOf(name)

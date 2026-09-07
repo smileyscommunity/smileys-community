@@ -23,8 +23,14 @@ export async function GET(req: NextRequest) {
   const hashed = hashToken(token)
   const record = await prisma.passwordResetToken.findUnique({ where: { token: hashed } })
 
-  if (!record || record.used || record.expiresAt < new Date()) {
+  if (!record || record.used) {
     return NextResponse.json({ error: 'This activation link is invalid or has expired.' }, { status: 400 })
+  }
+  // Expired but still ours: say so, and let the page offer a fresh link
+  // (POST /api/auth/activate/resend with this same token). Before this the
+  // page showed a dead end with an email address on it.
+  if (record.expiresAt < new Date()) {
+    return NextResponse.json({ error: 'This activation link has expired.', expired: true }, { status: 410 })
   }
 
   const user = await prisma.user.findUnique({

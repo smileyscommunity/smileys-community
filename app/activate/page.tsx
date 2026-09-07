@@ -23,6 +23,12 @@ function ActivateForm() {
 
   const [info,     setInfo]     = useState<UserInfo | null>(null)
   const [loadErr,  setLoadErr]  = useState('')
+  // The link is ours but past its 7 days: offer a fresh one instead of a
+  // dead end. `resent` holds the masked address the new link went to.
+  const [expired,  setExpired]  = useState(false)
+  const [resending, setResending] = useState(false)
+  const [resent,   setResent]   = useState('')
+  const [resendErr, setResendErr] = useState('')
   const [bio,      setBio]      = useState('')
   const [password, setPassword] = useState('')
   const [confirm,  setConfirm]  = useState('')
@@ -37,7 +43,7 @@ function ActivateForm() {
     fetch(`/app/api/auth/activate?token=${token}`)
       .then(r => r.json())
       .then(data => {
-        if (data.error) setLoadErr(data.error)
+        if (data.error) { setLoadErr(data.error); setExpired(!!data.expired) }
         else setInfo(data)
       })
       .catch(() => setLoadErr('Something went wrong loading your info.'))
@@ -74,11 +80,41 @@ function ActivateForm() {
     }
   }
 
+  async function resend() {
+    setResending(true)
+    setResendErr('')
+    try {
+      const res  = await fetch('/app/api/auth/activate/resend', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setResendErr(data.error ?? 'Something went wrong'); return }
+      setResent(data.email ?? 'your inbox')
+    } catch {
+      setResendErr('Something went wrong. Try again.')
+    } finally {
+      setResending(false)
+    }
+  }
+
   if (loadErr) {
     return (
       <div className="bg-white rounded-2xl shadow-card p-8 text-center space-y-4">
-        <div className="text-4xl">😕</div>
+        <div className="text-4xl">{expired ? '⏳' : '😕'}</div>
         <p className="text-gray-700 font-semibold">{loadErr}</p>
+        {expired && !resent && (
+          <>
+            <p className="text-sm text-gray-600">Your spot is still yours — we can send you a fresh link that works for 7 days.</p>
+            {resendErr && <p className="text-sm text-red-600">{resendErr}</p>}
+            <button type="button" onClick={resend} disabled={resending}
+              className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl transition-colors disabled:opacity-50 text-sm">
+              {resending ? 'Sending…' : 'Send me a new link →'}
+            </button>
+          </>
+        )}
+        {resent && (
+          <p className="text-sm text-gray-700">Sent to <strong>{resent}</strong>. Open the newest email from Smileys — the link in it works for 7 days.</p>
+        )}
         <p className="text-sm text-gray-400">
           If you think this is a mistake, contact us at{' '}
           <a href="mailto:info@smileyscommunity.com" className="text-amber-600 underline">info@smileyscommunity.com</a>
