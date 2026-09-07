@@ -646,23 +646,27 @@ export default function ClubActivityTimeline({ members, posts, events, photos = 
           const { id, title, emoji, club } = it.data
           return (
             <Link key={`e-${i}`} href={`/events/${id}`}
-                  className="flex gap-2.5 hover:opacity-80 transition-opacity">
+                  className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
               <div aria-hidden="true" className="w-7 h-7 rounded-xl bg-amber-50 flex items-center justify-center text-base shrink-0">
                 {emoji}
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs text-gray-700 leading-snug">
-                  New event{club && (
-                    <>
-                      {' in '}
-                      <span className="font-semibold text-amber-600"><span aria-hidden="true">{club.emoji}</span> {club.name}</span>
-                    </>
-                  )}
-                </p>
-                {/* Amber, not black — a fresh event is the wall's most
-                    actionable item and should read as one. */}
-                <p className="text-xs text-amber-600 font-semibold mt-0.5 line-clamp-1">{title}</p>
-              </div>
+              {/* One line with a dash, like every other item on the wall.
+                  This used to stack the title under the club on a second
+                  line, both bold amber, and "⛵️ Sailing / Sunset Sailing
+                  Cruise" read as one run-on phrase — the club and the event
+                  mixed (2026-09-07). Only the event is amber now: it is the
+                  wall's most actionable item and should read as one. */}
+              <p className="text-xs text-gray-700 leading-snug min-w-0 flex-1">
+                {'New event'}
+                {club && (
+                  <>
+                    {' in '}
+                    <span className="font-semibold"><span aria-hidden="true">{club.emoji}</span> {club.name}</span>
+                  </>
+                )}
+                {' — '}
+                <span className="font-semibold text-amber-600">{title}</span>
+              </p>
               <span className="text-[10px] text-gray-400 shrink-0">{formatAgo(it.ts)}</span>
             </Link>
           )
