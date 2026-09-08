@@ -166,8 +166,11 @@ export default function Navbar({
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 group z-10">
             <span className="text-2xl">😊</span>
-            <span className="font-bold text-lg tracking-tight text-gray-900 group-hover:text-amber-600 transition-colors">
-              Smileys Community
+            {/* Just "Smileys" on a phone: with Log in beside Join in the
+                header, the full name wrapped onto two lines at 375px. */}
+            <span className="font-bold text-lg tracking-tight text-gray-900 group-hover:text-amber-600 transition-colors whitespace-nowrap">
+              <span className="sm:hidden">Smileys</span>
+              <span className="hidden sm:inline">Smileys Community</span>
             </span>
           </Link>
 
@@ -379,6 +382,11 @@ export default function Navbar({
                       : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />}
                   </svg>
                 </button>
+                {/* Log in beside Join, not buried at the bottom of the menu
+                    after Cities, Discover and About — "login is not easily
+                    findable on mobile" (2026-09-08). Members returning on a
+                    phone are the ones who most need it one tap away. */}
+                <Link href="/login" className="px-3 py-2 min-h-[44px] inline-flex items-center rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-100 transition-colors whitespace-nowrap">Log in</Link>
                 <Link href="/apply" className="px-3 py-2 min-h-[44px] inline-flex items-center rounded-xl bg-amber-500 text-white text-sm font-semibold">Join</Link>
               </>
             )}
@@ -390,6 +398,13 @@ export default function Navbar({
         {mobileOpen && !isLoggedIn && (
           <div className="md:hidden border-t border-gray-100 bg-white max-h-[calc(100vh-4rem)] overflow-y-auto">
             <nav className="px-4 py-3">
+              {/* First row, not last: the header button covers the quick case,
+                  this covers someone who opened the menu looking for it. */}
+              <Link href="/login" onClick={() => setMobileOpen(false)}
+                className="flex items-center justify-between px-3 py-3 rounded-xl bg-gray-50 text-base font-semibold text-gray-800 hover:bg-gray-100 transition-colors">
+                <span>Already a member? Log in</span>
+                <span aria-hidden="true">→</span>
+              </Link>
               <p className="px-3 pt-4 pb-1 text-[11px] font-bold uppercase tracking-widest text-gray-400">Cities</p>
               <div className="px-1"><CitiesMenu initial={cities} variant="inline" homeSlug={homeSlug} viewingSlug={viewingSlug} onNavigate={() => setMobileOpen(false)} /></div>
 
@@ -429,10 +444,6 @@ export default function Navbar({
                     {link.label}
                   </Link>
                 ))}
-                <Link href="/login" onClick={() => setMobileOpen(false)}
-                  className="block px-3 py-3 rounded-xl text-base font-semibold text-gray-800 hover:bg-gray-50 transition-colors">
-                  Log in
-                </Link>
                 <Link href="/apply" onClick={() => setMobileOpen(false)}
                   className="block px-3 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-base font-semibold text-center transition-colors">
                   Join Smileys
