@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { pickWriter } from '@/lib/postWriter'
 import { toCountryCode } from '@/lib/country'
 import { getSession } from '@/lib/session'
 import { canManagePosts, canActInCity, isAdmin, failClosedCityId } from '@/lib/access'
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest) {
   const session = await getSession()
   if (!session || !canManagePosts(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { title, excerpt, body, coverImage, status, category, kind, cityId, country } = await req.json()
+  const { title, excerpt, body, coverImage, status, category, kind, cityId, country, authorId } = await req.json()
   const cleanTitle   = String(title   ?? '').trim()
   const cleanExcerpt = excerpt ? String(excerpt).trim() : ''
   const cleanBody    = String(body    ?? '').trim()
@@ -86,6 +87,10 @@ export async function POST(req: NextRequest) {
   // moderator may only aim that at their own city (or everywhere: null).
   if (!canActInCity(session, postCityId)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
+  // Credited to the signed-in account unless an admin picked another writer.
+  const writer = await pickWriter(session, authorId)
+  if (!writer.ok) return NextResponse.json({ error: writer.error }, { status: writer.status })
+
   const willPublish = status === 'published'
   const post = await prisma.post.create({
     data: {
@@ -97,7 +102,7 @@ export async function POST(req: NextRequest) {
       status:      willPublish ? 'published' : 'draft',
       kind:        cleanKind,
       category:    cleanCategory,
-      authorId:    session.id,
+      authorId:    writer.id,
       cityId:      postCityId,
       country:     postCountry,
       publishedAt: willPublish ? new Date() : null,

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import CitySelect, { useAdminCities } from '@/components/admin/CitySelect'
 import { countryName } from '@/lib/country'
 import { useRouter } from 'next/navigation'
@@ -21,6 +21,7 @@ interface PostFormProps {
     category?: string
     cityId?: string | null
     country?: string | null
+    authorId?: string | null
   }
 }
 
@@ -40,6 +41,18 @@ export default function PostForm({ initial = {} }: PostFormProps) {
   // '' = not pinned to one city; an id pins the article to one city's
   // Stories. Unpinned is the right default — most articles are network-wide.
   const [cityId,      setCityId]      = useState(initial.cityId ?? '')
+  // Writer picker (admins only — the endpoint answers 403 for a moderator,
+  // and the picker simply doesn't render). '' means the signed-in account.
+  const [authorId,    setAuthorId]    = useState(initial.authorId ?? '')
+  const [writers,     setWriters]     = useState<{ id: string; name: string; role: string }[]>([])
+  useEffect(() => {
+    let cancelled = false
+    fetch('/app/api/admin/posts/writers', { credentials: 'include' })
+      .then(r => (r.ok ? r.json() : []))
+      .then(d => { if (!cancelled && Array.isArray(d)) setWriters(d) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
   // For an unpinned post: '' = genuinely global, a country code = national.
   // Residence permits and SIM cards are true across ONE country, not across
   // every city we run — see lib/postScope. Ignored when a city is pinned.
@@ -87,6 +100,7 @@ export default function PostForm({ initial = {} }: PostFormProps) {
         category,
         cityId: cityId || null,
         country: cityId ? null : (country || null),
+        ...(authorId ? { authorId } : {}),
       }
       const url    = isEdit ? `/app/api/admin/posts/${initial.id}` : '/app/api/admin/posts'
       const method = isEdit ? 'PUT' : 'POST'
@@ -230,6 +244,25 @@ export default function PostForm({ initial = {} }: PostFormProps) {
               ))}
             </div>
           </div>
+
+          {/* Writer — admins only. Two of Nate's stories were credited to
+              "Smileys Admin" because he published from the admin account. */}
+          {writers.length > 0 && (
+            <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-4">
+              <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5">Writer</p>
+              <select
+                value={authorId}
+                onChange={e => setAuthorId(e.target.value)}
+                className="w-full bg-zinc-900 border border-zinc-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500"
+              >
+                <option value="">{isEdit ? 'Keep current writer' : 'You (signed-in account)'}</option>
+                {writers.map(w => (
+                  <option key={w.id} value={w.id}>{w.name}{w.role === 'admin' ? ' · admin' : ''}</option>
+                ))}
+              </select>
+              <p className="text-[11px] text-zinc-500 mt-1.5">The byline on the article and in the feed.</p>
+            </div>
+          )}
 
           {/* City — unpinned by default; renders only when >1 city exists */}
           <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-4 empty:hidden">

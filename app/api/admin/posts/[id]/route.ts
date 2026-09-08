@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { prisma } from '@/lib/prisma'
+import { pickWriter } from '@/lib/postWriter'
 import { toCountryCode } from '@/lib/country'
 import { getSession } from '@/lib/session'
 import { canManagePosts, canActInCity } from '@/lib/access'
@@ -27,7 +28,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!session || !canManagePosts(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { id } = await params
-  const { title, excerpt, body, coverImage, status, category, kind, cityId, country } = await req.json()
+  const { title, excerpt, body, coverImage, status, category, kind, cityId, country, authorId } = await req.json()
   const existing = await prisma.post.findUnique({ where: { id } })
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (!canActInCity(session, existing.cityId)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -85,10 +86,20 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (!canActInCity(session, cityPatch.cityId)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  // Only touch the writer when the client sent one (an admin's pick); a
+  // partial edit must not re-credit an article to whoever saved it.
+  let writerPatch: { authorId?: string } = {}
+  if (authorId) {
+    const writer = await pickWriter(session, authorId)
+    if (!writer.ok) return NextResponse.json({ error: writer.error }, { status: writer.status })
+    writerPatch = { authorId: writer.id }
+  }
+
   const post = await prisma.post.update({
     where: { id },
     data: {
       ...cityPatch,
+      ...writerPatch,
       title:       cleanTitle,
       excerpt:     cleanExcerpt || null,
       body:        cleanBody,

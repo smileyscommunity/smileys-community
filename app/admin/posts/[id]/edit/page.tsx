@@ -15,6 +15,7 @@ interface PostInitial {
   kind?:       string
   category?:   string
   cityId?:     string | null
+  authorId?:   string | null
 }
 
 export default function EditPostPage() {
