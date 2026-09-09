@@ -14,7 +14,12 @@ const MAX_SIZE = 4 * 1024 * 1024 // 4MB
 
 export async function POST(req: NextRequest) {
   try {
-    if (!await rateLimit(`apply-upload:${getIp(req)}`, 5, 60 * 60_000)) {
+    // 30 an hour, not 5: Turkish mobile carriers put many phones behind one
+    // address, and an applicant who re-picks their photo a few times used to
+    // spend the whole hour's allowance in two minutes, then get refused on
+    // every try after that — for them, the photo just never finished
+    // (2026-09-09). Each upload is one Sharp resize; 30 is still a cap.
+    if (!await rateLimit(`apply-upload:${getIp(req)}`, 30, 60 * 60_000)) {
       return NextResponse.json({ error: 'Too many uploads. Try again later.' }, { status: 429 })
     }
 

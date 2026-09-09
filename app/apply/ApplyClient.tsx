@@ -268,7 +268,16 @@ function ApplyForm() {
       fd.append('file', uploadFile, 'profile.jpg')
       const res  = await fetch('/app/api/apply/upload', { method: 'POST', body: fd })
       const data = await res.json()
-      if (data.url) {
+      if (!res.ok || !data.url) {
+        // Say it where the applicant is looking. This used to set the banner
+        // at the top of the page and leave the rotate dialog open on top of
+        // it, so a refused upload looked like one that never finished
+        // (2026-09-09). The dialog closes and the banner scrolls into view.
+        setPendingPhoto(null)
+        showError(data.error ?? 'Photo upload failed')
+        return false
+      }
+      {
         set('profilePhoto', data.url)
         // Thumbnail for the draft — a few KB, so localStorage takes it.
         try {
@@ -283,13 +292,12 @@ function ApplyForm() {
         } catch { /* preview is a nicety; the upload already succeeded */ }
         return true
       }
-      setSubmitError(data.error ?? 'Photo upload failed')
-      return false
     } catch (e) {
       // ImageUploadError carries a user-facing, actionable message
       // (0-byte iCloud photo, unconvertible oversized file) — show it
       // verbatim instead of the generic fallback.
-      setSubmitError(e instanceof ImageUploadError ? e.message : 'Photo upload failed')
+      setPendingPhoto(null)
+      showError(e instanceof ImageUploadError ? e.message : 'Photo upload failed')
       return false
     } finally {
       setPhotoUploading(false)
