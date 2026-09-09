@@ -58,3 +58,25 @@ export function eventEndsAt(event: EventClock, tz: string = DEFAULT_TZ): Date {
   }
   return end
 }
+
+// ── Where an event is in its day, for the status banner ──────────────────────
+//
+// 'soon' from two hours before the start, 'live' from the start until the end
+// (endTime, or 23:59 when there is none — the same end the post-event jobs
+// use). The event page used to show "Live Now" for the whole window, which
+// put a green LIVE badge on a 19:00 event at 17:35 (2026-09-09). The
+// two-hour lead is still useful — hosts check people in early and the page
+// should say the doors are about to open — it just isn't "live".
+export type EventPhase = 'soon' | 'live' | null
+
+export const EVENT_SOON_LEAD_MS = 2 * 60 * 60_000
+
+export function eventPhase(event: EventClock, tz: string = DEFAULT_TZ, now: Date = new Date()): EventPhase {
+  const start = eventStartsAt(event, tz).getTime()
+  const end   = eventEndsAt(event, tz).getTime()
+  const t     = now.getTime()
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return null
+  if (t >= start && t < end) return 'live'
+  if (t >= start - EVENT_SOON_LEAD_MS && t < start) return 'soon'
+  return null
+}

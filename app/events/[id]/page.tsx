@@ -6,6 +6,7 @@ import type { Metadata } from 'next'
 import { getEventById } from '@/lib/db'
 import { getCityConfig } from '@/lib/city'
 import { DEFAULT_TZ, todayInTz, fromWallClockInTz } from '@/lib/cityTime'
+import { eventPhase } from '@/lib/eventTime'
 import { formatDate, formatTime, formatPrice, vibeConfig, resolveImageUrl, avatarUrl, getInitials, type Event, firstNameOf} from '@/lib/data'
 import { countryFlag } from '@/lib/countries'
 import { prisma } from '@/lib/prisma'
@@ -792,34 +793,36 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
 
           <hr className="border-gray-100" />
 
-          {/* Live Status — show from 2h before start through 4h after.
-              Earlier shape was "anywhere on event day" which fired
-              "Live Now" at 6am for an 8pm event. Start time is the event
-              city's wall clock, resolved through its timezone. Cancelled
-              events are gated out entirely — the status banner /
-              strikethrough already tells the story. */}
+          {/* Status banner — "Starting soon" from two hours before the start,
+              "Live Now" from the start until the end (lib/eventTime.eventPhase).
+              One green banner used to cover both, which read "Live Now" at
+              17:35 for a 19:00 event (2026-09-09); before that it was
+              "anywhere on event day", which fired at 6am. Start and end are
+              the event city's wall clock. Cancelled events are gated out —
+              the status banner / strikethrough already tells the story. */}
           {(() => {
             if (event.status === 'cancelled') return null
-            const eventStartMs = fromWallClockInTz(`${event.date}T${event.time}`, eventTz).getTime()
-            const nowMs        = Date.now()
-            const showLive     = Number.isFinite(eventStartMs)
-              && nowMs >= eventStartMs - 2 * 60 * 60_000
-              && nowMs <  eventStartMs + 4 * 60 * 60_000
-            if (!showLive) return null
+            const phase = eventPhase(event, eventTz)
+            if (!phase) return null
+            const live = phase === 'live'
             return (
-              <div className="bg-green-50 border border-green-100 rounded-2xl p-4 mb-6 flex items-center justify-between">
+              <div className={`${live ? 'bg-green-50 border-green-100' : 'bg-amber-50 border-amber-100'} border rounded-2xl p-4 mb-6 flex items-center justify-between`}>
                 <div className="flex items-center gap-2">
                   <span className="relative flex h-2.5 w-2.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
+                    {live && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>}
+                    <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${live ? 'bg-green-500' : 'bg-amber-500'}`}></span>
                   </span>
-                  <span className="text-sm font-bold text-green-900 uppercase tracking-wider">Live Now</span>
+                  <span className={`text-sm font-bold uppercase tracking-wider ${live ? 'text-green-900' : 'text-amber-900'}`}>
+                    {live ? 'Live Now' : 'Starting soon'}
+                  </span>
                 </div>
-                <div className="text-sm font-semibold text-green-800">
+                <div className={`text-sm font-semibold ${live ? 'text-green-800' : 'text-amber-800'}`}>
                   {checkedInCount > 0 ? (
                     <span>✨ {checkedInCount} arrived</span>
-                  ) : (
+                  ) : live ? (
                     <span className="opacity-60 italic">Waiting for arrivals...</span>
+                  ) : (
+                    <span>Doors at {event.time}</span>
                   )}
                 </div>
               </div>
