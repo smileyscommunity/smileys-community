@@ -4,6 +4,7 @@ import Image from 'next/image'
 import { APP_URL } from '@/lib/env'
 import { unstable_cache } from 'next/cache'
 import { prisma } from '@/lib/prisma'
+import { restrictedSetFor } from '@/lib/memberPrivacy'
 import type { Metadata } from 'next'
 import { getSession } from '@/lib/session'
 import { redirect } from 'next/navigation'
@@ -122,7 +123,7 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
     return ['ferry-at-sunset', 'balat-fener-walk', 'kadikoy-market-graze', 'meyhane-night']
   }
 
-  const [announcements, viewerVisit, upcomingEvents, featuredLocals, neighborhoodCounts] = await Promise.all([
+  const [announcements, viewerVisit, upcomingEvents, localCandidates, neighborhoodCounts] = await Promise.all([
     getAnnouncements(today, !!session, cityId),
     // The viewer's own visit is queried directly rather than fished out of
     // the cached list above: that cache lags mutations by up to 2 minutes
@@ -153,14 +154,20 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
     // and this page never asked the rest. goodHangouts still orders within each
     // group, and remains the whole ordering while nobody has opted in, so the
     // strip never empties on the way to its first host.
+    // Public page: admin-hidden accounts stay out, and connections-only
+    // profiles are hidden from guests outright and from members unless
+    // connected (restrictedSetFor, below) — the /neighborhoods rules.
     prisma.user.findMany({
-      where:   { status: 'approved', cityId: cityId },
+      where:   {
+        status: 'approved', cityId: cityId, hiddenFromMembers: false,
+        ...(session ? {} : { profileVisibility: { not: 'connections' } }),
+      },
       select:  {
         id: true, name: true, color: true, profilePhoto: true, neighborhood: true,
-        openToHosting: true, openToCoffee: true, openToLanguage: true,
+        openToHosting: true, openToCoffee: true, openToLanguage: true, profileVisibility: true,
       },
       orderBy: [{ openToHosting: 'desc' }, { goodHangouts: 'desc' }],
-      take:    5,
+      take:    8,
     }),
     prisma.user.groupBy({
       by:      ['neighborhood'],
@@ -196,8 +203,10 @@ export default async function VisitingPage({ searchParams }: { searchParams?: Pr
   // the render is not enough — props reach the browser in the RSC payload, so
   // a guest would receive them in the page source while seeing nothing. Strip
   // them here instead; guests get exactly the four fields they always got.
+  const restrictedLocals = session ? await restrictedSetFor(session, localCandidates) : new Set<string>()
+  const featuredLocals   = localCandidates.filter(m => !restrictedLocals.has(m.id)).slice(0, 5)
   const localsForViewer = session
-    ? featuredLocals
+    ? featuredLocals.map(({ profileVisibility: _pv, ...rest }) => rest)
     : featuredLocals.map(({ id, name, color, profilePhoto, neighborhood }) =>
         ({ id, name, color, profilePhoto, neighborhood }))
 

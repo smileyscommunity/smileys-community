@@ -86,7 +86,9 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const user = await prisma.user.update({
     where: { id: userId },
-    data: { partnerId: id, role: 'partner' },
+    // getSession never re-reads role/partnerId from the DB; the bump is what
+    // makes the old cookie stop working (same as the users route).
+    data: { partnerId: id, role: 'partner', tokenVersion: { increment: 1 } },
     select: { id: true, name: true, email: true },
   })
 
@@ -135,7 +137,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
 
   await prisma.user.update({
     where: { id: userId, partnerId: id },
-    data: { partnerId: null, role: 'member' },
+    data: { partnerId: null, role: 'member', tokenVersion: { increment: 1 } },
   })
 
   writeAudit(session.id, session.name, 'partner.unassign_user', userId, 'user',

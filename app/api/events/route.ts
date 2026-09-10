@@ -2,10 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getEvents, redactEventForGuest } from '@/lib/db'
 import { getSession } from '@/lib/session'
 import { resolveCityId, describeCity, type ResolvedCityInfo } from '@/lib/city'
-import { rateLimit } from '@/lib/rateLimit'
+import { rateLimit, getIp } from '@/lib/rateLimit'
 
 export async function GET(req: NextRequest) {
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? req.headers.get('x-real-ip') ?? 'anon'
+  // getIp trusts x-real-ip / the LAST forwarded hop (nginx appends it); the
+  // first hop is whatever the client sent, i.e. a fresh bucket per request.
+  const ip = getIp(req)
   if (!await rateLimit(`events:${ip}`, 120, 60_000)) {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
   }

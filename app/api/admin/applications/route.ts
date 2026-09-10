@@ -135,8 +135,13 @@ export async function PATCH(req: NextRequest) {
     })
 
     if (status === 'approved') {
-      // Auto-create account if not already exists
-      ;(async () => {
+      // Auto-create account if not already exists. Awaited: this used to run
+      // detached with console.error as its only handler, so a Resend outage
+      // or a photo-promotion throw left the applicant with no activation link
+      // while the admin saw "approved". Re-sending the same approval retries
+      // it (the existing-user branch below is idempotent).
+      let accountError: unknown = null
+      await (async () => {
         try {
           // Use findUnique + create inside a check — P2002 guard handles dual-admin race
           const existing = await prisma.user.findUnique({ where: { email: application.email } })
@@ -267,13 +272,22 @@ export async function PATCH(req: NextRequest) {
           }
         } catch (e) {
           console.error('Auto-create account error:', e)
+          accountError = e
         }
       })()
+      if (accountError) {
+        const msg = accountError instanceof Error ? accountError.message : String(accountError)
+        return NextResponse.json(
+          { error: `Marked approved, but the account could not be set up (${msg}). Approve again to retry.` },
+          { status: 500 },
+        )
+      }
     } else if (status === 'rejected') {
       // Revoke member access if a user account exists
       const linkedUser = await prisma.user.findUnique({ where: { email: application.email }, select: { id: true, status: true } })
       if (linkedUser && linkedUser.status === 'approved') {
-        await prisma.user.update({ where: { id: linkedUser.id }, data: { status: 'pending' } })
+        // 'pending' is only enforced at login; the bump revokes the live session.
+        await prisma.user.update({ where: { id: linkedUser.id }, data: { status: 'pending', tokenVersion: { increment: 1 } } })
       }
       sendApplicationRejectedEmail(application.email, application.fullName, rejectionMessage).catch(console.error)
       writeAudit(session.id, session.name, 'application.reject', id, 'memberApplication',

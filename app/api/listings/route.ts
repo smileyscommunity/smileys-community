@@ -206,7 +206,13 @@ export async function POST(req: NextRequest) {
   prisma.user.findMany({
     // Same city as the listing — an Izmir room must not email Istanbul's
     // subscribers. The alert promise is "listings in MY city".
-    where: { listingAlerts: { has: category }, id: { not: session.id }, cityId: listing.cityId },
+    where: {
+      listingAlerts: { has: category }, id: { not: session.id }, cityId: listing.cityId,
+      // Banned/pending accounts kept their alerts; blockers were emailed the
+      // listing of the member they blocked.
+      status: 'approved',
+      blocksGiven: { none: { blockedId: session.id } }, blocksReceived: { none: { blockerId: session.id } },
+    },
     select: { id: true, email: true, name: true },
   }).then(alertees => {
     for (const u of alertees) {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { isBlockedEitherWay } from '@/lib/memberPrivacy'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
@@ -52,6 +53,13 @@ export async function POST(req: NextRequest, { params }: Params) {
     select: { id: true, userId: true, status: true, title: true, clubId: true, club: { select: { isPrivate: true } } },
   })
   if (!post || post.status !== 'active') return NextResponse.json({ error: 'Post not found' }, { status: 404 })
+  // A block is a block on the board too — DM and listing contact already
+  // refuse it; replying/"interested" pinged the author by name regardless.
+  // After the status gate so a blocked member learns nothing a stranger
+  // wouldn't about a removed post.
+  if (post.userId !== session.id && await isBlockedEitherWay(session.id, post.userId)) {
+    return NextResponse.json({ error: 'Cannot interact with this member' }, { status: 403 })
+  }
 
   // A private club's thread accepts replies only from its approved members —
   // same gate the feed applies to reading it. (Public-club posts surface in

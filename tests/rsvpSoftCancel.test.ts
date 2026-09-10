@@ -11,6 +11,7 @@ vi.mock('@/lib/autoJoinClub',   () => ({ autoJoinClub: vi.fn().mockResolvedValue
 vi.mock('@/lib/firstEvent',     () => ({ stampFirstEventRsvp: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('@/lib/posthog-server', () => ({ trackServer: vi.fn() }))
 vi.mock('@/lib/eventQuota',     () => ({ hasQuotaRoomFor: vi.fn() }))
+vi.mock('@/lib/city',           () => ({ todayInCity: vi.fn().mockResolvedValue('2026-09-10') }))
 // Nobody in these cases has a no-show card; the gate is exercised in noShowEnforcement.test.ts.
 vi.mock('@/lib/noShow', () => ({ checkRsvpAllowed: vi.fn().mockResolvedValue({ ok: true }), getRsvpGate: vi.fn().mockResolvedValue({ ok: true }), gateErrorBody: vi.fn() }))
 vi.mock('@/lib/prisma', () => ({ prisma: {
@@ -75,7 +76,7 @@ describe('DELETE /events/[id]/rsvp — soft-cancel', () => {
 
 describe('POST /events/[id]/rsvp — a cancelled row is not "already joined"', () => {
   it('lets a co-host who cancelled earlier join again, reviving the row', async () => {
-    p.event.findUnique.mockResolvedValue({ id: 'e1', title: 'T', hostId: 'h1', cityId: 'c1' })
+    p.event.findUnique.mockResolvedValue({ id: 'e1', title: 'T', hostId: 'h1', cityId: 'c1', status: 'published', cancelledAt: null, date: '2026-09-12', registrationDeadline: null })
     p.user.findUnique.mockResolvedValue({ status: 'approved', gender: null, nationality: null })
     p.eventCoHost.findFirst.mockResolvedValue({ id: 'ch1' })
     p.eventAttendee.findUnique.mockResolvedValue({ status: 'cancelled' })
@@ -89,7 +90,7 @@ describe('POST /events/[id]/rsvp — a cancelled row is not "already joined"', (
   })
 
   it('still rejects a co-host whose RSVP is live', async () => {
-    p.event.findUnique.mockResolvedValue({ id: 'e1', title: 'T', hostId: 'h1', cityId: 'c1' })
+    p.event.findUnique.mockResolvedValue({ id: 'e1', title: 'T', hostId: 'h1', cityId: 'c1', status: 'published', cancelledAt: null, date: '2026-09-12', registrationDeadline: null })
     p.user.findUnique.mockResolvedValue({ status: 'approved', gender: null, nationality: null })
     p.eventCoHost.findFirst.mockResolvedValue({ id: 'ch1' })
     p.eventAttendee.findUnique.mockResolvedValue({ status: 'approved' })

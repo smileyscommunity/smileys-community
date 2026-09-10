@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator } from '@/lib/access'
+import { isAdminOrModerator, canActInCity } from '@/lib/access'
 import { rateLimit } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
 import { buildReactions } from '@/lib/posts'
@@ -166,10 +166,10 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   const { slug } = await params
-  const club = await prisma.club.findUnique({ where: { slug }, select: { id: true, name: true } })
+  const club = await prisma.club.findUnique({ where: { slug }, select: { id: true, name: true, cityId: true } })
   if (!club) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const isPrivileged = isAdminOrModerator(session)
+  const isPrivileged = canActInCity(session, club.cityId)
   let membership: { status: string; role: string } | null = null
 
   // Admins and moderators bypass membership check; everyone else must be an approved member

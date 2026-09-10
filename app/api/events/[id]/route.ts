@@ -35,8 +35,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 
   if (!canSeePrivate) {
-    const { whatsappUrl, meetingUrl, address, ...publicEvent } = event as any
-    return NextResponse.json(publicEvent)
+    // lat/lng recover the address trivially — strip them with it.
+    const { whatsappUrl, meetingUrl, address, paymentContact, ...publicEvent } = event as any
+    return NextResponse.json({ ...publicEvent, lat: null, lng: null })
   }
 
   return NextResponse.json(event)

@@ -70,15 +70,18 @@ interface Business {
 // Claiming and reporting moved to the detail page (/directory/[id]) —
 // the grid card stays focused on the business itself.
 function BusinessCard({
-  b, onOpenReviews, onTagClick,
+  b, tz, onOpenReviews, onTagClick,
 }: {
   b: Business
+  // The listed city's timezone; undefined until /api/city/current answers,
+  // which getOpenStatus treats as the default city.
+  tz?: string
   onOpenReviews: () => void
   onTagClick: (tag: string) => void
 }) {
   const logo  = resolveImageUrl(b.logo)
   const cover = resolveImageUrl(b.coverImage)
-  const openStatus = getOpenStatus(b.hours)
+  const openStatus = getOpenStatus(b.hours, tz)
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col hover:-translate-y-0.5 hover:shadow-md hover:border-gray-200 transition-all duration-200 relative">
@@ -322,7 +325,7 @@ function DirectoryPageInner() {
   // The city this directory resolved to (the API follows the view-city
   // cookie). Drives the header copy and the "back to my city" switch —
   // same pattern as the clubs page.
-  const [viewCity, setViewCity] = useState<{ name: string; slug: string; isDefault: boolean; viewing?: boolean; homeName?: string | null; lat?: number | null; lng?: number | null } | null>(null)
+  const [viewCity, setViewCity] = useState<{ name: string; slug: string; isDefault: boolean; viewing?: boolean; homeName?: string | null; lat?: number | null; lng?: number | null; timezone?: string } | null>(null)
   useEffect(() => {
     fetch(`/app/api/city/current${pinnedCity ? `?city=${encodeURIComponent(pinnedCity)}` : ''}`, { credentials: 'include' })
       .then(r => r.json())
@@ -591,6 +594,7 @@ function DirectoryPageInner() {
                 <BusinessCard
                   key={b.id}
                   b={b}
+                  tz={viewCity?.timezone}
                   onOpenReviews={() => setOpenReviewsFor(b)}
                   onTagClick={setSearch}
                 />

@@ -42,3 +42,12 @@ export async function restrictedSetFor(
 
   return new Set(privateOnes.filter(m => !connectionIds.has(m.id)).map(m => m.id))
 }
+
+/** True when either member has blocked the other. */
+export async function isBlockedEitherWay(a: string, b: string): Promise<boolean> {
+  const block = await prisma.memberBlock.findFirst({
+    where:  { OR: [{ blockerId: a, blockedId: b }, { blockerId: b, blockedId: a }] },
+    select: { id: true },
+  })
+  return !!block
+}

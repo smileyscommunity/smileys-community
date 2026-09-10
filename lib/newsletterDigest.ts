@@ -10,7 +10,9 @@ import { resolveImageUrl, formatTime, firstNameOf} from './data'
 // clubs + new-member welcome) so automated and hand-sent issues look
 // identical. Inline styles only — email clients strip stylesheets.
 
-const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+// Quotes too: event titles land inside alt="…", where a stray `"` would
+// otherwise let a host inject attributes into a city-wide email.
+const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
 const UTM = 'utm_source=newsletter&utm_medium=email'
 
 // Per-section tints so the digest reads as distinct blocks at a glance:

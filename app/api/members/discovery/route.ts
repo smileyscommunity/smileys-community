@@ -62,6 +62,9 @@ export async function GET() {
 
   const visibleWhere = {
     status: 'approved' as const,
+    // Same rule as /api/members and members/search: admin-hidden accounts
+    // stay out of every people surface.
+    hiddenFromMembers: false,
     // Discovery is "people near you" — without the city scope every one of
     // its sections mixed all cities' members (the last unscoped member
     // surface after the multi-city pass).

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { isUploadedImageUrl } from '@/lib/uploadedImageUrl'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator } from '@/lib/access'
+import { canActInCity } from '@/lib/access'
 import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
 
 type Params = { params: Promise<{ id: string }> }
@@ -19,7 +19,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const { id } = await params
   const sale = await prisma.movingSale.findUnique({ where: { id }, select: { userId: true, cityId: true } })
   if (!sale) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  if (sale.userId !== session.id && !isAdminOrModerator(session)) {
+  if (sale.userId !== session.id && !canActInCity(session, sale.cityId)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

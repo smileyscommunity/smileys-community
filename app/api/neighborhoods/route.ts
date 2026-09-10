@@ -3,14 +3,14 @@ import { resolvePublicCityIdFromSlug } from '@/lib/cities'
 import { getSession } from '@/lib/session'
 import { resolveCityId } from '@/lib/city'
 import { getNeighborhoodsForCity } from '@/lib/neighborhoodsDb'
-import { rateLimit } from '@/lib/rateLimit'
+import { rateLimit, getIp } from '@/lib/rateLimit'
 
 // The viewer's city's neighborhood list — feeds form selects (post a listing,
 // set your neighborhood, plan a hangout) so they stop importing the hardcoded
 // Istanbul constant and start serving each member their own city's list.
 // Public: the same names already render on public cards and filters.
 export async function GET(req: NextRequest) {
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'anon'
+  const ip = getIp(req)
   if (!await rateLimit(`neighborhoods:${ip}`, 60, 60_000)) {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
   }

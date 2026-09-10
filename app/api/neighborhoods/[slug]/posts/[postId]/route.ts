@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator } from '@/lib/access'
+import { isAdminOrModerator, canActInCity } from '@/lib/access'
 
 type Params = { params: Promise<{ slug: string; postId: string }> }
 
@@ -10,10 +10,10 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   if (!session) return NextResponse.json({ error: 'Not logged in' }, { status: 401 })
 
   const { postId } = await params
-  const post = await prisma.neighborhoodPost.findUnique({ where: { id: postId }, select: { userId: true } })
+  const post = await prisma.neighborhoodPost.findUnique({ where: { id: postId }, select: { userId: true, cityId: true } })
   if (!post) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  if (post.userId !== session.id && !isAdminOrModerator(session)) {
+  if (post.userId !== session.id && !canActInCity(session, post.cityId)) {
     return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
   }
 
@@ -28,6 +28,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 
   const { postId } = await params
+  const target = await prisma.neighborhoodPost.findUnique({ where: { id: postId }, select: { cityId: true } })
+  if (!target) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!canActInCity(session, target.cityId)) return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
   const { isPinned } = await req.json()
   const post = await prisma.neighborhoodPost.update({
     where: { id: postId },

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator } from '@/lib/access'
+import { isAdminOrModerator, canActInCity } from '@/lib/access'
 import { restrictedSetFor } from '@/lib/memberPrivacy'
 import { createNotification } from '@/lib/notify'
 import { rateLimit } from '@/lib/rateLimit'
@@ -120,11 +120,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
   }
 
-  const club = await prisma.club.findUnique({ where: { slug }, select: { id: true, name: true, slug: true } })
+  const club = await prisma.club.findUnique({ where: { slug }, select: { id: true, name: true, slug: true, cityId: true } })
   if (!club) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  // Must be a host of this club or an admin
-  const isAdmin = isAdminOrModerator(session)
+  // Must be a host of this club, or staff for its city (moderators are
+  // city-scoped — see lib/access canActInCity)
+  const isAdmin = canActInCity(session, club.cityId)
   if (!isAdmin) {
     const hostMembership = await prisma.clubMembership.findUnique({
       where: { userId_clubId: { userId: session.id, clubId: club.id } },

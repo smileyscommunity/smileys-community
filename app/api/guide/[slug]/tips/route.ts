@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator } from '@/lib/access'
+import { canActInCity } from '@/lib/access'
 import { rateLimit } from '@/lib/rateLimit'
 import { getExperienceAnyCity } from '@/lib/guideContent'
 
@@ -84,9 +84,9 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   const tipId = req.nextUrl.searchParams.get('tip')
   if (!tipId) return NextResponse.json({ error: 'tip id required' }, { status: 400 })
 
-  const tip = await prisma.guideTip.findUnique({ where: { id: tipId }, select: { userId: true, slug: true } })
+  const tip = await prisma.guideTip.findUnique({ where: { id: tipId }, select: { userId: true, slug: true, cityId: true } })
   if (!tip || tip.slug !== slug) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  if (tip.userId !== session.id && !isAdminOrModerator(session)) {
+  if (tip.userId !== session.id && !canActInCity(session, tip.cityId)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

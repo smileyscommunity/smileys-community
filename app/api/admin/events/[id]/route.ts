@@ -201,8 +201,13 @@ export async function PUT(req: NextRequest, { params }: Params) {
     // host as-is", never "unset it" — so drop it from the update.
     if ('hostId' in rest && !rest.hostId) delete rest.hostId
 
-    // Hosts cannot reassign event ownership or move to an unmanaged club
-    if (clubHost) {
+    // Hosts cannot reassign event ownership or move to an unmanaged club.
+    // City hosts sit under the same rule: their new events are forced to
+    // 'pending' at creation exactly like a club host's, and this block was
+    // scoped to `clubHost` alone — so a city host could PUT
+    // {status:'published', featured:true} straight past the review queue.
+    const host = clubHost || cityHostOf.length > 0
+    if (host) {
       delete rest.hostId
       delete rest.featured
       // Publication is a staff decision. A club host's own new events are
@@ -224,7 +229,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
       // decision, not a host one. Leave a host's existing value untouched.
       delete rest.approvalRequired
       if (rest.clubId && rest.clubId !== before.clubId) {
-        if (!await isClubHostFor(session.id, rest.clubId as string)) {
+        if (!clubHost || !await isClubHostFor(session.id, rest.clubId as string)) {
           return NextResponse.json({ error: 'You are not a host of the target club' }, { status: 403 })
         }
       }

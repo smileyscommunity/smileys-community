@@ -141,6 +141,20 @@ describe('sweepReconfirm', () => {
     expect(r.asked).toBe(1)
     expect(r.released).toBe(1)
   })
+  it('queries pay-at-the-door events too, not only price 0', async () => {
+    // needsReconfirmation follows noShowPolicyApplies (free OR paid at the
+    // venue with no ticket link / payment contact), but the DB filter ran
+    // first with `price: 0` — so a 300 TL venue-paid walk was never even
+    // returned to the loop and nobody was asked "still coming?".
+    p.event.findMany.mockResolvedValue([])
+    await sweepReconfirm(at(24))
+    const where = p.event.findMany.mock.calls[0][0].where
+    expect(where.price).toBeUndefined()
+    expect(where.OR).toEqual(expect.arrayContaining([
+      expect.objectContaining({ payTo: 'venue', ticketUrl: null, paymentContact: null }),
+      expect.objectContaining({ price: 0 }),
+    ]))
+  })
   it('one broken event does not stop the others', async () => {
     p.event.findMany.mockResolvedValue([
       { ...EVENT, id: 'bad',  date: '2026-09-13', time: '19:00' },

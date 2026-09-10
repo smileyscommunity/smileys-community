@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { REACTION_EMOJIS } from '@/lib/posts'
+import { neighborhoodToSlug } from '@/lib/neighborhoods'
 
 type Params = { params: Promise<{ slug: string; postId: string }> }
 
@@ -15,9 +16,10 @@ export async function POST(req: NextRequest, { params }: Params) {
   // could store arbitrary strings (or zero-width chars) as a "reaction".
   const emoji: string = REACTION_EMOJIS.includes(body.emoji) ? body.emoji : '❤️'
 
-  // IDOR fix: scope the post by the slug in the URL.
+  // IDOR fix: scope the post by the slug in the URL. The column holds the
+  // display name, the URL the slug — compare like with like.
   const post = await prisma.neighborhoodPost.findUnique({ where: { id: postId }, select: { neighborhood: true } })
-  if (!post || post.neighborhood !== slug) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!post || neighborhoodToSlug(post.neighborhood) !== slug) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const existing = await prisma.neighborhoodPostLike.findUnique({
     where: { postId_userId: { postId, userId: session.id } },

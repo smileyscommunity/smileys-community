@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator } from '@/lib/access'
+import { canActInCity } from '@/lib/access'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -12,9 +12,9 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { id } = await params
-  const post = await prisma.boardPost.findUnique({ where: { id }, select: { userId: true } })
+  const post = await prisma.boardPost.findUnique({ where: { id }, select: { userId: true, cityId: true } })
   if (!post) return NextResponse.json({ error: 'Post not found' }, { status: 404 })
-  if (post.userId !== session.id && !isAdminOrModerator(session)) {
+  if (post.userId !== session.id && !canActInCity(session, post.cityId)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

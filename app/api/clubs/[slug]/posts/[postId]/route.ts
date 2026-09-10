@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator } from '@/lib/access'
+import { canActInCity } from '@/lib/access'
 import { rateLimit } from '@/lib/rateLimit'
 
 type Params = { params: Promise<{ slug: string; postId: string }> }
@@ -17,7 +17,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   // A cannot pin a post in club B by passing `/api/clubs/A/posts/<B-post-id>`.
   // We fetch club + post + (conditionally) membership in parallel.
   const [club, post] = await Promise.all([
-    prisma.club.findUnique({ where: { slug }, select: { id: true } }),
+    prisma.club.findUnique({ where: { slug }, select: { id: true, cityId: true } }),
     prisma.clubPost.findUnique({ where: { id: postId }, select: { id: true, clubId: true, userId: true } }),
   ])
   if (!club || !post || post.clubId !== club.id) {
@@ -38,7 +38,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // Admins/mods can edit anything. Otherwise the editor must still be an
     // approved member of THIS club: an owner who was removed/suspended must
     // not be able to keep rewriting their old posts, and a host can edit any.
-    if (!isAdminOrModerator(session)) {
+    if (!canActInCity(session, club.cityId)) {
       const membership = await prisma.clubMembership.findUnique({
         where: { userId_clubId: { userId: session.id, clubId: club.id } },
         select: { role: true, status: true },
@@ -60,7 +60,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 
   // ── Pin / unpin (club hosts, admins, or moderators only) ──────────────────
-  const isPrivilegedPin = isAdminOrModerator(session)
+  const isPrivilegedPin = canActInCity(session, club.cityId)
   if (!isPrivilegedPin) {
     const membership = await prisma.clubMembership.findUnique({
       where: { userId_clubId: { userId: session.id, clubId: club.id } },
@@ -89,7 +89,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   const { slug, postId } = await params
   // IDOR fix: scope the post lookup by the slug's clubId — see PATCH above.
   const [club, post] = await Promise.all([
-    prisma.club.findUnique({ where: { slug }, select: { id: true } }),
+    prisma.club.findUnique({ where: { slug }, select: { id: true, cityId: true } }),
     prisma.clubPost.findUnique({ where: { id: postId }, select: { userId: true, clubId: true } }),
   ])
   if (!club || !post || post.clubId !== club.id) {
@@ -97,7 +97,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   }
 
   const isOwner      = post.userId === session.id
-  const isPrivileged = isAdminOrModerator(session)
+  const isPrivileged = canActInCity(session, club.cityId)
 
   if (!isOwner && !isPrivileged) {
     // Club host for this specific club can also delete

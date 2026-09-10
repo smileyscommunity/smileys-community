@@ -85,7 +85,10 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
   // makes the directory more than another maps site: not "4.5 stars from
   // strangers" but "the community has actually been here, N times, and
   // is going again Thursday."
-  const today = todayInTz(DEFAULT_TZ)
+  // The business's city sets "today" and the open-now clock — Istanbul's
+  // clock made a Tbilisi café read "Open now" an hour late.
+  const businessCity = await getCityConfig(business.cityId)
+  const today = todayInTz(businessCity.timezone ?? DEFAULT_TZ)
   const venueEvents = await prisma.event.findMany({
     where: {
       location: { equals: business.name.replace(/\s+/g, ' ').trim(), mode: 'insensitive' },
@@ -163,7 +166,6 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
   const meta = business.neighborhood ? getNeighborhoodMeta(business.neighborhood) : null
   // ?w=1200: see absoluteImageUrl comment above. Crawlers ingesting
   // JSON-LD pick up images at the same size as the OG variant.
-  const businessCity = await getCityConfig(business.cityId)
 
   const ldImage = business.coverImage
     ? `${SITE_URL}${resolveImageUrl(business.coverImage)}?w=1200`
@@ -220,7 +222,7 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
     }
   }
 
-  const openStatus = getOpenStatus(hours)
+  const openStatus = getOpenStatus(hours, businessCity.timezone ?? DEFAULT_TZ)
   const cover      = resolveImageUrl(business.coverImage)
   const logo       = resolveImageUrl(business.logo)
   const addedBy    = attributionDisplay(business.submittedBy?.name)

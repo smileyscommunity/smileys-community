@@ -83,7 +83,10 @@ export async function POST(req: NextRequest) {
   const title = `Moving sale: ${safeItems.length} item${safeItems.length !== 1 ? 's' : ''}${safeNeighborhood ? ` in ${safeNeighborhood}` : ''}`
   const description = safeNote || safeItems.map(it => it.name).join(', ')
   prisma.user.findMany({
-    where: { listingAlerts: { has: 'MOVING' }, id: { not: session.id }, cityId: sale.cityId },
+    where: {
+      listingAlerts: { has: 'MOVING' }, id: { not: session.id }, cityId: sale.cityId, status: 'approved',
+      blocksGiven: { none: { blockedId: session.id } }, blocksReceived: { none: { blockerId: session.id } },
+    },
     select: { id: true, email: true, name: true },
   }).then(alertees => {
     for (const u of alertees) {

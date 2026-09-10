@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import type { Prisma } from '@prisma/client'
 import { createNotification } from '@/lib/notify'
 import { sendReconfirmEmail, sendSpotReleasedEmail, recordEmailFailure } from '@/lib/email'
 import { eventStartsAt } from '@/lib/eventTime'
@@ -138,13 +139,25 @@ export async function releaseEvent(event: {
   return released
 }
 
+/** DB-side twin of noShowPolicyApplies; the per-row check still runs after. */
+export const RECONFIRM_STAKE_WHERE: Prisma.EventWhereInput = {
+  OR: [
+    { price: 0, OR: [{ memberPrice: null }, { memberPrice: 0 }] },
+    { payTo: 'venue', ticketUrl: null, paymentContact: null },
+  ],
+}
+
 /** The hourly job: asks in the ask window, releases inside the cutoff. */
 export async function sweepReconfirm(now: Date = new Date()) {
   const cities = await prisma.city.findMany({ select: { id: true, timezone: true } })
   const twoDays = new Date(now.getTime() + 2 * 24 * HOUR)
   const events = (await Promise.all(cities.map(c => prisma.event.findMany({
     where: {
-      cityId: c.id, status: 'published', cancelledAt: null, price: 0, limitedSpots: true, approvalRequired: false,
+      cityId: c.id, status: 'published', cancelledAt: null, limitedSpots: true, approvalRequired: false,
+      // Mirrors noShowPolicyApplies (free, or paid at the venue with no
+      // ticket link / payment contact). `price: 0` alone silently dropped
+      // every pay-at-the-door event before needsReconfirmation could see it.
+      ...RECONFIRM_STAKE_WHERE,
       date: { gte: dayInTz(now, c.timezone), lte: dayInTz(twoDays, c.timezone) },
     },
     select: { id: true, title: true, emoji: true, hostId: true, date: true, time: true, endTime: true, price: true, memberPrice: true, payTo: true, ticketUrl: true, paymentContact: true, limitedSpots: true, status: true, cancelledAt: true, approvalRequired: true },

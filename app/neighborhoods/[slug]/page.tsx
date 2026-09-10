@@ -446,6 +446,7 @@ export default async function NeighborhoodPage({ params }: { params: Promise<{ s
             city={city}
             guide={guide}
             myId={session?.id ?? null}
+            viewer={session}
             isStaff={isStaff}
             hasNoNeighborhood={!!hasNoNeighborhood}
             sideLabel={sideLabel}

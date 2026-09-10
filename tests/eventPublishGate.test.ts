@@ -15,6 +15,7 @@ vi.mock('@/lib/access', () => ({
   isAdminOrModerator: (s: any) => s?.role === 'admin' || s?.role === 'moderator',
   isClubHost:         vi.fn(async () => true),
   isClubHostFor:      vi.fn(async () => true),
+  hostCityIds:        vi.fn(async () => []),
 }))
 vi.mock('@/lib/notify', () => ({ createNotification: vi.fn(() => Promise.resolve()), notifyNewEvent: vi.fn(() => Promise.resolve()) }))
 vi.mock('@/lib/audit',  () => ({ writeAudit: vi.fn(), getDiff: vi.fn(() => null) }))
@@ -29,6 +30,7 @@ vi.mock('@/lib/prisma', () => ({
 
 import { PUT } from '@/app/api/admin/events/[id]/route'
 import { getSession } from '@/lib/session'
+import { isClubHost, isClubHostFor, hostCityIds } from '@/lib/access'
 import { prisma } from '@/lib/prisma'
 
 const host = { id: 'h1', name: 'Host', role: 'member', cityId: 'c1' }
@@ -91,6 +93,48 @@ describe('club host cannot publish past the review queue', () => {
     ;(getSession as any).mockResolvedValue({ id: 'a1', name: 'A', role: 'admin', cityId: 'c1' })
     ;(prisma.event.findUnique as any).mockResolvedValue(existing('pending'))
     const res = await put({ status: 'published' })
+    expect(res.status).toBe(200)
+  })
+})
+
+// A pure city host (CityHost grant, no club) is forced to 'pending' on create
+// by the same needsReview rule, but the PUT restrictions above were scoped to
+// `clubHost` only — so a city host could publish, feature and reassign their
+// own event in one request. Same gate, same cases.
+describe('city host cannot publish past the review queue either', () => {
+  beforeEach(() => {
+    ;(isClubHost as any).mockResolvedValue(false)
+    ;(isClubHostFor as any).mockResolvedValue(false)
+    ;(hostCityIds as any).mockResolvedValue(['c1'])
+  })
+
+  it('blocks pending → published', async () => {
+    ;(prisma.event.findUnique as any).mockResolvedValue(existing('pending'))
+    const res = await put({ status: 'published' })
+    expect(res.status).toBe(403)
+    expect(prisma.event.update).not.toHaveBeenCalled()
+  })
+
+  it('drops featured, hostId and approvalRequired from the update', async () => {
+    ;(prisma.event.findUnique as any).mockResolvedValue(existing('published'))
+    const res = await put({ status: 'published', featured: true, hostId: 'someone-else', approvalRequired: false, title: 'T2' })
+    expect(res.status).toBe(200)
+    const data = (prisma.event.update as any).mock.calls[0][0].data
+    expect(data).not.toHaveProperty('featured')
+    expect(data).not.toHaveProperty('hostId')
+    expect(data).not.toHaveProperty('approvalRequired')
+    expect(data.title).toBe('T2')
+  })
+
+  it('cannot move the event into a club', async () => {
+    ;(prisma.event.findUnique as any).mockResolvedValue(existing('published'))
+    const res = await put({ clubId: 'club2' })
+    expect(res.status).toBe(403)
+  })
+
+  it('still cancels their own event', async () => {
+    ;(prisma.event.findUnique as any).mockResolvedValue(existing('published'))
+    const res = await put({ status: 'cancelled' })
     expect(res.status).toBe(200)
   })
 })

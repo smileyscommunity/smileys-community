@@ -4,6 +4,8 @@ import Image from 'next/image'
 import { prisma } from '@/lib/prisma'
 import type { NeighborhoodView } from '@/lib/neighborhoodsDb'
 import type { CityConfig } from '@/lib/city'
+import type { SessionUser } from '@/lib/session'
+import { restrictedSetFor } from '@/lib/memberPrivacy'
 import { formatShortDate, formatTime, formatPrice, BLUR_PLACEHOLDER, resolveImageUrl, avatarUrl, firstNameOf} from '@/lib/data'
 import { SITE_URL, APP_URL } from '@/lib/env'
 import NeighborhoodWall from '@/components/NeighborhoodWall'
@@ -59,6 +61,8 @@ interface Props {
   city:    CityConfig
   guide:   NeighborhoodGuide | null
   myId:    string | null
+  // The full session, for restrictedSetFor. myId stays as the cheap gate.
+  viewer:  SessionUser | null
   isStaff: boolean
   hasNoNeighborhood: boolean
   sideLabel: Record<string, string>
@@ -69,14 +73,14 @@ interface Props {
 // two cities' events, members, listings and board posts onto one page the
 // moment any two of them share a district name.
 export default async function NeighborhoodSections({
-  name, slug, meta, siblings, cityId, city, guide, myId, isStaff, hasNoNeighborhood, sideLabel,
+  name, slug, meta, siblings, cityId, city, guide, myId, viewer, isStaff, hasNoNeighborhood, sideLabel,
 }: Props) {
   const today = new Date().toISOString().split('T')[0]
 
   const now = new Date()
 
   const [
-    upcomingRaw, pastCount, locals, hostCounts,
+    upcomingRaw, pastCount, localCandidates, hostCounts,
     totalLocals, allEventCounts, communityPhotos, wallPostCount,
     activeListings, upcomingVisitors, activeHangouts, businesses, activePulses,
     boardPosts,
@@ -87,19 +91,31 @@ export default async function NeighborhoodSections({
       take: 3,
       include: {
         _count:    { select: { attendees: { where: { status: 'approved', user: { status: 'approved' } } } } },
+        // Same rules as the event page's own attendee strip: stealth RSVPs and
+        // admin-hidden accounts never show, and guests get no previews at all
+        // (redactEventForGuest strips them on every other public surface).
         attendees: {
-          where:   { status: 'approved', user: { status: 'approved' } },
-          take:    3,
+          where:   { status: 'approved', stealth: false, user: { status: 'approved', hiddenFromMembers: false } },
+          take:    myId ? 3 : 0,
           orderBy: { joinedAt: 'desc' },
           select:  { user: { select: { id: true, name: true, color: true, profilePhoto: true } } },
         },
       },
     }),
     prisma.event.count({ where: { neighborhood: name, cityId, date: { lt: today } } }),
+    // This page is public and in the sitemap. The same three rules as the
+    // "people nearby" strip on /neighborhoods: the member's own opt-out
+    // (neighborhoodVisible), admin-hidden accounts, and connections-only
+    // profiles — hidden from guests outright, and from members unless
+    // connected (restrictedSetFor, applied below).
     prisma.user.findMany({
-      where:   { neighborhood: name, cityId, status: 'approved' },
-      select:  { id: true, name: true, color: true, profilePhoto: true },
-      take:    12,
+      where:   {
+        neighborhood: name, cityId, status: 'approved',
+        neighborhoodVisible: true, hiddenFromMembers: false,
+        ...(viewer ? {} : { profileVisibility: { not: 'connections' } }),
+      },
+      select:  { id: true, name: true, color: true, profilePhoto: true, profileVisibility: true },
+      take:    16,
       orderBy: { joinedAt: 'desc' },
     }),
     prisma.event.groupBy({
@@ -109,7 +125,7 @@ export default async function NeighborhoodSections({
       orderBy: { _count: { hostId: 'desc' } },
       take:    4,
     }),
-    prisma.user.count({ where: { neighborhood: name, cityId, status: 'approved' } }),
+    prisma.user.count({ where: { neighborhood: name, cityId, status: 'approved', neighborhoodVisible: true, hiddenFromMembers: false } }),
     prisma.event.groupBy({
       by:    ['neighborhood'],
       where: { cityId, date: { gte: today } },
@@ -132,7 +148,6 @@ export default async function NeighborhoodSections({
       select:  {
         id: true, category: true, title: true, price: true, photo: true,
         createdAt: true,
-        user: { select: { id: true, name: true, color: true, profilePhoto: true } },
       },
     }),
     // Visitors with active trips ending today or later, tagged to this
@@ -150,7 +165,9 @@ export default async function NeighborhoodSections({
     // when endsAt passes, but we also filter by endsAt >= now so a missed
     // sweeper run can't show stale ones. Same shape the /hangouts feed uses
     // so users can recognize the cards.
-    prisma.hangout.findMany({
+    // Member-only, like the pulses: the /hangouts feed gates on session and
+    // this card names the host.
+    myId ? prisma.hangout.findMany({
       where:   { neighborhood: name, cityId, status: 'active', endsAt: { gte: now }, user: { status: 'approved' } },
       orderBy: { startsAt: 'asc' },
       take:    3,
@@ -159,7 +176,7 @@ export default async function NeighborhoodSections({
         user: { select: { id: true, name: true, color: true, profilePhoto: true, goodHangouts: true } },
         _count: { select: { joins: true } },
       },
-    }),
+    }) : Promise.resolve([]),
     // Approved + active directory entries tagged to this neighborhood.
     // Up to 6 cards then "See all →" deep-links into /directory with the
     // neighborhood pre-filtered. Silent when empty (matches every other
@@ -205,6 +222,9 @@ export default async function NeighborhoodSections({
       },
     }),
   ])
+
+  const restrictedLocals = viewer ? await restrictedSetFor(viewer, localCandidates) : new Set<string>()
+  const locals = localCandidates.filter(m => !restrictedLocals.has(m.id)).slice(0, 12)
 
   // Clubs active around this neighborhood (Clubs brief §27) — clubs whose
   // events (past 30 days or upcoming) happen here. Interest communities
@@ -721,14 +741,19 @@ export default async function NeighborhoodSections({
             {boardPosts.map(bp => (
               <Link key={bp.id} href={`/board?post=${bp.id}`}
                 className="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3.5 hover:border-amber-200 hover:shadow-md transition-all group">
-                <AvatarImg src={avatarUrl(bp.user.profilePhoto, 64)} name={bp.user.name} color={bp.user.color}
-                  size="w-9 h-9" textSize="text-xs" className="shrink-0" />
+                {/* Board is member content: a guest sees the question, not who asked. */}
+                {myId ? (
+                  <AvatarImg src={avatarUrl(bp.user.profilePhoto, 64)} name={bp.user.name} color={bp.user.color}
+                    size="w-9 h-9" textSize="text-xs" className="shrink-0" />
+                ) : (
+                  <div className="w-9 h-9 rounded-full bg-amber-50 shrink-0" aria-hidden="true" />
+                )}
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900 leading-snug truncate group-hover:text-amber-700 transition-colors">
                     <span aria-hidden="true">{bp.type === 'plan' ? '☕' : bp.type === 'question' ? '❓' : bp.type === 'reco' ? '💡' : '📣'} </span>{bp.title}
                   </p>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    {firstNameOf(bp.user.name)}
+                    {myId ? firstNameOf(bp.user.name) : 'Smileys member'}
                     {bp.whenLabel && <> · <span aria-hidden="true">🕐</span> {bp.whenLabel}</>}
                     {bp._count.replies > 0 && <> · <span aria-hidden="true">💬</span> {bp._count.replies}</>}
                     {bp._count.interests > 0 && <> · <span aria-hidden="true">👋</span> {bp._count.interests} interested</>}

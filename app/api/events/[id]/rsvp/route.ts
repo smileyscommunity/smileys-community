@@ -13,6 +13,7 @@ import { activateAttendee, cancelAttendeeOp, isActiveAttendee } from '@/lib/atte
 import { checkRsvpAllowed, gateErrorBody, getRsvpGate, recordYellowAcknowledgement } from '@/lib/noShow'
 import { noShowPolicyApplies } from '@/lib/noShowPolicy'
 import { DEFAULT_CURRENCY, formatMoney } from '@/lib/data'
+import { todayInCity } from '@/lib/city'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -41,6 +42,20 @@ export async function POST(req: NextRequest, { params }: Params) {
       prisma.user.findUnique({ where: { id: session.id }, select: { status: true, gender: true, nationality: true } }),
     ])
     if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
+    // The page hides the button on a cancelled, draft, pending or past event;
+    // the API never did. A direct POST created a seat, sent the confirmation
+    // email and pinged the host — and the no-show sweeper could then settle
+    // against it. registrationDeadline was validated on create and never read.
+    if (event.status !== 'published' || event.cancelledAt) {
+      return NextResponse.json({ error: 'This event is not open for RSVPs' }, { status: 400 })
+    }
+    const eventToday = await todayInCity(event.cityId)
+    if (event.date < eventToday) {
+      return NextResponse.json({ error: 'This event has already happened' }, { status: 400 })
+    }
+    if (event.registrationDeadline && event.registrationDeadline < eventToday) {
+      return NextResponse.json({ error: 'Registration for this event has closed' }, { status: 400 })
+    }
     if (event.hostId === session.id) {
       return NextResponse.json({ error: 'Hosts cannot join their own event' }, { status: 400 })
     }

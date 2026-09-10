@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator } from '@/lib/access'
+import { canActInCity } from '@/lib/access'
 import { rateLimit } from '@/lib/rateLimit'
 
 type Params = { params: Promise<{ slug: string }> }
@@ -16,11 +16,11 @@ export async function PUT(req: NextRequest, { params }: Params) {
   }
 
   const { slug } = await params
-  const club = await prisma.club.findUnique({ where: { slug }, select: { id: true } })
+  const club = await prisma.club.findUnique({ where: { slug }, select: { id: true, cityId: true } })
   if (!club) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   // Club rules are managed by platform admins/moderators only — not club hosts.
-  if (!isAdminOrModerator(session)) {
+  if (!canActInCity(session, club.cityId)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

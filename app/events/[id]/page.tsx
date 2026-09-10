@@ -3,7 +3,7 @@ import { jsonLdHtml } from '@/lib/jsonLd'
 import Link from 'next/link'
 import Image from 'next/image'
 import type { Metadata } from 'next'
-import { getEventById } from '@/lib/db'
+import { getEventById, redactEventForGuest } from '@/lib/db'
 import { getCityConfig } from '@/lib/city'
 import { DEFAULT_TZ, todayInTz, fromWallClockInTz } from '@/lib/cityTime'
 import { eventPhase } from '@/lib/eventTime'
@@ -54,11 +54,14 @@ function absoluteImageUrl(coverImage: string | null | undefined, title?: string)
 // one Google ever actually sees, since Googlebot never carries a session)
 // had drifted behind: no `offers` at all, eventStatus hardcoded to always
 // "Scheduled" regardless of cancellation, and never switched to
-// VirtualLocation for online events. None of that is guest-sensitive data —
-// price/status/address are exactly what Event rich results need, and the
-// visible page UI already handles what actually should stay member-only
+// VirtualLocation for online events. Price/status/venue are what Event rich
+// results need; the guest branch feeds it a redacted event so the street
+// address and meeting link stay member-only like the rest of the page
 // (RSVP, messages, attendee list).
-function buildEventJsonLd(event: Event, eventUrl: string, tz: string, cityName: string, countryCode: string) {
+// `online` is decided by the caller from the UNREDACTED event: a guest gets a
+// redacted copy (meetingUrl stripped, see redactEventForGuest) and would
+// otherwise be told an online event happens at a Place.
+function buildEventJsonLd(event: Event, eventUrl: string, tz: string, cityName: string, countryCode: string, online = !!event.meetingUrl) {
   return {
     '@context': 'https://schema.org',
     '@type':    'Event',
@@ -70,11 +73,13 @@ function buildEventJsonLd(event: Event, eventUrl: string, tz: string, cityName: 
     eventStatus: event.status === 'cancelled'
       ? 'https://schema.org/EventCancelled'
       : 'https://schema.org/EventScheduled',
-    eventAttendanceMode: event.meetingUrl
+    eventAttendanceMode: online
       ? 'https://schema.org/OnlineEventAttendanceMode'
       : 'https://schema.org/OfflineEventAttendanceMode',
-    location: event.meetingUrl
-      ? { '@type': 'VirtualLocation', url: event.meetingUrl }
+    // A guest's copy has no meetingUrl; the public event page is the join
+    // point they can actually use, so it stands in as the virtual location.
+    location: online
+      ? { '@type': 'VirtualLocation', url: event.meetingUrl ?? eventUrl }
       : {
           '@type': 'Place',
           name:    event.location || event.neighborhood || cityName,
@@ -172,7 +177,11 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
     // attendee list, and private address/links stay member-only — the page
     // pushes the user to /apply for the unlock.
     const eventUrl = `${APP_URL}/events/${id}`
-    const guestJsonLd = buildEventJsonLd(event, eventUrl, eventTz, cityName, cityCountry)
+    // The structured data is part of the guest response too. Building it
+    // from the raw event put the street address and the Zoom/Meet link —
+    // exactly what redactEventForGuest strips everywhere else — into the
+    // page source for every logged-out visitor and crawler.
+    const guestJsonLd = buildEventJsonLd(redactEventForGuest(event), eventUrl, eventTz, cityName, cityCountry, !!event.meetingUrl)
 
     const goingCount = await prisma.eventAttendee.count({
       where: { eventId: id, status: 'approved' },
@@ -357,14 +366,14 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
       select: { userId: true },
     }).then(async entries => {
       const total = entries.length
-      if (!total) return { users: [] as { id: string; name: string; color: string; profilePhoto: string | null; nationality: string | null }[], total: 0 }
+      if (!total) return { users: [] as { id: string; name: string; color: string; profilePhoto: string | null; nationality: string | null; profileVisibility: string }[], total: 0 }
       // Show the whole waitlist (members expect to see everyone queued), but
       // keep a high safety cap so a pathological 500-person waitlist can't
       // balloon the DOM / user query. Real event waitlists sit well under this.
       const shownIds = entries.slice(0, 100).map(e => e.userId)
       const rows = await prisma.user.findMany({
         where: { id: { in: shownIds }, hiddenFromMembers: false },
-        select: { id: true, name: true, color: true, profilePhoto: true, nationality: true },
+        select: { id: true, name: true, color: true, profilePhoto: true, nationality: true, profileVisibility: true },
       })
       // Preserve waitlist (createdAt) order — findMany by id doesn't guarantee it.
       const byId = new Map(rows.map(u => [u.id, u]))
@@ -401,6 +410,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
     session,
     attendees.map(a => ({ id: a.user.id, profileVisibility: a.user.profileVisibility })),
   )
+  const restrictedWaitlist = await restrictedSetFor(session, waitlisted.users)
 
   const hasCoords    = event.lat != null && event.lng != null
   // Directions link — always resolvable so every event gets one (the map still
@@ -977,7 +987,9 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
                 {waitlisted.users.map(u => {
                   const photo = avatarUrl(u.profilePhoto, 128)
-                  const flag  = countryFlag(u.nationality)
+                  // Same gate as the attendee grid: nationality is the private
+                  // attribute for a connections-only member.
+                  const flag  = restrictedWaitlist.has(u.id) ? '' : countryFlag(u.nationality)
                   return (
                     <Link key={u.id} href={`/members/${u.id}`}
                       className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-gray-50 transition-colors group">
@@ -1229,6 +1241,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
             eventId={event.id}
             hostId={event.hostId}
             spotsLeft={event.spotsLeft}
+            soldOut={soldOut}
             price={event.price}
             memberPrice={event.memberPrice}
             membersOnly={event.membersOnly}

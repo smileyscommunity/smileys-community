@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator } from '@/lib/access'
+import { canActInCity } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
 import { validateFieldUpdate, dropUnchanged } from '@/app/api/admin/directory/_lib'
 
@@ -36,13 +36,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         languages: true, latitude: true, longitude: true,
         hours: true, memberDiscount: true, tags: true,
         isExpatOwned: true, isExpatFriendly: true,
-        isApproved: true, isActive: true,
+        isApproved: true, isActive: true, cityId: true,
       },
     })
     if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
     const isOwner = existing.claimedById === session.id
-    const isStaff = isAdminOrModerator(session)
+    const isStaff = canActInCity(session, existing.cityId)
     if (!isOwner && !isStaff) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }

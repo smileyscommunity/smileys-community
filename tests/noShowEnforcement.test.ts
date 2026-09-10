@@ -10,6 +10,7 @@ vi.mock('@/lib/spotOpened', () => ({ announceSpotOpened: vi.fn().mockResolvedVal
 vi.mock('@/lib/autoJoinClub',   () => ({ autoJoinClub: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('@/lib/firstEvent',     () => ({ stampFirstEventRsvp: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('@/lib/posthog-server', () => ({ trackServer: vi.fn() }))
+vi.mock('@/lib/city',           () => ({ todayInCity: vi.fn().mockResolvedValue('2026-09-10') }))
 vi.mock('@/lib/eventQuota',     () => ({ hasQuotaRoomFor: vi.fn() }))
 vi.mock('@/lib/noShow', () => ({
   checkRsvpAllowed: vi.fn(),
@@ -48,7 +49,7 @@ const until = new Date('2026-10-20T00:00:00Z')
 beforeEach(() => {
   vi.clearAllMocks()
   ;(getSession as any).mockResolvedValue({ id: 'u1', name: 'U', email: 'u@x', role: 'member' })
-  p.event.findUnique.mockResolvedValue({ id: 'e1', title: 'T', hostId: 'h1', cityId: 'c1', price: 0 })
+  p.event.findUnique.mockResolvedValue({ id: 'e1', title: 'T', hostId: 'h1', cityId: 'c1', price: 0, status: 'published', cancelledAt: null, date: '2099-01-01', registrationDeadline: null })
   p.user.findUnique.mockResolvedValue({ status: 'approved', gender: null, nationality: null })
   p.eventCoHost.findFirst.mockResolvedValue(null)
   p.eventAttendee.findUnique.mockResolvedValue(null)
@@ -80,7 +81,7 @@ describe('RSVP POST behind the no-show gate', () => {
     // Approval-required event: the shortest member happy path (a pending
     // request) — enough to prove the gate saw acknowledge=true and the
     // acknowledgement was written after the row landed.
-    p.event.findUnique.mockResolvedValue({ id: 'e1', title: 'T', hostId: 'h1', cityId: 'c1', price: 0, approvalRequired: true, totalSpots: 10, soldOut: false, genderBalance: false })
+    p.event.findUnique.mockResolvedValue({ id: 'e1', title: 'T', hostId: 'h1', cityId: 'c1', price: 0, approvalRequired: true, totalSpots: 10, soldOut: false, genderBalance: false, status: 'published', cancelledAt: null, date: '2099-01-01', registrationDeadline: null })
     p.$transaction.mockImplementation(async (fn: any) => fn(p))
     p.eventAttendee.updateMany.mockResolvedValue({ count: 0 })
     p.eventAttendee.create.mockResolvedValue({})

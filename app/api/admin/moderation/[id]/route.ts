@@ -123,14 +123,31 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           ))
         }
       }
-      await prisma.user.update({
+      const banReason = reviewNote || 'Banned following community report'
+      const banned = await prisma.user.update({
         where: { id: report.reportedId },
         data: {
           status:    'banned',
-          banReason: reviewNote || 'Banned following community report',
+          banReason,
           bannedAt:  new Date(),
+          // The JWT carries status; the bump makes getSession revoke the
+          // live cookie on the next request instead of at next login.
+          tokenVersion: { increment: 1 },
         },
+        select: { email: true, phone: true, name: true },
       })
+      // Same two follow-ups the users route does on a ban. Without the
+      // blacklist row the apply route finds nothing when they re-apply with
+      // a new email — the "no blacklist = re-apply hole" of the 2026-07 wave.
+      if (banned.email) {
+        await prisma.blacklist.upsert({
+          where:  { email: banned.email },
+          create: { email: banned.email, phone: banned.phone ?? undefined, name: banned.name ?? undefined, reason: banReason, bannedBy: session.name },
+          update: {},
+        }).catch(err => console.error('[moderation ban] blacklist upsert failed', { id: report.reportedId, err: String(err) }))
+      }
+      await prisma.passwordResetToken.deleteMany({ where: { userId: report.reportedId } })
+        .catch(err => console.error('[moderation ban] token cleanup failed', { id: report.reportedId, err: String(err) }))
       writeAudit(session.id, session.name, 'user.ban', report.reportedId, 'user',
         { reportId: id, note: reviewNote },
         `${reported?.name ?? report.reportedId} banned — ${reviewNote || 'community report'}`,

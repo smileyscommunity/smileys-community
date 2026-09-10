@@ -65,7 +65,7 @@ describe('POST /admin/partners/[id] — assigning a user', () => {
     const res = await POST(req({ userId: 'u1' }), params)
     expect(res.status).toBe(200)
     expect((prisma.user.update as any).mock.calls[0][0].data)
-      .toEqual({ partnerId: 'p1', role: 'partner' })
+      .toEqual({ partnerId: 'p1', role: 'partner', tokenVersion: { increment: 1 } })
   })
 
   it('lets a moderator reassign an existing partner account', async () => {
@@ -113,7 +113,7 @@ describe('DELETE /admin/partners/[id] — unassigning a user', () => {
     const res = await DELETE(req({ userId: 'u1' }), params)
     expect(res.status).toBe(200)
     expect((prisma.user.update as any).mock.calls[0][0].data)
-      .toEqual({ partnerId: null, role: 'member' })
+      .toEqual({ partnerId: null, role: 'member', tokenVersion: { increment: 1 } })
   })
 
   it('refuses to demote an elevated account even if one carries a partnerId', async () => {

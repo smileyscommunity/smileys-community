@@ -1,29 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSession } from '@/lib/session'
+import { getSession, type SessionUser } from '@/lib/session'
 import { resolveCityId } from '@/lib/city'
 import { rateLimit } from '@/lib/rateLimit'
-import { slugToNeighborhood } from '@/lib/neighborhoods'
+import { resolveNeighborhoodBySlug } from '@/lib/neighborhoodsDb'
 import { buildReactions, buildAuthor } from '@/lib/posts'
-import { createNotification } from '@/lib/notify'
+import { notifyMentions } from '@/lib/mentions'
 
-async function notifyMentions(content: string, excludeUserId: string, authorName: string, link: string) {
-  const matches = [...content.matchAll(/@(\w+)/g)].map(m => m[1])
-  if (!matches.length) return
-  const users = await prisma.user.findMany({
-    where: {
-      status: 'approved',
-      id:     { not: excludeUserId },
-      OR: matches.map(word => ({ name: { startsWith: word, mode: 'insensitive' as const } })),
-    },
-    select: { id: true },
-  })
-  if (!users.length) return
-  await Promise.allSettled(
-    users.map(u =>
-      createNotification(u.id, 'neighborhood_mention', `${authorName} mentioned you`, content.slice(0, 120), link)
-    )
-  )
+// The slug resolves the same way the page does: the viewer's city first, then
+// the other public cities. It used to go through the Istanbul-only constant,
+// which 404'd every other city's wall on load and on post.
+async function resolveWall(slug: string, session: SessionUser) {
+  return resolveNeighborhoodBySlug(slug, await resolveCityId(session))
 }
 
 type Params = { params: Promise<{ slug: string }> }
@@ -33,12 +21,13 @@ export async function GET(req: NextRequest, { params }: Params) {
   if (!session) return NextResponse.json({ error: 'Not logged in' }, { status: 401 })
 
   const { slug } = await params
-  const neighborhood = slugToNeighborhood(slug)
-  if (!neighborhood) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  const wall = await resolveWall(slug, session)
+  if (!wall) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const cursor = req.nextUrl.searchParams.get('cursor') ?? undefined
   const posts = await prisma.neighborhoodPost.findMany({
-    where: { neighborhood },
+    // A name is unique only within its city — Moda exists in more than one.
+    where: { neighborhood: wall.view.name, cityId: wall.cityId },
     orderBy: [{ isPinned: 'desc' }, { createdAt: 'desc' }],
     take: 30,
     ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
@@ -77,8 +66,9 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   const { slug } = await params
-  const neighborhood = slugToNeighborhood(slug)
-  if (!neighborhood) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  const wall = await resolveWall(slug, session)
+  if (!wall) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  const neighborhood = wall.view.name
 
   const { content, imageUrl } = await req.json()
   const trimmed = content?.trim() ?? ''
@@ -89,12 +79,12 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   const post = await prisma.neighborhoodPost.create({
-    data: { neighborhood, userId: session.id, cityId: await resolveCityId(session), content: trimmed, imageUrl: imageUrl ?? null },
+    data: { neighborhood, userId: session.id, cityId: wall.cityId, content: trimmed, imageUrl: imageUrl ?? null },
     include: { user: { select: { id: true, name: true, color: true, profilePhoto: true, role: true } } },
   })
 
   const link = `/neighborhoods/${slug}`
-  notifyMentions(trimmed, session.id, session.name, link).catch(() => {})
+  notifyMentions({ content: trimmed, authorId: session.id, authorName: session.name, cityId: wall.cityId, link }).catch(() => {})
 
   return NextResponse.json({
     id: post.id, content: post.content, imageUrl: post.imageUrl,
