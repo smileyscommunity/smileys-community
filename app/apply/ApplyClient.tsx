@@ -399,14 +399,22 @@ function ApplyForm() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <div className="text-4xl mb-3">😊</div>
-          <h1 className="text-2xl font-extrabold text-gray-900 mb-2">You're under review!</h1>
+          <h1 className="text-2xl font-extrabold text-gray-900 mb-2">You're under review! 👀</h1>
           <p className="text-gray-600 text-sm leading-relaxed mb-2">
-            Thanks for applying to Smileys Community. We personally review every application.
+            Thanks for applying to Smileys Community. We personally review every application to
+            make sure we're bringing together the right people for our community.
           </p>
-          <p className="text-gray-600 text-sm mb-6">
+          <p className="text-gray-600 text-sm mb-3">
             We'll get back to you at <strong>{form.email}</strong> — usually the same day.
           </p>
+          {/* What approval actually leads to. Applicants read "approved" as "I'm in"
+              and then ignored the activation email, so the next step is named here. */}
+          <p className="text-gray-600 text-sm leading-relaxed mb-3">
+            If your application is approved, you'll receive an invitation to activate your Smileys
+            Community account. Once your account is activated, you'll be able to access the
+            community and start joining events and meeting people.
+          </p>
+          <p className="text-gray-600 text-sm mb-6">See you soon! 😊</p>
           <Link href="/" className="text-amber-600 font-semibold text-sm hover:underline">← Back to home</Link>
         </div>
       </div>
