@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, use } from 'react'
 import { confirmToast } from '@/lib/confirmToast'
 import Link from 'next/link'
 import { toast } from 'sonner'
+import { toastApiError } from '@/lib/apiError'
 import { promptToast } from '@/lib/promptToast'
 import { formatDate } from '@/lib/data'
 import type { Event } from '@/lib/data'
@@ -112,6 +113,7 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
       body: JSON.stringify({ userId, action: 'approve' }),
     })
     if (res.ok) { setAttendees(prev => prev.map(a => a.userId === userId ? { ...a, status: 'approved' } : a)); toast.success('Approved ✓') }
+    else await toastApiError(res, 'Could not approve')
     setBusy(null)
   }
 
@@ -124,6 +126,7 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
       body: JSON.stringify({ userId, action: 'reject' }),
     })
     if (res.ok) { setAttendees(prev => prev.filter(a => a.userId !== userId)); toast('Rejected') }
+    else await toastApiError(res, 'Could not reject')
     setBusy(null)
   }
 
@@ -175,6 +178,7 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
       body: JSON.stringify({ userId, checkedIn: !current }),
     })
     if (res.ok) setAttendees(prev => prev.map(a => a.userId === userId ? { ...a, checkedIn: !current } : a))
+    else await toastApiError(res, 'Could not update check-in')
     setToggling(null)
   }
 
@@ -224,6 +228,7 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
       body: JSON.stringify({ userId, type: 'waitlist' }),
     })
     if (res.ok) { setWaitlist(prev => prev.filter(w => w.userId !== userId)); toast('Removed from waitlist') }
+    else await toastApiError(res, 'Could not remove from waitlist')
     setBusy(null)
   }
 
@@ -256,6 +261,9 @@ export default function ParticipantsPage({ params }: { params: Promise<{ id: str
       setWaitlist(prev => prev.filter(w => w.userId !== entry.userId))
       setAttendees(prev => [...prev, { userId: entry.userId, status: 'approved', checkedIn: false, joinedAt: new Date().toISOString(), user: entry.user }])
       toast.success(`${entry.user.name} promoted ✓`)
+    } else {
+      // Promotion is step-up gated: the 403 says what to do.
+      await toastApiError(res, 'Could not promote')
     }
     setBusy(null)
   }

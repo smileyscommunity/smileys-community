@@ -78,6 +78,14 @@ function loadCity(): Promise<CurrentCity | null> {
   return inFlight
 }
 
+// Logout and login clear it: the cache lives for the tab, and both navigate
+// with router.push (no full reload), so the next member on a shared device
+// inherited the previous one's city, timezone and posting target.
+export function resetCurrentCity(): void {
+  cached = null
+  inFlight = null
+}
+
 export function useCurrentCity(): CurrentCity | null {
   const [city, setCity] = useState<CurrentCity | null>(cached)
 

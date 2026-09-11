@@ -39,7 +39,23 @@ export async function POST(req: NextRequest) {
   }
 }
 
+const STUCK_AFTER_MS = 30 * 60_000
+
 async function runSweep() {
+  // A row claimed as 'sending' whose sweep died mid-blast (PM2 restart —
+  // deploys do one — or a thrown recipient query) was never re-selected and
+  // nothing surfaced it. It is not retried either: the batch has no record
+  // of who already received it, so a retry would double-send. Mark it and
+  // put it on the email-failures tile for a human.
+  const stuck = await prisma.newsletter.findMany({
+    where:  { status: 'sending', scheduledFor: { lt: new Date(Date.now() - STUCK_AFTER_MS) } },
+    select: { id: true, subject: true },
+  })
+  for (const nl of stuck) {
+    await prisma.newsletter.updateMany({ where: { id: nl.id, status: 'sending' }, data: { status: 'failed' } })
+    recordEmailFailure({ helper: 'sendNewsletterBatch (scheduled)', recipient: 'newsletter', error: new Error(`"${nl.subject}" stuck in sending for over ${STUCK_AFTER_MS / 60_000} min — marked failed, not retried`), context: { newsletterId: nl.id } }).catch(() => {})
+  }
+
   // Find newsletters scheduled for now or earlier that haven't been sent yet
   const due = await prisma.newsletter.findMany({
     where: { status: 'scheduled', scheduledFor: { lte: new Date() } },
@@ -61,27 +77,34 @@ async function runSweep() {
     })
     if (claimed.count === 0) continue
 
-    const recipients = await prisma.user.findMany({
-      where:  recipientWhere(nl.segment as Segment),
-      select: { id: true, email: true, name: true },
-    })
+    try {
+      const recipients = await prisma.user.findMany({
+        where:  recipientWhere(nl.segment as Segment),
+        select: { id: true, email: true, name: true },
+      })
 
-    const { sent, resendLogs, failed } = await sendNewsletterBatch(recipients, nl.subject, nl.bodyHtml, nl.id)
+      const { sent, resendLogs, failed } = await sendNewsletterBatch(recipients, nl.subject, nl.bodyHtml, nl.id)
 
-    for (const f of failed) {
-      recordEmailFailure({ helper: 'sendNewsletterEmail (scheduled)', recipient: f.email, error: f.error }).catch(() => {})
+      for (const f of failed) {
+        recordEmailFailure({ helper: 'sendNewsletterEmail (scheduled)', recipient: f.email, error: f.error }).catch(() => {})
+      }
+
+      await prisma.newsletter.update({
+        where: { id: nl.id },
+        data:  { status: sent > 0 ? 'sent' : 'failed', recipientCount: sent, sentAt: new Date() },
+      })
+
+      if (resendLogs.length > 0) {
+        await prisma.newsletterEmailLog.createMany({ data: resendLogs, skipDuplicates: true })
+      }
+
+      totalSent += sent
+    } catch (err) {
+      // Same reasoning as the stuck sweep above: mark, surface, don't retry.
+      await prisma.newsletter.updateMany({ where: { id: nl.id, status: 'sending' }, data: { status: 'failed' } }).catch(() => {})
+      recordEmailFailure({ helper: 'sendNewsletterBatch (scheduled)', recipient: 'newsletter', error: err, context: { newsletterId: nl.id } }).catch(() => {})
+      console.error('[sweep-newsletters] send failed', { id: nl.id, err: String(err) })
     }
-
-    await prisma.newsletter.update({
-      where: { id: nl.id },
-      data:  { status: 'sent', recipientCount: sent, sentAt: new Date() },
-    })
-
-    if (resendLogs.length > 0) {
-      await prisma.newsletterEmailLog.createMany({ data: resendLogs, skipDuplicates: true })
-    }
-
-    totalSent += sent
   }
 
   const auto = await runAutoDigest()

@@ -21,7 +21,7 @@ vi.mock('@/lib/prisma', () => ({ prisma: {
 } }))
 vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn(() => true) }))
 vi.mock('@/lib/notify', () => ({ createNotification: vi.fn() }))
-vi.mock('@/lib/access', () => ({ isAdminOrModerator: vi.fn() }))
+vi.mock('@/lib/access', () => ({ isAdminOrModerator: vi.fn(), canActInCity: vi.fn() }))
 
 const req = (body: any) => ({ json: async () => body }) as any
 

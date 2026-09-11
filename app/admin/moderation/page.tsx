@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
+import { toastApiError } from '@/lib/apiError'
 import { confirmToast } from '@/lib/confirmToast'
 import { useAuth } from '@/contexts/AuthContext'
 import Avatar from '@/components/admin/Avatar'
@@ -319,6 +320,7 @@ function ModerationPageInner() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     })
+    if (!res.ok) await toastApiError(res, 'Could not update member')
     return res.ok
   }
 
@@ -352,6 +354,8 @@ function ModerationPageInner() {
         const data = await res.json()
         setBlacklist(prev => [data, ...prev])
         setBlEmail(''); setBlPhone(''); setBlName(''); setBlReason('')
+      } else {
+        await toastApiError(res, 'Could not add to blacklist')
       }
     } finally {
       setBlSaving(false)
@@ -402,6 +406,7 @@ function ModerationPageInner() {
       body: JSON.stringify({ status }),
     })
     if (res.ok) setQueue(prev => prev.map(e => e.id === id ? { ...e, status } : e))
+    else await toastApiError(res, 'Could not update event')
   }
 
   // Esc closes the Review modal — only listens while the modal is open

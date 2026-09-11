@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
@@ -231,6 +231,17 @@ export default function HangoutsPage() {
   const [description,  setDescription]  = useState('')
   const [startsAt,     setStartsAt]     = useState(defaultStartsAt(tz))
   const [endsAt,       setEndsAt]       = useState(defaultEndsAt(tz))
+  // On a cold load the city (and its zone) resolves after the first render,
+  // so the defaults above were computed on the default city's clock and
+  // then parsed on the viewed city's at submit. Re-derive them when the zone
+  // arrives — only while the member hasn't typed a time of their own.
+  const appliedDefaults = useRef({ s: defaultStartsAt(tz), e: defaultEndsAt(tz) })
+  useEffect(() => {
+    const s = defaultStartsAt(tz), e = defaultEndsAt(tz)
+    setStartsAt(prev => prev === appliedDefaults.current.s ? s : prev)
+    setEndsAt(prev => prev === appliedDefaults.current.e ? e : prev)
+    appliedDefaults.current = { s, e }
+  }, [tz])
   const [meetMode,     setMeetMode]     = useState<'group' | 'solo'>('group')
   const [activity,     setActivity]     = useState('')
   const [maxPeople,    setMaxPeople]    = useState(0) // 0 = no limit
@@ -886,7 +897,7 @@ export default function HangoutsPage() {
           // are exclusive single-select; language is an independent toggle.
           const myLangs = new Set(user.languages ?? [])
           const filtered = hangouts.filter(h => {
-            if (!matchesTimeFilter(h, timeFilter)) return false
+            if (!matchesTimeFilter(h, timeFilter, new Date(), tz)) return false
             // Legacy hangouts (activity null) only surface under "All" —
             // hiding them from a specific chip beats mislabeling them.
             if (activityFilter && h.activity !== activityFilter) return false
@@ -1424,7 +1435,7 @@ function HangoutCard({ h, currentUser, onCancel, onMutated, neighborhoods }: {
               </span>
             )}
             {(() => {
-              const b = statusBadge(h.startsAt, h.endsAt)
+              const b = statusBadge(h.startsAt, h.endsAt, new Date(), tz)
               return b && (
                 <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold border shrink-0 ${b.cls}`}>
                   {b.label}

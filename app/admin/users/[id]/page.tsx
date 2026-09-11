@@ -1,6 +1,7 @@
 'use client'
 
 import { toast } from 'sonner'
+import { toastApiError } from '@/lib/apiError'
 
 import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
@@ -159,6 +160,8 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
       setUser(u => u ? { ...u, adminNotes: [newNote, ...u.adminNotes] } : null)
       setNote('')
       toast.success('Note added')
+    } else {
+      await toastApiError(res, 'Could not add note')
     }
   }
 
@@ -193,6 +196,8 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
       setUser(u => u ? { ...u, warningCount: u.warningCount + 1 } : null)
       setWarnConfirm(false)
       toast.success('Warning sent')
+    } else {
+      await toastApiError(res, 'Could not send warning')
     }
     setWarning(false)
   }
@@ -251,6 +256,9 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
     if (res.ok) {
       setUser(u => u ? { ...u, role } : null)
       toast.success(`Role updated to ${role}`)
+    } else {
+      // Role changes are step-up gated: the 403 carries the instruction.
+      await toastApiError(res, 'Could not update role')
     }
   }
 
@@ -263,6 +271,8 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
     if (res.ok) {
       setUser(u => u ? { ...u, status } : null)
       toast.success(`Status updated to ${status}`)
+    } else {
+      await toastApiError(res, 'Could not update status')
     }
   }
 
@@ -276,7 +286,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
       setUser(u => u ? { ...u, membershipType } : null)
       toast.success(`Membership set to ${membershipType}`)
     } else {
-      toast.error('Could not update membership')
+      await toastApiError(res, 'Could not update membership')
     }
   }
 

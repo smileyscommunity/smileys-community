@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { isUploadedImageUrl } from '@/lib/uploadedImageUrl'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator } from '@/lib/access'
+import { canActInCity } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
 import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
 
@@ -23,7 +23,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     include: { joins: { select: { userId: true } } },
   })
   if (!hangout) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  if (hangout.userId !== session.id && !isAdminOrModerator(session)) {
+  // Staff override is city-scoped (lib/access canActInCity): the 2026-09-03
+  // moderator sweep missed these two handlers.
+  if (hangout.userId !== session.id && !canActInCity(session, hangout.cityId)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   if (hangout.status !== 'active') {
@@ -132,7 +134,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   })
   if (!hangout) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  if (hangout.userId !== session.id && !isAdminOrModerator(session)) {
+  if (hangout.userId !== session.id && !canActInCity(session, hangout.cityId)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

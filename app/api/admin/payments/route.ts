@@ -302,16 +302,22 @@ export async function DELETE(req: NextRequest) {
   // survive the cascade and stay queryable by paymentId. Write a
   // "deletion" sentinel entry so the per-payment audit trail
   // remains complete even after the row is gone.
-  await prisma.paymentLog.create({
-    data: {
-      paymentId: id,
-      adminId:   session.id,
-      adminName: session.name,
-      fromStatus: snapshot.status,
-      toStatus:   'deleted',
-      note:       `Payment record deleted (${formatMoney(snapshot.amount, snapshot.currency)} for ${snapshot.event.title}, member: ${snapshot.user.email})`,
-    },
-  })
+  // The sentinel log row and the delete commit together, and the audit is
+  // written after — a failed delete used to leave a trail asserting the
+  // record was gone while it still existed, and a retry double-logged.
+  await prisma.$transaction([
+    prisma.paymentLog.create({
+      data: {
+        paymentId: id,
+        adminId:   session.id,
+        adminName: session.name,
+        fromStatus: snapshot.status,
+        toStatus:   'deleted',
+        note:       `Payment record deleted (${formatMoney(snapshot.amount, snapshot.currency)} for ${snapshot.event.title}, member: ${snapshot.user.email})`,
+      },
+    }),
+    prisma.payment.delete({ where: { id } }),
+  ])
   writeAudit(session.id, session.name, 'payment.delete', id, 'payment',
     {
       amount:   snapshot.amount,
@@ -324,7 +330,5 @@ export async function DELETE(req: NextRequest) {
     },
     `Payment record deleted (${formatMoney(snapshot.amount, snapshot.currency)} ${snapshot.status}, member: ${snapshot.user.email}, event: ${snapshot.event.title})`,
   )
-
-  await prisma.payment.delete({ where: { id } })
   return NextResponse.json({ ok: true })
 }

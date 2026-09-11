@@ -285,13 +285,13 @@ export default function NotificationsPage() {
                     </div>
                     <p className="text-xs text-gray-600 mt-0.5 leading-relaxed">{n.body}</p>
                     {n.type === 'event_survey' && n.link && (
-                      <a
+                      <Link
                         href={n.link}
                         onClick={e => e.stopPropagation()}
                         className="inline-block mt-2 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg transition-colors"
                       >
                         Leave feedback →
-                      </a>
+                      </Link>
                     )}
                   </div>
                   <div className="flex flex-col items-end gap-1 shrink-0">

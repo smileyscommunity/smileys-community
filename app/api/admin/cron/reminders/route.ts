@@ -96,11 +96,10 @@ async function runSweep() {
     data:  { status: 'expired' },
   })
 
-  // Auto-expire hangouts past their endsAt — keeps the feed current
-  await prisma.hangout.updateMany({
-    where: { endsAt: { lt: now }, status: 'active' },
-    data:  { status: 'expired' },
-  })
+  // Hangout expiry belongs to sweep-hangouts: it flips active → expired AND
+  // sends the recap push. Doing it here too (both fire at :00, this one
+  // reached the update first) expired anything ending in the last quarter
+  // hour with no recap for its host or joiners.
 
   // Listing expiry warnings — 7 days and 3 days before expiry
   const in7days = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)

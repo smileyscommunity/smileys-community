@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import posthog from 'posthog-js'
+import { resetCurrentCity } from '@/hooks/useCurrentCity'
 import type { ReactNode } from 'react'
 import type { AppUser } from '@/lib/auth'
 
@@ -62,6 +63,7 @@ export function AuthProvider({ children, initialUser = null }: { children: React
 
   async function logout() {
     await fetch('/app/api/auth/logout', { method: 'POST' })
+    resetCurrentCity()
     // Drop the auth-scoped SW cache (/app/api/events/attending) so on a
     // shared device, the next user signing in doesn't get the previous
     // user's offline-cached events. See public/sw.js message handler.
@@ -79,6 +81,7 @@ export function AuthProvider({ children, initialUser = null }: { children: React
   }
 
   function login(u: AppUser) {
+    resetCurrentCity()
     setUser(u)
     setIsLoggedIn(true)
   }

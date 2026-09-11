@@ -32,6 +32,24 @@ async function subscribe(): Promise<boolean> {
   return res.ok
 }
 
+// "Not now" used to live in component state only, so every cold start of
+// the installed app (and every city switch, which reloads) re-showed the
+// card after 8s. The dismissal is remembered per browser for a month; the
+// subscription re-sync runs at most daily instead of on every mount.
+const DISMISS_KEY   = 'smileys_push_prompt_dismissed_at'
+const SYNCED_KEY    = 'smileys_push_synced_at'
+const DISMISS_FOR   = 30 * 24 * 60 * 60_000
+const RESYNC_AFTER  = 24 * 60 * 60_000
+
+// localStorage can throw (private mode, blocked site data) — a prompt must
+// never take the page down with it.
+function readStamp(key: string): number {
+  try { return Number(localStorage.getItem(key) ?? 0) || 0 } catch { return 0 }
+}
+function writeStamp(key: string): void {
+  try { localStorage.setItem(key, String(Date.now())) } catch {}
+}
+
 export default function PushPermission() {
   const [state, setState] = useState<'idle' | 'prompt' | 'subscribed' | 'denied' | 'unsupported'>('idle')
 
@@ -41,9 +59,13 @@ export default function PushPermission() {
       return
     }
     if (Notification.permission === 'granted') {
-      subscribe().catch(() => {})
+      if (Date.now() - readStamp(SYNCED_KEY) > RESYNC_AFTER) {
+        subscribe().then(ok => { if (ok) writeStamp(SYNCED_KEY) }).catch(() => {})
+      }
       setState('subscribed')
     } else if (Notification.permission === 'denied') {
+      setState('denied')
+    } else if (Date.now() - readStamp(DISMISS_KEY) < DISMISS_FOR) {
       setState('denied')
     } else {
       // Show prompt after a short delay so it doesn't appear on first load
@@ -55,11 +77,17 @@ export default function PushPermission() {
   async function handleAllow() {
     const permission = await Notification.requestPermission()
     if (permission === 'granted') {
-      await subscribe()
+      const ok = await subscribe().catch(() => false)
+      if (ok) writeStamp(SYNCED_KEY)
       setState('subscribed')
     } else {
       setState('denied')
     }
+  }
+
+  function handleDismiss() {
+    writeStamp(DISMISS_KEY)
+    setState('denied')
   }
 
   if (state !== 'prompt') return null
@@ -80,7 +108,7 @@ export default function PushPermission() {
                 Allow
               </button>
               <button
-                onClick={() => setState('denied')}
+                onClick={handleDismiss}
                 className="flex-1 text-gray-400 hover:text-gray-600 text-xs py-1.5 rounded-lg transition-colors"
               >
                 Not now
