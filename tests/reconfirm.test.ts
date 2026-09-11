@@ -113,6 +113,22 @@ describe('releaseEvent', () => {
     expect(announceSpotOpened).toHaveBeenCalledTimes(1)
   })
 
+  it('releases no more seats than there are people waiting, most recent joiners first', async () => {
+    // One person waiting, three silent: the old gate opened for all three
+    // and left two seats empty. The most recent RSVP is the one released.
+    p.waitlistEntry.count.mockResolvedValue(1)
+    p.eventAttendee.findMany.mockResolvedValue([
+      row('newest', { reconfirmAskedAt: at(24) }),
+      row('middle', { reconfirmAskedAt: at(24) }),
+      row('oldest', { reconfirmAskedAt: at(24) }),
+    ])
+    expect(await releaseEvent(EVENT)).toBe(1)
+    expect(p.eventAttendee.findMany.mock.calls[0][0].orderBy).toEqual({ joinedAt: 'desc' })
+    expect(p.eventAttendee.updateMany).toHaveBeenCalledTimes(1)
+    expect(p.eventAttendee.updateMany.mock.calls[0][0].where.id).toBe('newest')
+    expect(sendSpotReleasedEmail).toHaveBeenCalledTimes(1)
+  })
+
   it('a row already gone (count 0) is skipped without a notification', async () => {
     p.waitlistEntry.count.mockResolvedValue(1)
     p.eventAttendee.findMany.mockResolvedValue([row('gone', { reconfirmAskedAt: at(24) })])

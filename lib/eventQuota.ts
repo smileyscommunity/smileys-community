@@ -16,6 +16,9 @@
 // anyone skipped keeps their place for a spot their side can take.
 
 import { prisma } from './prisma'
+import type { Prisma, PrismaClient } from '@prisma/client'
+
+type Db = PrismaClient | Prisma.TransactionClient
 import { getRsvpGate } from './noShow'
 
 // Gender and nationality are free text on the user record, so compare against
@@ -67,6 +70,7 @@ export async function hasQuotaRoomFor(
   eventId: string,
   event: QuotaEvent,
   user: { gender: string | null; nationality: string | null },
+  db: Db = prisma,
 ): Promise<{ ok: true } | { ok: false; reason: QuotaBlock }> {
   if (!event.genderBalance) return { ok: true }
 
@@ -77,13 +81,13 @@ export async function hasQuotaRoomFor(
 
   if (isMale) {
     if (event.turkishMaleQuota != null && isTurkish) {
-      const turkishMales = await prisma.eventAttendee.count({
+      const turkishMales = await db.eventAttendee.count({
         where: { eventId, status: 'approved', user: { gender: { in: MALE_VARIANTS }, nationality: { in: TURKEY_VARIANTS } } },
       })
       if (turkishMales >= event.turkishMaleQuota) return { ok: false, reason: 'turkish_male_quota' }
     }
     const maleQuota = event.maleQuota ?? Math.floor(event.totalSpots / 2)
-    const males = await prisma.eventAttendee.count({
+    const males = await db.eventAttendee.count({
       where: { eventId, status: 'approved', user: { gender: { in: MALE_VARIANTS } } },
     })
     if (males >= maleQuota) return { ok: false, reason: 'male_quota' }
@@ -95,7 +99,7 @@ export async function hasQuotaRoomFor(
     // leave the women uncapped", because null was read as no limit here while
     // the male side quietly fell back to totalSpots/2.
     const femaleQuota = event.femaleQuota ?? Math.floor(event.totalSpots / 2)
-    const females = await prisma.eventAttendee.count({
+    const females = await db.eventAttendee.count({
       where: { eventId, status: 'approved', user: { gender: { in: FEMALE_VARIANTS } } },
     })
     if (females >= femaleQuota) return { ok: false, reason: 'female_quota' }

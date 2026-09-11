@@ -59,6 +59,13 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (event.hostId === session.id) {
       return NextResponse.json({ error: 'Hosts cannot join their own event' }, { status: 400 })
     }
+    // "Limited spots" off means the counter is a tally, not a cap: admin
+    // create still stores totalSpots/spotsLeft = 20, and both join paths
+    // gated on spotsLeft > 0 regardless — so the 21st person on an
+    // "unlimited" event was waitlisted while the card showed it open. The
+    // decrement stays (the card derives "X going" from it); only the gate
+    // is conditional. isSoldOut already ignores the counter for these.
+    const capacityGate = event.limitedSpots ? { spotsLeft: { gt: 0 } } : {}
     if (userRecord?.status === 'banned') {
       return NextResponse.json({ error: 'Your account has been suspended' }, { status: 403 })
     }
@@ -143,7 +150,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         // an event whose page reads "Sold out".
         if (event.soldOut) return { ok: false as const }
         const claimed = await tx.event.updateMany({
-          where: { id: eventId, spotsLeft: { gt: 0 } },
+          where: { id: eventId, ...capacityGate },
           data:  { spotsLeft: { decrement: 1 } },
         })
         if (claimed.count === 0) return { ok: false as const }
@@ -310,31 +317,24 @@ export async function POST(req: NextRequest, { params }: Params) {
     const outcome = await prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM events WHERE id = ${eventId} FOR UPDATE`
 
-      if (event.genderBalance && isMale) {
-        const maleQuota = event.maleQuota ?? Math.floor(event.totalSpots / 2)
-        const maleCount = await tx.eventAttendee.count({
-          where: { eventId, status: 'approved', user: { gender: { in: MALE_VARIANTS } } },
-        })
-        if (maleCount >= maleQuota) return { kind: 'gender_full' as const }
-      }
 
-      // Female-side cap — mirrors the male check. Only enforced when
-      // femaleQuota is explicitly set (event.femaleQuota null = uncapped).
-      // Without this, an all-female RSVP wave could fill 100% of spots and
-      // shut males out entirely.
-      if (event.genderBalance && isFemale && event.femaleQuota != null) {
-        const femaleCount = await tx.eventAttendee.count({
-          where: { eventId, status: 'approved', user: { gender: { in: FEMALE_VARIANTS } } },
-        })
-        if (femaleCount >= event.femaleQuota) return { kind: 'female_full' as const }
-      }
-
-      if (event.turkishMaleQuota && isMale && isTurkish) {
-        const turkishMaleCount = await tx.eventAttendee.count({
-          where: { eventId, status: 'approved',
-            user: { gender: { in: MALE_VARIANTS }, nationality: { in: TURKEY_VARIANTS } } },
-        })
-        if (turkishMaleCount >= event.turkishMaleQuota) return { kind: 'turkish_full' as const }
+      // One rule for every seat (lib/eventQuota). The waitlist claim above and
+      // the admin promotion already used it; this path kept a hand-rolled copy
+      // that read a null femaleQuota as "no cap" while the shared rule reads it
+      // as half — so a woman could join directly into a seat the waitlist
+      // would have refused her. Runs on the tx so it counts under the lock.
+      if (event.genderBalance) {
+        const room = await hasQuotaRoomFor(eventId, event, {
+          gender:      userRecord?.gender      ?? null,
+          nationality: userRecord?.nationality ?? null,
+        }, tx)
+        if (!room.ok) {
+          return {
+            kind: room.reason === 'male_quota'   ? 'gender_full'  as const
+                : room.reason === 'female_quota' ? 'female_full'  as const
+                :                                  'turkish_full' as const,
+          }
+        }
       }
 
       // Same override as the other two join paths: the flag wins over the
@@ -342,7 +342,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       if (event.soldOut) return { kind: 'sold_out' as const }
 
       const claimed = await tx.event.updateMany({
-        where: { id: eventId, spotsLeft: { gt: 0 } },
+        where: { id: eventId, ...capacityGate },
         data:  { spotsLeft: { decrement: 1 } },
       })
       if (claimed.count === 0) return { kind: 'full' as const }

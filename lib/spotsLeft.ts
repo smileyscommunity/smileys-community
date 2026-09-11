@@ -12,9 +12,14 @@ type Db = PrismaClient | Prisma.TransactionClient
  *
  * Co-hosts (and the host) are excluded because they join for free without
  * consuming a spot.
+ *
+ * An event WITHOUT limited spots still carries the counter (the card derives
+ * "X going" from totalSpots − spotsLeft), so past the nominal total it goes
+ * negative rather than clamping — clamping would freeze "going" at the
+ * total and re-open a cap the host never set.
  */
 export async function expectedSpotsLeft(eventId: string, totalSpots: number, db: Db = prisma): Promise<number> {
-  const event = await db.event.findUnique({ where: { id: eventId }, select: { hostId: true } })
+  const event = await db.event.findUnique({ where: { id: eventId }, select: { hostId: true, limitedSpots: true } })
   const coHostIds = (await db.eventCoHost.findMany({
     where: { eventId },
     select: { userId: true },
@@ -30,7 +35,8 @@ export async function expectedSpotsLeft(eventId: string, totalSpots: number, db:
     },
   })
 
-  return Math.max(0, totalSpots - approvedCount)
+  const left = totalSpots - approvedCount
+  return event?.limitedSpots === false ? left : Math.max(0, left)
 }
 
 /**

@@ -148,7 +148,7 @@ export async function getFirstEventRecommendations(userId: string, limit = 3): P
       cityId: user.cityId,
       status: 'published',
       date: { gte: todayStr },          // Event.date is text 'YYYY-MM-DD'
-      spotsLeft: { gt: 0 },
+      OR: [{ limitedSpots: false }, { spotsLeft: { gt: 0 } }],   // unlimited events tally past 0
       attendees: { none: { userId, ...activeAttendeeWhere } },  // exclude already RSVP'd (a cancelled row is not an RSVP)
     },
     select: {

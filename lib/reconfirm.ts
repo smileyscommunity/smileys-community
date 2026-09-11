@@ -99,9 +99,13 @@ export async function askEvent(event: {
 }
 
 /**
- * Release asked-but-unanswered seats — only if someone is waiting. Each
- * released row becomes 'removed' by 'system' (not a no-show), the member is
- * told, and the seats go out as one "spot opened" fanout.
+ * Release asked-but-unanswered seats — only if someone is waiting, and no
+ * more of them than there are people waiting. `waiting > 0` alone used to
+ * open the whole gate: one person in the queue and six silent members lost
+ * their seats, five of which then sat empty. Most recent joiners go first;
+ * an early RSVP keeps its seniority. Each released row becomes 'removed' by
+ * 'system' (not a no-show), the member is told, and the seats go out as one
+ * "spot opened" fanout.
  */
 export async function releaseEvent(event: {
   id: string; title: string; emoji: string | null; hostId: string
@@ -111,10 +115,12 @@ export async function releaseEvent(event: {
   const staff = await staffIds(event.id, event.hostId)
   const rows = await prisma.eventAttendee.findMany({
     where:   { eventId: event.id, status: 'approved', reconfirmAskedAt: { not: null }, reconfirmedAt: null },
+    orderBy: { joinedAt: 'desc' },
     include: { user: { select: { id: true, name: true, email: true } } },
   })
   let released = 0
   for (const a of rows) {
+    if (released >= waiting) break
     if (staff.has(a.userId)) continue
     // The answer is re-checked in the write itself: a member who tapped
     // "yes" between the read above and this line keeps the seat.
