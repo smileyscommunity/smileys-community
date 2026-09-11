@@ -62,17 +62,20 @@ export async function POST(req: NextRequest) {
   // Replay protection — see app/api/auth/2fa/setup/route.ts DELETE path.
   // Without this, a shoulder-surfed TOTP used at /verify can also be used
   // here within 30s to rotate the recovery codes to attacker-known values.
+  // Atomic claim (guard in the WHERE), as in /2fa/verify — the read-check
+  // above a plain write let two concurrent requests with one observed code
+  // both pass.
   const currentStep = Math.floor(Date.now() / 30000)
-  if (user.lastUsedTotpStep !== null && currentStep <= user.lastUsedTotpStep) {
+  const stepClaim = await prisma.user.updateMany({
+    where: { id: session.id, OR: [{ lastUsedTotpStep: null }, { lastUsedTotpStep: { lt: currentStep } }] },
+    data:  { lastUsedTotpStep: currentStep },
+  })
+  if (stepClaim.count !== 1) {
     return NextResponse.json({ error: 'This code was already used — wait for the next one.' }, { status: 400 })
   }
 
   const backupCodes = generateBackupCodes()
   await prisma.$transaction([
-    prisma.user.update({
-      where: { id: session.id },
-      data:  { lastUsedTotpStep: currentStep },
-    }),
     prisma.totpBackupCode.deleteMany({ where: { userId: session.id } }),
     prisma.totpBackupCode.createMany({
       data: backupCodes.map(c => ({ userId: session.id, codeHash: hashBackupCode(c) })),

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { todayInTz, DEFAULT_TZ, discussionLockDay } from '@/lib/cityTime'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 
@@ -15,14 +16,15 @@ interface Message {
   user: { id: string; name: string; color: string }
 }
 
-export default function EventMessages({ eventId, eventDate }: { eventId: string; eventDate: string }) {
+export default function EventMessages({ eventId, eventDate, eventTz }: { eventId: string; eventDate: string; eventTz?: string }) {
   const { user, isLoggedIn } = useAuth()
 
   // Discussion auto-locks 14 days post-event so dead-air messages don't
   // dilute the page and Reviews becomes the canonical post-event surface.
-  // Server enforces the same window in the POST handler.
-  const lockedAt   = new Date(eventDate); lockedAt.setDate(lockedAt.getDate() + 15) // start of day 15 = end of day 14
-  const isLocked   = Date.now() >= lockedAt.getTime()
+  // Same rule and same clock as the server guards (discussionLockDay on the
+  // event city's calendar) — the browser-local version here disagreed with
+  // them by hours, leaving a composer whose every send failed.
+  const isLocked   = todayInTz(eventTz ?? DEFAULT_TZ) >= discussionLockDay(eventDate)
   const [messages,   setMessages]   = useState<Message[]>([])
   const [text,       setText]       = useState('')
   const [sending,    setSending]    = useState(false)

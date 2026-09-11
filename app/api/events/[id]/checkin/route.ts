@@ -115,8 +115,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         }
 
         // On first check-in: notify admins + all other approved attendees
-        // that doors are open. Only fires once per event so it's not spammy.
-        if (checkedInCount === 1) {
+        // that doors are open. "Count is 1 after the write" replayed it every
+        // time the count came back to 1 (un-check the first person, check
+        // anyone; re-check the same person) — the sent notification is the
+        // once-per-event stamp.
+        const announced = checkedInCount === 1 && await prisma.notification.count({
+          where: { type: 'checkin_started', link: `/admin/checkin?event=${eventId}` },
+        })
+        if (checkedInCount === 1 && !announced) {
           const [admins, otherAttendees] = await Promise.all([
             prisma.user.findMany({
               where:  { role: 'admin', status: 'approved' },

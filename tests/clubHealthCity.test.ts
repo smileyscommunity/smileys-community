@@ -10,6 +10,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // Pinned because the failure flatters: a busy-looking grid in a city with
 // three clubs reads as success, so nobody reports it.
 
+// classifyClubs reads the city's timezone for its calendar "today".
+vi.mock('@/lib/city', () => ({ getCityTz: vi.fn().mockResolvedValue('Europe/Istanbul') }))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     club:      { findMany: vi.fn() },

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { trackServer } from '@/lib/posthog-server'
-import { todayInCity, resolveCityId } from '@/lib/city'
+import { todayInCity } from '@/lib/city'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -46,7 +46,9 @@ export async function POST(req: NextRequest, { params }: Params) {
     const event = await prisma.event.findUnique({ where: { id: eventId } })
     if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
 
-    const today = await todayInCity(await resolveCityId(session))
+    // The event's city decides when it is over — the viewer's view-city
+    // cookie could be a day ahead (or behind) of it.
+    const today = await todayInCity(event.cityId)
     if (event.date >= today) {
       return NextResponse.json({ error: 'You can only review past events' }, { status: 400 })
     }

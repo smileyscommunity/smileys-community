@@ -45,6 +45,16 @@ export async function POST(req: NextRequest) {
       if (!(result as any).valid) {
         return NextResponse.json({ error: 'Invalid code — check your authenticator app' }, { status: 400 })
       }
+      // Same atomic step claim as /2fa/verify: a code observed at login must
+      // not also rotate the email within its 30s window.
+      const currentStep = Math.floor(Date.now() / 30000)
+      const stepClaim = await prisma.user.updateMany({
+        where: { id: user.id, OR: [{ lastUsedTotpStep: null }, { lastUsedTotpStep: { lt: currentStep } }] },
+        data:  { lastUsedTotpStep: currentStep },
+      })
+      if (stepClaim.count !== 1) {
+        return NextResponse.json({ error: 'This code was already used — wait for the next one.' }, { status: 400 })
+      }
     }
 
     const newEmail = email.toLowerCase().trim()

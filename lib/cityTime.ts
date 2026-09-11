@@ -148,6 +148,44 @@ export function weekdayOf(date: string): number {
   return new Date(`${date}T12:00:00Z`).getUTCDay()
 }
 
+/**
+ * First calendar day an event's discussion is closed: day 15 after the
+ * event, i.e. the end of day 14. One rule for the POST and PATCH guards and
+ * the composer; each used to do its own date maths on a different clock.
+ */
+export function discussionLockDay(eventDate: string): string {
+  return shiftDay(eventDate, 15)
+}
+
+/** 'YYYY-MM-DD' moved by n days, on the calendar alone — no zone, no DST. */
+export function shiftDay(date: string, n: number): string {
+  const d = new Date(`${date}T12:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + n)
+  return d.toISOString().slice(0, 10)
+}
+
+/**
+ * Monday…Sunday of the week that contains `today`, as date strings, so an
+ * event's text date compares directly. The events filter used to build these
+ * from the browser's `new Date()` and compare against `new Date('YYYY-MM-DD')`
+ * — UTC midnight — so west of UTC a Monday event read as Sunday evening and
+ * fell out of "This week".
+ */
+export function weekRangeOf(today: string): { start: string; end: string } {
+  const start = shiftDay(today, -((weekdayOf(today) + 6) % 7))
+  return { start, end: shiftDay(start, 6) }
+}
+
+/**
+ * Saturday–Sunday of the week that contains `today`. On a Sunday that is
+ * yesterday and today: the old maths took the NEXT Saturday and hid the
+ * Sunday events a member was looking for that same afternoon.
+ */
+export function weekendRangeOf(today: string): { start: string; end: string } {
+  const { start: mon } = weekRangeOf(today)
+  return { start: shiftDay(mon, 5), end: shiftDay(mon, 6) }
+}
+
 export function fromWallClockInTz(value: string, tz: string = DEFAULT_TZ): Date {
   const asIfUtc = new Date(`${value}:00Z`).getTime()
   // What the city's clock reads at that instant, read back as if it were UTC:

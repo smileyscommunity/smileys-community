@@ -7,7 +7,7 @@ import EventCard from '@/components/EventCard'
 import EventCardSkeleton from '@/components/EventCardSkeleton'
 import Link from 'next/link'
 import type { Event } from '@/lib/data'
-import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
+import { todayInTz, DEFAULT_TZ, weekRangeOf, weekendRangeOf } from '@/lib/cityTime'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import {vibeConfig} from '@/lib/data'
 import { useAuth } from '@/contexts/AuthContext'
@@ -30,30 +30,6 @@ interface TagGroup { id: string; name: string; emoji: string; tags: TagItem[] }
 interface HangoutSummary {
   id:           string
   neighborhood: string | null
-}
-
-function getWeekRange() {
-  const now = new Date()
-  const day = now.getDay()
-  const mon = new Date(now)
-  mon.setDate(now.getDate() - ((day + 6) % 7))
-  mon.setHours(0, 0, 0, 0)
-  const sun = new Date(mon)
-  sun.setDate(mon.getDate() + 6)
-  sun.setHours(23, 59, 59, 999)
-  return { start: mon, end: sun }
-}
-
-function getWeekendRange() {
-  const now = new Date()
-  const day = now.getDay()
-  const sat = new Date(now)
-  sat.setDate(now.getDate() + ((6 - day + 7) % 7))
-  sat.setHours(0, 0, 0, 0)
-  const sun = new Date(sat)
-  sun.setDate(sat.getDate() + 1)
-  sun.setHours(23, 59, 59, 999)
-  return { start: sat, end: sun }
 }
 
 import AdBannerStrip from '@/components/AdBannerStrip'
@@ -256,11 +232,12 @@ function AppEventsPageInner() {
       const tomorrowStr = todayInTz(tz, 1)
       result = result.filter(e => e.date === tomorrowStr)
     } else if (timeFilter === 'This week') {
-      const { start, end } = getWeekRange()
-      result = result.filter(e => { const d = new Date(e.date); return d >= start && d <= end })
+      // Same calendar as Today/Tomorrow: the city's, compared as date strings.
+      const { start, end } = weekRangeOf(todayInTz(tz))
+      result = result.filter(e => e.date >= start && e.date <= end)
     } else if (timeFilter === 'This weekend') {
-      const { start, end } = getWeekendRange()
-      result = result.filter(e => { const d = new Date(e.date); return d >= start && d <= end })
+      const { start, end } = weekendRangeOf(todayInTz(tz))
+      result = result.filter(e => e.date >= start && e.date <= end)
     }
 
     if (selectedTags.length > 0) {

@@ -1071,7 +1071,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
           <EventReviews eventId={event.id} isPast={isPast} />
 
           {/* Discussion */}
-          <EventMessages eventId={event.id} eventDate={event.date} />
+          <EventMessages eventId={event.id} eventDate={event.date} eventTz={eventTz} />
 
           {/* Similar events — placed after member-generated content
               so "you might also like…" doesn't interrupt the

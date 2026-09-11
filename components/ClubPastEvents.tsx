@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { formatDay } from '@/lib/cityTime'
 import Link from 'next/link'
 import { resolveImageUrl } from '@/lib/data'
 
@@ -58,9 +59,9 @@ export default function ClubPastEvents({ slug }: { slug: string }) {
         const avgRating = e.reviews.length
           ? (e.reviews.reduce((s, r) => s + r.rating, 0) / e.reviews.length).toFixed(1)
           : null
-        const dateStr = new Date(e.date).toLocaleDateString('en-GB', {
-          day: 'numeric', month: 'short', year: 'numeric',
-        })
+        // Calendar day, zone-free: new Date('YYYY-MM-DD') is UTC midnight and
+        // showed the day before to anyone west of UTC.
+        const dateStr = formatDay(e.date, { day: 'numeric', month: 'short', year: 'numeric' })
 
         return (
           <Link

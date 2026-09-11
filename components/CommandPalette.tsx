@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { formatDay } from '@/lib/cityTime'
 import { useRouter } from 'next/navigation'
 import { Command } from 'cmdk'
 import { useAuth } from '@/contexts/AuthContext'
@@ -231,7 +232,7 @@ export default function CommandPalette() {
                         <span className="w-7 h-7 flex items-center justify-center bg-amber-50 rounded-lg text-base shrink-0">{e.emoji}</span>
                         <div className="flex-1 min-w-0">
                           <p className="font-medium text-gray-900 truncate">{e.title}</p>
-                          <p className="text-xs text-gray-400">{new Date(e.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} · {e.neighborhood}</p>
+                          <p className="text-xs text-gray-400">{formatDay(e.date, { day: 'numeric', month: 'short' })} · {e.neighborhood}</p>
                         </div>
                       </Command.Item>
                     ))}

@@ -3,8 +3,9 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
+import { canManageEventOps } from '@/lib/access'
 import { getCityTz } from '@/lib/city'
-import { todayInTz } from '@/lib/cityTime'
+import { todayInTz, discussionLockDay } from '@/lib/cityTime'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -65,9 +66,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     // midnight, which closed the window hours early on the city's clock.
     const event = await prisma.event.findUnique({ where: { id: eventId }, select: { date: true, cityId: true, hostId: true, title: true } })
     if (!event) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    const lockFrom = new Date(event.date + 'T00:00:00Z')
-    lockFrom.setUTCDate(lockFrom.getUTCDate() + 15)
-    if (todayInTz(await getCityTz(event.cityId)) >= lockFrom.toISOString().split('T')[0]) {
+    if (todayInTz(await getCityTz(event.cityId)) >= discussionLockDay(event.date)) {
       return NextResponse.json({ error: 'Discussion closed for this event' }, { status: 403 })
     }
 
@@ -142,7 +141,12 @@ export async function DELETE(req: NextRequest, { params }: Params) {
         : Promise.resolve(null),
     ])
     if (!msg || msg.eventId !== eventId) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    if (session.role !== 'admin' && attendee?.status !== 'approved') {
+    // Same set that may post: approved attendees, plus the host / co-hosts /
+    // club hosts, who have no attendee row (the RSVP route refuses the host).
+    // Gating on the row alone answered 403 to a host deleting their own post.
+    const mayAccess = session.role === 'admin' || attendee?.status === 'approved'
+      || await canManageEventOps(session.id, session.role, eventId)
+    if (!mayAccess) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
     if (msg.userId !== session.id && session.role !== 'admin') {
@@ -181,11 +185,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // Same 14-day lock as posting — no edits once the discussion closes.
-    const event = await prisma.event.findUnique({ where: { id: eventId }, select: { date: true } })
+    // Same 14-day lock as posting, on the same clock — this one used UTC
+    // midnight + setDate, so edits closed hours before posts did.
+    const event = await prisma.event.findUnique({ where: { id: eventId }, select: { date: true, cityId: true } })
     if (!event) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    const lockedAt = new Date(event.date); lockedAt.setDate(lockedAt.getDate() + 15)
-    if (Date.now() >= lockedAt.getTime()) {
+    if (todayInTz(await getCityTz(event.cityId)) >= discussionLockDay(event.date)) {
       return NextResponse.json({ error: 'Discussion closed for this event' }, { status: 403 })
     }
 

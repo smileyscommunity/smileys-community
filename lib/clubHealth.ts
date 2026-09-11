@@ -7,6 +7,8 @@
 // honest classification is what keeps discovery credible — per the brief:
 // "Do not fake activity."
 import { prisma } from './prisma'
+import { getCityTz } from './city'
+import { dayInTz, DEFAULT_TZ } from './cityTime'
 
 export type ClubHealth = 'active' | 'new' | 'quiet' | 'archived'
 
@@ -44,9 +46,12 @@ export async function classifyClubs(
   now = new Date(),
 ): Promise<Map<string, ClubHealth>> {
   if (clubIds.length === 0) return new Map()
-  const today = now.toISOString().split('T')[0]
+  // Event.date is the city's calendar day; a UTC "today" was three hours
+  // behind Istanbul's (more for cities further east).
+  const tz = cityId ? await getCityTz(cityId) : DEFAULT_TZ
+  const today = dayInTz(now, tz)
   const cutoff = new Date(now.getTime() - 60 * 86_400_000)
-  const cutoffDay = cutoff.toISOString().split('T')[0]
+  const cutoffDay = dayInTz(cutoff, tz)
   const inCity = cityId ? { cityId } : {}
 
   const [clubs, upcoming, recent, convos, hangs] = await Promise.all([

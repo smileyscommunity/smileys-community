@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdmin, isClubHostFor } from '@/lib/access'
+import { isAdmin, canManageEventOps } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
 import { rateLimit } from '@/lib/rateLimit'
 
@@ -25,9 +25,13 @@ export async function POST(req: NextRequest, { params }: Params) {
     })
     if (!event) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-    // Must be the assigned host or an admin
-    const isHost  = event.hostId === session.id || (event.clubId ? await isClubHostFor(session.id, event.clubId) : false)
-    if (!isAdmin(session) && !isHost) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    // Same authority as the other participant ops (check-in, approve,
+    // promote): admin, host, co-host, or a host of the event's club. This
+    // route alone left co-hosts out, so they could run the door but not
+    // tell the room.
+    if (!await canManageEventOps(session.id, session.role, eventId)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
     const attendees = await prisma.eventAttendee.findMany({
       where: { eventId, status: 'approved' },

@@ -32,8 +32,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       where:  { id: report.reportedId },
       select: { name: true, cityId: true, status: true },
     })
-    if (!isAdmin(session) && reported && session.cityId !== reported.cityId) {
+    // Fail closed: a missing user used to skip the city check, then `warn`
+    // hit prisma.user.update on the missing id and 500'd — after the report
+    // row had already been marked actioned.
+    if (!isAdmin(session) && (!reported || session.cityId !== reported.cityId)) {
       return NextResponse.json({ error: 'Cross-city moderation is admin-only' }, { status: 403 })
+    }
+    if (!reported && action !== 'dismiss') {
+      return NextResponse.json({ error: 'That member no longer exists — dismiss the report instead' }, { status: 404 })
     }
 
     const updateReport = prisma.report.update({
