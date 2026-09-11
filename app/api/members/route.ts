@@ -182,6 +182,9 @@ export async function GET(req: NextRequest) {
     })).map(p => p.userId),
   )
 
+  // The profile route gates socials and last-active behind a connection
+  // (self / connected / privileged); the list handed them to anyone.
+  const fullFor = (id: string) => id === session.id || privileged || connectionIds.has(id)
   const result = members.map(m => {
     // A 'connections only' member is redacted unless the viewer is
     // allowed full access: themselves, an accepted connection, or a
@@ -217,7 +220,7 @@ export async function GET(req: NextRequest) {
       interests: m.interests, languages: m.languages,
       socialStyles: m.socialStyles, lookingFor: m.lookingFor,
       profilePhoto: m.profilePhoto, joinedAt: m.joinedAt,
-      role: m.role, instagram: m.instagram, linkedin: m.linkedin, lastActive: m.lastActive,
+      role: m.role, instagram: fullFor(m.id) ? m.instagram : null, linkedin: fullFor(m.id) ? m.linkedin : null, lastActive: fullFor(m.id) ? m.lastActive : null,
       membershipType: m.membershipType, foundingMember: m.foundingMember,
       isHost:      m.clubMemberships.some(cm => cm.role === 'host'),
       clubs:       m.clubMemberships.map(cm => ({ ...cm.club, isHost: cm.role === 'host' })),

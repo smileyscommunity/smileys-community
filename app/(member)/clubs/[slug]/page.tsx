@@ -451,6 +451,7 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ slu
               canAnnounce={canAnnounce}
               canUpload={canUpload}
               isMember={membershipStatus === 'approved'}
+              isPrivate={club.isPrivate ?? false}
               memberAttendeesByEvent={memberAttendeesByEvent}
               memberCount={club.memberCount}
               reviewCount={reviewStats._count._all}

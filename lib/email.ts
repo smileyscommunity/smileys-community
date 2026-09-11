@@ -1100,7 +1100,7 @@ export async function sendEventReminderEmail(
         </a>
         <p style="color:#9ca3af;font-size:12px;text-align:center">${opts.free ? esc(FREE_FOOTER) : 'If your plans change, please cancel your spot so others can join.'}</p>
         <p style="color:#9ca3af;font-size:11px;text-align:center;margin-top:20px">
-          <a href="${unsub}" style="color:#9ca3af">Unsubscribe from event reminders</a>
+          You're getting this because you have a spot at this event. <a href="${APP_URL}/settings" style="color:#9ca3af">Manage notifications</a>
         </p>
       </div>
     `,
@@ -1138,7 +1138,7 @@ export async function sendNoShowEmail(
         <p style="color:#9ca3af;font-size:12px;text-align:center">Hope to see you at the next one 😊</p>
         ${policyLine()}
         <p style="color:#9ca3af;font-size:11px;text-align:center;margin-top:20px">
-          <a href="${unsub}" style="color:#9ca3af">Unsubscribe from event reminders</a>
+          You're getting this because you have a spot at this event. <a href="${APP_URL}/settings" style="color:#9ca3af">Manage notifications</a>
         </p>
       </div>
     `,
@@ -1194,7 +1194,7 @@ export async function sendYellowCardEmail(
         <p style="color:#9ca3af;font-size:12px;text-align:center">If this is a mistake — you were there, or the host missed your check-in — the host can clear it.</p>
         ${policyLine()}
         <p style="color:#9ca3af;font-size:11px;text-align:center;margin-top:20px">
-          <a href="${unsub}" style="color:#9ca3af">Unsubscribe from event reminders</a>
+          You're getting this because you have a spot at this event. <a href="${APP_URL}/settings" style="color:#9ca3af">Manage notifications</a>
         </p>
       </div>
     `,
@@ -1230,7 +1230,7 @@ export async function sendRedCardEmail(
         <p style="color:#9ca3af;font-size:12px;text-align:center">We'd rather have you at events than not. Cancelling ${NO_SHOW_CANCELLATION_CUTOFF_HOURS} hours ahead is all it takes.</p>
         ${policyLine()}
         <p style="color:#9ca3af;font-size:11px;text-align:center;margin-top:20px">
-          <a href="${unsub}" style="color:#9ca3af">Unsubscribe from event reminders</a>
+          You're getting this because you have a spot at this event. <a href="${APP_URL}/settings" style="color:#9ca3af">Manage notifications</a>
         </p>
       </div>
     `,
@@ -1327,7 +1327,7 @@ export async function sendReconfirmEmail(
           <p style="color:#92400e;font-size:14px;margin:0">Spots are limited and people are waiting. If we don't hear back by <strong>${esc(deadlineText)}</strong>, your spot may go to the waitlist. Cancelling before then keeps you clear of any no-show.</p>
         </div>
         <p style="color:#9ca3af;font-size:11px;text-align:center;margin-top:20px">
-          <a href="${unsub}" style="color:#9ca3af">Unsubscribe from event reminders</a>
+          You're getting this because you have a spot at this event. <a href="${APP_URL}/settings" style="color:#9ca3af">Manage notifications</a>
         </p>
       </div>
     `,
@@ -1359,7 +1359,7 @@ export async function sendSpotReleasedEmail(
           See the event →
         </a>
         <p style="color:#9ca3af;font-size:11px;text-align:center;margin-top:20px">
-          <a href="${unsub}" style="color:#9ca3af">Unsubscribe from event reminders</a>
+          You're getting this because you have a spot at this event. <a href="${APP_URL}/settings" style="color:#9ca3af">Manage notifications</a>
         </p>
       </div>
     `,

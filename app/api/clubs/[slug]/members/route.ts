@@ -16,8 +16,20 @@ export async function GET(req: NextRequest, { params }: Params) {
   const { slug } = await params
   const pending = req.nextUrl.searchParams.get('pending') === '1'
 
-  const club = await prisma.club.findUnique({ where: { slug }, select: { id: true } })
+  const club = await prisma.club.findUnique({ where: { slug }, select: { id: true, isPrivate: true, cityId: true } })
   if (!club) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // Same rule as the club wall: a private club's roster is for its approved
+  // members and city staff. It was readable by any signed-in member.
+  if (club.isPrivate && !canActInCity(session, club.cityId)) {
+    const membership = await prisma.clubMembership.findUnique({
+      where: { userId_clubId: { userId: session.id, clubId: club.id } },
+      select: { status: true },
+    })
+    if (membership?.status !== 'approved') {
+      return NextResponse.json({ error: 'Members only' }, { status: 403 })
+    }
+  }
 
   if (pending) {
     // Only hosts/admins can see pending requests

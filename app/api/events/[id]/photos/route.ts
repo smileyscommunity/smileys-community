@@ -6,6 +6,16 @@ import { firstNameOf } from '@/lib/data'
 
 type Params = { params: Promise<{ id: string }> }
 
+async function canSeeEventInside(session: { id: string; role: string }, eventId: string): Promise<boolean> {
+  if (session.role === 'admin' || session.role === 'moderator') return true
+  const [event, attendee, cohost] = await Promise.all([
+    prisma.event.findUnique({ where: { id: eventId }, select: { hostId: true } }),
+    prisma.eventAttendee.findUnique({ where: { userId_eventId: { userId: session.id, eventId } }, select: { status: true } }),
+    prisma.eventCoHost.findFirst({ where: { eventId, userId: session.id }, select: { id: true } }),
+  ])
+  return event?.hostId === session.id || !!cohost || attendee?.status === 'approved'
+}
+
 export async function GET(_: NextRequest, { params }: Params) {
   // Member-only: photos include uploader identity, and only attendees can
   // upload — an unauthenticated list would leak the de-facto attendee roster
@@ -14,6 +24,11 @@ export async function GET(_: NextRequest, { params }: Params) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { id } = await params
+  // Same gate as the event chat: only attendees can upload, so the list is
+  // a de-facto roster — one that named stealth attendees to any member.
+  if (!await canSeeEventInside(session, id)) {
+    return NextResponse.json({ error: 'You must be attending this event' }, { status: 403 })
+  }
   const photos = await prisma.eventPhoto.findMany({
     where: { eventId: id },
     orderBy: { createdAt: 'desc' },
@@ -46,8 +61,11 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Invalid url' }, { status: 400 })
   }
 
+  if (caption != null && typeof caption !== 'string') {
+    return NextResponse.json({ error: 'Caption must be text' }, { status: 400 })
+  }
   const photo = await prisma.eventPhoto.create({
-    data: { eventId: id, userId: session.id, url, caption: caption ?? null },
+    data: { eventId: id, userId: session.id, url, caption: caption ? caption.trim().slice(0, 300) || null : null },
     include: { user: { select: { id: true, name: true, color: true, profilePhoto: true } } },
   })
 

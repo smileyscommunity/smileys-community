@@ -305,9 +305,12 @@ export async function POST(req: NextRequest, { params }: Params) {
         `Your request to join "${event.title}" is waiting on the host. You'll be notified once it's reviewed.`,
         `/events/${eventId}`)
       if (event.hostId) {
+        // Distinct link from the confirmed-join notification: the bundler
+        // keys on type+link, and a pending request within an hour of a
+        // confirmed one used to be absorbed into "2 people joined".
         createNotification(event.hostId, 'attendee_joined', 'New RSVP awaiting approval ⏳',
           `Someone just requested to join "${event.title}".`,
-          `/host/events/${eventId}/participants`)
+          `/host/events/${eventId}/participants?tab=pending`)
       }
       trackRsvp('pending')
       ackAfterJoin(); return NextResponse.json({ ok: true, status: 'pending' })

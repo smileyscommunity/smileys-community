@@ -74,8 +74,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const mineByTarget: Record<string, Vibe> = {}
   for (const r of mine) mineByTarget[r.toUserId] = r.vibe as Vibe
 
+  // Only the caller's own verdicts are returned. The full list let a
+  // participant read who marked them `meh` or `no_show`; the recap UI never
+  // used it, and members/[id]/references deliberately exposes 'good' only.
   return NextResponse.json({
-    references: refs,
     myReferences: mineByTarget,
     participants: [...ctx.participantIds].filter(uid => uid !== session.id),
     canWrite: ctx.hangout.endsAt < new Date()

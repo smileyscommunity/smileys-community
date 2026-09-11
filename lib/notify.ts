@@ -136,10 +136,14 @@ export async function createNotification(
         where: { userId, type: 'attendee_joined', link, isRead: false, createdAt: { gte: oneHourAgo } },
         orderBy: { createdAt: 'desc' },
       })
-      if (existing) {
+      // Only a "joined" notification is a bundle seed; an "awaiting
+      // approval" one (same type, its own link) must keep its cue.
+      if (existing && /joined|signed up/.test(`${existing.title} ${existing.body}`)) {
         const match = existing.title.match(/^(\d+) people/)
         const count = match ? parseInt(match[1]) + 1 : 2
-        const eventName = existing.body.match(/"(.+)"$/)?.[1] ?? 'your event'
+        // First quoted run: the confirmed body ends `for "Title"`, and a
+        // `$`-anchored match failed on any body ending in `."`.
+        const eventName = existing.body.match(/"([^"]+)"/)?.[1] ?? 'your event'
         await prisma.notification.update({
           where: { id: existing.id },
           data: { title: `${count} people joined your event`, body: `${count} people have joined "${eventName}"` },

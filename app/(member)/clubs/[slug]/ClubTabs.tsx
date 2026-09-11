@@ -26,6 +26,8 @@ interface Props {
   canAnnounce: boolean
   canUpload: boolean
   isMember: boolean
+  // Private clubs keep their roster for members and staff; the tab goes too.
+  isPrivate?: boolean
   memberAttendeesByEvent: Record<string, MemberAttendee[]>
   // Counts surfaced as small badges on the tab labels — passed from
   // the server so the badge is rendered immediately on first paint
@@ -65,7 +67,7 @@ const TAB_KEYS: readonly Tab[] = ['events', 'wall', 'photos', 'past', 'reviews',
 
 export default function ClubTabs({
   slug, clubEvents, canPost, currentUserId, isAdmin, canPin,
-  canAnnounce, canUpload, isMember, memberAttendeesByEvent,
+  canAnnounce, canUpload, isMember, isPrivate = false, memberAttendeesByEvent,
   memberCount, reviewCount, reviewAvg,
 }: Props) {
   // Tab state lives in ?tab= rather than useState: the phone's Back
@@ -88,14 +90,14 @@ export default function ClubTabs({
     ? `Reviews (${reviewCount})${reviewAvg != null ? ` · ★ ${reviewAvg.toFixed(1)}` : ''}`
     : 'Reviews'
 
-  const tabs: { key: Tab; label: string }[] = [
+  const tabs: { key: Tab; label: string }[] = ([
     { key: 'events',  label: `Events${clubEvents.length > 0 ? ` (${clubEvents.length})` : ''}` },
     { key: 'wall',    label: 'Conversations' },
     { key: 'members', label: memberCount > 0 ? `Members (${memberCount})` : 'Members' },
     { key: 'photos',  label: 'Photos' },
     { key: 'reviews', label: reviewsLabel },
     { key: 'past',    label: 'Past Events' },
-  ]
+  ] as { key: Tab; label: string }[]).filter(t => t.key !== 'members' || !isPrivate || isMember || isAdmin)
 
   return (
     <div>

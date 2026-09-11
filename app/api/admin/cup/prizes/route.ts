@@ -32,8 +32,13 @@ export async function GET() {
 
 function parsePayload(body: Record<string, unknown>) {
   const title = typeof body.title === 'string' ? body.title.trim().slice(0, 200) : null
-  const description = typeof body.description === 'string' ? body.description.trim().slice(0, 2000) : null
-  const imageUrl = typeof body.imageUrl === 'string' ? body.imageUrl.trim().slice(0, 500) : null
+  // undefined = not in the body (leave as is); null = sent as null (clear).
+  // Returning null for an omitted field made the award/unaward actions —
+  // which send only {id, awardedToUserId, status} — wipe description and image.
+  const optText = (key: 'description' | 'imageUrl', max: number) =>
+    !(key in body) ? undefined : typeof body[key] === 'string' ? (body[key] as string).trim().slice(0, max) || null : null
+  const description = optText('description', 2000)
+  const imageUrl    = optText('imageUrl', 500)
   const rank = body.rank === null ? null
     : typeof body.rank === 'number' && Number.isInteger(body.rank) && body.rank >= 1 && body.rank <= 3 ? body.rank
     : undefined

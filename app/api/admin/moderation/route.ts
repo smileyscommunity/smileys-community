@@ -21,8 +21,11 @@ export async function GET() {
       ? {}
       : { reported: { is: { cityId: failClosedCityId(session) } } }
 
+    // Nobody triages a report about themselves — and for survey-sourced
+    // reports the responder was promised anonymity from the host, who may
+    // well hold the moderator role that opens this queue.
     const reports = await prisma.report.findMany({
-      where:   cityFilter,
+      where:   { ...cityFilter, reportedId: { not: session.id } },
       orderBy: { createdAt: 'desc' },
       include: {
         reporter: { select: { id: true, name: true, email: true, color: true } },

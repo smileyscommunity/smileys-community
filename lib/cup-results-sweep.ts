@@ -168,8 +168,13 @@ export async function runCupResultsSweep(): Promise<SweepResult> {
         applyData.suggestedHomeTeam = home
         applyData.suggestedAwayTeam = away
       }
-      await prisma.cupFixture.update({ where: { id: fixture.id }, data: applyData })
-      await scoreFixture(fixture.id)
+      // One transaction, like the admin route: a crash between the write and
+      // the scoring left homeScore set (so every later sweep skipped the
+      // fixture) with predictions stuck at zero, and nothing self-healed.
+      await prisma.$transaction(async tx => {
+        await tx.cupFixture.update({ where: { id: fixture.id }, data: applyData })
+        await scoreFixture(fixture.id, tx)
+      })
       // Bracket rescoring — QF/Final results move bracket scores.
       if (fixture.round === 'qf' || fixture.round === 'final') {
         await rescoreAllBrackets()
