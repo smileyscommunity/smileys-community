@@ -1,5 +1,7 @@
 import { ImageResponse } from 'next/og'
 import { NextRequest } from 'next/server'
+import { SITE_URL } from '@/lib/env'
+import { isUploadedImageUrl } from '@/lib/uploadedImageUrl'
 
 export const runtime = 'edge'
 
@@ -7,8 +9,18 @@ export const runtime = 'edge'
 // "HANGOUT" badge overlaid, so shares are unmistakably a hangout. The photo is
 // passed as an absolute ?photo= URL (built in the page's generateMetadata) so
 // this route needs no DB and can stay on the edge. No photo → branded fallback.
+// Only our own uploaded hangout photos are rendered. A hangout's photo can
+// only ever be one (POST /api/hangouts enforces isUploadedImageUrl), so an
+// arbitrary ?photo= was never a real case — it was an open image proxy and
+// a "does this URL return an image" oracle for internal hosts.
+function ownUploadedPhoto(raw: string): string {
+  if (!raw.startsWith(`${SITE_URL}/`)) return ''
+  const path = raw.slice(SITE_URL.length)
+  return isUploadedImageUrl(path, ['hangouts']) ? raw : ''
+}
+
 export async function GET(req: NextRequest) {
-  const photo = req.nextUrl.searchParams.get('photo') || ''
+  const photo = ownUploadedPhoto(req.nextUrl.searchParams.get('photo') || '')
 
   const Badge = (
     <div

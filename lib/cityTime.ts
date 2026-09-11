@@ -105,8 +105,12 @@ export function nowInTz(tz: string = DEFAULT_TZ, now: Date = new Date()): TzNow 
  * that means (the composer pushes it to "half an hour from now").
  */
 export function atHourInTz(hour: number, tz: string = DEFAULT_TZ, now: Date = new Date()): Date {
-  const { minutes } = nowInTz(tz, now)
-  return new Date(now.getTime() + (hour * 60 - minutes) * 60_000)
+  // Anchored on the city's calendar day and parsed back through the
+  // wall-clock inverse below, so a DST changeover between now and `hour`
+  // (spring-forward morning, asking for the evening) doesn't shift it by
+  // an hour the way "now + (hour − minutesNow)" did.
+  const { date } = nowInTz(tz, now)
+  return fromWallClockInTz(`${date}T${String(hour).padStart(2, '0')}:00`, tz)
 }
 
 /**

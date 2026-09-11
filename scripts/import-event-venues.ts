@@ -108,6 +108,10 @@ async function main() {
   let approved = 0, pending = 0, skippedExisting = 0
   const planned: string[] = []
 
+  // The description falls back to the city name when no neighborhood is
+  // known — it used to say "Istanbul" for a venue in any city.
+  const cityName = new Map((await prisma.city.findMany({ select: { id: true, name: true } })).map(c => [c.id, c.name]))
+
   for (const [name, evs] of [...groups.entries()].sort((a, b) => b[1].length - a[1].length)) {
     // Every venue with >= 1 event is a candidate now (single-event ones
     // just land as pending below). Non-business meeting spots are filtered
@@ -130,7 +134,7 @@ async function main() {
     const category     = inferCategory(name)
 
     const description =
-      `A ${neighborhood ?? 'Istanbul'} regular for the Smileys community — has hosted ` +
+      `A ${neighborhood ?? cityName.get(evs[0].cityId) ?? 'local'} regular for the Smileys community — has hosted ` +
       `${evs.length} Smileys event${evs.length === 1 ? '' : 's'} since ${monthYear(firstDate)}.`
 
     // >= 2 events publishes directly; a lone event goes to the approval

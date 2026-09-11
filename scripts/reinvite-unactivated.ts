@@ -5,6 +5,9 @@
 //   DRY_RUN (default): list who would be emailed, send nothing.
 //   DRY_RUN=0:         issue tokens and send.
 //   MAX_AGE_DAYS=180:  ignore approvals older than this (default 180).
+//   FORCE=1:           include members already re-invited by this script
+//                      (by default anyone nudged in the last 30 days is skipped,
+//                      so a second run does not re-email everyone).
 //
 // Run on the server with both env files:
 //   npx tsx --env-file=.env --env-file=.env.local scripts/reinvite-unactivated.ts
@@ -14,7 +17,9 @@ import { issueActivationToken } from '../lib/activation'
 import { sendNewActivationLinkEmail } from '../lib/email'
 
 const DRY_RUN      = process.env.DRY_RUN !== '0'
+const FORCE        = process.env.FORCE === '1'
 const MAX_AGE_DAYS = Number(process.env.MAX_AGE_DAYS ?? 180)
+const RENUDGE_DAYS = 30
 const DAY          = 24 * 60 * 60 * 1000
 
 async function main() {
@@ -26,13 +31,16 @@ async function main() {
     where: {
       status: 'approved', password: null, lastActive: null,
       joinedAt: { gte: oldest, lte: cutoff },
+      // "Once": the header promised it, the selection never checked it — a
+      // second DRY_RUN=0 run re-emailed every still-unactivated member.
+      ...(FORCE ? {} : { OR: [{ lastNudgedAt: null }, { lastNudgedAt: { lt: new Date(now.getTime() - RENUDGE_DAYS * DAY) } }] }),
     },
-    select: { id: true, name: true, email: true, joinedAt: true, nudgesSent: true },
+    select: { id: true, name: true, email: true, joinedAt: true, nudgesSent: true, lastNudgedAt: true },
     orderBy: { joinedAt: 'asc' },
   })
 
   console.log(`${DRY_RUN ? 'DRY RUN — ' : ''}${users.length} approved, never-activated members approved ${MAX_AGE_DAYS}–60 days ago`)
-  for (const u of users) console.log(`  ${u.joinedAt.toISOString().slice(0, 10)}  nudges=${u.nudgesSent}  ${u.email}`)
+  for (const u of users) console.log(`  ${u.joinedAt.toISOString().slice(0, 10)}  nudges=${u.nudgesSent}  last=${u.lastNudgedAt?.toISOString().slice(0, 10) ?? '-'}  ${u.email}`)
   if (DRY_RUN) { console.log('Nothing sent. Re-run with DRY_RUN=0 to send.'); return }
 
   let sent = 0, failed = 0

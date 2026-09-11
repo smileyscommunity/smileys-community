@@ -3,6 +3,8 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
+import { firstNameOf } from '@/lib/data'
+import { restrictedSetFor } from '@/lib/memberPrivacy'
 import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
 import { formatShortDate } from '@/lib/data'
 import { resolveImageUrl, avatarUrl } from '@/lib/data'
@@ -122,7 +124,7 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
         id: true, rating: true, comment: true,
         ownerReply: true, ownerReplyAt: true,
         isHidden: true, createdAt: true,
-        author: { select: { id: true, name: true, color: true, profilePhoto: true } },
+        author: { select: { id: true, name: true, color: true, profilePhoto: true, profileVisibility: true } },
         ownerReplyBy: { select: { id: true, name: true } },
       },
     }),
@@ -222,6 +224,7 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
     }
   }
 
+  const restrictedReviewers = session ? await restrictedSetFor(session, reviewsRaw.map(r => r.author)) : new Set<string>()
   const openStatus = getOpenStatus(hours, businessCity.timezone ?? DEFAULT_TZ)
   const cover      = resolveImageUrl(business.coverImage)
   const logo       = resolveImageUrl(business.logo)
@@ -545,22 +548,27 @@ export default async function BusinessDetailPage({ params }: RouteParams) {
           ) : (
             <div className="space-y-4">
               {reviewsRaw.map(r => {
+                // Public page: the submitter is already "First L."; the
+                // reviewer was the full name, and a connections-only member's
+                // review is a review, not a profile. Guests get the first
+                // name; a member the reviewer isn't connected to too.
+                const reviewerName = session && !restrictedReviewers.has(r.author.id) ? r.author.name : firstNameOf(r.author.name)
                 const avatar = r.author.profilePhoto ? avatarUrl(r.author.profilePhoto, 64) : null
                 return (
                   <article key={r.id} className={`pt-4 border-t border-gray-100 first:border-0 first:pt-0 ${r.isHidden ? 'opacity-60' : ''}`}>
                     <div className="flex items-start gap-3">
                       {avatar ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={avatar} alt={r.author.name} className="w-9 h-9 rounded-full object-cover shrink-0" />
+                        <img src={avatar} alt={reviewerName} className="w-9 h-9 rounded-full object-cover shrink-0" />
                       ) : (
                         <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
                           style={{ backgroundColor: r.author.color }}>
-                          {r.author.name.split(' ').map(w => w[0]).join('').slice(0, 2)}
+                          {reviewerName.split(' ').map(w => w[0]).join('').slice(0, 2)}
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <p className="text-sm font-semibold text-gray-900 truncate">{r.author.name}</p>
+                          <p className="text-sm font-semibold text-gray-900 truncate">{reviewerName}</p>
                           <span className="text-amber-500 text-sm tracking-tight" aria-label={`${r.rating} stars`}>
                             {'★'.repeat(r.rating)}<span className="text-gray-300">{'★'.repeat(5 - r.rating)}</span>
                           </span>

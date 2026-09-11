@@ -793,7 +793,7 @@ export async function sendBroadcastEmail(
   await getResend().emails.send({
     from:    FROM,
     to:      email,
-    subject: title,
+    subject: safeSubject(title),
     html: `
       <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto;background:#fff;border-radius:16px;padding:40px 32px;border:1px solid #e5e7eb">
         <div style="margin-bottom:28px">

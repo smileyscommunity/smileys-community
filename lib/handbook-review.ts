@@ -6,6 +6,7 @@
 // no date at all. That honesty is the whole point of the field: a Handbook
 // that lies about its freshness is worse than one that admits it's unsure.
 
+import { DEFAULT_TZ } from './cityTime'
 import {
   REVIEW_INTERVAL_DAYS,
   categoryMeta,
@@ -57,8 +58,10 @@ export function reviewLabel(
 ): { text: string; stale: boolean } | null {
   const state = reviewState(article, now)
   if (state === 'unreviewed') return null
+  // A review stamped at 00:30 Istanbul rendered as the previous day on a
+  // UTC server. Reviews are a staff act, so the default city's calendar.
   const when = new Date(article.lastReviewedAt as Date | string)
-    .toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+    .toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: DEFAULT_TZ })
   return { text: `Last reviewed ${when}`, stale: state === 'needs-review' }
 }
 

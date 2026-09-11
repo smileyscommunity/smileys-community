@@ -138,7 +138,7 @@ export async function buildWeeklyDigest(): Promise<{ subject: string; bodyHtml: 
     body += card(
       `<p style="color:#b45309;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin:0 0 6px">${esc(spotlight.title)}</p>` +
       `<p style="color:#374151;font-size:14px;line-height:1.6;margin:0">${esc(spotlight.body)}</p>` +
-      (href ? `<a href="${href}?${UTM}" style="display:inline-block;margin-top:8px;color:#b45309;font-weight:700;font-size:13px;text-decoration:none">${esc(spotlight.ctaLabel ?? 'Learn more')} →</a>` : ''),
+      (href ? `<a href="${href}${href.includes('?') ? '&' : '?'}${UTM}" style="display:inline-block;margin-top:8px;color:#b45309;font-weight:700;font-size:13px;text-decoration:none">${esc(spotlight.ctaLabel ?? 'Learn more')} →</a>` : ''),
       '#fffbeb', '#fde68a',
     ) + DIVIDER
   }

@@ -1,3 +1,4 @@
+import { rateLimit } from '@/lib/rateLimit'
 import { prisma } from './prisma'
 import { sendPushToUser } from './push'
 import { getCityTz } from './city'
@@ -249,8 +250,14 @@ export async function notifyNewEvent(event: {
 }) {
   if (!event.clubId) return
   const link = `/events/${event.id}`
-  const already = await prisma.notification.count({ where: { type: 'new_event', link } })
-  if (already > 0) return
+  // One announcement per event, claimed atomically. The former guard
+  // counted notifications by type+link — a sequential scan of the whole
+  // table on every publish (no index on either column), and a read-then-
+  // write that let two concurrent publishes both fan out. The rate-limit
+  // row is the same DB-backed claim the rest of the app uses: one INSERT …
+  // ON CONFLICT, so exactly one caller sees count 1. To deliberately
+  // re-announce, delete the `new-event-announce:<id>` row.
+  if (!await rateLimit(`new-event-announce:${event.id}`, 1, 30 * 24 * 60 * 60_000)) return
 
   const [club, members] = await Promise.all([
     prisma.club.findUnique({ where: { id: event.clubId }, select: { name: true } }),

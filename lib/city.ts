@@ -54,7 +54,13 @@ export const VIEW_CITY_COOKIE = 'smileys_city'
 const liveCityCache = new Map<string, { id: string | null; expires: number }>()
 const LIVE_TTL_MS = 60_000
 
+// Cookie values are client-controlled: a slug that is not even shaped like
+// one is a miss without a query, and misses are never cached — otherwise a
+// unique cookie per request grew this Map without bound (nothing evicts).
+const SLUG_SHAPE = /^[a-z0-9-]{1,40}$/
+const LIVE_CACHE_MAX = 64
 async function liveCityIdBySlug(slug: string): Promise<string | null> {
+  if (!SLUG_SHAPE.test(slug)) return null
   const hit = liveCityCache.get(slug)
   if (hit && hit.expires > Date.now()) return hit.id
   const city = await prisma.city.findFirst({
@@ -62,7 +68,10 @@ async function liveCityIdBySlug(slug: string): Promise<string | null> {
     select: { id: true },
   })
   const id = city?.id ?? null
-  liveCityCache.set(slug, { id, expires: Date.now() + LIVE_TTL_MS })
+  if (id) {
+    if (liveCityCache.size >= LIVE_CACHE_MAX) liveCityCache.clear()
+    liveCityCache.set(slug, { id, expires: Date.now() + LIVE_TTL_MS })
+  }
   return id
 }
 

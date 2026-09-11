@@ -86,10 +86,11 @@ async function getPublicCityUncached(slug: string): Promise<PublicCity | null> {
 // because Event.date is stored as text 'YYYY-MM-DD'. Exported for the admin
 // cities console, which needs the derived maturity as an ops signal.
 export async function getStatsFor(cityIds: string[]): Promise<Map<string, CityStats>> {
-  // Default-city calendar day, not UTC — between 00:00 and 03:00 Istanbul
-  // the UTC date is still yesterday and the count would include finished
-  // events. Per-city todays can come when stats span differing zones.
-  const today = todayInTz(DEFAULT_TZ)
+  // Each city's own calendar day: Event.date is the city's day, and one
+  // shared "today" (formerly the default city's) counted finished events for
+  // an hour a day in Tbilisi and dropped tonight's from 17:00 in New York.
+  const zones = await prisma.city.findMany({ where: { id: { in: cityIds } }, select: { id: true, timezone: true } })
+  const todayOf = (id: string) => todayInTz(zones.find(z => z.id === id)?.timezone ?? DEFAULT_TZ)
 
   const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
 
@@ -111,7 +112,7 @@ export async function getStatsFor(cityIds: string[]): Promise<Map<string, CitySt
     }),
     prisma.event.groupBy({
       by: ['cityId'],
-      where: { cityId: { in: cityIds }, status: 'published', date: { gte: today } },
+      where: { status: 'published', OR: cityIds.map(id => ({ cityId: id, date: { gte: todayOf(id) } })) },
       _count: { _all: true },
     }),
     // Maturity signals. Hosted clubs can't come from groupBy (relation
