@@ -90,12 +90,26 @@ describe('POST /api/auth/activate/resend', () => {
 
 describe('POST /api/auth/forgot-password', () => {
   it('sends an activation link, not silence, to an approved member with no password', async () => {
+    ;(rateLimit as any).mockImplementation(async () => true)
     p.user.findUnique.mockResolvedValue({ id: 'u1', name: 'Jane Doe', email: 'jane@example.com', status: 'approved', password: null })
     const res = await forgot(req({ email: 'Jane@Example.com', _cf: 't' }))
     expect(await res.json()).toEqual({ ok: true })
     expect(sent).toHaveLength(1)
     expect(sent[0][0]).toBe('activation')
     expect(p.passwordResetToken.create).toHaveBeenCalledTimes(1)
+  })
+
+  it('shares the resend budget: a second call inside 15 min sends nothing and says nothing', async () => {
+    // Each call invalidates the link the member is holding, so an
+    // unthrottled path let anyone with the email keep it dead. Same key as
+    // /activate/resend; the response stays ok so nothing is enumerable.
+    ;(rateLimit as any).mockImplementation(async (key: string) => !key.startsWith('activate-resend-user:'))
+    p.user.findUnique.mockResolvedValue({ id: 'u1', name: 'Jane Doe', email: 'jane@example.com', status: 'approved', password: null })
+    const res = await forgot(req({ email: 'jane@example.com', _cf: 't' }))
+    expect(await res.json()).toEqual({ ok: true })
+    expect(sent).toHaveLength(0)
+    expect(p.passwordResetToken.deleteMany).not.toHaveBeenCalled()
+    expect(p.passwordResetToken.create).not.toHaveBeenCalled()
   })
 
   it('stays silent for a pending applicant with no password', async () => {

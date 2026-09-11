@@ -32,7 +32,11 @@ export async function POST(req: NextRequest) {
     // It used to return ok and send nothing — a silent dead end. Anyone else
     // without a password (pending, suspended) still gets the silent ok.
     if (!user.password) {
-      if (user.status === 'approved') {
+      // Same per-account budget as /activate/resend (they share the key):
+      // each call invalidates the link the member is holding, so an
+      // unthrottled path let anyone who knew the email keep it dead and
+      // fill the inbox. Silent ok when throttled — no enumeration.
+      if (user.status === 'approved' && await rateLimit(`activate-resend-user:${user.id}`, 1, 15 * 60_000)) {
         const token = await issueActivationToken(user.id)
         await sendNewActivationLinkEmail(user.email, user.name, token)
       }

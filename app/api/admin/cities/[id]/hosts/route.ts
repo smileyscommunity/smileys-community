@@ -28,10 +28,19 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const [city, user] = await Promise.all([
     prisma.city.findUnique({ where: { id: cityId }, select: { id: true } }),
-    prisma.user.findUnique({ where: { email: email.trim().toLowerCase() }, select: { id: true, name: true, email: true } }),
+    prisma.user.findUnique({ where: { email: email.trim().toLowerCase() }, select: { id: true, name: true, email: true, status: true, suspendedUntil: true } }),
   ])
   if (!city) return NextResponse.json({ error: 'City not found' }, { status: 404 })
   if (!user) return NextResponse.json({ error: `No member found with email "${email.trim()}"` }, { status: 404 })
+  // A city host can create events and (as of the review-gate fix) has real
+  // authority in the city. The lookup was by email alone, so a banned or
+  // still-pending account — or a suspended one — could be handed it.
+  if (user.status !== 'approved') {
+    return NextResponse.json({ error: `${user.name} is not an approved member (status: ${user.status})` }, { status: 400 })
+  }
+  if (user.suspendedUntil && user.suspendedUntil > new Date()) {
+    return NextResponse.json({ error: `${user.name} is suspended until ${user.suspendedUntil.toISOString().slice(0, 10)}` }, { status: 400 })
+  }
 
   const host = await prisma.cityHost.upsert({
     where:  { userId_cityId: { userId: user.id, cityId } },

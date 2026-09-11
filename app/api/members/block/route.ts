@@ -69,7 +69,7 @@ export async function DELETE(req: NextRequest) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { userId } = await req.json()
-  if (!userId) return NextResponse.json({ error: 'Invalid' }, { status: 400 })
+  if (!userId || typeof userId !== 'string') return NextResponse.json({ error: 'Invalid' }, { status: 400 })
 
   await prisma.memberBlock.deleteMany({
     where: { blockerId: session.id, blockedId: userId },

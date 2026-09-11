@@ -99,7 +99,8 @@ export async function POST(req: NextRequest) {
         // heart. Flip the row into a fresh pending request the other way.
         const flipped = await prisma.memberConnection.update({
           where: { id: existing.id },
-          data:  { requesterId: session.id, receiverId, status: 'pending', note: note?.trim() || null },
+          // Same cap and type guard as the create path below.
+          data:  { requesterId: session.id, receiverId, status: 'pending', note: typeof note === 'string' ? note.trim().slice(0, 500) || null : null },
         })
         await createNotification(
           receiverId,
@@ -110,7 +111,7 @@ export async function POST(req: NextRequest) {
         )
         trackServer(session, 'connection_request_sent', {
           receiver_id: receiverId,
-          has_note: !!(note?.trim()),
+          has_note: typeof note === 'string' && !!note.trim(),
         })
         return NextResponse.json({ connection: flipped })
       }
@@ -128,7 +129,7 @@ export async function POST(req: NextRequest) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       // note is capped like every other free-text field — it previously went
       // to the DB unbounded, so a multi-MB string was accepted verbatim.
-      data: { requesterId: session.id, receiverId, pairKey, note: note?.trim().slice(0, 500) || null } as any,
+      data: { requesterId: session.id, receiverId, pairKey, note: typeof note === 'string' ? note.trim().slice(0, 500) || null : null } as any,
     })
   } catch (e: unknown) {
     // P2002 = unique-constraint violation — concurrent request won the race.
@@ -149,7 +150,7 @@ export async function POST(req: NextRequest) {
 
   trackServer(session, 'connection_request_sent', {
     receiver_id: receiverId,
-    has_note: !!(note?.trim()),
+    has_note: typeof note === 'string' && !!note.trim(),
   })
 
   return NextResponse.json({ connection })

@@ -3,6 +3,7 @@ import { createNotification } from '@/lib/notify'
 import { sendPushToUser } from '@/lib/push'
 import { sendSpotOpenedEmail, recordEmailFailure } from '@/lib/email'
 import { recomputeSpotsLeft } from '@/lib/spotsLeft'
+import { hasQuotaRoomFor, quotaEventSelect } from '@/lib/eventQuota'
 
 /**
  * A seat just came free: tell everyone on the waitlist and let the first
@@ -17,9 +18,23 @@ import { recomputeSpotsLeft } from '@/lib/spotsLeft'
 export async function announceSpotOpened(eventId: string): Promise<number> {
   const event = await prisma.event.findUnique({
     where:  { id: eventId },
-    select: { title: true, date: true, totalSpots: true },
+    select: { title: true, date: true, soldOut: true, limitedSpots: true, ...quotaEventSelect },
   })
   if (!event) return 0
+
+  // Recompute first, never a blind +1: hosts and co-hosts join without
+  // consuming a spot, so their cancel must not mint one, and the derived
+  // value can't creep past totalSpots on repeated join/cancel cycles.
+  await recomputeSpotsLeft(eventId, event.totalSpots)
+
+  // Nothing to claim, nothing to announce. The claim path refuses a
+  // manually sold-out event and a seat the member's side can't take, so an
+  // urgent "claim it!" to those people only produced a 409 on tap.
+  if (event.soldOut) return 0
+  if (event.limitedSpots) {
+    const fresh = await prisma.event.findUnique({ where: { id: eventId }, select: { spotsLeft: true } })
+    if ((fresh?.spotsLeft ?? 0) <= 0) return 0
+  }
 
   // WaitlistEntry has no FK relation to User, so the members come in one
   // batched lookup after the entries.
@@ -28,12 +43,16 @@ export async function announceSpotOpened(eventId: string): Promise<number> {
     orderBy: { createdAt: 'asc' },
     select:  { userId: true },
   })
-  const users = entries.length
+  const candidates = entries.length
     ? await prisma.user.findMany({
         where:  { id: { in: entries.map(w => w.userId) } },
-        select: { id: true, name: true, email: true },
+        select: { id: true, name: true, email: true, gender: true, nationality: true },
       })
     : []
+  const users: typeof candidates = []
+  for (const u of candidates) {
+    if ((await hasQuotaRoomFor(eventId, event, u)).ok) users.push(u)
+  }
 
   for (const u of users) {
     createNotification(
@@ -57,9 +76,5 @@ export async function announceSpotOpened(eventId: string): Promise<number> {
       })
   }
 
-  // Recompute, never a blind +1: hosts and co-hosts join without consuming
-  // a spot, so their cancel must not mint one, and the derived value can't
-  // creep past totalSpots on repeated join/cancel cycles.
-  await recomputeSpotsLeft(eventId, event.totalSpots)
   return users.length
 }

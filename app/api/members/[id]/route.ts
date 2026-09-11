@@ -220,13 +220,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     isSaved: savedRow !== null,
     // Live "free to meet now" signal — null unless the member has a
     // non-expired availability pulse.
+    // Where and the free-text note follow the same gate as `neighborhood`
+    // above; the fact that they are free right now does not.
     activePulse: activePulse
-      ? { neighborhood: activePulse.neighborhood, note: activePulse.note, until: activePulse.until }
+      ? { neighborhood: fullAccess ? activePulse.neighborhood : null, note: fullAccess ? activePulse.note : null, until: activePulse.until }
       : null,
     // Live "hosting a hangout now" signal — null unless they have an active
     // hangout that hasn't ended.
     activeHangout: activeHangout
-      ? { id: activeHangout.id, title: activeHangout.title, neighborhood: activeHangout.neighborhood, startsAt: activeHangout.startsAt }
+      ? { id: activeHangout.id, title: activeHangout.title, neighborhood: fullAccess ? activeHangout.neighborhood : null, startsAt: activeHangout.startsAt }
       : null,
   })
 }

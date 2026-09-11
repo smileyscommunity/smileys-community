@@ -13,12 +13,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Too many reports. Try again later.' }, { status: 429 })
     }
 
-    const { reportedId, reason, details, screenshot, eventId } = await req.json()
-    if (!reportedId || !reason) {
+    const body = await req.json().catch(() => null)
+    if (!body || typeof body !== 'object') return NextResponse.json({ error: 'Invalid body' }, { status: 400 })
+    const { reportedId, reason, details, screenshot, eventId } = body
+    if (typeof reportedId !== 'string' || !reportedId || typeof reason !== 'string' || !reason) {
       return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
+    }
+    if (details != null && typeof details !== 'string') {
+      return NextResponse.json({ error: 'Details must be text' }, { status: 400 })
     }
     if (details && details.length > 2000) {
       return NextResponse.json({ error: 'Details too long' }, { status: 400 })
+    }
+    // eventId is a foreign key: an unknown id used to surface as a 500.
+    if (eventId != null && (typeof eventId !== 'string' || !await prisma.event.findUnique({ where: { id: eventId }, select: { id: true } }))) {
+      return NextResponse.json({ error: 'Unknown event' }, { status: 400 })
     }
     // Only accept relative upload paths produced by /api/upload (same regex as profilePhoto).
     // The previous check looked for /uploads/ which never matched the real format,

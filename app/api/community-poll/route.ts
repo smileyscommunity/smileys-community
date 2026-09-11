@@ -49,7 +49,9 @@ export async function POST(req: NextRequest) {
   }
 
   const { pollId, optionId } = await req.json()
-  if (!pollId || !optionId) return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
+  if (typeof pollId !== 'string' || !pollId || typeof optionId !== 'string' || !optionId) {
+    return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
+  }
 
   // Verify option belongs to poll
   const option = await prisma.communityPollOption.findUnique({

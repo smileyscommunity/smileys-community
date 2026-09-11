@@ -41,8 +41,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const cleanName  = (name  ?? session?.name  ?? '').trim()
-    const cleanEmail = (email ?? session?.email ?? '').trim().toLowerCase()
+    // A signed-in member enrols their own account. Taking the body's email
+    // let any member (Turnstile-free) target someone else's entry.
+    const cleanName  = String(name  ?? session?.name  ?? '').trim()
+    const cleanEmail = String(session?.email ?? email ?? '').trim().toLowerCase()
     if (!cleanName || !cleanEmail) return NextResponse.json({ error: 'Name and email are required' }, { status: 400 })
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail) || /[\r\n]/.test(cleanEmail)) {
       return NextResponse.json({ error: 'Invalid email address' }, { status: 400 })
@@ -56,12 +58,13 @@ export async function POST(req: NextRequest) {
     const cleanIndustry = industry ? String(industry).trim().slice(0, 80) : null
     const cleanRole     = role     ? String(role).trim().slice(0, 80)     : null
 
-    // Upsert on email so re-submissions are idempotent. First answer
-    // wins for industry/role — a re-submit is typically a "did it work"
-    // check, not a deliberate edit.
+    // Upsert on email so re-submissions are idempotent. First answer wins
+    // for every field — a re-submit is typically a "did it work" check, not
+    // a deliberate edit, and `update: { name }` let anyone who knew an
+    // email rename its entry.
     const entry = await prisma.proWaitlistEntry.upsert({
       where:  { email: cleanEmail },
-      update: { name: cleanName },
+      update: {},
       create: {
         userId:   session?.id ?? null,
         name:     cleanName,
