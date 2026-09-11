@@ -28,6 +28,7 @@ export default function HangoutDiscussion({ hangoutId, initialMessages, canPost,
   const [draft,    setDraft]    = useState('')
   const [sending,  setSending]  = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const composerRef = useRef<HTMLTextAreaElement>(null)
 
   // Poll for new messages — only members may GET (others would 403), so gate
   // the poll on canPost.
@@ -46,8 +47,18 @@ export default function HangoutDiscussion({ hangoutId, initialMessages, canPost,
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages.length])
 
-  async function send(e: React.FormEvent) {
-    e.preventDefault()
+  // The composer starts one line tall and grows with its content, to a cap,
+  // so a pasted paragraph is visible rather than scrolled out of a one-line box.
+  function autoGrow() {
+    const el = composerRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`
+  }
+
+  // Optional event: the form still submits here, and so does Enter.
+  async function send(e?: React.FormEvent) {
+    e?.preventDefault()
     if (!draft.trim() || sending) return
     setSending(true)
     try {
@@ -65,6 +76,8 @@ export default function HangoutDiscussion({ hangoutId, initialMessages, canPost,
       const d = await res.json()
       setMessages(prev => [...prev, d.message])
       setDraft('')
+      // Back to one line, or the box keeps the height of what was just sent.
+      if (composerRef.current) composerRef.current.style.height = 'auto'
     } catch {
       toast.error('Network error — try again')
     } finally {
@@ -103,9 +116,21 @@ export default function HangoutDiscussion({ hangoutId, initialMessages, canPost,
       )}
 
       {isJoinable && (canPost ? (
-        <form onSubmit={send} className="flex items-center gap-2 mt-4 pt-3 border-t border-gray-100">
-          <input value={draft} onChange={e => setDraft(e.target.value)} maxLength={1000}
-            placeholder="Say something…" className="flex-1 input text-sm" />
+        <form onSubmit={send} className="flex items-end gap-2 mt-4 pt-3 border-t border-gray-100">
+          {/* A textarea, not an <input>: a single-line input cannot hold a
+              newline, so pasted text arrived with its paragraph breaks
+              flattened out. Messages above already render with
+              whitespace-pre-wrap, so nothing but the composer was losing them.
+              Enter sends; Shift+Enter makes a new line. Same fix as the event
+              discussion in EventMessages.tsx. */}
+          <textarea
+            ref={composerRef} rows={1} value={draft} maxLength={1000}
+            onChange={e => { setDraft(e.target.value); autoGrow() }}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() }
+            }}
+            placeholder="Say something…"
+            className="flex-1 input text-sm resize-none leading-relaxed" />
           <button type="submit" disabled={sending || !draft.trim()}
             className="text-xs font-bold bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white px-4 py-2 rounded-xl shrink-0">
             Send
