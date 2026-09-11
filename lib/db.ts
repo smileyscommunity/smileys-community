@@ -125,7 +125,10 @@ function mapEvent(e: any, spotsLeft?: number): Event {
     paymentContact: e.paymentContact ?? undefined,
     ticketUrl:    e.ticketUrl ?? undefined,
     totalSpots:   e.totalSpots,
-    spotsLeft:    spotsLeft ?? Math.max(0, e.spotsLeft ?? 0),
+    // An unlimited event's counter is a tally that runs below zero (see
+    // lib/spotsLeft); clamping it here froze "X going" at the nominal total
+    // and made the button read "Join waitlist" while the API approved.
+    spotsLeft:    spotsLeft ?? (e.limitedSpots ? Math.max(0, e.spotsLeft ?? 0) : (e.spotsLeft ?? 0)),
     limitedSpots: e.limitedSpots,
     soldOut:      e.soldOut ?? false,
     isPremium:    e.isPremium,

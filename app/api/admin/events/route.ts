@@ -235,7 +235,13 @@ export async function POST(req: NextRequest) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date))) {
       return NextResponse.json({ error: 'date must be YYYY-MM-DD' }, { status: 400 })
     }
-    if (registrationDeadline && /^\d{4}-\d{2}-\d{2}$/.test(String(registrationDeadline)) && String(registrationDeadline) > String(date)) {
+    // The RSVP route compares this as a string, so anything that is not
+    // YYYY-MM-DD used to slip in verbatim and then read as "already
+    // passed" ('15.09.2026' < '2026-09-11'), closing registration on save.
+    if (registrationDeadline && !/^\d{4}-\d{2}-\d{2}$/.test(String(registrationDeadline))) {
+      return NextResponse.json({ error: 'registrationDeadline must be YYYY-MM-DD' }, { status: 400 })
+    }
+    if (registrationDeadline && String(registrationDeadline) > String(date)) {
       return NextResponse.json({ error: 'registrationDeadline cannot be after the event date' }, { status: 400 })
     }
 

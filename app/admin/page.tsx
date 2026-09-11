@@ -738,7 +738,7 @@ export default function AdminPage() {
           ) : (
             <div className="divide-y divide-zinc-800/60">
               {events.map(e => {
-                const pct = e.totalSpots > 0 ? Math.round(((e.totalSpots - e.spotsLeft) / e.totalSpots) * 100) : 0
+                const pct = e.totalSpots > 0 ? Math.min(100, Math.round(((e.totalSpots - e.spotsLeft) / e.totalSpots) * 100)) : 0
                 const barColor = pct >= 90 ? 'bg-red-500' : pct >= 60 ? 'bg-amber-500' : 'bg-emerald-500'
                 return (
                   <Link key={e.id} href={`/admin/events/${e.id}/edit`}

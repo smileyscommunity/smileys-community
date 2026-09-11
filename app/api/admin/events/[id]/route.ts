@@ -312,9 +312,12 @@ export async function PUT(req: NextRequest, { params }: Params) {
     if (data.date !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(String(data.date))) {
       return NextResponse.json({ error: 'date must be YYYY-MM-DD' }, { status: 400 })
     }
-    if (data.registrationDeadline && data.date &&
-        /^\d{4}-\d{2}-\d{2}$/.test(String(data.registrationDeadline)) &&
-        String(data.registrationDeadline) > String(data.date)) {
+    // Blank clears it; anything else must be YYYY-MM-DD (see the POST route).
+    if (data.registrationDeadline === '') data.registrationDeadline = null
+    if (data.registrationDeadline && !/^\d{4}-\d{2}-\d{2}$/.test(String(data.registrationDeadline))) {
+      return NextResponse.json({ error: 'registrationDeadline must be YYYY-MM-DD' }, { status: 400 })
+    }
+    if (data.registrationDeadline && String(data.registrationDeadline) > String(data.date ?? before.date)) {
       return NextResponse.json({ error: 'registrationDeadline cannot be after the event date' }, { status: 400 })
     }
 

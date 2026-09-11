@@ -73,6 +73,17 @@ describe('POST /events/[id]/rsvp — event must actually be open', () => {
   it('refuses an event that already happened (city calendar)', () => expectRefused({ date: '2026-09-09' }, /already happened/))
   it('refuses once the registration deadline has passed', () => expectRefused({ registrationDeadline: '2026-09-09' }, /closed/))
 
+  it('ignores a malformed legacy deadline instead of reading it as long past', async () => {
+    // Two archived prod rows hold '20260730' and '09/07/2026'; both compare
+    // below any ISO day. The write routes now reject the format, the gate
+    // still tolerates what is already stored.
+    p.event.findUnique.mockResolvedValue({ ...openEvent, registrationDeadline: '09/07/2026' })
+    p.$transaction.mockRejectedValue(new Error('reached-transaction'))
+    const res = await POST(req(), params)
+    expect(res.status).toBe(500)
+    expect(p.$transaction).toHaveBeenCalled()
+  })
+
   it('applies before the co-host shortcut too', async () => {
     p.eventCoHost.findFirst.mockResolvedValue({ id: 'ch1' })
     await expectRefused({ status: 'cancelled' }, /not open/)

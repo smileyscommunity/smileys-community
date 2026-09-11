@@ -4,7 +4,11 @@ vi.mock('@/lib/session',  () => ({ getSession: vi.fn() }))
 vi.mock('@/lib/rateLimit', () => ({ rateLimit: vi.fn().mockResolvedValue(true) }))
 vi.mock('@/lib/mentions', () => ({ notifyMentions: vi.fn().mockResolvedValue(0) }))
 vi.mock('@/lib/city',     () => ({ resolveCityId: vi.fn().mockResolvedValue('izmir') }))
-vi.mock('@/lib/neighborhoodsDb', () => ({ resolveNeighborhoodBySlug: vi.fn() }))
+vi.mock('@/lib/neighborhoodsDb', () => ({
+  resolveNeighborhoodBySlug: vi.fn(),
+  // Registry lookup stand-in: Kadıköy owns 'kadikoy' in Istanbul, nothing else resolves.
+  postMatchesSlug: vi.fn(async (post: any, slug: string) => post.cityId === 'istanbul' && post.neighborhood === 'Kadıköy' && slug === 'kadikoy'),
+}))
 vi.mock('@/lib/prisma', () => ({ prisma: {
   neighborhoodPost:      { findUnique: vi.fn(), findMany: vi.fn().mockResolvedValue([]), create: vi.fn() },
   neighborhoodPostLike:  { findUnique: vi.fn().mockResolvedValue(null), create: vi.fn(), delete: vi.fn(), findMany: vi.fn().mockResolvedValue([]) },
@@ -23,6 +27,8 @@ import { resolveNeighborhoodBySlug } from '@/lib/neighborhoodsDb'
 // compared the two raw, so every like and every reply 404'd — no Istanbul
 // name equals its own slug. Listing and posting resolved the slug through the
 // Istanbul-only constant, so every other city's wall was dead on arrival.
+// Likes and replies now go through the same registry lookup as the wall
+// (postMatchesSlug), so an admin slug rename cannot split the two apart.
 
 const p = prisma as any
 const req = (body: any = {}, url = 'http://x/app/api/x') => ({ json: async () => body, nextUrl: new URL(url) }) as any
@@ -37,7 +43,7 @@ beforeEach(() => {
   p.neighborhoodPostReply.create.mockResolvedValue({ id: 'r1', content: 'x', createdAt: new Date(), user: { id: 'u1', name: 'U', color: '', profilePhoto: null, role: 'member' } })
 })
 
-describe('likes and replies match the slug against the stored name', () => {
+describe('likes and replies resolve the slug through the city registry', () => {
   it('likes a post whose name slugifies to the URL slug', async () => {
     const res = await like(req({ emoji: '❤️' }), postParams)
     expect(res.status).not.toBe(404)

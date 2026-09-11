@@ -23,7 +23,7 @@ interface User {
 }
 interface EventRef {
   id: string; title: string; date: string; emoji: string; status: string
-  spotsLeft: number; totalSpots: number
+  spotsLeft: number; totalSpots: number; limitedSpots?: boolean
 }
 interface Attendee {
   userId: string; eventId: string; status: string; checkedIn: boolean; joinedAt: string
@@ -76,7 +76,7 @@ function cityDay(iso: string, tz: string): string {
 // oversubscription before approving into it.
 function SeatsBadge({ event, demand }: { event: EventRef; demand: number }) {
   if (event.totalSpots <= 0) return null
-  const full = event.spotsLeft <= 0
+  const full = event.limitedSpots !== false && event.spotsLeft <= 0
   const tight = !full && demand > event.spotsLeft
   return (
     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${

@@ -69,7 +69,7 @@ export async function PATCH(req: NextRequest) {
     // application by hitting the API directly. Admins act globally.
     const target = await prisma.memberApplication.findUnique({
       where:  { id },
-      select: { targetCityId: true, targetCity: { select: { slug: true } } },
+      select: { status: true, targetCityId: true, targetCity: { select: { slug: true } } },
     })
     if (!target) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     if (!isAdmin(session) && session.cityId !== target.targetCityId) {
@@ -276,9 +276,15 @@ export async function PATCH(req: NextRequest) {
         }
       })()
       if (accountError) {
+        // Put the row back where it was so the Approve button is still there
+        // after a reload — the queue only offers it for pending/hold rows.
+        await prisma.memberApplication.update({
+          where: { id },
+          data:  { status: target.status, reviewedBy: null, reviewedAt: null },
+        }).catch(err => console.error('[applications] rollback after account error failed', { id, err: String(err) }))
         const msg = accountError instanceof Error ? accountError.message : String(accountError)
         return NextResponse.json(
-          { error: `Marked approved, but the account could not be set up (${msg}). Approve again to retry.` },
+          { error: `The account could not be set up (${msg}). The application is back in the queue — approve again to retry.` },
           { status: 500 },
         )
       }

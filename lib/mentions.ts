@@ -10,15 +10,28 @@ import { createNotification } from '@/lib/notify'
 export const MAX_MENTIONS   = 5
 export const MAX_RECIPIENTS = 10
 
+// Original case is kept: the DB lookup is a case-insensitive prefix match
+// and Postgres folds 'İ' itself, whereas JS lowercasing turns 'İrem' into
+// 'i̇rem' (i + combining dot), which ILIKE never matches. Hyphens and
+// apostrophes inside a name are part of it (Jean-Luc, O'Brien) — the
+// composer inserts the whole first name, so the extractor must keep it.
 export function extractMentions(content: string): string[] {
-  const words = [...content.matchAll(/@([\p{L}\p{N}_]{2,})/gu)].map(m => m[1].toLowerCase())
-  return [...new Set(words)].slice(0, MAX_MENTIONS)
+  const words = [...content.matchAll(/@(\p{L}[\p{L}\p{N}_]*(?:[-'’][\p{L}\p{N}_]+)*)/gu)]
+    .map(m => m[1]).filter(w => w.length >= 2)
+  const seen = new Set<string>()
+  return words.filter(w => { const k = foldName(w); if (seen.has(k)) return false; seen.add(k); return true }).slice(0, MAX_MENTIONS)
 }
 
-// Case-insensitive whole-first-name match ("@ali" hits "Ali Y.", not "Alice").
+// Accent- and case-insensitive: 'İrem' / 'irem' / 'IREM' compare equal, and so
+// do the straight and curly apostrophe.
+export function foldName(s: string): string {
+  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/’/g, "'").toLowerCase()
+}
+
+// Whole-first-name match ("@ali" hits "Ali Y.", not "Alice"; "@jean-luc" hits "Jean-Luc").
 export function mentionMatches(name: string, word: string): boolean {
-  const first = name.trim().split(/\s+/)[0]?.toLocaleLowerCase('en') ?? ''
-  return first === word.toLocaleLowerCase('en')
+  const first = name.trim().split(/\s+/)[0] ?? ''
+  return foldName(first) === foldName(word)
 }
 
 export async function notifyMentions(opts: {

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, use } from 'react'
+import { useAuth } from '@/contexts/AuthContext'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
@@ -37,6 +38,12 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
   const [form,          setForm]          = useState(emptyForm)
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
   const [clubs,         setClubs]         = useState<{ id: string; name: string; emoji: string }[]>([])
+  // Hosting at least one club is what unlocks the club picker; the API's
+  // host restrictions (no reassign, no featured, no approvalRequired,
+  // no publish) apply to club and city hosts alike.
+  const isClubHost = clubs.length > 0
+  const { user: viewer } = useAuth()
+  const isStaff = viewer?.role === 'admin' || viewer?.role === 'moderator'
   const [loading,       setLoading]       = useState(true)
   const [saving,        setSaving]        = useState(false)
   const [error,         setError]         = useState('')
@@ -352,12 +359,17 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
               <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Event title</label>
               <input type="text" value={form.title} onChange={e => set('title', e.target.value)} className={inputCls} />
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Club</label>
-              <select value={form.clubId} onChange={e => set('clubId', e.target.value)} className={inputCls}>
-                {clubs.map(c => <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}
-              </select>
-            </div>
+            {/* A city host (no club of their own) cannot move an event into a
+                club — the API answers 403 — so the picker is only offered to
+                club hosts. */}
+            {isClubHost && (
+              <div>
+                <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Club</label>
+                <select value={form.clubId} onChange={e => set('clubId', e.target.value)} className={inputCls}>
+                  {clubs.map(c => <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>)}
+                </select>
+              </div>
+            )}
             <div>
               <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Status</label>
               {form.status === 'pending' ? (
@@ -461,7 +473,7 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
             </div>
             <div>
               <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Registration deadline</label>
-              <input type="text" value={form.registrationDeadline} onChange={e => set('registrationDeadline', e.target.value)} placeholder="YYYY-MM-DD" className={inputCls} />
+              <input type="date" value={form.registrationDeadline} onChange={e => set('registrationDeadline', e.target.value)} max={form.date || undefined} className={inputCls} />
             </div>
             <div>
               <label className="block text-xs font-semibold text-zinc-400 mb-1.5">Venue name</label>
@@ -577,7 +589,10 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
               { key: 'isPremium',        label: '♛ Premium'            },
               { key: 'membersOnly',      label: '🔒 Members only'      },
               { key: 'isRecurring',      label: '🔁 Recurring'         },
-              { key: 'approvalRequired', label: '✋ Approval required' },
+              // Approval-required is a moderation setting: the API drops it
+              // from a host's save (club or city), so offering the toggle
+              // produced a success toast and no change.
+              ...(isStaff ? [{ key: 'approvalRequired', label: '✋ Approval required' }] : []),
               // Gender balance is an admin curation lever — the toggle
               // used to render here without its quota inputs, letting a
               // host flip the flag with no way to set the numbers.

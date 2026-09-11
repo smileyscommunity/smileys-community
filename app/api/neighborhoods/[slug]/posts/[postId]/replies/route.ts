@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { rateLimit } from '@/lib/rateLimit'
 import { notifyMentions } from '@/lib/mentions'
-import { neighborhoodToSlug } from '@/lib/neighborhoods'
+import { postMatchesSlug } from '@/lib/neighborhoodsDb'
 
 type Params = { params: Promise<{ slug: string; postId: string }> }
 
@@ -19,8 +19,8 @@ export async function GET(req: NextRequest, { params }: Params) {
   // post's neighborhood. Neighborhoods are public but the slug becomes
   // purely cosmetic otherwise. The column holds the display name ("Kadıköy"),
   // the URL the slug ("kadikoy") — comparing them raw 404'd every reply.
-  const post = await prisma.neighborhoodPost.findUnique({ where: { id: postId }, select: { neighborhood: true } })
-  if (!post || neighborhoodToSlug(post.neighborhood) !== slug) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  const post = await prisma.neighborhoodPost.findUnique({ where: { id: postId }, select: { neighborhood: true, cityId: true } })
+  if (!post || !await postMatchesSlug(post, slug)) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const replies = await prisma.neighborhoodPostReply.findMany({
     where: { postId },
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const { slug, postId } = await params
   const post = await prisma.neighborhoodPost.findUnique({ where: { id: postId }, select: { id: true, neighborhood: true, cityId: true } })
-  if (!post || neighborhoodToSlug(post.neighborhood) !== slug) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!post || !await postMatchesSlug(post, slug)) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const { content } = await req.json()
   const trimmed = content?.trim() ?? ''

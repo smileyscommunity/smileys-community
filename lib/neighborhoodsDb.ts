@@ -223,6 +223,17 @@ export async function getNeighborhoodViews(cityId: string): Promise<Neighborhood
   return rows.map(r => toView(r, editorial))
 }
 
+/**
+ * Does a wall post belong to the neighborhood the URL names? Resolved through
+ * the city registry like the wall itself (GET/POST posts), so an admin slug
+ * rename keeps likes and replies working — deriving the slug from the stored
+ * name would 404 them the moment the two diverged.
+ */
+export async function postMatchesSlug(post: { neighborhood: string; cityId: string }, slug: string): Promise<boolean> {
+  const view = await getNeighborhoodView(post.cityId, slug)
+  return !!view && view.name === post.neighborhood
+}
+
 /** One neighborhood of a city by slug, or null — the per-city replacement for
  *  slugToNeighborhood + getNeighborhoodMeta. */
 export async function getNeighborhoodView(cityId: string, slug: string): Promise<NeighborhoodView | null> {

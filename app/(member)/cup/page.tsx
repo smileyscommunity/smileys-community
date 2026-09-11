@@ -1535,7 +1535,7 @@ function WatchParties() {
 
 function WatchPartyRow({ e }: { e: WatchPartyEvent }) {
   const dateLabel = formatDay(e.date)
-  const fill = e.totalSpots > 0 ? Math.round(((e.totalSpots - e.spotsLeft) / e.totalSpots) * 100) : 0
+  const fill = e.totalSpots > 0 ? Math.min(100, Math.round(((e.totalSpots - e.spotsLeft) / e.totalSpots) * 100)) : 0
   return (
     <Link href={`/events/${e.id}`} className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50 transition-colors">
       <span className="text-lg shrink-0">{e.emoji}</span>

@@ -18,6 +18,8 @@ interface Props {
   spotsLeft:    number
   // Set when someone has declared the event closed regardless of the count.
   soldOut?:     boolean
+  // Off = the counter is a tally, never a cap (lib/soldOut isSoldOut).
+  limitedSpots?: boolean
   price:        number
   memberPrice?: number
   membersOnly:  boolean
@@ -27,7 +29,7 @@ interface Props {
   payTo?:       'venue' | 'smileys'
 }
 
-export default function RSVPButton({ eventId, hostId, spotsLeft, soldOut = false, price, memberPrice, membersOnly, currency = DEFAULT_CURRENCY, payTo = 'venue' }: Props) {
+export default function RSVPButton({ eventId, hostId, spotsLeft, soldOut = false, limitedSpots = true, price, memberPrice, membersOnly, currency = DEFAULT_CURRENCY, payTo = 'venue' }: Props) {
   const { isLoggedIn, user } = useAuth()
   const { status, position, loading, checked, join, leave, gate, ackRequest, confirmAck, cancelAck, reconfirm, confirmComing, confirmWithToken } = useRSVP(eventId)
   const [confirmCancel, setConfirmCancel] = useState(false)
@@ -68,7 +70,7 @@ export default function RSVPButton({ eventId, hostId, spotsLeft, soldOut = false
 
   // The flag closes the door on its own — the server does the same, so a
   // button that stayed green here would only produce a rejected request.
-  const isFull = spotsLeft <= 0 || soldOut
+  const isFull = soldOut || (limitedSpots && spotsLeft <= 0)
 
   if (!checked) return <div className="w-full h-12 bg-gray-100 rounded-xl animate-pulse mb-3" />
 

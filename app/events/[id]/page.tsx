@@ -1135,6 +1135,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
                 hostId={event.hostId}
                 spotsLeft={event.spotsLeft}
                 soldOut={soldOut}
+                limitedSpots={event.limitedSpots}
                 price={event.price}
                 memberPrice={event.memberPrice}
                 membersOnly={event.membersOnly}
@@ -1242,6 +1243,7 @@ export default async function AppEventDetailPage({ params }: { params: Promise<{
             hostId={event.hostId}
             spotsLeft={event.spotsLeft}
             soldOut={soldOut}
+            limitedSpots={event.limitedSpots}
             price={event.price}
             memberPrice={event.memberPrice}
             membersOnly={event.membersOnly}

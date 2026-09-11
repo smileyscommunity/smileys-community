@@ -10,7 +10,8 @@ import { recordCronRun } from '@/lib/cronHealth'
 // user removal) have historically missed the matching adjustment, leaving
 // upcoming events with phantom "going" counts (seen in prod: spotsLeft
 // 6/8 with zero attendee rows). This sweep re-derives
-//   spotsLeft = max(0, totalSpots - approved non-host attendees)
+//   spotsLeft = totalSpots - approved non-host attendees (clamped at 0 for
+//   limited-spot events; an unlimited event's tally runs below zero)
 // for every upcoming published event and persists whatever drifted.
 //
 // Guarded per-row on the current spotsLeft (updateMany with spotsLeft in

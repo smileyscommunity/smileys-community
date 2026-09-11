@@ -53,7 +53,10 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (event.date < eventToday) {
       return NextResponse.json({ error: 'This event has already happened' }, { status: 400 })
     }
-    if (event.registrationDeadline && event.registrationDeadline < eventToday) {
+    // Only a well-formed deadline can close the door: two archived rows in
+    // prod hold '20260730' and '09/07/2026' from before the format was
+    // enforced, and a bare string compare would read those as long past.
+    if (event.registrationDeadline && /^\d{4}-\d{2}-\d{2}$/.test(event.registrationDeadline) && event.registrationDeadline < eventToday) {
       return NextResponse.json({ error: 'Registration for this event has closed' }, { status: 400 })
     }
     if (event.hostId === session.id) {

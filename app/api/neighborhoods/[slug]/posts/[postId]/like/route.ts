@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { REACTION_EMOJIS } from '@/lib/posts'
-import { neighborhoodToSlug } from '@/lib/neighborhoods'
+import { postMatchesSlug } from '@/lib/neighborhoodsDb'
 
 type Params = { params: Promise<{ slug: string; postId: string }> }
 
@@ -18,8 +18,8 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   // IDOR fix: scope the post by the slug in the URL. The column holds the
   // display name, the URL the slug — compare like with like.
-  const post = await prisma.neighborhoodPost.findUnique({ where: { id: postId }, select: { neighborhood: true } })
-  if (!post || neighborhoodToSlug(post.neighborhood) !== slug) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  const post = await prisma.neighborhoodPost.findUnique({ where: { id: postId }, select: { neighborhood: true, cityId: true } })
+  if (!post || !await postMatchesSlug(post, slug)) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const existing = await prisma.neighborhoodPostLike.findUnique({
     where: { postId_userId: { postId, userId: session.id } },
