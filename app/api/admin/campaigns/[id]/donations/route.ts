@@ -81,7 +81,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       )
       return NextResponse.json({ ok: true, status: 'approved', ...result })
     } catch (e) {
-      return NextResponse.json({ error: (e as Error).message }, { status: 400 })
+      console.error('[donation approve]', e)
+      return NextResponse.json({ error: 'Could not approve the donation — see the server log' }, { status: 400 })
     }
   }
 

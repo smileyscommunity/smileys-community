@@ -3,6 +3,11 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 
+// Mounted in the root layout: a storage accessor that throws (private
+// mode, blocked site data) must not take the whole page to error.tsx.
+function storageGet(key: string): string | null { try { return localStorage.getItem(key) } catch { return null } }
+function storageSet(key: string, value: string): void { try { localStorage.setItem(key, value) } catch {} }
+
 export default function InstallPrompt() {
   const [show, setShow] = useState(false)
   const [platform, setPlatform] = useState<'ios' | 'android' | 'desktop' | 'other'>('other')
@@ -35,7 +40,7 @@ export default function InstallPrompt() {
       setDeferredPrompt(e)
       
       // Auto-show logic
-      if (!isStandalone && !localStorage.getItem('pwa_prompt_seen')) {
+      if (!isStandalone && !storageGet('pwa_prompt_seen')) {
         setTimeout(() => setShow(true), 3000)
       }
     }
@@ -48,7 +53,7 @@ export default function InstallPrompt() {
     window.addEventListener('show-install-prompt', manualHandler)
 
     // Auto-show for iOS (manual detection)
-    if (isIos && !isStandalone && !localStorage.getItem('pwa_prompt_seen')) {
+    if (isIos && !isStandalone && !storageGet('pwa_prompt_seen')) {
       setTimeout(() => setShow(true), 4000)
     }
 
@@ -70,7 +75,7 @@ export default function InstallPrompt() {
 
   function dismiss() {
     setShow(false)
-    localStorage.setItem('pwa_prompt_seen', 'true')
+    storageSet('pwa_prompt_seen', 'true')
   }
 
   return (

@@ -33,6 +33,7 @@ export default function EventMessages({ eventId, eventDate, eventTz }: { eventId
   const [editDraft,  setEditDraft]  = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const composerRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     fetch(`/app/api/events/${eventId}/messages`, { credentials: 'include' })
@@ -47,6 +48,16 @@ export default function EventMessages({ eventId, eventDate, eventTz }: { eventId
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages.length])
 
+  // The composer starts one line tall and grows with its content, to a cap.
+  // Without this a pasted paragraph would sit in a one-line window with the
+  // rest of it scrolled out of sight.
+  function autoGrow() {
+    const el = composerRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`
+  }
+
   async function handleSend() {
     if (!text.trim() || sending) return
     setSending(true)
@@ -59,6 +70,8 @@ export default function EventMessages({ eventId, eventDate, eventTz }: { eventId
       const msg = await res.json()
       setMessages(prev => [...prev, msg])
       setText('')
+      // Back to one line, or the box keeps the height of what was just sent.
+      if (composerRef.current) composerRef.current.style.height = 'auto'
     }
     setSending(false)
   }
@@ -191,19 +204,32 @@ export default function EventMessages({ eventId, eventDate, eventTz }: { eventId
           Discussion closed — leave a <span className="font-semibold text-gray-600">Review</span> above instead.
         </div>
       ) : isLoggedIn ? (
-        <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
-          <input
-            type="text"
+        <div className="px-5 py-4 border-t border-gray-100 flex gap-3 items-end">
+          {/* A textarea, not an <input type="text">. A single-line input cannot
+              hold a newline at all, so text written elsewhere and pasted in
+              arrived flattened — every paragraph break gone, and nothing to
+              show the member it had happened. Storage keeps newlines (the API
+              only trims) and the message above renders with whitespace-pre-wrap,
+              so the composer was the one lossy step in the chain. The edit box
+              below was already a textarea, which is why a message could be
+              edited into paragraphs but never written as them.
+              Enter still sends; Shift+Enter makes a new line, which is what the
+              old !e.shiftKey check was always reaching for. */}
+          <textarea
+            ref={composerRef}
+            rows={1}
             value={text}
-            onChange={e => setText(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
+            onChange={e => { setText(e.target.value); autoGrow() }}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
+            }}
             placeholder="Write a message…"
-            className="flex-1 text-sm px-3 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 text-gray-900"
+            className="flex-1 text-sm px-3 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 text-gray-900 resize-none leading-relaxed"
           />
           <button
             onClick={handleSend}
             disabled={!text.trim() || sending}
-            className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl disabled:opacity-40 transition-colors"
+            className="px-4 py-2.5 shrink-0 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl disabled:opacity-40 transition-colors"
           >
             {sending ? '…' : 'Send'}
           </button>

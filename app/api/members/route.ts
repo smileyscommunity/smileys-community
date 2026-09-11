@@ -201,7 +201,9 @@ export async function GET(req: NextRequest) {
       // behind a connection — the full profile 404s for non-connections.
       return {
         id: m.id, name: m.name, color: m.color, bio: null,
-        neighborhood: m.neighborhood, nationality: null,
+        // The profile route withholds neighborhood without a connection; the
+        // locked card handed it out.
+        neighborhood: null, nationality: null,
         interests: [] as string[], languages: [] as string[],
         socialStyles: [] as string[], lookingFor: [] as string[],
         profilePhoto: m.profilePhoto, joinedAt: m.joinedAt,

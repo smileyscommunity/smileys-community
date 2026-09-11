@@ -71,6 +71,7 @@ export async function POST() {
 
     return NextResponse.json({ ok: true, sent, failed, candidates: candidates.length })
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 })
+    console.error('[login-nudge tool]', e)
+    return NextResponse.json({ error: 'Nudge run failed — see the server log' }, { status: 500 })
   }
 }

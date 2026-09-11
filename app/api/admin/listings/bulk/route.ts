@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
     // when admin drops 20 housing listings at once.
     const categoryLabel = CAT_LABELS[category] ?? category
     prisma.user.findMany({
-      where: { listingAlerts: { has: category }, id: { not: userId }, cityId: listingCityId },
+      where: { listingAlerts: { has: category }, id: { not: userId }, cityId: listingCityId, status: 'approved' },
       select: { id: true, email: true, name: true },
     }).then(alertees => {
       for (const u of alertees) {

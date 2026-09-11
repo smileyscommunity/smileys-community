@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isUploadedImageUrl } from '@/lib/uploadedImageUrl'
 import { prisma } from '@/lib/prisma'
 import { getSession, type SessionUser } from '@/lib/session'
 import { resolveCityId } from '@/lib/city'
@@ -74,7 +75,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   const trimmed = content?.trim() ?? ''
   if (!trimmed && !imageUrl) return NextResponse.json({ error: 'Content required' }, { status: 400 })
   if (trimmed.length > 2000) return NextResponse.json({ error: 'Post too long (max 2000 chars)' }, { status: 400 })
-  if (imageUrl && !/^\/app\/api\/files\/[a-zA-Z0-9\-]+\/[a-zA-Z0-9\-]+\.(jpg|jpeg|png|webp|gif)$/.test(imageUrl)) {
+  if (imageUrl && !isUploadedImageUrl(imageUrl)) {
     return NextResponse.json({ error: 'Invalid image URL' }, { status: 400 })
   }
 

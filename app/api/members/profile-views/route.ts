@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { restrictedSetFor } from '@/lib/memberPrivacy'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 
@@ -29,6 +30,9 @@ export async function GET() {
     },
   })
 
+  // A connections-only viewer the profile owner isn't connected to keeps
+  // their neighborhood, as on their profile.
+  const restricted = await restrictedSetFor(session, views.map(v => v.viewer))
   return NextResponse.json(views.map(v => ({
     id: v.id,
     viewedAt: v.createdAt,
@@ -37,8 +41,8 @@ export async function GET() {
       name:         v.viewer.name,
       color:        v.viewer.color,
       photo:        v.viewer.profilePhoto,
-      neighborhood: v.viewer.neighborhood,
-      restricted:   v.viewer.profileVisibility === 'connections',
+      neighborhood: restricted.has(v.viewer.id) ? null : v.viewer.neighborhood,
+      restricted:   restricted.has(v.viewer.id),
     },
   })))
 }

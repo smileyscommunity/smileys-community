@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { canViewAnalytics } from '@/lib/access'
-import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
+import { todayInTz, DEFAULT_TZ, fromWallClockInTz } from '@/lib/cityTime'
 import { getCityTz } from '@/lib/city'
 import { listStaleSweepers } from '@/lib/cronHealth'
 import { stalledLiveCities, stalledSeverity, describeStalled } from '@/lib/cityOps'
@@ -46,14 +46,16 @@ export async function GET(req: Request) {
   const monthAgo   = new Date(now - thirtyDays)
   const prevMonth  = new Date(now - (thirtyDays * 2))
   const weekAgo    = new Date(now - 7 * 24 * 60 * 60 * 1000)
-  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
+  // Midnight on the city's clock, not the server's (UTC): the "today"
+  // bucket otherwise started at 03:00 Istanbul.
+  const todayStart = fromWallClockInTz(`${todayStr}T00:00`, tz)
   // 7 daily buckets ending today (oldest first) — drives the RSVP sparkline
   // on the dashboard. Each entry is [start, end) of one calendar day so
   // we can count joinedAt within without overlap.
   const sevenDayBuckets: { start: Date; end: Date }[] = []
   for (let i = 6; i >= 0; i--) {
-    const start = new Date(todayStart); start.setDate(start.getDate() - i)
-    const end   = new Date(start);      end.setDate(end.getDate() + 1)
+    const start = new Date(todayStart.getTime() - i * 86_400_000)
+    const end   = new Date(start.getTime() + 86_400_000)
     sevenDayBuckets.push({ start, end })
   }
 

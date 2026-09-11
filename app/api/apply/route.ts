@@ -3,7 +3,7 @@ import { isUploadedImageUrl } from '@/lib/uploadedImageUrl'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { Role } from '@/lib/constants'
-import { sendApplicationReceivedEmail, sendAdminNewApplicationEmail, sendAlreadyRegisteredEmail } from '@/lib/email'
+import { sendApplicationReceivedEmail, sendAdminNewApplicationEmail, sendAlreadyRegisteredEmail, recordEmailFailure } from '@/lib/email'
 import { rateLimit, getIp } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
 import { LOOKING_FOR_VALUES } from '@/lib/profileOptions'
@@ -368,7 +368,10 @@ export async function POST(req: NextRequest) {
       // Admin new-application email respects the mute toggle — but suspicious
       // applications always email (a security signal you can't silence).
       ...(newApplicationEmailsEnabled() || isSuspicious ? [sendAdminNewApplicationEmail(fullName.trim(), cleanEmail)] : []),
-    ]).catch(e => console.error('Apply email error:', e))
+    ]).catch(async e => {
+      console.error('Apply email error:', e)
+      await recordEmailFailure({ helper: 'sendApplicationReceivedEmail', recipient: cleanEmail, error: e })
+    })
 
     return NextResponse.json({ ok: true })
   } catch (e) {

@@ -51,8 +51,10 @@ export async function POST(req: NextRequest) {
 
     for (const user of candidates) {
       try {
-        // Generate a fresh 7-day activation token
-        await prisma.passwordResetToken.deleteMany({ where: { userId: user.id } })
+        // Generate a fresh 7-day activation token. Only expired rows are
+        // cleared: a set-password link the member requested last night and
+        // hasn't clicked by 07:00 was being invalidated by this sweep.
+        await prisma.passwordResetToken.deleteMany({ where: { userId: user.id, expiresAt: { lt: now } } })
         const token     = randomBytes(32).toString('hex')
         const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
         await prisma.passwordResetToken.create({

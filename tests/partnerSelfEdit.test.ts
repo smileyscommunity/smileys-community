@@ -25,9 +25,9 @@ describe('PATCH /api/partner', () => {
     expect(res.status).toBe(400)
     expect(p.partner.update).not.toHaveBeenCalled()
   })
-  it('rejects a data: logo but keeps https and uploaded images', async () => {
+  it('accepts only images uploaded through Smileys (an external URL is a tracking pixel on /perks)', async () => {
     expect((await PATCH(req({ logo: 'data:text/html,x' }))).status).toBe(400)
-    expect((await PATCH(req({ logo: 'https://cdn.example/logo.png' }))).status).toBe(200)
+    expect((await PATCH(req({ logo: 'https://cdn.example/logo.png' }))).status).toBe(400)
     expect((await PATCH(req({ coverImage: '/app/api/files/general/abc.jpg' }))).status).toBe(200)
   })
   it('rejects non-string fields instead of throwing', async () => {

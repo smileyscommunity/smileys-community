@@ -47,12 +47,15 @@ function PushNotificationsSection() {
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
       })
-      await fetch('/app/api/push/subscribe', {
+      const res = await fetch('/app/api/push/subscribe', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(sub.toJSON()),
       })
+      if (!res.ok) throw new Error('subscribe failed')
       setState('on')
+    } catch {
+      toast.error('Could not turn on push notifications — try again')
     } finally {
       setBusy(false)
     }
@@ -260,18 +263,25 @@ export default function SettingsPage() {
     if (newPw.length < 8)    { setPwError('Password must be at least 8 characters'); return }
     setPwError('')
     setPwStatus('saving')
-    const res = await fetch('/app/api/auth/change-password', {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ currentPassword: current, newPassword: newPw }),
-    })
-    const data = await res.json()
-    if (res.ok) {
-      setPwStatus('ok')
-      setCurrent(''); setNewPw(''); setConfirmPw('')
-      setTimeout(() => setPwStatus('idle'), 3000)
-    } else {
-      setPwError(data.error ?? 'Something went wrong')
+    try {
+      const res = await fetch('/app/api/auth/change-password', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword: current, newPassword: newPw }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setPwStatus('ok')
+        setCurrent(''); setNewPw(''); setConfirmPw('')
+        setTimeout(() => setPwStatus('idle'), 3000)
+      } else {
+        setPwError(data.error ?? 'Something went wrong')
+        setPwStatus('error')
+      }
+    } catch {
+      // A dropped connection or an HTML 502 used to leave the button on
+      // "Saving…" until a reload.
+      setPwError('Could not reach the server — try again')
       setPwStatus('error')
     }
   }

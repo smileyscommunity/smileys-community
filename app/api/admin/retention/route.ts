@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getCityTz } from '@/lib/city'
+import { dayInTz, DEFAULT_TZ } from '@/lib/cityTime'
 import { emailFor } from '@/lib/admin/maskContact'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
@@ -22,7 +24,8 @@ export async function GET(req: NextRequest) {
   const now       = new Date()
   const day7ago   = new Date(now.getTime() - 7  * 86400000)
   const day60ago  = new Date(now.getTime() - 60 * 86400000)
-  const day60Str  = day60ago.toISOString().split('T')[0]
+  // Event.date is the city's day; a UTC cutoff was a day off around midnight.
+  const day60Str  = dayInTz(day60ago, cityId ? await getCityTz(cityId) : DEFAULT_TZ)
 
   // Never attended: approved members > 7 days old with 0 approved attendances
   const neverAttended = await prisma.user.findMany({

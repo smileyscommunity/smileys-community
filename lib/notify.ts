@@ -103,6 +103,9 @@ const PREF_KEY: Record<string, 'newEvents' | 'reminders' | 'eventUpdates' | 'joi
 async function inQuietWindow(userId: string, from: number, to: number): Promise<boolean> {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { cityId: true } })
   const h = nowInTz(user?.cityId ? await getCityTz(user.cityId) : DEFAULT_TZ).hour
+  // Equal bounds (the preferences route allows them) mean no window, not a
+  // 24-hour one: a member who set 22–22 by accident keeps getting pushes.
+  if (from === to) return false
   return from > to ? (h >= from || h < to) : (h >= from && h < to)
 }
 

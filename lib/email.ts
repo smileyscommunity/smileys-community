@@ -3,7 +3,7 @@ import { unsubscribeUrl, oneClickUnsubscribeUrl } from '@/lib/unsubscribe'
 import { APP_URL as ENV_APP_URL } from '@/lib/env'
 import { prisma } from '@/lib/prisma'
 import type { Prisma } from '@prisma/client'
-import { DEFAULT_TZ } from '@/lib/cityTime'
+import { DEFAULT_TZ, formatDay } from '@/lib/cityTime'
 import { NO_SHOW_CANCELLATION_CUTOFF_HOURS, NO_SHOW_ROLLING_WINDOW_DAYS, NO_SHOW_POLICY_PATH } from '@/lib/noShowPolicy'
 import { firstNameOf } from './data'
 
@@ -36,6 +36,12 @@ function esc(s: string | null | undefined): string {
  * defense-in-depth: user-supplied event/listing titles can otherwise be a
  * SMTP header-injection vector if Resend ever changes behavior.
  */
+// Event.date is text 'YYYY-MM-DD'; four member mails printed it raw
+// ("📅 2026-09-12"). Anything else (a legacy value) is shown as it came.
+function prettyEventDate(d: string): string {
+  return /^\d{4}-\d{2}-\d{2}$/.test(d) ? formatDay(d, { weekday: 'long', day: 'numeric', month: 'long' }) : d
+}
+
 function safeSubject(s: string): string {
   return String(s).replace(/[\r\n]+/g, ' ').slice(0, 200)
 }
@@ -517,7 +523,7 @@ export async function sendEventApprovedEmail(email: string, name: string, eventT
           <p style="color:#6b7280;font-size:14px;margin:0">Your spot for <strong>${esc(eventTitle)}</strong> is confirmed.</p>
         </div>
         <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:16px 20px;margin-bottom:24px">
-          <p style="color:#92400e;font-size:14px;margin:0"><strong>📅</strong> ${esc(eventDate)}</p>
+          <p style="color:#92400e;font-size:14px;margin:0"><strong>📅</strong> ${esc(prettyEventDate(eventDate))}</p>
           <p style="color:#92400e;font-size:14px;margin:6px 0 0"><strong>📍</strong> ${esc(eventNeighborhood)} — exact location revealed in the app</p>
         </div>
         <a href="${url}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:24px">
@@ -573,7 +579,7 @@ export async function sendRsvpConfirmationEmail(email: string, name: string, eve
           <p style="color:#6b7280;font-size:14px;margin:0">Your spot for <strong>${esc(eventTitle)}</strong> is confirmed.</p>
         </div>
         <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:16px 20px;margin-bottom:24px">
-          <p style="color:#92400e;font-size:14px;margin:0"><strong>📅</strong> ${esc(eventDate)}</p>
+          <p style="color:#92400e;font-size:14px;margin:0"><strong>📅</strong> ${esc(prettyEventDate(eventDate))}</p>
           <p style="color:#92400e;font-size:14px;margin:6px 0 0"><strong>📍</strong> ${esc(eventLocation)}</p>
         </div>
         <a href="${url}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:16px">
@@ -637,7 +643,7 @@ export async function sendSpotOpenedEmail(email: string, name: string, eventTitl
           <p style="color:#6b7280;font-size:14px;margin:0">A spot just opened for <strong>${esc(eventTitle)}</strong>. First come, first served — claim it before someone else does.</p>
         </div>
         <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:16px 20px;margin-bottom:24px">
-          <p style="color:#92400e;font-size:14px;margin:0"><strong>📅</strong> ${esc(eventDate)}</p>
+          <p style="color:#92400e;font-size:14px;margin:0"><strong>📅</strong> ${esc(prettyEventDate(eventDate))}</p>
         </div>
         <a href="${url}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:16px">
           Claim the spot →
@@ -658,7 +664,7 @@ export async function sendEventCancelledEmail(email: string, name: string, event
         <div style="text-align:center;margin-bottom:28px">
           <span style="font-size:40px">😔</span>
           <h1 style="font-size:24px;font-weight:800;color:#111;margin:8px 0 4px">Hi ${esc(firstName)},</h1>
-          <p style="color:#6b7280;font-size:14px;margin:0">Unfortunately <strong>${esc(eventTitle)}</strong> (${esc(eventDate)}) has been cancelled.</p>
+          <p style="color:#6b7280;font-size:14px;margin:0">Unfortunately <strong>${esc(eventTitle)}</strong> (${esc(prettyEventDate(eventDate))}) has been cancelled.</p>
         </div>
         <p style="color:#374151;font-size:14px;text-align:center;margin-bottom:24px">We're sorry for the inconvenience. Keep an eye out for upcoming events.</p>
         <a href="${APP_URL}/events" style="display:block;text-align:center;background:#111;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none">
@@ -844,7 +850,7 @@ export async function sendFirstEventNudgeEmail(
   const going     = ev.attendees > 0 ? `${ev.attendees} ${ev.attendees === 1 ? 'person is' : 'people are'} going` : ''
   await getResend().emails.send({
     from: FROM, to: email,
-    subject: `${ev.emoji ? ev.emoji + ' ' : ''}${ev.title} — your first Smileys event?`,
+    subject: safeSubject(`${ev.emoji ? ev.emoji + ' ' : ''}${ev.title} — your first Smileys event?`),
     html: `
       <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto;background:#fff;border-radius:16px;padding:40px 32px;border:1px solid #e5e7eb">
         <p style="margin:0 0 28px;font-size:14px;color:#6b7280"><span style="font-size:26px;vertical-align:-5px">😊</span>&nbsp;<strong style="color:#374151">Smileys&nbsp;Community</strong>${cityName ? `&nbsp;·&nbsp;${esc(cityName)}` : ''}</p>
@@ -962,7 +968,9 @@ function stripHtml(html: string): string {
 // identical between single + batch so both render the same email.
 function buildNewsletterPayload(userId: string, email: string, name: string, subject: string, bodyHtml: string, newsletterId?: string, preheader?: string) {
   const unsub     = unsubscribeUrl(userId, newsletterId)
-  const firstName = esc(firstNameOf(name))
+  // Escaped for the HTML part only — the text part showed O&#39;Brien.
+  const firstNameRaw = firstNameOf(name)
+  const firstName    = esc(firstNameRaw)
   // Hidden preview line inboxes show after the subject; zero-width padding
   // stops clients from pulling visible body text in after it.
   const preheaderHtml = preheader
@@ -1001,7 +1009,7 @@ function buildNewsletterPayload(userId: string, email: string, name: string, sub
         </p>
       </div>
     `,
-    text:    `Hi ${firstName},\n\n${stripHtml(bodyHtml)}\n\nBrowse upcoming events: ${APP_URL}/events\n\nUnsubscribe: ${unsub}`,
+    text:    `Hi ${firstNameRaw},\n\n${stripHtml(bodyHtml)}\n\nBrowse upcoming events: ${APP_URL}/events\n\nUnsubscribe: ${unsub}`,
     // RFC 2369 wants the URL in angle brackets (the bare form is ignored),
     // and RFC 8058's Post header is what makes Gmail/Yahoo's one-click
     // button work — it POSTs to the API route, which acts on the HMAC

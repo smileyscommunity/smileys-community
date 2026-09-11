@@ -5,7 +5,7 @@ import { resolveCityId } from '@/lib/city'
 import { getPublicCity } from '@/lib/cities'
 import { isAdminOrModerator } from '@/lib/access'
 import { createNotification } from '@/lib/notify'
-import { sendAdminNewDirectorySubmissionEmail } from '@/lib/email'
+import { sendAdminNewDirectorySubmissionEmail, recordEmailFailure } from '@/lib/email'
 import { rateLimit, getIp } from '@/lib/rateLimit'
 import { isSafeHref } from '@/lib/safeUrl'
 import {
@@ -193,6 +193,7 @@ export async function POST(req: NextRequest) {
       // failures so a Resend hiccup doesn't roll back the submission.
       sendAdminNewDirectorySubmissionEmail(session.name, business.name).catch(e => {
         console.error('Directory submission email failed:', e)
+        recordEmailFailure({ helper: 'sendAdminNewDirectorySubmissionEmail', recipient: 'admin', error: e, context: { businessId: business.id } }).catch(() => {})
       })
     }
 

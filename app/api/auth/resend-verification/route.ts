@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { randomBytes } from 'crypto'
 import { prisma } from '@/lib/prisma'
-import { sendFinishRegistrationEmail } from '@/lib/email'
+import { sendFinishRegistrationEmail, recordEmailFailure } from '@/lib/email'
 import { rateLimit, getIp } from '@/lib/rateLimit'
 import { hashToken } from '@/lib/tokenHash'
 
@@ -38,7 +38,8 @@ export async function POST(req: NextRequest) {
       prisma.passwordResetToken.create({ data: { userId: user.id, token: hashToken(token), expiresAt } }),
     ])
 
-    sendFinishRegistrationEmail(user.email, user.name, token).catch(console.error)
+    sendFinishRegistrationEmail(user.email, user.name, token)
+      .catch(err => recordEmailFailure({ helper: 'sendFinishRegistrationEmail', recipient: user.email, error: err, context: { userId: user.id } }))
 
     return NextResponse.json({ ok: true })
   } catch (e) {

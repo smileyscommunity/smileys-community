@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { activeAttendeeWhere } from '@/lib/attendance'
 import { getSession } from '@/lib/session'
 import { createNotification } from '@/lib/notify'
-import { sendPremiumUpgradeEmail } from '@/lib/email'
+import { sendPremiumUpgradeEmail, recordEmailFailure } from '@/lib/email'
 import { isPremium } from '@/lib/membership'
 import { writeAudit } from '@/lib/audit'
 import { normalizeNeighborhoodInput } from '@/lib/neighborhoodsDb'
@@ -343,8 +343,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         `Your Smileys membership has been upgraded to ${tierLabel}. Your badge now shows across the community.`,
         '/profile').catch(() => {})
       if (before?.email) {
-        sendPremiumUpgradeEmail(before.email, before.name ?? 'there', tierLabel).catch(err =>
-          console.error('[user PATCH membership] upgrade email failed', { id, err: String(err) }))
+        sendPremiumUpgradeEmail(before.email, before.name ?? 'there', tierLabel).catch(async err => {
+          console.error('[user PATCH membership] upgrade email failed', { id, err: String(err) })
+          await recordEmailFailure({ helper: 'sendPremiumUpgradeEmail', recipient: before.email!, error: err, context: { userId: id } })
+        })
       }
     }
 

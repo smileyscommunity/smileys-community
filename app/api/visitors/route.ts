@@ -31,10 +31,19 @@ export async function GET(req: NextRequest) {
   } else {
     cityId = await resolveCityId(session)
   }
+  const blockedIds = session
+    ? (await prisma.memberBlock.findMany({
+        where:  { OR: [{ blockerId: session.id }, { blockedId: session.id }] },
+        select: { blockerId: true, blockedId: true },
+      })).map(b => (b.blockerId === session.id ? b.blockedId : b.blockerId))
+    : []
   const announcements = await prisma.visitorAnnouncement.findMany({
     where: {
       status: 'active',
       cityId,
+      // Members get contact details below; a blocked pair gets nothing of
+      // each other, like every other member surface.
+      ...(blockedIds.length ? { OR: [{ userId: null }, { userId: { notIn: blockedIds } }] } : {}),
       // "Still ongoing" is judged on the visited city's calendar, not UTC —
       // a visit "ends today" until that city's midnight, not three hours early.
       endsOn: { gte: await todayInCity(cityId) },

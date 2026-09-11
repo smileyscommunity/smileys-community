@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { writeAudit } from '@/lib/audit'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator } from '@/lib/access'
 import { isSafeHref } from '@/lib/safeUrl'
@@ -80,5 +81,9 @@ export async function POST(req: NextRequest) {
   const tmp = filePath + '.tmp'
   writeFileSync(tmp, JSON.stringify(payload, null, 2))
   renameSync(tmp, filePath)
+  writeAudit(session.id, session.name, 'announcement.set', undefined, 'announcement',
+    { text: cleanText, link: rawLink, active: !!active },
+    `${active ? 'Set' : 'Cleared'} the site announcement${cleanText ? `: "${cleanText.slice(0, 80)}"` : ''}`,
+  )
   return NextResponse.json({ ok: true, updatedAt: payload.updatedAt, updatedBy: payload.updatedBy })
 }

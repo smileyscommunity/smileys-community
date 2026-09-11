@@ -69,6 +69,7 @@ export async function GET(req: NextRequest) {
     prisma.user.findMany({
       where: {
         status: 'approved',
+        hiddenFromMembers: false,
         cityId,
         id: { notIn: blockedIds },
         OR: [
@@ -123,6 +124,7 @@ export async function GET(req: NextRequest) {
   const restricted = await restrictedSetFor(session, members)
   const membersOut = members.map(({ profileVisibility, ...m }) => ({
     ...m,
+    neighborhood: restricted.has(m.id) ? null : m.neighborhood,
     restricted: restricted.has(m.id),
   }))
 

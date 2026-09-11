@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator, canActInCity } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
-import { readFileSync, writeFileSync } from 'fs'
+import { readFileSync, writeFileSync, renameSync } from 'fs'
 import { join } from 'path'
 
 const filePath = join(process.cwd(), 'data', 'member-spotlight.json')
@@ -42,7 +42,11 @@ export async function POST(req: NextRequest) {
   const fact  = typeof funFact === 'string' ? funFact.slice(0, 300) : ''
   const spots = Array.isArray(topSpots) ? topSpots.slice(0, 3).map(s => typeof s === 'string' ? s.slice(0, 120) : '') : ['', '', '']
   while (spots.length < 3) spots.push('')
-  writeFileSync(filePath, JSON.stringify({ userId, funFact: fact, topSpots: spots, updatedAt: new Date().toISOString() }, null, 2))
+  // Atomic like the announcement write, and audited like the clear.
+  const tmp = filePath + '.tmp'
+  writeFileSync(tmp, JSON.stringify({ userId, funFact: fact, topSpots: spots, updatedAt: new Date().toISOString() }, null, 2))
+  renameSync(tmp, filePath)
+  writeAudit(session.id, session.name, 'spotlight.set', userId, 'spotlight', { funFact: fact, topSpots: spots }, `Spotlighted member ${userId}`)
   return NextResponse.json({ ok: true })
 }
 

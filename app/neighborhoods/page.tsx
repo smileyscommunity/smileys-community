@@ -296,6 +296,7 @@ export default async function NeighborhoodsPage({ searchParams }: { searchParams
         cityId,
         status: 'approved',
         neighborhoodVisible: true,
+        hiddenFromMembers: false,
         ...(session ? { id: { not: session.id } } : { profileVisibility: { not: 'connections' } }),
       },
       select: {

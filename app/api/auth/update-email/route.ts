@@ -95,7 +95,8 @@ export async function POST(req: NextRequest) {
     // Fire-and-forget mail sends AFTER the tx commits — slow SMTP shouldn't
     // hold a DB transaction open. The OLD address gets a change notice: it's
     // the owner's only signal if a hijacked session rotated their email.
-    sendVerificationEmail(newEmail, session.name, token).catch(console.error)
+    sendVerificationEmail(newEmail, session.name, token)
+      .catch(err => recordEmailFailure({ helper: 'sendVerificationEmail', recipient: newEmail, error: err, context: { userId: session.id } }))
     sendEmailChangedNotice(user.email, session.name, newEmail).catch(async err => {
       console.error('[update-email] change notice failed', { userId: session.id, err: String(err) })
       await recordEmailFailure({ helper: 'sendEmailChangedNotice', recipient: user.email, error: err, context: { userId: session.id } })

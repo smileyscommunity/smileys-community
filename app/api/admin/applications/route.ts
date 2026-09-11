@@ -5,7 +5,7 @@ import { Prisma } from '@prisma/client'
 import { getSession } from '@/lib/session'
 import { isAdmin, isAdminOrModerator, failClosedCityId } from '@/lib/access'
 import { loadCommunitySettings } from '@/lib/communitySettings'
-import { sendActivationEmail, sendApplicationRejectedEmail, sendRequestMoreInfoEmail } from '@/lib/email'
+import { sendActivationEmail, sendApplicationRejectedEmail, sendRequestMoreInfoEmail, recordEmailFailure } from '@/lib/email'
 import { createNotification } from '@/lib/notify'
 import { writeAudit } from '@/lib/audit'
 import { randomBytes } from 'crypto'
@@ -295,13 +295,15 @@ export async function PATCH(req: NextRequest) {
         // 'pending' is only enforced at login; the bump revokes the live session.
         await prisma.user.update({ where: { id: linkedUser.id }, data: { status: 'pending', tokenVersion: { increment: 1 } } })
       }
-      sendApplicationRejectedEmail(application.email, application.fullName, rejectionMessage).catch(console.error)
+      sendApplicationRejectedEmail(application.email, application.fullName, rejectionMessage)
+        .catch(err => recordEmailFailure({ helper: 'sendApplicationRejectedEmail', recipient: application.email, error: err, context: { applicationId: id } }))
       writeAudit(session.id, session.name, 'application.reject', id, 'memberApplication',
         { name: application.fullName, email: application.email, note: reviewNote },
         `Application rejected — ${application.fullName} (${application.email})${reviewNote ? `: ${reviewNote}` : ''}`,
       )
     } else if (status === 'hold' && moreInfoMessage?.trim()) {
-      sendRequestMoreInfoEmail(application.email, application.fullName, moreInfoMessage.trim()).catch(console.error)
+      sendRequestMoreInfoEmail(application.email, application.fullName, moreInfoMessage.trim())
+        .catch(err => recordEmailFailure({ helper: 'sendRequestMoreInfoEmail', recipient: application.email, error: err, context: { applicationId: id } }))
     }
 
     if (status === 'approved') {

@@ -37,7 +37,7 @@ import RecommendedClubs from '@/components/RecommendedClubs'
 import { recommendedClubsFor } from '@/lib/clubRecommendations'
 import Image from 'next/image'
 import { categoryMeta } from '@/lib/handbook-categories'
-import { todayInTz } from '@/lib/cityTime'
+import { todayInTz, shiftDay } from '@/lib/cityTime'
 import { DEFAULT_TZ } from '@/lib/cityTime'
 
 export const dynamic = 'force-dynamic'
@@ -98,10 +98,10 @@ export default async function DashboardPage() {
   const weekAgo    = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
   const twoWeeksAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000)
   const monthAgo    = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-  const weekEnd    = new Date(); weekEnd.setDate(weekEnd.getDate() + 7)
-  const weekEndStr = weekEnd.toISOString().split('T')[0]
-  const monthEnd    = new Date(); monthEnd.setDate(monthEnd.getDate() + 30)
-  const monthEndStr = monthEnd.toISOString().split('T')[0]
+  // Same calendar as `today`: the UTC versions spanned one day fewer late
+  // in the evening (one more, west of UTC).
+  const weekEndStr  = shiftDay(today, 7)
+  const monthEndStr = shiftDay(today, 30)
 
   const [myAttendances, myMemberships, eventsThisMonth, userProfile, , unreviewedRaw, weeklyVisitors, recentListings, recentMovingSales] = await Promise.all([
     // Lightweight: only ids + dates are needed for the id lists, counts,

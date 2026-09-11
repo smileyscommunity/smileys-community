@@ -1,4 +1,5 @@
 import { canManageBlacklist } from '@/lib/access'
+import { writeAudit } from '@/lib/audit'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
@@ -28,6 +29,11 @@ export async function POST(req: NextRequest) {
     const entry = await prisma.blacklist.create({
       data: { email: email || null, phone: phone || null, name: name || null, fingerprint: fingerprint || null, ipAddress: ipAddress || null, reason, bannedBy: session.id },
     })
+    // Removal was audited; adding — the more consequential act — was not.
+    writeAudit(session.id, session.name, 'blacklist.add', entry.id, 'blacklist',
+      { email: entry.email, phone: entry.phone, name: entry.name, reason },
+      `Blacklisted ${entry.email ?? entry.phone ?? entry.name ?? entry.id} — ${reason}`,
+    )
     return NextResponse.json(entry)
   } catch (e) {
     console.error(e)

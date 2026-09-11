@@ -1005,7 +1005,14 @@ function MembersPageInner() {
   // request with no res.ok check and no toast on failure (silent failure
   // pattern we just fixed on clubs). Single helper handles both actions
   // with try/catch/finally + toast feedback.
+  const pendingBusy = useRef(new Set<string>())
+  const [pendingBusyIds, setPendingBusyIds] = useState<Set<string>>(new Set())
   const handlePendingAction = useCallback(async (reqId: string, action: 'accept' | 'decline', firstName: string) => {
+    // A double tap fired two PATCHes; the second failed with "Could not
+    // accept request" right after "Connected with X".
+    if (pendingBusy.current.has(reqId)) return
+    pendingBusy.current.add(reqId)
+    setPendingBusyIds(new Set(pendingBusy.current))
     try {
       const res = await fetch(`/app/api/connections/${reqId}`, {
         method:  'PATCH',
@@ -1026,6 +1033,9 @@ function MembersPageInner() {
       }
     } catch {
       toast.error('Network error — check your connection')
+    } finally {
+      pendingBusy.current.delete(reqId)
+      setPendingBusyIds(new Set(pendingBusy.current))
     }
   }, [handleConnectionChange])
 
@@ -1461,12 +1471,14 @@ function MembersPageInner() {
                     <div className="flex gap-2 shrink-0">
                       <button
                         onClick={() => handlePendingAction(req.id, 'accept', firstNameOf(u.name))}
-                        className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg transition-colors">
+                        disabled={pendingBusyIds.has(req.id)}
+                        className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50">
                         Accept
                       </button>
                       <button
                         onClick={() => handlePendingAction(req.id, 'decline', firstNameOf(u.name))}
-                        className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-semibold rounded-lg transition-colors">
+                        disabled={pendingBusyIds.has(req.id)}
+                        className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-semibold rounded-lg transition-colors disabled:opacity-50">
                         Decline
                       </button>
                     </div>

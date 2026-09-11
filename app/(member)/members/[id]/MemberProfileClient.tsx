@@ -224,7 +224,8 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
     try {
       if (connStatus === 'pending' && connIsReq) {
         // Withdraw pending request
-        await fetch(`/app/api/connections/${connId}`, { method: 'DELETE', credentials: 'include' })
+        const res = await fetch(`/app/api/connections/${connId}`, { method: 'DELETE', credentials: 'include' })
+        if (!res.ok) { toast.error('Could not withdraw the request — try again'); return }
         setConnStatus(null); setConnId(null); setConnIsReq(null)
         toast.success('Request withdrawn.')
       } else {
@@ -295,14 +296,20 @@ export default function MemberProfileClient({ params }: { params: Promise<{ id: 
 
   async function handleBlock() {
     setBlocking(true)
-    const res = await fetch('/app/api/members/block', {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: member!.id }),
-    })
-    setBlocking(false)
-    setConfirmingBlock(false)
-    if (res.ok) { setBlocked(true); toast.success(`${member!.name} has been blocked.`) }
+    try {
+      const res = await fetch('/app/api/members/block', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: member!.id }),
+      })
+      if (res.ok) { setBlocked(true); toast.success(`${member!.name} has been blocked.`) }
+      else toast.error('Could not block — try again')
+    } catch {
+      toast.error('Could not block — try again')
+    } finally {
+      setBlocking(false)
+      setConfirmingBlock(false)
+    }
   }
 
   async function handleUnblock() {

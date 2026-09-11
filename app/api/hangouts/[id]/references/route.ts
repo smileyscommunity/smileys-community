@@ -108,6 +108,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!ctx.participantIds.has(body.toUserId)) {
     return NextResponse.json({ error: 'Target was not a participant' }, { status: 400 })
   }
+  // A cancelled hangout never happened: nobody can be a no-show at it, and
+  // the host's noShowCount must not move for one.
+  if (ctx.hangout.status === 'cancelled') {
+    return NextResponse.json({ error: 'This hangout was cancelled' }, { status: 400 })
+  }
 
   // Write window: hangout must have ended, and we're within 30 days of it.
   // Don't gate on status === 'expired' because the sweeper might not have

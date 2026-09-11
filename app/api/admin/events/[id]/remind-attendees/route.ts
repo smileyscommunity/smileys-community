@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { todayInCity } from '@/lib/city'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin, canModerateReports } from '@/lib/access'
@@ -30,7 +31,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       return NextResponse.json({ error: 'Cross-city moderation is admin-only' }, { status: 403 })
     }
 
-    const today = new Date().toISOString().slice(0, 10)
+    const today = await todayInCity(event.cityId)  // the event's calendar, not UTC's
     if (event.date < today) {
       return NextResponse.json({ error: 'Event has already happened' }, { status: 400 })
     }

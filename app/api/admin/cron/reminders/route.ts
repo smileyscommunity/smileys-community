@@ -278,7 +278,10 @@ async function runSweep() {
         )
         Promise.resolve(
           sendReviewRequestEmail(attendee.user.email, attendee.user.name, event.title, event.emoji)
-        ).catch(e => console.error('Review email error:', e))
+        ).catch(async e => {
+          console.error('Review email error:', e)
+          await recordEmailFailure({ helper: 'sendReviewRequestEmail', recipient: attendee.user.email, error: e, context: { eventId: event.id } })
+        })
         sentReviews++
       }
     }

@@ -82,8 +82,10 @@ function usePersistedState<T>(
   useEffect(() => {
     if (typeof window === 'undefined') return
     const serialized = serialize(state)
-    if (serialized === null) window.localStorage.removeItem(key)
-    else                     window.localStorage.setItem(key, serialized)
+    try {
+      if (serialized === null) window.localStorage.removeItem(key)
+      else                     window.localStorage.setItem(key, serialized)
+    } catch {}
   // serialize is a function reference that callers pass inline; if we
   // include it in deps the effect re-runs every render. The function
   // is conceptually stable for a given key so leaving it out is safe.
@@ -2042,7 +2044,9 @@ function PushOptInStrip() {
     if (!('Notification' in window) || !('PushManager' in window) || !('serviceWorker' in navigator)) {
       setState('hidden'); return
     }
-    if (localStorage.getItem(CUP_PUSH_DISMISS_KEY) === '1') { setState('hidden'); return }
+    let dismissed = false
+    try { dismissed = localStorage.getItem(CUP_PUSH_DISMISS_KEY) === '1' } catch {}
+    if (dismissed) { setState('hidden'); return }
     if (Notification.permission === 'denied') { setState('hidden'); return }
     navigator.serviceWorker.ready
       .then(reg => reg.pushManager.getSubscription())
@@ -2087,7 +2091,7 @@ function PushOptInStrip() {
   }
 
   function dismiss() {
-    localStorage.setItem(CUP_PUSH_DISMISS_KEY, '1')
+    try { localStorage.setItem(CUP_PUSH_DISMISS_KEY, '1') } catch {}
     setState('hidden')
   }
 

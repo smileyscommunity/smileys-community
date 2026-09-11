@@ -56,8 +56,10 @@ export async function PATCH(req: NextRequest) {
   for (const key of ['logo', 'coverImage'] as const) {
     if (!(key in body)) continue
     const v = str(body[key], 300)
-    // Admin-set logos may be external https URLs; those stay valid.
-    if (v === undefined || (v && !isUploadedImageUrl(v) && !isSafeHref(v))) return NextResponse.json({ error: `${key} must be an uploaded image or an https:// URL` }, { status: 400 })
+    // Uploads only: /perks renders these as <img> to every member and CSP
+    // allows any https image, so an external URL is a per-member tracking
+    // pixel. An admin-set external logo is left alone when not resent.
+    if (v === undefined || (v && !isUploadedImageUrl(v))) return NextResponse.json({ error: `${key} must be an image uploaded through Smileys` }, { status: 400 })
     data[key] = v || null
   }
 

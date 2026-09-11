@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { restrictedSetFor } from '@/lib/memberPrivacy'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { createNotification } from '@/lib/notify'
@@ -17,15 +18,25 @@ export async function GET() {
   const [sent, received] = await Promise.all([
     prisma.memberConnection.findMany({
       where: { requesterId: session.id, status: { not: 'declined' } },
-      include: { receiver: { select: { id: true, name: true, color: true, profilePhoto: true, neighborhood: true } } },
+      include: { receiver: { select: { id: true, name: true, color: true, profilePhoto: true, neighborhood: true, profileVisibility: true } } },
     }),
     prisma.memberConnection.findMany({
       where: { receiverId: session.id, status: { not: 'declined' } },
-      include: { requester: { select: { id: true, name: true, color: true, profilePhoto: true, neighborhood: true } } },
+      include: { requester: { select: { id: true, name: true, color: true, profilePhoto: true, neighborhood: true, profileVisibility: true } } },
     }),
   ])
 
-  return NextResponse.json({ sent, received })
+  // A pending row is not a connection: a connections-only member on the
+  // other side keeps their neighborhood until it is accepted.
+  const restricted = await restrictedSetFor(session, [...sent.map(c => c.receiver), ...received.map(c => c.requester)])
+  const redact = <T extends { id: string; neighborhood: string | null; profileVisibility?: string }>(p: T) => {
+    const { profileVisibility: _pv, ...rest } = p
+    return restricted.has(p.id) ? { ...rest, neighborhood: null } : rest
+  }
+  return NextResponse.json({
+    sent:     sent.map(c => ({ ...c, receiver: redact(c.receiver) })),
+    received: received.map(c => ({ ...c, requester: redact(c.requester) })),
+  })
 }
 
 // POST /api/connections — send a connection request

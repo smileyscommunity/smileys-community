@@ -220,7 +220,12 @@ export async function notifyIssuedCards(): Promise<number> {
     where:   { notifiedAt: null, status: { in: [CardStatus.Active, CardStatus.AppealPending] } },
     include: { user: { select: { id: true, name: true, email: true } }, event: { select: { id: true, title: true, emoji: true, hostId: true } } },
   })
+  // Hosts are told about the cards that were actually stamped: a DB error
+  // on card k used to leave cards 1..k-1 stamped (never re-selected) with
+  // the host notice, which ran after the loop, never sent.
+  const notified: typeof cards = []
   for (const c of cards) {
+    try {
     const emoji = c.event.emoji ?? '📅'
     if (c.kind === CardKind.Yellow) {
       await createNotification(c.userId, 'no_show_yellow',
@@ -245,9 +250,13 @@ export async function notifyIssuedCards(): Promise<number> {
         })
     }
     await prisma.noShowCard.update({ where: { id: c.id }, data: { notifiedAt: new Date() } })
+    notified.push(c)
+    } catch (err) {
+      console.error('[no-show] notifyIssuedCards failed for card', { cardId: c.id, err: String(err) })
+    }
   }
-  await notifyHosts(cards)
-  return cards.length
+  await notifyHosts(notified)
+  return notified.length
 }
 
 /**

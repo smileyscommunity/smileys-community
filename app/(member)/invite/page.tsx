@@ -37,8 +37,10 @@ export default function InvitePage() {
 
   useEffect(() => {
     fetch('/app/api/invite', { credentials: 'include' })
-      .then(r => r.json())
-      .then(d => { setStats(d); setLoading(false) })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (d?.code) setStats(d) })
+      .catch(() => {})
+      .finally(() => setLoading(false))
   }, [])
 
   const inviteUrl = stats ? `${typeof window !== 'undefined' ? window.location.origin : SITE_URL}/app/apply?ref=${stats.code}${citySlug && !city?.isDefault ? `&city=${citySlug}` : ''}` : ''

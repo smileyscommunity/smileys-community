@@ -71,6 +71,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (endDate < new Date()) return NextResponse.json({ error: 'End is in the past' }, { status: 400 })
     data.startsAt = startDate
     data.endsAt   = endDate
+    // A moved start gets its own 30-minute ping: the sweeper only pings
+    // rows with notifiedStartingAt null, so a hangout pushed back two hours
+    // after the first ping left joiners with a "leave now" for the old time.
+    if (startDate.getTime() !== hangout.startsAt.getTime()) data.notifiedStartingAt = null
   }
 
   if (meetMode !== undefined) {

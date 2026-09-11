@@ -46,6 +46,7 @@ export async function POST() {
     )
     return NextResponse.json({ ok: true, ...result })
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 })
+    console.error('[cup results refresh]', e)
+    return NextResponse.json({ error: 'Refresh failed — see the server log' }, { status: 500 })
   }
 }

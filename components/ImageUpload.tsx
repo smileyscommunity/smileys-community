@@ -76,7 +76,10 @@ export default function ImageUpload({ value, onChange, label = 'Cover image', fo
     setDragOver(false)
     const file = e.dataTransfer.files[0]
     if (file) handleFile(file)
-  }, [folder])
+    // handleFile closes over onChange/value; depending on `folder` alone
+    // made drag-drop call a stale one and revert the form's other edits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [folder, handleFile])
 
   return (
     <div>

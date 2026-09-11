@@ -127,7 +127,9 @@ async function runSweep() {
 async function eligibleTargets(eventId: string, hostId: string): Promise<string[]> {
   const [attendees, cohosts] = await Promise.all([
     prisma.eventAttendee.findMany({
-      where:  { eventId, status: 'approved' },
+      // Someone the no-show sweep (same hour) marked absent has nothing to
+      // review — and could file an anomaly flag on an event they missed.
+      where:  { eventId, status: 'approved', NOT: { attendance: 'no_show' } },
       select: { userId: true },
     }),
     prisma.eventCoHost.findMany({
