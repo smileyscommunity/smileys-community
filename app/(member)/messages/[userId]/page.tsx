@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback, use } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { resolveImageUrl, getInitials } from '@/lib/data'
-import { downscaleImage } from '@/lib/image-resize'
+import { downscaleImage, ImageUploadError } from '@/lib/image-resize'
 import ReportButton from '@/components/ReportButton'
 import { toast } from 'sonner'
 
@@ -190,17 +190,20 @@ export default function ThreadPage({ params }: { params: Promise<{ userId: strin
     const file = e.target.files?.[0]
     if (!file) return
     setUploading(true)
-    const upload = await downscaleImage(file)
-    const fd = new FormData()
-    fd.append('file', upload)
-    fd.append('folder', 'messages')
     try {
+      // Inside the try: an iCloud-only or unreadable photo throws here, and
+      // outside it the attach button stayed locked until a reload.
+      const upload = await downscaleImage(file)
+      const fd = new FormData()
+      fd.append('file', upload)
+      fd.append('folder', 'messages')
       const r = await fetch('/app/api/upload', { method: 'POST', credentials: 'include', body: fd }).then(r => r.json())
       // Upload route returns { url } shaped /app/api/files/<sub>/<file>.ext —
       // server validates with the same regex on send.
       if (r?.url) setPendingImage(r.url)
-    } catch {
-      // Upload failed (network blip) — user can retry the attachment.
+      else toast.error(r?.error ?? 'Upload failed')
+    } catch (err) {
+      toast.error(err instanceof ImageUploadError ? err.message : 'Upload failed — try again')
     } finally {
       setUploading(false)
       e.target.value = ''

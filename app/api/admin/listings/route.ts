@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { maskRows } from '@/lib/admin/maskContact'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin, isAdminOrModerator, failClosedCityId } from '@/lib/access'
@@ -49,7 +50,7 @@ export async function GET(req: NextRequest) {
     prisma.listing.count({ where }),
   ])
 
-  return NextResponse.json({ listings, total, hasMore: offset + take < total })
+  return NextResponse.json({ listings: maskRows(session, listings, 'user'), total, hasMore: offset + take < total })
 }
 
 export async function POST(req: NextRequest) {

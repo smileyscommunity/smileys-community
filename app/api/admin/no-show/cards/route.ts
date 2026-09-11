@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { maskRows } from '@/lib/admin/maskContact'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin, canModerateReports, failClosedCityId } from '@/lib/access'
@@ -27,7 +28,7 @@ export async function GET(req: NextRequest) {
         event: { select: { id: true, title: true, emoji: true, date: true, hostId: true } },
       },
     })
-    return NextResponse.json({ cards })
+    return NextResponse.json({ cards: maskRows(session, cards, 'user') })
   } catch (e) {
     console.error('[admin no-show cards]', e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

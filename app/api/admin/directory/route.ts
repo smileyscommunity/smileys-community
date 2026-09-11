@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { maskRows } from '@/lib/admin/maskContact'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { resolveTargetCityId } from '@/lib/city'
@@ -53,7 +54,7 @@ export async function GET(req: NextRequest) {
       },
     })
 
-    return NextResponse.json(businesses)
+    return NextResponse.json(maskRows(session, businesses, 'submittedBy'))
   } catch (e) {
     console.error('Admin directory GET error:', e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

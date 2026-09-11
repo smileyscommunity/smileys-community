@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import Link from 'next/link'
 import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
-import { downscaleImage } from '@/lib/image-resize'
+import { downscaleImage, ImageUploadError } from '@/lib/image-resize'
 
 const CATEGORIES = [
   { id: 'ROOMS',    label: 'Room / Flat',        emoji: '🏠' },
@@ -80,28 +80,42 @@ function NewListingPageInner() {
     const file = e.target.files?.[0]
     if (!file) return
     setUploading(true)
-    const upload = await downscaleImage(file)
-    const form = new FormData()
-    form.append('file', upload)
-    form.append('folder', 'listings')
-    const res  = await fetch('/app/api/upload', { method: 'POST', body: form, credentials: 'include' })
-    const data = await res.json()
-    if (data.url) setPhoto(data.url)
-    setUploading(false)
+    try {
+      const upload = await downscaleImage(file)
+      const form = new FormData()
+      form.append('file', upload)
+      form.append('folder', 'listings')
+      const res  = await fetch('/app/api/upload', { method: 'POST', body: form, credentials: 'include' })
+      const data = await res.json()
+      if (data.url) setPhoto(data.url)
+      else setError(data.error ?? 'Upload failed')
+    } catch (err) {
+      setError(err instanceof ImageUploadError ? err.message : 'Upload failed — try again')
+    } finally {
+      setUploading(false)
+      e.target.value = ''
+    }
   }
 
   async function handleGalleryPhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file || photos.length >= 4) return
     setUploading(true)
-    const upload = await downscaleImage(file)
-    const form = new FormData()
-    form.append('file', upload)
-    form.append('folder', 'listings')
-    const res  = await fetch('/app/api/upload', { method: 'POST', body: form, credentials: 'include' })
-    const data = await res.json()
-    if (data.url) setPhotos(prev => [...prev, data.url])
-    setUploading(false)
+    try {
+      const upload = await downscaleImage(file)
+      const form = new FormData()
+      form.append('file', upload)
+      form.append('folder', 'listings')
+      const res  = await fetch('/app/api/upload', { method: 'POST', body: form, credentials: 'include' })
+      const data = await res.json()
+      if (data.url) setPhotos(prev => [...prev, data.url])
+      else setError(data.error ?? 'Upload failed')
+    } catch (err) {
+      setError(err instanceof ImageUploadError ? err.message : 'Upload failed — try again')
+    } finally {
+      setUploading(false)
+      e.target.value = ''
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {

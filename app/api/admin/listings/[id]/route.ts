@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { maskRows } from '@/lib/admin/maskContact'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator, canActInCity } from '@/lib/access'
@@ -21,7 +22,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   if (!canActInCity(session, listing.cityId)) {
     return NextResponse.json({ error: 'Cross-city moderation is admin-only' }, { status: 403 })
   }
-  return NextResponse.json(listing)
+  return NextResponse.json(maskRows(session, [listing], 'user')[0])
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

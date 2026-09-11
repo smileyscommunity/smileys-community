@@ -11,6 +11,8 @@ import { sendPushToUser } from '@/lib/push'
 import { getSession } from '@/lib/session'
 import { recordCronRun } from '@/lib/cronHealth'
 import { citiesByToday, type CityDay } from '@/lib/city'
+import { eventStartsAt } from '@/lib/eventTime'
+import { DEFAULT_TZ } from '@/lib/cityTime'
 import { uploadRoot } from '@/lib/uploadRoot'
 
 // One findMany instead of a findFirst per attendee. The per-row shape ran
@@ -209,6 +211,12 @@ async function runSweep() {
     }),
   ])
 
+  // Event.date/time are the CITY's wall clock. `new Date(`${date}T${time}`)`
+  // read them in the process zone — UTC on the server — so a 19:00 Istanbul
+  // event was three hours further away than it is, and "starts in ~2 hours"
+  // went out as the doors opened.
+  const tzByCity = new Map((await prisma.city.findMany({ select: { id: true, timezone: true } })).map(c => [c.id, c.timezone ?? DEFAULT_TZ]))
+
   let sent24h = 0
   let sent2h  = 0
   let sentReviews = 0
@@ -220,7 +228,7 @@ async function runSweep() {
     sentKeys('reminder_2h',  upcomingAttendeeIds, upcomingLinks),
   ])
   for (const event of upcomingEvents) {
-    const eventTime = new Date(`${event.date}T${event.time.length === 5 ? event.time : event.time.substring(0, 5)}:00`)
+    const eventTime = eventStartsAt(event, tzByCity.get(event.cityId) ?? DEFAULT_TZ)
     const diffHours = (eventTime.getTime() - now.getTime()) / (60 * 60 * 1000)
 
     const is24h = diffHours >= 23 && diffHours <= 25

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { maskRows } from '@/lib/admin/maskContact'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin, isAdminOrModerator, failClosedCityId } from '@/lib/access'
@@ -34,7 +35,7 @@ export async function GET(req: NextRequest) {
         reviewedBy: { select: { id: true, name: true } },
       },
     })
-    return NextResponse.json(reports)
+    return NextResponse.json(maskRows(session, reports, 'reporter'))
   } catch (e) {
     console.error('Admin reports GET error:', e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

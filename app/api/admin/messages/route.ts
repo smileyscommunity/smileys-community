@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { maskRows } from '@/lib/admin/maskContact'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { canModerateMessages, isAdmin, failClosedCityId } from '@/lib/access'
@@ -31,7 +32,7 @@ export async function GET(req: NextRequest) {
       },
     })
 
-    return NextResponse.json(messages)
+    return NextResponse.json(maskRows(session, messages, 'user'))
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

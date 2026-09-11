@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { downscaleImage } from '@/lib/image-resize'
+import { downscaleImage, ImageUploadError } from '@/lib/image-resize'
 
 // Values MUST match VALID_REASONS in app/api/reports/route.ts.
 const REASONS = [
@@ -47,14 +47,20 @@ export default function ReportButton({ reportedId, reportedName, eventId }: Prop
 
   async function handleScreenshot(file: File) {
     setUploading(true)
-    const upload = await downscaleImage(file)
-    const fd = new FormData()
-    fd.append('file', upload)
-    fd.append('folder', 'general')
-    const res  = await fetch('/app/api/upload', { method: 'POST', credentials: 'include', body: fd })
-    const data = await res.json()
-    setUploading(false)
-    if (data.url) setScreenshot(data.url)
+    try {
+      const upload = await downscaleImage(file)
+      const fd = new FormData()
+      fd.append('file', upload)
+      fd.append('folder', 'general')
+      const res  = await fetch('/app/api/upload', { method: 'POST', credentials: 'include', body: fd })
+      const data = await res.json()
+      if (data.url) setScreenshot(data.url)
+      else setError(data.error ?? 'Screenshot upload failed')
+    } catch (err) {
+      setError(err instanceof ImageUploadError ? err.message : 'Screenshot upload failed — try again')
+    } finally {
+      setUploading(false)
+    }
   }
 
   async function submit() {

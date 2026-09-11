@@ -11,7 +11,7 @@ import { matchesTimeFilter, statusBadge, type TimeFilter } from '@/lib/hangoutTi
 import { HANGOUT_ACTIVITIES, ACTIVITY_META, HANGOUT_CAPACITIES } from '@/lib/hangoutActivities'
 import posthog from 'posthog-js'
 import { toast } from 'sonner'
-import { downscaleImage } from '@/lib/image-resize'
+import { downscaleImage, ImageUploadError } from '@/lib/image-resize'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { DEFAULT_TZ, dayInTz, todayInTz, atHourInTz, wallClockInTz, fromWallClockInTz } from '@/lib/cityTime'
 
@@ -307,16 +307,19 @@ export default function HangoutsPage() {
     const file = e.target.files?.[0]
     if (!file) return
     setUploading(true)
-    const upload = await downscaleImage(file)
-    const fd = new FormData()
-    fd.append('file', upload)
-    fd.append('folder', 'hangouts')
     try {
+      // Inside the try: downscaleImage throws for iCloud-only and unreadable
+      // photos, and outside it the spinner never cleared — Post stayed
+      // disabled until a reload.
+      const upload = await downscaleImage(file)
+      const fd = new FormData()
+      fd.append('file', upload)
+      fd.append('folder', 'hangouts')
       const r = await fetch('/app/api/upload', { method: 'POST', credentials: 'include', body: fd }).then(res => res.json())
       if (r?.url) setPhoto(r.url)
       else toast.error(r?.error ?? 'Upload failed')
-    } catch {
-      toast.error('Upload failed')
+    } catch (err) {
+      toast.error(err instanceof ImageUploadError ? err.message : 'Upload failed')
     } finally {
       setUploading(false)
       e.target.value = ''

@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator } from '@/lib/access'
+import { isAdminOrModerator, isAdmin } from '@/lib/access'
 import { writeAudit } from '@/lib/audit'
+
+// The campaign that carries the live cup data (fixtures, predictions,
+// sponsors, prizes). Referenced by slug from the public /cup pages.
+const LIVE_CUP_SLUG = 'world-cup-2026'
 
 // GET   /api/admin/campaigns   — list campaigns + sponsor/prize/donation counts
 // POST  /api/admin/campaigns   — create
@@ -108,6 +112,11 @@ export async function PATCH(req: NextRequest) {
 
   const p = parsePayload(body)
   if (p.slug && !SLUG_RE.test(p.slug)) return NextResponse.json({ error: 'slug must be lowercase letters, digits, hyphens' }, { status: 400 })
+  // The delete guard below is a slug check; renaming the live cup's slug
+  // would step around it (and break every /cup link).
+  if (p.slug && p.slug !== before.slug && before.slug === LIVE_CUP_SLUG) {
+    return NextResponse.json({ error: 'The live cup campaign keeps its slug' }, { status: 400 })
+  }
 
   const data: Record<string, unknown> = {}
   if (p.name)                                                  data.name        = p.name
@@ -136,7 +145,9 @@ export async function PATCH(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   const session = await getSession()
-  if (!session || !isAdminOrModerator(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  // Deleting cascades every sponsor, prize and donation row of the campaign
+  // (schema onDelete: Cascade) — an admin decision; moderators archive.
+  if (!session || !isAdmin(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await req.json().catch(() => ({}))
   const id = typeof body.id === 'string' ? body.id : ''
@@ -147,7 +158,7 @@ export async function DELETE(req: NextRequest) {
 
   // Refuse to delete the world-cup-2026 campaign — it carries the
   // live cup data. Archive instead via PATCH.
-  if (campaign.slug === 'world-cup-2026') {
+  if (campaign.slug === LIVE_CUP_SLUG) {
     return NextResponse.json({ error: 'Cannot delete the live cup campaign — set status=archived instead' }, { status: 400 })
   }
 

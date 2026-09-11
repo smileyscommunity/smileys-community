@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { maskRows } from '@/lib/admin/maskContact'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdmin, isAdminOrModerator, failClosedCityId } from '@/lib/access'
@@ -27,7 +28,7 @@ export async function GET() {
         items: { select: { id: true, name: true, price: true, claimed: true } },
       },
     })
-    return NextResponse.json({ sales })
+    return NextResponse.json({ sales: maskRows(session, sales, 'user') })
   } catch (e) {
     console.error('Admin moving-sales GET error:', e)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

@@ -168,15 +168,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No recipients match that segment/city' }, { status: 400 })
   }
 
+  // 'sending' until the batch returns: the row and the audit used to claim
+  // "sent to N" before a single email left, so a dead API key produced a
+  // success toast, a cleared composer and a sent-looking history row.
   const newsletter = await prisma.newsletter.create({
-    data: { subject, bodyHtml: safeBodyHtml, segment, recipientCount: recipients.length, sentById: session.id },
+    data: { subject, bodyHtml: safeBodyHtml, segment, recipientCount: recipients.length, sentById: session.id, status: 'sending' },
   })
-
-  await writeAudit(
-    session.id, session.name, 'newsletter.send', newsletter.id, 'newsletter',
-    { recipientCount: recipients.length, segment, cityId: sendCityId },
-    `Sent newsletter "${subject}" to ${recipients.length} members (segment: ${segment}${sendCityId ? `, city-scoped` : ''})`,
-  )
 
   // Batch API send (≤100 per request) — stays under Resend's rate limit,
   // unlike the old 50-concurrent-per-second loop that 429'd ~80% of a 1k blast.
@@ -189,13 +186,19 @@ export async function POST(req: NextRequest) {
     await prisma.newsletterEmailLog.createMany({ data: resendLogs, skipDuplicates: true })
   }
 
-  // Correct recipientCount to what actually sent (it was created optimistically
-  // as recipients.length). With the batch sender failures are ~0, but if some
-  // do fail the stored stat stays truthful instead of over-reporting.
-  if (sent !== recipients.length) {
-    await prisma.newsletter.update({ where: { id: newsletter.id }, data: { recipientCount: sent } })
-  }
+  const outcome = sent > 0 ? 'sent' : 'failed'
+  await prisma.newsletter.update({ where: { id: newsletter.id }, data: { status: outcome, recipientCount: sent, sentAt: new Date() } })
+  await writeAudit(
+    session.id, session.name, 'newsletter.send', newsletter.id, 'newsletter',
+    { recipientCount: sent, attempted: recipients.length, failed: failed.length, segment, cityId: sendCityId },
+    sent > 0
+      ? `Sent newsletter "${subject}" to ${sent} of ${recipients.length} members (segment: ${segment}${sendCityId ? `, city-scoped` : ''})`
+      : `Newsletter "${subject}" FAILED — 0 of ${recipients.length} sent (segment: ${segment})`,
+  )
 
+  if (sent === 0) {
+    return NextResponse.json({ error: `Nothing was sent (${failed[0]?.error ?? 'delivery failed'}) — check the email provider and try again.`, sent, failed: failed.length, newsletterId: newsletter.id }, { status: 502 })
+  }
   return NextResponse.json({ ok: true, sent, failed: failed.length, newsletterId: newsletter.id })
 }
 

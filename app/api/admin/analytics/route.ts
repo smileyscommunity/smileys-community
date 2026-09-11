@@ -55,7 +55,9 @@ export async function GET(req: NextRequest) {
     if (cached) return NextResponse.json(cached)
 
     const now   = new Date()
-    const today = await todayInCity(await resolveCityId(session))
+    // The selected city's calendar, not the viewer's cookie: a Tbilisi view
+    // split past/upcoming on Istanbul's clock.
+    const today = await todayInCity(cityId ?? await resolveCityId(session))
     const day30 = new Date(now.getTime() - 30 * 86400000)
     const day60 = new Date(now.getTime() - 60 * 86400000)
     const day90 = new Date(now.getTime() - 90 * 86400000)
@@ -604,8 +606,10 @@ export async function GET(req: NextRequest) {
     for (const u of approved) userJoin.set((u as { id?: string }).id ?? '', new Date(u.joinedAt))
     // We didn't select id earlier — re-fetch a minimal users-with-id set so
     // cohort math has the join key. Cheap query, single table scan.
+    // City-scoped like allAttendees above; without it a city view divided a
+    // city-only numerator by the network-wide denominator.
     const approvedWithId = await prisma.user.findMany({
-      where:  { status: 'approved', role: { in: ['member', 'moderator'] } },
+      where:  { status: 'approved', role: { in: ['member', 'moderator'] }, ...userCity },
       // email added so we can match host-intent applications + acquisition-
       // source applications to actual user records via email join.
       // color/profilePhoto added so the host pipeline can render avatars

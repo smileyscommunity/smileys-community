@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
-import { isAdminOrModerator } from '@/lib/access'
+import { isAdminOrModerator, canActInCity } from '@/lib/access'
+import { getDefaultCityId } from '@/lib/city'
 import { writeAudit } from '@/lib/audit'
 import { readFileSync, writeFileSync, mkdirSync, renameSync } from 'fs'
 import { join } from 'path'
@@ -145,6 +146,11 @@ function categoryChanged(prev: unknown, next: unknown): boolean {
 export async function PUT(req: NextRequest) {
   const session = await getSession()
   if (!session || !isAdminOrModerator(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  // city-guide.json is the default city's guide (see app/handbook); the
+  // neighborhood guide editor already refuses cross-city moderators.
+  if (!canActInCity(session, await getDefaultCityId())) {
+    return NextResponse.json({ error: 'Cross-city guide editing is admin-only' }, { status: 403 })
+  }
 
   const body = await req.json().catch(() => null)
   const result = normalize(body)

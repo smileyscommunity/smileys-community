@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { emailFor } from '@/lib/admin/maskContact'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { isAdminOrModerator, isAdmin, failClosedCityId } from '@/lib/access'
@@ -58,9 +59,11 @@ export async function GET(req: NextRequest) {
     LIMIT 50
   `
 
+  // Names + neighborhoods are the roster; the address is not (see lib/admin/maskContact).
+  const mask = <T extends { email: string }>(rows: T[]) => rows.map(r => ({ ...r, email: emailFor(session, r.email) }))
   return NextResponse.json({
-    neverAttended,
-    dormant,
+    neverAttended: mask(neverAttended),
+    dormant:       mask(dormant),
     stats: {
       neverAttendedCount: neverAttended.length,
       dormantCount: dormant.length,

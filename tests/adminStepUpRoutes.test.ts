@@ -23,7 +23,8 @@ vi.mock('@/lib/survey',  () => ({ computeEventSurveyRollup: vi.fn(async () => ne
 vi.mock('@/lib/newsletterDigest', () => ({ buildWeeklyDigest: vi.fn(async () => null) }))
 vi.mock('@/lib/email',   () => ({
   sendNewsletterEmail:     vi.fn(async () => {}),
-  sendNewsletterBatch:     vi.fn(async () => ({ sent: 0, resendLogs: [], failed: [] })),
+  // Reports what it was handed: a zero-sent blast is now a 502, not a success.
+  sendNewsletterBatch:     vi.fn(async (recipients: unknown[]) => ({ sent: recipients.length, resendLogs: [], failed: [] })),
   sendPremiumUpgradeEmail: vi.fn(async () => {}),
   recordEmailFailure:      vi.fn(async () => {}),
 }))
@@ -117,6 +118,9 @@ describe('newsletter POST', () => {
     const res = await send({})
     expect(res.status).toBe(200)
     expect(prisma.newsletter.create).toHaveBeenCalledTimes(1)
+    // The row is created as 'sending' and only marked 'sent' once the batch returns.
+    expect((prisma.newsletter.create as any).mock.calls[0][0].data.status).toBe('sending')
+    expect((prisma.newsletter.update as any).mock.calls.at(-1)[0].data).toMatchObject({ status: 'sent' })
   })
 })
 
