@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { unstable_cache } from 'next/cache'
+import { getNextInSeries } from '@/lib/postSeries'
 import { prisma } from '@/lib/prisma'
 import { resolveImageUrl, avatarUrl } from '@/lib/data'
 import { firstBodyImage } from '@/lib/articleCover'
@@ -199,6 +200,8 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
   if (!post || post.status !== 'published') notFound()
 
   const related = await getRelatedPosts(post.category, slug)
+  // Null unless this category is a real sequence — see lib/postSeries.
+  const nextUp = await getNextInSeries(post.kind, post.category, post.publishedAt?.toISOString() ?? null)
 
   return (
     <main className="min-h-screen bg-warm">
@@ -282,6 +285,26 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
           ? <div className={BODY_PROSE} dangerouslySetInnerHTML={{ __html: sanitizeArticle(post.body) }} />
           : <div>{renderBody(post.body)}</div>}
        </ArticleInlineEditor>
+
+        {/* Next in the series — only where the category actually runs in order. */}
+        {nextUp && (
+          <Link
+            href={`/posts/${nextUp.slug}`}
+            className="mt-12 flex items-center justify-between gap-4 p-5 rounded-2xl border border-amber-200 bg-amber-50 hover:bg-amber-100 transition-colors group"
+          >
+            <span className="min-w-0">
+              <span className="block text-xs font-bold uppercase tracking-widest text-amber-600 mb-1">
+                Next in {post.category}
+              </span>
+              <span className="block font-bold text-gray-900 group-hover:text-amber-700 transition-colors leading-snug">
+                {nextUp.title}
+              </span>
+            </span>
+            <svg className="w-5 h-5 shrink-0 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </Link>
+        )}
 
         {/* CTA */}
         <div className="mt-16 p-8 bg-amber-500 rounded-2xl text-center">

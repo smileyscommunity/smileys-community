@@ -10,6 +10,7 @@ import { postCityScope } from '@/lib/postScope'
 import { sanitizeArticle } from '@/lib/sanitize'
 import { resolveImageUrl } from '@/lib/data'
 import { firstBodyImage } from '@/lib/articleCover'
+import { getNextInSeries } from '@/lib/postSeries'
 import { SITE_URL, APP_URL } from '@/lib/env'
 import { HANDBOOK_TO_GUIDE } from '@/lib/handbook-links'
 import { canonicalCategory, categoryMeta, storedKeysFor } from '@/lib/handbook-categories'
@@ -162,6 +163,11 @@ export default async function HandbookArticlePage({ params }: Params) {
     cityId,
     (await getCityConfig(cityId)).country ?? null,
   )
+
+  // Null unless this category is listed as a real sequence in lib/postSeries.
+  // Handbook categories are parallel by nature — "Getting Around" is six city
+  // transit cards — so this is off here until a category earns it.
+  const nextUp = await getNextInSeries(post.kind, post.category, post.publishedAt?.toISOString() ?? null)
 
   // Freshness + sources are computed server-side so the client component gets
   // settled strings (see EditableArticle's props comment).
@@ -344,6 +350,21 @@ export default async function HandbookArticlePage({ params }: Params) {
             </Link>
           </div>
         </section>
+
+        {nextUp && (
+          <Link
+            href={`/handbook/${nextUp.slug}`}
+            className="mt-12 flex items-center justify-between gap-4 p-5 rounded-2xl border border-amber-200 bg-amber-50 hover:bg-amber-100 transition-colors group"
+          >
+            <span className="min-w-0">
+              <span className="block text-xs font-bold uppercase tracking-widest text-amber-600 mb-1">Next in {catLabel}</span>
+              <span className="block font-bold text-gray-900 group-hover:text-amber-700 transition-colors leading-snug">{nextUp.title}</span>
+            </span>
+            <svg className="w-5 h-5 shrink-0 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </Link>
+        )}
 
         {related.length > 0 && (
           <section className="mt-12 pt-8 border-t border-gray-100">
