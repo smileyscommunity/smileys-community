@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { CityBadge, useAdminCities } from '@/components/admin/CitySelect'
 import { toast } from 'sonner'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
+import { useAuth } from '@/contexts/AuthContext'
 import { DEFAULT_CURRENCY, currencySymbol } from '@/lib/data'
 
 const CATEGORIES = [
@@ -114,10 +115,17 @@ export default function AdminListingsPage() {
   const [showSettings, setShowSettings] = useState(false)
   const [settings, setSettings]   = useState<ListingSettings>(DEFAULT_LISTING_SETTINGS)
   const [settingsSaving, setSettingsSaving] = useState(false)
+  // Creating listings and marketplace settings are admin-only on the API; a
+  // moderator was offered both and got a 403 at the end.
+  const { user: viewer } = useAuth()
+  const isAdmin = viewer?.role === 'admin'
   const [editing, setEditing] = useState<Listing | null>(null)
   const [editForm, setEditForm] = useState({ title: '', description: '', price: '', contact: '', contactEmail: '' })
 
   useEffect(() => {
+    // Admin-only endpoint — a moderator's 403 left the panel showing the
+    // hard-coded defaults as if they were the live settings.
+    if (!isAdmin) return
     fetch('/app/api/admin/settings', { credentials: 'include' })
       .then(r => r.json())
       .then(data => {
@@ -126,7 +134,7 @@ export default function AdminListingsPage() {
         }
       })
       .catch(() => {})
-  }, [])
+  }, [isAdmin])
 
   async function saveSettings() {
     setSettingsSaving(true)
@@ -313,14 +321,19 @@ export default function AdminListingsPage() {
           <p className="text-zinc-400 text-sm mt-1">{total} listing{total !== 1 ? 's' : ''}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Link href="/admin/listings/new"
-            className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold border bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20 transition-colors">
-            <span>＋</span> Add listing
-          </Link>
-          <Link href="/admin/listings/bulk"
-            className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold border bg-zinc-800 border-zinc-700 text-zinc-300 hover:border-amber-500/40 hover:text-amber-400 transition-colors">
-            <span>＋</span> Bulk add
-          </Link>
+          {isAdmin && (
+            <>
+              <Link href="/admin/listings/new"
+                className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold border bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20 transition-colors">
+                <span>＋</span> Add listing
+              </Link>
+              <Link href="/admin/listings/bulk"
+                className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold border bg-zinc-800 border-zinc-700 text-zinc-300 hover:border-amber-500/40 hover:text-amber-400 transition-colors">
+                <span>＋</span> Bulk add
+              </Link>
+            </>
+          )}
+          {isAdmin && (
           <button
             onClick={() => setShowSettings(s => !s)}
             className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold border transition-colors ${
@@ -335,11 +348,12 @@ export default function AdminListingsPage() {
           </svg>
           Settings
           </button>
+          )}
         </div>
       </div>
 
       {/* Settings panel */}
-      {showSettings && (
+      {showSettings && isAdmin && (
         <div className="mb-6 bg-zinc-900 border border-zinc-700 rounded-2xl p-6 space-y-6">
           <h2 className="text-white font-bold text-sm uppercase tracking-widest">Marketplace Settings</h2>
 

@@ -129,7 +129,9 @@ function read() {
 export async function GET() {
   const session = await getSession()
   if (!session || !isAdminOrModerator(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  return NextResponse.json(read())
+  // canEdit mirrors the PUT gate below, so a moderator from another city
+  // sees a read-only guide instead of losing their edits to a 403.
+  return NextResponse.json({ ...read(), canEdit: canActInCity(session, await getDefaultCityId()) })
 }
 
 // Compare the stored category to the incoming one (ignoring updatedAt

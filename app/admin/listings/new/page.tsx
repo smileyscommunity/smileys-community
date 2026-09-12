@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import ImageUpload from '@/components/ImageUpload'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { useAuth } from '@/contexts/AuthContext'
 import { toast } from 'sonner'
 import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import { isValidContactEmail } from '@/lib/contactEmail'
@@ -24,7 +25,7 @@ interface Member {
   id: string; name: string; email: string; color: string
 }
 
-export default function AdminNewListingPage() {
+function AdminNewListingPageInner() {
   const router = useRouter()
   const neighborhoods = useCityNeighborhoods()
 
@@ -283,4 +284,18 @@ export default function AdminNewListingPage() {
       </form>
     </div>
   )
+}
+
+// The POST behind this form is admin-only. A moderator who followed a direct
+// link filled the whole form in and got a 403 on submit.
+export default function AdminNewListingPage() {
+  const { user, isLoading } = useAuth()
+  if (isLoading) return <div className="p-8 text-zinc-500 text-sm">Loading…</div>
+  if (user?.role !== 'admin') return (
+    <div className="p-8 text-center">
+      <p className="text-zinc-400 text-sm">Adding listings is admin-only.</p>
+      <Link href="/admin/listings" className="text-amber-500 text-sm mt-2 inline-block">← Back to Marketplace</Link>
+    </div>
+  )
+  return <AdminNewListingPageInner />
 }

@@ -782,7 +782,8 @@ function AdminApplicationsPageInner() {
       </div>
 
       {/* Bulk bar */}
-      {(selected2.size > 0 || visible.length > 0) && tab === 'pending' && (
+      {/* Bulk decide is admin-only (the PATCH refuses a moderator's status). */}
+      {(selected2.size > 0 || visible.length > 0) && tab === 'pending' && !isMod && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 sm:px-4 py-2.5 sm:py-3 bg-zinc-800 border border-zinc-700 rounded-xl">
           <input
             type="checkbox"
@@ -992,7 +993,7 @@ function AdminApplicationsPageInner() {
                   apps get the same quick-decide controls as pending (the
                   "✉ Info requested" badge above already conveys their
                   state) so admins can decide once the applicant replies. */}
-              {app.status === 'pending' || app.status === 'hold' ? (
+              {(app.status === 'pending' || app.status === 'hold') && !isMod ? (
                 <div className="flex gap-1.5 shrink-0" onClick={e => e.stopPropagation()}>
                   {/* Disabled + opacity'd during the inflight PATCH so
                       a rapid second tap doesn't fire a duplicate

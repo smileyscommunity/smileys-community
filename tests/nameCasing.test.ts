@@ -47,3 +47,23 @@ describe('fixNameCasing', () => {
     expect(fixNameCasing('hagar atef', null)).toBe(formatName('hagar atef'))
   })
 })
+
+describe('Turkish casing follows every spelling of the nationality', () => {
+  it('capitalises a lowercase-leading name with the dotted İ for a Turkish member', () => {
+    expect(fixNameCasing('ibrahim yılmaz', 'Turkey')).toBe('İbrahim Yılmaz')
+    expect(fixNameCasing('ibrahim yılmaz', 'Germany')).toBe('Ibrahim Yılmaz')
+  })
+  it('treats Türkiye, TR and turkish like Turkey', () => {
+    expect(fixNameCasing('AYŞE YILMAZ', 'Türkiye')).toBe('Ayşe Yılmaz')
+    expect(fixNameCasing('AYŞE YILMAZ', 'TR')).toBe('Ayşe Yılmaz')
+    expect(fixNameCasing('AYŞE YILMAZ', 'turkiye')).toBe('Ayşe Yılmaz')
+    expect(fixNameCasing('ibrahim', ' turkish ')).toBe('İbrahim')
+  })
+  it('leaves the conservative save-path formatter unchanged', () => {
+    expect(formatName('ibrahim')).toBe('Ibrahim')
+  })
+  it('is still idempotent', () => {
+    const once = fixNameCasing('ibrahim yılmaz', 'Türkiye')
+    expect(fixNameCasing(once, 'Türkiye')).toBe(once)
+  })
+})

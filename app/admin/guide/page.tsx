@@ -48,6 +48,8 @@ export default function AdminGuidePage() {
   const [guide,   setGuide]   = useState<Guide>({ categories: [] })
   const [loading, setLoading] = useState(true)
   const [saving,  setSaving]  = useState(false)
+  // False for a moderator outside the default city: the PUT refuses them.
+  const [canEdit, setCanEdit] = useState(true)
   const [openCat, setOpenCat] = useState<number | null>(0)
   const [openRes, setOpenRes] = useState<string | null>(null)
   // Inline-confirm for category removal — was an instant single-click
@@ -70,6 +72,7 @@ export default function AdminGuidePage() {
       })
       .then(d => {
         if (!d) return
+        setCanEdit(d.canEdit !== false)
         // Normalize into the Guide shape so a corrupt file or weird
         // legacy payload doesn't crash the renderer (e.g. categories
         // being undefined).
@@ -82,7 +85,7 @@ export default function AdminGuidePage() {
   }, [])
 
   async function save() {
-    if (!dirty) return
+    if (!dirty || !canEdit) return
     setSaving(true)
     try {
       const res = await fetch('/app/api/admin/guide', {
@@ -218,11 +221,16 @@ export default function AdminGuidePage() {
           <h1 className="text-xl font-bold text-white">Istanbul City Guide</h1>
           <p className="text-xs text-zinc-500 mt-0.5">Edit categories and resources shown on the member guide page</p>
         </div>
-        <button onClick={save} disabled={saving || !dirty}
+        <button onClick={save} disabled={saving || !dirty || !canEdit}
           className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-white text-sm font-bold rounded-xl disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
           {saving ? 'Saving…' : dirty ? 'Save' : 'Saved'}
         </button>
       </div>
+      {!canEdit && (
+        <div className="mb-6 px-4 py-3 rounded-xl bg-zinc-800 border border-zinc-700 text-sm text-zinc-300">
+          This is the default city's guide. Only its moderators and admins can save changes, so edits here won't be kept.
+        </div>
+      )}
 
       {/* Categories */}
       <div className="space-y-3">

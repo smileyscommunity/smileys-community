@@ -416,7 +416,7 @@ export function firstNameOf(name: string | null | undefined): string {
   // through, which makes it the one place that fixes them all at once
   // without rewriting a single row. formatName is conservative by design
   // (see its comment), so this can only ever capitalise a leading letter.
-  return [...kept, rest[first] ?? ''].filter(Boolean).map(formatName).join(' ')
+  return [...kept, rest[first] ?? ''].filter(Boolean).map(n => formatName(n)).join(' ')
 }
 
 export function getInitials(name: string): string {
@@ -500,13 +500,15 @@ export function whatsappUrl(phone: string | null | undefined, nationality?: stri
  * rules mangle "OPPI"→"oppı", default rules mangle "KAYIŞ"→"kayiş"). So
  * ALL-CAPS tokens are left untouched and must be cleaned up by hand.
  */
-export function formatName(name: string): string {
+// `locale` is for callers that KNOW the member's nationality (the nightly
+// fixNameCasing). The save path passes none and stays conservative.
+export function formatName(name: string, locale?: string): string {
   const fixToken = (tok: string): string => {
     if (!tok || tok === '-' || tok === "'" || tok === '.') return tok
     const first = tok[0]
     // Only act when the first char is a lowercase letter; leave the rest as-is.
     if (first === first.toLowerCase() && first !== first.toUpperCase()) {
-      return first.toUpperCase() + tok.slice(1)
+      return (locale ? first.toLocaleUpperCase(locale) : first.toUpperCase()) + tok.slice(1)
     }
     return tok
   }
@@ -541,8 +543,14 @@ export function formatName(name: string): string {
  * Used by the nightly name-hygiene sweeper (app/api/cron/sweep-name-hygiene),
  * not on the write path.
  */
+// Nationality is free text; whatsappUrl above already accepts every spelling
+// in TURKISH_NATIONALITIES, while this compared against one exact string.
+function usesTrCasing(v?: string | null): boolean {
+  return TURKISH_NATIONALITIES.has((v ?? '').trim().toLowerCase())
+}
+
 export function fixNameCasing(name: string, nationality?: string | null): string {
-  const locale = nationality === 'Turkey' ? 'tr-TR' : undefined
+  const locale = usesTrCasing(nationality) ? 'tr-TR' : undefined
   const lower  = (s: string) => locale ? s.toLocaleLowerCase(locale) : s.toLowerCase()
   const upper  = (s: string) => locale ? s.toLocaleUpperCase(locale) : s.toUpperCase()
 
@@ -569,6 +577,7 @@ export function fixNameCasing(name: string, nationality?: string | null): string
     })
     .join(' ')
 
-  // formatName still runs last for the lowercase-first-letter fixes.
-  return formatName(deshouted)
+  // formatName still runs last for the lowercase-first-letter fixes — with
+  // the same locale, or 'ibrahim' became 'Ibrahim' for a Turkish member.
+  return formatName(deshouted, locale)
 }

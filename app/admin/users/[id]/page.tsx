@@ -127,8 +127,19 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
   useEffect(() => {
     setLoading(true)
     fetch(`/app/api/admin/users/${id}`)
-      .then(r => r.json())
+      .then(async r => {
+        // A 404 (a deleted member linked from the audit log) or a 403 returns
+        // {error}. Read as a user, it threw on d.languages and took the page
+        // to the error boundary instead of the "User not found" branch.
+        if (!r.ok) {
+          const e = await r.json().catch(() => ({}))
+          if (r.status !== 404) toast.error(e?.error ?? `Couldn't load this member (HTTP ${r.status})`)
+          return null
+        }
+        return r.json()
+      })
       .then(d => {
+        if (!d) { setUser(null); return }
         setUser(d)
         setProfileForm({
           email: d.email || '',
@@ -136,8 +147,8 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
           nationality: d.nationality || '',
           neighborhood: d.neighborhood || '',
           instagram: d.instagram || '',
-          languages: d.languages.join(', '),
-          interests: d.interests.join(', '),
+          languages: (Array.isArray(d.languages) ? d.languages : []).join(', '),
+          interests: (Array.isArray(d.interests) ? d.interests : []).join(', '),
           bio: d.bio || '',
           partnerId: d.partnerId || '',
           industry: d.industry || '',
@@ -145,6 +156,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
           professionalStatus: d.professionalStatus || '',
         })
       })
+      .catch(() => toast.error('Network error — could not load this member'))
       .finally(() => setLoading(false))
   }, [id])
 
@@ -481,9 +493,11 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                 <button onClick={() => changeRole('moderator')} className="py-2.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/20 font-bold text-xs transition-colors">
                   → Moderator
                 </button>
-                <button onClick={() => changeRole('partner')} className="py-2.5 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 font-bold text-xs transition-colors">
+                {/* The role API accepts admin/moderator/member only; partner
+                    accounts are made by assigning the member to a partner. */}
+                <Link href="/admin/partners" className="py-2.5 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 font-bold text-xs transition-colors text-center">
                   → Partner
-                </button>
+                </Link>
               </div>
             )}
             {user.role !== 'member' && user.role !== 'admin' && (
