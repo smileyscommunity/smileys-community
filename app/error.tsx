@@ -3,6 +3,19 @@
 import { useEffect } from 'react'
 import posthog from 'posthog-js'
 
+// A stale-chunk error after a deploy is fixed by one reload. When the
+// mismatch is server-side (old process serving a replaced .next) the reload
+// errors again, and an unconditional reload was a tight loop hammering the
+// server exactly while it was fragile. One reload per minute per tab.
+function reloadOnceForStaleChunk(): void {
+  const KEY = 'smileys_stale_reload_at'
+  let last = 0
+  try { last = Number(sessionStorage.getItem(KEY) ?? 0) || 0 } catch {}
+  if (Date.now() - last < 60_000) return
+  try { sessionStorage.setItem(KEY, String(Date.now())) } catch {}
+  window.location.reload()
+}
+
 export default function Error({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
     // Route React error-boundary crashes to PostHog error tracking. PostHog's
@@ -27,9 +40,7 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
       msg.includes('ChunkLoadError') ||
       msg.includes('Loading chunk') ||
       (msg.includes("Cannot read properties of undefined (reading 'call')") && stack.includes('webpack-runtime'))
-    if (isStaleChunk) {
-      window.location.reload()
-    }
+    if (isStaleChunk) reloadOnceForStaleChunk()
   }, [error])
 
   return (

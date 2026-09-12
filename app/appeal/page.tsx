@@ -34,6 +34,8 @@ export default function AppealPage() {
         return
       }
       setSubmitted(true)
+    } catch {
+      setError('Could not reach the server — try again')
     } finally {
       setLoading(false)
     }

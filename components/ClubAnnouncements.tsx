@@ -59,18 +59,23 @@ export default function ClubAnnouncements({ slug, canAnnounce, currentUserId, is
   async function submit() {
     if (!content.trim() || posting) return
     setPosting(true); setError('')
-    const res = await fetch(`/app/api/clubs/${slug}/posts`, {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content, type: 'announcement' }),
-    })
-    if (res.ok) {
-      const item = await res.json()
-      setItems(prev => [item, ...prev])
-      setContent('')
-      if (textareaRef.current) textareaRef.current.style.height = 'auto'
-    } else { const d = await res.json(); setError(d.error ?? 'Failed') }
-    setPosting(false)
+    try {
+      const res = await fetch(`/app/api/clubs/${slug}/posts`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content, type: 'announcement' }),
+      })
+      if (res.ok) {
+        const item = await res.json()
+        setItems(prev => [item, ...prev])
+        setContent('')
+        if (textareaRef.current) textareaRef.current.style.height = 'auto'
+      } else { const d = await res.json().catch(() => ({})); setError(d.error ?? 'Failed') }
+    } catch {
+      setError('Network error — try again')
+    } finally {
+      setPosting(false)
+    }
   }
 
   async function deleteItem(id: string) {

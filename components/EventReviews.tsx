@@ -41,8 +41,9 @@ export default function EventReviews({ eventId, isPast }: { eventId: string; isP
 
   useEffect(() => {
     fetch(`/app/api/events/${eventId}/reviews`)
-      .then(r => r.json())
+      .then(r => (r.ok ? r.json() : []))
       .then(d => setReviews(Array.isArray(d) ? d : []))
+      .catch(() => {})
       .finally(() => setLoading(false))
   }, [eventId])
 
@@ -54,18 +55,23 @@ export default function EventReviews({ eventId, isPast }: { eventId: string; isP
     if (!rating) { setError('Please select a rating'); return }
     setError('')
     setSubmitting(true)
-    const res = await fetch(`/app/api/events/${eventId}/reviews`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rating, text }),
-    })
-    const data = await res.json()
-    setSubmitting(false)
-    if (!res.ok) { setError(data.error ?? 'Failed to submit'); return }
-    setReviews(prev => [data, ...prev])
-    setRating(0)
-    setText('')
+    try {
+      const res = await fetch(`/app/api/events/${eventId}/reviews`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rating, text }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { setError(data.error ?? 'Failed to submit'); return }
+      setReviews(prev => [data, ...prev])
+      setRating(0)
+      setText('')
+    } catch {
+      setError('Network error — try again')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   async function deleteReview() {

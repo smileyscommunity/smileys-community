@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { toast } from 'sonner'
 import { createPortal } from 'react-dom'
 import { resolveImageUrl, getInitials } from '@/lib/data'
 import { downscaleImage, ImageUploadError } from '@/lib/image-resize'
@@ -73,13 +74,20 @@ export default function EventPhotos({ eventId, photos: initial, canUpload, curre
   }
 
   async function handleDelete(photoId: string) {
-    await fetch(`/app/api/events/${eventId}/photos`, {
-      method: 'DELETE', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ photoId }),
-    })
-    setPhotos(prev => prev.filter(p => p.id !== photoId))
-    if (lightbox?.id === photoId) setLightbox(null)
+    // Remove locally only once the server agreed — a refused delete used to
+    // vanish the photo until the next reload.
+    try {
+      const res = await fetch(`/app/api/events/${eventId}/photos`, {
+        method: 'DELETE', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ photoId }),
+      })
+      if (!res.ok) { toast.error('Could not delete the photo'); return }
+      setPhotos(prev => prev.filter(p => p.id !== photoId))
+      if (lightbox?.id === photoId) setLightbox(null)
+    } catch {
+      toast.error('Could not delete the photo')
+    }
   }
 
   if (!canUpload && photos.length === 0) return null
@@ -108,7 +116,7 @@ export default function EventPhotos({ eventId, photos: initial, canUpload, curre
               type="file"
               accept="image/*"
               className="hidden"
-              onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f) }}
+              onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) handleUpload(f) }}
             />
           </>
         )}

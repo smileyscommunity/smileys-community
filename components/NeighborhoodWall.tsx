@@ -142,17 +142,24 @@ function PostRow({
   async function submitReply() {
     if (!replyText.trim() || replying) return
     setReplying(true)
-    const res = await fetch(`/app/api/neighborhoods/${slug}/posts/${post.id}/replies`, {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: replyText.trim() }),
-    })
-    if (res.ok) {
-      const r = await res.json()
-      onReply(post.id, r)
-      setReplyText(''); setReplyOpen(false); setShowReplies(true)
+    try {
+      const res = await fetch(`/app/api/neighborhoods/${slug}/posts/${post.id}/replies`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: replyText.trim() }),
+      })
+      if (res.ok) {
+        const r = await res.json()
+        onReply(post.id, r)
+        setReplyText(''); setReplyOpen(false); setShowReplies(true)
+      } else {
+        toast.error((await res.json().catch(() => ({})))?.error ?? 'Could not post the reply')
+      }
+    } catch {
+      toast.error('Network error — try again')
+    } finally {
+      setReplying(false)
     }
-    setReplying(false)
   }
 
   async function deleteReply(replyId: string) {
@@ -392,20 +399,25 @@ export default function NeighborhoodWall({ slug, myId, isStaff, name }: Props) {
   async function submit() {
     if (!text.trim() || posting) return
     setPosting(true); setError('')
-    const res = await fetch(`/app/api/neighborhoods/${slug}/posts`, {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: text.trim() }),
-    })
-    if (res.ok) {
-      const p = await res.json()
-      setPosts(prev => [p, ...prev])
-      setText(''); setComposeOpen(false)
-    } else {
-      const d = await res.json()
-      setError(d.error ?? 'Failed to post')
+    try {
+      const res = await fetch(`/app/api/neighborhoods/${slug}/posts`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: text.trim() }),
+      })
+      if (res.ok) {
+        const p = await res.json()
+        setPosts(prev => [p, ...prev])
+        setText(''); setComposeOpen(false)
+      } else {
+        const d = await res.json().catch(() => ({}))
+        setError(d.error ?? 'Failed to post')
+      }
+    } catch {
+      setError('Network error — try again')
+    } finally {
+      setPosting(false)
     }
-    setPosting(false)
   }
 
   function onDelete(id: string)      { setPosts(prev => prev.filter(p => p.id !== id)) }

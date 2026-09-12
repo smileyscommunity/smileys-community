@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
       admins.filter(a => a.email).map(a => sendNudgeReportEmail(a.email!, result)),
     )
 
-    await recordCronRun('sweep-first-rsvp-nudge', true)
+    await recordCronRun('sweep-first-rsvp-nudge', result.failed === 0, result.failed > 0 ? new Error(`${result.failed} of ${result.emailed + result.failed} nudge emails failed`) : undefined)
     return NextResponse.json({ ok: true, ...result })
   } catch (e) {
     console.error('[first-rsvp-nudge]', e)

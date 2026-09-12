@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { rateLimit } from '@/lib/rateLimit'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
 import { createNotification } from '@/lib/notify'
@@ -40,6 +41,9 @@ export async function GET(_: NextRequest, { params }: Params) {
 export async function POST(req: NextRequest, { params }: Params) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!await rateLimit(`event-photo:${session.id}`, 10, 60_000)) {
+    return NextResponse.json({ error: 'Too many uploads — slow down' }, { status: 429 })
+  }
 
   const { id } = await params
 

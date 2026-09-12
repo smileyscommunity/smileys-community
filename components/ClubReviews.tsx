@@ -22,6 +22,7 @@ export default function ClubReviews({ slug, isMember }: { slug: string; isMember
     fetch(`/app/api/clubs/${slug}/reviews`)
       .then(r => r.json())
       .then(d => setReviews(d.reviews ?? []))
+      .catch(() => {})   // a 502 is not an empty list, and never an unhandled rejection
       .finally(() => setLoading(false))
   }, [slug, isMember])
 

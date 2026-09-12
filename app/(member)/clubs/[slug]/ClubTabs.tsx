@@ -78,7 +78,11 @@ export default function ClubTabs({
   const pathname     = usePathname()
   const searchParams = useSearchParams()
   const param = searchParams.get('tab')
-  const tab: Tab = TAB_KEYS.includes(param as Tab) ? (param as Tab) : 'events'
+  // A ?tab=members deep link on a private club must not mount the roster
+  // for an outsider (the API refuses it, and the empty state read as "no
+  // members yet").
+  const membersAllowed = !isPrivate || isMember || isAdmin
+  const tab: Tab = TAB_KEYS.includes(param as Tab) && (param !== 'members' || membersAllowed) ? (param as Tab) : 'events'
   const setTab = (next: Tab) => {
     router.push(next === 'events' ? pathname : `${pathname}?tab=${next}`, { scroll: false })
   }

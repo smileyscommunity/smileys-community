@@ -33,6 +33,9 @@ export default function EventMap({ events, selectedId, onSelect, attendance, def
   const [ready, setReady]     = useState(false)
 
   const mappable = events.filter(e => e.lat != null && e.lng != null)
+  // Identity of the pinned set: a filter that swaps events but keeps the
+  // count left the old markers on the map.
+  const pinKey = mappable.map(e => e.id).join(',')
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
@@ -83,7 +86,8 @@ export default function EventMap({ events, selectedId, onSelect, attendance, def
   useEffect(() => {
     if (!ready || !mapRef.current || !defaultCenter || mappable.length > 0) return
     mapRef.current.setView([defaultCenter.lat, defaultCenter.lng], 12)
-  }, [ready, defaultCenter, mappable.length])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, defaultCenter?.lat, defaultCenter?.lng, mappable.length])
 
   // Sync markers when events or selected changes
   useEffect(() => {
@@ -138,7 +142,8 @@ export default function EventMap({ events, selectedId, onSelect, attendance, def
     }
 
     syncMarkers()
-  }, [ready, mappable.length, selectedId, attendance])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, pinKey, selectedId, attendance])
 
   // Pan to selected event
   useEffect(() => {

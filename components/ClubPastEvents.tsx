@@ -25,6 +25,7 @@ export default function ClubPastEvents({ slug }: { slug: string }) {
     fetch(`/app/api/clubs/${slug}/past-events`)
       .then(r => r.json())
       .then(d => setEvents(d.events ?? []))
+      .catch(() => {})   // a 502 is not an empty list, and never an unhandled rejection
       .finally(() => setLoading(false))
   }, [slug])
 

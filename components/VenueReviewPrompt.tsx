@@ -4,6 +4,11 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 
+// Storage can throw (private mode, blocked site data); the prompt must not
+// take the dashboard with it.
+function storageGet(key: string): string | null { try { return localStorage.getItem(key) } catch { return null } }
+function storageSet(key: string, value: string): void { try { localStorage.setItem(key, value) } catch {} }
+
 // Post-visit venue review prompt. Surfaces on the dashboard for the
 // member's most-recent checked-in event whose venue is a live directory
 // listing they haven't reviewed yet — the moment of highest recall, and
@@ -35,21 +40,21 @@ export default function VenueReviewPrompt({ businessId, businessName, eventTitle
   useEffect(() => {
     setMounted(true)
     try {
-      const stored: string[] = JSON.parse(localStorage.getItem('dismissed_venue_reviews') ?? '[]')
+      const stored: string[] = JSON.parse(storageGet('dismissed_venue_reviews') ?? '[]')
       if (stored.includes(businessId)) setDismissed(true)
     } catch {
-      localStorage.removeItem('dismissed_venue_reviews')
+      try { localStorage.removeItem('dismissed_venue_reviews') } catch {}
     }
   }, [businessId])
 
   function persistDismiss() {
     try {
-      const stored: string[] = JSON.parse(localStorage.getItem('dismissed_venue_reviews') ?? '[]')
+      const stored: string[] = JSON.parse(storageGet('dismissed_venue_reviews') ?? '[]')
       if (!stored.includes(businessId)) {
-        localStorage.setItem('dismissed_venue_reviews', JSON.stringify([...stored, businessId]))
+        storageSet('dismissed_venue_reviews', JSON.stringify([...stored, businessId]))
       }
     } catch {
-      localStorage.setItem('dismissed_venue_reviews', JSON.stringify([businessId]))
+      storageSet('dismissed_venue_reviews', JSON.stringify([businessId]))
     }
   }
 

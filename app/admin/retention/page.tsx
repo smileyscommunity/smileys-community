@@ -100,10 +100,13 @@ function MemberRow({ m, sub }: { m: Member; sub: string }) {
           <p className="text-xs text-zinc-500 mt-0.5">{sub}</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <a href={`mailto:${m.email}`}
-            className="text-xs text-zinc-500 hover:text-zinc-200 px-2.5 py-2 rounded-lg hover:bg-zinc-700 transition-colors">
-            Email
-          </a>
+          {/* Moderators receive a masked address ("abc...@x") — no dead mailto. */}
+          {!m.email.includes('...@') && (
+            <a href={`mailto:${m.email}`}
+              className="text-xs text-zinc-500 hover:text-zinc-200 px-2.5 py-2 rounded-lg hover:bg-zinc-700 transition-colors">
+              Email
+            </a>
+          )}
           <button
             onClick={draftNudge}
             disabled={drafting || sending}

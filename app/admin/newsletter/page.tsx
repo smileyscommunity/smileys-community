@@ -72,6 +72,7 @@ function NewsletterRow({ n, onDuplicate, onCancel, onEdit }: {
   const segLabel  = SEGMENT_LABELS[n.segment as Segment] ?? n.segment
   const isScheduled = n.status === 'scheduled'
   const isSending   = n.status === 'sending'
+  const isFailed    = n.status === 'failed'
 
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
@@ -110,7 +111,7 @@ function NewsletterRow({ n, onDuplicate, onCancel, onEdit }: {
           </div>
         )}
         <span className="shrink-0 text-xs text-zinc-400 bg-zinc-800 rounded-lg px-2.5 py-1">
-          {isScheduled ? `~${SEGMENT_LABELS[n.segment as Segment] ?? n.segment}` : `${n.recipientCount.toLocaleString()} sent`}
+          {isScheduled ? `~${SEGMENT_LABELS[n.segment as Segment] ?? n.segment}` : isFailed ? '✗ failed' : `${n.recipientCount.toLocaleString()} sent`}
         </span>
         <svg className={`w-4 h-4 text-zinc-600 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
           fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

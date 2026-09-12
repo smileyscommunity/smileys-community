@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { confirmToast } from '@/lib/confirmToast'
 import {} from '@/lib/data'
-import { todayInTz, DEFAULT_TZ } from '@/lib/cityTime'
+import { todayInTz, DEFAULT_TZ, formatDay } from '@/lib/cityTime'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
 import ImageUpload from '@/components/ImageUpload'
@@ -687,7 +687,7 @@ export default function HostEditEventPage({ params }: { params: Promise<{ id: st
           </div>
           {form.date && buildSpawnDates().length > 0 && (
             <p className="text-xs text-zinc-500 mt-3">
-              Will create on: {buildSpawnDates().map(d => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })).join(' · ')}
+              Will create on: {buildSpawnDates().map(d => formatDay(d, { day: 'numeric', month: 'short' })).join(' · ')}
             </p>
           )}
         </section>

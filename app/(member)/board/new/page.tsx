@@ -126,6 +126,7 @@ function NewListingPageInner() {
     if (!description.trim()) { setError('Add a description'); return }
 
     setSubmitting(true)
+    try {
     const res = await fetch('/app/api/listings', {
       method: 'POST',
       credentials: 'include',
@@ -145,8 +146,14 @@ function NewListingPageInner() {
     if (res.ok) {
       router.push('/board')
     } else {
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
       setError(data.error || 'Something went wrong')
+      setSubmitting(false)
+    }
+    } catch {
+      // A dropped connection or an HTML 413/502 used to leave "Post listing"
+      // disabled until a reload, with the text lost on the way.
+      setError('Could not reach the server — your listing is still here, try again')
       setSubmitting(false)
     }
   }

@@ -303,9 +303,13 @@ function RepliesBlock({ postId, onCount }: { postId: string; onCount: (n: number
   const [sending, setSending] = useState(false)
 
   const load = useCallback(async () => {
-    const res = await fetch(`/app/api/board/${postId}/replies`, { credentials: 'include' })
-    const data = await res.json().catch(() => ({ replies: [] }))
-    setReplies(data.replies ?? [])
+    try {
+      const res = await fetch(`/app/api/board/${postId}/replies`, { credentials: 'include' })
+      const data = await res.json().catch(() => ({ replies: [] }))
+      setReplies(data.replies ?? [])
+    } catch {
+      setReplies([])   // not "Loading…" forever
+    }
   }, [postId])
 
   useEffect(() => { load() }, [load])
@@ -415,8 +419,13 @@ function PostCard({ p, onRemoved, defaultOpen }: { p: Post; onRemoved: (id: stri
   const [menuOpen,    setMenuOpen]    = useState(false)
   const isOwn = isLoggedIn && user.id === p.user.id
 
+  const reacting = useRef(false)
   async function react(kind: 'save') {
     if (!isLoggedIn) { toast.error('Join Smileys to continue'); return }
+    // A double tap sent two toggles and the UI landed on the second.
+    if (reacting.current) return
+    reacting.current = true
+    try {
     const res = await fetch(`/app/api/board/${p.id}/react`, {
       method: 'POST', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -425,6 +434,11 @@ function PostCard({ p, onRemoved, defaultOpen }: { p: Post; onRemoved: (id: stri
     const data = await res.json().catch(() => ({}))
     if (!res.ok) { toast.error(data.error ?? 'Something went wrong'); return }
     setSaved(data.active)
+    } catch {
+      toast.error('Network error — try again')
+    } finally {
+      reacting.current = false
+    }
   }
 
   async function report(reason: string) {

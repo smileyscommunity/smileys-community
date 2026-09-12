@@ -6,10 +6,12 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url)
     const rawTitle = searchParams.get('title')?.trim()
-    const eyebrow  = searchParams.get('eyebrow')?.trim() || 'Istanbul Handbook'
+    // Bounded like `title`: an unauthenticated satori render with a multi-KB
+    // string was an expensive layout per request.
+    const eyebrow  = (searchParams.get('eyebrow')?.trim() || 'Istanbul Handbook').slice(0, 60)
     // Defaults to the handbook's original CTA so every existing caller
     // (handbook articles that never passed this param) renders identically.
-    const cta      = searchParams.get('cta')?.trim() || 'Read the handbook'
+    const cta      = (searchParams.get('cta')?.trim() || 'Read the handbook').slice(0, 40)
 
     // Title card — passed by handbook articles that have no cover image, so
     // each shared link gets a tailored preview (article title + category)

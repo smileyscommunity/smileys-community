@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { rateLimit } from '@/lib/rateLimit'
 import { isUploadedImageUrl } from '@/lib/uploadedImageUrl'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
@@ -16,6 +17,10 @@ import { safeNeighborhoodFor } from '@/lib/neighborhoodsDb'
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // Every material edit fans out to the joiners.
+  if (!await rateLimit(`hangout-edit:${session.id}`, 10, 60_000)) {
+    return NextResponse.json({ error: 'Too many edits — slow down' }, { status: 429 })
+  }
 
   const { id } = await params
   const hangout = await prisma.hangout.findUnique({

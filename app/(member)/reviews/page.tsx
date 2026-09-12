@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { toast } from 'sonner'
 import Link from 'next/link'
 import { getInitials } from '@/lib/data'
 
@@ -185,13 +186,14 @@ export default function ReviewsPage() {
   const [tab,        setTab]        = useState<'pending' | 'submitted'>('pending')
 
   const load = useCallback(async () => {
-    const d = await fetch('/app/api/reviews', { credentials: 'include' }).then(r => r.json())
+    // A 5xx/401 body is not a reviews list — it rendered as "All reviewed!".
+    const d = await fetch('/app/api/reviews', { credentials: 'include' }).then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
     setToReview(d.toReview  ?? [])
     setSubmitted(d.submitted ?? [])
   }, [])
 
   useEffect(() => {
-    load().finally(() => setLoading(false))
+    load().catch(() => toast.error('Could not load your reviews')).finally(() => setLoading(false))
   }, [load])
 
   async function handleSubmit(eventId: string, rating: number, text: string) {
@@ -201,7 +203,7 @@ export default function ReviewsPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ rating, text }),
     })
-    if (!res.ok) return
+    if (!res.ok) { toast.error((await res.json().catch(() => ({})))?.error ?? 'Something went wrong'); return }
     const review = await res.json()
     setToReview(prev => prev.filter(e => e.id !== eventId))
     const event = toReview.find(e => e.id === eventId)!
@@ -215,7 +217,7 @@ export default function ReviewsPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ rating, text }),
     })
-    if (!res.ok) return
+    if (!res.ok) { toast.error((await res.json().catch(() => ({})))?.error ?? 'Something went wrong'); return }
     const updated = await res.json()
     setSubmitted(prev => prev.map(r => r.eventId === eventId ? { ...r, rating: updated.rating, text: updated.text } : r))
   }
@@ -225,7 +227,7 @@ export default function ReviewsPage() {
       method: 'DELETE',
       credentials: 'include',
     })
-    if (!res.ok) return
+    if (!res.ok) { toast.error((await res.json().catch(() => ({})))?.error ?? 'Something went wrong'); return }
     const review = submitted.find(r => r.eventId === eventId)
     if (review) {
       setSubmitted(prev => prev.filter(r => r.eventId !== eventId))

@@ -20,12 +20,13 @@ export default function ReviewReminder({ events }: Props) {
 
   useEffect(() => {
     setMounted(true)
-    const stored = localStorage.getItem('dismissed_reviews')
+    let stored: string | null = null
+    try { stored = localStorage.getItem('dismissed_reviews') } catch {}
     if (stored) {
       try {
         setDismissedIds(JSON.parse(stored))
       } catch {
-        localStorage.removeItem('dismissed_reviews')
+        try { localStorage.removeItem('dismissed_reviews') } catch {}
       }
     }
   }, [])
@@ -39,7 +40,7 @@ export default function ReviewReminder({ events }: Props) {
   const handleDismiss = () => {
     const updated = [...dismissedIds, next.id]
     setDismissedIds(updated)
-    localStorage.setItem('dismissed_reviews', JSON.stringify(updated))
+    try { localStorage.setItem('dismissed_reviews', JSON.stringify(updated)) } catch {}
   }
 
   return (

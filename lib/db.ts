@@ -279,9 +279,11 @@ export async function getEvents(options?: {
   const rows = await prisma.event.findMany({
     where,
     include: eventInclude,
+    // `id` breaks ties: series events share date+time, and offset paging
+    // over a non-unique sort duplicated/skipped rows across pages.
     orderBy: upcoming === false
-      ? [{ date: 'desc' }, { time: 'desc' }]
-      : [{ featured: 'desc' }, { date: 'asc' }, { time: 'asc' }],
+      ? [{ date: 'desc' }, { time: 'desc' }, { id: 'asc' }]
+      : [{ featured: 'desc' }, { date: 'asc' }, { time: 'asc' }, { id: 'asc' }],
     take: limit,
     skip: offset,
   })

@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
   // firing — same shape as sweep-event-spots.
   try {
     const result = await runSweep()
-    await recordCronRun('sweep-newsletters', true)
+    await recordCronRun('sweep-newsletters', result.failedIssues === 0, result.failedIssues > 0 ? new Error(`${result.failedIssues} issue(s) marked failed`) : undefined)
     return NextResponse.json({ ok: true, ...result })
   } catch (e) {
     console.error('[cron sweep-newsletters]', e)
@@ -65,6 +65,7 @@ async function runSweep() {
   })
 
   let totalSent = 0
+  let failedIssues = stuck.length
 
   for (const nl of due) {
     // Atomic claim: the conditional updateMany means only ONE of two
@@ -95,6 +96,7 @@ async function runSweep() {
         where: { id: nl.id },
         data:  { status: sent > 0 ? 'sent' : 'failed', recipientCount: sent, sentAt: new Date() },
       })
+      if (sent === 0) failedIssues++
 
       if (resendLogs.length > 0) {
         await prisma.newsletterEmailLog.createMany({ data: resendLogs, skipDuplicates: true })
@@ -103,6 +105,7 @@ async function runSweep() {
       totalSent += sent
     } catch (err) {
       // Same reasoning as the stuck sweep above: mark, surface, don't retry.
+      failedIssues++
       await prisma.newsletter.updateMany({ where: { id: nl.id, status: 'sending' }, data: { status: 'failed' } }).catch(() => {})
       recordEmailFailure({ helper: 'sendNewsletterBatch (scheduled)', recipient: 'newsletter', error: err, context: { newsletterId: nl.id } }).catch(() => {})
       console.error('[sweep-newsletters] send failed', { id: nl.id, err: String(err) })
@@ -110,8 +113,9 @@ async function runSweep() {
   }
 
   const auto = await runAutoDigest()
+  if (auto === 'failed' || auto === 'sent-0') failedIssues++
 
-  return { processed: due.length, totalSent, auto }
+  return { processed: due.length, totalSent, auto, failedIssues }
 }
 
 // Weekly auto-newsletter: when the admin toggle (app_settings key

@@ -24,20 +24,25 @@ export default function ClubResources({ slug, initialResources, canEdit, dark }:
   async function addResource() {
     if (!title.trim() || !url.trim() || adding) return
     setAdding(true); setError('')
-    const res = await fetch(`/app/api/clubs/${slug}/resources`, {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: title.trim(), url: url.trim(), emoji: emoji.trim() || '🔗' }),
-    })
-    if (res.ok) {
-      const resource = await res.json()
-      setResources(prev => [...prev, resource])
-      setTitle(''); setUrl(''); setEmoji('🔗')
-    } else {
-      const d = await res.json()
-      setError(d.error ?? 'Failed to add')
+    try {
+      const res = await fetch(`/app/api/clubs/${slug}/resources`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: title.trim(), url: url.trim(), emoji: emoji.trim() || '🔗' }),
+      })
+      if (res.ok) {
+        const resource = await res.json()
+        setResources(prev => [...prev, resource])
+        setTitle(''); setUrl(''); setEmoji('🔗')
+      } else {
+        const d = await res.json().catch(() => ({}))
+        setError(d.error ?? 'Failed to add')
+      }
+    } catch {
+      setError('Network error — try again')
+    } finally {
+      setAdding(false)
     }
-    setAdding(false)
   }
 
   async function removeResource(id: string) {

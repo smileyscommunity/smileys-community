@@ -14,7 +14,7 @@
 // shrinks, this component animates the visible pins.
 
 import 'leaflet/dist/leaflet.css'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Map, Marker } from 'leaflet'
 import { NEIGHBORHOOD_META } from '@/lib/neighborhoods'
 
@@ -73,6 +73,8 @@ const DEFAULT_CENTER: [number, number] = [41.0245, 29.0083]
 const DEFAULT_ZOOM = 11
 
 export default function DirectoryMap({ businesses, onPinClick, defaultCenter }: Props) {
+  const [ready, setReady] = useState(false)
+  const pinKey = businesses.map(b => `${b.id}:${b.latitude}:${b.longitude}:${b.avgRating ?? ''}:${b.reviewCount ?? ''}`).join('|')
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef       = useRef<Map | null>(null)
   const markersRef   = useRef<Marker[]>([])
@@ -106,6 +108,8 @@ export default function DirectoryMap({ businesses, onPinClick, defaultCenter }: 
       }).addTo(map)
 
       mapRef.current = map
+
+      setReady(true)
       requestAnimationFrame(() => map.invalidateSize())
     })
 
@@ -178,7 +182,12 @@ export default function DirectoryMap({ businesses, onPinClick, defaultCenter }: 
     })
 
     return () => { cancelled = true }
-  }, [businesses, onPinClick, defaultCenter])
+    // Keyed on CONTENT: the parent hands over a fresh array and a fresh
+  // centre tuple every render, which removed and re-added every pin and
+  // snapped the viewport back on each keystroke. `ready` covers the first
+  // mount, where this used to run before the map existed.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [ready, pinKey, onPinClick, defaultCenter?.[0], defaultCenter?.[1]])
 
   return (
     <div className="relative w-full h-[60vh] sm:h-[70vh] rounded-2xl overflow-hidden border border-gray-200 bg-gray-100">

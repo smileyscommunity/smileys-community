@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/session'
-import { rateLimit, getIp } from '@/lib/rateLimit'
+import { rateLimit, getIp, claimOnce } from '@/lib/rateLimit'
 import { createNotification } from '@/lib/notify'
 
 export async function POST(req: NextRequest) {
@@ -57,6 +57,12 @@ export async function POST(req: NextRequest) {
       where: { reporterId: session.id, reportedId, status: 'pending' },
     })
     if (existing) {
+      return NextResponse.json({ error: 'You already have a pending report against this user' }, { status: 400 })
+    }
+    // Report has no unique on (reporter, reported): two concurrent POSTs
+    // both passed the check above and made two pending rows (and two staff
+    // pushes). The claim serialises them.
+    if (!await claimOnce(`report:${session.id}:${reportedId}`, 60_000)) {
       return NextResponse.json({ error: 'You already have a pending report against this user' }, { status: 400 })
     }
 

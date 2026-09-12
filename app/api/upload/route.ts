@@ -16,12 +16,15 @@ const MAX_SIZE = 5 * 1024 * 1024 // 5MB
 
 export async function POST(req: NextRequest) {
   try {
-    if (!await rateLimit(`upload:${getIp(req)}`, 20, 60 * 60_000)) {
-      return NextResponse.json({ error: 'Too many uploads. Try again later.' }, { status: 429 })
-    }
     const session = await getSession()
     if (!session) {
       return NextResponse.json({ error: 'Your session has expired — please log in again.' }, { status: 403 })
+    }
+    // Per member, after the session check: keyed on IP it let a logged-out
+    // caller burn a co-working space's shared budget, and a member behind
+    // rotating addresses was unbounded.
+    if (!await rateLimit(`upload:${session.id}`, 20, 60 * 60_000)) {
+      return NextResponse.json({ error: 'Too many uploads. Try again later.' }, { status: 429 })
     }
 
     const formData = await req.formData()

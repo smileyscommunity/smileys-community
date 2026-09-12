@@ -8,7 +8,13 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
   useEffect(() => {
     posthog.captureException(error)
     if (error?.message?.includes('Cannot find module') || error?.message?.includes('ChunkLoadError') || error?.message?.includes('Loading chunk')) {
-      window.location.reload()
+      // Same one-per-minute guard as app/error.tsx.
+      let last = 0
+      try { last = Number(sessionStorage.getItem('smileys_stale_reload_at') ?? 0) || 0 } catch {}
+      if (Date.now() - last >= 60_000) {
+        try { sessionStorage.setItem('smileys_stale_reload_at', String(Date.now())) } catch {}
+        window.location.reload()
+      }
     }
   }, [error])
 

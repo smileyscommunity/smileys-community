@@ -52,14 +52,19 @@ export default function ClubSpotlight({ slug, initialSpotlight, canEdit, dark }:
   async function save() {
     if (!selected || saving) return
     setSaving(true); setError('')
-    const res = await fetch(`/app/api/clubs/${slug}/spotlight`, {
-      method: 'PUT', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: selected.id, note: noteInput.trim() || null }),
-    })
-    if (res.ok) { setSpotlight(await res.json()); setEditing(false) }
-    else { const d = await res.json(); setError(d.error ?? 'Failed to update') }
-    setSaving(false)
+    try {
+      const res = await fetch(`/app/api/clubs/${slug}/spotlight`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: selected.id, note: noteInput.trim() || null }),
+      })
+      if (res.ok) { setSpotlight(await res.json()); setEditing(false) }
+      else { const d = await res.json().catch(() => ({})); setError(d.error ?? 'Failed to update') }
+    } catch {
+      setError('Network error — try again')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const filtered = search.trim()

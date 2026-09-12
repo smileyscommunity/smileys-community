@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { formatDay } from '@/lib/cityTime'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { NO_SHOW_CANCELLATION_CUTOFF_HOURS, NO_SHOW_ROLLING_WINDOW_DAYS, RED_CARD_BLOCK_DAYS, NO_SHOW_POLICY_PATH } from '@/lib/noShowPolicy'
@@ -18,7 +19,9 @@ interface Card {
   canAppeal: boolean
 }
 
-const fmt = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })
+// An event's date is a bare calendar day; parsed as UTC midnight it showed the
+// day before to anyone west of UTC — on the page deciding whether to appeal.
+const fmt = (iso: string) => /^\d{4}-\d{2}-\d{2}$/.test(iso) ? formatDay(iso, { day: 'numeric', month: 'long' }) : new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })
 const fmtT = (iso: string) => new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 
 export default function NoShowPage() {
@@ -41,7 +44,7 @@ export default function NoShowPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ note }),
       })
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
       if (!res.ok) { toast.error(data.error ?? 'Could not send the appeal'); return }
       toast.success('Appeal sent — nothing is paused while it is reviewed.')
       setNote('')

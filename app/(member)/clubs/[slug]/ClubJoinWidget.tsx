@@ -17,6 +17,7 @@ export default function ClubJoinWidget({ club, initialStatus, isHost = false }: 
 
   async function join() {
     setLoading(true); setError('')
+    try {
     const res = await fetch(`/app/api/clubs/${club.slug}/membership`, {
       method: 'POST', credentials: 'include',
     })
@@ -34,11 +35,16 @@ export default function ClubJoinWidget({ club, initialStatus, isHost = false }: 
       const d = await res.json().catch(() => ({}))
       setError(d.error ?? 'Could not join')
     }
-    setLoading(false)
+    } catch {
+      setError('Network error — try again')
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function leave() {
     setLoading(true); setError('')
+    try {
     const res = await fetch(`/app/api/clubs/${club.slug}/membership`, {
       method: 'DELETE', credentials: 'include',
     })
@@ -54,11 +60,16 @@ export default function ClubJoinWidget({ club, initialStatus, isHost = false }: 
       const d = await res.json().catch(() => ({}))
       setError(d.error ?? 'Could not leave')
     }
-    setLoading(false)
+    } catch {
+      setError('Network error — try again')
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function stepDown() {
     setLoading(true); setError('')
+    try {
     const res = await fetch(`/app/api/clubs/${club.slug}/membership`, {
       method: 'PATCH', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -71,7 +82,11 @@ export default function ClubJoinWidget({ club, initialStatus, isHost = false }: 
       const d = await res.json().catch(() => ({}))
       setError(d.error ?? 'Could not step down')
     }
-    setLoading(false)
+    } catch {
+      setError('Network error — try again')
+    } finally {
+      setLoading(false)
+    }
   }
 
   if (status === 'approved') {

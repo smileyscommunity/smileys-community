@@ -67,6 +67,7 @@ export default function CupFixturesPanel() {
     fetch('/app/api/admin/cup/fixtures', { credentials: 'include' })
       .then(r => r.json())
       .then(d => { if (Array.isArray(d.fixtures)) setFixtures(d.fixtures) })
+      .catch(() => {})   // a 502 is not an empty list, and never an unhandled rejection
       .finally(() => setLoading(false))
   }
 

@@ -915,7 +915,8 @@ function ListingsInner({ forcedView }: { forcedView: 'community' | 'market' }) {
   // Confirmation already happened in the modal's two-state Delete
   // button — no need for a second native window.confirm here.
   async function handleDelete(id: string) {
-    await fetch(`/app/api/listings/${id}`, { method: 'DELETE', credentials: 'include' })
+    const res = await fetch(`/app/api/listings/${id}`, { method: 'DELETE', credentials: 'include' }).catch(() => null)
+    if (!res?.ok) { toast.error('Could not delete the listing'); return }
     setListings(prev => prev.filter(l => l.id !== id))
     setTotal(t => t - 1)
   }

@@ -21,6 +21,8 @@ export function sanitize(html: string): string {
     allowedTags:       ALLOWED_TAGS,
     allowedAttributes: ALLOWED_ATTR,
     allowedSchemes:    ['https', 'mailto'],
+    // The scheme allowlist means nothing while `//host` slips through.
+    allowProtocolRelative: false,
     transformTags: {
       a: sanitizeHtml.simpleTransform('a', { target: '_blank', rel: 'noopener noreferrer' }),
     },
@@ -52,6 +54,8 @@ export function sanitizeArticle(html: string): string {
     allowedAttributes: { ...ALLOWED_ATTR, span: ['style'] },
     allowedStyles:     { span: { color: COLOR_VALUE } },
     allowedSchemes:    ['https', 'mailto'],
+    // The scheme allowlist means nothing while `//host` slips through.
+    allowProtocolRelative: false,
     transformTags: {
       a: sanitizeHtml.simpleTransform('a', { target: '_blank', rel: 'noopener noreferrer' }),
     },
@@ -84,6 +88,8 @@ export function sanitizeNewsletter(html: string): string {
     allowedAttributes: NEWSLETTER_ATTR,
     // data: and javascript: are blocked by not being in this list.
     allowedSchemes:    ['https', 'mailto'],
+    // The scheme allowlist means nothing while `//host` slips through.
+    allowProtocolRelative: false,
     allowedSchemesByTag: {
       // Inline images embedded as data URIs are commonly used in email
       // clients where external images are blocked by default.

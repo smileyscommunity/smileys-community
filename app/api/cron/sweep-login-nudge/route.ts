@@ -81,7 +81,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    await recordCronRun('sweep-login-nudge', true)
+    // Partial email outages used to record green; only EmailFailure rows hinted.
+    await recordCronRun('sweep-login-nudge', failed === 0, failed > 0 ? new Error(`${failed} of ${sent + failed} nudge emails failed`) : undefined)
     return NextResponse.json({ ok: true, sent, failed, candidates: candidates.length })
   } catch (e) {
     await recordCronRun('sweep-login-nudge', false, e)

@@ -95,6 +95,7 @@ export default function ClubMembers({ slug }: { slug: string }) {
     fetch(`/app/api/clubs/${slug}/members`, { credentials: 'include' })
       .then(r => r.json())
       .then(data => setMembers(Array.isArray(data) ? data : []))
+      .catch(() => {})   // a 502 is not an empty list, and never an unhandled rejection
       .finally(() => setLoading(false))
   }, [slug])
 

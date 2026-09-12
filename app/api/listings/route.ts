@@ -111,6 +111,10 @@ export async function POST(req: NextRequest) {
   // Rate limit. Without this, a member could spam-create listings
   // (and trigger the alert-email fan-out below) at script speed.
   // 5/min is generous for legit posting; abusers hit the wall fast.
+  // A daily cap too: 5/min alone allowed 300 listings an hour.
+  if (!await rateLimit(`listings-create-day:${session.id}`, 10, 24 * 60 * 60_000)) {
+    return NextResponse.json({ error: 'Daily listing limit reached — try again tomorrow' }, { status: 429 })
+  }
   if (!await rateLimit(`listings-create:${session.id}`, 5, 60_000)) {
     return NextResponse.json({ error: 'Too many listings. Try again in a minute.' }, { status: 429 })
   }

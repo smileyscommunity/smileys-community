@@ -64,6 +64,7 @@ async function runSweep() {
       joinedAt: { lt: joinedCutoff },
     },
     select: { id: true },
+    orderBy: { joinedAt: 'asc' },   // a stable slice — unordered, some members were never reached
     take:   BATCH_SIZE * 10,  // headroom — filtered down before notifying
   })
 

@@ -8,7 +8,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import AvatarImg from '@/components/AvatarImg'
 import { avatarUrl, firstNameOf} from '@/lib/data'
 import { useCityNeighborhoods } from '@/hooks/useCityNeighborhoods'
-import { downscaleImage } from '@/lib/image-resize'
+import { downscaleImage, ImageUploadError } from '@/lib/image-resize'
 import { useCurrentCity } from '@/hooks/useCurrentCity'
 import { DEFAULT_CURRENCY, currencySymbol } from '@/lib/data'
 
@@ -93,6 +93,8 @@ export default function MovingSales({ cityName = '' }: { cityName?: string }) {
       const data = await res.json().catch(() => ({}))
       if (data.url) setPhoto(data.url)
       else toast.error('Could not upload photo')
+    } catch (err) {
+      toast.error(err instanceof ImageUploadError ? err.message : 'Could not upload photo')
     } finally { setUploading(false) }
   }
 

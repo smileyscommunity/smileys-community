@@ -72,7 +72,8 @@ describe('40 email details', () => {
   it('text part uses the raw first name; nudge subject is sanitised; dates are readable', () => {
     expect(email).toMatch(/text:\s*`Hi \$\{firstNameRaw\},/)
     expect(email).toMatch(/subject: safeSubject\(`\$\{ev\.emoji \? ev\.emoji \+ ' ' : ''\}\$\{ev\.title\} — your first Smileys event\?`\)/)
-    expect((email.match(/\$\{esc\(prettyEventDate\(eventDate\)\)\}/g) ?? []).length).toBe(4)
+    // Five since the third scan: the reminder mail joined the four.
+    expect((email.match(/\$\{esc\(prettyEventDate\(eventDate\)\)\}/g) ?? []).length).toBe(5)
   })
   it('admin event mails judge the day on the event city; bulk alerts go to approved members; quiet hours with equal bounds are off', () => {
     expect(read('app/api/admin/events/[id]/remind-attendees/route.ts')).toMatch(/await todayInCity\(event\.cityId\)/)

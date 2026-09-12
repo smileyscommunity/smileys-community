@@ -1100,7 +1100,7 @@ export async function sendEventReminderEmail(
           <p style="color:#6b7280;font-size:14px;margin:0"><strong>${esc(eventTitle)}</strong> is coming up soon.</p>
         </div>
         <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:16px 20px;margin-bottom:24px">
-          <p style="color:#92400e;font-size:14px;margin:0"><strong>📅</strong> ${esc(eventDate)}</p>
+          <p style="color:#92400e;font-size:14px;margin:0"><strong>📅</strong> ${esc(prettyEventDate(eventDate))}</p>
           <p style="color:#92400e;font-size:14px;margin:6px 0 0"><strong>📍</strong> ${esc(eventLocation)}</p>
         </div>
         <a href="${url}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:16px">

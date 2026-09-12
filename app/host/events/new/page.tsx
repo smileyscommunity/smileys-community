@@ -193,6 +193,7 @@ function HostNewEventForm() {
 
   async function writeWithAI() {
     setAiLoading(true)
+    try {
     const club = clubs.find(c => c.id === form.clubId)
     const res = await fetch('/app/api/host/events/describe', {
       method: 'POST', credentials: 'include',
@@ -207,10 +208,16 @@ function HostNewEventForm() {
     })
     if (res.ok) {
       const { description } = await res.json()
-      const html = description.split(/\n\n+/).map((p: string) => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('')
+      const html = String(description ?? '').split(/\n\n+/).map((p: string) => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('')
       setForm(f => ({ ...f, description: html }))
+    } else {
+      setError((await res.json().catch(() => ({})))?.error ?? 'Could not write a description right now')
     }
-    setAiLoading(false)
+    } catch {
+      setError('Could not write a description right now')
+    } finally {
+      setAiLoading(false)
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -278,14 +285,8 @@ function HostNewEventForm() {
         if (!res.ok) { setError(data.error ?? 'Failed to create event'); return }
       }
 
-      // Auto-assign as club host if club selected
-      if (form.clubId) {
-        await fetch(`/app/api/admin/clubs/${form.clubId}/hosts`, {
-          method: 'POST', credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: hostId, role: 'host' }),
-        })
-      }
+      // (A self-grant of club-host used to be POSTed here; that route is
+      // staff-only and answered 403 for every host, so it was dead.)
 
       router.push('/host/events')
     } catch {

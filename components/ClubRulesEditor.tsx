@@ -26,14 +26,19 @@ export default function ClubRulesEditor({ slug, initialRules, canEdit, clubName,
   async function save() {
     if (saving) return
     setSaving(true); setError('')
-    const res = await fetch(`/app/api/clubs/${slug}/rules`, {
-      method: 'PUT', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rules: draft }),
-    })
-    if (res.ok) { setRules(draft.trim() || null); setEditing(false) }
-    else { const d = await res.json(); setError(d.error ?? 'Failed to save') }
-    setSaving(false)
+    try {
+      const res = await fetch(`/app/api/clubs/${slug}/rules`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rules: draft }),
+      })
+      if (res.ok) { setRules(draft.trim() || null); setEditing(false) }
+      else { const d = await res.json().catch(() => ({})); setError(d.error ?? 'Failed to save') }
+    } catch {
+      setError('Network error — try again')
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function share() {

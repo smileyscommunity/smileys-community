@@ -188,6 +188,7 @@ function LoginPageInner() {
       hostCityIds:   data.hostCityIds,
       emailVerified: data.emailVerified,
       totpEnabled:   data.totpEnabled,
+      partnerId:     data.partnerId,
     })
 
     // Staff dogfooding shouldn't pollute member funnels — opt them out entirely
@@ -214,6 +215,9 @@ function LoginPageInner() {
     // who clicked "Renew" in an email wants the renew page, not /admin.
     if (returnTo) router.push(returnTo)
     else if (data.role === 'admin') router.push('/admin')
+    // Client-side navigation: the layout's /me refresh doesn't rerun, so the
+    // partner id must already be on the user or /partner bounces to /login.
+    else if (data.role === 'partner') router.push('/partner')
     else if (data.isClubHost || isCityHostSomewhere(data)) router.push('/host')
     else router.push('/dashboard')
   }
