@@ -47,12 +47,12 @@ async function runSweep() {
   // nothing surfaced it. It is not retried either: the batch has no record
   // of who already received it, so a retry would double-send. Mark it and
   // put it on the email-failures tile for a human.
-  // sentAt defaults to now() at create. For the manual send and the
-  // auto-digest the row is created already 'sending', so that is the claim
-  // time; a SCHEDULED issue keeps its creation time until it finishes (the
-  // scheduled → sending claim below doesn't touch sentAt), so for it this
-  // measures age since it was written, not since it was claimed.
-  // scheduledFor is null for the other two paths.
+  // sentAt is the claim time on every path: the manual send and the
+  // auto-digest create the row already 'sending', and the scheduled →
+  // sending claim below stamps it. It used to keep a scheduled issue's
+  // creation time, so an issue written more than 30 minutes ahead read as
+  // stuck the moment it was claimed: a blast outliving the wrapper's 60s curl
+  // timeout was marked failed by the next run while it was still sending.
   const stuck = await prisma.newsletter.findMany({
     where:  { status: 'sending', sentAt: { lt: new Date(Date.now() - STUCK_AFTER_MS) } },
     select: { id: true, subject: true },
@@ -80,7 +80,7 @@ async function runSweep() {
     // Same pattern as sweep-cup-reminders' reminderSentAt claim.
     const claimed = await prisma.newsletter.updateMany({
       where: { id: nl.id, status: 'scheduled' },
-      data:  { status: 'sending' },
+      data:  { status: 'sending', sentAt: new Date() },
     })
     if (claimed.count === 0) continue
 

@@ -165,7 +165,8 @@ describe('settleEvent — card colour from the rolling window', () => {
     const where = p.noShowCard.findMany.mock.calls[1][0].where
     expect(where.userId).toEqual({ in: ['absent'] })
     expect(where.attendeeId).toEqual({ notIn: ['absent'] })
-    expect(where.occurredAt.lte.getTime() - where.occurredAt.gte.getTime()).toBe(90 * 24 * H)
+    // The window reaches both sides of the event (a later event's card can already exist).
+    expect(where.occurredAt.lte.getTime() - where.occurredAt.gte.getTime()).toBe(2 * 90 * 24 * H)
     expect(where.status.in).toEqual(expect.arrayContaining(['active', 'expired']))
     expect(where.status.in).not.toContain('waived')
   })

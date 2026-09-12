@@ -39,11 +39,12 @@ interface ByEventStat {
   paidCount:    number
   pendingTotal: number
   pendingCount: number
+  currency:     string
 }
 
 interface PaymentsStats {
   total:        number
-  paidSum:      number
+  paidByCurrency: { currency: string; amount: number }[]
   pendingCount: number
   byEvent:      ByEventStat[]
   rowCap:       number
@@ -358,7 +359,7 @@ function AdminPaymentsPageInner() {
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
-          { label: 'Total Collected', value: formatMoney(stats?.paidSum ?? 0, cur), color: 'text-green-400' },
+          { label: 'Total Collected', value: stats?.paidByCurrency?.length ? stats.paidByCurrency.map(g => formatMoney(g.amount, g.currency)).join(' · ') : formatMoney(0, cur), color: 'text-green-400' },
           { label: 'Pending',         value:  stats?.pendingCount     ?? 0,                     color: 'text-amber-400' },
           { label: 'Transactions',    value:  stats?.total            ?? 0,                     color: 'text-white'     },
         ].map(s => (
@@ -385,10 +386,10 @@ function AdminPaymentsPageInner() {
                     <span className="text-xs text-zinc-300 font-medium truncate max-w-[60%]">{e.emoji} {e.title}</span>
                     <div className="flex items-center gap-2 shrink-0">
                       <span className="text-xs text-zinc-500">{e.paidCount} txn</span>
-                      <span className="text-xs font-bold text-green-400">{formatMoney(e.paidTotal, cur)}</span>
+                      <span className="text-xs font-bold text-green-400">{formatMoney(e.paidTotal, e.currency)}</span>
                       {e.pendingTotal > 0 && (
                         <span className="text-xs font-semibold text-amber-400" title={`${e.pendingCount} pending payment${e.pendingCount === 1 ? '' : 's'}`}>
-                          +{formatMoney(e.pendingTotal, cur)} pending
+                          +{formatMoney(e.pendingTotal, e.currency)} pending
                         </span>
                       )}
                     </div>

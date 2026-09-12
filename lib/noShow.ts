@@ -8,7 +8,7 @@ import { Attendance } from '@/lib/constants'
 import {
   CardKind, CardStatus, COUNTING_STATUSES,
   NO_SHOW_PROCESSING_DELAY_HOURS, NO_SHOW_PROCESSING_LOOKBACK_DAYS,
-  noShowPolicyApplies, isNoShow, checkInIsCredible, windowStart, cardKindFor, redCardWindows, restrictionAfterRejectedAppeal,
+  noShowPolicyApplies, isNoShow, checkInIsCredible, windowStart, NO_SHOW_ROLLING_WINDOW_DAYS, cardKindFor, redCardWindows, restrictionAfterRejectedAppeal,
   evaluateGate, type GateResult,
 } from '@/lib/noShowPolicy'
 
@@ -179,7 +179,11 @@ export async function settleEvent(eventId: string, now: Date = new Date()): Prom
       where: {
         userId:     { in: users },
         status:     { in: COUNTING_STATUSES },
-        occurredAt: { gte: windowStart(endsAt), lte: endsAt },
+        // Both sides of this event, not just before it: an earlier event that
+        // settles late (too few check-ins on its first run) can find a card
+        // for a LATER event already issued. Counting only earlier cards gave
+        // both of them a yellow; the second card judged is the red.
+        occurredAt: { gte: windowStart(endsAt), lte: new Date(endsAt.getTime() + NO_SHOW_ROLLING_WINDOW_DAYS * DAY) },
         attendeeId: { notIn: ids },
       },
       select: { userId: true },
@@ -277,7 +281,7 @@ export async function notifyIssuedCards(): Promise<number> {
         `Until ${fmt(c.restrictionEndsAt, tz)} you won't be able to RSVP or join waitlists. You can appeal until ${fmt(c.appealDeadlineAt, tz)}; nothing is paused while an appeal is open.`,
         '/no-show')
       sendRedCardEmail(c.user.id, c.user.email, c.user.name ?? 'Member', c.event.title, emoji,
-        { appealDeadlineAt: c.appealDeadlineAt, restrictionStartsAt: c.restrictionStartsAt, restrictionEndsAt: c.restrictionEndsAt })
+        { appealDeadlineAt: c.appealDeadlineAt, restrictionStartsAt: c.restrictionStartsAt, restrictionEndsAt: c.restrictionEndsAt }, tz)
         .catch(async err => {
           console.error('[no-show] sendRedCardEmail failed', { cardId: c.id, err: String(err) })
           await recordEmailFailure({ helper: 'sendRedCardEmail', recipient: c.user.email, error: err, context: { cardId: c.id } })

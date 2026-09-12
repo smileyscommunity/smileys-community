@@ -293,8 +293,8 @@ export default function NewsletterPage() {
   // Edit = load the scheduled newsletter back into the composer. The original
   // row is NOT deleted here: it used to be, on click, so abandoning the edit
   // (or a failed re-schedule) silently cancelled a send nobody meant to cancel.
-  // send() removes the original only after the edited copy is scheduled or
-  // sent — no partial in-place mutation to reason about.
+  // send() passes replacesId, and the API retires the original in the same
+  // request that writes the edited copy — never one without the other.
   function editScheduled(n: SentNewsletter) {
     setSubject(n.subject)
     setBodyHtml(n.bodyHtml)
@@ -305,27 +305,6 @@ export default function NewsletterPage() {
     setEditingId(n.id)
     composerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     toast('Editing scheduled newsletter — the original stays scheduled until you re-schedule or send this one')
-  }
-
-  // Retire the original of an edit once its replacement exists. A failure
-  // here leaves two scheduled rows, which the admin can see and cancel —
-  // unlike the old order, where a failure left none.
-  async function retireEditedOriginal(originalId: string) {
-    try {
-      const res = await fetch('/app/api/admin/newsletter', {
-        method: 'DELETE', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: originalId }),
-      })
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}))
-        toast.error(`${d.error ?? 'Could not cancel the original'} — both copies are still scheduled; cancel the old one below`)
-        return
-      }
-      setHistory(prev => prev.filter(x => x.id !== originalId))
-    } catch {
-      toast.error('Could not cancel the original — both copies are still scheduled; cancel the old one below')
-    }
   }
 
   // One-click weekly digest: pull the next 7 days of published events and drop
@@ -512,15 +491,16 @@ export default function NewsletterPage() {
           segment,
           cityId:       scheduleMode ? undefined : (sendCityId || undefined),
           scheduledFor: scheduleMode ? scheduledFor : undefined,
+          replacesId:   editingId ?? undefined,
         }),
       })
       const d = await res.json().catch(() => ({}))
       if (!res.ok) { toast.error(d?.error ?? 'Send failed'); return }
-      // The edited copy exists now; only now does the original go.
+      // The API retired the original in the same request (replacesId).
       if (editingId) {
         const originalId = editingId
         setEditingId(null)
-        await retireEditedOriginal(originalId)
+        setHistory(prev => prev.filter(x => x.id !== originalId))
       }
 
       if (d.scheduled) {

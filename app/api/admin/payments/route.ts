@@ -64,7 +64,7 @@ export async function GET() {
   // ROW_CAP. Previously the page derived all stats client-side
   // from the row list, which silently understated once the cap
   // kicked in.
-  const [payments, totalCount, paidAgg, pendingCount, byEvent] = await Promise.all([
+  const [payments, totalCount, paidByCurrency, pendingCount, byEvent] = await Promise.all([
     prisma.payment.findMany({
       orderBy: { createdAt: 'desc' },
       take:    ROW_CAP,
@@ -74,7 +74,9 @@ export async function GET() {
       },
     }),
     prisma.payment.count(),
-    prisma.payment.aggregate({
+    // Per currency: one sum across lira and lari is not an amount of anything.
+    prisma.payment.groupBy({
+      by:    ['currency'],
       where: { status: 'paid' },
       _sum:  { amount: true },
     }),
@@ -96,15 +98,15 @@ export async function GET() {
   const eventIds   = [...new Set(byEvent.map(g => g.eventId))]
   const eventMeta  = eventIds.length === 0 ? [] : await prisma.event.findMany({
     where:  { id: { in: eventIds } },
-    select: { id: true, title: true, emoji: true },
+    select: { id: true, title: true, emoji: true, currency: true },
   })
   const metaById = new Map(eventMeta.map(e => [e.id, e]))
   const byEventStats = Object.values(
-    byEvent.reduce<Record<string, { eventId: string; title: string; emoji: string; paidTotal: number; paidCount: number; pendingTotal: number; pendingCount: number }>>((acc, g) => {
+    byEvent.reduce<Record<string, { eventId: string; title: string; emoji: string; currency: string; paidTotal: number; paidCount: number; pendingTotal: number; pendingCount: number }>>((acc, g) => {
       const meta = metaById.get(g.eventId)
       if (!meta) return acc
       if (!acc[g.eventId]) acc[g.eventId] = {
-        eventId: g.eventId, title: meta.title, emoji: meta.emoji,
+        eventId: g.eventId, title: meta.title, emoji: meta.emoji, currency: meta.currency ?? DEFAULT_CURRENCY,
         paidTotal: 0, paidCount: 0, pendingTotal: 0, pendingCount: 0,
       }
       const row = acc[g.eventId]
@@ -120,7 +122,9 @@ export async function GET() {
     payments,
     stats: {
       total:        totalCount,
-      paidSum:      paidAgg._sum.amount ?? 0,
+      paidByCurrency: paidByCurrency
+        .map(g => ({ currency: g.currency ?? DEFAULT_CURRENCY, amount: g._sum.amount ?? 0 }))
+        .sort((a, b) => b.amount - a.amount),
       pendingCount,
       byEvent:      byEventStats,
       rowCap:       ROW_CAP,

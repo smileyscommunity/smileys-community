@@ -20,9 +20,22 @@ export async function autoJoinClub(userId: string, eventId: string): Promise<voi
 
   const club = await prisma.club.findUnique({
     where: { id: event.clubId },
-    select: { isPrivate: true, name: true, slug: true },
+    select: { isPrivate: true, name: true, slug: true, isActive: true, cityId: true },
   })
-  if (!club) return
+  if (!club || !club.isActive) return
+  // Same rule as joining from the club page: a city club is for members of
+  // that city (home, or joined). A visitor RSVPing to an event abroad keeps
+  // their seat but isn't signed up to that city's club behind their back.
+  if (club.cityId) {
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { cityId: true } })
+    if (user?.cityId !== club.cityId) {
+      const joined = await prisma.cityRelationship.findFirst({
+        where:  { userId, cityId: club.cityId, type: 'member' },
+        select: { id: true },
+      })
+      if (!joined) return
+    }
+  }
 
   const status = club.isPrivate ? 'pending' : 'approved'
 

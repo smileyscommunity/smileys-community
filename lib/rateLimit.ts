@@ -1,3 +1,4 @@
+import { isIP } from 'node:net'
 import { prisma } from './prisma'
 
 export async function rateLimit(key: string, limit: number, windowMs: number): Promise<boolean> {
@@ -41,14 +42,14 @@ export async function releaseClaim(key: string): Promise<void> {
   }
 }
 
-// Loose but safe: accepts plain IPv4, IPv6 (with or without brackets),
-// and rejects anything with unexpected characters that could poison a
-// rate-limit key or log line (spaces, semicolons, CRLF injections, etc.).
-const IP_RE = /^[\w.:[\]]+$/
-
+// A real IPv4 or IPv6 address (brackets stripped), nothing else. The old
+// character-class check accepted any word characters, so a bad proxy header
+// like "localhost" or "unknown_host" became a rate-limit bucket of its own;
+// isIP also rejects spaces, semicolons and CRLF that could poison a key or
+// log line.
 function normalizeIp(raw: string): string | null {
   const ip = raw.trim().replace(/^\[|\]$/g, '') // strip IPv6 brackets
-  return IP_RE.test(ip) && ip.length <= 45 ? ip : null
+  return ip.length <= 45 && isIP(ip) !== 0 ? ip : null
 }
 
 export function getIp(req: Request): string {

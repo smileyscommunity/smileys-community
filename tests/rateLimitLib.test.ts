@@ -109,7 +109,8 @@ describe('getIp', () => {
 
   it('rejects values longer than 45 characters', () => {
     expect(getIp(reqWith({ 'x-real-ip': '1'.repeat(46) }))).toBe('unknown')
-    expect(getIp(reqWith({ 'x-real-ip': '1'.repeat(45) }))).toBe('1'.repeat(45))
+    const longest = '0000:0000:0000:0000:0000:ffff:255.255.255.255'   // 45 chars, a valid IPv6
+    expect(getIp(reqWith({ 'x-real-ip': longest }))).toBe(longest)
   })
 
   it('returns "unknown" with no usable header at all', () => {

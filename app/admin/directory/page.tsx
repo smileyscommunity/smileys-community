@@ -223,7 +223,7 @@ function toEditFields(b: Business): EditFields {
   }
 }
 
-function BusinessRow({ b, onAction, neighborhoods, cities }: { b: Business; onAction: () => void; neighborhoods: string[]; cities: { id: string; name: string; slug: string; status: string; isDefault?: boolean }[] }) {
+function BusinessRow({ b, onAction, neighborhoods, neighborhoodsFailed = false, cities }: { b: Business; onAction: () => void; neighborhoods: string[]; neighborhoodsFailed?: boolean; cities: { id: string; name: string; slug: string; status: string; isDefault?: boolean }[] }) {
   const country = useCurrentCity()?.country
   const [expanded,      setExpanded]      = useState(false)
   const [loading,       setLoading]       = useState(false)
@@ -485,6 +485,9 @@ function BusinessRow({ b, onAction, neighborhoods, cities }: { b: Business; onAc
                 )}
                 {neighborhoods.map(n => <option key={n} value={n}>{n}</option>)}
               </select>
+              {neighborhoodsFailed && (
+                <p className="text-[11px] text-amber-400 mt-1">Couldn&apos;t load this city&apos;s neighborhoods. Reload to try again.</p>
+              )}
             </div>
             <div>
               <label className={labelCls}>Address</label>
@@ -1129,6 +1132,7 @@ export default function AdminDirectoryPage() {
   // offered Istanbul's names had its pick dropped to empty.
   const neighborhoods = useCityNeighborhoods()
   const [hoodsByCity, setHoodsByCity] = useState<Record<string, string[]>>({})
+  const [hoodsFailed, setHoodsFailed] = useState<Record<string, boolean>>({})
   const raw          = searchParams.get('status')
   // Tab order is Approved → Pending → Rejected, so the first tab is also
   // the default landing view when no ?status= param is present.
@@ -1150,13 +1154,15 @@ export default function AdminDirectoryPage() {
     for (const slug of rowCitySlugs.split(',')) {
       if (hoodsByCity[slug]) continue
       fetch(`/app/api/neighborhoods?city=${encodeURIComponent(slug)}`, { credentials: 'include' })
-        .then(r => r.json())
+        .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
         .then(d => {
           if (cancelled) return
           const names = (d.neighborhoods ?? []).map((n: { name: string }) => n.name)
           setHoodsByCity(prev => ({ ...prev, [slug]: names }))
         })
-        .catch(() => {})
+        // An empty dropdown with no explanation read as "this city has no
+        // neighborhoods"; the row says the list failed instead.
+        .catch(() => { if (!cancelled) setHoodsFailed(prev => ({ ...prev, [slug]: true })) })
     }
     return () => { cancelled = true }
   // hoodsByCity excluded — it only skips slugs already fetched.
@@ -1239,7 +1245,7 @@ export default function AdminDirectoryPage() {
         </div>
       ) : (
         <div className="space-y-2">
-          {items.map(b => <BusinessRow key={b.id} b={b} onAction={retry} neighborhoods={b.city?.slug ? (hoodsByCity[b.city.slug] ?? []) : neighborhoods} cities={listCities} />)}
+          {items.map(b => <BusinessRow key={b.id} b={b} onAction={retry} neighborhoods={b.city?.slug ? (hoodsByCity[b.city.slug] ?? []) : neighborhoods} neighborhoodsFailed={!!(b.city?.slug && hoodsFailed[b.city.slug])} cities={listCities} />)}
         </div>
       )}
     </div>

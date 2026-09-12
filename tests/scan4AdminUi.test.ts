@@ -40,12 +40,14 @@ describe('event edit: co-host and delete check res.ok (2)', () => {
 describe('newsletter: editing a scheduled send does not delete it up front (3)', () => {
   const src = read('app/admin/newsletter/page.tsx')
   it('editScheduled no longer fetches DELETE', () => {
-    const edit = src.slice(src.indexOf('function editScheduled'), src.indexOf('async function retireEditedOriginal'))
+    const edit = src.slice(src.indexOf('function editScheduled'), src.indexOf('// One-click weekly digest'))
     expect(edit).not.toContain('fetch(')
     expect(edit).toContain('setEditingId(n.id)')
   })
-  it('the original is retired only after the new POST succeeded', () => {
-    expect(src).toMatch(/if \(!res\.ok\) \{ toast\.error\(d\?\.error \?\? 'Send failed'\); return \}\s*\n[\s\S]{0,120}if \(editingId\) \{[\s\S]*?await retireEditedOriginal\(originalId\)/)
+  it('the original leaves the list only after the POST (which retired it server-side) succeeded', () => {
+    // Updated 2026-09-13: the API retires the original with replacesId in the
+    // same request; tests/scan4Followups2 pins the server side.
+    expect(src).toMatch(/if \(!res\.ok\) \{ toast\.error\(d\?\.error \?\? 'Send failed'\); return \}\s*\n[\s\S]{0,120}if \(editingId\) \{[\s\S]*?setHistory\(prev => prev\.filter\(x => x\.id !== originalId\)\)/)
   })
 })
 

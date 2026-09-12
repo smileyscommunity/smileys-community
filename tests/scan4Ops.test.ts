@@ -281,10 +281,12 @@ describe('4 host edit status select', () => {
 })
 
 describe('5 newsletter stuck-sweep comment', () => {
-  it('no longer claims sentAt is the claim time for scheduled issues', () => {
+  it('a scheduled issue is aged from its claim: the claim stamps sentAt', () => {
+    // Updated 2026-09-13: the comment was true, so the code was fixed instead
+    // (tests/scan4Followups2 #3). Pin the stamp, not the prose.
     const src = read('app/api/cron/sweep-newsletters/route.ts')
-    expect(src).not.toMatch(/claim time for every path/)
-    expect(src).toMatch(/a SCHEDULED issue keeps its creation time/)
+    expect(src).toContain("data:  { status: 'sending', sentAt: new Date() },")
+    expect(src).not.toMatch(/a SCHEDULED issue keeps its creation time until it finishes/)
   })
 })
 

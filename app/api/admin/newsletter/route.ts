@@ -152,12 +152,44 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "City-scoped newsletters can't be scheduled yet — send now, or schedule without a city scope." }, { status: 400 })
   }
 
+  // Editing a scheduled issue posts its replacement with replacesId, and the
+  // original is retired in this same request. The page used to DELETE it in a
+  // second call, and a failure there left both copies scheduled to go out. If
+  // the original is no longer scheduled (the sweeper claimed it, or someone
+  // cancelled it), nothing is written.
+  const replacesId    = typeof body?.replacesId === 'string' && body.replacesId ? body.replacesId : null
+  const REPLACED_GONE = { error: 'The original is no longer scheduled — it was sent or cancelled. Nothing was changed.' }
+  const auditReplaced = async () => {
+    if (!replacesId) return
+    await writeAudit(
+      session.id, session.name, 'newsletter.cancel', replacesId, 'newsletter',
+      { subject, replacedByEdit: true },
+      `Replaced a scheduled newsletter with an edited copy "${subject}"`,
+    )
+  }
+
   // For scheduled sends, persist and return early — the sweeper will fire it
   if (scheduledFor && scheduledFor > new Date()) {
-    const newsletter = await prisma.newsletter.create({
-      data: { subject, bodyHtml: safeBodyHtml, segment, recipientCount: 0, sentById: session.id, status: 'scheduled', scheduledFor },
+    const newsletter = await prisma.$transaction(async tx => {
+      if (replacesId) {
+        const gone = await tx.newsletter.deleteMany({ where: { id: replacesId, status: 'scheduled' } })
+        if (gone.count === 0) return null
+      }
+      return tx.newsletter.create({
+        data: { subject, bodyHtml: safeBodyHtml, segment, recipientCount: 0, sentById: session.id, status: 'scheduled', scheduledFor },
+      })
     })
+    if (!newsletter) return NextResponse.json(REPLACED_GONE, { status: 409 })
+    await auditReplaced()
     return NextResponse.json({ ok: true, scheduled: true, newsletterId: newsletter.id, scheduledFor })
+  }
+
+  // Sending an edited copy now: retire the original first, so the sweeper
+  // can't also send it. On a failed send the composer keeps the content.
+  if (replacesId) {
+    const gone = await prisma.newsletter.deleteMany({ where: { id: replacesId, status: 'scheduled' } })
+    if (gone.count === 0) return NextResponse.json(REPLACED_GONE, { status: 409 })
+    await auditReplaced()
   }
 
   const recipients = await prisma.user.findMany({

@@ -1169,10 +1169,11 @@ const policyLine = (color = '#9ca3af') =>
      <a href="${APP_URL}${NO_SHOW_POLICY_PATH}" style="color:${color};text-decoration:underline">How free-event spots work →</a>
    </p>`
 
-function fmtDate(d: Date): string {
-  // Policy dates are member-level, not tied to one event's city; the
-  // founding zone is the agreed fallback for those (see lib/cityTime).
-  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: DEFAULT_TZ })
+function fmtDate(d: Date, tz: string = DEFAULT_TZ): string {
+  // Policy dates are member-level: callers that know the member's city pass
+  // its zone (a Tbilisi red card ending 00:30 on the 15th is the 15th there,
+  // the 14th in Istanbul). The founding zone is only the fallback.
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: tz })
 }
 
 export async function sendYellowCardEmail(
@@ -1214,6 +1215,7 @@ export async function sendRedCardEmail(
   userId: string, email: string, name: string,
   eventTitle: string, eventEmoji: string,
   dates: { appealDeadlineAt: Date; restrictionStartsAt: Date; restrictionEndsAt: Date },
+  tz: string = DEFAULT_TZ,
 ) {
   const unsub     = unsubscribeUrl(userId)
   const firstName = firstNameOf(name)
@@ -1229,8 +1231,8 @@ export async function sendRedCardEmail(
           <p style="color:#6b7280;font-size:14px;margin:0">You had a spot at <strong>${esc(eventTitle)}</strong>, check-in ran, and we didn't see you — the second time in the last few months.</p>
         </div>
         <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:16px 20px;margin-bottom:24px">
-          <p style="color:#991b1b;font-size:14px;margin:0 0 8px"><strong>From ${fmtDate(dates.restrictionStartsAt)} to ${fmtDate(dates.restrictionEndsAt)}</strong> you won't be able to RSVP or join waitlists. Everything else stays open.</p>
-          <p style="color:#991b1b;font-size:14px;margin:0">Think this is wrong? You can appeal until <strong>${fmtDate(dates.appealDeadlineAt)}</strong>, and nothing is paused while an appeal is open.</p>
+          <p style="color:#991b1b;font-size:14px;margin:0 0 8px"><strong>From ${fmtDate(dates.restrictionStartsAt, tz)} to ${fmtDate(dates.restrictionEndsAt, tz)}</strong> you won't be able to RSVP or join waitlists. Everything else stays open.</p>
+          <p style="color:#991b1b;font-size:14px;margin:0">Think this is wrong? You can appeal until <strong>${fmtDate(dates.appealDeadlineAt, tz)}</strong>, and nothing is paused while an appeal is open.</p>
         </div>
         <a href="${url}" style="display:block;text-align:center;background:#f59e0b;color:#fff;font-weight:700;font-size:15px;padding:14px 24px;border-radius:12px;text-decoration:none;margin-bottom:16px">
           Review or appeal →
